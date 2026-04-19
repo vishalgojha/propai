@@ -204,7 +204,7 @@ export default function LeadsPage() {
                                         budget: selectedLead.budget,
                                         location_pref: selectedLead.location_pref,
                                         timeline: selectedLead.timeline,
-                                        possession: selectedH.possession
+                                        possession: selectedLead.possession
                                     }).eq('id', selectedLead.id);
                                     if (error) alert('Failed to save');
                                     else alert('Lead updated!');
