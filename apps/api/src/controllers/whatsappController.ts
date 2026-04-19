@@ -3,8 +3,10 @@ import { sessionManager } from '../whatsapp/SessionManager';
 import { supabase } from '../config/supabase';
 
 export const connectWhatsApp = async (req: Request, res: Response) => {
-    const { tenantId, phoneNumber, label, ownerName } = req.body;
-    if (!tenantId) return res.status(400).json({ error: 'Configuration missing' });
+    const user = (req as any).user;
+    const { phoneNumber, label, ownerName } = req.body;
+    const tenantId = user.id;
+    if (!tenantId) return res.status(400).json({ error: 'User not authenticated' });
 
     try {
         await sessionManager.createSession(
@@ -26,8 +28,9 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
 
 
 export const getQR = async (req: Request, res: Response) => {
-    const { tenantId } = req.query;
-    if (!tenantId) return res.status(400).json({ error: 'Configuration missing' });
+    const user = (req as any).user;
+    const tenantId = user.id;
+    if (!tenantId) return res.status(400).json({ error: 'User not authenticated' });
 
     const qr = sessionManager.getQR(tenantId as string);
     if (!qr) return res.status(404).json({ error: 'Code not ready yet' });
@@ -36,8 +39,9 @@ export const getQR = async (req: Request, res: Response) => {
 };
 
 export const getStatus = async (req: Request, res: Response) => {
-    const { tenantId } = req.query;
-    if (!tenantId) return res.status(400).json({ error: 'Configuration missing' });
+    const user = (req as any).user;
+    const tenantId = user.id;
+    if (!tenantId) return res.status(400).json({ error: 'User not authenticated' });
 
     const { data, error } = await supabase
         .from('whatsapp_sessions')
@@ -51,8 +55,9 @@ export const getStatus = async (req: Request, res: Response) => {
 };
 
 export const disconnectWhatsApp = async (req: Request, res: Response) => {
-    const { tenantId } = req.body;
-    if (!tenantId) return res.status(400).json({ error: 'Configuration missing' });
+    const user = (req as any).user;
+    const tenantId = user.id;
+    if (!tenantId) return res.status(400).json({ error: 'User not authenticated' });
 
     try {
         await sessionManager.removeSession(tenantId);
@@ -64,8 +69,9 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
 };
 
 export const getMessages = async (req: Request, res: Response) => {
-    const { tenantId } = req.query;
-    if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
+    const user = (req as any).user;
+    const tenantId = user.id;
+    if (!tenantId) return res.status(400).json({ error: 'User not authenticated' });
 
     const { data, error } = await supabase
         .from('messages')
@@ -79,9 +85,11 @@ export const getMessages = async (req: Request, res: Response) => {
 };
 
 export const sendMessage = async (req: Request, res: Response) => {
-    const { tenantId, remoteJid, text } = req.body;
+    const user = (req as any).user;
+    const tenantId = user.id;
+    const { remoteJid, text } = req.body;
     if (!tenantId || !remoteJid || !text) {
-        return res.status(400).json({ error: 'tenantId, remoteJid, and text are required' });
+        return res.status(400).json({ error: 'remoteJid and text are required' });
     }
 
     try {

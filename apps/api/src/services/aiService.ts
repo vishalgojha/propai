@@ -11,7 +11,7 @@ interface AIResponse {
 export class AIService {
     private qwenUrl = process.env.QWEN_BASE_URL || 'http://localhost:11434/api/chat';
 
-    async chat(prompt: string, modelPreference: string = 'Local', taskType?: string): Promise<AIResponse> {
+    async chat(prompt: string, modelPreference: string = 'Local', taskType?: string, tenantId?: string): Promise<AIResponse> {
         const start = Date.now();
         
         // Resolve model based on preference or task type routing
@@ -21,7 +21,7 @@ export class AIService {
         }
 
         try {
-            const response = await this.callModel(prompt, modelId);
+            const response = await this.callModel(prompt, modelId, tenantId);
             return {
                 ...response,
                 latency: Date.now() - start
@@ -30,11 +30,12 @@ export class AIService {
             console.error(`AI Error with ${modelId}, falling back...`, error);
             // Fallback chain: Local -> Groq -> Claude
             if (modelId !== 'Claude') {
-                return await this.chat(prompt, modelId === 'Local' ? 'Groq' : 'Claude', taskType);
+                return await this.chat(prompt, modelId === 'Local' ? 'Groq' : 'Claude', taskType, tenantId);
             }
             throw new Error('All AI models failed');
         }
     }
+
 
     private routeByTask(taskType?: string): string {
         switch (taskType) {
@@ -52,17 +53,18 @@ export class AIService {
         }
     }
 
-    private async callModel(prompt: string, modelId: string): Promise<AIResponse> {
+    private async callModel(prompt: string, modelId: string, tenantId?: string): Promise<AIResponse> {
         if (modelId === 'Local') {
             return await this.callQwen(prompt);
         } else if (modelId === 'Groq') {
-            return await this.callGroq(prompt);
+            return await this.callGroq(prompt, tenantId);
         } else if (modelId === 'Google') {
-            return await this.callGemini(prompt);
+            return await this.callGemini(prompt, tenantId);
         } else {
-            return await this.callClaude(prompt);
+            return await this.callClaude(prompt, tenantId);
         }
     }
+
 
     private async callQwen(prompt: string): Promise<AIResponse> {
         const res = await axios.post(this.qwenUrl, {
@@ -77,8 +79,8 @@ export class AIService {
         };
     }
 
-    private async callGroq(prompt: string): Promise<AIResponse> {
-        const key = await keyService.getKey('Groq') || process.env.GROQ_API_KEY || '';
+    private async callGroq(prompt: string, tenantId?: string): Promise<AIResponse> {
+        const key = tenantId ? await keyService.getKey(tenantId, 'Groq') : (process.env.GROQ_API_KEY || '');
         const res = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
             model: 'llama3-8b-8192',
             messages: [{ role: 'user', content: prompt }]
@@ -90,8 +92,9 @@ export class AIService {
         };
     }
 
-    private async callGemini(prompt: string): Promise<AIResponse> {
-        const key = await keyService.getKey('Google') || process.env.GOOGLE_API_KEY || '';
+
+    private async callGemini(prompt: string, tenantId?: string): Promise<AIResponse> {
+        const key = tenantId ? await keyService.getKey(tenantId, 'Google') : (process.env.GOOGLE_API_KEY || '');
         const res = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`, {
             contents: [{ parts: [{ text: prompt }] }]
         });
@@ -102,8 +105,9 @@ export class AIService {
         };
     }
 
-    private async callClaude(prompt: string): Promise<AIResponse> {
-        const key = await keyService.getKey('Anthropic') || process.env.CLAUDE_API_KEY || '';
+
+    private async callClaude(prompt: string, tenantId?: string): Promise<AIResponse> {
+        const key = tenantId ? await keyService.getKey(tenantId, 'Anthropic') : (process.env.CLAUDE_API_KEY || '');
         const res = await axios.post('https://api.anthropic.com/v1/messages', {
             model: 'claude-3-5-sonnet-20240620',
             max_tokens: 1024,
@@ -115,6 +119,7 @@ export class AIService {
             latency: 0 
         };
     }
+
 
     async getStatus() {
         const startQwen = Date.now();

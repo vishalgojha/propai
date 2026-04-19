@@ -187,16 +187,15 @@ export class WhatsAppClient {
 
     private async triggerAgent(remoteJid: string, text: string) {
         try {
-            const { AgentExecutor } = require('../services/AgentExecutor');
-            const executor = new AgentExecutor();
-            const response = await executor.processMessage(this.tenantId, remoteJid, text);
+            const { agentExecutor } = require('../services/AgentExecutor');
+            const response = await agentExecutor.processMessage(this.tenantId, remoteJid, text);
             
             await this.sendText(remoteJid, response);
             
             await supabase.from('messages').insert({
                 tenant_id: this.tenantId,
                 remote_jid: remoteJid,
-                text: response,
+                message_text: response,
                 sender: 'AI'
             });
         } catch (error) {

@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import axios from 'axios';
 
 export const handleWebTool = async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const tenantId = user.id;
     const { tool, args } = req.body;
     
     try {

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Filter, MoreVertical, User, MapPin, DollarSign, Calendar, CheckCircle, Plus, ArrowLeft } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/Badge';
 
@@ -29,6 +29,12 @@ export default function LeadsPage() {
 
     useEffect(() => {
         const loadData = async () => {
+            const supabase = getSupabaseClient();
+            if (!supabase) {
+                router.push('/login');
+                return;
+            }
+
             const { data: userData } = await supabase.auth.getUser();
             if (!userData.user) {
                 router.push('/login');
@@ -42,6 +48,11 @@ export default function LeadsPage() {
     }, [router]);
 
     const fetchLeads = async (tenantId: string) => {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            return;
+        }
+
         const { data, error } = await supabase
             .from('leads')
             .select('*')
@@ -51,6 +62,12 @@ export default function LeadsPage() {
     };
 
     const updateStatus = async (leadId: string, newStatus: Lead['status']) => {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            alert('Supabase is not configured.');
+            return;
+        }
+
         const { error } = await supabase
             .from('leads')
             .update({ status: newStatus })
@@ -200,6 +217,12 @@ export default function LeadsPage() {
 
                             <button 
                                 onClick={async () => {
+                                    const supabase = getSupabaseClient();
+                                    if (!supabase) {
+                                        alert('Supabase is not configured.');
+                                        return;
+                                    }
+
                                     const { error } = await supabase.from('leads').update({ 
                                         budget: selectedLead.budget,
                                         location_pref: selectedLead.location_pref,

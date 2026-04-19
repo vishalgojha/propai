@@ -10,7 +10,7 @@ import {
     ArrowLeft,
     MessageSquare
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { AIProcessing } from '@/components/ui/AIProcessing';
 import { Badge } from '@/components/ui/Badge';
@@ -32,6 +32,12 @@ export default function MessagesView() {
 
     useEffect(() => {
         const getUser = async () => {
+            const supabase = getSupabaseClient();
+            if (!supabase) {
+                router.push('/login');
+                return;
+            }
+
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) router.push('/login');
             else setUser(user);
@@ -49,7 +55,7 @@ export default function MessagesView() {
 
     const fetchMessages = async () => {
         try {
-            const res = await fetch(`http://localhost:3001/api/whatsapp/messages?tenantId=${user.id}`);
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/messages?tenantId=${user.id}`);
             const data = await res.json();
             setMessages(data);
         } catch (e) {
@@ -72,7 +78,7 @@ export default function MessagesView() {
         }]);
 
         try {
-            await fetch('http://localhost:3001/api/whatsapp/send', {
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/send`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 

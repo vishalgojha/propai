@@ -7,6 +7,8 @@ const COQUI_URL = process.env.COQUI_TTS_URL || 'http://coqui-tts:5002';
 const OLLAMA_URL = process.env.QWEN_BASE_URL?.replace('/api/chat', '') || 'http://ollama:11434';
 
 export const speak = async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const tenantId = user.id;
     const { text, speaker_id = 'p270' } = req.body;
     if (!text) return res.status(400).json({ error: 'Text is required' });
 
@@ -27,6 +29,8 @@ export const speak = async (req: Request, res: Response) => {
 };
 
 export const listen = async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const tenantId = user.id;
     // We expect audio as a blob. For simplicity in this demo, we'll assume 
     // the client sends a file or raw buffer.
     try {

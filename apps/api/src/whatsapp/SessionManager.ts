@@ -74,8 +74,15 @@ export class SessionManager {
         return this.qrs.get(key || '');
     }
 
-    async removeSession(tenantId: string, sessionKey: string) {
-        const fullKey = `${tenantId}:${sessionKey}`;
+    async removeSession(tenantId: string, sessionKey?: string) {
+        const fullKey = sessionKey
+            ? `${tenantId}:${sessionKey}`
+            : Array.from(this.clients.keys()).find((key) => key.startsWith(`${tenantId}:`));
+
+        if (!fullKey) {
+            return;
+        }
+
         const client = this.clients.get(fullKey);
         if (client) {
             await client.disconnect();

@@ -1,6 +1,7 @@
 import { aiService } from './aiService';
 import { sessionManager } from '../whatsapp/SessionManager';
 import { supabase } from '../config/supabase';
+import { safeJSONParse } from '../utils/jsonUtils';
 // Remove the direct import that causes TS issues in test
 // import { PropAITools } from '../../../packages/agent/src/tools';
 
@@ -20,7 +21,9 @@ export class AgentExecutor {
             while (iterations < MAX_ITERATIONS) {
                 const response = await aiService.chat(
                     currentMessages.map(m => (m as any).content).join('\\n'), 
-                    'Local'
+                    'Local',
+                    undefined,
+                    tenantId
                 );
 
                 const toolCall = this.parseToolCall(response.text);
@@ -85,8 +88,8 @@ export class AgentExecutor {
                 return await (client as any).sendText(args.remote_jid, args.text);
             }
             case 'parse_listing': {
-                const res = await aiService.chat(`Extract structured listing data: ${args.text}`, 'Local');
-                return JSON.parse(res.text);
+                const res = await aiService.chat(`Extract structured listing data: ${args.text}`, 'Local', 'listing_parsing', tenantId);
+                return safeJSONParse(res.text);
             }
             case 'save_listing': {
                 const { data, error } = await supabase.from('listings').insert({
