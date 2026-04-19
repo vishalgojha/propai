@@ -424,14 +424,15 @@ export default function Inbox() {
                                             <option>Approval</option>
                                         </select>
                                     </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm text-gray-400">Tone</span>
-                                        <select className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none">
-                                            <option>Professional</option>
-                                            <option>Friendly</option>
-                                            <option>Hinglish</option>
-                                        </select>,
-                                    </div>
+                                      <div className="flex justify-between items-center">
+                                          <span className="text-sm text-gray-400">Tone</span>
+                                          <select className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none">
+                                              <option>Professional</option>
+                                              <option>Friendly</option>
+                                              <option>Hinglish</option>
+                                          </select>
+                                      </div>
+
                                 </div>
                             </div>
 

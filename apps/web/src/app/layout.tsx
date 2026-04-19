@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Quicksand }, { Quicksand } from 'next/font/google';
+import { Quicksand } from 'next/font/google';
 import './globals.css';
 
 const quicksand = Quicksand({ 
