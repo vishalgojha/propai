@@ -169,108 +169,104 @@ export default function LeadsPage() {
                             </button>
                         </div>
 
-                        <div className="space-y-8">
-                            <div className="flex items-center gap-4 p-4 glass rounded-2xl">
-                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600" />
-                                <div>
-                                    <p className="font-bold text-lg">Contact {selectedLead.contact_id.slice(0, 8)}</p>
-                                    <Badge variant="connected">{selectedLead.status}</Badge>
+                                <div className="space-y-8">
+                                    <div className="flex items-center gap-4 p-4 glass rounded-2xl">
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600" />
+                                        <div>
+                                            <p className="font-bold text-lg">Contact {selectedLead.contact_id.slice(0, 8)}</p>
+                                            <Badge variant="connected">{selectedLead.status}</Badge>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-6">
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-gray-500 uppercase font-bold tracking-widest">Budget</label>
+                                            <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl">
+                                                <DollarSign className="w-4 h-4 text-blue-400" />
+                                                <input 
+                                                    type="text" 
+                                                    value={selectedLead.budget || ''} 
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setSelectedLead({...selectedLead, budget: val});
+                                                    }}
+                                                    className="bg-transparent outline-none w-full text-sm"
+                                                    placeholder="e.g. 2-3 Cr"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-gray-500 uppercase font-bold tracking-widest">Preferred Location</label>
+                                            <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl">
+                                                <MapPin className="w-4 h-4 text-blue-400" />
+                                                <input 
+                                                    type="text" 
+                                                    value={selectedLead.location_pref || ''} 
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setSelectedLead({...selectedLead, location_pref: val});
+                                                    }}
+                                                    className="bg-transparent outline-none w-full text-sm"
+                                                    placeholder="e.g. Sector 62, Gurgaon"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-gray-500 uppercase font-bold tracking-widest">Timeline</label>
+                                            <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl">
+                                                <Calendar className="w-4 h-4 text-blue-400" />
+                                                <input 
+                                                    type="text" 
+                                                    value={selectedLead.timeline || ''} 
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setSelectedLead({...selectedLead, timeline: val});
+                                                    }}
+                                                    className="bg-transparent outline-none w-full text-sm"
+                                                    placeholder="e.g. Within 3 months"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-gray-500 uppercase font-bold tracking-widest">Possession</label>
+                                            <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl">
+                                                <CheckCircle className="w-4 h-4 text-blue-400" />
+                                                <input 
+                                                    type="text" 
+                                                    value={selectedLead.possession || ''} 
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setSelectedLead({...selectedLead, possession: val});
+                                                    }}
+                                                    className="bg-transparent outline-none w-full text-sm"
+                                                    placeholder="e.g. Ready to move"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={async () => {
+                                            const { error } = await supabase
+                                                .from('leads')
+                                                .update({ 
+                                                    budget: selectedLead.budget,
+                                                    location_pref: selectedLead.location_pref,
+                                                    timeline: selectedLead.timeline,
+                                                    possession: selectedLead.possession
+                                                })
+                                                .eq('id', selectedLead.id);
+                                            if (error) alert('Failed to save');
+                                            else alert('Lead updated!');
+                                        }}
+                                        className="btn-primary w-full py-3 font-bold"
+                                    >
+                                        Save Changes
+                                    </button>
                                 </div>
                             </div>
+                        </motion.div>
+                        )}
+                    </AnimatePresence>
 
-                            <div className="space-y-6">
-                                <div className="space-y-2">
-                                    <label className="text-xs text-gray-500 uppercase font-bold tracking-widest">Budget</label>
-                                    <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl">
-                                        <DollarSign className="w-4 h-4 text-blue-400" />
-                                        <input 
-                                            type="text" 
-                                            value={selectedLead.budget || ''} 
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                setSelectedLead({...selectedLead, budget: val});
-                                            }}
-                                            className="bg-transparent outline-none w-full text-sm"
-                                            placeholder="e.g. 2-3 Cr"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-xs text-gray-500 uppercase font-bold tracking-widest">Preferred Location</label>
-                                    <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl">
-                                        <MapPin className="w-4 h-4 text-blue-400" />
-                                        <input 
-                                            type="text" 
-                                            value={selectedLead.location_pref || ''} 
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                setSelectedLead({...selectedLead, location_pref: val});
-                                            }}
-                                            className="bg-transparent outline-none w-full text-sm"
-                                            placeholder="e.g. Sector 62, Gurgaon"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-xs text-gray-500 uppercase font-bold tracking-widest">Timeline</label>
-                                    <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl">
-                                        <Calendar className="w-4 h-4 text-blue-400" />
-                                        <input 
-                                            type="text" 
-                                            value={selectedLead.timeline || ''} 
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                setSelectedLead({...selectedLead, timeline: val});
-                                            }}
-                                            className="bg-transparent outline-none w-full text-sm"
-                                            placeholder="e.g. Within 3 months"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-xs text-gray-500 uppercase font-bold tracking-widest">Possession</label>
-                                    <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl">
-                                        <CheckCircle className="w-4 h-4 text-blue-400" />
-                                        <input 
-                                            type="text" 
-                                            value={selectedLead.possession || ''} 
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                setSelectedLead({...selectedLead, possession: val});
-                                            }}
-                                            className="bg-transparent outline-none w-full text-sm"
-                                            placeholder="e.g. Ready to move"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button 
-                                onClick={async () => {
-                                    const { error } = await supabase
-                                        .from('leads')
-                                        .update({ 
-                                            budget: selectedLead.budget,
-                                            location_pref: selectedLead.location_pref,
-                                            timeline: selectedLead.timeline,
-                                            possession: selectedLead.possession
-                                        })
-                                        .eq('id', selectedLead.id);
-                                    if (error) alert('Failed to save');
-                                    else alert('Lead updated!');
-                                }}
-                                className="btn-primary w-full py-3 font-bold"
-                            >
-                                Save Changes
-                            </button>
-                        </div>
-                                 </div>
-                             </motion.div>
-                         )}
-                     </AnimatePresence>
 
         </div>
     );
