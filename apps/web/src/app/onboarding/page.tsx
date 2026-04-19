@@ -197,7 +197,7 @@ export default function Onboarding() {
                                         </div>
                                     )}
                                 </div>
-                            </motionCdiv>
+                            </motion.div>
                         ))}
                     </AnimatePresence>
                 </div>
