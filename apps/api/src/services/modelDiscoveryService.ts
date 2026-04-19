@@ -43,11 +43,11 @@ const STATIC_FALLBACKS: Record<string, ModelInfo[]> = {
 };
 
 export class ModelDiscoveryService {
-    private async getApiKey(provider: string): Promise<string | null> {
-        return await keyService.getKey(provider);
+    private async getApiKey(tenantId: string, provider: string): Promise<string | null> {
+        return await keyService.getKey(tenantId, provider);
     }
 
-    async discoverModels(): Promise<ModelInfo[]> {
+    async discoverModels(tenantId: string): Promise<ModelInfo[]> {
         const cacheKey = 'all_models_cache';
         const { data: cached } = await supabase
             .from('model_cache')
@@ -63,7 +63,7 @@ export class ModelDiscoveryService {
         let allModels: ModelInfo[] = [];
 
         for (const provider of providers) {
-            const key = await this.getApiKey(provider);
+            const key = await this.getApiKey(tenantId, provider);
             
             if (!key && provider !== 'Local' && provider !== 'Anthropic') {
                 allModels.push(...STATIC_FALLBACKS[provider] || []);

@@ -2,19 +2,20 @@ import axios from 'axios';
 import { supabase } from '../config/supabase';
 
 export class KeyService {
-    async saveKey(provider: string, key: string): Promise<{ success: boolean; error?: string }> {
+    async saveKey(tenantId: string, provider: string, key: string): Promise<{ success: boolean; error?: string }> {
         const { error } = await supabase
             .from('api_keys')
-            .upsert({ provider, key, updated_at: new Date().toISOString() }, { onConflict: 'provider' });
+            .upsert({ tenant_id: tenantId, provider, key, updated_at: new Date().toISOString() }, { onConflict: 'tenant_id, provider' });
 
         if (error) return { success: false, error: error.message };
         return { success: true };
     }
 
-    async getKey(provider: string): Promise<string | null> {
+    async getKey(tenantId: string, provider: string): Promise<string | null> {
         const { data, error } = await supabase
             .from('api_keys')
             .select('key')
+            .eq('tenant_id', tenantId)
             .eq('provider', provider)
             .single();
 
@@ -22,8 +23,8 @@ export class KeyService {
         return data.key;
     }
 
-    async testConnection(provider: string): Promise<{ success: boolean; error?: string }> {
-        const key = await this.getKey(provider);
+    async testConnection(tenantId: string, provider: string): Promise<{ success: boolean; error?: string }> {
+        const key = await this.getKey(tenantId, provider);
         if (!key) return { success: false, error: 'API key not found' };
 
         try {
@@ -54,6 +55,4 @@ export class KeyService {
         }
     }
 }
-
-import axios from 'axios';
 export const keyService = new KeyService();

@@ -1,18 +1,8 @@
-# Backend Dockerfile
 FROM node:20-slim
 WORKDIR /app
-
-# Install dependencies
 COPY package*.json ./
 RUN npm install
-
-# Copy source code
 COPY . .
-
-# Compile TypeScript to JavaScript
-# We use npx tsc without -p . to allow it to find the tsconfig automatically
-RUN npx tsc
-
-# Start the compiled JavaScript
+RUN npm run build
 EXPOSE 3001
-CMD ["npm", "start"]
+CMD ["node", "dist/index.js"]
