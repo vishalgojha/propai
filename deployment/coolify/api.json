@@ -1,0 +1,19 @@
+{
+  "name": "propai-api",
+  "build": {
+    "type": "dockerfile",
+    "dockerfile": "Dockerfile",
+    "context": "/app"
+  },
+  "environment": {
+    "PORT": "3001",
+    "QWEN_BASE_URL": "http://ollama:11434/api/chat",
+    "SUPABASE_URL": "variable",
+    "SUPABASE_ANON_KEY": "variable"
+  },
+  "network": "propai-network",
+  "healthcheck": {
+    "path": "/health",
+    "port": 3001
+  }
+}
