@@ -6,9 +6,9 @@ services:
     ports:
       - "3001:3001"
     env_file:
-      - ../apps/api/.env
+      - apps/api/.env
     volumes:
-      - ../apps/api/sessions:/app/sessions
+      - apps/api/sessions:/app/sessions
     restart: always
     networks:
       - propai-network
@@ -20,7 +20,7 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - ../apps/web/.env
+      - apps/web/.env
     depends_on:
       - backend
     restart: always
