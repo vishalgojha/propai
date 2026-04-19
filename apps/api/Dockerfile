@@ -10,7 +10,7 @@ RUN npm install
 COPY . .
 
 # Compile TypeScript to JavaScript
-# Since we are in /app and the tsconfig is here, this should work.
+# We use npx tsc without -p . to allow it to find the tsconfig automatically
 RUN npx tsc
 
 # Start the compiled JavaScript
