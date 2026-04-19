@@ -407,15 +407,8 @@ export default function Inbox() {
                                         }}
                                     />
                                 </div>
-                                <div className="mt-4 space-y-4">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm text-gray-400">Mode</span>
-                                        <select className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none">
-                                            <option>Listen Only</option>
-                                            <option>Auto-Reply</option>
-                                            <option>Broadcast</option>
-                                        </select>
-                                    </div>
+                </Panel>
+
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm text-gray-400">Timing</span>
                                         <select className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none">
