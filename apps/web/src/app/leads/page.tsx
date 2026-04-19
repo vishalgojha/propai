@@ -53,7 +53,7 @@ export default function LeadsPage() {
     const updateStatus = async (leadId: string, newStatus: Lead['status']) => {
         const { error } = await supabase
             .from('leads')
-            .update({ status: new sameStatus })
+            .update({ status: newStatus })
             .eq('id', leadId);
         
         if (error) {
