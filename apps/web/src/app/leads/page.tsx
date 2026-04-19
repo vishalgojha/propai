@@ -267,9 +267,11 @@ export default function LeadsPage() {
                                 Save Changes
                             </button>
                         </div>
-                    </div>
-                </motion.div>
-            </AnimatePresence>
+                                 </div>
+                             </motion.div>
+                         )}
+                     </AnimatePresence>
+
         </div>
     );
 }
