@@ -1,6 +1,6 @@
 services:
   backend:
-    build: 
+    build:
       context: ..
       dockerfile: apps/api/Dockerfile
     ports:
@@ -9,12 +9,12 @@ services:
       - apps/api/.env
     volumes:
       - backend_sessions:/app/sessions
-    restart: always
     networks:
       - propai-network
+    restart: always
 
   frontend:
-    build: 
+    build:
       context: ..
       dockerfile: apps/web/Dockerfile
     ports:
@@ -23,9 +23,20 @@ services:
       - apps/web/.env
     depends_on:
       - backend
-    restart: always
     networks:
       - propai-network
+    restart: always
+
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    networks:
+      - propai-network
+    restart: always
 
   caddy:
     image: caddy:latest
@@ -42,17 +53,6 @@ services:
     depends_on:
       - frontend
       - backend
-
-  ollama:
-    image: ollama/ollama
-    container_name: ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama:/root/.ollama
-    restart: always
-    networks:
-      - propai-network
 
   # coqui-tts:
   #   image: ghcr.io/coqui-ai/tts-cpu
@@ -72,7 +72,6 @@ networks:
 
 volumes:
   ollama:
-  # tts_models:
+  backend_sessions:
   caddy_data:
   caddy_config:
-  backend_sessions:
