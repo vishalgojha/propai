@@ -6,7 +6,7 @@ services:
     ports:
       - "3001:3001"
     env_file:
-      - ../apps/api/.env
+      - apps/api/.env
     volumes:
       - backend_sessions:/app/sessions
     restart: always
@@ -20,7 +20,7 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - ../apps/web/.env
+      - apps/web/.env
     depends_on:
       - backend
     restart: always
@@ -54,17 +54,17 @@ services:
     networks:
       - propai-network
 
-  coqui-tts:
-    image: ghcr.io/coqui-ai/tts-cpu
-    container_name: coqui-tts
-    ports:
-      - "5002:5002"
-    volumes:
-      - tts_models:/root/.local/share/tts
-    command: python3 TTS/server/server.py --model_name tts_models/en/vctk/vits --port 5002
-    restart: unless-stopped
-    networks:
-      - propai-network
+  # coqui-tts:
+  #   image: ghcr.io/coqui-ai/tts-cpu
+  #   container_name: coqui-tts
+  #   ports:
+  #     - "5002:5002"
+  #   volumes:
+  #     - tts_models:/root/.local/share/tts
+  #   command: python3 TTS/server/server.py --model_name tts_models/en/vctk/vits --port 5002
+  #   restart: unless-stopped
+  #   networks:
+  #     - propai-network
 
 networks:
   propai-network:
@@ -72,7 +72,7 @@ networks:
 
 volumes:
   ollama:
-  tts_models:
+  # tts_models:
   caddy_data:
   caddy_config:
   backend_sessions:
