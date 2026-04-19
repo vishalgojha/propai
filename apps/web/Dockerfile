@@ -17,9 +17,9 @@ RUN pnpm install
 # Copy the rest of the project
 COPY . .
 
-# Bypass the strict turbo build and just build the next app
+# Build the project - FORCING WEBPACK to avoid Turbopack parsing bugs
 WORKDIR /app/apps/web
-RUN npm run build
+RUN NEXT_TURBOPACK_DISABLED=1 npm run build
 
 # Production stage
 FROM node:20-slim
