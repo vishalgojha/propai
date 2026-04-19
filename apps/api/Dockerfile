@@ -9,8 +9,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Run tsc directly instead of via turbo to avoid package manager binary issues in the container
-RUN npx tsc
+# Compile TypeScript to JavaScript
+# We use tsc -p . to ensure it uses the tsconfig.json in the current directory
+RUN npx tsc -p .
 
 # Start the compiled JavaScript
 EXPOSE 3001
