@@ -24,7 +24,8 @@ export default function Onboarding() {
             if (!user) router.push('/login');
             else {
                 setUser(user);
-                addMessage('ai', `Hi ${user.full_name || 'there'}! I'm your PropAI Agent. Let's get your WhatsApp connected so I can start syncing your leads. 🚀`);
+                                        addMessage('ai', `Hi ${user.user_metadata?.full_name || user.email?.split('@')[0] || 'there'}! I'm your PropAI Agent. Let's get your WhatsApp connected so I can start syncing your leads. 🚀`);
+
             }
         };
         getUser();
@@ -199,6 +200,7 @@ export default function Onboarding() {
                                 </div>
                             </motion.div>
                         ))}
+
                     </AnimatePresence>
                 </div>
 
