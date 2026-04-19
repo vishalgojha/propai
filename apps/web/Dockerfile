@@ -1,16 +1,33 @@
 # Frontend Dockerfile
 FROM node:20-slim AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
 
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy workspace configuration
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/web/package.json ./apps/web/
+
+# Install dependencies
+RUN pnpm install
+
+# Copy the rest of the project
+COPY . .
+
+# Build the project
+RUN pnpm run build
+
+# Production stage
 FROM node:20-slim
 WORKDIR /app
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/package*.json ./
+RUN npm install -g pnpm
+
+# Copy built assets from builder
+COPY --from=builder /app/apps/web/.next ./.next
+COPY --from=builder /app/apps/web/public ./public
+COPY --from=builder /app/apps/web/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
+
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["pnpm", "start"]
