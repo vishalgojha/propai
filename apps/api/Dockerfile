@@ -1,9 +1,16 @@
 # Backend Dockerfile
 FROM node:20-slim
 WORKDIR /app
+
+# Install dependencies
 COPY package*.json ./
 RUN npm install
+
+# Copy source code
 COPY . .
-# We skip the build step to avoid TS errors during deployment
+
+# Ensure ts-node and typescript are available
+RUN npm install -g ts-node typescript
+
 EXPOSE 3001
 CMD ["npx", "ts-node", "src/index.ts"]
