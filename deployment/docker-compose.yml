@@ -8,7 +8,7 @@ services:
     env_file:
       - apps/api/.env
     volumes:
-      - apps/api/sessions:/app/sessions
+      - backend_sessions:/app/sessions
     restart: always
     networks:
       - propai-network
@@ -75,3 +75,4 @@ volumes:
   tts_models:
   caddy_data:
   caddy_config:
+  backend_sessions:
