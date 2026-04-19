@@ -9,8 +9,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Ensure ts-node and typescript are available
-RUN npm install -g ts-node typescript
+# Build TypeScript to JavaScript
+RUN npm run build
 
+# Start the compiled JavaScript
 EXPOSE 3001
-CMD ["npx", "ts-node", "src/index.ts"]
+CMD ["npm", "start"]
