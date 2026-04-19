@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Lock, Phone, ArrowRight } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
 export default function AuthPage() {
@@ -13,6 +13,12 @@ export default function AuthPage() {
     const router = useRouter();
 
     const handleSendOtp = async () => {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            alert('Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
+            return;
+        }
+
         setLoading(true);
         const { error } = await supabase.auth.signInWithOtp({ phone });
         if (error) {
@@ -24,6 +30,12 @@ export default function AuthPage() {
     };
 
     const handleVerifyOtp = async () => {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            alert('Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
+            return;
+        }
+
         setLoading(true);
         const { data, error } = await supabase.auth.verifyOtp({ 
             phone, 

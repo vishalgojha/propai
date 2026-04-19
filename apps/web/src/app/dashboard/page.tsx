@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, MessageSquare, Phone, Video, Send, Mic, MicOff } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/Badge';
 import { ModelSelector } from '@/components/ui/ModelSelector';
@@ -40,6 +40,12 @@ export default function Dashboard() {
 
     useEffect(() => {
         const getUser = async () => {
+            const supabase = getSupabaseClient();
+            if (!supabase) {
+                router.push('/login');
+                return;
+            }
+
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) router.push('/login');
             else {
@@ -52,6 +58,11 @@ export default function Dashboard() {
     }, [router]);
 
     const subscribeToEvents = (userId: string) => {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            return () => {};
+        }
+
         const channel = supabase
             .channel('agent-events')
             .on('postgres_changes', { 
@@ -76,9 +87,18 @@ export default function Dashboard() {
         }
     }, [user, selectedChat]);
 
+    useEffect(() => {
+        if (messages.length > 0) {
+            const lastMsg = messages[messages.length - 1];
+            if (!lastMsg.id.includes('Date.now')) {
+                speak(lastMsg.message_text);
+            }
+        }
+    }, [messages]);
+
     const fetchStatus = async () => {
         try {
-            const res = await fetch(`http://localhost:3001/api/whatsapp/status?tenantId=${user.id}`);
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/status?tenantId=${user.id}`);
             const data = await res.json();
             setStatus(data.status);
         } catch (e) {}
@@ -86,14 +106,14 @@ export default function Dashboard() {
 
     const fetchMessages = async () => {
         try {
-            const res = await fetch(`http://localhost:3001/api/whatsapp/messages?tenantId=${user.id}`);
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/messages?tenantId=${user.id}`);
             const data = await res.json();
             setMessages(data);
         } catch (e) {}
     };
 
     const connectWhatsApp = async () => {
-        await fetch('http://localhost:3001/api/whatsapp/connect', {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/connect`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tenantId: user.id }),
@@ -107,7 +127,7 @@ export default function Dashboard() {
         setMessages(prev => [...prev, { id: Date.now().toString(), remote_jid: selectedChat, message_text: text, timestamp: new Date().toISOString() }]);
         
         try {
-            await fetch('http://localhost:3001/api/whatsapp/send', {
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/send`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tenantId: user.id, remoteJid: selectedChat, text }),
@@ -126,20 +146,70 @@ export default function Dashboard() {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const mediaRecorder = new MediaRecorder(stream);
             mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+            
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+            
             mediaRecorder.start();
         } catch (e) {
+            console.error('Microphone access denied:', e);
             setIsRecording(false);
         }
     };
 
-    const stopRecording = () => {
+    const stopRecording = async () => {
         if (mediaRecorderRef.current) {
             mediaRecorderRef.current.stop();
             mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
         }
         setIsRecording(false);
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        
+        try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/voice/listen`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'audio/wav' },
+                body: audioBlob,
+            });
+            
+            if (!response.ok) throw new Error('STT request failed');
+            
+            const data = await response.json();
+            const transcript = data.transcript;
+            
+            if (transcript) {
+                setInputText(transcript);
+                // Optionally automatically send the message
+                // handleSend(transcript); 
+            }
+        } catch (e) {
+            console.error('STT Error:', e);
+        }
     };
 
+    const speak = async (text: string) => {
+        try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/voice/speak`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text }),
+            });
+            
+            if (!response.ok) throw new Error('TTS request failed');
+            
+            const audioBlob = await response.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            audio.play();
+        } catch (e) {
+            console.error('TTS Error:', e);
+        }
+    };
     const conversations = Array.from(new Set(messages.map(m => m.remote_jid))).map(jid => {
         const chatMsgs = messages.filter(m => m.remote_jid === jid);
         return { jid, lastMsg: chatMsgs[chatMsgs.length - 1] };
