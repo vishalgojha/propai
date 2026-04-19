@@ -1,23 +1,26 @@
-version: '3.8'
 services:
   backend:
-    build: ../backend
+    build: 
+      context: ..
+      dockerfile: apps/api/Dockerfile
     ports:
       - "3001:3001"
     env_file:
-      - ../backend/.env
+      - ../apps/api/.env
     volumes:
-      - ../backend/sessions:/app/sessions
+      - ../apps/api/sessions:/app/sessions
     restart: always
     networks:
       - propai-network
 
   frontend:
-    build: ../frontend
+    build: 
+      context: ..
+      dockerfile: apps/web/Dockerfile
     ports:
       - "3000:3000"
     env_file:
-      - ../frontend/.env
+      - ../apps/web/.env
     depends_on:
       - backend
     restart: always
