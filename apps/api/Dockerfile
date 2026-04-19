@@ -10,8 +10,8 @@ RUN npm install
 COPY . .
 
 # Compile TypeScript to JavaScript
-# We use tsc -p . to ensure it uses the tsconfig.json in the current directory
-RUN npx tsc -p .
+# Since we are in /app and the tsconfig is here, this should work.
+RUN npx tsc
 
 # Start the compiled JavaScript
 EXPOSE 3001
