@@ -27,6 +27,22 @@ services:
     networks:
       - propai-network
 
+  caddy:
+    image: caddy:latest
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - propai-network
+    depends_on:
+      - frontend
+      - backend
+
   ollama:
     image: ollama/ollama
     container_name: ollama
@@ -57,3 +73,5 @@ networks:
 volumes:
   ollama:
   tts_models:
+  caddy_data:
+  caddy_config:

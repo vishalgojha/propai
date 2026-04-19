@@ -1,0 +1,7 @@
+app.propai.live, www.propai.live {
+    reverse_proxy frontend:3000
+}
+
+api.propai.live {
+    reverse_proxy backend:3001
+}
