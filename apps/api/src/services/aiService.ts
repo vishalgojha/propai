@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { supabase } from '../config/supabase';
+import { keyService } from './keyService';
 
 interface AIResponse {
     text: string;
@@ -9,30 +10,57 @@ interface AIResponse {
 
 export class AIService {
     private qwenUrl = process.env.QWEN_BASE_URL || 'http://localhost:11434/api/chat';
-    private groqKey = process.env.GROQ_API_KEY || '';
-    private claudeKey = process.env.CLAUDE_API_KEY || '';
 
-    async chat(prompt: string, modelPreference: string = 'Local'): Promise<AIResponse> {
+    async chat(prompt: string, modelPreference: string = 'Local', taskType?: string): Promise<AIResponse> {
         const start = Date.now();
         
+        // Resolve model based on preference or task type routing
+        let modelId = modelPreference;
+        if (!modelId || modelId === 'Auto') {
+            modelId = this.routeByTask(taskType);
+        }
+
         try {
-            if (modelPreference === 'Local' || !modelPreference) {
-                return await this.callQwen(prompt);
-            } else if (modelPreference === 'Groq') {
-                return await this.callGroq(prompt);
-            } else {
-                return await this.callClaude(prompt);
-            }
+            const response = await this.callModel(prompt, modelId);
+            return {
+                ...response,
+                latency: Date.now() - start
+            };
         } catch (error) {
-            console.error(`AI Error with ${modelPreference}, falling back...`, error);
-            // Fallback chain: Qwen -> Groq -> Claude
-            if (modelPreference !== 'Claude') {
-                return await this.chat(prompt, modelPreference === 'Local' ? 'Groq' : 'Claude');
+            console.error(`AI Error with ${modelId}, falling back...`, error);
+            // Fallback chain: Local -> Groq -> Claude
+            if (modelId !== 'Claude') {
+                return await this.chat(prompt, modelId === 'Local' ? 'Groq' : 'Claude', taskType);
             }
             throw new Error('All AI models failed');
-        } finally {
-            const latency = Date.now() - start;
-            // Log latency to Supabase or memory (here we just return it)
+        }
+    }
+
+    private routeByTask(taskType?: string): string {
+        switch (taskType) {
+            case 'quick_reply':
+            case 'listing_parsing':
+                return 'Local';
+            case 'lead_qualification':
+                return 'Google'; // Gemma 4
+            case 'rera_summary':
+                return 'Claude'; // Claude Haiku
+            case 'complex_reasoning':
+                return 'Claude'; // Claude Sonnet or GPT-4o
+            default:
+                return 'Local';
+        }
+    }
+
+    private async callModel(prompt: string, modelId: string): Promise<AIResponse> {
+        if (modelId === 'Local') {
+            return await this.callQwen(prompt);
+        } else if (modelId === 'Groq') {
+            return await this.callGroq(prompt);
+        } else if (modelId === 'Google') {
+            return await this.callGemini(prompt);
+        } else {
+            return await this.callClaude(prompt);
         }
     }
 
@@ -45,15 +73,16 @@ export class AIService {
         return { 
             text: res.data.message.content, 
             model: 'Qwen3 Local', 
-            latency: 0 // calculated in main chat()
+            latency: 0 
         };
     }
 
     private async callGroq(prompt: string): Promise<AIResponse> {
+        const key = await keyService.getKey('Groq') || process.env.GROQ_API_KEY || '';
         const res = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
             model: 'llama3-8b-8192',
             messages: [{ role: 'user', content: prompt }]
-        }, { headers: { Authorization: `Bearer ${this.groqKey}` } });
+        }, { headers: { Authorization: `Bearer ${key}` } });
         return { 
             text: res.data.choices[0].message.content, 
             model: 'Groq Llama3', 
@@ -61,12 +90,25 @@ export class AIService {
         };
     }
 
+    private async callGemini(prompt: string): Promise<AIResponse> {
+        const key = await keyService.getKey('Google') || process.env.GOOGLE_API_KEY || '';
+        const res = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`, {
+            contents: [{ parts: [{ text: prompt }] }]
+        });
+        return { 
+            text: res.data.candidates[0].content.parts[0].text, 
+            model: 'Gemini Pro', 
+            latency: 0 
+        };
+    }
+
     private async callClaude(prompt: string): Promise<AIResponse> {
+        const key = await keyService.getKey('Anthropic') || process.env.CLAUDE_API_KEY || '';
         const res = await axios.post('https://api.anthropic.com/v1/messages', {
             model: 'claude-3-5-sonnet-20240620',
             max_tokens: 1024,
             messages: [{ role: 'user', content: prompt }]
-        }, { headers: { 'x-api-key': this.claudeKey, 'anthropic-version': '2023-06-01' } });
+        }, { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } });
         return { 
             text: res.data.content[0].text, 
             model: 'Claude 3.5', 
@@ -75,7 +117,6 @@ export class AIService {
     }
 
     async getStatus() {
-        // Simple latency check for each model
         const startQwen = Date.now();
         let qwenLatency = -1;
         try {
@@ -87,7 +128,8 @@ export class AIService {
             models: {
                 Local: { name: 'Qwen3 1.7B', latency: qwenLatency, status: qwenLatency > 0 ? 'online' : 'offline' },
                 Groq: { name: 'Groq Llama3', latency: 150, status: 'online' },
-                Claude: { name: 'Claude 3.5', latency: 400, status: 'online' }
+                Claude: { name: 'Claude 3.5', latency: 400, status: 'online' },
+                Google: { name: 'Gemini Pro', latency: 300, status: 'online' }
             }
         };
     }

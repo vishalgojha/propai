@@ -1,29 +1,41 @@
 'use client';
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Lock, Mail, ArrowRight } from 'lucide-react';
+import { Lock, Phone, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
 export default function AuthPage() {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [phone, setPhone] = useState('');
+    const [otp, setOtp] = useState('');
+    const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE');
     const [loading, setLoading] = useState(false);
     const router = useRouter();
 
-    const handleLogin = async () => {
+    const handleSendOtp = async () => {
         setLoading(true);
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) alert(error.message);
-        else router.push('/onboarding');
+        const { error } = await supabase.auth.signInWithOtp({ phone });
+        if (error) {
+            alert(error.message);
+        } else {
+            setStep('OTP');
+        }
         setLoading(false);
     };
 
-    const handleSignUp = async () => {
+    const handleVerifyOtp = async () => {
         setLoading(true);
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) alert(error.message);
-        else alert('Check your email for confirmation!');
+        const { data, error } = await supabase.auth.verifyOtp({ 
+            phone, 
+            token: otp, 
+            type: 'sms' 
+        });
+        
+        if (error) {
+            alert(error.message);
+        } else if (data.session) {
+            router.push('/onboarding');
+        }
         setLoading(false);
     };
 
@@ -36,47 +48,50 @@ export default function AuthPage() {
             >
                 <div className="text-center mb-8">
                     <h1 className="text-3xl font-bold mb-2">Welcome back</h1>
-                    <p className="text-gray-400">Enter your credentials to access PropAI Sync</p>
+                    <p className="text-gray-400">Enter your phone to access PropAI Sync</p>
                 </div>
 
                 <div className="space-y-4">
-                    <div className="relative group">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-white transition-colors" />
-                        <input 
-                            type="email" 
-                            placeholder="Email address" 
-                            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                        />
-                    </div>
-
-                    <div className="relative group">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-white transition-colors" />
-                        <input 
-                            type="password" 
-                            placeholder="Password" 
-                            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
-                    </div>
+                    {step === 'PHONE' ? (
+                        <div className="relative group">
+                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-white transition-colors" />
+                            <input 
+                                type="tel" 
+                                placeholder="+91 98765 43210" 
+                                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                            />
+                        </div>
+                    ) : (
+                        <div className="relative group">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-white transition-colors" />
+                            <input 
+                                type="text" 
+                                placeholder="Enter 6-digit OTP" 
+                                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all"
+                                value={otp}
+                                onChange={(e) => setOtp(e.target.value)}
+                            />
+                        </div>
+                    )}
 
                     <button 
-                        onClick={handleLogin}
+                        onClick={step === 'PHONE' ? handleSendOtp : handleVerifyOtp}
                         disabled={loading}
                         className="btn-primary w-full py-3 flex items-center justify-center gap-2 text-lg"
                     >
-                        {loading ? 'Loading...' : 'Sign In'} <ArrowRight className="w-5 h-5" />
+                        {loading ? 'Processing...' : (step === 'PHONE' ? 'Send OTP' : 'Verify & Enter')} <ArrowRight className="w-5 h-5" />
                     </button>
                     
-                    <button 
-                        onClick={handleSignUp}
-                        disabled={loading}
-                        className="w-full py-3 text-sm text-gray-400 hover:text-white transition-colors"
-                    >
-                        Don't have an account? Create one
-                    </button>
+                    {step === 'OTP' && (
+                        <button 
+                            onClick={() => setStep('PHONE')} 
+                            className="w-full text-center text-sm text-gray-500 hover:text-white transition-colors"
+                        >
+                            Change phone number
+                        </button>
+                    )}
                 </div>
             </motion.div>
         </div>

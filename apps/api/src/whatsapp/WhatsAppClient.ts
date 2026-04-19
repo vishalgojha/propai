@@ -13,6 +13,8 @@ export interface WhatsAppClientOptions {
     tenantId: string;
     onQR: (qr: string) => void;
     onConnectionUpdate: (status: string) => void;
+    label?: string;
+    ownerName?: string;
 }
 
 export class WhatsAppClient {
@@ -22,6 +24,8 @@ export class WhatsAppClient {
     private onConnectionUpdate: (status: string) => void;
     private sessionPath: string;
     private isConnecting: boolean = false;
+    private label: string;
+    private ownerName: string | undefined;
 
     constructor(options: WhatsAppClientOptions) {
         if (!/^[a-z0-9-]+$/i.test(options.tenantId)) {
@@ -30,10 +34,12 @@ export class WhatsAppClient {
         this.tenantId = options.tenantId;
         this.onQR = options.onQR;
         this.onConnectionUpdate = options.onConnectionUpdate;
-        this.sessionPath = path.join(__dirname, `../../sessions/${this.tenantId}`);
+        this.label = options.label || 'Owner';
+        this.ownerName = options.ownerName;
+        this.sessionPath = path.join(__dirname, `../../sessions/${this.tenantId}_${this.label}`);
     }
 
-    async connect() {
+    async connect(options: { usePairingCode?: string } = {}) {
         if (this.isConnecting) return;
         this.isConnecting = true;
 
@@ -51,10 +57,15 @@ export class WhatsAppClient {
                 printQRInTerminal: false,
             });
 
+            if (options.usePairingCode) {
+                const code = await this.socket.requestPairingCode(options.usePairingCode);
+                this.onQR(code); 
+            }
+
             this.socket.ev.on('connection.update', async (update: any) => {
                 const { connection, lastDisconnect, qr } = update;
 
-                if (qr) {
+                if (qr && !options.usePairingCode) {
                     this.onQR(qr);
                 }
 
@@ -62,7 +73,7 @@ export class WhatsAppClient {
                     const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
                     console.log('Connection closed for tenant', this.tenantId, 'due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect);
                     if (shouldReconnect) {
-                        this.connect();
+                        this.connect(options);
                     } else {
                         this.updateSessionStatus('disconnected');
                     }
@@ -75,7 +86,7 @@ export class WhatsAppClient {
 
             this.socket.ev.on('creds.update', saveCreds);
 
-            this.socket.ev.on('messages.upsert', async (m) => {
+            this.socket.ev.on('messages.upsert', async (m: any) => {
                 const msg = m.messages[0];
                 if (!msg.message || msg.key.fromMe) return;
 
@@ -116,52 +127,80 @@ export class WhatsAppClient {
                     message_text: text 
                 });
 
-            // Trigger Listing Parser if group is monitored
-            await this.parseListing(remoteJid, text);
+            await this.handleIncomingMessage(remoteJid, text);
         } catch (error) {
             console.error(`Supabase error saving message for ${this.tenantId}:`, error);
         }
     }
 
-    private async parseListing(remoteJid: string, text: string) {
-        const { data: config } = await supabase
-            .from('group_configs')
-            .select('behavior')
-            .eq('group_id', remoteJid)
-            .single();
+    private async handleIncomingMessage(remoteJid: string, text: string) {
+        // 1. Check for verification replies first
+        if (text.toUpperCase() === 'YES') {
+            try {
+                const phone = remoteJid.split('@')[0];
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('phone', phone)
+                    .single();
 
-        if (config?.behavior !== 'Listen') return; // Only parse if monitoring
-
-        try {
-            const prompt = `Extract real estate listing data from this text. Return ONLY a JSON object with these fields: bhk, location, price, carpet_area, furnishing, possession_date, contact_number. If a field is missing, set it to null. Text: "${text}"`;
-            
-            // Use the AI service via a direct call or API
-            const response = await fetch('http://localhost:3001/api/ai/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, modelPreference: 'Local' })
-            });
-            const result = await response.json();
-            
-            const structuredData = JSON.parse(result.text);
-            
-            // Confidence check: basic check if at least 2 fields are found
-            const fieldCount = Object.values(structuredData).filter(v => v !== null).length;
-            
-            if (fieldCount >= 2) {
-                await supabase.from('listings').insert({
-                    tenant_id: this.tenantId,
-                    source_group_id: remoteJid,
-                    structured_data: structuredData,
-                    raw_text: text,
-                    status: 'Active'
-                });
-            } else {
-                // Low confidence: mark for review (can be a separate table or a flag)
-                console.log(`Low confidence listing for ${this.tenantId}, marking for review.`);
+                if (profile) {
+                    await supabase
+                        .from('profiles')
+                        .update({ phone_verified: true })
+                        .eq('id', profile.id);
+                    
+                    await this.sendText(remoteJid, "Verified! ✅ You now have full access to PropAI Sync. Welcome aboard!");
+                    return;
+                }
+            } catch (e) {
+                console.error('Verification reply error:', e);
             }
+        }
+
+        // 2. Basic filters
+        if (text.length < 20) return;
+        if (text.match(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E6}-\u{1F1FF}]/gu) && text.replace(/[\s\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E6}-\u{1F1FF}]/gu, '').length === 0) return;
+        
+        const isGroup = remoteJid.endsWith('@g.us');
+
+        if (isGroup) {
+            const { data: config } = await supabase
+                .from('group_configs')
+                .select('behavior')
+                .eq('group_id', remoteJid)
+                .single();
+
+            if (config?.behavior !== 'Listen' && config?.behavior !== 'AutoReply') return;
+        } else {
+            const { data: contact } = await supabase
+                .from('contacts')
+                .select('classification')
+                .eq('remote_jid', remoteJid)
+                .single();
+
+            if (contact?.classification === 'Broker') return;
+        }
+
+        this.triggerAgent(remoteJid, text);
+    }
+
+    private async triggerAgent(remoteJid: string, text: string) {
+        try {
+            const { AgentExecutor } = require('../services/AgentExecutor');
+            const executor = new AgentExecutor();
+            const response = await executor.processMessage(this.tenantId, remoteJid, text);
+            
+            await this.sendText(remoteJid, response);
+            
+            await supabase.from('messages').insert({
+                tenant_id: this.tenantId,
+                remote_jid: remoteJid,
+                text: response,
+                sender: 'AI'
+            });
         } catch (error) {
-            console.error(`Listing parser error for ${this.tenantId}:`, error);
+            console.error('Agent Execution Loop Error:', error);
         }
     }
 
@@ -178,85 +217,10 @@ export class WhatsAppClient {
         const groups = this.socket.store.chats.chats.filter((chat: any) => chat.id.endsWith('@g.us'));
         return groups.map((g: any) => ({ id: g.id, name: g.name }));
     }
-}
-
-    }
-
-        this.tenantId = options.tenantId;
-        this.onQR = options.onQR;
-        this.onConnectionUpdate = options.onConnectionUpdate;
-        this.sessionPath = path.join(__dirname, `../../sessions/${this.tenantId}`);
-    }
-
-    async connect() {
-        const { state, saveCreds } = await useMultiFileAuthState(this.sessionPath);
-        const { version } = await fetchLatestBaileysVersion();
-
-        this.socket = makeWASocket({
-            version,
-            auth: state,
-            printQRInTerminal: false,
-        });
-
-        this.socket.ev.on('connection.update', async (update: any) => {
-            const { connection, lastDisconnect, qr } = update;
-
-            if (qr) {
-                this.onQR(qr);
-            }
-
-            if (connection === 'close') {
-                const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-                console.log('Connection closed due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect);
-                if (shouldReconnect) {
-                    this.connect();
-                } else {
-                    this.updateSessionStatus('disconnected');
-                }
-            } else if (connection === 'open') {
-                console.log('Opened connection for tenant:', this.tenantId);
-                this.updateSessionStatus('connected');
-                this.onConnectionUpdate('connected');
-            }
-        });
-
-        this.socket.ev.on('creds.update', saveCreds);
-
-        this.socket.ev.on('messages.upsert', async (m) => {
-            const msg = m.messages[0];
-            if (!msg.message || msg.key.fromMe) return;
-
-            const messageText = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-            const remoteJid = msg.key.remoteJid || '';
-
-            await this.saveMessage(remoteJid, messageText);
-        });
-    }
-
-    private async updateSessionStatus(status: string) {
-        await supabase
-            .from('whatsapp_sessions')
-            .upsert({ 
-                tenant_id: this.tenantId, 
-                status, 
-                updated_at: new Date().toISOString() 
-            }, { onConflict: 'tenant_id' });
-    }
-
-    private async saveMessage(remoteJid: string, text: string) {
-        await supabase
-            .from('messages')
-            .insert({ 
-                tenant_id: this.tenantId, 
-                remote_jid: remoteJid, 
-                message_text: text 
-            });
-    }
 
     async disconnect() {
         if (this.socket) {
             await this.socket.logout();
-            // Clean up session folder
             if (fs.existsSync(this.sessionPath)) {
                 fs.rmSync(this.sessionPath, { recursive: true, force: true });
             }

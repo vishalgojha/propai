@@ -20,6 +20,9 @@ import express from 'express';
 import cors from 'cors';
 import whatsappRoutes from './routes/whatsappRoutes';
 import aiRoutes from './routes/aiRoutes';
+import agentRoutes from './routes/agentRoutes';
+import voiceRoutes from './routes/voiceRoutes';
+import authRoutes from './routes/authRoutes';
 import fs from 'fs';
 import path from 'path';
 
@@ -37,6 +40,9 @@ if (!fs.existsSync(sessionsDir)) {
 
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/agent', agentRoutes);
+app.use('/api/voice', voiceRoutes);
+app.use('/api/auth', authRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });

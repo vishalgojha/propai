@@ -1,7 +1,7 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
     LayoutDashboard, 
     MessageSquare, 
@@ -15,7 +15,9 @@ import {
     Phone,
     Video,
     MoreVertical,
-    Send
+    Send,
+    Mic,
+    MicOff
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -31,6 +33,13 @@ interface Message {
     timestamp: string;
 }
 
+interface AgentEvent {
+    id: string;
+    event_type: string;
+    description: string;
+    created_at: string;
+}
+
 export default function Inbox() {
     const [user, setUser] = useState<any>(null);
     const [status, setStatus] = useState('disconnected');
@@ -39,20 +48,48 @@ export default function Inbox() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState('');
     const [isTyping, setIsTyping] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
+    const [isMuted, setIsMuted] = useState(false);
+    const [events, setEvents] = useState<AgentEvent[]>([]);
+    
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+    const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const router = useRouter();
 
     useEffect(() => {
         const getUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) router.push('/login');
-            else setUser(user);
+            else {
+                setUser(user);
+                fetchStatus();
+                subscribeToEvents(user.id);
+            }
         };
         getUser();
     }, [router]);
 
+    const subscribeToEvents = (userId: string) => {
+        const channel = supabase
+            .channel('agent-events')
+            .on('postgres_changes', { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'agent_events', 
+                filter: `tenant_id=eq.${userId}` 
+            }, (payload) => {
+                setEvents(prev => [payload.new as AgentEvent, ...prev].slice(0, 20));
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    };
+
     useEffect(() => {
         if (user) {
-            fetchStatus();
             const interval = setInterval(() => {
                 fetchStatus();
                 if (selectedChat) fetchMessages();
@@ -107,6 +144,71 @@ export default function Inbox() {
         }
     };
 
+    const startRecording = async () => {
+        if (isMuted) return;
+        setIsRecording(true);
+        audioChunksRef.current = [];
+        
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunksRef.current.push(e.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const formData = new FormData();
+                formData.append('audio', audioBlob);
+
+                try {
+                    const res = await fetch('http://localhost:3001/api/voice/listen', {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    const { transcript } = await res.json();
+                    setInputText(transcript);
+                } catch (e) {
+                    console.error('STT Error', e);
+                }
+            };
+
+            mediaRecorder.start();
+        } catch (e) {
+            console.error('Mic access denied', e);
+            setIsRecording(false);
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current) {
+            mediaRecorderRef.current.stop();
+            mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+        }
+        setIsRecording(false);
+    };
+
+    const playVoice = async (text: string) => {
+        try {
+            const res = await fetch('http://localhost:3001/api/voice/speak', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text }),
+            });
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            if (!audioPlayerRef.current) {
+                audioPlayerRef.current = new Audio();
+            }
+            audioPlayerRef.current.src = url;
+            audioPlayerRef.current.play();
+        } catch (e) {
+            console.error('TTS Error', e);
+        }
+    };
+
     const conversations = Array.from(new Set(messages.map(m => m.remote_jid))).map(jid => {
         const chatMsgs = messages.filter(m => m.remote_jid === jid);
         return { jid, lastMsg: chatMsgs[chatMsgs.length - 1] };
@@ -115,7 +217,6 @@ export default function Inbox() {
     return (
         <div className="h-screen flex bg-black text-white overflow-hidden font-sans">
             <PanelGroup direction="horizontal">
-                {/* Conversations Panel */}
                 <Panel defaultSize={25} minSize={20}>
                     <div className="h-full glass border-r border-white/10 flex flex-col">
                         <div className="p-6 flex items-center justify-between">
@@ -124,7 +225,6 @@ export default function Inbox() {
                                 {status}
                             </Badge>
                         </div>
-                        
                         <div className="px-4 mb-6">
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -135,7 +235,6 @@ export default function Inbox() {
                                 />
                             </div>
                         </div>
-
                         <div className="flex-1 overflow-y-auto px-2 space-y-1">
                             {conversations.map((chat) => (
                                 <button
@@ -155,15 +254,9 @@ export default function Inbox() {
                                 </button>
                             ))}
                         </div>
-
                         <div className="p-4 border-t border-white/10">
                             {status === 'disconnected' && (
-                                <button 
-                                    onClick={connectWhatsApp}
-                                    className="btn-primary w-full py-2 text-sm"
-                                >
-                                    Connect WhatsApp
-                                </button>
+                                <button onClick={connectWhatsApp} className="btn-primary w-full py-2 text-sm">Connect WhatsApp</button>
                             )}
                         </div>
                     </div>
@@ -171,7 +264,6 @@ export default function Inbox() {
 
                 <PanelResizeHandle className="w-1 bg-white/5 hover:bg-white/20 transition-colors cursor-col-resize" />
 
-                {/* Chat Panel */}
                 <Panel defaultSize={50} minSize={30}>
                     <div className="h-full flex flex-col bg-black">
                         {selectedChat ? (
@@ -186,7 +278,6 @@ export default function Inbox() {
                                         <Video className="w-5 h-5 cursor-pointer hover:text-white transition-colors" />
                                     </div>
                                 </div>
-
                                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
                                     {messages.filter(m => m.remote_jid === selectedChat).map((msg) => (
                                         <div key={msg.id} className={`flex ${msg.id.includes('Date.now') ? 'justify-end' : 'justify-start'}`}>
@@ -197,7 +288,6 @@ export default function Inbox() {
                                     ))}
                                     {isTyping && <div className="flex justify-start"><AIProcessing /></div>}
                                 </div>
-
                                 <div className="p-6 glass border-t border-white/10">
                                     <div className="flex items-center gap-3 max-w-4xl mx-auto">
                                         <input 
@@ -207,7 +297,7 @@ export default function Inbox() {
                                             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                                             placeholder="Type a message..." 
                                             className="flex-1 bg-white/5 border border-white/10 rounded-full py-3 px-6 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all"
-                                />
+                                        />
                                         <button onClick={handleSend} className="bg-white text-black p-3 rounded-full hover:bg-gray-200 transition-all">
                                             <Send className="w-5 h-5" />
                                         </button>
@@ -225,7 +315,6 @@ export default function Inbox() {
 
                 <PanelResizeHandle className="w-1 bg-white/5 hover:bg-white/20 transition-colors cursor-col-resize" />
 
-                {/* AI Agent Sidebar */}
                 <Panel defaultSize={25} minSize={20}>
                     <div className="h-full glass border-l border-white/10 flex flex-col p-6">
                         <div className="flex items-center justify-between mb-8">
@@ -234,20 +323,91 @@ export default function Inbox() {
                         </div>
 
                         <div className="space-y-6">
-                            <div>
-                                <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-3 block">Contextual Tools</label>
-                                <div className="flex flex-wrap gap-2">
-                                    <button className="px-3 py-1.5 rounded-full glass text-xs hover:bg-white/10 transition-all border-blue-500/30 text-blue-400">👁 Monitor Group</button>
-                                    <button className="px-3 py-1.5 rounded-full glass text-xs hover:bg-white/10 transition-all">📢 Broadcast</button>
-                                    <button className="px-3 py-1.5 rounded-full glass text-xs hover:bg-white/10 transition-all">🤖 Auto-Reply</button>
-                                    <button className="px-3 py-1.5 rounded-full glass text-xs hover:bg-white/10 transition-all">🏷 Classify</button>
-                                    <button className="px-3 py-1.5 rounded-full glass text-xs hover:bg-white/10 transition-all">📋 Extract Listings</button>
+                            <div className="flex items-center justify-between p-4 glass rounded-2xl border-blue-500/20">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center animate-pulse">
+                                        <MessageSquare className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold">Local Voice</p>
+                                        <Badge variant="connected">Active</Badge>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button 
+                                        onMouseDown={startRecording}
+                                        onMouseUp={stopRecording}
+                                        className={`p-3 rounded-full transition-all ${isRecording ? 'bg-red-500 scale-110' : 'bg-white/10 hover:bg-white/20'}`}
+                                    >
+                                        {isRecording ? <Mic className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 text-white" />}
+                                    </button>
+                                    <button 
+                                        onClick={() => setIsMuted(!isMuted)}
+                                        className={`p-3 rounded-full transition-all ${isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white'}`}
+                                    >
+                                        <MicOff className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {isRecording && (
+                                <div className="flex justify-center items-center gap-1 h-8">
+                                    {[...Array(5)].map((_, i) => (
+                                        <motion.div
+                                            key={i}
+                                            animate={{ height: [8, 24, 8] }}
+                                            transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1 }}
+                                            className="w-1 bg-blue-400 rounded-full"
+                                        />
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="flex-1 overflow-hidden flex flex-col">
+                                <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-3 block">Agent Activity</label>
+                                <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                                    <AnimatePresence>
+                                        {events.length === 0 && (
+                                            <p className="text-xs text-gray-600 italic">No recent activity. The agent is listening...</p>
+                                        )}
+                                        {events.map((event) => (
+                                            <motion.div 
+                                                initial={{ opacity: 0, x: 20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                key={event.id} 
+                                                className="p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-all"
+                                            >
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-[10px] font-bold text-blue-400 uppercase">{event.event_type}</span>
+                                                    <span className="text-[10px] text-gray-600">{new Date(event.created_at).toLocaleTimeString()}</span>
+                                                </div>
+                                                <p className="text-xs text-gray-300">{event.description}</p>
+                                            </motion.div>
+                                        ))}
+                                    </AnimatePresence>
                                 </div>
                             </div>
 
                             <div className="pt-6 border-t border-white/10">
-                                <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-3 block">Behavior Controls</label>
-                                <div className="space-y-4">
+                                <label className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-3 block">AI Intelligence</label>
+                                <div className="flex items-center justify-between p-3 glass rounded-xl">
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-medium">Help improve PropAI</span>
+                                        <span className="text-[10px] text-gray-500">Anonymized data for better AI</span>
+                                    </div>
+                                    <input 
+                                        type="checkbox" 
+                                        className="w-4 h-4 accent-blue-500"
+                                        onChange={async (e) => {
+                                            await fetch('http://localhost:3001/api/ai/consent', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ tenantId: user.id, consent: e.target.checked })
+                                            });
+                                        }}
+                                    />
+                                </div>
+                                <div className="mt-4 space-y-4">
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm text-gray-400">Mode</span>
                                         <select className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none">
@@ -266,6 +426,25 @@ export default function Inbox() {
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm text-gray-400">Tone</span>
+                                        <select className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none">
+                                            <option>Professional</option>
+                                            <option>Friendly</option>
+                                            <option>Hinglish</option>
+                                        </select>,
+                                    </div>
+                                </div>
+                            </div>
+
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm text-gray-400">Timing</span>
+                                        <select className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none">
+                                            <option>Immediate</option>
+                                            <option>30s Delay</option>
+                                            <option>Approval</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className, "text-sm text-gray-400">Tone</span>
                                         <select className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none">
                                             <option>Professional</option>
                                             <option>Friendly</option>

@@ -3,34 +3,41 @@ import { sessionManager } from '../whatsapp/SessionManager';
 import { supabase } from '../config/supabase';
 
 export const connectWhatsApp = async (req: Request, res: Response) => {
-    const { tenantId } = req.body;
-    if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
+    const { tenantId, phoneNumber, label, ownerName } = req.body;
+    if (!tenantId) return res.status(400).json({ error: 'Configuration missing' });
 
     try {
         await sessionManager.createSession(
             tenantId, 
-            () => {}, // QR handled in SessionManager
-            () => {}  // Connection update handled in SessionManager
+            () => {}, 
+            () => {},
+            { 
+                usePairingCode: phoneNumber, 
+                label: label || 'Owner', 
+                ownerName: ownerName 
+            }
         );
         res.json({ message: 'Connection initiated' });
     } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        console.error('Connect Error:', error);
+        res.status(500).json({ error: error.message || 'Could not start connection. Please try again.' });
     }
 };
 
+
 export const getQR = async (req: Request, res: Response) => {
     const { tenantId } = req.query;
-    if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
+    if (!tenantId) return res.status(400).json({ error: 'Configuration missing' });
 
     const qr = sessionManager.getQR(tenantId as string);
-    if (!qr) return res.status(404).json({ error: 'QR code not available' });
+    if (!qr) return res.status(404).json({ error: 'Code not ready yet' });
 
     res.json({ qr });
 };
 
 export const getStatus = async (req: Request, res: Response) => {
     const { tenantId } = req.query;
-    if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
+    if (!tenantId) return res.status(400).json({ error: 'Configuration missing' });
 
     const { data, error } = await supabase
         .from('whatsapp_sessions')
@@ -45,13 +52,14 @@ export const getStatus = async (req: Request, res: Response) => {
 
 export const disconnectWhatsApp = async (req: Request, res: Response) => {
     const { tenantId } = req.body;
-    if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
+    if (!tenantId) return res.status(400).json({ error: 'Configuration missing' });
 
     try {
         await sessionManager.removeSession(tenantId);
         res.json({ message: 'Disconnected successfully' });
     } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        console.error('Disconnect Error:', error);
+        res.status(500).json({ error: 'Could not disconnect. Please try again.' });
     }
 };
 

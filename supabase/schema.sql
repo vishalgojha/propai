@@ -1,15 +1,24 @@
--- Core Profiles
+-- Profiles (Updated for Phone-First Identity)
 create table profiles (
   id uuid references auth.users on delete cascade primary key,
-  email text unique not null,
+  phone text unique not null,
+  email text unique,
   full_name text,
   timezone text default 'UTC',
+  phone_verified boolean default false,
+  verification_token text,
+  trial_started_at timestamp with time zone,
+  trial_used boolean default false,
+  is_admin boolean default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
 -- WhatsApp Sessions
 create table whatsapp_sessions (
-  tenant_id uuid references profiles(id) on delete cascade primary key,
+  id uuid default gen_random_uuid() primary key,
+  tenant_id uuid references profiles(id) on delete cascade not null,
+  label text not null default 'Owner',
+  owner_name text,
   session_data jsonb not null,
   status text default 'disconnected',
   last_sync timestamp with time zone default timezone('utc'::text, now()) not null
@@ -26,7 +35,7 @@ create table contacts (
   unique(tenant_id, remote_jid)
 );
 
--- Listings (Parsed from WhatsApp)
+-- Listings
 create table listings (
   id uuid default gen_random_uuid() primary key,
   tenant_id uuid references profiles(id) on delete cascade not null,
@@ -37,7 +46,7 @@ create table listings (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Leads (Qualified prospects)
+-- Leads
 create table leads (
   id uuid default gen_random_uuid() primary key,
   tenant_id uuid references profiles(id) on delete cascade not null,
@@ -45,12 +54,14 @@ create table leads (
   budget text,
   location_pref text,
   timeline text,
+  possession text,
+  current_step text check (current_step in ('budget', 'location', 'timeline', 'possession', 'qualified')) default 'budget',
   status text check (status in ('New', 'Qualified', 'Site Visit', 'Closed')) default 'New',
   notes text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Group Configuration & Behavior
+-- Group Configuration
 create table group_configs (
   group_id text primary key,
   tenant_id uuid references profiles(id) on delete cascade not null,
@@ -66,10 +77,12 @@ create table model_preferences (
   tenant_id uuid references profiles(id) on delete cascade primary key,
   default_model text default 'Local',
   billing_tier text default 'free',
-  latency_threshold int default 2000
+  latency_threshold int default 2000,
+  contribute_data boolean default false,
+  consent_timestamp timestamp with time zone
 );
 
--- Agent Behavior Rules (Keywords)
+-- Agent Behavior Rules
 create table agent_behavior_rules (
   id uuid default gen_random_uuid() primary key,
   tenant_id uuid references profiles(id) on delete cascade not null,
@@ -78,7 +91,7 @@ create table agent_behavior_rules (
   priority int default 0
 );
 
--- Messages Archive
+-- Messages
 create table messages (
   id uuid default gen_random_uuid() primary key,
   tenant_id uuid references profiles(id) on delete cascade not null,
@@ -88,12 +101,32 @@ create table messages (
   timestamp timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- Agent Events
+create table agent_events (
+  id uuid default gen_random_uuid() primary key,
+  tenant_id uuid references profiles(id) on delete cascade not null,
+  event_type text not null,
+  description text not null,
+  metadata jsonb,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Subscriptions (Updated for Trial Status)
+create table subscriptions (
+  tenant_id uuid references profiles(id) on delete cascade primary key,
+  plan text check (plan in ('Free', 'Pro', 'Team')) default 'Free',
+  status text check (status in ('trial', 'active', 'cancelled', 'past_due')) default 'trial',
+  renewal_date timestamp with time zone,
+  razorpay_subscription_id text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
 -- RLS Policies
 alter table profiles enable row level security;
 create policy "Users can view their own profile" on profiles for select using (auth.uid() = id);
 
 alter table whatsapp_sessions enable row level security;
-create policy "Tenants can manage their own session" on whatsapp_sessions all using (auth.uid() = tenant_id);
+create policy "Tenants can manage their own sessions" on whatsapp_sessions all using (auth.uid() = tenant_id);
 
 alter table contacts enable row level security;
 create policy "Tenants can manage their own contacts" on contacts all using (auth.uid() = tenant_id);
@@ -115,3 +148,10 @@ create policy "Tenants can manage their own rules" on agent_behavior_rules all u
 
 alter table messages enable row level security;
 create policy "Tenants can manage their own messages" on messages all using (auth.uid() = tenant_id);
+
+alter table agent_events enable row level security;
+create policy "Tenants can view their own agent events" on agent_events for select using (auth.uid() = tenant_id);
+create policy "Service role can insert agent events" on agent_events for insert with check (true);
+
+alter table subscriptions enable row level security;
+create policy "Tenants can manage their own subscriptions" on subscriptions all using (auth.uid() = tenant_id);

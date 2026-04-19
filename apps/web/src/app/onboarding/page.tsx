@@ -1,17 +1,17 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, CheckCircle, User, MessageCircle, Globe } from 'lucide-react';
+import { Send, CheckCircle, User, MessageCircle, Globe, Copy } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 
-type Step = 'GREET' | 'PHONE' | 'QR' | 'GROUPS' | 'CONFIRM';
+type Step = 'GREET' | 'METHOD' | 'PHONE' | 'CODE' | 'QR' | 'TEAM' | 'GROUPS' | 'CONFIRM';
 
 export default function Onboarding() {
     const [step, setStep] = useState<Step>('GREET');
     const [user, setUser] = useState<any>(null);
-    const [messages, setMessages] = useState<{role: 'ai' | 'user', text: string, type?: 'qr' | 'groups' | 'pill', data?: any}[]>([]);
+    const [messages, setMessages] = useState<{role: 'ai' | 'user', text: string, type?: 'qr' | 'code' | 'groups' | 'pill', data?: any}[]>([]);
     const [input, setInput] = useState('');
     const [phone, setPhone] = useState('');
     const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
@@ -30,7 +30,7 @@ export default function Onboarding() {
         getUser();
     }, [router]);
 
-    const addMessage = (role: 'ai' | 'user', text: string, type?: 'qr' | 'groups' | 'pill', data?: any) => {
+    const addMessage = (role: 'ai' | 'user', text: string, type?: 'qr' | 'code' | 'groups' | 'pill', data?: any) => {
         setMessages(prev => [...prev, { role, text, type, data }]);
     };
 
@@ -41,32 +41,85 @@ export default function Onboarding() {
         addMessage('user', userText);
 
         if (step === 'GREET') {
-            setStep('PHONE');
-            setTimeout(() => addMessage('ai', "Great! First, what's your WhatsApp phone number (with country code)?"), 800);
+            setStep('METHOD');
+            setTimeout(() => addMessage('ai', "First, how would you like to connect? I can give you a pairing code for your phone, or a QR code for your computer."), 800);
+        } else if (step === 'METHOD') {
+            if (userText.toLowerCase().includes('phone') || userText.toLowerCase().includes('code')) {
+                setStep('PHONE');
+                setTimeout(() => addMessage('ai', "Perfect. What's your WhatsApp phone number (with country code, e.g., +91...) ?"), 800);
+            } else {
+                setStep('QR');
+                setTimeout(() => {
+                    addMessage('ai', "No problem. Scan this QR code with your WhatsApp 'Linked Devices' menu.");
+                    addMessage('ai', "Scan me!", 'qr', { tenantId: user.id });
+                    startConnectionPolling();
+                }, 800);
+            }
         } else if (step === 'PHONE') {
             setPhone(userText);
-            setStep('QR');
+            setStep('CODE');
             setTimeout(async () => {
-                addMessage('ai', "Perfect. I'm generating your unique connection code now. Scan this with your WhatsApp 'Linked Devices' menu.");
-                addMessage('ai', "Scan me!", 'qr', { tenantId: user.id });
+                await fetch('http://localhost:3001/api/whatsapp/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tenantId: user.id, phoneNumber: userText, label: 'Owner' }),
+                });
                 
-                // Poll for connection
                 const poll = setInterval(async () => {
-                    const res = await fetch(`http://localhost:3001/api/whatsapp/status?tenantId=${user.id}`);
+                    const res = await fetch(`http://localhost:3001/api/whatsapp/qr?tenantId=${user.id}`);
                     const data = await res.json();
-                    if (data.status === 'connected') {
+                    if (data.qr && data.qr.length === 8) {
                         clearInterval(poll);
-                        setStep('GROUPS');
-                        addMessage('ai', "Connected! ✅ I can see your WhatsApp. I've found several groups and contacts.");
-                        
-                        // Fetch groups
-                        const groupRes = await fetch(`http://localhost:3001/api/whatsapp/groups?tenantId=${user.id}`);
-                        const groupData = await groupRes.json();
-                        setAvailableGroups(groupData);
-                        addMessage('ai', "Which of these groups should I monitor for property listings?", 'groups', groupData);
+                        addMessage('ai', "Here is your pairing code. Open WhatsApp → Linked Devices → Link with phone number → enter this code:", 'code', { code: data.qr });
                     }
-                }, 3000);
+                }, 2000);
             }, 800);
+        }
+    };
+
+    const startConnectionPolling = () => {
+        const poll = setInterval(async () => {
+            const res = await fetch(`http://localhost:3001/api/whatsapp/status?tenantId=${user.id}`);
+            const data = await res.json();
+            if (data.status === 'connected') {
+                clearInterval(poll);
+                setStep('TEAM');
+                setTimeout(async () => {
+                    // Mark trial started in DB
+                    await supabase.from('profiles').update({ 
+                        trial_started_at: new Date().toISOString(),
+                        trial_used: true 
+                    }).eq('id', user.id);
+                    
+                    // Set default subscription to Trial
+                    await fetch('http://localhost:3001/api/subscriptions/set-trial', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tenantId: user.id })
+                    });
+
+                    addMessage('ai', "Connected! ✅ Your account is now active. Aapka 7 din ka free trial aaj se shuru ho gaya.");
+                    setTimeout(() => {
+                        addMessage('ai', "Do you have team members whose WhatsApp should also be connected? You can add up to 2 more.");
+                        addMessage('ai', "Just type 'Yes' or 'No'.", 'pill');
+                    }, 1000);
+                }, 800);
+            }
+        }, 3000);
+    };
+
+
+    const handleTeamResponse = async (response: string) => {
+        if (response.toLowerCase().includes('yes')) {
+            setStep('PHONE');
+            setTimeout(() => addMessage('ai', "Got it. Please enter the team member's WhatsApp number (with country code) and their name (e.g., +91... | Rahul),"), 800);
+        } else {
+            setStep('GROUPS');
+            // Fetch groups for the connected session
+            const groupRes = await fetch(`http://localhost:3001/api/whatsapp/groups?tenantId=${user.id}`);
+            const groupData = await groupRes.json();
+            setAvailableGroups(groupData);
+            addMessage('ai', "Alright, let's focus on your account. Which of these groups should I monitor for property listings?", 'groups', groupData);
         }
     };
 
@@ -75,7 +128,6 @@ export default function Onboarding() {
     };
 
     const confirmOnboarding = async () => {
-        // Save group configs to Supabase
         for (const id of selectedGroups) {
             await fetch('http://localhost:3001/api/whatsapp/config', {
                 method: 'POST',
@@ -118,6 +170,19 @@ export default function Onboarding() {
                                             <QRCodeSVG value={`http://localhost:3001/api/whatsapp/qr?tenantId=${user.id}`} size={180} />
                                         </div>
                                     )}
+                                    {m.type === 'code' && (
+                                        <div className="mt-4 flex flex-col items-center gap-3">
+                                            <div className="text-3xl font-mono font-bold tracking-widest bg-white/10 px-6 py-3 rounded-xl border border-white/20">
+                                                {m.data?.code}
+                                            </div>
+                                            <button 
+                                                onClick={() => navigator.clipboard.writeText(m.data?.code)}
+                                                className="flex items-center gap-2 text-xs text-gray-400 hover:text-white transition-colors"
+                                            >
+                                                <Copy className="w-3 h-3" /> Copy Code
+                                            </button>
+                                        </div>
+                                    )}
                                     {m.type === 'groups' && (
                                         <div className="mt-4 flex flex-wrap gap-2">
                                             {m.data?.map((g: any) => (
@@ -132,7 +197,7 @@ export default function Onboarding() {
                                         </div>
                                     )}
                                 </div>
-                            </motion.div>
+                            </motionCdiv>
                         ))}
                     </AnimatePresence>
                 </div>

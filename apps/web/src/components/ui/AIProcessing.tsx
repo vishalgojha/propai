@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 export const AIProcessing = () => {
     return (
         <div className="flex items-center gap-1.5 px-3 py-1.5 glass rounded-full w-fit">
-            <span className="text-xs text-gray-400 font-medium">AI is processing</span>
+            <span className="text-xs text-gray-400 font-medium">Agent is thinking...</span>
             <div className="flex gap-1">
                 {[0, 1, 2].map((i) => (
                     <motion.div
