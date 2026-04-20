@@ -8,43 +8,31 @@ PropAI Sync is a high-performance workspace for real estate brokers to automate 
 - `packages/database`: Shared Supabase client and types
 - `supabase/`: SQL schema and RLS policies
 
-## 🚀 Deployment via Coolify (Hetzner VPS)
+## Deployment (Coolify)
 
-This project is designed for a single-VPS deployment managed by Coolify to ensure zero-config SSL, automatic deployments, and isolated networking.
+1. In Coolify, create a new Project called 'PropAI Sync'
+2. Add Service 1 — Backend API:
+   - Type: Dockerfile
+   - Repo: this repo
+   - Branch: main
+   - Dockerfile path: apps/api/Dockerfile
+   - Build context: / (repo root)
+   - Port: 3001
+   - Add all env vars from apps/api/.env.example via Coolify UI
 
-### 1. Server Setup
-- Install Coolify on your Ubuntu 24 VPS.
-- Ensure Docker is running.
+3. Add Service 2 — Frontend:
+   - Type: Dockerfile
+   - Repo: this repo
+   - Branch: main
+   - Dockerfile path: apps/web/Dockerfile
+   - Build context: / (repo root)
+   - Port: 3000
+   - Add all env vars from apps/web/.env.example via Coolify UI
+   - Set NEXT_PUBLIC_API_URL to your backend Coolify domain
 
-### 2. Coolify Project Configuration
-Create a new project in Coolify and add the following three services:
-
-#### A. AI Engine (Ollama + Qwen3)
-- **Image**: `ollama/ollama`
-- **Volume**: `/root/.ollama`
-- **Network**: `propai-network`
-- **Port**: `11434`
-- **Initial Setup**: Run `ollama pull qwen3:1.7b` via the Coolify terminal or post-deploy script.
-
-#### B. Backend API
-- **Source**: GitHub Repository $\rightarrow$ `apps/api`
-- **Build**: Dockerfile
-- **Env Vars**: 
-  - `QWEN_BASE_URL=http://ollama:11434/api/chat`
-  - `SUPABASE_URL` & `SUPABASE_ANON_KEY` (from your Supabase project)
-- **Network**: `propai-network`
-
-#### C. Frontend Web
-- **Source**: GitHub Repository $\rightarrow$ `apps/web`
-- **Build**: Dockerfile
-- **Env Vars**:
-  - `NEXT_PUBLIC_SUPABASE_URL`
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- **Network**: `propai-network`
-
-### 3. Database Setup
-- Run the migrations in `supabase/schema.sql` in your Supabase SQL editor.
-- Ensure RLS is enabled for all tables to maintain tenant isolation.
+4. Both services auto-deploy on push to main branch
+5. SSL handled automatically by Coolify via Let's Encrypt
+6. Ollama runs natively on the server — set QWEN_BASE_URL to server's internal IP
 
 ## 🛠 Local Development
 1. Install pnpm: `npm install -g pnpm`

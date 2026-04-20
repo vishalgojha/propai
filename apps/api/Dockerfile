@@ -1,8 +1,8 @@
 FROM node:20-slim
 WORKDIR /app
-COPY package*.json ./
+COPY apps/api/package*.json ./
 RUN npm install
-COPY . .
-RUN npm run build
-EXPOSE 3001
+COPY apps/api .
+RUN npx tsc
+EXPOSE ${PORT:-3001}
 CMD ["node", "dist/index.js"]
