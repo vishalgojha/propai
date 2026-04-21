@@ -4,18 +4,41 @@ import { subscriptionService } from '../services/subscriptionService';
 export class SessionManager {
     private clients: Map<string, WhatsAppClient> = new Map();
     private qrs: Map<string, string> = new Map();
+    private systemQR: string | null = null;
+    private systemStatus: string = 'initializing';
 
     async initSystemSession() {
-        // Initialize the 'system' session used for verification and alerts
         try {
-            await this.createSession('system', () => {}, () => {}, { 
-                label: 'System', 
-                ownerName: 'PropAI System' 
-            });
+            await this.createSession('system', 
+                (qr) => { 
+                    this.systemQR = qr; 
+                    console.log('System session QR generated');
+                }, 
+                (status) => { 
+                    this.systemStatus = status;
+                    console.log('System session status:', status);
+                }, 
+                { 
+                    label: 'System', 
+                    ownerName: 'PropAI System' 
+                }
+            );
             console.log('PropAI System session initialized');
         } catch (e) {
             console.error('Failed to initialize system session:', e);
         }
+    }
+
+    getSystemQR(): string | null {
+        return this.systemQR;
+    }
+
+    async getSystemStatus(): Promise<{ status: string; connected: boolean }> {
+        const client = this.clients.get('system:System');
+        return {
+            status: this.systemStatus,
+            connected: !!client
+        };
     }
 
     async createSession(tenantId: string, onQR: (qr: string) => void, onConnectionUpdate: (status: string) => void, options: { usePairingCode?: string, label?: string, ownerName?: string } = {}) {

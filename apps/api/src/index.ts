@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
 import { authMiddleware } from './middleware/authMiddleware';
+import { sessionManager } from './whatsapp/SessionManager';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -40,6 +41,7 @@ app.get('/health', (req, res) => {
 
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
+    await sessionManager.initSystemSession();
 });
