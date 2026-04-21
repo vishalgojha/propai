@@ -10,6 +10,9 @@ const quicksand = Quicksand({
 export const metadata: Metadata = {
   title: 'PropAI Sync',
   description: 'Next-gen WhatsApp automation for real estate brokers',
+  icons: {
+    icon: '/favicon.svg',
+  },
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
