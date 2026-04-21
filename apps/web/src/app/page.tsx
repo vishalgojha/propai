@@ -1,6 +1,7 @@
 'use client';
-import { useEffect, useRef, useState, Suspense } from 'react';
+import { useEffect, Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { QRCodeSVG } from 'qrcode.react';
 
 const PROP_WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_PROP_WHATSAPP_NUMBER || '1234567890';
 const BASE_MESSAGE = "Hi, I'm a real estate broker. Please onboard me to PropAI Live.";
@@ -59,41 +60,23 @@ function QRCodeSection() {
     const ref = searchParams.get('ref');
     const message = buildMessage(ref);
     const waUrl = buildWhatsAppUrl(PROP_WHATSAPP_NUMBER, message);
-    const qrRef = useRef<HTMLDivElement>(null);
-    const [qrReady, setQrReady] = useState(false);
-
-    useEffect(() => {
-        if (!qrRef.current || qrRef.current.innerHTML) return;
-
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-        script.async = true;
-        script.onload = () => {
-            if (qrRef.current && typeof (window as any).QRCode !== 'undefined') {
-                new (window as any).QRCode(qrRef.current, {
-                    text: waUrl,
-                    width: 260,
-                    height: 260,
-                    colorDark: '#000000',
-                    colorLight: '#ffffff',
-                    correctLevel: (window as any).QRCode.CorrectLevel.H
-                });
-                setQrReady(true);
-            }
-        };
-        document.body.appendChild(script);
-
-        return () => {
-            if (qrRef.current) qrRef.current.innerHTML = '';
-        };
-    }, [waUrl]);
 
     return (
         <div className="bg-white rounded-3xl p-8 shadow-2xl shadow-green-500/10">
-            <div ref={qrRef} className="flex justify-center mb-5 min-h-[260px] items-center">
-                {!qrReady && (
-                    <div className="w-[260px] h-[260px] bg-gray-100 animate-pulse rounded-xl" />
-                )}
+            <div className="flex justify-center mb-5">
+                <QRCodeSVG
+                    value={waUrl}
+                    size={260}
+                    level="H"
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                    imageSettings={{
+                        src: '/favicon.svg',
+                        height: 40,
+                        width: 40,
+                        excavate: true
+                    }}
+                />
             </div>
             <div className="text-center space-y-2">
                 <div className="flex items-center justify-center gap-2 text-gray-800">
@@ -134,13 +117,20 @@ function QRCodeFallback() {
 function ReferralSection() {
     const searchParams = useSearchParams();
     const ref = searchParams.get('ref');
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'app.propai.live';
+    const [baseUrl, setBaseUrl] = useState('app.propai.live');
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            setBaseUrl(window.location.origin);
+        }
+    }, []);
+
     const fullUrl = `${baseUrl}?ref=${ref || 'YOUR_NAME'}`;
 
     return (
         <div className="bg-gray-800/50 border border-gray-700/50 rounded-2xl p-5">
             <p className="text-sm text-gray-300 mb-3 font-medium">Share your referral link</p>
-            <code className="text-xs text-green-400 bg-gray-900/50 px-3 py-2 rounded-lg block">
+            <code className="text-xs text-green-400 bg-gray-900/50 px-3 py-2 rounded-lg block break-all">
                 {fullUrl}
             </code>
             <p className="text-xs text-gray-500 mt-2">Track which brokers onboard via your link</p>
@@ -185,7 +175,7 @@ export default function Home() {
                     <div className="flex-1 w-full">
                         <Suspense fallback={
                             <div className="bg-white rounded-3xl p-8 shadow-2xl">
-                                <div className="w-[260px] h-[260px] bg-gray-100 animate-pulse rounded-xl mx-auto mb-5" />
+                                <div className="w-[260px] h-[260px] bg-gray-100 animate-pulse rounded-xl mx-auto" />
                             </div>
                         }>
                             <QRCodeSection />
