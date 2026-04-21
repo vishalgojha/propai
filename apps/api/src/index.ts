@@ -14,10 +14,10 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
+app.use(express.json());
 
 // Use raw middleware for voice listening to handle audio buffers
 app.use('/api/voice/listen', express.raw({ type: 'audio/wav', limit: '10mb' }));
-app.use(express.json());
 
 // Create sessions directory if it doesn't exist
 const sessionsDir = path.join(__dirname, '../sessions');
