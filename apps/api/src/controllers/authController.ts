@@ -10,24 +10,22 @@ export const requestVerification = async (req: Request, res: Response) => {
     try {
         const token = crypto.randomBytes(32).toString('hex');
         
-        // 1. Update or create profile with verification token
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
-            .upsert({ phone, verification_token: token })
+            .upsert({ phone, verification_token: token, phone_verified: false })
             .select()
             .single();
 
         if (profileError) throw profileError;
 
-        // 2. Send WhatsApp message via system session
         const systemClient = await sessionManager.getSession('system');
         if (!systemClient) throw new Error('System session not available');
 
         await (systemClient as any).sendText(phone + '@s.whatsapp.net', 
-            `Welcome to PropAI! Reply YES to verify your number and start your 7-day free trial. (Token: ${token.substring(0, 6)})`
+            `Welcome to PropAI! Your verification token is: ${token.substring(0, 6)}\n\nReply with YES to activate your account.`
         );
 
-        res.json({ message: 'Verification message sent to WhatsApp' });
+        res.json({ message: 'Verification code sent to your WhatsApp' });
     } catch (error: any) {
         console.error('Verification Request Error:', error);
         res.status(500).json({ error: 'Failed to send verification message' });
@@ -35,16 +33,29 @@ export const requestVerification = async (req: Request, res: Response) => {
 };
 
 export const verifyPhone = async (req: Request, res: Response) => {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ error: 'Phone number is required' });
+    const { phone, otp } = req.body;
+    if (!phone || !otp) return res.status(400).json({ error: 'Phone and OTP are required' });
 
-    const { data, error } = await supabase
+    const { data: profile, error } = await supabase
         .from('profiles')
-        .update({ phone_verified: true })
+        .select('verification_token')
+        .eq('phone', phone)
+        .single();
+
+    if (error || !profile) return res.status(400).json({ error: 'Profile not found' });
+
+    const expectedToken = profile.verification_token?.substring(0, 6);
+    if (otp.toLowerCase() !== expectedToken?.toLowerCase()) {
+        return res.status(400).json({ error: 'Invalid verification token' });
+    }
+
+    const { data: updated, error: updateError } = await supabase
+        .from('profiles')
+        .update({ phone_verified: true, verification_token: null })
         .eq('phone', phone)
         .select()
         .single();
 
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ success: true, user: data });
+    if (updateError) return res.status(500).json({ error: updateError.message });
+    res.json({ success: true, user: updated });
 };
