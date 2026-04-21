@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 
 const PROP_WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_PROP_WHATSAPP_NUMBER || '1234567890';
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.propai.live';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://46.62.211.251:3001';
 const QR_POLL_INTERVAL = 5000;
 
 const features = [
