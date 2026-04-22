@@ -1,21 +1,10 @@
 import { Router } from 'express';
-import { requestVerification, verifyPhone } from '../controllers/authController';
-import { sessionManager } from '../whatsapp/SessionManager';
 import { supabase } from '../config/supabase';
 import crypto from 'crypto';
-import nodemailer from 'nodemailer';
 
 const router = Router();
 
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.mailgun.org',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: false,
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-    }
-});
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 router.post('/request-verification', async (req, res) => {
     const { email } = req.body;
@@ -29,27 +18,39 @@ router.post('/request-verification', async (req, res) => {
             .from('profiles')
             .upsert({ phone: email, verification_token: token, phone_verified: false, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
 
-        await transporter.sendMail({
-            from: process.env.EMAIL_FROM || 'PropAI <noreply@propai.live>',
-            to: email,
-            subject: 'Your PropAI verification code',
-            html: `
-                <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-                    <h2 style="color: #10b981;">PropAI Verification</h2>
-                    <p>Your verification code is:</p>
-                    <div style="font-size: 32px; font-weight: bold; letter-spacing: 4px; padding: 20px; background: #f3f4f6; border-radius: 8px; text-align: center; margin: 20px 0;">
-                        ${token}
+        const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${RESEND_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                from: process.env.EMAIL_FROM || 'PropAI <noreply@propai.live>',
+                to: email,
+                subject: 'Your PropAI verification code',
+                html: `
+                    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+                        <h2 style="color: #10b981;">PropAI Verification</h2>
+                        <p>Your verification code is:</p>
+                        <div style="font-size: 32px; font-weight: bold; letter-spacing: 4px; padding: 20px; background: #f3f4f6; border-radius: 8px; text-align: center; margin: 20px 0;">
+                            ${token}
+                        </div>
+                        <p style="color: #6b7280; font-size: 14px;">This code expires in 10 minutes.</p>
+                        <p style="color: #6b7280; font-size: 12px;">If you didn't request this, ignore this email.</p>
                     </div>
-                    <p style="color: #6b7280; font-size: 14px;">This code expires in 10 minutes.</p>
-                    <p style="color: #6b7280; font-size: 12px;">If you didn't request this, ignore this email.</p>
-                </div>
-            `
+                `
+            })
         });
+
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || 'Failed to send email');
+        }
 
         res.json({ message: 'Verification code sent to your email' });
     } catch (error: any) {
         console.error('Email send error:', error);
-        res.status(500).json({ error: 'Failed to send verification email' });
+        res.status(500).json({ error: error.message || 'Failed to send verification email' });
     }
 });
 
@@ -78,25 +79,7 @@ router.post('/verify', async (req, res) => {
 
     if (updateError) return res.status(500).json({ error: updateError.message });
 
-    const { data: { session: supabaseSession }, error: sessionError } = await supabase.auth.admin.generateLink({
-        type: 'magiclink',
-        email: email
-    });
-
     res.json({ success: true, user: updated });
-});
-
-router.get('/system-qr', async (req, res) => {
-    const qr = sessionManager.getSystemQR();
-    if (!qr) {
-        return res.status(202).json({ qr: null, status: 'waiting', message: 'System session initializing' });
-    }
-    res.json({ qr, status: 'ready' });
-});
-
-router.get('/system-status', async (req, res) => {
-    const status = await sessionManager.getSystemStatus();
-    res.json(status);
 });
 
 export default router;
