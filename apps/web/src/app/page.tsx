@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, Suspense, useState, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 
 const PROP_WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_PROP_WHATSAPP_NUMBER || '1234567890';
@@ -47,8 +46,6 @@ const features = [
 ];
 
 function QRCodeSection() {
-    const searchParams = useSearchParams();
-    const ref = searchParams.get('ref');
     const [qr, setQr] = useState<string | null>(null);
     const [status, setStatus] = useState<'loading' | 'ready' | 'scanned' | 'connected'>('loading');
     const [error, setError] = useState<string | null>(null);
@@ -67,6 +64,14 @@ function QRCodeSection() {
             console.error('Failed to fetch QR:', e);
         }
     }, []);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        // ref is not needed for QR display but kept for future use
+        fetchQR();
+        const interval = setInterval(fetchQR, 5000);
+        return () => clearInterval(interval);
+    }, [fetchQR]);
 
     useEffect(() => {
         fetchQR();
@@ -158,11 +163,8 @@ function QRCodeSection() {
 }
 
 function FallbackSection() {
-    const searchParams = useSearchParams();
-    const ref = searchParams.get('ref');
     const baseMessage = "Hi, I'm a real estate broker. Please onboard me to PropAI Live.";
-    const message = ref ? `${baseMessage} (Ref: ${ref})` : baseMessage;
-    const waUrl = `https://wa.me/${PROP_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+    const waUrl = `https://wa.me/${PROP_WHATSAPP_NUMBER}?text=${encodeURIComponent(baseMessage)}`;
 
     return (
         <a
@@ -180,13 +182,14 @@ function FallbackSection() {
 }
 
 function ReferralSection() {
-    const searchParams = useSearchParams();
-    const ref = searchParams.get('ref');
     const [baseUrl, setBaseUrl] = useState('app.propai.live');
+    const [ref, setRef] = useState<string | null>(null);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
             setBaseUrl(window.location.origin);
+            const params = new URLSearchParams(window.location.search);
+            setRef(params.get('ref'));
         }
     }, []);
 
