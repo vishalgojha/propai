@@ -1,10 +1,7 @@
 'use client';
-import { useEffect, Suspense, useState, useCallback } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { useEffect, Suspense, useState } from 'react';
 
-const PROP_WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_PROP_WHATSAPP_NUMBER || '1234567890';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.propai.live';
-const QR_POLL_INTERVAL = 5000;
 
 const features = [
     {
@@ -45,57 +42,54 @@ const features = [
     }
 ];
 
-function QRCodeSection() {
-    const [qr, setQr] = useState<string | null>(null);
-    const [status, setStatus] = useState<'loading' | 'ready' | 'scanned' | 'connected'>('loading');
-    const [error, setError] = useState<string | null>(null);
+function LoginForm() {
+    const [step, setStep] = useState<'email' | 'otp' | 'success'>('email');
+    const [email, setEmail] = useState('');
+    const [otp, setOtp] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
-    const fetchQR = useCallback(async () => {
+    const requestCode = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
         try {
-            const res = await fetch(`${API_BASE}/api/auth/system-qr`);
+            const res = await fetch(`${API_BASE}/api/auth/request-verification`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
             const data = await res.json();
-            if (data.qr) {
-                setQr(data.qr);
-                setStatus('ready');
-            } else if (data.status === 'waiting') {
-                setStatus('loading');
-            }
-        } catch (e) {
-            console.error('Failed to fetch QR:', e);
+            if (data.error) throw new Error(data.error);
+            setStep('otp');
+        } catch (err: any) {
+            setError(err.message || 'Failed to send code');
+        } finally {
+            setLoading(false);
         }
-    }, []);
+    };
 
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        // ref is not needed for QR display but kept for future use
-        fetchQR();
-        const interval = setInterval(fetchQR, 5000);
-        return () => clearInterval(interval);
-    }, [fetchQR]);
+    const verifyCode = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        try {
+            const res = await fetch(`${API_BASE}/api/auth/verify`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, otp })
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            setStep('success');
+        } catch (err: any) {
+            setError(err.message || 'Invalid code');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    useEffect(() => {
-        fetchQR();
-        const interval = setInterval(fetchQR, QR_POLL_INTERVAL);
-        return () => clearInterval(interval);
-    }, [fetchQR]);
-
-    useEffect(() => {
-        const checkStatus = async () => {
-            try {
-                const res = await fetch(`${API_BASE}/api/auth/system-status`);
-                const data = await res.json();
-                if (data.connected) {
-                    setStatus('connected');
-                }
-            } catch (e) {
-                // ignore
-            }
-        };
-        const interval = setInterval(checkStatus, 3000);
-        return () => clearInterval(interval);
-    }, []);
-
-    if (status === 'connected') {
+    if (step === 'success') {
         return (
             <div className="bg-white rounded-3xl p-8 shadow-2xl shadow-green-500/10">
                 <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
@@ -104,20 +98,8 @@ function QRCodeSection() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800">WhatsApp Connected!</h3>
-                    <p className="text-gray-500">Your WhatsApp is linked to PropAI. Start chatting with your leads.</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (status === 'loading') {
-        return (
-            <div className="bg-white rounded-3xl p-8 shadow-2xl shadow-green-500/10">
-                <div className="flex flex-col items-center justify-center min-h-[320px]">
-                    <div className="w-12 h-12 border-4 border-green-200 border-t-green-500 rounded-full animate-spin mb-4" />
-                    <p className="text-gray-500">Initializing WhatsApp session...</p>
-                    <p className="text-xs text-gray-400 mt-1">Please wait a moment</p>
+                    <h3 className="text-xl font-bold text-gray-800">Welcome to PropAI!</h3>
+                    <p className="text-gray-500">Your account is verified. Start chatting with your leads.</p>
                 </div>
             </div>
         );
@@ -125,83 +107,61 @@ function QRCodeSection() {
 
     return (
         <div className="bg-white rounded-3xl p-8 shadow-2xl shadow-green-500/10">
-            <div className="flex justify-center mb-5">
-                {qr && (
-                    <div className="relative">
-                        <QRCodeSVG
-                            value={qr}
-                            size={260}
-                            level="H"
-                            bgColor="#ffffff"
-                            fgColor="#000000"
-                            imageSettings={{
-                                src: '/favicon.svg',
-                                height: 40,
-                                width: 40,
-                                excavate: true
-                            }}
-                        />
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-amber-100 text-amber-700 text-xs px-3 py-1 rounded-full font-medium">
-                            ⚡ Scan within 60 seconds
-                        </div>
+            {step === 'email' ? (
+                <form onSubmit={requestCode} className="space-y-4">
+                    <div className="text-center mb-6">
+                        <h3 className="text-xl font-bold text-gray-800 mb-1">Get Started</h3>
+                        <p className="text-sm text-gray-500">Enter your email to receive a verification code</p>
                     </div>
-                )}
-            </div>
-            <div className="text-center space-y-3">
-                <div className="flex items-center justify-center gap-2 text-gray-800">
-                    <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                    </svg>
-                    <span className="font-bold text-lg">Scan with WhatsApp</span>
-                </div>
-                <p className="text-sm text-gray-500">
-                    Opens WhatsApp to connect your account
-                </p>
-            </div>
-        </div>
-    );
-}
-
-function FallbackSection() {
-    const baseMessage = "Hi, I'm a real estate broker. Please onboard me to PropAI Live.";
-    const waUrl = `https://wa.me/${PROP_WHATSAPP_NUMBER}?text=${encodeURIComponent(baseMessage)}`;
-
-    return (
-        <a
-            href={waUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full px-6 py-4 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-full transition-all shadow-lg shadow-green-500/25 text-lg"
-        >
-            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-            </svg>
-            Open WhatsApp on this device
-        </a>
-    );
-}
-
-function ReferralSection() {
-    const [baseUrl, setBaseUrl] = useState('app.propai.live');
-    const [ref, setRef] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            setBaseUrl(window.location.origin);
-            const params = new URLSearchParams(window.location.search);
-            setRef(params.get('ref'));
-        }
-    }, []);
-
-    const fullUrl = `${baseUrl}?ref=${ref || 'YOUR_NAME'}`;
-
-    return (
-        <div className="bg-gray-800/50 border border-gray-700/50 rounded-2xl p-5">
-            <p className="text-sm text-gray-300 mb-3 font-medium">Share your referral link</p>
-            <code className="text-xs text-green-400 bg-gray-900/50 px-3 py-2 rounded-lg block break-all">
-                {fullUrl}
-            </code>
-            <p className="text-xs text-gray-500 mt-2">Track which brokers onboard via your link</p>
+                    <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        required
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-800"
+                    />
+                    {error && <p className="text-red-500 text-sm">{error}</p>}
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl transition-all disabled:opacity-50"
+                    >
+                        {loading ? 'Sending...' : 'Send Verification Code'}
+                    </button>
+                </form>
+            ) : (
+                <form onSubmit={verifyCode} className="space-y-4">
+                    <div className="text-center mb-6">
+                        <h3 className="text-xl font-bold text-gray-800 mb-1">Enter Code</h3>
+                        <p className="text-sm text-gray-500">We sent a 6-digit code to {email}</p>
+                    </div>
+                    <input
+                        type="text"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="000000"
+                        maxLength={6}
+                        required
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 text-center text-2xl tracking-widest font-mono text-gray-800"
+                    />
+                    {error && <p className="text-red-500 text-sm">{error}</p>}
+                    <button
+                        type="submit"
+                        disabled={loading || otp.length !== 6}
+                        className="w-full py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl transition-all disabled:opacity-50"
+                    >
+                        {loading ? 'Verifying...' : 'Verify'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setStep('email')}
+                        className="w-full py-2 text-gray-500 hover:text-gray-700 text-sm"
+                    >
+                        Change email
+                    </button>
+                </form>
+            )}
         </div>
     );
 }
@@ -243,10 +203,10 @@ export default function Home() {
                     <div className="flex-1 w-full">
                         <Suspense fallback={
                             <div className="bg-white rounded-3xl p-8 shadow-2xl">
-                                <div className="w-[260px] h-[260px] bg-gray-100 animate-pulse rounded-xl mx-auto" />
+                                <div className="h-64 bg-gray-100 animate-pulse rounded-xl" />
                             </div>
                         }>
-                            <QRCodeSection />
+                            <LoginForm />
                         </Suspense>
                     </div>
 
@@ -257,32 +217,26 @@ export default function Home() {
                                 <li className="flex gap-3">
                                     <span className="flex-shrink-0 w-7 h-7 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-sm font-bold">1</span>
                                     <div>
-                                        <p className="font-medium text-white">Scan the QR code</p>
-                                        <p className="text-sm text-gray-400">Opens WhatsApp to connect your account instantly</p>
+                                        <p className="font-medium text-white">Enter your email</p>
+                                        <p className="text-sm text-gray-400">Get a verification code sent to your inbox</p>
                                     </div>
                                 </li>
                                 <li className="flex gap-3">
                                     <span className="flex-shrink-0 w-7 h-7 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-sm font-bold">2</span>
                                     <div>
-                                        <p className="font-medium text-white">Verify your number</p>
-                                        <p className="text-sm text-gray-400">Your phone number is detected automatically when you send a message.</p>
+                                        <p className="font-medium text-white">Verify your code</p>
+                                        <p className="text-sm text-gray-400">Enter the 6-digit code to activate your account</p>
                                     </div>
                                 </li>
                                 <li className="flex gap-3">
                                     <span className="flex-shrink-0 w-7 h-7 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-sm font-bold">3</span>
                                     <div>
                                         <p className="font-medium text-white">Start chatting</p>
-                                        <p className="text-sm text-gray-400">Ask property questions, get listings, book viewings — all via WhatsApp.</p>
+                                        <p className="text-sm text-gray-400">Connect with leads via WhatsApp and let AI do the rest</p>
                                     </div>
                                 </li>
                             </ol>
                         </div>
-
-                        <Suspense fallback={<div className="bg-gray-800/50 border border-gray-700/50 rounded-2xl p-5 h-24" />}>
-                            <ReferralSection />
-                        </Suspense>
-
-                        <FallbackSection />
                     </div>
                 </div>
 
@@ -306,7 +260,7 @@ export default function Home() {
                 </div>
 
                 <p className="mt-8 text-center text-xs text-gray-600">
-                    By connecting via WhatsApp, you agree to our Terms of Service. Your data is used solely to provide PropAI services.
+                    By connecting, you agree to our Terms of Service.
                 </p>
             </div>
         </div>
