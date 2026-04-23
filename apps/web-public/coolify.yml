@@ -1,0 +1,20 @@
+id: propai-public
+name: PropAI Public Listings
+specify_port: false
+port: 3000
+
+services:
+  - name: web-public
+    description: Public listing feed for www.propai.live
+    build_pack: dockerfile
+    port: 3000
+    health_check:
+      path: /
+      interval: 30
+      timeout: 10
+      retries: 3
+    environment:
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        value: ${NEXT_PUBLIC_SUPABASE_URL}
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        value: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
