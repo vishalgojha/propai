@@ -5,35 +5,45 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
-export interface Listing {
-  id: string;
-  structured_data: {
-    type?: string;
-    location?: string;
-    area?: string;
-    sub_area?: string;
-    price?: number;
-    price_type?: string;
-    size_sqft?: number;
-    furnishing?: string;
-    bhk?: number;
-    property_type?: string;
-  };
-  raw_text?: string;
-  status: string;
-  created_at: string;
+export interface ListingEntry {
+  type?: string;
+  location?: string;
+  area?: string;
+  sub_area?: string;
+  price?: number;
+  price_type?: string;
+  size_sqft?: number;
+  furnishing?: string;
+  bhk?: number;
+  property_type?: string;
 }
 
-export async function getListings({ type, area, limit = 50 }: { type?: string; area?: string; limit?: number } = {}): Promise<Listing[]> {
+export interface WhatsAppMessage {
+  id: string;
+  message_id: string;
+  group_id: string;
+  group_name: string;
+  sender_number: string;
+  message: string;
+  cleaned_message: string;
+  status: string;
+  type: string;
+  entries: ListingEntry[];
+  contacts: Array<{ number: string; name?: string }>;
+  confidence: number;
+  timestamp: string;
+}
+
+export async function getListings({ type, area, limit = 50 }: { type?: string; area?: string; limit?: number } = {}): Promise<WhatsAppMessage[]> {
   let query = supabase
-    .from('listings')
+    .from('whatsapp_messages')
     .select('*')
-    .eq('status', 'Active')
-    .order('created_at', { ascending: false })
+    .eq('status', 'processed')
+    .order('timestamp', { ascending: false })
     .limit(limit);
 
   if (type && type !== 'ALL') {
-    query = query.contains('structured_data', { type });
+    query = query.eq('type', type);
   }
 
   const { data, error } = await query;
@@ -42,21 +52,22 @@ export async function getListings({ type, area, limit = 50 }: { type?: string; a
     return [];
   }
 
-  let listings = data || [];
+  let listings = (data || []).filter(m => m.entries && m.entries.length > 0);
 
   if (area) {
-    listings = listings.filter(l => {
-      const sd = l.structured_data || {};
-      return (sd.sub_area || sd.area || '').toLowerCase().includes(area.toLowerCase());
+    listings = listings.filter(m => {
+      const entry = m.entries?.[0] || {};
+      const loc = entry.sub_area || entry.area || '';
+      return loc.toLowerCase().includes(area.toLowerCase());
     });
   }
 
   return listings;
 }
 
-export async function getListingById(id: string): Promise<Listing | null> {
+export async function getListingById(id: string): Promise<WhatsAppMessage | null> {
   const { data, error } = await supabase
-    .from('listings')
+    .from('whatsapp_messages')
     .select('*')
     .eq('id', id)
     .single();
@@ -67,15 +78,15 @@ export async function getListingById(id: string): Promise<Listing | null> {
 
 export async function getAreas(): Promise<string[]> {
   const { data } = await supabase
-    .from('listings')
-    .select('structured_data')
-    .eq('status', 'Active');
+    .from('whatsapp_messages')
+    .select('entries')
+    .eq('status', 'processed');
 
   const areas = new Set<string>();
-  for (const item of data || []) {
-    const sd = item.structured_data || {};
-    if (sd.sub_area) areas.add(sd.sub_area);
-    if (sd.area) areas.add(sd.area);
+  for (const msg of data || []) {
+    const entry = msg.entries?.[0] || {};
+    if (entry.sub_area) areas.add(entry.sub_area);
+    if (entry.area) areas.add(entry.area);
   }
   return [...areas].sort();
 }
@@ -87,17 +98,17 @@ export function formatPrice(price: number, priceType?: string): string {
   return `₹${price.toLocaleString('en-IN')}`;
 }
 
-export function generateDescription(listing: Listing): string {
-  const sd = listing.structured_data || {};
+export function generateDescription(listing: WhatsAppMessage): string {
+  const entry = listing.entries?.[0] || {};
   const parts = [];
-  if (sd.bhk) parts.push(`${sd.bhk} BHK`);
-  if (sd.property_type) parts.push(sd.property_type);
-  if (sd.sub_area || sd.area) parts.push(`in ${sd.sub_area || sd.area}`);
-  if (sd.size_sqft) parts.push(`${sd.size_sqft} sq ft`);
-  if (sd.furnishing) parts.push(sd.furnishing);
-  if (sd.price && sd.price_type) {
-    const formatted = formatPrice(sd.price, sd.price_type);
-    parts.push(`at ${formatted}${sd.price_type === 'monthly' ? '/month' : ''}`);
+  if (entry.bhk) parts.push(`${entry.bhk} BHK`);
+  if (entry.property_type) parts.push(entry.property_type);
+  if (entry.sub_area || entry.area) parts.push(`in ${entry.sub_area || entry.area}`);
+  if (entry.size_sqft) parts.push(`${entry.size_sqft} sq ft`);
+  if (entry.furnishing) parts.push(entry.furnishing);
+  if (entry.price && entry.price_type) {
+    const formatted = formatPrice(entry.price, entry.price_type);
+    parts.push(`at ${formatted}${entry.price_type === 'monthly' ? '/month' : ''}`);
   }
   return parts.join(' ') || 'Property listing';
 }

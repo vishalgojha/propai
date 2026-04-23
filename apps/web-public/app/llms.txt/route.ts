@@ -15,10 +15,10 @@ export async function GET() {
   ];
 
   for (const listing of listings) {
-    const sd = listing.structured_data || {};
-    const location = [sd.sub_area, sd.area].filter(Boolean).join(', ');
-    const type = sd.type === 'listing_rent' ? 'FOR RENT' : sd.type === 'listing_sale' ? 'FOR SALE' : 'REQUIREMENT';
-    const price = sd.price ? formatPrice(sd.price) : 'Price on request';
+    const entry = listing.entries?.[0] || {};
+    const location = [entry.sub_area, entry.area].filter(Boolean).join(', ');
+    const type = entry.type === 'listing_rent' ? 'FOR RENT' : entry.type === 'listing_sale' ? 'FOR SALE' : 'REQUIREMENT';
+    const price = entry.price ? formatPrice(entry.price) : 'Price on request';
     const description = generateDescription(listing);
 
     lines.push(`### ${location || 'Mumbai'} - ${type}`);

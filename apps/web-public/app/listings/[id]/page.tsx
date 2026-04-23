@@ -11,12 +11,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const listing = await getListingById(id);
   if (!listing) return { title: 'Listing Not Found' };
 
-  const sd = listing.structured_data || {};
-  const location = [sd.sub_area, sd.area].filter(Boolean).join(', ');
+  const entry = listing.entries?.[0] || {};
+  const location = [entry.sub_area, entry.area].filter(Boolean).join(', ');
   const description = generateDescription(listing);
 
   return {
-    title: `${location} ${sd.bhk ? sd.bhk + ' BHK' : ''} - ${sd.price ? formatPrice(sd.price) : 'Price on request'} | PropAI`,
+    title: `${location} ${entry.bhk ? entry.bhk + ' BHK' : ''} - ${entry.price ? formatPrice(entry.price) : 'Price on request'} | PropAI`,
     description,
     openGraph: {
       title: `${location} - PropAI`,
@@ -36,26 +36,26 @@ export default async function ListingPage({ params }: Props) {
 
   if (!listing) notFound();
 
-  const sd = listing.structured_data || {};
-  const location = [sd.sub_area, sd.area].filter(Boolean).join(', ');
+  const entry = listing.entries?.[0] || {};
+  const location = [entry.sub_area, entry.area].filter(Boolean).join(', ');
   const description = generateDescription(listing);
 
   const schemaOrg = {
     '@context': 'https://schema.org',
     '@type': 'RealEstateListing',
-    name: `${location} ${sd.bhk ? sd.bhk + ' BHK' : ''}`,
+    name: `${location} ${entry.bhk ? entry.bhk + ' BHK' : ''}`,
     description,
     url: `https://www.propai.live/listings/${listing.id}`,
-    datePosted: listing.created_at,
-    ...(sd.price && {
+    datePosted: listing.timestamp,
+    ...(entry.price && {
       offers: {
         '@type': 'Offer',
-        price: sd.price,
+        price: entry.price,
         priceCurrency: 'INR',
-        ...(sd.price_type === 'monthly' && { availability: 'https://schema.org/Rent' })
+        ...(entry.price_type === 'monthly' && { availability: 'https://schema.org/Rent' })
       }
     }),
-    ...(sd.location && {
+    ...(location && {
       location: {
         '@type': 'Place',
         name: location
@@ -86,40 +86,40 @@ export default async function ListingPage({ params }: Props) {
         <div style={{ background: '#fff', borderRadius: 12, padding: 32, marginTop: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
             <div>
-              <span className={`listing-type ${sd.type === 'listing_rent' ? 'rent' : sd.type === 'listing_sale' ? 'sale' : 'requirement'}`} style={{ fontSize: 12, padding: '6px 12px' }}>
-                {sd.type === 'listing_rent' ? 'For Rent' : sd.type === 'listing_sale' ? 'For Sale' : 'Requirement'}
+              <span className={`listing-type ${entry.type === 'listing_rent' ? 'rent' : entry.type === 'listing_sale' ? 'sale' : 'requirement'}`} style={{ fontSize: 12, padding: '6px 12px' }}>
+                {entry.type === 'listing_rent' ? 'For Rent' : entry.type === 'listing_sale' ? 'For Sale' : 'Requirement'}
               </span>
               <h1 style={{ fontSize: 32, marginTop: 12 }}>{location || 'Mumbai'}</h1>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 36, fontWeight: 700 }}>{sd.price ? formatPrice(sd.price) : 'Price on request'}</div>
-              {sd.price_type === 'monthly' && <div style={{ color: '#666', fontSize: 14 }}>per month</div>}
+              <div style={{ fontSize: 36, fontWeight: 700 }}>{entry.price ? formatPrice(entry.price) : 'Price on request'}</div>
+              {entry.price_type === 'monthly' && <div style={{ color: '#666', fontSize: 14 }}>per month</div>}
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
-            {sd.bhk && (
+            {entry.bhk && (
               <div style={{ background: '#f5f5f5', padding: 16, borderRadius: 8 }}>
                 <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Property Type</div>
-                <div style={{ fontWeight: 500 }}>{sd.bhk} BHK</div>
+                <div style={{ fontWeight: 500 }}>{entry.bhk} BHK</div>
               </div>
             )}
-            {sd.size_sqft && (
+            {entry.size_sqft && (
               <div style={{ background: '#f5f5f5', padding: 16, borderRadius: 8 }}>
                 <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Area</div>
-                <div style={{ fontWeight: 500 }}>{sd.size_sqft} sq ft</div>
+                <div style={{ fontWeight: 500 }}>{entry.size_sqft} sq ft</div>
               </div>
             )}
-            {sd.furnishing && (
+            {entry.furnishing && (
               <div style={{ background: '#f5f5f5', padding: 16, borderRadius: 8 }}>
                 <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Furnishing</div>
-                <div style={{ fontWeight: 500 }}>{sd.furnishing}</div>
+                <div style={{ fontWeight: 500 }}>{entry.furnishing}</div>
               </div>
             )}
-            {sd.property_type && (
+            {entry.property_type && (
               <div style={{ background: '#f5f5f5', padding: 16, borderRadius: 8 }}>
                 <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Type</div>
-                <div style={{ fontWeight: 500 }}>{sd.property_type}</div>
+                <div style={{ fontWeight: 500 }}>{entry.property_type}</div>
               </div>
             )}
           </div>
@@ -129,10 +129,12 @@ export default async function ListingPage({ params }: Props) {
             <p style={{ color: '#444', lineHeight: 1.7 }}>{description}</p>
           </div>
 
-          {listing.raw_text && (
+          {listing.cleaned_message && (
             <div style={{ marginBottom: 24 }}>
               <h2 style={{ fontSize: 18, marginBottom: 8 }}>Listing details</h2>
-              <p style={{ color: '#444', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{listing.raw_text.slice(0, 500)}{listing.raw_text.length > 500 ? '...' : ''}</p>
+              <p style={{ color: '#444', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                {listing.cleaned_message.slice(0, 500)}{listing.cleaned_message.length > 500 ? '...' : ''}
+              </p>
             </div>
           )}
 

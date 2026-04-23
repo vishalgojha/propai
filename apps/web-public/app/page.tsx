@@ -17,8 +17,8 @@ export default async function HomePage({
 
   const filtered = q
     ? listings.filter(l => {
-        const sd = l.structured_data || {};
-        const searchText = [sd.sub_area, sd.area, sd.property_type, l.raw_text].filter(Boolean).join(' ').toLowerCase();
+        const entry = l.entries?.[0] || {};
+        const searchText = [entry.sub_area, entry.area, entry.property_type, l.cleaned_message, l.message].filter(Boolean).join(' ').toLowerCase();
         return searchText.includes(q.toLowerCase());
       })
     : listings;
@@ -65,26 +65,29 @@ export default async function HomePage({
           <div className="empty-state">
             <div style={{ fontSize: 48, marginBottom: 16 }}>🏠</div>
             <p>No listings found. Try adjusting your filters.</p>
+            <p style={{ marginTop: 8, fontSize: 13, color: '#999' }}>
+              Listings appear here once WhatsApp messages are processed by PropAI Pulse.
+            </p>
           </div>
         ) : (
           <div className="listing-grid">
             {filtered.map(listing => {
-              const sd = listing.structured_data || {};
-              const location = [sd.sub_area, sd.area].filter(Boolean).join(', ');
+              const entry = listing.entries?.[0] || {};
+              const location = [entry.sub_area, entry.area].filter(Boolean).join(', ');
               return (
                 <article key={listing.id} className="listing-card">
                   <div className="listing-header">
-                    <span className={`listing-type ${sd.type === 'listing_rent' ? 'rent' : sd.type === 'listing_sale' ? 'sale' : 'requirement'}`}>
-                      {sd.type === 'listing_rent' ? 'For Rent' : sd.type === 'listing_sale' ? 'For Sale' : 'Requirement'}
+                    <span className={`listing-type ${entry.type === 'listing_rent' ? 'rent' : entry.type === 'listing_sale' ? 'sale' : 'requirement'}`}>
+                      {entry.type === 'listing_rent' ? 'For Rent' : entry.type === 'listing_sale' ? 'For Sale' : 'Requirement'}
                     </span>
                   </div>
-                  <div className="listing-price">{sd.price ? formatPrice(sd.price) : 'Price on request'}</div>
+                  <div className="listing-price">{entry.price ? formatPrice(entry.price) : 'Price on request'}</div>
                   <div className="listing-details">
                     <div className="listing-area">{location || 'Mumbai'}</div>
                     <div className="listing-meta">
-                      {sd.bhk && <span>{sd.bhk} BHK</span>}
-                      {sd.size_sqft && <span>{sd.size_sqft} sq ft</span>}
-                      {sd.furnishing && <span>{sd.furnishing}</span>}
+                      {entry.bhk && <span>{entry.bhk} BHK</span>}
+                      {entry.size_sqft && <span>{entry.size_sqft} sq ft</span>}
+                      {entry.furnishing && <span>{entry.furnishing}</span>}
                     </div>
                   </div>
                   <div className="listing-footer">
