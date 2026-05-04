@@ -36,6 +36,7 @@ PropAI Sync is a high-performance workspace for real estate brokers to automate 
    - Branch: main
    - Port: 9377
    - Attach it to the same Coolify network as the API
+   - Manage the browser allowlist from your own `.env` / Coolify variables
    - This powers PropAI's browser agent for portal checks, listing comparisons, and form filling
 
 5. Both app services auto-deploy on push to main branch

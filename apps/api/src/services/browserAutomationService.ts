@@ -238,7 +238,7 @@ export class BrowserAutomationService {
     if (!this.allowedHosts.length) {
       if (this.isProduction()) {
         throw new Error(
-          `Camofox navigation blocked in production because CAMOFOX_ALLOWED_HOSTS is empty. Set a broker portal allowlist first.`
+          `Camofox navigation blocked in production because CAMOFOX_ALLOWED_HOSTS is empty. Set your own broker-managed allowlist first.`
         );
       }
       return;

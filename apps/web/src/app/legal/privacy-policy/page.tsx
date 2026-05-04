@@ -43,8 +43,8 @@ export default function PrivacyPolicy() {
                     page that asks for private credentials unless you explicitly approve that action.
                 </p>
                 <p>
-                    In production, browser access can be restricted to approved broker portals and real-estate domains
-                    so your team stays within policy.
+                    In production, browser access can be restricted to an allowlist that your team manages, so you
+                    stay within your own browsing policy.
                 </p>
             </section>
 
