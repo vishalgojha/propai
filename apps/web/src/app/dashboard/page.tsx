@@ -80,13 +80,14 @@ export default function Dashboard() {
 
     useEffect(() => {
         if (user) {
+            fetchMessages();
             const interval = setInterval(() => {
                 fetchStatus();
-                if (selectedChat) fetchMessages();
+                fetchMessages();
             }, 5000);
             return () => clearInterval(interval);
         }
-    }, [user, selectedChat]);
+    }, [user]);
 
     useEffect(() => {
         if (messages.length > 0) {

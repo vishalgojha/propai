@@ -23,6 +23,15 @@ export default function SettingsPage() {
         setKeys(prev => ({ ...prev, [provider]: value }));
     };
 
+    const readErrorMessage = async (res: Response, fallback: string) => {
+        try {
+            const data = await res.json();
+            return data?.error || data?.message || fallback;
+        } catch {
+            return fallback;
+        }
+    };
+
     const testConnection = async (provider: string) => {
         setStatus(prev => ({ ...prev, [provider]: 'testing' }));
         try {
@@ -31,9 +40,9 @@ export default function SettingsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ provider })
             });
-            if (!res.ok) throw new Error('Connection failed');
+            if (!res.ok) throw new Error(await readErrorMessage(res, 'Connection failed'));
             setStatus(prev => ({ ...prev, [provider]: 'success' }));
-        } catch (e) {
+        } catch {
             setStatus(prev => ({ ...prev, [provider]: 'error' }));
         }
     };
@@ -41,16 +50,20 @@ export default function SettingsPage() {
     const saveAllKeys = async () => {
         setSaving(true);
         try {
-            await Promise.all(Object.entries(keys).map(async ([provider, key]) => {
-                await apiFetch('/api/ai/keys', {
+            const entries = Object.entries(keys).filter(([, key]) => key.trim().length > 0);
+            await Promise.all(entries.map(async ([provider, key]) => {
+                const res = await apiFetch('/api/ai/keys', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ provider, key })
                 });
+                if (!res.ok) {
+                    throw new Error(await readErrorMessage(res, `Failed to save ${provider} key`));
+                }
             }));
             alert('All keys saved successfully!');
-        } catch (e) {
-            alert('Error saving keys');
+        } catch (e: any) {
+            alert(e?.message || 'Error saving keys');
         } finally {
             setSaving(false);
         }
