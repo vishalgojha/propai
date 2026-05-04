@@ -8,13 +8,11 @@ import {
 	HatGlasses,
 	Home,
 	Loader2,
-	Scale,
 	UnfoldVertical,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { siGithub } from 'simple-icons'
 
-import { DEMO_BASE_URL, DEMO_MODEL, isTestingEndpoint } from '@/agent/constants'
 import type { ExtConfig, LanguagePreference } from '@/agent/useAgent'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,8 +25,8 @@ interface ConfigPanelProps {
 }
 
 export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
-	const [baseURL, setBaseURL] = useState(config?.baseURL || DEMO_BASE_URL)
-	const [model, setModel] = useState(config?.model || DEMO_MODEL)
+	const [baseURL, setBaseURL] = useState(config?.baseURL || '')
+	const [model, setModel] = useState(config?.model || '')
 	const [apiKey, setApiKey] = useState(config?.apiKey)
 	const [language, setLanguage] = useState<LanguagePreference>(config?.language)
 	const [maxSteps, setMaxSteps] = useState(config?.maxSteps)
@@ -52,8 +50,8 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 	const [prevConfig, setPrevConfig] = useState(config)
 	if (prevConfig !== config) {
 		setPrevConfig(config)
-		setBaseURL(config?.baseURL || DEMO_BASE_URL)
-		setModel(config?.model || DEMO_MODEL)
+		setBaseURL(config?.baseURL || '')
+		setModel(config?.model || '')
 		setApiKey(config?.apiKey)
 		setLanguage(config?.language)
 		setMaxSteps(config?.maxSteps)
@@ -199,22 +197,6 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 					className="text-xs h-8"
 				/>
 			</div>
-
-			{/* Testing API notice */}
-			{isTestingEndpoint(baseURL) && (
-				<div className="p-2.5 rounded-md border border-amber-500/30 bg-amber-500/5 text-[11px] text-muted-foreground leading-relaxed">
-					<Scale className="size-3 inline-block mr-1 -mt-0.5 text-amber-600" />
-					You are using our testing API. By using this you agree to the{' '}
-					<a
-						href="https://github.com/alibaba/page-agent/blob/main/docs/terms-and-privacy.md"
-						target="_blank"
-						rel="noopener noreferrer"
-						className="underline hover:text-foreground"
-					>
-						Terms of Use & Privacy Policy
-					</a>
-				</div>
-			)}
 
 			<div className="flex flex-col gap-1.5">
 				<label htmlFor="model" className="text-xs text-muted-foreground">

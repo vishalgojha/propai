@@ -1,7 +1,5 @@
 import { initPageController } from '@/agent/RemotePageController.content'
 
-// import { DEMO_CONFIG } from '@/agent/constants'
-
 const DEBUG_PREFIX = '[Content]'
 
 export default defineContentScript({
