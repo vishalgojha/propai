@@ -109,8 +109,8 @@ export default function LoginPage() {
                 className="w-full max-w-md glass p-8 rounded-3xl shadow-2xl border-white/10"
             >
                 <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold mb-2">Welcome to PropAI</h1>
-                    <p className="text-gray-400">Enter your email to receive a secure sign-in code</p>
+                    <h1 className="text-3xl font-bold mb-2">Welcome back to PropAI</h1>
+                    <p className="text-gray-400">Drop in your email and we’ll send a sign-in code</p>
                 </div>
 
                 {error && (
@@ -157,7 +157,7 @@ export default function LoginPage() {
                         disabled={loading || !isSupabaseConfigured}
                         className="btn-primary w-full py-3 flex items-center justify-center gap-2 text-lg"
                     >
-                        {loading ? 'Processing...' : (step === 'EMAIL' ? 'Send Sign-In Code' : 'Verify & Enter')} <ArrowRight className="w-5 h-5" />
+                        {loading ? 'Working...' : (step === 'EMAIL' ? 'Send Code' : 'Verify & Enter')} <ArrowRight className="w-5 h-5" />
                     </button>
                     
                     {step === 'OTP' && (

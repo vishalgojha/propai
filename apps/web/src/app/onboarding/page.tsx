@@ -43,7 +43,7 @@ export default function Onboarding() {
             setUser(user);
             addMessage(
                 'ai',
-                `Hi ${user.email?.split('@')[0] || 'there'}! I'm your PropAI Agent. Let's get your WhatsApp connected so I can start syncing your leads.`
+                `Hi ${user.email?.split('@')[0] || 'there'}! I’m your PropAI sidekick. I’ll keep leads moving, talk naturally when it helps, and open listings whenever you want a quick look.`
             );
         };
 
@@ -144,9 +144,9 @@ export default function Onboarding() {
                         body: JSON.stringify({ startTrial: true }),
                     });
 
-                    addMessage('ai', 'Connected! Your account is now active. Your 7 day free trial starts today.');
+                    addMessage('ai', 'Connected! Your account is live now, and the 7 day free trial starts today.');
                     setTimeout(() => {
-                        addMessage('ai', 'Do you have team members whose WhatsApp should also be connected? You can add up to 2 more.');
+                        addMessage('ai', 'Got any teammates whose WhatsApp should be connected too? You can add up to 2 more.');
                         addMessage('ai', "Just type 'Yes' or 'No'.", 'pill');
                     }, 1000);
                 }, 800);
@@ -190,7 +190,7 @@ export default function Onboarding() {
             });
         }
 
-        addMessage('ai', 'All set! Your agent is now live and monitoring. Welcome to the Inbox.');
+        addMessage('ai', 'All set! Your agent is live and watching the flow. Welcome to the Inbox.');
         setTimeout(() => router.push('/dashboard'), 2000);
     };
 
@@ -211,7 +211,7 @@ export default function Onboarding() {
 
                 <div className="px-6 py-4 border-b border-white/10 bg-white/5">
                     <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-50">
-                        <p className="font-semibold mb-2">Browser assistant safety</p>
+                        <p className="font-semibold mb-2">Browser rules of the road</p>
                         <div className="grid gap-3 md:grid-cols-2">
                             <div>
                                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-200 mb-1">Use it for</p>

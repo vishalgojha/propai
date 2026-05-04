@@ -12,7 +12,7 @@ const features = [
             </svg>
         ),
         title: 'AI Conversations',
-        desc: 'Chat with leads 24/7. AI answers property questions, books viewings, negotiates — automatically.'
+        desc: 'Keeps the conversation moving 24/7. Answers property questions, books viewings, and handles the back-and-forth for you.'
     },
     {
         icon: (
@@ -21,7 +21,7 @@ const features = [
             </svg>
         ),
         title: 'Voice AI',
-        desc: 'Call leads, qualify them with voice AI, transcribe and summarize — hands-free.'
+        desc: 'Takes the call, qualifies the lead, and leaves you a clean summary. No chasing notes later.'
     },
     {
         icon: (
@@ -30,7 +30,7 @@ const features = [
             </svg>
         ),
         title: 'Lead Management',
-        desc: "Auto-capture, score, and route leads. Know exactly who's ready to buy."
+        desc: "Captures, scores, and routes leads so you know who is serious and who needs a nudge."
     },
     {
         icon: (
@@ -39,7 +39,7 @@ const features = [
             </svg>
         ),
         title: 'Analytics Dashboard',
-        desc: "Track conversations, conversion rates, and revenue. Optimize what's working."
+        desc: "Shows what is closing, what is stalling, and where your revenue is coming from."
     },
     {
         icon: (
@@ -48,7 +48,7 @@ const features = [
             </svg>
         ),
         title: 'Browser Agent',
-        desc: 'Tell PropAI: “Open this listing, check the broker number, compare the price, and draft my reply.”'
+        desc: 'Tell PropAI: “Open this listing, check the broker number, compare the price, and draft a reply in my tone.”'
     }
 ];
 
@@ -155,8 +155,8 @@ function LoginForm() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800">Welcome to PropAI!</h3>
-                    <p className="text-gray-500">Your account is verified. Start chatting with your leads.</p>
+                    <h3 className="text-xl font-bold text-gray-800">You’re in.</h3>
+                    <p className="text-gray-500">Your account is verified. Start working your leads.</p>
                 </div>
             </div>
         );
@@ -173,7 +173,7 @@ function LoginForm() {
                 <form onSubmit={requestCode} className="space-y-4">
                     <div className="text-center mb-6">
                         <h3 className="text-xl font-bold text-gray-800 mb-1">Get Started</h3>
-                        <p className="text-sm text-gray-500">Enter your email to receive a verification code</p>
+                        <p className="text-sm text-gray-500">Enter your email and we’ll send you a verification code</p>
                     </div>
                     <input
                         type="email"
@@ -247,7 +247,7 @@ export default function Home() {
                         Your AI-Powered Broker Copilot
                     </p>
                     <p className="text-gray-500 max-w-xl mx-auto">
-                        Close more deals with AI that handles your WhatsApp leads, voice calls, browser research, and CRM — while you focus on showing properties.
+                        Close more deals with an AI copilot that handles your WhatsApp leads, voice calls, browser research with Camofox, and CRM. It should feel like a sharp teammate, not a bot.
                     </p>
                 </div>
 
@@ -319,21 +319,21 @@ export default function Home() {
                                     <span className="flex-shrink-0 w-7 h-7 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-sm font-bold">1</span>
                                     <div>
                                         <p className="font-medium text-white">Enter your email</p>
-                                        <p className="text-sm text-gray-400">Get a verification code sent to your inbox</p>
+                                        <p className="text-sm text-gray-400">We’ll send you a code to get in</p>
                                     </div>
                                 </li>
                                 <li className="flex gap-3">
                                     <span className="flex-shrink-0 w-7 h-7 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-sm font-bold">2</span>
                                     <div>
                                         <p className="font-medium text-white">Verify your code</p>
-                                        <p className="text-sm text-gray-400">Enter the 6-digit code to activate your account</p>
+                                        <p className="text-sm text-gray-400">Punch in the 6-digit code and you’re live</p>
                                     </div>
                                 </li>
                                 <li className="flex gap-3">
                                     <span className="flex-shrink-0 w-7 h-7 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-sm font-bold">3</span>
                                     <div>
                                         <p className="font-medium text-white">Start chatting</p>
-                                        <p className="text-sm text-gray-400">Connect with leads via WhatsApp and let AI do the rest</p>
+                                        <p className="text-sm text-gray-400">Connect WhatsApp and let PropAI handle the follow-up</p>
                                     </div>
                                 </li>
                             </ol>

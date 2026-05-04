@@ -10,7 +10,7 @@ export default function PrivacyPolicy() {
 
             <section className="mb-10">
                 <h2 className="text-2xl font-semibold text-white mb-4">1. Data We Collect</h2>
-                <p className="mb-4">To provide our services, PropAI Sync collects the following information:</p>
+                <p className="mb-4">To run the product, PropAI Sync collects the following information:</p>
                 <ul className="list-disc pl-6 space-y-2">
                     <li><strong>Identity:</strong> Your phone number (primary identity) and optional email address.</li>
                     <li><strong>WhatsApp Data:</strong> Messages and group data required to parse listings and qualify leads.</li>
@@ -20,31 +20,31 @@ export default function PrivacyPolicy() {
 
             <section className="mb-10">
                 <h2 className="text-2xl font-semibold text-white mb-4">2. Data Storage & Processing</h2>
-                <p className="mb-4">Your data is stored securely on a Hetzner VPS (EU) and Supabase infrastructure. We prioritize data isolation through Row Level Security (RLS), ensuring your data is never visible to other tenants.</p>
-                <p>WhatsApp messages are processed by our AI agent and are not stored beyond 90 days unless they are converted into a Lead or Listing.</p>
+                <p className="mb-4">Your data is stored securely on a Hetzner VPS (EU) and Supabase infrastructure. Row Level Security (RLS) keeps your data separate from other tenants.</p>
+                <p>WhatsApp messages are processed by our AI agent and are not stored beyond 90 days unless they become a Lead or Listing.</p>
             </section>
 
             <section className="mb-10">
                 <h2 className="text-2xl font-semibold text-white mb-4">3. Data Usage & AI Improvement</h2>
                 <p className="mb-4">We do not sell, trade, or rent your personal or business data to third parties.</p>
-                <p className="mb-4"><strong>Opt-in Training:</strong> If you choose to enable "Help improve PropAI," we collect your property listings and lead qualification flows to fine-tune our local AI models. Before sharing, all personally identifiable information (PII) such as phone numbers and names are stripped using a strict anonymization pipeline.</p>
-                <p>Your data is only processed by our AI models (Local Ollama, Groq, or Claude) for the purpose of providing the automation services you've requested.</p>
+                <p className="mb-4"><strong>Opt-in training:</strong> If you turn on "Help improve PropAI," we use property listings and lead qualification flows to improve our local AI models. Before sharing, we strip personal details such as phone numbers and names through an anonymization step.</p>
+                <p>Your data is only processed by our AI models (Local Ollama, Groq, or Claude) to provide the automation services you asked for.</p>
             </section>
 
             <section className="mb-10">
                 <h2 className="text-2xl font-semibold text-white mb-4">4. Browser Agent Use</h2>
                 <p className="mb-4">
-                    If you use PropAI Browser Agent, it is meant for public and work-related real-estate browsing only.
+                    If you use PropAI Browser Agent, it is meant for public, work-related real-estate browsing only.
                     That includes listing portals, RERA pages, project pages, locality research, enquiry forms, and
                     competitive listing checks.
                 </p>
                 <p className="mb-4">
                     Do not use the browser agent for OTP screens, bank accounts, personal email, cloud drives, or any
-                    page that asks for private credentials unless you explicitly approve that action.
+                    page that asks for private credentials unless you explicitly approve it.
                 </p>
                 <p>
-                    In production, browser access can be restricted to an allowlist that your team manages, so you
-                    stay within your own browsing policy.
+                    In production, browser access can be restricted to an allowlist your team manages, so you stay
+                    within your own browsing policy.
                 </p>
             </section>
 
@@ -60,7 +60,7 @@ export default function PrivacyPolicy() {
 
             <section className="mb-10">
                 <h2 className="text-2xl font-semibold text-white mb-4">6. Contact Us</h2>
-                <p>For any privacy concerns, please contact us at: [your email]</p>
+                <p>For privacy questions, contact us at: [your email]</p>
             </section>
             
             <footer className="mt-20 pt-8 border-t border-white/10 text-sm text-gray-600 text-center">

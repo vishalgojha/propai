@@ -10,26 +10,26 @@ export default function CancellationPolicy() {
 
             <section className="mb-10">
                 <h2 className="text-2xl font-semibold text-white mb-4">1. How to Cancel</h2>
-                <p className="mb-4">You can cancel your PropAI Sync subscription at any time through the following methods:</p>
+                <p className="mb-4">You can cancel your PropAI Sync subscription at any time in either of these ways:</p>
                 <ul className="list-disc pl-6 space-y-2">
-                    <li>Conversational request to the PropAI Agent (e.g., "cancel my plan").</li>
-                    <li>The Subscription Settings page in your Dashboard.</li>
+                    <li>Tell the PropAI Agent something like, "cancel my plan".</li>
+                    <li>Use the Subscription Settings page in your Dashboard.</li>
                 </ul>
             </section>
 
             <section className="mb-10">
                 <h2 className="text-2xl font-semibold text-white mb-4">2. Effective Date</h2>
-                <p className="mb-4">Cancellations take effect at the end of your current billing period. You will continue to have access to your current plan features until the renewal date.</p>
+                <p className="mb-4">Cancellations take effect at the end of your current billing period. You keep access to your plan until the renewal date.</p>
             </section>
 
             <section className="mb-10">
                 <h2 className="text-2xl font-semibold text-white mb-4">3. Data Retention</h2>
-                <p className="mb-4">Upon cancellation and expiration of the billing period, your data (listings and leads) will be retained for 30 days to allow for backup. After 30 days, all data will be permanently deleted from our servers.</p>
+                <p className="mb-4">After cancellation and the end of the billing period, your data (listings and leads) stays for 30 days as a backup window. After that, it is permanently deleted from our servers.</p>
             </section>
 
             <section className="mb-10">
                 <h2 className="text-2xl font-semibold text-white mb-4">4. Fees</h2>
-                <p className="mb-4">There are no cancellation fees associated with ending your PropAI Sync subscription.</p>
+                <p className="mb-4">There are no cancellation fees when you end your PropAI Sync subscription.</p>
             </section>
             
             <footer className="mt-20 pt-8 border-t border-white/10 text-sm text-gray-600 text-center">
