@@ -223,21 +223,37 @@ export class BrowserAutomationService {
   }
 
   private ensureAllowed(url: string): void {
-    if (!this.allowedHosts.length) return;
     if (url.trim().startsWith('@')) return;
 
     let parsed: URL;
     try {
       parsed = new URL(url);
     } catch {
+      if (this.isProduction()) {
+        throw new Error('Camofox navigation requires a valid URL in production.');
+      }
       return;
     }
+
+    if (!this.allowedHosts.length) {
+      if (this.isProduction()) {
+        throw new Error(
+          `Camofox navigation blocked in production because CAMOFOX_ALLOWED_HOSTS is empty. Set a broker portal allowlist first.`
+        );
+      }
+      return;
+    }
+
     const hostname = parsed.hostname.toLowerCase();
     const isAllowed = this.allowedHosts.some((host) => hostname === host || hostname.endsWith(`.${host}`));
 
     if (!isAllowed) {
       throw new Error(`Camofox navigation blocked for disallowed host: ${parsed.hostname}`);
     }
+  }
+
+  private isProduction(): boolean {
+    return process.env.NODE_ENV === 'production' || process.env.CAMOFOX_STRICT_ALLOWLIST === 'true';
   }
 }
 

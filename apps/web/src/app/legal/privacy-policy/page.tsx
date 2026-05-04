@@ -32,7 +32,24 @@ export default function PrivacyPolicy() {
             </section>
 
             <section className="mb-10">
-                <h2 className="text-2xl font-semibold text-white mb-4">4. Your Rights (DPDP Act 2023)</h2>
+                <h2 className="text-2xl font-semibold text-white mb-4">4. Browser Agent Use</h2>
+                <p className="mb-4">
+                    If you use PropAI Browser Agent, it is meant for public and work-related real-estate browsing only.
+                    That includes listing portals, RERA pages, project pages, locality research, enquiry forms, and
+                    competitive listing checks.
+                </p>
+                <p className="mb-4">
+                    Do not use the browser agent for OTP screens, bank accounts, personal email, cloud drives, or any
+                    page that asks for private credentials unless you explicitly approve that action.
+                </p>
+                <p>
+                    In production, browser access can be restricted to approved broker portals and real-estate domains
+                    so your team stays within policy.
+                </p>
+            </section>
+
+            <section className="mb-10">
+                <h2 className="text-2xl font-semibold text-white mb-4">5. Your Rights (DPDP Act 2023)</h2>
                 <p className="mb-4">In compliance with the Digital Personal Data Protection Act 2023 (India), you have the right to:</p>
                 <ul className="list-disc pl-6 space-y-2">
                     <li>Access the data we hold about you.</li>
@@ -42,7 +59,7 @@ export default function PrivacyPolicy() {
             </section>
 
             <section className="mb-10">
-                <h2 className="text-2xl font-semibold text-white mb-4">5. Contact Us</h2>
+                <h2 className="text-2xl font-semibold text-white mb-4">6. Contact Us</h2>
                 <p>For any privacy concerns, please contact us at: [your email]</p>
             </section>
             
