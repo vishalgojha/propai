@@ -116,22 +116,6 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  packages/agent:
-    dependencies:
-      framer-motion:
-        specifier: latest
-        version: 12.38.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      lucide-react:
-        specifier: latest
-        version: 1.8.0(react@19.2.4)
-      zod:
-        specifier: ^4.3.6
-        version: 4.3.6
-    devDependencies:
-      typescript:
-        specifier: latest
-        version: 6.0.3
-
 packages:
 
   '@alloc/quick-lru@5.2.0':

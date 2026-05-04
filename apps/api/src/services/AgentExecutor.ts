@@ -4,8 +4,6 @@ import { supabase } from '../config/supabase';
 import { safeJSONParse } from '../utils/jsonUtils';
 import { igrQueryService } from './igrQueryService';
 import { applyBrokerProfileFallbacks } from './channelService';
-// Remove the direct import that causes TS issues in test
-// import { PropAITools } from '../../../packages/agent/src/tools';
 
 export class AgentExecutor {
     async processMessage(tenantId: string, remoteJid: string, text: string): Promise<string> {
@@ -278,7 +276,6 @@ export class AgentExecutor {
     }
 
     private async getSystemPrompt() {
-        // Read from the file we created in packages/agent
         return `You are the PropAI Agent. You can use tools to manage WhatsApp and Listings. 
 To use a tool, respond with 'TOOL: tool_name {args}'.
 
