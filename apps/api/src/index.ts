@@ -5,6 +5,8 @@ import aiRoutes from './routes/aiRoutes';
 import agentRoutes from './routes/agentRoutes';
 import voiceRoutes from './routes/voiceRoutes';
 import authRoutes from './routes/authRoutes';
+import profileRouter from './routes/profileRouter';
+import intelligenceRouter from './intelligence/IntelligenceRouter';
 import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
@@ -34,6 +36,8 @@ app.use('/api/whatsapp', authMiddleware, whatsappRoutes);
 app.use('/api/ai', authMiddleware, aiRoutes);
 app.use('/api/agent', authMiddleware, agentRoutes);
 app.use('/api/voice', authMiddleware, voiceRoutes);
+app.use('/api/profile', authMiddleware, profileRouter);
+app.use('/api/intelligence', intelligenceRouter);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });

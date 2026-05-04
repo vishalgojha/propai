@@ -4,6 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'PropAI - Mumbai Property Listings',
   description: 'Discover verified property listings in Mumbai. Search flats, apartments, and homes for rent and sale in all Mumbai localities.',
+  metadataBase: new URL('https://www.propai.live'),
   openGraph: {
     title: 'PropAI - Mumbai Property Listings',
     description: 'Discover verified property listings in Mumbai',

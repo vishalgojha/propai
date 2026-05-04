@@ -1,25 +1,20 @@
-import { getAreas } from '@/app/lib/supabase';
+import { listPublicAreas } from '@/app/lib/publicListingsService';
 import Link from 'next/link';
+import { Header } from '@/app/components/Header';
 
 export const metadata = {
   title: 'Explore Mumbai Areas - PropAI',
   description: 'Browse property listings by locality in Mumbai',
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function MumbaiPage() {
-  const areas = await getAreas();
+  const { items: areas } = await listPublicAreas();
 
   return (
     <>
-      <header className="header">
-        <div className="container header-inner">
-          <a href="/" className="logo">PropAI</a>
-          <nav className="nav">
-            <a href="/">Listings</a>
-            <a href="/mumbai">Explore Mumbai</a>
-          </nav>
-        </div>
-      </header>
+      <Header />
 
       <main className="container">
         <div className="hero">
@@ -27,22 +22,12 @@ export default async function MumbaiPage() {
           <p>Browse property listings by locality in Mumbai</p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginTop: 24 }}>
+        <div className="area-grid">
           {areas.map(area => (
             <Link
               key={area}
               href={`/mumbai/${encodeURIComponent(area)}/ALL`}
-              style={{
-                display: 'block',
-                padding: '16px',
-                background: '#fff',
-                borderRadius: 8,
-                textDecoration: 'none',
-                color: '#0a0a0a',
-                fontWeight: 500,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                textAlign: 'center'
-              }}
+              className="area-link"
             >
               {area}
             </Link>

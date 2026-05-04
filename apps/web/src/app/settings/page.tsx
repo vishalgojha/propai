@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Save, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { apiFetch } from '@/lib/api';
 
 const PROVIDERS = [
     { id: 'Local', name: 'Ollama (Local)', description: 'Run models locally on your machine' },
@@ -25,7 +26,7 @@ export default function SettingsPage() {
     const testConnection = async (provider: string) => {
         setStatus(prev => ({ ...prev, [provider]: 'testing' }));
         try {
-            const res = await fetch('/api/ai/keys/test', {
+            const res = await apiFetch('/api/ai/keys/test', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ provider })
@@ -41,7 +42,7 @@ export default function SettingsPage() {
         setSaving(true);
         try {
             await Promise.all(Object.entries(keys).map(async ([provider, key]) => {
-                await fetch('/api/ai/keys', {
+                await apiFetch('/api/ai/keys', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ provider, key })

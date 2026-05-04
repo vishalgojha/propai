@@ -5,6 +5,7 @@ import { Send, MessageCircle, Copy } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
+import { API_BASE, apiFetch } from '@/lib/api';
 
 type Step = 'GREET' | 'METHOD' | 'PHONE' | 'CODE' | 'QR' | 'TEAM' | 'GROUPS' | 'CONFIRM';
 type ChatMessage = {
@@ -93,14 +94,14 @@ export default function Onboarding() {
         if (step === 'PHONE') {
             setStep('CODE');
             setTimeout(async () => {
-                await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/connect`, {
+                await apiFetch('/api/whatsapp/connect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ tenantId: user.id, phoneNumber: userText, label: 'Owner' }),
                 });
 
                 const poll = setInterval(async () => {
-                    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/qr?tenantId=${user.id}`);
+                    const res = await apiFetch(`/api/whatsapp/qr?tenantId=${user.id}`);
                     const data = await res.json();
                     if (data.qr && data.qr.length === 8) {
                         clearInterval(poll);
@@ -129,7 +130,7 @@ export default function Onboarding() {
                 return;
             }
 
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/status?tenantId=${user.id}`);
+            const res = await apiFetch(`/api/whatsapp/status?tenantId=${user.id}`);
             const data = await res.json();
 
             if (data.status === 'connected') {
@@ -137,18 +138,10 @@ export default function Onboarding() {
                 setStep('TEAM');
 
                 setTimeout(async () => {
-                    await supabase
-                        .from('profiles')
-                        .update({
-                            trial_started_at: new Date().toISOString(),
-                            trial_used: true,
-                        })
-                        .eq('id', user.id);
-
-                    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/subscriptions/set-trial`, {
+                    await apiFetch('/api/auth/profile', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ tenantId: user.id }),
+                        body: JSON.stringify({ startTrial: true }),
                     });
 
                     addMessage('ai', 'Connected! Your account is now active. Your 7 day free trial starts today.');
@@ -175,7 +168,7 @@ export default function Onboarding() {
         }
 
         setStep('GROUPS');
-        const groupRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/groups?tenantId=${user.id}`);
+        const groupRes = await apiFetch(`/api/whatsapp/groups?tenantId=${user.id}`);
         const groupData = await groupRes.json();
         addMessage('ai', 'Alright, which of these groups should I monitor for property listings?', 'groups', groupData);
     };
@@ -190,7 +183,7 @@ export default function Onboarding() {
         }
 
         for (const id of selectedGroups) {
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/config`, {
+            await apiFetch('/api/whatsapp/config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ group_id: id, tenant_id: user.id, behavior: 'Listen' }),
@@ -233,7 +226,7 @@ export default function Onboarding() {
                                     {message.text}
                                     {message.type === 'qr' && user && (
                                         <div className="mt-4 p-4 bg-white rounded-2xl inline-block">
-                                            <QRCodeSVG value={`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/qr?tenantId=${user.id}`} size={180} />
+                                            <QRCodeSVG value={`${API_BASE}/api/whatsapp/qr?tenantId=${user.id}`} size={180} />
                                         </div>
                                     )}
                                     {message.type === 'code' && (

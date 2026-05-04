@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/Badge';
 import { ModelSelector } from '@/components/ui/ModelSelector';
 import { AIProcessing } from '@/components/ui/AIProcessing';
+import { apiFetch } from '@/lib/api';
 
 interface Message {
     id: string;
@@ -98,7 +99,7 @@ export default function Dashboard() {
 
     const fetchStatus = async () => {
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/status?tenantId=${user.id}`);
+            const res = await apiFetch(`/api/whatsapp/status?tenantId=${user.id}`);
             const data = await res.json();
             setStatus(data.status);
         } catch (e) {}
@@ -106,14 +107,14 @@ export default function Dashboard() {
 
     const fetchMessages = async () => {
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/messages?tenantId=${user.id}`);
+            const res = await apiFetch(`/api/whatsapp/messages?tenantId=${user.id}`);
             const data = await res.json();
             setMessages(data);
         } catch (e) {}
     };
 
     const connectWhatsApp = async () => {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/connect`, {
+        await apiFetch('/api/whatsapp/connect', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tenantId: user.id }),
@@ -127,7 +128,7 @@ export default function Dashboard() {
         setMessages(prev => [...prev, { id: Date.now().toString(), remote_jid: selectedChat, message_text: text, timestamp: new Date().toISOString() }]);
         
         try {
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/send`, {
+            await apiFetch('/api/whatsapp/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tenantId: user.id, remoteJid: selectedChat, text }),
@@ -171,7 +172,7 @@ export default function Dashboard() {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/voice/listen`, {
+            const response = await apiFetch('/api/voice/listen', {
                 method: 'POST',
                 headers: { 'Content-Type': 'audio/wav' },
                 body: audioBlob,
@@ -194,7 +195,7 @@ export default function Dashboard() {
 
     const speak = async (text: string) => {
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/voice/speak`, {
+            const response = await apiFetch('/api/voice/speak', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text }),

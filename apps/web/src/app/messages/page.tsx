@@ -14,6 +14,7 @@ import { getSupabaseClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { AIProcessing } from '@/components/ui/AIProcessing';
 import { Badge } from '@/components/ui/Badge';
+import { apiFetch } from '@/lib/api';
 
 interface Message {
     id: string;
@@ -55,7 +56,7 @@ export default function MessagesView() {
 
     const fetchMessages = async () => {
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/messages?tenantId=${user.id}`);
+            const res = await apiFetch(`/api/whatsapp/messages?tenantId=${user.id}`);
             const data = await res.json();
             setMessages(data);
         } catch (e) {
@@ -78,7 +79,7 @@ export default function MessagesView() {
         }]);
 
         try {
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp/send`, {
+            await apiFetch('/api/whatsapp/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 

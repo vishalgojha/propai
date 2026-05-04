@@ -9,6 +9,8 @@
     "test:real": "ts-node src/real_data_test.ts",
     "ingest:actual": "ts-node src/fetch_actual_igr.ts",
     "run:scraper": "ts-node src/scraper.ts",
+    "run:scraper:all": "ts-node src/scraper.ts all",
+    "run:scraper:latest": "ts-node src/scraper.ts latest",
     "test:brain": "ts-node src/agent_brain_test.ts",
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"

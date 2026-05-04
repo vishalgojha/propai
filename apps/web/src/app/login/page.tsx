@@ -1,33 +1,54 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Phone, Lock, ArrowRight } from 'lucide-react';
+import { Mail, Lock, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { apiFetch } from '@/lib/api';
+import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase';
 
 export default function LoginPage() {
-    const [phone, setPhone] = useState('');
+    const [email, setEmail] = useState('');
     const [otp, setOtp] = useState('');
-    const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE');
+    const [step, setStep] = useState<'EMAIL' | 'OTP'>('EMAIL');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const router = useRouter();
 
+    useEffect(() => {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            return;
+        }
+
+        supabase.auth.getUser().then(({ data }) => {
+            if (data.user) {
+                router.replace('/dashboard');
+            }
+        });
+    }, [router]);
+
     const handleSendOtp = async () => {
-        if (!phone) return;
+        if (!email) return;
         setLoading(true);
         setError('');
 
         try {
-            const res = await fetch(`${API_URL}/api/auth/request-verification`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone }),
+            const supabase = getSupabaseClient();
+            if (!supabase) {
+                throw new Error('Supabase is not configured');
+            }
+
+            const { error: signInError } = await supabase.auth.signInWithOtp({
+                email,
+                options: {
+                    shouldCreateUser: true,
+                },
             });
 
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to send OTP');
+            if (signInError) {
+                throw signInError;
+            }
+
             setStep('OTP');
         } catch (err: any) {
             setError(err.message);
@@ -42,14 +63,35 @@ export default function LoginPage() {
         setError('');
 
         try {
-            const res = await fetch(`${API_URL}/api/auth/verify`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone, otp }),
+            const supabase = getSupabaseClient();
+            if (!supabase) {
+                throw new Error('Supabase is not configured');
+            }
+
+            const { data, error: verifyError } = await supabase.auth.verifyOtp({
+                email,
+                token: otp,
+                type: 'email',
             });
 
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Verification failed');
+            if (verifyError) {
+                throw verifyError;
+            }
+
+            if (!data.session) {
+                throw new Error('No session returned after verification');
+            }
+
+            const bootstrapRes = await apiFetch('/api/auth/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ startTrial: false }),
+            });
+
+            if (!bootstrapRes.ok) {
+                const bootstrapData = await bootstrapRes.json().catch(() => ({}));
+                throw new Error(bootstrapData.error || 'Failed to initialize account');
+            }
 
             router.push('/onboarding');
         } catch (err: any) {
@@ -68,7 +110,7 @@ export default function LoginPage() {
             >
                 <div className="text-center mb-8">
                     <h1 className="text-3xl font-bold mb-2">Welcome to PropAI</h1>
-                    <p className="text-gray-400">Enter your WhatsApp number to get started</p>
+                    <p className="text-gray-400">Enter your email to receive a secure sign-in code</p>
                 </div>
 
                 {error && (
@@ -77,16 +119,22 @@ export default function LoginPage() {
                     </div>
                 )}
 
+                {!isSupabaseConfigured && (
+                    <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-xl text-red-400 text-sm">
+                        Missing `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+                    </div>
+                )}
+
                 <div className="space-y-4">
-                    {step === 'PHONE' ? (
+                    {step === 'EMAIL' ? (
                         <div className="relative group">
-                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-white transition-colors" />
+                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-white transition-colors" />
                             <input 
-                                type="tel" 
-                                placeholder="+91 98765 43210" 
+                                type="email" 
+                                placeholder="you@example.com" 
                                 className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all"
-                                value={phone}
-                                onChange={(e) => setPhone(e.target.value)}
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSendOtp()}
                             />
                         </div>
@@ -105,19 +153,19 @@ export default function LoginPage() {
                     )}
 
                     <button 
-                        onClick={step === 'PHONE' ? handleSendOtp : handleVerifyOtp}
-                        disabled={loading}
+                        onClick={step === 'EMAIL' ? handleSendOtp : handleVerifyOtp}
+                        disabled={loading || !isSupabaseConfigured}
                         className="btn-primary w-full py-3 flex items-center justify-center gap-2 text-lg"
                     >
-                        {loading ? 'Processing...' : (step === 'PHONE' ? 'Send via WhatsApp' : 'Verify & Enter')} <ArrowRight className="w-5 h-5" />
+                        {loading ? 'Processing...' : (step === 'EMAIL' ? 'Send Sign-In Code' : 'Verify & Enter')} <ArrowRight className="w-5 h-5" />
                     </button>
                     
                     {step === 'OTP' && (
                         <button 
-                            onClick={() => { setStep('PHONE'); setOtp(''); }}
+                            onClick={() => { setStep('EMAIL'); setOtp(''); }}
                             className="w-full text-center text-sm text-gray-500 hover:text-white transition-colors"
                         >
-                            Change WhatsApp number
+                            Change email
                         </button>
                     )}
                 </div>

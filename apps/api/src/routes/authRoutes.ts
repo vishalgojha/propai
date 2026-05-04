@@ -1,10 +1,230 @@
 import { Router } from 'express';
-import { supabase } from '../config/supabase';
+import { supabase, supabaseAdmin, supabaseAuth } from '../config/supabase';
 import crypto from 'crypto';
+import { authMiddleware } from '../middleware/authMiddleware';
 
 const router = Router();
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const APP_URL = process.env.APP_URL || 'https://app.propai.live';
+
+async function bootstrapProfile(user: any, startTrial = false) {
+    if (!supabaseAdmin || !user?.id) {
+        return null;
+    }
+
+    const profilePayload: Record<string, unknown> = {
+        id: user.id,
+        email: user.email,
+        phone: user.email,
+        full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+        phone_verified: true,
+    };
+
+    if (startTrial) {
+        profilePayload.trial_started_at = new Date().toISOString();
+        profilePayload.trial_used = true;
+    }
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .upsert(profilePayload, { onConflict: 'id' })
+        .select()
+        .single();
+
+    if (profileError) {
+        throw profileError;
+    }
+
+    if (startTrial) {
+        const { error: subscriptionError } = await supabaseAdmin
+            .from('subscriptions')
+            .upsert(
+                {
+                    tenant_id: user.id,
+                    plan: 'Pro',
+                    status: 'trial',
+                },
+                { onConflict: 'tenant_id' }
+            );
+
+        if (subscriptionError) {
+            throw subscriptionError;
+        }
+    }
+
+    return profile;
+}
+
+router.post('/password', async (req, res) => {
+    if (!supabaseAuth) {
+        return res.status(500).json({ error: 'Supabase auth client is not configured' });
+    }
+
+    const {
+        email,
+        password,
+        fullName,
+        phone,
+        plan,
+        startTrial = false,
+        mode,
+        intent,
+    } = req.body ?? {};
+
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const authMode = mode || intent || (fullName || phone || plan ? 'signup' : 'signin');
+
+    try {
+        if (authMode === 'signup') {
+            const { data, error } = await supabaseAuth.auth.signUp({
+                email: normalizedEmail,
+                password: String(password),
+                options: {
+                    data: {
+                        full_name: fullName || null,
+                        phone: phone || null,
+                        trial_plan_intent: plan || null,
+                    },
+                    emailRedirectTo: `${APP_URL}/auth/callback`,
+                },
+            });
+
+            if (error) {
+                return res.status(400).json({ error: error.message });
+            }
+
+            if (data.user) {
+                await bootstrapProfile(data.user, Boolean(startTrial));
+            }
+
+            return res.json({
+                success: true,
+                session: data.session,
+                user: data.user,
+            });
+        }
+
+        const { data, error } = await supabaseAuth.auth.signInWithPassword({
+            email: normalizedEmail,
+            password: String(password),
+        });
+
+        if (error) {
+            return res.status(400).json({ error: error.message });
+        }
+
+        if (data.user) {
+            await bootstrapProfile(data.user, false);
+        }
+
+        return res.json({
+            success: true,
+            session: data.session,
+            user: data.user,
+        });
+    } catch (error: any) {
+        console.error('Password auth error:', error);
+        return res.status(500).json({ error: error.message || 'Authentication failed' });
+    }
+});
+
+router.post('/refresh', async (req, res) => {
+    if (!supabaseAuth) {
+        return res.status(500).json({ error: 'Supabase auth client is not configured' });
+    }
+
+    const { refreshToken } = req.body ?? {};
+    if (!refreshToken) {
+        return res.status(400).json({ error: 'refreshToken is required' });
+    }
+
+    try {
+        const { data, error } = await supabaseAuth.auth.refreshSession({
+            refresh_token: String(refreshToken),
+        });
+
+        if (error || !data.session) {
+            return res.status(400).json({ error: error?.message || 'Failed to refresh session' });
+        }
+
+        return res.json({
+            success: true,
+            session: data.session,
+            user: data.user,
+        });
+    } catch (error: any) {
+        console.error('Refresh auth error:', error);
+        return res.status(500).json({ error: error.message || 'Failed to refresh session' });
+    }
+});
+
+router.post('/reset-password', async (req, res) => {
+    if (!supabaseAuth) {
+        return res.status(500).json({ error: 'Supabase auth client is not configured' });
+    }
+
+    const { email, redirectTo } = req.body ?? {};
+    if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+    }
+
+    try {
+        const { error } = await supabaseAuth.auth.resetPasswordForEmail(String(email).trim().toLowerCase(), {
+            redirectTo: redirectTo || `${APP_URL}/auth/callback`,
+        });
+
+        if (error) {
+            return res.status(400).json({ error: error.message });
+        }
+
+        return res.json({ success: true });
+    } catch (error: any) {
+        console.error('Reset password error:', error);
+        return res.status(500).json({ error: error.message || 'Failed to send reset link' });
+    }
+});
+
+router.get('/me', authMiddleware, async (req, res) => {
+    const user = (req as any).user;
+
+    try {
+        let profile = null;
+        let subscription = null;
+
+        if (supabaseAdmin) {
+            const [{ data: profileData }, { data: subscriptionData }] = await Promise.all([
+                supabaseAdmin
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', user.id)
+                    .maybeSingle(),
+                supabaseAdmin
+                    .from('subscriptions')
+                    .select('*')
+                    .eq('tenant_id', user.id)
+                    .maybeSingle(),
+            ]);
+
+            profile = profileData ?? null;
+            subscription = subscriptionData ?? null;
+        }
+
+        return res.json({
+            success: true,
+            user,
+            profile,
+            subscription,
+        });
+    } catch (error: any) {
+        console.error('Get current user error:', error);
+        return res.status(500).json({ error: error.message || 'Failed to load current user' });
+    }
+});
 
 router.post('/request-verification', async (req, res) => {
     const { email } = req.body;
@@ -80,6 +300,24 @@ router.post('/verify', async (req, res) => {
     if (updateError) return res.status(500).json({ error: updateError.message });
 
     res.json({ success: true, user: updated });
+});
+
+router.post('/profile', authMiddleware, async (req, res) => {
+    const user = (req as any).user;
+
+    if (!supabaseAdmin) {
+        return res.status(500).json({ error: 'Supabase admin client is not configured' });
+    }
+
+    try {
+        const { startTrial = false } = req.body ?? {};
+        const profile = await bootstrapProfile(user, startTrial);
+
+        res.json({ success: true, profile });
+    } catch (error: any) {
+        console.error('Profile bootstrap error:', error);
+        res.status(500).json({ error: error.message || 'Failed to initialize profile' });
+    }
 });
 
 export default router;

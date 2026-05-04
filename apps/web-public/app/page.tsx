@@ -1,7 +1,10 @@
-import { getListings, formatPrice, generateDescription } from '@/app/lib/supabase';
-import Link from 'next/link';
+import { Header } from '@/app/components/Header';
+import { ListingCard } from '@/app/components/ListingCard';
+import { getListingSchema, getListingSlugType } from '@/app/lib/publicListingUtils';
+import { listPublicListings } from '@/app/lib/publicListingsService';
 
 export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 export default async function HomePage({
   searchParams
@@ -13,34 +16,37 @@ export default async function HomePage({
   const area = params.area || '';
   const q = params.q || '';
 
-  const listings = await getListings({ type: type === 'ALL' ? undefined : type, area });
-
-  const filtered = q
-    ? listings.filter(l => {
-        const entry = l.entries?.[0] || {};
-        const searchText = [entry.sub_area, entry.area, entry.property_type, l.cleaned_message, l.message].filter(Boolean).join(' ').toLowerCase();
-        return searchText.includes(q.toLowerCase());
-      })
-    : listings;
+  const { items: listings, total } = await listPublicListings({
+    type: type === 'ALL' ? undefined : type,
+    area,
+    q,
+  });
 
   const typeLabel = type === 'ALL' ? 'All' : type === 'rent' ? 'Rent' : type === 'sale' ? 'Sale' : 'Requirements';
+  const itemListSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    itemListElement: listings.slice(0, 24).map((listing, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      url: `https://www.propai.live/listings/${listing.id}`,
+      item: getListingSchema(listing, 'https://www.propai.live'),
+    })),
+  };
 
   return (
     <>
-      <header className="header">
-        <div className="container header-inner">
-          <a href="/" className="logo">PropAI</a>
-          <nav className="nav">
-            <a href="/">Listings</a>
-            <a href="/mumbai">Explore Mumbai</a>
-          </nav>
-        </div>
-      </header>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
+      />
+      <Header />
 
       <main className="container">
         <div className="hero">
-          <h1>Mumbai Property Listings</h1>
-          <p>Discover verified flats, apartments, and homes for rent and sale across Mumbai</p>
+          <span className="eyebrow">Parsed from broker WhatsApp activity</span>
+          <h1>Mumbai property listings that search engines can actually understand</h1>
+          <p>Structured rent, sale, and requirement posts from broker networks with direct WhatsApp contact links where available.</p>
           <form className="search-box" action="/" method="get">
             <input type="text" name="q" placeholder="Search by location, BHK..." defaultValue={q} />
             <input type="hidden" name="type" value={type} />
@@ -56,12 +62,12 @@ export default async function HomePage({
           ))}
         </div>
 
-        <div style={{ marginBottom: 16, color: '#666', fontSize: 14 }}>
-          {filtered.length} {typeLabel.toLowerCase()} listings in Mumbai
+        <div className="results-summary">
+          {total} {typeLabel.toLowerCase()} listings in Mumbai
           {area && ` in ${area}`}
         </div>
 
-        {filtered.length === 0 ? (
+        {listings.length === 0 ? (
           <div className="empty-state">
             <div style={{ fontSize: 48, marginBottom: 16 }}>🏠</div>
             <p>No listings found. Try adjusting your filters.</p>
@@ -71,34 +77,32 @@ export default async function HomePage({
           </div>
         ) : (
           <div className="listing-grid">
-            {filtered.map(listing => {
-              const entry = listing.entries?.[0] || {};
-              const location = [entry.sub_area, entry.area].filter(Boolean).join(', ');
+            {listings.map(listing => <ListingCard key={listing.id} listing={listing} />)}
+          </div>
+        )}
+
+        <section className="seo-block">
+          <h2>Area routes built for indexing</h2>
+          <p>
+            Browse search-friendly landing pages for neighborhoods and listing intent:
+            every parsed listing can roll up into area and type pages such as rent, sale, or requirement.
+          </p>
+          <div className="seo-links">
+            {listings.slice(0, 6).map((listing) => {
+              const areaName = listing.subArea || listing.area;
+              if (!areaName) return null;
               return (
-                <article key={listing.id} className="listing-card">
-                  <div className="listing-header">
-                    <span className={`listing-type ${entry.type === 'listing_rent' ? 'rent' : entry.type === 'listing_sale' ? 'sale' : 'requirement'}`}>
-                      {entry.type === 'listing_rent' ? 'For Rent' : entry.type === 'listing_sale' ? 'For Sale' : 'Requirement'}
-                    </span>
-                  </div>
-                  <div className="listing-price">{entry.price ? formatPrice(entry.price) : 'Price on request'}</div>
-                  <div className="listing-details">
-                    <div className="listing-area">{location || 'Mumbai'}</div>
-                    <div className="listing-meta">
-                      {entry.bhk && <span>{entry.bhk} BHK</span>}
-                      {entry.size_sqft && <span>{entry.size_sqft} sq ft</span>}
-                      {entry.furnishing && <span>{entry.furnishing}</span>}
-                    </div>
-                  </div>
-                  <div className="listing-footer">
-                    <span className="contact-hidden">Contact for details</span>
-                    <Link href={`/listings/${listing.id}`} className="cta-btn">View Details</Link>
-                  </div>
-                </article>
+                <a
+                  key={`${listing.id}-${areaName}`}
+                  href={`/mumbai/${encodeURIComponent(areaName)}/${getListingSlugType(listing.type)}`}
+                  className="seo-link"
+                >
+                  {areaName} {getListingSlugType(listing.type)}
+                </a>
               );
             })}
           </div>
-        )}
+        </section>
       </main>
     </>
   );

@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, Suspense, useState } from 'react';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.propai.live';
+import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/lib/api';
+import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase';
 
 const features = [
     {
@@ -48,19 +49,42 @@ function LoginForm() {
     const [otp, setOtp] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const router = useRouter();
+
+    useEffect(() => {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            return;
+        }
+
+        supabase.auth.getUser().then(({ data }) => {
+            if (data.user) {
+                router.replace('/dashboard');
+            }
+        });
+    }, [router]);
 
     const requestCode = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError('');
         try {
-            const res = await fetch(`${API_BASE}/api/auth/request-verification`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email })
+            const supabase = getSupabaseClient();
+            if (!supabase) {
+                throw new Error('Supabase is not configured');
+            }
+
+            const { error: signInError } = await supabase.auth.signInWithOtp({
+                email,
+                options: {
+                    shouldCreateUser: true,
+                },
             });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
+
+            if (signInError) {
+                throw signInError;
+            }
+
             setStep('otp');
         } catch (err: any) {
             setError(err.message || 'Failed to send code');
@@ -74,14 +98,38 @@ function LoginForm() {
         setLoading(true);
         setError('');
         try {
-            const res = await fetch(`${API_BASE}/api/auth/verify`, {
+            const supabase = getSupabaseClient();
+            if (!supabase) {
+                throw new Error('Supabase is not configured');
+            }
+
+            const { data, error: verifyError } = await supabase.auth.verifyOtp({
+                email,
+                token: otp,
+                type: 'email',
+            });
+
+            if (verifyError) {
+                throw verifyError;
+            }
+
+            if (!data.session) {
+                throw new Error('No session returned after verification');
+            }
+
+            const bootstrapRes = await apiFetch('/api/auth/profile', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, otp })
+                body: JSON.stringify({ startTrial: false }),
             });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
+
+            if (!bootstrapRes.ok) {
+                const bootstrapData = await bootstrapRes.json().catch(() => ({}));
+                throw new Error(bootstrapData.error || 'Failed to initialize account');
+            }
+
             setStep('success');
+            setTimeout(() => router.push('/onboarding'), 800);
         } catch (err: any) {
             setError(err.message || 'Invalid code');
         } finally {
@@ -107,6 +155,11 @@ function LoginForm() {
 
     return (
         <div className="bg-white rounded-3xl p-8 shadow-2xl shadow-green-500/10">
+            {!isSupabaseConfigured && (
+                <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
+                    Missing `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+                </p>
+            )}
             {step === 'email' ? (
                 <form onSubmit={requestCode} className="space-y-4">
                     <div className="text-center mb-6">
@@ -124,7 +177,7 @@ function LoginForm() {
                     {error && <p className="text-red-500 text-sm">{error}</p>}
                     <button
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || !isSupabaseConfigured}
                         className="w-full py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl transition-all disabled:opacity-50"
                     >
                         {loading ? 'Sending...' : 'Send Verification Code'}
@@ -148,7 +201,7 @@ function LoginForm() {
                     {error && <p className="text-red-500 text-sm">{error}</p>}
                     <button
                         type="submit"
-                        disabled={loading || otp.length !== 6}
+                        disabled={loading || otp.length !== 6 || !isSupabaseConfigured}
                         className="w-full py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl transition-all disabled:opacity-50"
                     >
                         {loading ? 'Verifying...' : 'Verify'}

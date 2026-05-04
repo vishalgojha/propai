@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/api';
 
 export interface ModelInfo {
     id: string;
@@ -19,7 +20,7 @@ export function useModels() {
     const fetchModels = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/ai/models');
+            const res = await apiFetch('/api/ai/models');
             if (!res.ok) throw new Error('Failed to fetch models');
             const data = await res.json();
             setModels(data);

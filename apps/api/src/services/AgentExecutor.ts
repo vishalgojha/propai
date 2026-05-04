@@ -2,6 +2,8 @@ import { aiService } from './aiService';
 import { sessionManager } from '../whatsapp/SessionManager';
 import { supabase } from '../config/supabase';
 import { safeJSONParse } from '../utils/jsonUtils';
+import { igrQueryService } from './igrQueryService';
+import { applyBrokerProfileFallbacks } from './channelService';
 // Remove the direct import that causes TS issues in test
 // import { PropAITools } from '../../../packages/agent/src/tools';
 
@@ -77,6 +79,71 @@ export class AgentExecutor {
         });
     }
 
+    private formatCurrency(value: number | null | undefined) {
+        if (value == null || !Number.isFinite(value)) return 'N/A';
+        if (value >= 10000000) {
+            return `₹${(value / 10000000).toFixed(2)}Cr`;
+        }
+        if (value >= 100000) {
+            return `₹${(value / 100000).toFixed(1)}L`;
+        }
+        return `₹${Math.round(value).toLocaleString('en-IN')}`;
+    }
+
+    private formatSquareFeet(value: number | null | undefined) {
+        if (value == null || !Number.isFinite(value)) return 'N/A';
+        return `${Math.round(value).toLocaleString('en-IN')} sqft`;
+    }
+
+    private formatDate(value: string | null | undefined) {
+        if (!value) return 'unknown date';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    private async getIgrLastTransactionSummary(args: any) {
+        const buildingName = String(args?.building_name || '').trim();
+        const locality = String(args?.locality || '').trim();
+
+        if (!buildingName && !locality) {
+            return { message: 'No IGR transaction data available for this building yet.' };
+        }
+
+        const transaction = buildingName
+            ? await igrQueryService.getLastTransactionForBuilding(buildingName)
+            : null;
+
+        if (transaction) {
+            const stats = transaction.locality
+                ? await igrQueryService.getLocalityStats(transaction.locality, 6)
+                : (locality ? await igrQueryService.getLocalityStats(locality, 6) : null);
+            const marketRate = stats?.avg_price_per_sqft ?? null;
+            const dealRate = transaction.price_per_sqft ?? null;
+            const comparison = marketRate != null && dealRate != null
+                ? dealRate > marketRate ? 'above' : dealRate < marketRate ? 'below' : 'at'
+                : null;
+
+            return {
+                message: `Last registered transaction in ${transaction.building_name || buildingName}, ${transaction.locality || locality || 'Unknown locality'}: ${this.formatCurrency(transaction.consideration)} on ${this.formatDate(transaction.reg_date)} (${this.formatSquareFeet(transaction.area_sqft)}, ₹${dealRate != null ? Math.round(dealRate).toLocaleString('en-IN') : 'N/A'}/sqft)\nArea average (last 6 months): ₹${marketRate != null ? Math.round(marketRate).toLocaleString('en-IN') : 'N/A'}/sqft${comparison ? ` — this transaction was ${comparison} market.` : '.'}`,
+                transaction,
+                locality_stats: stats,
+            };
+        }
+
+        if (locality) {
+            const stats = await igrQueryService.getLocalityStats(locality, 6);
+            if (stats.transaction_count > 0) {
+                return {
+                    message: `No exact building match found. Area average in ${locality} (last 6 months): ₹${stats.avg_price_per_sqft != null ? Math.round(stats.avg_price_per_sqft).toLocaleString('en-IN') : 'N/A'}/sqft across ${stats.transaction_count} transactions.`,
+                    locality_stats: stats,
+                };
+            }
+        }
+
+        return { message: 'No IGR transaction data available for this building yet.' };
+    }
+
     private async executeTool(name: string, args: any, tenantId: string, remoteJid: string): Promise<any> {
         switch (name) {
             case 'get_groups': {
@@ -92,10 +159,15 @@ export class AgentExecutor {
                 return safeJSONParse(res.text);
             }
             case 'save_listing': {
+                const enrichedListingData = await applyBrokerProfileFallbacks(
+                    { ...(args.listing_data || {}) },
+                    String(args.sender_phone || remoteJid.split('@')[0] || ''),
+                    String(args.sender_name || '')
+                );
                 const { data, error } = await supabase.from('listings').insert({
                     tenant_id: tenantId,
                     source_group_id: args.source_group_id,
-                    structured_data: args.listing_data,
+                    structured_data: enrichedListingData,
                     raw_text: args.raw_text
                 });
                 if (!error) await this.logEvent(tenantId, 'listing_parsed', `Extracted a new listing from ${args.source_group_id}`);
@@ -155,6 +227,15 @@ export class AgentExecutor {
             case 'verify_rera': {
                 return { status: 'Verified', reg_no: 'P518000XXXX', state: args.state };
             }
+            case 'igr_last_transaction': {
+                return await this.getIgrLastTransactionSummary(args);
+            }
+            case 'get_market_intelligence': {
+                const { marketIntelligence } = require('../../../propai-gras/src/market_intelligence');
+                const type = args.type === 'lease' || args.type === 'rent' ? 'Rent' : 'Sale';
+                const res = await marketIntelligence.getGroundTruth(args.building_name, type);
+                return res || { message: "No recent registration data found for this building." };
+            }
             default:
                 return { error: `Tool ${name} not implemented` };
         }
@@ -198,7 +279,18 @@ export class AgentExecutor {
 
     private async getSystemPrompt() {
         // Read from the file we created in packages/agent
-        return "You are the PropAI Agent. You can use tools to manage WhatsApp and Listings. To use a tool, respond with 'TOOL: tool_name {args}'.";
+        return `You are the PropAI Agent. You can use tools to manage WhatsApp and Listings. 
+To use a tool, respond with 'TOOL: tool_name {args}'.
+
+AVAILABLE TOOLS:
+- igr_last_transaction { building_name: string, locality?: string }: Look up the last registered property transaction for a building or locality from Maharashtra IGR records. Use ONLY when a broker explicitly asks about recent sale prices, wants to counter a lowball offer, needs market value, asks for price per sqft, or wants to counter a valuation.
+- get_market_intelligence { building_name: string, type: 'sale' | 'lease' }: Fetches the latest 3 government registration records (IGR) for a specific building to ground your advice. Use this when a user asks about pricing, rates, or building value.
+- get_groups: Get list of WhatsApp groups.
+- send_message { remote_jid: string, text: string }: Send a message to a contact or group.
+- parse_listing { text: string }: Extract structured data from a property listing.
+- save_listing { source_group_id: string, listing_data: object, raw_text: string }: Save a listing to the database.
+
+Use the igr_last_transaction tool when a broker asks about sale price, market value, price per sqft, or wants to counter a valuation.`;
     }
 }
 
