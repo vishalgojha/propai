@@ -209,6 +209,28 @@ export default function Onboarding() {
                     </div>
                 </div>
 
+                <div className="px-6 py-4 border-b border-white/10 bg-white/5">
+                    <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-50">
+                        <p className="font-semibold mb-2">Browser assistant safety</p>
+                        <div className="grid gap-3 md:grid-cols-2">
+                            <div>
+                                <p className="text-xs uppercase tracking-[0.2em] text-cyan-200 mb-1">Use it for</p>
+                                <p className="text-cyan-100/90">
+                                    Public listings, RERA pages, project pages, comparison research, enquiry forms, and
+                                    follow-ups.
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-xs uppercase tracking-[0.2em] text-cyan-200 mb-1">Avoid it for</p>
+                                <p className="text-cyan-100/90">
+                                    OTP screens, bank accounts, personal email, cloud drives, unrelated sites, or anything
+                                    that needs confidential access without approval.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     <AnimatePresence>
                         {messages.map((message, index) => (

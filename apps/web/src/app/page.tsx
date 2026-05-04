@@ -279,6 +279,27 @@ export default function Home() {
                     </div>
                 </div>
 
+                <div className="mb-12 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-6">
+                        <p className="text-xs uppercase tracking-[0.24em] text-emerald-300 mb-3">What to browse</p>
+                        <ul className="space-y-2 text-sm text-emerald-50">
+                            <li>• Public property portals and broker listings</li>
+                            <li>• RERA pages, project pages, society pages, locality research</li>
+                            <li>• Enquiry forms, lead capture pages, and follow-up pages</li>
+                            <li>• Competitor listings for price comparison and positioning</li>
+                        </ul>
+                    </div>
+                    <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-6">
+                        <p className="text-xs uppercase tracking-[0.24em] text-rose-300 mb-3">What not to browse</p>
+                        <ul className="space-y-2 text-sm text-rose-50">
+                            <li>• OTP screens, bank accounts, personal email, or cloud drives</li>
+                            <li>• Unrelated sites that do not help a real estate workflow</li>
+                            <li>• Anything that asks for confidential access without explicit approval</li>
+                            <li>• Downloads, installs, or risky pages that may expose private data</li>
+                        </ul>
+                    </div>
+                </div>
+
                 <div className="flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
                     <div className="flex-1 w-full">
                         <Suspense fallback={
