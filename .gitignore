@@ -11,3 +11,9 @@ build/
 .turbo/
 *.log
 .DS_Store
+.codex
+apply_mig_https.js
+apply_mig_rest.js
+apply_migration.html
+apply_migration.js
+apply_migration_https.js
