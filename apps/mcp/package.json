@@ -15,12 +15,14 @@
     "dotenv": "latest",
     "express": "latest",
     "jsonwebtoken": "latest",
+    "ws": "latest",
     "zod": "latest"
   },
   "devDependencies": {
     "@types/express": "latest",
     "@types/jsonwebtoken": "latest",
     "@types/node": "latest",
+    "@types/ws": "latest",
     "ts-node": "latest",
     "typescript": "latest"
   }
