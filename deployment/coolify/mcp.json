@@ -1,0 +1,20 @@
+{
+  "name": "propai-mcp",
+  "build": {
+    "type": "dockerfile",
+    "dockerfile": "Dockerfile",
+    "context": "/app"
+  },
+  "environment": {
+    "PORT": "3003",
+    "MCP_SERVER_URL": "https://mcp.propai.live",
+    "SUPABASE_URL": "variable",
+    "SUPABASE_ANON_KEY": "variable",
+    "SUPABASE_SERVICE_ROLE_KEY": "variable"
+  },
+  "network": "propai-network",
+  "healthcheck": {
+    "path": "/health",
+    "port": 3003
+  }
+}

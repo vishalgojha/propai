@@ -1,0 +1,15 @@
+services:
+  propai-mcp:
+    build:
+      context: .
+      dockerfile: apps/mcp/Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+      MCP_SERVER_URL: https://mcp.propai.live
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_SERVICE_KEY}}
+      JWT_SECRET: ${JWT_SECRET}
+    restart: unless-stopped

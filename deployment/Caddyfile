@@ -5,3 +5,7 @@ app.propai.live, www.propai.live {
 api.propai.live {
     reverse_proxy backend:3001
 }
+
+mcp.propai.live {
+    reverse_proxy propai-mcp:3003
+}

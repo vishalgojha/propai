@@ -1,0 +1,27 @@
+{
+  "name": "mcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PropAI remote MCP server for real estate listings and market intelligence",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node src/server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest",
+    "@supabase/supabase-js": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "jsonwebtoken": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/express": "latest",
+    "@types/jsonwebtoken": "latest",
+    "@types/node": "latest",
+    "ts-node": "latest",
+    "typescript": "latest"
+  }
+}

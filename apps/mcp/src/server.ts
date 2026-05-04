@@ -1,0 +1,169 @@
+import crypto from "node:crypto";
+import express, { type NextFunction, type Request, type Response } from "express";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createMcpServer } from "./index.js";
+import { oauthTokenHandler } from "./oauth.js";
+import { verifyPropAIToken } from "./supabase.js";
+import type { AuthenticatedUser } from "./types.js";
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: AuthenticatedUser;
+    }
+  }
+}
+
+const app = express();
+const PORT = Number(process.env.PORT || 3003);
+const PUBLIC_URL = process.env.MCP_SERVER_URL || "https://mcp.propai.live";
+
+type McpSession = {
+  server: ReturnType<typeof createMcpServer>;
+  transport: StreamableHTTPServerTransport;
+};
+
+const sessions = new Map<string, McpSession>();
+
+app.use(express.json({ limit: "1mb" }));
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
+  res.header("Access-Control-Allow-Headers", "Authorization, Content-Type, Mcp-Session-Id, MCP-Protocol-Version");
+  res.header("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS");
+  if (req.method === "OPTIONS") return res.status(204).end();
+  next();
+});
+
+app.head("/", (_req, res) => res.status(200).end());
+
+app.get("/", (_req, res) => {
+  res.json({
+    name: "PropAI MCP Server",
+    version: "1.0.0",
+    description: "Real estate listings and intelligence from India WhatsApp broker network",
+    transport: "streamable-http",
+    endpoint: `${PUBLIC_URL}/mcp`,
+  });
+});
+
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", service: "propai-mcp", port: PORT });
+});
+
+app.get("/.well-known/mcp-server.json", (_req, res) => {
+  res.json({
+    name: "PropAI MCP Server",
+    version: "1.0.0",
+    description: "Real estate listings and intelligence from India WhatsApp broker network",
+    endpoints: {
+      streamableHttp: `${PUBLIC_URL}/mcp`,
+      oauthToken: `${PUBLIC_URL}/oauth/token`,
+    },
+    auth: {
+      type: "bearer",
+      token_endpoint: `${PUBLIC_URL}/oauth/token`,
+    },
+    capabilities: {
+      tools: [
+        "search_listings",
+        "search_requirements",
+        "get_igr_price",
+        "match_listing_to_requirement",
+        "get_fresh_stream",
+      ],
+    },
+  });
+});
+
+app.post("/oauth/token", oauthTokenHandler);
+
+async function authMiddleware(req: Request, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length).trim() : "";
+
+  if (!token) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    req.user = await verifyPropAIToken(token);
+    return next();
+  } catch {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+}
+
+app.all("/mcp", authMiddleware, async (req: Request, res: Response) => {
+  if (!["GET", "POST", "DELETE"].includes(req.method)) {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const sessionId = req.headers["mcp-session-id"];
+  let session = typeof sessionId === "string" ? sessions.get(sessionId) : undefined;
+
+  if (!session) {
+    const server = createMcpServer({ user: req.user });
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => crypto.randomUUID(),
+      onsessioninitialized: (newSessionId) => {
+        sessions.set(newSessionId, { server, transport });
+      },
+      onsessionclosed: async (closedSessionId) => {
+        const closedSession = sessions.get(closedSessionId);
+        sessions.delete(closedSessionId);
+        await closedSession?.server.close();
+      },
+    });
+
+    transport.onclose = () => {
+      if (transport.sessionId) {
+        sessions.delete(transport.sessionId);
+      }
+    };
+
+    session = { server, transport };
+    await server.connect(transport);
+  }
+
+  try {
+    await session.transport.handleRequest(req, res, req.method === "POST" ? req.body : undefined);
+  } catch (error) {
+    console.error("MCP request error:", error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        jsonrpc: "2.0",
+        error: { code: -32603, message: "Internal server error" },
+        id: null,
+      });
+    }
+  }
+});
+
+async function closeSessions() {
+  await Promise.all(
+    [...sessions.values()].map(async (session) => {
+      await session.transport.close();
+      await session.server.close();
+    }),
+  );
+}
+
+process.on("SIGTERM", async () => {
+  await closeSessions();
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  await closeSessions();
+  process.exit(0);
+});
+
+const httpServer = app.listen(PORT, () => {
+  console.log(`PropAI MCP server running on port ${PORT}`);
+});
+
+httpServer.on("error", (error) => {
+  console.error("Failed to start PropAI MCP server:", error);
+  process.exit(1);
+});
