@@ -1,8 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AIService } from '../src/services/aiService';
 import axios from 'axios';
 
 vi.mock('axios');
+vi.mock('../src/services/keyService', () => ({
+    keyService: {
+        getKey: vi.fn().mockResolvedValue('test-key'),
+    },
+}));
+
+import { AIService } from '../src/services/aiService';
 
 describe('AIService', () => {
     let aiService: AIService;
