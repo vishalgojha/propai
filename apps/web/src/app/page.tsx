@@ -40,6 +40,15 @@ const features = [
         ),
         title: 'Analytics Dashboard',
         desc: "Track conversations, conversion rates, and revenue. Optimize what's working."
+    },
+    {
+        icon: (
+            <svg className="w-6 h-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h16v14H4V5zm0 4h16M8 9v10m8-10v10M7 5V3m10 2V3" />
+            </svg>
+        ),
+        title: 'Browser Agent',
+        desc: 'Tell PropAI: “Open this listing, check the broker number, compare the price, and draft my reply.”'
     }
 ];
 
@@ -238,11 +247,11 @@ export default function Home() {
                         Your AI-Powered Broker Copilot
                     </p>
                     <p className="text-gray-500 max-w-xl mx-auto">
-                        Close more deals with AI that handles your WhatsApp leads, voice calls, and CRM — while you focus on showing properties.
+                        Close more deals with AI that handles your WhatsApp leads, voice calls, browser research, and CRM — while you focus on showing properties.
                     </p>
                 </div>
 
-                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+                <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4 mb-12">
                     {features.map((f, i) => (
                         <div key={i} className="bg-gray-800/50 border border-gray-700/50 rounded-2xl p-5 hover:border-gray-600/50 transition-all hover:-translate-y-0.5">
                             <div className="mb-3">{f.icon}</div>
@@ -250,6 +259,24 @@ export default function Home() {
                             <p className="text-sm text-gray-400 leading-relaxed">{f.desc}</p>
                         </div>
                     ))}
+                </div>
+
+                <div className="mb-12 rounded-3xl border border-cyan-500/20 bg-cyan-500/10 p-6">
+                    <p className="text-xs uppercase tracking-[0.24em] text-cyan-300 mb-3">Browser agent examples</p>
+                    <div className="grid gap-3 md:grid-cols-3 text-sm text-cyan-50">
+                        <div className="rounded-2xl bg-black/20 border border-white/10 p-4">
+                            <p className="font-semibold mb-1">“Open this listing and compare the ask.”</p>
+                            <p className="text-cyan-100/80">PropAI can open a portal, read the details, and tell you if the price is worth pushing.</p>
+                        </div>
+                        <div className="rounded-2xl bg-black/20 border border-white/10 p-4">
+                            <p className="font-semibold mb-1">“Check the broker number and possession date.”</p>
+                            <p className="text-cyan-100/80">It can read the page, pull the contact info, and summarize the key facts for your follow-up.</p>
+                        </div>
+                        <div className="rounded-2xl bg-black/20 border border-white/10 p-4">
+                            <p className="font-semibold mb-1">“Fill the enquiry form and draft my reply.”</p>
+                            <p className="text-cyan-100/80">PropAI can click, type, scroll, and capture screenshots like a real broker assistant.</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="flex flex-col lg:flex-row items-center gap-10 lg:gap-16">

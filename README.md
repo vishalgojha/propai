@@ -30,9 +30,17 @@ PropAI Sync is a high-performance workspace for real estate brokers to automate 
    - Add all env vars from apps/web/.env.example via Coolify UI
    - Set NEXT_PUBLIC_API_URL to your backend Coolify domain
 
-4. Both services auto-deploy on push to main branch
-5. SSL handled automatically by Coolify via Let's Encrypt
-6. Ollama runs natively on the server — set OLLAMA_BASE_URL to server's internal IP
+4. Add Service 3 — Browser Automation:
+   - Type: Git
+   - Repo: https://github.com/vishalgojha/camofox-browser.git
+   - Branch: main
+   - Port: 9377
+   - Attach it to the same Coolify network as the API
+   - This powers PropAI's browser agent for portal checks, listing comparisons, and form filling
+
+5. Both app services auto-deploy on push to main branch
+6. SSL handled automatically by Coolify via Let's Encrypt
+7. Ollama runs natively on the server — set OLLAMA_BASE_URL to server's internal IP
 
 ## 🛠 Local Development
 1. Install pnpm: `npm install -g pnpm`

@@ -8,6 +8,7 @@
   "environment": {
     "PORT": "3001",
     "OLLAMA_BASE_URL": "http://ollama:11434",
+    "CAMOFOX_URL": "http://camofox-browser:9377",
     "SUPABASE_URL": "variable",
     "SUPABASE_ANON_KEY": "variable"
   },

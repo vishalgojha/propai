@@ -4,6 +4,7 @@ import { supabase } from '../config/supabase';
 import { safeJSONParse } from '../utils/jsonUtils';
 import { igrQueryService } from './igrQueryService';
 import { applyBrokerProfileFallbacks } from './channelService';
+import { browserAutomationService } from './browserAutomationService';
 
 export class AgentExecutor {
     async processMessage(tenantId: string, remoteJid: string, text: string): Promise<string> {
@@ -234,6 +235,90 @@ export class AgentExecutor {
                 const res = await marketIntelligence.getGroundTruth(args.building_name, type);
                 return res || { message: "No recent registration data found for this building." };
             }
+            case 'browser_open': {
+                const result = await browserAutomationService.openTab({
+                    userId: tenantId,
+                    sessionKey: tenantId,
+                    url: String(args.url || ''),
+                });
+                await this.logEvent(tenantId, 'browser_open', `Opened browser tab for ${args.url}`);
+                return result;
+            }
+            case 'browser_snapshot':
+                return await this.executeBrowserAction(tenantId, args, (tabId) =>
+                    browserAutomationService.snapshot({
+                        userId: tenantId,
+                        tabId,
+                        includeScreenshot: Boolean(args.include_screenshot),
+                        offset: typeof args.offset === 'number' ? args.offset : undefined,
+                    })
+                );
+            case 'browser_click':
+                return await this.executeBrowserAction(tenantId, args, (tabId) =>
+                    browserAutomationService.click({
+                        userId: tenantId,
+                        tabId,
+                        ref: args.ref,
+                        selector: args.selector,
+                    })
+                );
+            case 'browser_type':
+                return await this.executeBrowserAction(tenantId, args, (tabId) =>
+                    browserAutomationService.type({
+                        userId: tenantId,
+                        tabId,
+                        ref: args.ref,
+                        selector: args.selector,
+                        text: String(args.text || ''),
+                        pressEnter: args.press_enter ?? true,
+                    })
+                );
+            case 'browser_navigate':
+                return await this.executeBrowserAction(tenantId, args, (tabId) =>
+                    browserAutomationService.navigate({
+                        userId: tenantId,
+                        tabId,
+                        url: String(args.url || ''),
+                    })
+                );
+            case 'browser_scroll':
+                return await this.executeBrowserAction(tenantId, args, (tabId) =>
+                    browserAutomationService.scroll({
+                        userId: tenantId,
+                        tabId,
+                        direction: args.direction,
+                        amount: typeof args.amount === 'number' ? args.amount : undefined,
+                    })
+                );
+            case 'browser_wait':
+                return await this.executeBrowserAction(tenantId, args, (tabId) =>
+                    browserAutomationService.wait({
+                        userId: tenantId,
+                        tabId,
+                        selector: args.selector,
+                        timeoutMs: typeof args.timeout_ms === 'number' ? args.timeout_ms : undefined,
+                    })
+                );
+            case 'browser_screenshot':
+                return await this.executeBrowserAction(tenantId, args, (tabId) =>
+                    browserAutomationService.screenshot({ userId: tenantId, tabId })
+                );
+            case 'browser_links':
+                return await this.executeBrowserAction(tenantId, args, (tabId) =>
+                    browserAutomationService.links({ userId: tenantId, tabId })
+                );
+            case 'browser_back':
+                return await this.executeBrowserAction(tenantId, args, (tabId) =>
+                    browserAutomationService.back({ userId: tenantId, tabId })
+                );
+            case 'browser_forward':
+                return await this.executeBrowserAction(tenantId, args, (tabId) =>
+                    browserAutomationService.forward({ userId: tenantId, tabId })
+                );
+            case 'browser_refresh':
+                return await this.executeBrowserAction(tenantId, args, (tabId) =>
+                    browserAutomationService.refresh({ userId: tenantId, tabId })
+                );
             default:
                 return { error: `Tool ${name} not implemented` };
         }
@@ -286,8 +371,41 @@ AVAILABLE TOOLS:
 - send_message { remote_jid: string, text: string }: Send a message to a contact or group.
 - parse_listing { text: string }: Extract structured data from a property listing.
 - save_listing { source_group_id: string, listing_data: object, raw_text: string }: Save a listing to the database.
+- browser_open { url: string }: Open a broker portal, listing page, or form in a browser tab powered by Camofox.
+- browser_snapshot { tab_id: string, include_screenshot?: boolean, offset?: number }: Read the page like an agent, with stable element refs.
+- browser_click { tab_id: string, ref?: string, selector?: string }: Click a button, link, or form field.
+- browser_type { tab_id: string, ref?: string, selector?: string, text: string, press_enter?: boolean }: Type into a field and optionally submit it.
+- browser_navigate { tab_id: string, url: string }: Move the browser tab to a new page.
+- browser_scroll { tab_id: string, direction?: 'up' | 'down' | 'left' | 'right', amount?: number }: Scroll the page.
+- browser_wait { tab_id: string, selector?: string, timeout_ms?: number }: Wait for a page element or timeout.
+- browser_screenshot { tab_id: string }: Capture a screenshot of the current page.
+- browser_links { tab_id: string }: List all links on the page for quick review.
+- browser_back { tab_id: string }: Go back one page.
+- browser_forward { tab_id: string }: Go forward one page.
+- browser_refresh { tab_id: string }: Reload the current page.
+
+Use the browser tools when a broker says things like:
+- "Open this listing and tell me if the price is fair."
+- "Check the broker number, carpet area, and possession date on this portal."
+- "Compare this 2BHK against similar listings in Andheri West."
+- "Fill the enquiry form and draft a follow-up message."
+- "Take a screenshot and summarize what you see."
 
 Use the igr_last_transaction tool when a broker asks about sale price, market value, price per sqft, or wants to counter a valuation.`;
+    }
+
+    private getActiveBrowserTab(tenantId: string) {
+        return browserAutomationService.getCurrentTab(tenantId);
+    }
+
+    private browserTabIdOrNull(tenantId: string, args: any): string | null {
+        return String(args?.tab_id || this.getActiveBrowserTab(tenantId)?.tabId || '').trim() || null;
+    }
+
+    private async executeBrowserAction<T>(tenantId: string, args: any, action: (tabId: string) => Promise<T>) {
+        const tabId = this.browserTabIdOrNull(tenantId, args);
+        if (!tabId) return { error: 'No active browser tab. Use browser_open first.' };
+        return action(tabId);
     }
 }
 
