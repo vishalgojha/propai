@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 const COQUI_URL = process.env.COQUI_TTS_URL || 'http://coqui-tts:5002';
-const OLLAMA_URL = process.env.QWEN_BASE_URL?.replace('/api/chat', '') || 'http://ollama:11434';
+const OLLAMA_URL = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
 
 export const speak = async (req: Request, res: Response) => {
     const user = (req as any).user;

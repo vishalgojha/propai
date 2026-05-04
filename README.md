@@ -32,7 +32,7 @@ PropAI Sync is a high-performance workspace for real estate brokers to automate 
 
 4. Both services auto-deploy on push to main branch
 5. SSL handled automatically by Coolify via Let's Encrypt
-6. Ollama runs natively on the server — set QWEN_BASE_URL to server's internal IP
+6. Ollama runs natively on the server — set OLLAMA_BASE_URL to server's internal IP
 
 ## 🛠 Local Development
 1. Install pnpm: `npm install -g pnpm`

@@ -28,7 +28,7 @@ export default function PrivacyPolicy() {
                 <h2 className="text-2xl font-semibold text-white mb-4">3. Data Usage & AI Improvement</h2>
                 <p className="mb-4">We do not sell, trade, or rent your personal or business data to third parties.</p>
                 <p className="mb-4"><strong>Opt-in Training:</strong> If you choose to enable "Help improve PropAI," we collect your property listings and lead qualification flows to fine-tune our local AI models. Before sharing, all personally identifiable information (PII) such as phone numbers and names are stripped using a strict anonymization pipeline.</p>
-                <p>Your data is only processed by our AI models (Local Qwen3, Groq, or Claude) for the purpose of providing the automation services you've requested.</p>
+                <p>Your data is only processed by our AI models (Local Ollama, Groq, or Claude) for the purpose of providing the automation services you've requested.</p>
             </section>
 
             <section className="mb-10">

@@ -12,21 +12,22 @@ describe('AIService', () => {
         aiService = new AIService();
     });
 
-    it('should call Qwen when modelPreference is Local', async () => {
-        const mockResponse = { data: { message: { content: 'Hello from Qwen' } } };
+    it('should call Ollama when modelPreference is Local', async () => {
+        const mockResponse = { data: { message: { content: 'Hello from Ollama' } } };
         (axios.post as any).mockResolvedValueOnce(mockResponse);
+        (axios.get as any).mockResolvedValueOnce({ data: { models: [{ name: 'llama3.1:8b' }] } });
 
         const response = await aiService.chat('Hi', 'Local');
 
         expect(axios.post).toHaveBeenCalledWith(
             'http://localhost:11434/api/chat',
             expect.objectContaining({
-                model: 'qwen3:1.7b',
+                model: 'llama3.1:8b',
                 messages: [{ role: 'user', content: 'Hi' }]
             })
         );
-        expect(response.text).toBe('Hello from Qwen');
-        expect(response.model).toBe('Qwen3 Local');
+        expect(response.text).toBe('Hello from Ollama');
+        expect(response.model).toBe('llama3.1:8b Local');
     });
 
     it('should call Groq when modelPreference is Groq', async () => {
@@ -70,8 +71,9 @@ describe('AIService', () => {
     it('should fallback from Local to Groq if Local fails', async () => {
         // First call (Local) fails, second call (Groq) succeeds
         (axios.post as any)
-            .mockRejectedValueOnce(new Error('Qwen Failed'))
+            .mockRejectedValueOnce(new Error('Ollama Failed'))
             .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Fallback to Groq' } }] } });
+        (axios.get as any).mockResolvedValueOnce({ data: { models: [{ name: 'llama3.1:8b' }] } });
 
         const response = await aiService.chat('Hi', 'Local');
 

@@ -49,7 +49,7 @@ export class LLM extends EventTarget {
 				if (abortSignal.aborted) throw new Error('AbortError')
 
 				try {
-					// Try primary model (Local Qwen3 if configured)
+					// Try primary model (Local Ollama if configured)
 					return await this.client.invoke(messages, tools, abortSignal, options)
 				} catch (error) {
 					// Fallback chain: Local -> Groq -> Claude

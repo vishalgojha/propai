@@ -9,7 +9,8 @@ interface AIResponse {
 }
 
 export class AIService {
-    private qwenUrl = process.env.QWEN_BASE_URL || 'http://localhost:11434/api/chat';
+    private ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+    private ollamaModel = process.env.OLLAMA_MODEL || '';
 
     async chat(prompt: string, modelPreference: string = 'Local', taskType?: string, tenantId?: string): Promise<AIResponse> {
         const start = Date.now();
@@ -55,7 +56,7 @@ export class AIService {
 
     private async callModel(prompt: string, modelId: string, tenantId?: string): Promise<AIResponse> {
         if (modelId === 'Local') {
-            return await this.callQwen(prompt);
+            return await this.callLocal(prompt);
         } else if (modelId === 'Groq') {
             return await this.callGroq(prompt, tenantId);
         } else if (modelId === 'Google') {
@@ -66,17 +67,30 @@ export class AIService {
     }
 
 
-    private async callQwen(prompt: string): Promise<AIResponse> {
-        const res = await axios.post(this.qwenUrl, {
-            model: 'qwen3:1.7b',
+    private async callLocal(prompt: string): Promise<AIResponse> {
+        const model = this.ollamaModel || await this.resolveLocalModel();
+        const res = await axios.post(`${this.ollamaBaseUrl.replace(/\/$/, '')}/api/chat`, {
+            model,
             messages: [{ role: 'user', content: prompt }],
             stream: false
         });
         return { 
             text: res.data.message.content, 
-            model: 'Qwen3 Local', 
+            model: `${model} Local`, 
             latency: 0 
         };
+    }
+
+    private async resolveLocalModel(): Promise<string> {
+        try {
+            const res = await axios.get(`${this.ollamaBaseUrl.replace(/\/$/, '')}/api/tags`);
+            const firstModel = res.data?.models?.[0]?.name;
+            if (firstModel) return firstModel;
+        } catch (error) {
+            console.error('Unable to resolve local Ollama model', error);
+        }
+
+        return 'ollama';
     }
 
     private async callGroq(prompt: string, tenantId?: string): Promise<AIResponse> {
@@ -122,16 +136,16 @@ export class AIService {
 
 
     async getStatus() {
-        const startQwen = Date.now();
-        let qwenLatency = -1;
+        const startOllama = Date.now();
+        let ollamaLatency = -1;
         try {
-            await axios.get(this.qwenUrl.replace('/api/chat', '/api/tags')); 
-            qwenLatency = Date.now() - startQwen;
+            await axios.get(`${this.ollamaBaseUrl.replace(/\/$/, '')}/api/tags`);
+            ollamaLatency = Date.now() - startOllama;
         } catch (e) {}
 
         return {
             models: {
-                Local: { name: 'Qwen3 1.7B', latency: qwenLatency, status: qwenLatency > 0 ? 'online' : 'offline' },
+                Local: { name: this.ollamaModel || 'Ollama Local', latency: ollamaLatency, status: ollamaLatency > 0 ? 'online' : 'offline' },
                 Groq: { name: 'Groq Llama3', latency: 150, status: 'online' },
                 Claude: { name: 'Claude 3.5', latency: 400, status: 'online' },
                 Google: { name: 'Gemini Pro', latency: 300, status: 'online' }

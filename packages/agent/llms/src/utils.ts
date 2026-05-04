@@ -33,12 +33,6 @@ export function modelPatch(body: Record<string, any>) {
 
 	const modelName = normalizeModelName(model)
 
-	if (modelName.startsWith('qwen')) {
-		debug('Applying Qwen patch: use higher temperature for auto fixing')
-		body.temperature = Math.max(body.temperature || 0, 1.0)
-		body.enable_thinking = false
-	}
-
 	if (modelName.startsWith('claude')) {
 		debug('Applying Claude patch: disable thinking')
 		body.thinking = { type: 'disabled' }

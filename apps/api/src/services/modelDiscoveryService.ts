@@ -38,7 +38,7 @@ const STATIC_FALLBACKS: Record<string, ModelInfo[]> = {
         { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', provider: 'Groq', speed: 'fast', cost: 'free', contextWindow: 128000 },
     ],
     'Local': [
-        { id: 'qwen3:1.7b', name: 'Qwen3 1.7B', provider: 'Local', speed: 'fast', cost: 'free', contextWindow: 32000, isLocal: true },
+        { id: 'ollama-local', name: 'Ollama Local', provider: 'Local', speed: 'fast', cost: 'free', contextWindow: 32000, isLocal: true },
     ]
 };
 
@@ -146,7 +146,8 @@ export class ModelDiscoveryService {
             }
             case 'Local': {
                 try {
-                    const res = await axios.get('http://localhost:11434/api/tags');
+                    const baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+                    const res = await axios.get(`${baseUrl.replace(/\/$/, '')}/api/tags`);
                     return res.data.models.map((m: any) => ({
                         id: m.name,
                         name: m.name,

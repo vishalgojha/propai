@@ -7,7 +7,7 @@
   },
   "environment": {
     "PORT": "3001",
-    "QWEN_BASE_URL": "http://ollama:11434/api/chat",
+    "OLLAMA_BASE_URL": "http://ollama:11434",
     "SUPABASE_URL": "variable",
     "SUPABASE_ANON_KEY": "variable"
   },
