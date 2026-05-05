@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MessageSquare, Phone, Video, Send, Mic, MicOff } from 'lucide-react';
+import { Search, MessageSquare, Phone, Video, Send, Mic, MicOff, Paperclip, X } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/Badge';
@@ -16,6 +16,13 @@ interface Message {
     text?: string;
     timestamp: string;
     sender?: string;
+    attachments?: AttachmentPreview[];
+}
+
+interface AttachmentPreview {
+    data: string;
+    mimeType: string;
+    fileName: string;
 }
 
 interface AgentEvent {
@@ -50,6 +57,7 @@ export default function Dashboard() {
     const [selectedChat, setSelectedChat] = useState<string | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState('');
+    const [attachments, setAttachments] = useState<AttachmentPreview[]>([]);
     const [isTyping, setIsTyping] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
@@ -151,6 +159,27 @@ export default function Dashboard() {
         } catch (e) {}
     };
 
+    const fileToAttachment = (file: File) =>
+        new Promise<AttachmentPreview>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({
+                data: String(reader.result || ''),
+                mimeType: file.type || 'application/octet-stream',
+                fileName: file.name,
+            });
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(file);
+        });
+
+    const handleFilesSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(event.target.files || []);
+        event.target.value = '';
+        if (!files.length) return;
+
+        const nextAttachments = await Promise.all(files.map(fileToAttachment));
+        setAttachments(prev => [...prev, ...nextAttachments]);
+    };
+
     const connectWhatsApp = async () => {
         await apiFetch('/api/whatsapp/connect', {
             method: 'POST',
@@ -160,23 +189,27 @@ export default function Dashboard() {
     };
 
     const handleSend = async () => {
-        if (!inputText || !selectedChat) return;
-        const text = inputText;
+        if ((!inputText.trim() && attachments.length === 0) || !selectedChat) return;
+        const text = inputText.trim();
+        const filesToSend = attachments;
         setInputText('');
+        setAttachments([]);
         setMessages(prev => [...prev, { id: Date.now().toString(), remote_jid: selectedChat, message_text: text, timestamp: new Date().toISOString() }]);
         
         try {
             await apiFetch('/api/whatsapp/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ remoteJid: selectedChat, text }),
+                body: JSON.stringify({ remoteJid: selectedChat, text, attachments: filesToSend }),
             });
             setIsTyping(true);
             setTimeout(() => {
                 setIsTyping(false);
             }, 2000);
             await fetchMessages();
-        } catch (e) {}
+        } catch (e) {
+            setAttachments(filesToSend);
+        }
     };
 
     const startRecording = async () => {
@@ -303,13 +336,48 @@ export default function Dashboard() {
                                     <div key={msg.id} className={`flex ${msg.sender === 'Broker' ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[70%] p-3 rounded-2xl text-sm ${msg.sender === 'Broker' ? 'bg-white text-black' : 'glass'}`}>
                                             {normalizeMessageText(msg)}
+                                            {msg.attachments && msg.attachments.length > 0 && (
+                                                <div className="mt-2 space-y-2">
+                                                    {msg.attachments.map((file) => (
+                                                        <div key={`${msg.id}-${file.fileName}`} className={`text-xs truncate ${msg.sender === 'Broker' ? 'text-black/60' : 'text-white/60'}`}>
+                                                            {file.fileName}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
                                 {isTyping && <div className="flex justify-start"><AIProcessing /></div>}
                             </div>
                             <div className="p-6 glass border-t border-white/10">
+                                {attachments.length > 0 && (
+                                    <div className="mb-3 flex flex-wrap gap-2">
+                                        {attachments.map((file, index) => (
+                                            <div key={`${file.fileName}-${index}`} className="flex items-center gap-2 rounded-full bg-white/10 border border-white/10 px-3 py-2 text-xs">
+                                                <span className="max-w-40 truncate">{file.fileName}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAttachments(prev => prev.filter((_, itemIndex) => itemIndex !== index))}
+                                                    className="text-gray-400 hover:text-white"
+                                                    aria-label={`Remove ${file.fileName}`}
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                                 <div className="flex items-center gap-3">
+                                    <label className="bg-white/5 border border-white/10 text-white p-3 rounded-full hover:bg-white/10 transition-all cursor-pointer">
+                                        <Paperclip className="w-5 h-5" />
+                                        <input
+                                            type="file"
+                                            multiple
+                                            className="hidden"
+                                            onChange={handleFilesSelected}
+                                        />
+                                    </label>
                                     <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder="Type a message..." className="flex-1 bg-white/5 border border-white/10 rounded-full py-3 px-6" />
                                     <button onClick={handleSend} className="bg-white text-black p-3 rounded-full"><Send className="w-5 h-5" /></button>
                                 </div>
