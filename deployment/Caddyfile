@@ -1,5 +1,9 @@
-app.propai.live, www.propai.live {
-    reverse_proxy frontend:3000
+app.propai.live {
+    reverse_proxy propai-app:3000
+}
+
+propai.live, www.propai.live {
+    reverse_proxy propai-web:3000
 }
 
 api.propai.live {

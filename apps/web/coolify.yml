@@ -1,10 +1,10 @@
-id: propai-public
-name: PropAI Public Listings
+id: propai-web
+name: PropAI Web
 specify_port: false
 port: 3000
 
 services:
-  - name: web-public
+  - name: propai-web
     description: Public listing feed for www.propai.live
     build_pack: dockerfile
     port: 3000

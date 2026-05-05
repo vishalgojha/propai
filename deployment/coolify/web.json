@@ -2,8 +2,8 @@
   "name": "propai-web",
   "build": {
     "type": "dockerfile",
-    "dockerfile": "Dockerfile",
-    "context": "/app"
+    "dockerfile": "apps/web/Dockerfile",
+    "context": "/"
   },
   "environment": {
     "NEXT_PUBLIC_SUPABASE_URL": "variable",
