@@ -7,17 +7,79 @@ const router = Router();
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const APP_URL = process.env.APP_URL || 'https://app.propai.live';
+const MCP_CONNECTOR_PROVIDER = 'propai_mcp';
+const MCP_TOKEN_SECRET_SOURCE =
+    process.env.MCP_TOKEN_ENCRYPTION_SECRET ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.JWT_SECRET ||
+    '';
 
-async function bootstrapProfile(user: any, startTrial = false) {
+function getMcpTokenSecret() {
+    if (!MCP_TOKEN_SECRET_SOURCE) {
+        throw new Error('MCP token encryption secret is not configured');
+    }
+
+    return crypto.createHash('sha256').update(MCP_TOKEN_SECRET_SOURCE).digest();
+}
+
+function createMcpConnectorToken() {
+    return `propai_mcp_${crypto.randomBytes(24).toString('base64url')}`;
+}
+
+function hashMcpConnectorToken(token: string) {
+    return `sha256:${crypto.createHash('sha256').update(token).digest('hex')}`;
+}
+
+function encryptMcpConnectorToken(token: string) {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', getMcpTokenSecret(), iv);
+    const encrypted = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return `enc:${iv.toString('base64url')}.${tag.toString('base64url')}.${encrypted.toString('base64url')}`;
+}
+
+function decryptMcpConnectorToken(value: string) {
+    if (!value.startsWith('enc:')) {
+        return null;
+    }
+
+    const payload = value.slice(4);
+    const [ivPart, tagPart, encryptedPart] = payload.split('.');
+    if (!ivPart || !tagPart || !encryptedPart) {
+        throw new Error('Stored MCP token is malformed');
+    }
+
+    const decipher = crypto.createDecipheriv(
+        'aes-256-gcm',
+        getMcpTokenSecret(),
+        Buffer.from(ivPart, 'base64url')
+    );
+    decipher.setAuthTag(Buffer.from(tagPart, 'base64url'));
+    const decrypted = Buffer.concat([
+        decipher.update(Buffer.from(encryptedPart, 'base64url')),
+        decipher.final(),
+    ]);
+    return decrypted.toString('utf8');
+}
+
+async function bootstrapProfile(
+    user: any,
+    startTrial = false,
+    profileInput: { fullName?: string | null; phone?: string | null } = {}
+) {
     if (!supabaseAdmin || !user?.id) {
         return null;
     }
 
+    const fullName = profileInput.fullName || user.user_metadata?.full_name || user.user_metadata?.name || null;
+    const phone = profileInput.phone || user.user_metadata?.phone || null;
+
     const profilePayload: Record<string, unknown> = {
         id: user.id,
         email: user.email,
-        phone: user.email,
-        full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+        phone,
+        full_name: fullName,
         phone_verified: true,
     };
 
@@ -78,35 +140,60 @@ router.post('/password', async (req, res) => {
 
     const normalizedEmail = String(email).trim().toLowerCase();
     const authMode = mode || intent || (fullName || phone || plan ? 'signup' : 'signin');
+    const normalizedFullName = fullName ? String(fullName).trim() : null;
+    const normalizedPhone = phone ? String(phone).replace(/\D/g, '') : null;
 
     try {
         if (authMode === 'signup') {
-            const { data, error } = await supabaseAuth.auth.signUp({
+            if (!supabaseAdmin) {
+                return res.status(500).json({ error: 'Supabase service role client is not configured' });
+            }
+
+            if (!normalizedFullName || !normalizedPhone) {
+                return res.status(400).json({ error: 'Full name and WhatsApp number are required' });
+            }
+
+            const { data: existingPhoneProfile, error: phoneLookupError } = await supabaseAdmin
+                .from('profiles')
+                .select('email')
+                .eq('phone', normalizedPhone)
+                .maybeSingle();
+
+            if (phoneLookupError) {
+                throw phoneLookupError;
+            }
+
+            if (existingPhoneProfile) {
+                return res.status(409).json({
+                    error: 'An account with this WhatsApp number already exists. Use Sign in instead.',
+                });
+            }
+
+            const { data: createdUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
                 email: normalizedEmail,
                 password: String(password),
-                options: {
-                    data: {
-                        full_name: fullName || null,
-                        phone: phone || null,
-                        trial_plan_intent: plan || null,
-                    },
-                    emailRedirectTo: `${APP_URL}/auth/callback`,
+                email_confirm: true,
+                user_metadata: {
+                    full_name: normalizedFullName,
+                    phone: normalizedPhone,
+                    trial_plan_intent: plan || null,
                 },
             });
 
-            if (error) {
-                return res.status(400).json({ error: error.message });
+            if (createError) {
+                const message = createError.message || 'Could not create account';
+                if (message.toLowerCase().includes('already')) {
+                    return res.status(409).json({ error: 'An account with this email already exists. Use Sign in instead.' });
+                }
+                return res.status(400).json({ error: message });
             }
 
-            if (data.user) {
-                await bootstrapProfile(data.user, Boolean(startTrial));
+            if (createdUser.user) {
+                await bootstrapProfile(createdUser.user, Boolean(startTrial), {
+                    fullName: normalizedFullName,
+                    phone: normalizedPhone,
+                });
             }
-
-            return res.json({
-                success: true,
-                session: data.session,
-                user: data.user,
-            });
         }
 
         const { data, error } = await supabaseAuth.auth.signInWithPassword({
@@ -119,7 +206,10 @@ router.post('/password', async (req, res) => {
         }
 
         if (data.user) {
-            await bootstrapProfile(data.user, false);
+            await bootstrapProfile(data.user, false, {
+                fullName: authMode === 'signup' ? normalizedFullName : undefined,
+                phone: authMode === 'signup' ? normalizedPhone : undefined,
+            });
         }
 
         return res.json({
@@ -129,6 +219,13 @@ router.post('/password', async (req, res) => {
         });
     } catch (error: any) {
         console.error('Password auth error:', error);
+        const message = String(error?.message || '');
+        if (message.includes('profiles_phone_key')) {
+            return res.status(409).json({ error: 'An account with this WhatsApp number already exists. Use Sign in instead.' });
+        }
+        if (message.includes('profiles_email_key')) {
+            return res.status(409).json({ error: 'An account with this email already exists. Use Sign in instead.' });
+        }
         return res.status(500).json({ error: error.message || 'Authentication failed' });
     }
 });
@@ -223,6 +320,161 @@ router.get('/me', authMiddleware, async (req, res) => {
     } catch (error: any) {
         console.error('Get current user error:', error);
         return res.status(500).json({ error: error.message || 'Failed to load current user' });
+    }
+});
+
+router.get('/mcp-token', authMiddleware, async (req, res) => {
+    const user = (req as any).user;
+
+    if (!supabaseAdmin) {
+        return res.status(500).json({ error: 'Supabase admin client is not configured' });
+    }
+
+    try {
+        const { data, error } = await supabaseAdmin
+            .from('api_keys')
+            .select('key, updated_at')
+            .eq('tenant_id', user.id)
+            .eq('provider', MCP_CONNECTOR_PROVIDER)
+            .maybeSingle();
+
+        if (error) {
+            return res.status(500).json({ error: error.message || 'Failed to load connector token' });
+        }
+
+        if (!data) {
+            return res.json({ success: true, hasToken: false });
+        }
+
+        if (typeof data.key !== 'string') {
+            return res.status(500).json({ error: 'Stored connector token is invalid' });
+        }
+
+        if (data.key.startsWith('enc:')) {
+            return res.json({
+                success: true,
+                hasToken: true,
+                provider: MCP_CONNECTOR_PROVIDER,
+                token: decryptMcpConnectorToken(data.key),
+                token_type: 'bearer',
+                endpoint: 'https://mcp.propai.live/mcp',
+                updated_at: data.updated_at,
+                retrievable: true,
+            });
+        }
+
+        return res.json({
+            success: true,
+            hasToken: true,
+            provider: MCP_CONNECTOR_PROVIDER,
+            token: null,
+            token_type: 'bearer',
+            endpoint: 'https://mcp.propai.live/mcp',
+            updated_at: data.updated_at,
+            retrievable: false,
+        });
+    } catch (error: any) {
+        console.error('Get MCP token error:', error);
+        return res.status(500).json({ error: error.message || 'Failed to load connector token' });
+    }
+});
+
+router.post('/mcp-token', authMiddleware, async (req, res) => {
+    const user = (req as any).user;
+    const shouldRegenerate = Boolean(req.body?.regenerate);
+
+    if (!supabaseAdmin) {
+        return res.status(500).json({ error: 'Supabase admin client is not configured' });
+    }
+
+    try {
+        const { data: existingTokenRow, error: existingTokenError } = await supabaseAdmin
+            .from('api_keys')
+            .select('key, updated_at')
+            .eq('tenant_id', user.id)
+            .eq('provider', MCP_CONNECTOR_PROVIDER)
+            .maybeSingle();
+
+        if (existingTokenError) {
+            return res.status(500).json({ error: existingTokenError.message || 'Failed to load existing connector token' });
+        }
+
+        if (existingTokenRow?.key && !shouldRegenerate) {
+            if (existingTokenRow.key.startsWith('enc:')) {
+                return res.json({
+                    success: true,
+                    provider: MCP_CONNECTOR_PROVIDER,
+                    token: decryptMcpConnectorToken(existingTokenRow.key),
+                    token_type: 'bearer',
+                    endpoint: 'https://mcp.propai.live/mcp',
+                    updated_at: existingTokenRow.updated_at,
+                    retrievable: true,
+                    reused: true,
+                });
+            }
+
+            return res.status(409).json({
+                error: 'Existing connector token uses legacy storage and cannot be retrieved. Regenerate it to continue.',
+                legacy: true,
+            });
+        }
+
+        const token = createMcpConnectorToken();
+        const encryptedToken = encryptMcpConnectorToken(token);
+
+        const { error } = await supabaseAdmin
+            .from('api_keys')
+            .upsert(
+                {
+                    tenant_id: user.id,
+                    provider: MCP_CONNECTOR_PROVIDER,
+                    key: encryptedToken,
+                    updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'tenant_id, provider' }
+            );
+
+        if (error) {
+            return res.status(500).json({ error: error.message || 'Failed to create connector token' });
+        }
+
+        return res.json({
+            success: true,
+            provider: MCP_CONNECTOR_PROVIDER,
+            token,
+            token_type: 'bearer',
+            endpoint: 'https://mcp.propai.live/mcp',
+            retrievable: true,
+            reused: false,
+        });
+    } catch (error: any) {
+        console.error('Create MCP token error:', error);
+        return res.status(500).json({ error: error.message || 'Failed to create connector token' });
+    }
+});
+
+router.delete('/mcp-token', authMiddleware, async (req, res) => {
+    const user = (req as any).user;
+
+    if (!supabaseAdmin) {
+        return res.status(500).json({ error: 'Supabase admin client is not configured' });
+    }
+
+    try {
+        const { error } = await supabaseAdmin
+            .from('api_keys')
+            .delete()
+            .eq('tenant_id', user.id)
+            .eq('provider', MCP_CONNECTOR_PROVIDER);
+
+        if (error) {
+            return res.status(500).json({ error: error.message || 'Failed to revoke connector token' });
+        }
+
+        return res.json({ success: true });
+    } catch (error: any) {
+        console.error('Delete MCP token error:', error);
+        return res.status(500).json({ error: error.message || 'Failed to revoke connector token' });
     }
 });
 

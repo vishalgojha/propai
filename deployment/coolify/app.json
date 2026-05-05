@@ -1,0 +1,18 @@
+{
+  "name": "propai-app",
+  "build": {
+    "type": "dockerfile",
+    "dockerfile": "apps/app/Dockerfile",
+    "context": "/"
+  },
+  "environment": {
+    "NEXT_PUBLIC_API_URL": "variable",
+    "NEXT_PUBLIC_SUPABASE_URL": "variable",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "variable"
+  },
+  "network": "propai-network",
+  "healthcheck": {
+    "path": "/",
+    "port": 3000
+  }
+}

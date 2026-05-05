@@ -17,6 +17,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@hapi/boom": "^9.1.4",
     "@supabase/supabase-js": "^2.103.3",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "axios": "^1.15.0",

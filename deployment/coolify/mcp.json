@@ -2,8 +2,8 @@
   "name": "propai-mcp",
   "build": {
     "type": "dockerfile",
-    "dockerfile": "Dockerfile",
-    "context": "/app"
+    "dockerfile": "apps/mcp/Dockerfile",
+    "context": "/"
   },
   "environment": {
     "PORT": "3003",

@@ -10,6 +10,7 @@ create table profiles (
   trial_started_at timestamp with time zone,
   trial_used boolean default false,
   is_admin boolean default false,
+  app_role text not null default 'user' check (app_role in ('user', 'admin', 'broker', 'team_member')),
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -17,11 +18,33 @@ create table profiles (
 create table whatsapp_sessions (
   id uuid default gen_random_uuid() primary key,
   tenant_id uuid references profiles(id) on delete cascade not null,
+  session_id text,
   label text not null default 'Owner',
   owner_name text,
-  session_data jsonb not null,
+  session_data jsonb default '{}'::jsonb,
   status text default 'disconnected',
-  last_sync timestamp with time zone default timezone('utc'::text, now()) not null
+  last_sync timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  unique(tenant_id),
+  unique(tenant_id, session_id)
+);
+
+-- Workspace Members
+create table workspace_members (
+  id uuid default gen_random_uuid() primary key,
+  workspace_id uuid references profiles(id) on delete cascade not null,
+  tenant_id uuid references profiles(id) on delete cascade not null,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  email text,
+  full_name text,
+  role text not null default 'owner' check (role in ('owner', 'admin', 'member', 'viewer')),
+  status text not null default 'active' check (status in ('active', 'invited', 'disabled')),
+  invited_by uuid references auth.users(id) on delete set null,
+  invited_at timestamp with time zone,
+  joined_at timestamp with time zone default timezone('utc'::text, now()),
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  unique(workspace_id, user_id)
 );
 
 -- Contacts & Classification
@@ -127,6 +150,11 @@ create policy "Users can view their own profile" on profiles for select using (a
 
 alter table whatsapp_sessions enable row level security;
 create policy "Tenants can manage their own sessions" on whatsapp_sessions all using (auth.uid() = tenant_id);
+alter table workspace_members enable row level security;
+create policy "Workspace members can view their memberships" on workspace_members for select using (auth.uid() = user_id or auth.uid() = workspace_id or auth.uid() = tenant_id);
+create policy "Workspace owners can insert memberships" on workspace_members for insert with check (auth.uid() = workspace_id or auth.uid() = tenant_id or auth.uid() = user_id);
+create policy "Workspace owners can update memberships" on workspace_members for update using (auth.uid() = workspace_id or auth.uid() = tenant_id) with check (auth.uid() = workspace_id or auth.uid() = tenant_id);
+create policy "Workspace owners can delete memberships" on workspace_members for delete using (auth.uid() = workspace_id or auth.uid() = tenant_id);
 
 alter table contacts enable row level security;
 create policy "Tenants can manage their own contacts" on contacts all using (auth.uid() = tenant_id);

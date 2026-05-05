@@ -29,6 +29,9 @@ create index if not exists igr_transactions_building_idx
 create index if not exists igr_transactions_reg_date_idx
   on public.igr_transactions (reg_date desc);
 
+create unique index if not exists igr_transactions_doc_number_unique
+  on public.igr_transactions (doc_number);
+
 alter table public.igr_transactions enable row level security;
 
 do $$

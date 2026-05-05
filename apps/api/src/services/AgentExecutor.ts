@@ -48,14 +48,77 @@ export class AgentExecutor {
     }
 
     private cleanAgentResponse(text: string): string {
-        // Remove tool call patterns if they leaked into final output
-        let cleaned = text.replace(/TOOL: \w+ \{.*?\}/g, '').trim();
-        // Remove JSON-like blocks
-        cleaned = cleaned.replace(/\{[\s\S]*?\}/g, '').trim();
-        // Remove technical markers
-        cleaned = cleaned.replace(/\[.*?\]/g, '').trim();
-        
+        const extracted = this.extractPlainMessage(text);
+
+        // Remove tool call patterns if they leaked into final output.
+        let cleaned = extracted.replace(/TOOL: \w+\s*\{[\s\S]*?\}/g, '').trim();
+        cleaned = this.stripMarkdown(cleaned);
+
         return cleaned || "I've taken care of that for you!";
+    }
+
+    private extractPlainMessage(text: string): string {
+        const trimmed = String(text || '').trim();
+        if (!trimmed) return '';
+
+        const jsonCandidate = this.extractJsonObject(trimmed);
+        if (jsonCandidate) {
+            const parsed = safeJSONParse(jsonCandidate);
+            const message = this.findMessageString(parsed);
+            if (message) return message;
+        }
+
+        return trimmed;
+    }
+
+    private extractJsonObject(text: string): string | null {
+        if (text.startsWith('{') && text.endsWith('}')) return text;
+
+        const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+        const candidate = fenced?.[1]?.trim();
+        if (candidate?.startsWith('{') && candidate.endsWith('}')) return candidate;
+
+        const firstBrace = text.indexOf('{');
+        const lastBrace = text.lastIndexOf('}');
+        if (firstBrace >= 0 && lastBrace > firstBrace) {
+            return text.slice(firstBrace, lastBrace + 1);
+        }
+
+        return null;
+    }
+
+    private findMessageString(value: unknown): string | null {
+        if (!value || typeof value !== 'object') return null;
+
+        const objectValue = value as Record<string, unknown>;
+        for (const key of ['message', 'text', 'reply', 'content']) {
+            const maybeMessage = objectValue[key];
+            if (typeof maybeMessage === 'string' && maybeMessage.trim()) {
+                return maybeMessage.trim();
+            }
+        }
+
+        for (const nestedKey of ['response', 'data', 'output']) {
+            const nested = this.findMessageString(objectValue[nestedKey]);
+            if (nested) return nested;
+        }
+
+        return null;
+    }
+
+    private stripMarkdown(text: string): string {
+        return text
+            .replace(/```[\s\S]*?```/g, '')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/\*\*([^*]+)\*\*/g, '$1')
+            .replace(/\*([^*]+)\*/g, '$1')
+            .replace(/__([^_]+)__/g, '$1')
+            .replace(/_([^_]+)_/g, '$1')
+            .replace(/^#{1,6}\s+/gm, '')
+            .replace(/^\s*[-*+]\s+/gm, '')
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+            .replace(/[ \t]+$/gm, '')
+            .trim();
     }
 
     private parseToolCall(text: string) {
@@ -224,7 +287,7 @@ export class AgentExecutor {
                 return { success: true, message: 'Your subscription will cancel at the end of the billing cycle.' };
             }
             case 'verify_rera': {
-                return { status: 'Verified', reg_no: 'P518000XXXX', state: args.state };
+                return { error: 'verify_rera not implemented' };
             }
             case 'igr_last_transaction': {
                 return await this.getIgrLastTransactionSummary(args);
@@ -348,7 +411,7 @@ export class AgentExecutor {
     private async getChatHistory(tenantId: string, remoteJid: string) {
         const { data } = await supabase
             .from('messages')
-            .select('text, sender')
+            .select('*')
             .eq('tenant_id', tenantId)
             .eq('remote_jid', remoteJid)
             .order('timestamp', { ascending: true })
@@ -356,13 +419,14 @@ export class AgentExecutor {
         
         return (data || []).map(m => ({
             role: m.sender === 'Broker' ? 'user' : (m.sender === 'AI' ? 'assistant' : 'user'),
-            content: m.text
+            content: m.message_text || m.text || ''
         }));
     }
 
     private async getSystemPrompt() {
         return `You are the PropAI Agent. You can use tools to chat with brokers, manage WhatsApp and Listings, and browse the web with Camofox.
 Sound like a smart broker-side copilot: warm, direct, practical, and confident. Use plain language, short replies, and a human tone. Match the broker's style when it feels natural. Avoid sounding robotic or overly formal.
+Final replies sent to users must be plain text only. Never wrap replies in JSON. Never use markdown formatting, bullets, headings, tables, code fences, or structured response objects. If you are not calling a tool, answer with only the exact message text the user should receive.
 To use a tool, respond with 'TOOL: tool_name {args}'.
 
 AVAILABLE TOOLS:
