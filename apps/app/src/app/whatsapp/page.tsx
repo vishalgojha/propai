@@ -36,6 +36,7 @@ type ParseTargets = {
 };
 
 const emptyTargets: ParseTargets = { groups: [], dms: [] };
+type PrivacyTab = 'groups' | 'dms';
 
 const categoryLabels: Record<GroupCategory, string> = {
     real_estate: 'Real estate',
@@ -62,6 +63,7 @@ export default function WhatsAppPage() {
     const [search, setSearch] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<'all' | GroupCategory>('all');
     const [enabledOnly, setEnabledOnly] = useState(false);
+    const [activeTab, setActiveTab] = useState<PrivacyTab>('groups');
     const [error, setError] = useState('');
 
     useEffect(() => {
@@ -209,6 +211,7 @@ export default function WhatsAppPage() {
     const visibleGroupIds = filteredGroups.map((group) => group.id);
     const allGroupIds = targets.groups.map((group) => group.id);
     const allDmIds = targets.dms.map((dm) => dm.remoteJid);
+    const shouldShowDmThreads = dmMasterEnabled || targets.dms.some((dm) => dm.parseEnabled);
 
     return (
         <main className="min-h-screen bg-[radial-gradient(circle_at_top,#173127_0%,#0b1115_42%,#070a0d_100%)] px-4 py-6 text-white md:px-8">
@@ -269,140 +272,189 @@ export default function WhatsAppPage() {
                         Loading WhatsApp controls
                     </div>
                 ) : (
-                    <div className="grid gap-6 xl:grid-cols-[1.65fr_1fr]">
-                        <section className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.22)]">
-                            <div className="flex flex-col gap-4 border-b border-white/10 pb-5">
-                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                    <div>
-                                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Groups</p>
-                                        <h2 className="mt-2 text-xl font-semibold">Enable only the groups PropAI should parse</h2>
+                    <section className="rounded-[28px] border border-white/10 bg-white/[0.04] shadow-[0_12px_40px_rgba(0,0,0,0.22)]">
+                        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
+                            <div>
+                                <p className="text-sm font-semibold text-white">Parsing controls</p>
+                                <p className="mt-1 text-xs text-slate-500">Choose exactly which WhatsApp sources PropAI is allowed to read.</p>
+                            </div>
+                            <div className="inline-flex rounded-2xl border border-white/10 bg-[#0a1014] p-1">
+                                <TabButton active={activeTab === 'groups'} onClick={() => setActiveTab('groups')}>
+                                    Groups
+                                </TabButton>
+                                <TabButton active={activeTab === 'dms'} onClick={() => setActiveTab('dms')}>
+                                    Direct messages
+                                </TabButton>
+                            </div>
+                        </div>
+
+                        {activeTab === 'groups' ? (
+                            <div className="p-5">
+                                <div className="flex flex-col gap-4 border-b border-white/10 pb-5">
+                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Groups</p>
+                                            <h2 className="mt-2 text-xl font-semibold">Enable only the groups PropAI should parse</h2>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => void batchUpdate('group', visibleGroupIds, true, 'groups:bulk-enable')}
+                                                disabled={visibleGroupIds.length === 0 || pendingKey === 'groups:bulk-enable'}
+                                                className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                                {pendingKey === 'groups:bulk-enable' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                                Enable visible
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => void batchUpdate('group', allGroupIds, false, 'groups:disable-all')}
+                                                disabled={allGroupIds.length === 0 || pendingKey === 'groups:disable-all'}
+                                                className="inline-flex items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                                {pendingKey === 'groups:disable-all' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                                Disable all
+                                            </button>
+                                        </div>
                                     </div>
+
+                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                                        <label className="relative block flex-1">
+                                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                                            <input
+                                                value={search}
+                                                onChange={(event) => setSearch(event.target.value)}
+                                                placeholder="Search groups by name"
+                                                className="h-11 w-full rounded-xl border border-white/10 bg-[#0a1014] pl-10 pr-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-emerald-400/40"
+                                            />
+                                        </label>
+                                        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0a1014] px-3 py-2 text-xs text-slate-400">
+                                            <Filter className="h-4 w-4" />
+                                            {filteredGroups.length} shown
+                                        </div>
+                                    </div>
+
                                     <div className="flex flex-wrap gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => void batchUpdate('group', visibleGroupIds, true, 'groups:bulk-enable')}
-                                            disabled={visibleGroupIds.length === 0 || pendingKey === 'groups:bulk-enable'}
-                                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            {pendingKey === 'groups:bulk-enable' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                                            Enable visible
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => void batchUpdate('group', allGroupIds, false, 'groups:disable-all')}
-                                            disabled={allGroupIds.length === 0 || pendingKey === 'groups:disable-all'}
-                                            className="inline-flex items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            {pendingKey === 'groups:disable-all' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                                            Disable all
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                                    <label className="relative block flex-1">
-                                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                                        <input
-                                            value={search}
-                                            onChange={(event) => setSearch(event.target.value)}
-                                            placeholder="Search groups by name"
-                                            className="h-11 w-full rounded-xl border border-white/10 bg-[#0a1014] pl-10 pr-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-emerald-400/40"
-                                        />
-                                    </label>
-                                    <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0a1014] px-3 py-2 text-xs text-slate-400">
-                                        <Filter className="h-4 w-4" />
-                                        {filteredGroups.length} shown
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-wrap gap-2">
-                                    <FilterChip active={selectedCategory === 'all'} onClick={() => setSelectedCategory('all')}>
-                                        All groups
-                                    </FilterChip>
-                                    {(['real_estate', 'work', 'family', 'other'] as GroupCategory[]).map((category) => (
-                                        <FilterChip key={category} active={selectedCategory === category} onClick={() => setSelectedCategory(category)}>
-                                            {categoryLabels[category]}
+                                        <FilterChip active={selectedCategory === 'all'} onClick={() => setSelectedCategory('all')}>
+                                            All groups
                                         </FilterChip>
-                                    ))}
-                                    <FilterChip active={enabledOnly} onClick={() => setEnabledOnly((value) => !value)}>
-                                        Enabled only
-                                    </FilterChip>
-                                </div>
-                            </div>
-
-                            <div className="mt-5 space-y-3">
-                                {filteredGroups.length === 0 ? (
-                                    <p className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-sm text-slate-400">
-                                        No groups match this filter yet. Refresh after WhatsApp sync if you expected more.
-                                    </p>
-                                ) : (
-                                    filteredGroups.map((group) => (
-                                        <TargetRow
-                                            key={group.id}
-                                            title={group.name || group.id}
-                                            subtitle={`${group.participantsCount || 0} members`}
-                                            meta={`${categoryLabels[group.category]} · ${formatSeen(group.lastActiveAt)}`}
-                                            enabled={group.parseEnabled}
-                                            pending={pendingKey === `group:${group.id}`}
-                                            badge={group.category}
-                                            onToggle={() => void toggleTarget('group', group.id, !group.parseEnabled)}
-                                        />
-                                    ))
-                                )}
-                            </div>
-                        </section>
-
-                        <section className="space-y-6">
-                            <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.22)]">
-                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Direct messages</p>
-                                <h2 className="mt-2 text-xl font-semibold">DMs stay off until you opt in</h2>
-                                <p className="mt-2 text-sm leading-6 text-slate-300">
-                                    Use this only if you want PropAI to read one-to-one chats. This is separate from group parsing and starts disabled.
-                                </p>
-                                <button
-                                    type="button"
-                                    onClick={() => void batchUpdate('dm', allDmIds, !dmMasterEnabled, 'dms:master')}
-                                    disabled={allDmIds.length === 0 || pendingKey === 'dms:master'}
-                                    className={`mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${dmMasterEnabled ? 'border border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20' : 'bg-emerald-400 text-slate-950 hover:bg-emerald-300'}`}
-                                >
-                                    {pendingKey === 'dms:master' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                                    {dmMasterEnabled ? 'Disable all DMs' : 'Enable all discovered DMs'}
-                                </button>
-                            </div>
-
-                            <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.22)]">
-                                <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                                    <div>
-                                        <p className="text-sm font-semibold">Discovered DMs</p>
-                                        <p className="mt-1 text-xs text-slate-500">{targets.dms.length} chats found</p>
+                                        {(['real_estate', 'work', 'family', 'other'] as GroupCategory[]).map((category) => (
+                                            <FilterChip key={category} active={selectedCategory === category} onClick={() => setSelectedCategory(category)}>
+                                                {categoryLabels[category]}
+                                            </FilterChip>
+                                        ))}
+                                        <FilterChip active={enabledOnly} onClick={() => setEnabledOnly((value) => !value)}>
+                                            Enabled only
+                                        </FilterChip>
                                     </div>
-                                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${dmMasterEnabled ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200'}`}>
-                                        {dmMasterEnabled ? 'Opted in' : 'Off by default'}
-                                    </span>
                                 </div>
-                                <div className="mt-4 space-y-3">
-                                    {targets.dms.length === 0 ? (
+
+                                <div className="mt-5 space-y-3">
+                                    {filteredGroups.length === 0 ? (
                                         <p className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-sm text-slate-400">
-                                            No DM threads discovered yet.
+                                            No groups match this filter yet. Refresh after WhatsApp sync if you expected more.
                                         </p>
                                     ) : (
-                                        targets.dms.map((dm) => (
+                                        filteredGroups.map((group) => (
                                             <TargetRow
-                                                key={dm.remoteJid}
-                                                title={dm.displayName || dm.normalizedPhone || dm.remoteJid}
-                                                subtitle={dm.normalizedPhone || 'WhatsApp contact'}
-                                                meta={formatSeen(dm.lastMessageAt)}
-                                                enabled={dm.parseEnabled}
-                                                pending={pendingKey === `dm:${dm.remoteJid}`}
-                                                badge={dm.parseEnabled ? 'enabled' : 'private'}
-                                                onToggle={() => void toggleTarget('dm', dm.remoteJid, !dm.parseEnabled)}
+                                                key={group.id}
+                                                title={group.name || group.id}
+                                                subtitle={`${group.participantsCount || 0} members`}
+                                                meta={`${categoryLabels[group.category]} · ${formatSeen(group.lastActiveAt)}`}
+                                                enabled={group.parseEnabled}
+                                                pending={pendingKey === `group:${group.id}`}
+                                                badge={group.category}
+                                                onToggle={() => void toggleTarget('group', group.id, !group.parseEnabled)}
                                             />
                                         ))
                                     )}
                                 </div>
                             </div>
-                        </section>
-                    </div>
+                        ) : (
+                            <div>
+                                <div className="border-b border-emerald-300/15 bg-[linear-gradient(180deg,rgba(41,87,38,0.28),rgba(24,41,31,0.18))] px-5 py-4">
+                                    <div className="flex items-start gap-3">
+                                        <div className="mt-0.5 rounded-full bg-emerald-400/20 p-2 text-emerald-200">
+                                            <ShieldCheck className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-emerald-100">PropAI only reads the DMs you enable</p>
+                                            <p className="mt-1 max-w-3xl text-xs leading-5 text-emerald-50/80">
+                                                Personal chats, OTPs, bank alerts, and every unselected thread stay private by default. Nothing is parsed unless you opt in.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="border-b border-white/10 px-5 py-5">
+                                    <div className="mb-4 flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Direct messages</p>
+                                            <p className="mt-2 text-lg font-semibold text-white">Allow DM parsing</p>
+                                            <p className="mt-1 text-sm text-slate-400">Off by default. Only enable threads you want PropAI to read.</p>
+                                        </div>
+                                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${dmMasterEnabled ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200'}`}>
+                                            {watchedDms} of {targets.dms.length} enabled
+                                        </span>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#0a1014] px-4 py-4">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-white">Master DM opt-in</p>
+                                            <p className="mt-1 text-xs text-slate-500">Turn this on before selecting individual threads. Turn it off to disable every DM at once.</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => void batchUpdate('dm', allDmIds, !dmMasterEnabled, 'dms:master')}
+                                            disabled={allDmIds.length === 0 || pendingKey === 'dms:master'}
+                                            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-60 ${dmMasterEnabled ? 'bg-emerald-400' : 'bg-slate-700'}`}
+                                            aria-pressed={dmMasterEnabled}
+                                        >
+                                            <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${dmMasterEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                            {pendingKey === 'dms:master' ? <Loader2 className="absolute left-4 top-1.5 h-4 w-4 animate-spin text-slate-950" /> : null}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="px-5 py-5">
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-semibold text-white">Individual threads</p>
+                                            <p className="mt-1 text-xs text-slate-500">Select the specific conversations that PropAI may read.</p>
+                                        </div>
+                                        <span className="rounded-full border border-white/10 bg-[#0a1014] px-3 py-1 text-xs text-slate-400">
+                                            {targets.dms.length} found
+                                        </span>
+                                    </div>
+
+                                    {!shouldShowDmThreads ? (
+                                        <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-400">
+                                            Enable the DM master switch to choose individual threads.
+                                        </div>
+                                    ) : targets.dms.length === 0 ? (
+                                        <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-400">
+                                            No DM threads discovered yet.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {targets.dms.map((dm) => (
+                                                <TargetRow
+                                                    key={dm.remoteJid}
+                                                    title={dm.displayName || dm.normalizedPhone || dm.remoteJid}
+                                                    subtitle={dm.normalizedPhone || 'WhatsApp contact'}
+                                                    meta={formatSeen(dm.lastMessageAt)}
+                                                    enabled={dm.parseEnabled}
+                                                    pending={pendingKey === `dm:${dm.remoteJid}`}
+                                                    badge={dm.parseEnabled ? 'enabled' : 'private'}
+                                                    onToggle={() => void toggleTarget('dm', dm.remoteJid, !dm.parseEnabled)}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </section>
                 )}
             </div>
         </main>
@@ -428,6 +480,18 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
             type="button"
             onClick={onClick}
             className={`rounded-full border px-3 py-2 text-sm font-medium transition ${active ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-200' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'}`}
+        >
+            {children}
+        </button>
+    );
+}
+
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition ${active ? 'bg-emerald-400 text-slate-950' : 'text-slate-300 hover:bg-white/8'}`}
         >
             {children}
         </button>

@@ -129,7 +129,7 @@ export const sendMessage = async (req: Request, res: Response) => {
     }
 
     try {
-        const client = await sessionManager.getSession(tenantId);
+        const client = await sessionManager.getSessionForRemoteJid(tenantId, remoteJid);
         if (!client) {
             return res.status(404).json({ error: 'No active WhatsApp session found' });
         }
@@ -158,6 +158,43 @@ export const sendMessage = async (req: Request, res: Response) => {
         res.json({ message: 'Message sent successfully' });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+export const updateGroupMonitor = async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const tenantId = user?.id;
+    const groupId = String(req.body?.group_id || '').trim();
+    const behavior = String(req.body?.behavior || 'Listen').trim() || 'Listen';
+
+    if (!tenantId) return res.status(400).json({ error: 'User not authenticated' });
+    if (!groupId) return res.status(400).json({ error: 'group_id is required' });
+
+    try {
+        const { error } = await supabase
+            .from('group_configs')
+            .upsert(
+                {
+                    group_id: groupId,
+                    tenant_id: tenantId,
+                    behavior,
+                },
+                { onConflict: 'group_id' }
+            );
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        await whatsappParseConsentService.updateGroupConsent(
+            tenantId,
+            groupId,
+            behavior === 'Listen' || behavior === 'AutoReply' || behavior === 'Broadcast'
+        );
+
+        return res.json({ success: true });
+    } catch (error: any) {
+        return res.status(500).json({ error: error.message || 'Could not update group monitor' });
     }
 };
 

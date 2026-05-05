@@ -1,5 +1,6 @@
 import { WhatsAppClient } from './WhatsAppClient';
 import { subscriptionService } from '../services/subscriptionService';
+import { supabase } from '../config/supabase';
 
 export class SessionManager {
     private clients: Map<string, WhatsAppClient> = new Map();
@@ -52,7 +53,7 @@ export class SessionManager {
             }
         }
 
-        const sessionKey = options.usePairingCode || options.label || 'Owner';
+        const sessionKey = options.label || 'Owner';
         const fullKey = `${tenantId}:${sessionKey}`;
 
         if (this.clients.has(fullKey)) {
@@ -82,9 +83,44 @@ export class SessionManager {
         if (sessionKey) {
             return this.clients.get(`${tenantId}:${sessionKey}`);
         }
-        // Default to first session if not specified
+        const ownerSession = this.clients.get(`${tenantId}:Owner`);
+        if (ownerSession) {
+            return ownerSession;
+        }
+
+        const assistantSession = this.clients.get(`${tenantId}:Assistant`);
+        if (assistantSession) {
+            return assistantSession;
+        }
+
         const allKeys = Array.from(this.clients.keys()).filter(k => k.startsWith(`${tenantId}:`));
         return allKeys.length > 0 ? this.clients.get(allKeys[0]) : undefined;
+    }
+
+    async getSessionForRemoteJid(tenantId: string, remoteJid: string) {
+        const normalizedRemoteJid = String(remoteJid || '').trim();
+        if (!normalizedRemoteJid) {
+            return this.getSession(tenantId);
+        }
+
+        const table = normalizedRemoteJid.endsWith('@g.us') ? 'whatsapp_groups' : 'whatsapp_dm_permissions';
+        const idColumn = normalizedRemoteJid.endsWith('@g.us') ? 'group_jid' : 'remote_jid';
+
+        const { data, error } = await supabase
+            .from(table)
+            .select('session_label')
+            .eq('tenant_id', tenantId)
+            .eq(idColumn, normalizedRemoteJid)
+            .maybeSingle();
+
+        if (!error && data?.session_label) {
+            const mappedSession = await this.getSession(tenantId, data.session_label);
+            if (mappedSession) {
+                return mappedSession;
+            }
+        }
+
+        return this.getSession(tenantId);
     }
 
     async getAllSessionsForTenant(tenantId: string) {
@@ -115,8 +151,7 @@ export class SessionManager {
     }
 
     private async getTenantSessions(tenantId: string) {
-        // Check Supabase for persisted sessions
-        const { data } = await (require('../config/supabase').supabase)
+        const { data } = await supabase
             .from('whatsapp_sessions')
             .select('id')
             .eq('tenant_id', tenantId);
