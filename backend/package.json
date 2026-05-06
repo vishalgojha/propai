@@ -1,0 +1,22 @@
+{
+  "name": "wabro",
+  "version": "1.0.0",
+  "description": "WhatsApp broadcast CLI tool",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "cli": "node broadcast.js"
+  },
+  "dependencies": {
+    "@clack/core": "^1.3.0",
+    "@clack/prompts": "^1.3.0",
+    "@whiskeysockets/baileys": "^6.6.0",
+    "chalk": "^5.6.2",
+    "csv-parse": "^5.5.6",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.0",
+    "ora": "^9.4.0",
+    "pino": "^10.3.1",
+    "qrcode": "^1.5.3"
+  }
+}

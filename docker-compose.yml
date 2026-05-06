@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: wabro-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+      - WABRO_PASSWORD=${WABRO_PASSWORD}
+    volumes:
+      - ./backend/sessions:/app/sessions
+    restart: unless-stopped
+    networks:
+      - wabro-network
+
+  frontend:
+    build: ./frontend
+    container_name: wabro-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://backend:3001
+      - PORT=3000
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - wabro-network
+
+networks:
+  wabro-network:
+    driver: bridge
