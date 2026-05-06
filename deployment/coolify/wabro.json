@@ -1,0 +1,18 @@
+{
+  "name": "wabro",
+  "build": {
+    "type": "dockerfile",
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "environment": {
+    "PORT": "3000",
+    "NEXT_PUBLIC_SITE_URL": "https://wabro.propai.live",
+    "NEXT_PUBLIC_API_URL": "https://api.propai.live"
+  },
+  "network": "propai-network",
+  "healthcheck": {
+    "path": "/",
+    "port": 3000
+  }
+}
