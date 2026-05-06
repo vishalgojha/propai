@@ -43,6 +43,10 @@ function safeRatio(success: number, failed: number) {
     return Math.round((success / total) * 100);
 }
 
+function getConnectionStatus(row: any) {
+    return String(row?.connection_status || row?.status || 'disconnected');
+}
+
 function deriveGroupStatus(lastMessageAt?: string | null, failedCount = 0) {
     if (failedCount > 0) {
         return 'error';
@@ -71,14 +75,20 @@ export class WhatsAppHealthService {
         }
 
         const now = new Date().toISOString();
-        const { data: existing } = await db
-            .from('whatsapp_ingestion_health')
-            .select('connected_at')
-            .eq('tenant_id', input.tenantId)
-            .eq('session_label', input.sessionLabel)
-            .maybeSingle();
+        let existing: any = null;
+        try {
+            const { data } = await db
+                .from('whatsapp_ingestion_health')
+                .select('*')
+                .eq('tenant_id', input.tenantId)
+                .eq('session_label', input.sessionLabel)
+                .maybeSingle();
+            existing = data;
+        } catch {
+            existing = null;
+        }
 
-        const payload: Record<string, unknown> = {
+        const detailedPayload: Record<string, unknown> = {
             tenant_id: input.tenantId,
             session_label: input.sessionLabel,
             phone_number: input.phoneNumber || null,
@@ -89,15 +99,31 @@ export class WhatsAppHealthService {
         };
 
         if (input.status === 'connected') {
-            payload.connected_at = existing?.connected_at || now;
+            detailedPayload.connected_at = existing?.connected_at || now;
         }
+
+        const compatPayload: Record<string, unknown> = {
+            tenant_id: input.tenantId,
+            status: input.status,
+            last_event_at: now,
+            last_error: null,
+            processed_count: 0,
+            failed_count: 0,
+            updated_at: now,
+        };
 
         const { error } = await db
             .from('whatsapp_ingestion_health')
-            .upsert(payload, { onConflict: 'tenant_id,session_label' });
+            .upsert(detailedPayload, { onConflict: 'tenant_id,session_label' });
 
         if (error) {
-            throw error;
+            const { error: compatError } = await db
+                .from('whatsapp_ingestion_health')
+                .upsert(compatPayload, { onConflict: 'tenant_id' });
+
+            if (compatError) {
+                throw compatError;
+            }
         }
 
         await this.logEvent(input.tenantId, input.sessionLabel, input.status, this.describeConnectionEvent(input));
@@ -129,20 +155,37 @@ export class WhatsAppHealthService {
             }
         }
 
-        const activeGroups24h = await this.countActiveGroups24h(tenantId, sessionLabel);
-        const { error: healthError } = await db
-            .from('whatsapp_ingestion_health')
-            .upsert({
+        const activeGroups24h = await this.countActiveGroups24h(tenantId, sessionLabel).catch(() => 0);
+        const detailedPayload = {
                 tenant_id: tenantId,
                 session_label: sessionLabel,
                 group_count: uniqueGroups.length,
                 active_groups_24h: activeGroups24h,
                 last_group_sync_at: now,
                 updated_at: now,
-            }, { onConflict: 'tenant_id,session_label' });
+            };
+        const compatPayload = {
+            tenant_id: tenantId,
+            status: 'connected',
+            last_event_at: now,
+            last_error: null,
+            processed_count: activeGroups24h,
+            failed_count: 0,
+            updated_at: now,
+        };
+
+        const { error: healthError } = await db
+            .from('whatsapp_ingestion_health')
+            .upsert(detailedPayload, { onConflict: 'tenant_id,session_label' });
 
         if (healthError) {
-            throw healthError;
+            const { error: compatError } = await db
+                .from('whatsapp_ingestion_health')
+                .upsert(compatPayload, { onConflict: 'tenant_id' });
+
+            if (compatError) {
+                throw compatError;
+            }
         }
 
         await this.logEvent(
@@ -162,20 +205,24 @@ export class WhatsAppHealthService {
         const timestamp = asIso(input.timestamp);
         const groupId = input.remoteJid.endsWith('@g.us') ? input.remoteJid : null;
 
-        const { data: existingHealth } = await db
-            .from('whatsapp_ingestion_health')
-            .select('messages_received_24h, messages_parsed_24h, messages_failed_24h')
-            .eq('tenant_id', input.tenantId)
-            .eq('session_label', input.sessionLabel)
-            .maybeSingle();
+        let existingHealth: any = null;
+        try {
+            const { data } = await db
+                .from('whatsapp_ingestion_health')
+                .select('messages_received_24h, messages_parsed_24h, messages_failed_24h')
+                .eq('tenant_id', input.tenantId)
+                .eq('session_label', input.sessionLabel)
+                .maybeSingle();
+            existingHealth = data;
+        } catch {
+            existingHealth = null;
+        }
 
         const nextReceived = Number(existingHealth?.messages_received_24h || 0) + 1;
         const nextParsed = Number(existingHealth?.messages_parsed_24h || 0) + (input.parsed ? 1 : 0);
         const nextFailed = Number(existingHealth?.messages_failed_24h || 0) + (input.failed ? 1 : 0);
 
-        const { error: healthError } = await db
-            .from('whatsapp_ingestion_health')
-            .upsert({
+        const detailedPayload = {
                 tenant_id: input.tenantId,
                 session_label: input.sessionLabel,
                 messages_received_24h: nextReceived,
@@ -185,25 +232,50 @@ export class WhatsAppHealthService {
                 last_parsed_message_at: input.parsed ? timestamp : undefined,
                 last_parser_error_at: input.failed ? timestamp : undefined,
                 parser_success_rate: safeRatio(nextParsed, nextFailed),
-                active_groups_24h: await this.countActiveGroups24h(input.tenantId, input.sessionLabel, groupId || undefined, timestamp),
+                active_groups_24h: await this.countActiveGroups24h(input.tenantId, input.sessionLabel, groupId || undefined, timestamp).catch(() => 0),
                 updated_at: new Date().toISOString(),
-            }, { onConflict: 'tenant_id,session_label' });
+            };
+        const compatPayload = {
+            tenant_id: input.tenantId,
+            status: input.failed ? 'disconnected' : 'connected',
+            last_event_at: timestamp,
+            last_error: input.failed ? 'message parsing failed' : null,
+            processed_count: nextParsed,
+            failed_count: nextFailed,
+            updated_at: new Date().toISOString(),
+        };
+
+        const { error: healthError } = await db
+            .from('whatsapp_ingestion_health')
+            .upsert(detailedPayload, { onConflict: 'tenant_id,session_label' });
 
         if (healthError) {
-            throw healthError;
+            const { error: compatError } = await db
+                .from('whatsapp_ingestion_health')
+                .upsert(compatPayload, { onConflict: 'tenant_id' });
+
+            if (compatError) {
+                throw compatError;
+            }
         }
 
         if (!groupId) {
             return;
         }
 
-        const { data: existingGroup } = await db
-            .from('whatsapp_group_health')
-            .select('messages_received_24h, messages_parsed_24h, messages_failed_24h, group_name')
-            .eq('tenant_id', input.tenantId)
-            .eq('session_label', input.sessionLabel)
-            .eq('group_id', groupId)
-            .maybeSingle();
+        let existingGroup: any = null;
+        try {
+            const { data } = await db
+                .from('whatsapp_group_health')
+                .select('messages_received_24h, messages_parsed_24h, messages_failed_24h, group_name')
+                .eq('tenant_id', input.tenantId)
+                .eq('session_label', input.sessionLabel)
+                .eq('group_id', groupId)
+                .maybeSingle();
+            existingGroup = data;
+        } catch {
+            existingGroup = null;
+        }
 
         const groupReceived = Number(existingGroup?.messages_received_24h || 0) + 1;
         const groupParsed = Number(existingGroup?.messages_parsed_24h || 0) + (input.parsed ? 1 : 0);
@@ -247,19 +319,19 @@ export class WhatsAppHealthService {
             sessionLabel: row.session_label,
             phoneNumber: row.phone_number,
             ownerName: row.owner_name,
-            connectionStatus: row.connection_status,
+            connectionStatus: getConnectionStatus(row),
             connectedAt: row.connected_at,
-            lastSeenAt: row.last_seen_at,
-            lastGroupSyncAt: row.last_group_sync_at,
+            lastSeenAt: row.last_seen_at || row.last_event_at,
+            lastGroupSyncAt: row.last_group_sync_at || row.last_event_at,
             groupCount: Number(row.group_count || 0),
             activeGroups24h: Number(row.active_groups_24h || 0),
-            messagesReceived24h: Number(row.messages_received_24h || 0),
-            messagesParsed24h: Number(row.messages_parsed_24h || 0),
-            messagesFailed24h: Number(row.messages_failed_24h || 0),
+            messagesReceived24h: Number(row.messages_received_24h || row.processed_count || 0),
+            messagesParsed24h: Number(row.messages_parsed_24h || row.processed_count || 0),
+            messagesFailed24h: Number(row.messages_failed_24h || row.failed_count || 0),
             lastInboundMessageAt: row.last_inbound_message_at,
             lastParsedMessageAt: row.last_parsed_message_at,
             lastParserErrorAt: row.last_parser_error_at,
-            parserSuccessRate: Number(row.parser_success_rate || 0),
+            parserSuccessRate: Number(row.parser_success_rate || safeRatio(Number(row.processed_count || 0), Number(row.failed_count || 0))),
             healthState: this.deriveHealthState(row),
         }));
 
@@ -397,7 +469,7 @@ export class WhatsAppHealthService {
     }
 
     private deriveHealthState(row: any) {
-        if (row.connection_status !== 'connected') {
+        if (getConnectionStatus(row) !== 'connected') {
             return 'critical';
         }
 

@@ -48,6 +48,15 @@ function getAdminInfo(req: Request) {
     };
 }
 
+function getWorkspaceHealthStatus(row: any) {
+    return String(row?.connection_status || row?.status || row?.connectionStatus || 'disconnected');
+}
+
+function toNumber(value: unknown) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // GET /workspaces — searchable, filterable, paginated
 // ────────────────────────────────────────────────────────────────────────────
@@ -67,7 +76,7 @@ export const listAdminWorkspaces = async (req: Request, res: Response) => {
         const limit = Math.min(50, Math.max(1, Number(req.query.limit || 20)));
         const offset = (page - 1) * limit;
 
-        const [profilesResult, subscriptionsResult, healthResult] = await Promise.all([
+        const [profilesResult, subscriptionsResult, healthResult, sessionsResult] = await Promise.all([
             supabaseAdmin
                 .from('profiles')
                 .select('id, email, full_name, phone, app_role, created_at')
@@ -77,12 +86,25 @@ export const listAdminWorkspaces = async (req: Request, res: Response) => {
                 .select('tenant_id, plan, status, created_at, renewal_date'),
             supabaseAdmin
                 .from('whatsapp_ingestion_health')
-                .select('tenant_id, connection_status, group_count, active_groups_24h, messages_received_24h, messages_parsed_24h, messages_failed_24h, parser_success_rate, updated_at'),
+                .select('*'),
+            supabaseAdmin
+                .from('whatsapp_sessions')
+                .select('tenant_id, status'),
         ]);
 
         if (profilesResult.error) throw profilesResult.error;
         if (subscriptionsResult.error) throw subscriptionsResult.error;
         if (healthResult.error) throw healthResult.error;
+
+        const sessionStatusMap = new Map<string, { connected: number; connecting: number; disconnected: number }>();
+        for (const row of sessionsResult.data || []) {
+            const current = sessionStatusMap.get(row.tenant_id) || { connected: 0, connecting: 0, disconnected: 0 };
+            const status = String(row.status || 'disconnected');
+            if (status === 'connected') current.connected += 1;
+            else if (status === 'connecting') current.connecting += 1;
+            else current.disconnected += 1;
+            sessionStatusMap.set(row.tenant_id, current);
+        }
 
         const subscriptionMap = new Map<string, any>(
             (subscriptionsResult.data || []).map((row: any) => [row.tenant_id, row]),
@@ -96,17 +118,19 @@ export const listAdminWorkspaces = async (req: Request, res: Response) => {
                 messagesParsed24h: 0, messagesFailed24h: 0, parserSuccessRate: 100,
                 lastUpdatedAt: null as string | null,
             };
-            if (row.connection_status === 'connected') current.connectedSessions += 1;
-            if (row.connection_status === 'connecting') current.connectingSessions += 1;
-            if (row.connection_status === 'disconnected') current.disconnectedSessions += 1;
-            current.groupCount += Number(row.group_count || 0);
-            current.activeGroups24h += Number(row.active_groups_24h || 0);
-            current.messagesReceived24h += Number(row.messages_received_24h || 0);
-            current.messagesParsed24h += Number(row.messages_parsed_24h || 0);
-            current.messagesFailed24h += Number(row.messages_failed_24h || 0);
-            current.parserSuccessRate = Math.min(current.parserSuccessRate, Number(row.parser_success_rate || 100));
-            if (!current.lastUpdatedAt || new Date(row.updated_at).getTime() > new Date(current.lastUpdatedAt).getTime()) {
-                current.lastUpdatedAt = row.updated_at;
+            const connectionStatus = getWorkspaceHealthStatus(row);
+            if (connectionStatus === 'connected') current.connectedSessions += 1;
+            if (connectionStatus === 'connecting') current.connectingSessions += 1;
+            if (connectionStatus === 'disconnected') current.disconnectedSessions += 1;
+            current.groupCount += toNumber(row.group_count ?? 0);
+            current.activeGroups24h += toNumber(row.active_groups_24h ?? 0);
+            current.messagesReceived24h += toNumber(row.messages_received_24h ?? row.processed_count ?? 0);
+            current.messagesParsed24h += toNumber(row.messages_parsed_24h ?? row.processed_count ?? 0);
+            current.messagesFailed24h += toNumber(row.messages_failed_24h ?? row.failed_count ?? 0);
+            current.parserSuccessRate = Math.min(current.parserSuccessRate, Number(row.parser_success_rate ?? 100));
+            const updatedAt = row.updated_at || row.last_event_at || null;
+            if (!current.lastUpdatedAt || (updatedAt && new Date(updatedAt).getTime() > new Date(current.lastUpdatedAt).getTime())) {
+                current.lastUpdatedAt = updatedAt;
             }
             healthMap.set(row.tenant_id, current);
         }
@@ -114,10 +138,14 @@ export const listAdminWorkspaces = async (req: Request, res: Response) => {
         let workspaces = (profilesResult.data || []).map((profile: any) => {
             const subscription = subscriptionMap.get(profile.id) || null;
             const health = healthMap.get(profile.id) || {
-                connectedSessions: 0, connectingSessions: 0, disconnectedSessions: 0,
-                groupCount: 0, activeGroups24h: 0, messagesReceived24h: 0,
+                connectedSessions: sessionStatusMap.get(profile.id)?.connected || 0,
+                connectingSessions: sessionStatusMap.get(profile.id)?.connecting || 0,
+                disconnectedSessions: sessionStatusMap.get(profile.id)?.disconnected || 0,
+                groupCount: 0,
+                activeGroups24h: 0, messagesReceived24h: 0,
                 messagesParsed24h: 0, messagesFailed24h: 0, parserSuccessRate: 100, lastUpdatedAt: null,
             };
+            const sessionCounts = sessionStatusMap.get(profile.id) || { connected: 0, connecting: 0, disconnected: 0 };
             const role = isOwnerSuperAdminEmail(profile.email) ? 'super_admin' : (profile.app_role || 'partner');
             return {
                 id: profile.id,
@@ -133,8 +161,8 @@ export const listAdminWorkspaces = async (req: Request, res: Response) => {
                     renewalDate: isOwnerSuperAdminEmail(profile.email) ? null : subscription?.renewal_date || null,
                 },
                 whatsapp: {
-                    connectedSessions: health.connectedSessions,
-                    connectingSessions: health.connectingSessions,
+                    connectedSessions: health.connectedSessions || sessionCounts.connected,
+                    connectingSessions: health.connectingSessions || sessionCounts.connecting,
                     groupCount: health.groupCount,
                     activeGroups24h: health.activeGroups24h,
                     messagesReceived24h: health.messagesReceived24h,
