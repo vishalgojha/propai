@@ -5,6 +5,7 @@ import { backendApiUrl } from './apiBase';
 export { backendApiUrl } from './apiBase';
 
 const SESSION_EXPIRED_MESSAGE = 'Session expired. Please sign in again.';
+const SESSION_EXPIRED_EVENT = 'propai:session-expired';
 
 const backendApi = axios.create({
   baseURL: backendApiUrl,
@@ -110,6 +111,18 @@ backendApi.interceptors.response.use(
         };
         return backendApi(originalRequest);
       }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, {
+          detail: { reason: error.response?.data?.message || error.response?.data?.error || SESSION_EXPIRED_MESSAGE },
+        }));
+      }
+    }
+
+    if (status === 401 && originalRequest && originalRequest._retry && hasBearerAuth && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, {
+        detail: { reason: error.response?.data?.message || error.response?.data?.error || SESSION_EXPIRED_MESSAGE },
+      }));
     }
 
     if (error.code === 'ERR_CERT_AUTHORITY_INVALID' || error.code === 'Network Error') {
@@ -124,6 +137,7 @@ export const handleApiError = (error: any) => {
   console.error("API Error:", error);
   const rawMessage = error.response?.data?.error || error.response?.data?.message || error.message || "An unexpected error occurred";
   const message = rawMessage === 'Missing or invalid authorization header'
+    || rawMessage === 'Invalid or expired token'
     ? SESSION_EXPIRED_MESSAGE
     : rawMessage;
   return message;

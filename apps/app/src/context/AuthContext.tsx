@@ -147,6 +147,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      authMutationRef.current += 1;
+      setBackendApiAuthToken(null);
+      clearStoredSession();
+      setUser(null);
+      setIsLoading(false);
+    };
+
+    window.addEventListener('propai:session-expired', handleSessionExpired as EventListener);
+    return () => {
+      window.removeEventListener('propai:session-expired', handleSessionExpired as EventListener);
+    };
+  }, []);
+
   const login = (email: string, session: User, remember = true) => {
     authMutationRef.current += 1;
     const userData = {
