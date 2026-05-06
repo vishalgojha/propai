@@ -35,10 +35,11 @@ export const ROUTE_PATHS = {
     refresh: '/refresh',
     resetPassword: '/reset-password',
   },
-   whatsapp: {
+     whatsapp: {
      connect: '/connect',
      qr: '/qr',
      qrForceRefresh: '/qr/force-refresh',
+     historyImport: '/history/import',
      status: '/status',
      monitor: '/monitor',
      inbox: '/inbox',

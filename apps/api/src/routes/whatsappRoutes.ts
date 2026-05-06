@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getInbox, disconnectWhatsApp, getMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getGroupHealth, getEvents, getGroups, getOutboundRecipients } from '../controllers/whatsappController';
+import { importHistoryTxt } from '../controllers/historyController';
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
 
@@ -10,6 +11,7 @@ router.use(authMiddleware);
 router.post(ROUTE_PATHS.whatsapp.connect, connectWhatsApp);
 router.get(ROUTE_PATHS.whatsapp.qr, getQR);
 router.post(ROUTE_PATHS.whatsapp.qrForceRefresh, forceRefreshQR);
+router.post(ROUTE_PATHS.whatsapp.historyImport, importHistoryTxt);
 router.get(ROUTE_PATHS.whatsapp.status, getStatus);
 router.get(ROUTE_PATHS.whatsapp.monitor, getMonitor);
 router.get(ROUTE_PATHS.whatsapp.inbox, getInbox);

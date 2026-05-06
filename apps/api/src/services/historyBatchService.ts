@@ -24,11 +24,13 @@ type HistoryBatchOptions = {
   sessionLabel: string;
   tenantId: string;
   messages: HistoryRecord[];
+  forceProcess?: boolean;
   onProgress?: (progress: HistoryBatchProgress) => void;
 };
 
 const db = supabaseAdmin ?? supabase;
 const BATCH_SIZE = 50;
+const processingTenants = new Set<string>();
 
 function getProfileId(tenantId: string) {
   return String(tenantId || '').trim();
@@ -212,20 +214,10 @@ function normalizeHistoryRecord(record: HistoryRecord, index: number, sessionLab
 
 export class HistoryBatchService {
   async processHistoryBatch(options: HistoryBatchOptions): Promise<HistoryBatchResult> {
-    const { tenantId, sessionLabel, messages, onProgress } = options;
+    const { tenantId, sessionLabel, messages, onProgress, forceProcess = false } = options;
     const profileId = getProfileId(tenantId);
 
-    const { data: profile, error: profileError } = await db
-      .from('profiles')
-      .select('phone, history_processed, history_processed_at, history_message_count')
-      .eq('id', profileId)
-      .maybeSingle();
-
-    if (profileError) {
-      throw new Error(profileError.message);
-    }
-
-    if (profile?.history_processed) {
+    if (processingTenants.has(profileId)) {
       return {
         total: 0,
         processed: 0,
@@ -235,75 +227,159 @@ export class HistoryBatchService {
         skipped: 0,
         failed: 0,
         alreadyProcessed: true,
-        historyProcessedAt: profile.history_processed_at || null,
+        historyProcessedAt: null,
       };
     }
 
-    const normalized = (Array.isArray(messages) ? messages : [])
-      .filter((record) => record && typeof record === 'object')
-      .filter((record) => !isSystemOrMediaMessage(record))
-      .map((record, index) => normalizeHistoryRecord(record, index, sessionLabel, profileId))
-      .filter((record): record is NonNullable<ReturnType<typeof normalizeHistoryRecord>> => Boolean(record));
+    processingTenants.add(profileId);
 
-    let processed = 0;
-    let listings = 0;
-    let leads = 0;
-    let parsed = 0;
-    let skipped = 0;
-    let failed = 0;
+    try {
+      const { data: profile, error: profileError } = await db
+        .from('profiles')
+        .select('phone, history_processed, history_processed_at, history_message_count')
+        .eq('id', profileId)
+        .maybeSingle();
 
-    for (let i = 0; i < normalized.length; i += BATCH_SIZE) {
-      const batch = normalized.slice(i, i + BATCH_SIZE);
+      if (profileError) {
+        throw new Error(profileError.message);
+      }
 
-      for (const message of batch) {
-        try {
-          const ingestedCount = await channelService.ingestMessage(profileId, {
-            id: message.id,
-            remote_jid: message.remote_jid,
-            sender: message.sender,
-            text: message.text,
-            timestamp: message.timestamp,
-            created_at: message.created_at,
-          });
+      if (profile?.history_processed && !forceProcess) {
+        return {
+          total: 0,
+          processed: 0,
+          listings: 0,
+          leads: 0,
+          parsed: 0,
+          skipped: 0,
+          failed: 0,
+          alreadyProcessed: true,
+          historyProcessedAt: profile.history_processed_at || null,
+        };
+      }
 
-          processed += 1;
+      if (forceProcess) {
+        const { error: resetError } = await db
+          .from('profiles')
+          .update({
+            history_processed: false,
+            history_processed_at: null,
+            history_message_count: 0,
+          })
+          .eq('id', profileId);
 
-          if (ingestedCount > 0) {
-            parsed += ingestedCount;
-
-            const { data: streamRows, error: streamError } = await db
-              .from('stream_items')
-              .select('record_type, raw_text, price_label, locality, bhk')
-              .eq('tenant_id', profileId)
-              .eq('source_message_id', message.id);
-
-            if (!streamError && Array.isArray(streamRows)) {
-              const summary = summarizeStreamRows(streamRows, message.text);
-              for (const row of streamRows) {
-                if (row?.record_type === 'requirement') {
-                  leads += 1;
-                } else if (row?.record_type === 'listing') {
-                  listings += 1;
-                }
-              }
-
-              await seedConversationMemory(profileId, profile?.phone, summary);
-            }
-          } else {
-            skipped += 1;
-          }
-        } catch (error) {
-          failed += 1;
-          console.error('[HistoryBatchService] Failed to ingest history message', {
-            tenantId: profileId,
-            sessionLabel,
-            messageId: message.id,
-            error,
-          });
+        if (resetError) {
+          throw new Error(resetError.message);
         }
       }
 
-      onProgress?.({
+      const normalized = (Array.isArray(messages) ? messages : [])
+        .filter((record) => record && typeof record === 'object')
+        .filter((record) => !isSystemOrMediaMessage(record))
+        .map((record, index) => normalizeHistoryRecord(record, index, sessionLabel, profileId))
+        .filter((record): record is NonNullable<ReturnType<typeof normalizeHistoryRecord>> => Boolean(record));
+
+      let processed = 0;
+      let listings = 0;
+      let leads = 0;
+      let parsed = 0;
+      let skipped = 0;
+      let failed = 0;
+
+      for (let i = 0; i < normalized.length; i += BATCH_SIZE) {
+        const batch = normalized.slice(i, i + BATCH_SIZE);
+
+        for (const message of batch) {
+          try {
+            const ingestedCount = await channelService.ingestMessage(profileId, {
+              id: message.id,
+              remote_jid: message.remote_jid,
+              sender: message.sender,
+              text: message.text,
+              timestamp: message.timestamp,
+              created_at: message.created_at,
+            });
+
+            processed += 1;
+
+            if (ingestedCount > 0) {
+              parsed += ingestedCount;
+
+              const { data: streamRows, error: streamError } = await db
+                .from('stream_items')
+                .select('record_type, raw_text, price_label, locality, bhk')
+                .eq('tenant_id', profileId)
+                .eq('source_message_id', message.id);
+
+              if (!streamError && Array.isArray(streamRows)) {
+                const summary = summarizeStreamRows(streamRows, message.text);
+                for (const row of streamRows) {
+                  if (row?.record_type === 'requirement') {
+                    leads += 1;
+                  } else if (row?.record_type === 'listing') {
+                    listings += 1;
+                  }
+                }
+
+                await seedConversationMemory(profileId, profile?.phone, summary);
+              }
+            } else {
+              skipped += 1;
+            }
+          } catch (error) {
+            failed += 1;
+            console.error('[HistoryBatchService] Failed to ingest history message', {
+              tenantId: profileId,
+              sessionLabel,
+              messageId: message.id,
+              error,
+            });
+          }
+        }
+
+        onProgress?.({
+          total: normalized.length,
+          processed,
+          listings,
+          leads,
+          parsed,
+          skipped,
+          failed,
+        });
+
+        const { error: progressError } = await db
+          .from('profiles')
+          .update({
+            history_message_count: processed,
+          })
+          .eq('id', profileId);
+
+        if (progressError) {
+          console.error('[HistoryBatchService] Failed to persist progress counter', {
+            tenantId: profileId,
+            sessionLabel,
+            error: progressError,
+          });
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+
+      const historyProcessedAt = new Date().toISOString();
+      const { error: updateError } = await db
+        .from('profiles')
+        .update({
+          history_processed: true,
+          history_processed_at: historyProcessedAt,
+          history_message_count: normalized.length,
+        })
+        .eq('id', profileId);
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+
+      return {
         total: normalized.length,
         processed,
         listings,
@@ -311,51 +387,12 @@ export class HistoryBatchService {
         parsed,
         skipped,
         failed,
-      });
-
-      const { error: progressError } = await db
-        .from('profiles')
-        .update({
-          history_message_count: processed,
-        })
-        .eq('id', profileId);
-
-      if (progressError) {
-        console.error('[HistoryBatchService] Failed to persist progress counter', {
-          tenantId: profileId,
-          sessionLabel,
-          error: progressError,
-        });
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 0));
+        alreadyProcessed: false,
+        historyProcessedAt,
+      };
+    } finally {
+      processingTenants.delete(profileId);
     }
-
-    const historyProcessedAt = new Date().toISOString();
-    const { error: updateError } = await db
-      .from('profiles')
-      .update({
-        history_processed: true,
-        history_processed_at: historyProcessedAt,
-        history_message_count: normalized.length,
-      })
-      .eq('id', profileId);
-
-    if (updateError) {
-      throw new Error(updateError.message);
-    }
-
-    return {
-      total: normalized.length,
-      processed,
-      listings,
-      leads,
-      parsed,
-      skipped,
-      failed,
-      alreadyProcessed: false,
-      historyProcessedAt,
-    };
   }
 }
 

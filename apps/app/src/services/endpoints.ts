@@ -46,6 +46,7 @@ export const ENDPOINTS = {
     profile: '/whatsapp/profile',
     config: '/whatsapp/config',
     qrForceRefresh: '/whatsapp/qr/force-refresh',
+    historyImport: '/whatsapp/history/import',
     groups: '/whatsapp/groups',
     recipients: '/whatsapp/recipients',
     broadcast: '/whatsapp/broadcast',
