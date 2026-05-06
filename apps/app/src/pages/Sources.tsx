@@ -576,11 +576,6 @@ export const Sources: React.FC = () => {
     if (tab === 'logs') {
       void fetchLogs();
       void fetchHealth();
-      return;
-    }
-
-    if (tab === 'outbound') {
-      void fetchOutboundWorkspace();
     }
   };
 
@@ -590,6 +585,12 @@ export const Sources: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  useEffect(() => {
+    if (activeTab === 'outbound') {
+      void fetchOutboundWorkspace();
+    }
+  }, [activeTab, fetchOutboundWorkspace]);
 
 
   const handleConnectWrapper = async (event: React.FormEvent) => {
@@ -1022,13 +1023,13 @@ export const Sources: React.FC = () => {
       {!isWabroRoute ? (
       <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Broker-controlled privacy</p>
-            <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Only parse the groups and direct chats you explicitly allow</h3>
-            <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-              Group parsing follows the per-group Listen/AutoReply setting. The AI assistant on this number and direct messages stay off until you enable them for the current connected session.
-            </p>
-          </div>
+            <div className="max-w-3xl">
+              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Broker-controlled privacy</p>
+              <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Only parse the groups and direct chats you explicitly allow</h3>
+              <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
+              Group parsing follows the per-group Listen/AutoReply setting. The AI assistant on this number and 1:1 direct messages stay off until you enable them for the current connected session.
+              </p>
+            </div>
           <div className="flex flex-col gap-3 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 md:flex-row md:items-center">
             <div className="flex items-center gap-3">
               <div>
@@ -1057,7 +1058,7 @@ export const Sources: React.FC = () => {
             </div>
             <div className="flex items-center gap-3">
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Direct messages</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">1:1 direct messages</p>
                 <p className="text-[13px] font-semibold text-[var(--text-primary)]">{parseDirectMessages ? 'Enabled' : 'Off'}</p>
               </div>
               <button
@@ -1070,7 +1071,7 @@ export const Sources: React.FC = () => {
                     : 'border-[color:var(--border)] bg-[var(--bg-base)]',
                 )}
                 aria-pressed={parseDirectMessages}
-                aria-label="Toggle direct message parsing"
+                aria-label="Toggle 1:1 direct message parsing"
               >
                 <span
                   className={cn(
@@ -1147,7 +1148,7 @@ export const Sources: React.FC = () => {
 
             {!isCurrentSessionConnected && (
               <div className="mt-4 rounded-[10px] border border-[color:rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.08)] px-4 py-3 text-[12px] text-[var(--amber)]">
-                Connect WhatsApp first. Manual DM controls stay locked until the live session is connected.
+                Connect WhatsApp first. The assistant, 1:1 message controls, and group sync all stay locked until the live session is connected.
               </div>
             )}
 
@@ -1203,12 +1204,12 @@ export const Sources: React.FC = () => {
                   <Users className="h-5 w-5 text-[var(--accent)]" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Outbound to groups</p>
-                  <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">Broadcast manually</h4>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Connected WhatsApp groups</p>
+                  <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">Groups synced from this number</h4>
                 </div>
               </div>
-                <p className="mt-3 text-[12px] leading-5 text-[var(--text-secondary)]">
-                Select named WhatsApp groups by locality, category, or tags. {isWabroRoute ? 'Use paced sends that mirror a human operator instead of a bulk blast.' : 'Only groups marked for listening are eligible for parsing, and the raw group IDs stay hidden in the background.'}
+              <p className="mt-3 text-[12px] leading-5 text-[var(--text-secondary)]">
+                These are the WhatsApp groups synced from the connected number. Select the ones you want to broadcast to, then send at a human pace.
               </p>
               <input
                 value={groupSearchTerm}
@@ -1219,7 +1220,7 @@ export const Sources: React.FC = () => {
               <div className="mt-4 max-h-[240px] space-y-2 overflow-y-auto pr-1">
                 {filteredOutboundGroups.length === 0 ? (
                   <div className="rounded-[10px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
-                    No matching groups surfaced yet.
+                    No groups have synced from this connected number yet. Hit Refresh after WhatsApp is fully connected, or reconnect the number and wait for the group sync to finish.
                   </div>
                 ) : (
                   filteredOutboundGroups.map((group) => (
@@ -1231,7 +1232,17 @@ export const Sources: React.FC = () => {
                         className="mt-0.5 h-4 w-4 rounded border-[color:var(--border-strong)] bg-[var(--bg-base)] text-[var(--accent)] accent-[var(--accent)]"
                       />
                       <div className="min-w-0">
-                        <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{group.name}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{group.name}</p>
+                          <span className={cn(
+                            'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
+                            group.broadcastEnabled
+                              ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] text-[var(--accent)]'
+                              : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
+                          )}>
+                            {group.broadcastEnabled ? 'Broadcast ready' : 'Synced'}
+                          </span>
+                        </div>
                         <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
                           {[group.locality, group.category, `${group.participantsCount || 0} members`].filter(Boolean).join(' • ')}
                         </p>

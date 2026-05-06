@@ -651,7 +651,7 @@ export const getGroups = async (req: Request, res: Response) => {
             await whatsappGroupService.syncGroups(tenantId as string, sessionLabel, normalizedGroups);
         }
 
-        const directoryGroups = await whatsappGroupService.listGroups(tenantId as string, { onlyBroadcastEnabled: true });
+        const directoryGroups = await whatsappGroupService.listGroups(tenantId as string);
         res.json(directoryGroups);
     } catch (error: any) {
         res.status(500).json({ error: error.message || 'Failed to load WhatsApp groups' });
