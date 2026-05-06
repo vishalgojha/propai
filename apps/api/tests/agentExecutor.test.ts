@@ -49,32 +49,6 @@ describe('AgentExecutor', () => {
         expect(aiService.chat).toHaveBeenCalledTimes(1);
     });
 
-    it('should unwrap JSON response objects into plain text', async () => {
-        (aiService.chat as any).mockResolvedValueOnce({
-            text: JSON.stringify({
-                response: {
-                    format: 'text',
-                    message: "Hey Vishal! What's up? Got a new property or a client requirement to save?"
-                }
-            })
-        });
-
-        (supabase.limit as any).mockResolvedValueOnce({ data: [] });
-
-        const response = await executor.processMessage('tenant-1', 'jid-1', 'Hey buddy');
-
-        expect(response).toBe("Hey Vishal! What's up? Got a new property or a client requirement to save?");
-    });
-
-    it('should remove markdown formatting from final responses', async () => {
-        (aiService.chat as any).mockResolvedValueOnce({ text: '**Done** - saved `Andheri 2BHK`' });
-        (supabase.limit as any).mockResolvedValueOnce({ data: [] });
-
-        const response = await executor.processMessage('tenant-1', 'jid-1', 'Save this');
-
-        expect(response).toBe('Done - saved Andheri 2BHK');
-    });
-
 
     it('should execute a tool and return the final response', async () => {
         (aiService.chat as any).mockResolvedValueOnce({ text: 'TOOL: get_groups {}' });

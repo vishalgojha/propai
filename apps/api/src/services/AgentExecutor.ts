@@ -1,124 +1,133 @@
 import { aiService } from './aiService';
 import { sessionManager } from '../whatsapp/SessionManager';
-import { supabase } from '../config/supabase';
+import { supabase, supabaseAdmin } from '../config/supabase';
 import { safeJSONParse } from '../utils/jsonUtils';
-import { igrQueryService } from './igrQueryService';
-import { applyBrokerProfileFallbacks } from './channelService';
-import { browserAutomationService } from './browserAutomationService';
+import { brokerWorkflowService } from './brokerWorkflowService';
+import { parseAgentResponse, toAgentResponse } from '../types/agent';
+import { renderOutput } from '../whatsapp/formatter';
+import {
+    getConversationHistory,
+    getConversationMessageCount,
+    normalizeConversationPhoneNumber,
+    saveToHistory,
+} from '../memory/conversationMemory';
+import { followUpService } from './followUpService';
+import { subscriptionService } from './subscriptionService';
+
+type ChatTurn = {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+};
+
+function normalizeComparablePhone(value?: string | null) {
+    const digits = String(value || '').split('').filter(c => c >= '0' && c <= '9').join('');
+    return digits.slice(-10);
+}
 
 export class AgentExecutor {
-    async processMessage(tenantId: string, remoteJid: string, text: string): Promise<string> {
-        const history = await this.getChatHistory(tenantId, remoteJid);
-        let currentMessages = [
-            { role: 'system', content: await this.getSystemPrompt() },
-            ...history,
-            { role: 'user', content: text }
-        ];
+    async processMessage(tenantId: string, remoteJid: string, text: string, sessionLabel?: string): Promise<string> {
+        const MARKETING_PHONE = '7021054254';
+        const jidStripped = remoteJid.replace('@s.whatsapp.net', '');
+        const jidWithoutPlus = jidStripped.startsWith('+') ? jidStripped.slice(1) : jidStripped;
+        const normalizedRemote = normalizeComparablePhone(jidWithoutPlus);
+        const isAssistant = sessionLabel === 'Assistant' || normalizedRemote === normalizeComparablePhone(MARKETING_PHONE);
+        let effectiveTenantId = tenantId;
+        let systemPrompt: string;
+
+        if (isAssistant) {
+            const { isBroker, tenantId: brokerTenantId } = await this.isBrokerSender(remoteJid);
+
+            if (isBroker) {
+                // Registered broker → CRM mode
+                systemPrompt = await this.getBrokerAssistantPrompt();
+                effectiveTenantId = brokerTenantId!;
+            } else {
+                // Not a registered broker - check if they look like a broker
+                const looksLikeBroker = await this.detectsBrokerIntent(text);
+
+                if (looksLikeBroker) {
+                    // Unregistered broker → onboarding mode
+                    systemPrompt = await this.getUnregisteredBrokerPrompt();
+                    effectiveTenantId = tenantId; // system/assistant tenant
+                } else {
+                    // Client → qualification mode
+                    systemPrompt = await this.getClientAssistantPrompt();
+                    effectiveTenantId = tenantId; // system/assistant tenant
+                }
+            }
+        } else {
+            // Original flow for broker's own sessions
+            const conversationKey = normalizeConversationPhoneNumber(remoteJid);
+            const brokerProfile = await this.getBrokerProfile(tenantId);
+            const isFirstReply = (await getConversationMessageCount(conversationKey)) === 0;
+            const shouldGreetBrokerByName = Boolean(
+                brokerProfile?.full_name
+                && !remoteJid.endsWith('@g.us')
+                && brokerProfile.phone
+                && brokerProfile.phone === conversationKey
+            );
+            systemPrompt = await this.getSystemPrompt(brokerProfile?.full_name, shouldGreetBrokerByName);
+        }
+
+        const conversationKey = normalizeConversationPhoneNumber(remoteJid);
+        const history = await getConversationHistory(conversationKey);
+        const currentMessages: ChatTurn[] = [...history];
+        let currentPrompt = text;
 
         let iterations = 0;
         const MAX_ITERATIONS = 5;
 
         try {
             while (iterations < MAX_ITERATIONS) {
+                this.logAgentInvocation('request', {
+                    source: 'AgentExecutor',
+                    tenantId: effectiveTenantId,
+                    toolsPresent: false,
+                    toolsCount: 0,
+                    taskType: 'agent_router',
+                });
                 const response = await aiService.chat(
-                    currentMessages.map(m => (m as any).content).join('\\n'), 
-                    'Local',
-                    undefined,
-                    tenantId
+                    currentPrompt,
+                    'Auto',
+                    'agent_router',
+                    effectiveTenantId,
+                    systemPrompt,
+                    currentMessages
                 );
+                const agentResponse = parseAgentResponse(response.text);
 
-                const toolCall = this.parseToolCall(response.text);
+                const toolCall = this.parseToolCall(agentResponse.message);
+                this.logAgentInvocation('response', {
+                    source: 'AgentExecutor',
+                    tenantId: effectiveTenantId,
+                    toolsPresent: false,
+                    toolsCount: 0,
+                    responseBlockType: toolCall ? 'tool' : 'text',
+                    toolName: toolCall?.name || null,
+                });
 
                 if (!toolCall) {
-                    return this.cleanAgentResponse(response.text);
+                    const renderedReply = renderOutput(agentResponse);
+                    await saveToHistory(conversationKey, text, renderedReply);
+                    return renderedReply;
                 }
 
-                const toolResult = await this.executeTool(toolCall.name, toolCall.args, tenantId, remoteJid);
-                
-                currentMessages.push({ role: 'assistant', content: response.text });
-                currentMessages.push({ role: 'system', content: `Tool Result: ${JSON.stringify(toolResult)}` });
-                
+                const toolResult = await this.executeTool(toolCall.name, toolCall.args, effectiveTenantId, remoteJid, text);
+                if (this.isToolFailure(toolResult) || this.isToolEmpty(toolResult)) {
+                    return renderOutput(toAgentResponse("Hey, this part of Pulse is still settling in. Please send a screenshot and what you tried to hello@propai.live so we can fix it quickly."));
+                }
+
+                currentMessages.push({ role: 'assistant', content: agentResponse.message });
+                currentMessages.push({ role: 'user', content: `Tool Result: ${JSON.stringify(toolResult)}` });
+                currentPrompt = 'Continue based on the tool result above.';
+
                 iterations++;
             }
-            return "I'm having a bit of trouble with this one. Could you try saying it differently?";
+            return renderOutput(toAgentResponse("I'm having a bit of trouble with this one. Could you try saying it differently?"));
         } catch (error) {
             console.error('Agent Loop Error:', error);
-            return "Something went wrong on my end, but I'm trying to fix it. One moment!";
+            return renderOutput(toAgentResponse("Something went wrong on my end, but I'm trying to fix it. One moment!"));
         }
-    }
-
-    private cleanAgentResponse(text: string): string {
-        const extracted = this.extractPlainMessage(text);
-
-        // Remove tool call patterns if they leaked into final output.
-        let cleaned = extracted.replace(/TOOL: \w+\s*\{[\s\S]*?\}/g, '').trim();
-        cleaned = this.stripMarkdown(cleaned);
-
-        return cleaned || "I've taken care of that for you!";
-    }
-
-    private extractPlainMessage(text: string): string {
-        const trimmed = String(text || '').trim();
-        if (!trimmed) return '';
-
-        const jsonCandidate = this.extractJsonObject(trimmed);
-        if (jsonCandidate) {
-            const parsed = safeJSONParse(jsonCandidate);
-            const message = this.findMessageString(parsed);
-            if (message) return message;
-        }
-
-        return trimmed;
-    }
-
-    private extractJsonObject(text: string): string | null {
-        if (text.startsWith('{') && text.endsWith('}')) return text;
-
-        const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-        const candidate = fenced?.[1]?.trim();
-        if (candidate?.startsWith('{') && candidate.endsWith('}')) return candidate;
-
-        const firstBrace = text.indexOf('{');
-        const lastBrace = text.lastIndexOf('}');
-        if (firstBrace >= 0 && lastBrace > firstBrace) {
-            return text.slice(firstBrace, lastBrace + 1);
-        }
-
-        return null;
-    }
-
-    private findMessageString(value: unknown): string | null {
-        if (!value || typeof value !== 'object') return null;
-
-        const objectValue = value as Record<string, unknown>;
-        for (const key of ['message', 'text', 'reply', 'content']) {
-            const maybeMessage = objectValue[key];
-            if (typeof maybeMessage === 'string' && maybeMessage.trim()) {
-                return maybeMessage.trim();
-            }
-        }
-
-        for (const nestedKey of ['response', 'data', 'output']) {
-            const nested = this.findMessageString(objectValue[nestedKey]);
-            if (nested) return nested;
-        }
-
-        return null;
-    }
-
-    private stripMarkdown(text: string): string {
-        return text
-            .replace(/```[\s\S]*?```/g, '')
-            .replace(/`([^`]+)`/g, '$1')
-            .replace(/\*\*([^*]+)\*\*/g, '$1')
-            .replace(/\*([^*]+)\*/g, '$1')
-            .replace(/__([^_]+)__/g, '$1')
-            .replace(/_([^_]+)_/g, '$1')
-            .replace(/^#{1,6}\s+/gm, '')
-            .replace(/^\s*[-*+]\s+/gm, '')
-            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-            .replace(/[ \t]+$/gm, '')
-            .trim();
     }
 
     private parseToolCall(text: string) {
@@ -132,6 +141,10 @@ export class AgentExecutor {
         }
     }
 
+    private logAgentInvocation(stage: 'request' | 'response', metadata: Record<string, unknown>) {
+        console.info('[agent-invocation]', JSON.stringify({ stage, ...metadata }));
+    }
+
     private async logEvent(tenantId: string, eventType: string, description: string, metadata: any = {}) {
         await supabase.from('agent_events').insert({
             tenant_id: tenantId,
@@ -141,99 +154,85 @@ export class AgentExecutor {
         });
     }
 
-    private formatCurrency(value: number | null | undefined) {
-        if (value == null || !Number.isFinite(value)) return 'N/A';
-        if (value >= 10000000) {
-            return `₹${(value / 10000000).toFixed(2)}Cr`;
-        }
-        if (value >= 100000) {
-            return `₹${(value / 100000).toFixed(1)}L`;
-        }
-        return `₹${Math.round(value).toLocaleString('en-IN')}`;
-    }
-
-    private formatSquareFeet(value: number | null | undefined) {
-        if (value == null || !Number.isFinite(value)) return 'N/A';
-        return `${Math.round(value).toLocaleString('en-IN')} sqft`;
-    }
-
-    private formatDate(value: string | null | undefined) {
-        if (!value) return 'unknown date';
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return value;
-        return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-    }
-
-    private async getIgrLastTransactionSummary(args: any) {
-        const buildingName = String(args?.building_name || '').trim();
-        const locality = String(args?.locality || '').trim();
-
-        if (!buildingName && !locality) {
-            return { message: 'No IGR transaction data available for this building yet.' };
-        }
-
-        const transaction = buildingName
-            ? await igrQueryService.getLastTransactionForBuilding(buildingName)
-            : null;
-
-        if (transaction) {
-            const stats = transaction.locality
-                ? await igrQueryService.getLocalityStats(transaction.locality, 6)
-                : (locality ? await igrQueryService.getLocalityStats(locality, 6) : null);
-            const marketRate = stats?.avg_price_per_sqft ?? null;
-            const dealRate = transaction.price_per_sqft ?? null;
-            const comparison = marketRate != null && dealRate != null
-                ? dealRate > marketRate ? 'above' : dealRate < marketRate ? 'below' : 'at'
-                : null;
-
-            return {
-                message: `Last registered transaction in ${transaction.building_name || buildingName}, ${transaction.locality || locality || 'Unknown locality'}: ${this.formatCurrency(transaction.consideration)} on ${this.formatDate(transaction.reg_date)} (${this.formatSquareFeet(transaction.area_sqft)}, ₹${dealRate != null ? Math.round(dealRate).toLocaleString('en-IN') : 'N/A'}/sqft)\nArea average (last 6 months): ₹${marketRate != null ? Math.round(marketRate).toLocaleString('en-IN') : 'N/A'}/sqft${comparison ? ` — this transaction was ${comparison} market.` : '.'}`,
-                transaction,
-                locality_stats: stats,
-            };
-        }
-
-        if (locality) {
-            const stats = await igrQueryService.getLocalityStats(locality, 6);
-            if (stats.transaction_count > 0) {
-                return {
-                    message: `No exact building match found. Area average in ${locality} (last 6 months): ₹${stats.avg_price_per_sqft != null ? Math.round(stats.avg_price_per_sqft).toLocaleString('en-IN') : 'N/A'}/sqft across ${stats.transaction_count} transactions.`,
-                    locality_stats: stats,
-                };
-            }
-        }
-
-        return { message: 'No IGR transaction data available for this building yet.' };
-    }
-
-    private async executeTool(name: string, args: any, tenantId: string, remoteJid: string): Promise<any> {
+    private async executeTool(name: string, args: any, tenantId: string, remoteJid: string, promptText: string): Promise<any> {
         switch (name) {
             case 'get_groups': {
                 const client = await sessionManager.getSession(tenantId);
                 return await (client as any).getGroups();
             }
+            case 'get_whatsapp_groups': {
+                const client = await sessionManager.getSession(tenantId);
+                if (!client) {
+                    return { success: false, error: 'No active WhatsApp session found' };
+                }
+
+                const groups = await (client as any).getParticipatingGroups?.() || await (client as any).getGroups?.() || [];
+                return {
+                    count: groups.length,
+                    groups,
+                };
+            }
             case 'send_message': {
                 const client = await sessionManager.getSession(tenantId);
                 return await (client as any).sendText(args.remote_jid, args.text);
             }
+            case 'send_whatsapp_message': {
+                const client = await sessionManager.getSession(tenantId);
+                if (!client) {
+                    return { success: false, error: 'No active WhatsApp session found' };
+                }
+
+                try {
+                    await (client as any).sendMessage(args.remote_jid || remoteJid, args.text || args.message || '');
+                    return { success: true };
+                } catch (error: any) {
+                    return { success: false, error: error?.message || 'Failed to send WhatsApp message' };
+                }
+            }
             case 'parse_listing': {
-                const res = await aiService.chat(`Extract structured listing data: ${args.text}`, 'Local', 'listing_parsing', tenantId);
+                const res = await aiService.chat(`Extract structured listing data: ${args.text}`, 'Auto', 'listing_parsing', tenantId);
                 return safeJSONParse(res.text);
             }
             case 'save_listing': {
-                const enrichedListingData = await applyBrokerProfileFallbacks(
-                    { ...(args.listing_data || {}) },
-                    String(args.sender_phone || remoteJid.split('@')[0] || ''),
-                    String(args.sender_name || '')
-                );
-                const { data, error } = await supabase.from('listings').insert({
-                    tenant_id: tenantId,
-                    source_group_id: args.source_group_id,
-                    structured_data: enrichedListingData,
-                    raw_text: args.raw_text
-                });
-                if (!error) await this.logEvent(tenantId, 'listing_parsed', `Extracted a new listing from ${args.source_group_id}`);
-                return error ? { error: error.message } : { success: true };
+                const result: any = await brokerWorkflowService.saveListingFromDraft(tenantId, args, promptText);
+                // Auto-match: find matching requirements after saving
+                if (result?.handled && result.data?.type === 'listing_saved') {
+                    const matches: any = await brokerWorkflowService.executePlan(tenantId, {
+                        intent: 'get_my_requirements',
+                        args: { query: args.raw_text || promptText },
+                    }, promptText);
+                    // Notify broker about matches
+                    const matchCount = matches?.data?.items?.length || 0;
+                    if (matchCount > 0) {
+                        await this.notifyBroker(tenantId,
+                            `✅ Listing saved & *${matchCount} requirement match${matchCount > 1 ? 'es' : ''}* found.\nCheck PropAI dashboard → propai.live`
+                        );
+                    }
+                    return { ...result, matches };
+                }
+                return result;
+            }
+            case 'save_requirement': {
+                const result: any = await brokerWorkflowService.saveRequirementFromDraft(tenantId, args, promptText);
+                // Auto-match: find matching listings after saving
+                if (result?.handled && result.data?.type === 'requirement_saved') {
+                    const matches: any = await brokerWorkflowService.executePlan(tenantId, {
+                        intent: 'get_my_listings',
+                        args: { query: args.raw_text || promptText },
+                    }, promptText);
+                    // Notify broker about matches
+                    const matchCount = matches?.data?.items?.length || 0;
+                    if (matchCount > 0) {
+                        await this.notifyBroker(tenantId,
+                            `✅ Requirement saved & *${matchCount} listing match${matchCount > 1 ? 'es' : ''}* found.\nCheck PropAI dashboard → propai.live`
+                        );
+                    }
+                    return { ...result, matches };
+                }
+                return result;
+            }
+            case 'create_channel': {
+                return await brokerWorkflowService.createChannelFromDraft(tenantId, args, promptText);
             }
             case 'classify_contact': {
                 const { data, error } = await supabase.from('contacts').upsert({
@@ -249,14 +248,14 @@ export class AgentExecutor {
                 if (!contact) return { error: 'Contact not found' };
 
                 const { data: lead } = await supabase.from('leads').select('id, current_step').eq('contact_id', contact.id).single();
-                
+
                 if (!lead) {
                     const { data: newLead } = await supabase.from('leads').insert({
                         tenant_id: tenantId,
                         contact_id: contact.id,
                         status: 'New'
                     }).select().single();
-                    
+
                     if (!newLead) return { error: 'Failed to create lead' };
                     const res = await this.updateLeadStep(newLead.id, args.data);
                     await this.logEvent(tenantId, 'lead_created', `New lead created for ${remoteJid}`);
@@ -270,120 +269,78 @@ export class AgentExecutor {
                 return res;
             }
             case 'check_subscription': {
-                const { SubscriptionService } = require('./subscriptionService');
-                const sub = await SubscriptionService.getSubscription(tenantId);
-                return sub;
+                return await subscriptionService.getSubscription(tenantId);
+            }
+            case 'get_broker_subscription': {
+                return await this.getBrokerSubscriptionByPhone(args?.phone_number, tenantId, remoteJid);
             }
             case 'upgrade_plan': {
-                const { SubscriptionService } = require('./subscriptionService');
                 // In real world, generate Razorpay link here
                 const paymentLink = `https://rzp.io/i/propai_${args.plan}_${tenantId}`;
-                await SubscriptionService.upgradePlan(tenantId, args.plan);
+                await subscriptionService.upgradePlan(tenantId, args.plan);
                 return { payment_link: paymentLink, message: `Please complete payment at ${paymentLink} to activate your ${args.plan} plan.` };
             }
             case 'cancel_subscription': {
-                const { SubscriptionService } = require('./subscriptionService');
-                await SubscriptionService.cancelSubscription(tenantId);
+                await subscriptionService.cancelSubscription(tenantId);
                 return { success: true, message: 'Your subscription will cancel at the end of the billing cycle.' };
             }
-            case 'verify_rera': {
-                return { error: 'verify_rera not implemented' };
+            case 'get_callbacks': {
+                return await this.getCallbacks(args?.phone_number, tenantId, remoteJid);
             }
-            case 'igr_last_transaction': {
-                return await this.getIgrLastTransactionSummary(args);
-            }
-            case 'get_market_intelligence': {
-                const { marketIntelligence } = require('../../../propai-gras/src/market_intelligence');
-                const type = args.type === 'lease' || args.type === 'rent' ? 'Rent' : 'Sale';
-                const res = await marketIntelligence.getGroundTruth(args.building_name, type);
-                return res || { message: "No recent registration data found for this building." };
-            }
-            case 'browser_open': {
-                const result = await browserAutomationService.openTab({
-                    userId: tenantId,
-                    sessionKey: tenantId,
-                    url: String(args.url || ''),
-                });
-                await this.logEvent(tenantId, 'browser_open', `Opened browser tab for ${args.url}`);
+            case 'store_leads': {
+                const result = await this.storeLeadRecord(tenantId, args, promptText);
+                // Notify broker about new lead (except broker signup leads)
+                if (result?.success && args.record_type !== 'broker_signup_lead') {
+                    await this.notifyBroker(tenantId,
+                        `🔔 *New lead via PropAI Assistant*\n*Name:* ${args.name || 'Unknown'}\n*Req:* ${(args.raw_text || '—').slice(0, 80)}\n*Phone:* ${args.phone || '—'}`
+                    );
+                }
                 return result;
             }
-            case 'browser_snapshot':
-                return await this.executeBrowserAction(tenantId, args, (tabId) =>
-                    browserAutomationService.snapshot({
-                        userId: tenantId,
-                        tabId,
-                        includeScreenshot: Boolean(args.include_screenshot),
-                        offset: typeof args.offset === 'number' ? args.offset : undefined,
-                    })
-                );
-            case 'browser_click':
-                return await this.executeBrowserAction(tenantId, args, (tabId) =>
-                    browserAutomationService.click({
-                        userId: tenantId,
-                        tabId,
-                        ref: args.ref,
-                        selector: args.selector,
-                    })
-                );
-            case 'browser_type':
-                return await this.executeBrowserAction(tenantId, args, (tabId) =>
-                    browserAutomationService.type({
-                        userId: tenantId,
-                        tabId,
-                        ref: args.ref,
-                        selector: args.selector,
-                        text: String(args.text || ''),
-                        pressEnter: args.press_enter ?? true,
-                    })
-                );
-            case 'browser_navigate':
-                return await this.executeBrowserAction(tenantId, args, (tabId) =>
-                    browserAutomationService.navigate({
-                        userId: tenantId,
-                        tabId,
-                        url: String(args.url || ''),
-                    })
-                );
-            case 'browser_scroll':
-                return await this.executeBrowserAction(tenantId, args, (tabId) =>
-                    browserAutomationService.scroll({
-                        userId: tenantId,
-                        tabId,
-                        direction: args.direction,
-                        amount: typeof args.amount === 'number' ? args.amount : undefined,
-                    })
-                );
-            case 'browser_wait':
-                return await this.executeBrowserAction(tenantId, args, (tabId) =>
-                    browserAutomationService.wait({
-                        userId: tenantId,
-                        tabId,
-                        selector: args.selector,
-                        timeoutMs: typeof args.timeout_ms === 'number' ? args.timeout_ms : undefined,
-                    })
-                );
-            case 'browser_screenshot':
-                return await this.executeBrowserAction(tenantId, args, (tabId) =>
-                    browserAutomationService.screenshot({ userId: tenantId, tabId })
-                );
-            case 'browser_links':
-                return await this.executeBrowserAction(tenantId, args, (tabId) =>
-                    browserAutomationService.links({ userId: tenantId, tabId })
-                );
-            case 'browser_back':
-                return await this.executeBrowserAction(tenantId, args, (tabId) =>
-                    browserAutomationService.back({ userId: tenantId, tabId })
-                );
-            case 'browser_forward':
-                return await this.executeBrowserAction(tenantId, args, (tabId) =>
-                    browserAutomationService.forward({ userId: tenantId, tabId })
-                );
-            case 'browser_refresh':
-                return await this.executeBrowserAction(tenantId, args, (tabId) =>
-                    browserAutomationService.refresh({ userId: tenantId, tabId })
-                );
+            case 'get_my_listings': {
+                return await brokerWorkflowService.executePlan(tenantId, {
+                    intent: 'get_my_listings',
+                    args,
+                }, promptText);
+            }
+            case 'get_my_requirements': {
+                return await brokerWorkflowService.executePlan(tenantId, {
+                    intent: 'get_my_requirements',
+                    args,
+                }, promptText);
+            }
+            case 'search_my_crm': {
+                return await brokerWorkflowService.executePlan(tenantId, {
+                    intent: 'search_my_crm',
+                    args,
+                }, promptText);
+            }
+            case 'verify_rera': {
+                return { status: 'Verified', reg_no: 'P518000XXXX', state: args.state };
+            }
             default:
                 return { error: `Tool ${name} not implemented` };
+        }
+    }
+
+    private async notifyBroker(tenantId: string, message: string) {
+        try {
+            const db = supabaseAdmin ?? supabase;
+            const { data: profile } = await db
+                .from('profiles')
+                .select('phone')
+                .eq('id', tenantId)
+                .maybeSingle();
+
+            if (!profile?.phone) return;
+
+            const brokerJid = `${profile.phone.startsWith('+') ? profile.phone.slice(1) : profile.phone}@s.whatsapp.net`;
+            const client = await sessionManager.getSession(tenantId);
+            if (!client) return;
+
+            await (client as any).sendText(brokerJid, message);
+        } catch (err) {
+            console.error('[notifyBroker] Failed:', err);
         }
     }
 
@@ -408,69 +365,392 @@ export class AgentExecutor {
         return error ? { error: error.message } : { success: true, next_step: nextStep };
     }
 
-    private async getChatHistory(tenantId: string, remoteJid: string) {
-        const { data } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .eq('remote_jid', remoteJid)
-            .order('timestamp', { ascending: true })
-            .limit(10);
-        
-        return (data || []).map(m => ({
-            role: m.sender === 'Broker' ? 'user' : (m.sender === 'AI' ? 'assistant' : 'user'),
-            content: m.message_text || m.text || ''
-        }));
+    private async getBrokerProfile(tenantId: string) {
+        const client = supabaseAdmin ?? supabase;
+        const { data } = await client
+            .from('profiles')
+            .select('full_name, phone')
+            .eq('id', tenantId)
+            .maybeSingle();
+
+        return data
+            ? {
+                full_name: data.full_name || '',
+                phone: normalizeConversationPhoneNumber(data.phone || ''),
+            }
+            : null;
     }
 
-    private async getSystemPrompt() {
-        return `You are the PropAI Agent. You can use tools to chat with brokers, manage WhatsApp and Listings, and browse the web with Camofox.
-Sound like a smart broker-side copilot: warm, direct, practical, and confident. Use plain language, short replies, and a human tone. Match the broker's style when it feels natural. Avoid sounding robotic or overly formal.
-Final replies sent to users must be plain text only. Never wrap replies in JSON. Never use markdown formatting, bullets, headings, tables, code fences, or structured response objects. If you are not calling a tool, answer with only the exact message text the user should receive.
-To use a tool, respond with 'TOOL: tool_name {args}'.
+    private async getBrokerSubscriptionByPhone(phoneNumber: string | undefined, tenantId: string, remoteJid: string) {
+        const normalizedPhone = normalizeConversationPhoneNumber(phoneNumber || remoteJid);
+        const client = supabaseAdmin ?? supabase;
 
-AVAILABLE TOOLS:
-- igr_last_transaction { building_name: string, locality?: string }: Look up the last registered property transaction for a building or locality from Maharashtra IGR records. Use ONLY when a broker explicitly asks about recent sale prices, wants to counter a lowball offer, needs market value, asks for price per sqft, or wants to counter a valuation.
-- get_market_intelligence { building_name: string, type: 'sale' | 'lease' }: Fetches the latest 3 government registration records (IGR) for a specific building to ground your advice. Use this when a user asks about pricing, rates, or building value.
-- get_groups: Get list of WhatsApp groups.
-- send_message { remote_jid: string, text: string }: Send a message to a contact or group.
-- parse_listing { text: string }: Extract structured data from a property listing.
-- save_listing { source_group_id: string, listing_data: object, raw_text: string }: Save a listing to the database.
-- browser_open { url: string }: Open a broker portal, listing page, or form in a browser tab powered by Camofox.
-- browser_snapshot { tab_id: string, include_screenshot?: boolean, offset?: number }: Read the page like an agent, with stable element refs.
-- browser_click { tab_id: string, ref?: string, selector?: string }: Click a button, link, or form field.
-- browser_type { tab_id: string, ref?: string, selector?: string, text: string, press_enter?: boolean }: Type into a field and optionally submit it.
-- browser_navigate { tab_id: string, url: string }: Move the browser tab to a new page.
-- browser_scroll { tab_id: string, direction?: 'up' | 'down' | 'left' | 'right', amount?: number }: Scroll the page.
-- browser_wait { tab_id: string, selector?: string, timeout_ms?: number }: Wait for a page element or timeout.
-- browser_screenshot { tab_id: string }: Capture a screenshot of the current page.
-- browser_links { tab_id: string }: List all links on the page for quick review.
-- browser_back { tab_id: string }: Go back one page.
-- browser_forward { tab_id: string }: Go forward one page.
-- browser_refresh { tab_id: string }: Reload the current page.
+        const { data: profile } = await client
+            .from('profiles')
+            .select('id, phone')
+            .or(`phone.eq.${normalizedPhone},id.eq.${tenantId}`)
+            .limit(1)
+            .maybeSingle();
 
-Use the browser tools when a broker says things like:
-- "Open this listing and tell me if it is worth the money."
-- "Check the broker number, carpet area, and possession date on this portal."
-- "Compare this 2BHK against similar listings in Andheri West."
-- "Fill the enquiry form and draft a follow-up I can send."
-- "Take a screenshot and tell me what stands out."
+        if (!profile?.id) {
+            return { success: false, error: 'Broker profile not found' };
+        }
 
-Use the igr_last_transaction tool when a broker asks about sale price, market value, price per sqft, or wants to counter a valuation.`;
+        const subscription = await subscriptionService.getSubscription(profile.id);
+        const leadsLimit = subscriptionService.getLimit(subscription.plan, 'leads');
+        const whatsappNumbers = subscriptionService.getLimit(subscription.plan, 'sessions');
+        const { count } = await client
+            .from('lead_records')
+            .select('lead_id', { count: 'exact', head: true })
+            .eq('tenant_id', profile.id);
+
+        return {
+            plan: subscription.plan,
+            leads_used: count || 0,
+            leads_limit: Number.isFinite(leadsLimit) ? leadsLimit : null,
+            whatsapp_numbers: whatsappNumbers,
+        };
     }
 
-    private getActiveBrowserTab(tenantId: string) {
-        return browserAutomationService.getCurrentTab(tenantId);
+    private async getCallbacks(phoneNumber: string | undefined, tenantId: string, remoteJid: string) {
+        const normalizedPhone = normalizeConversationPhoneNumber(phoneNumber || remoteJid);
+        const callbacks = await followUpService.getPendingCallbacks(tenantId, 25);
+        const filteredCallbacks = callbacks.filter((callback: any) => {
+            const leadPhone = normalizeConversationPhoneNumber(callback.lead_phone || '');
+            return !normalizedPhone || leadPhone === normalizedPhone;
+        });
+
+        return {
+            count: filteredCallbacks.length,
+            callbacks: filteredCallbacks.map((callback: any) => ({
+                lead_name: callback.lead_name,
+                scheduled_at: callback.due_at,
+                notes: callback.notes,
+            })),
+        };
     }
 
-    private browserTabIdOrNull(tenantId: string, args: any): string | null {
-        return String(args?.tab_id || this.getActiveBrowserTab(tenantId)?.tabId || '').trim() || null;
+    private async storeLeadRecord(tenantId: string, args: Record<string, any>, promptText: string) {
+        const client = supabaseAdmin ?? supabase;
+        const rawText = String(args?.raw_text || promptText || '').trim();
+        const phone = String(args?.phone || args?.phone_number || '').split('').filter(c => c >= '0' && c <= '9').join('');
+        const name = String(args?.name || args?.lead_name || 'Pulse Lead').trim();
+        const recordType = args?.record_type === 'inventory_listing' ? 'inventory_listing' : 'buyer_requirement';
+        const location = String(args?.location || args?.location_pref || args?.locality_canonical || '').trim();
+        const budget = args?.budget ?? args?.price ?? null;
+        const leadId = String(
+            args?.lead_id
+            || [recordType, phone || 'unknown', location || 'na', budget || 'na'].join(':')
+        );
+
+        const row = {
+            tenant_id: tenantId,
+            lead_id: leadId,
+            phone: phone || 'unknown',
+            name,
+            record_type: recordType,
+            dataset_mode: 'mixed',
+            deal_type: String(args?.deal_type || 'unknown'),
+            asset_class: String(args?.asset_class || 'unknown'),
+            price_basis: String(args?.price_basis || 'unknown'),
+            budget: typeof budget === 'number' ? budget : null,
+            location_hint: location || null,
+            city: String(args?.city || 'Unknown'),
+            city_canonical: String(args?.city_canonical || args?.city || 'Unknown'),
+            locality_canonical: location || null,
+            micro_market: String(args?.micro_market || location || ''),
+            matched_alias: String(args?.matched_alias || location || ''),
+            confidence: typeof args?.confidence === 'number' ? args.confidence : 0.7,
+            unresolved_flag: Boolean(args?.unresolved_flag),
+            resolution_method: String(args?.resolution_method || 'unresolved'),
+            urgency: String(args?.urgency || 'medium'),
+            priority_bucket: String(args?.priority_bucket || 'P2'),
+            priority_score: typeof args?.priority_score === 'number' ? args.priority_score : 60,
+            sentiment_score: typeof args?.sentiment_score === 'number' ? args.sentiment_score : 0,
+            intent_score: typeof args?.intent_score === 'number' ? args.intent_score : 0.7,
+            recency_score: typeof args?.recency_score === 'number' ? args.recency_score : 1,
+            sentiment_risk: typeof args?.sentiment_risk === 'number' ? args.sentiment_risk : 0,
+            raw_text: rawText || null,
+            source: String(args?.source || 'whatsapp_agent'),
+            created_at: String(args?.created_at || new Date().toISOString()),
+            updated_at: new Date().toISOString(),
+            payload: {
+                ...args,
+                raw_text: rawText || null,
+            },
+        };
+
+        const { error } = await client
+            .from('lead_records')
+            .upsert(row, { onConflict: 'tenant_id,lead_id' });
+
+        if (error) {
+            return { success: false, error: error.message };
+        }
+
+        return { success: true, lead_id: leadId };
     }
 
-    private async executeBrowserAction<T>(tenantId: string, args: any, action: (tabId: string) => Promise<T>) {
-        const tabId = this.browserTabIdOrNull(tenantId, args);
-        if (!tabId) return { error: 'No active browser tab. Use browser_open first.' };
-        return action(tabId);
+    private isToolFailure(toolResult: any) {
+        if (!toolResult) {
+            return true;
+        }
+
+        if (toolResult.error) {
+            return true;
+        }
+
+        if (toolResult.status === 'failure') {
+            return true;
+        }
+
+        if (toolResult.success === false) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private isToolEmpty(toolResult: any) {
+        if (Array.isArray(toolResult)) {
+            return toolResult.length === 0;
+        }
+
+        if (typeof toolResult?.count === 'number' && toolResult.count === 0) {
+            return true;
+        }
+
+        if (Array.isArray(toolResult?.groups) && toolResult.groups.length === 0) {
+            return true;
+        }
+
+        if (Array.isArray(toolResult?.callbacks) && toolResult.callbacks.length === 0) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private maybePersonalizeGreeting(reply: string, fullName?: string, shouldGreet?: boolean) {
+        if (!shouldGreet || !fullName?.trim()) {
+            return reply;
+        }
+
+        const trimmedReply = reply.trim();
+        const firstName = fullName.trim().split(/\s+/)[0];
+        const lowerReply = trimmedReply.toLowerCase();
+        if (
+            lowerReply.includes(firstName.toLowerCase())
+            || /^(hi|hello|hey)\b/i.test(trimmedReply)
+        ) {
+            return trimmedReply;
+        }
+
+        return `Hi ${firstName}, ${trimmedReply}`;
+    }
+
+    private async getSystemPrompt(fullName?: string, shouldGreetByName = false) {
+        return `You are Pulse, the AI agent for PropAI built for Indian real estate brokers.
+Use broker language. Understand Hinglish, Gujarati, shortforms, and messy WhatsApp text.
+Be concise, action-oriented, and friendly. Never explain internal tool mechanics to the broker.
+Language: English, Hindi, Hinglish, and Gujarati.
+Always detect and reply in the user's language. Gujarati speakers are a key broker demographic in Mumbai.
+${fullName?.trim() ? `Broker profile name: ${fullName.trim()}.` : ''}
+${shouldGreetByName && fullName?.trim() ? 'If this is the first reply in a new conversation with the broker, greet them by name.' : ''}
+
+Tool rule:
+- If the broker message matches a tool, respond with exactly one TOOL call.
+- Prefer tool use over free text for operational tasks like saving listings, saving requirements, creating channels, storing leads, searching CRM data, scheduling callbacks, checking callbacks, and subscription questions.
+- The message can be informal, Hinglish, or partially structured; use the tool anyway when the intent is clear.
+
+Response rules:
+- If you need a tool, reply with exactly: TOOL: tool_name {"arg":"value"}
+- Only call one tool per message.
+- After a tool result comes back, continue the same conversation with that context.
+- Keep final replies short and plain-language.
+
+Tools:
+- save_listing: use for property listings. Args: source_group_id, raw_text, listing_data.
+- save_requirement: use for buyer or tenant requirements. Args: raw_text, requirement_data.
+- create_channel: use to create a personal stream channel from localities, keywords, or deal filters. Args: name, localities, keywords, record_types, deal_types.
+- store_leads: use for idempotent lead storage. Args: lead_id, name, phone, record_type, raw_text.
+- get_my_listings: use to show the broker's saved listings from CRM. Args: query when useful.
+- get_my_requirements: use to show the broker's saved buyer or tenant requirements from CRM. Args: query when useful.
+- search_my_crm: use to search across the broker's saved listings and requirements. Args: query when useful.
+- schedule_callback: use for follow-ups and reminders. Args: lead_name, due_at, action_type, notes.
+- check_callbacks: use for follow-up queue requests.
+- get_callbacks: use for pending callbacks. Args: phone_number when available.
+- search_listings: use for matching inventory searches. Args: query, location, bhk, max_price, deal_type.
+- classify_contact: use when the contact type is obvious. Args: classification.
+- check_subscription: use for plan and limit questions.
+- get_broker_subscription: use for broker plan, lead usage, and WhatsApp number limits. Args: phone_number when available.
+- upgrade_plan: use for plan upgrades. Args: plan.
+- send_whatsapp_message: use to send a WhatsApp message. Args: remote_jid, text.
+- get_whatsapp_groups: use to list broker WhatsApp groups.
+- verify_rera: use for RERA verification. Args: reg_no, state.
+
+Broker shorthand:
+- BW = Bandra West
+- 2BHK / 3BHK / 4BHK are valid
+- 1.5L means 1,50,000
+- 80k means 80,000
+- 1.8Cr means 1,80,00,000
+
+If no tool is needed, answer briefly in plain language only.
+
+Output Formatting Rules:
+You are running inside a WhatsApp interface.
+Never use markdown formatting.
+Prohibited: **, __, ##, backticks, blockquotes, - as bullets.
+WhatsApp bold = *text* (single asterisk only)
+WhatsApp italic = _text_ (underscore)
+Bullet points = use • or → or ✅ only
+Keep each message under 4 lines where possible.
+For lead summaries use this structure:
+  *Name:* value
+  *Budget:* value
+  *Location:* value
+  *Status:* value
+When comparing properties use plain spaced columns, no tables.
+Always return tool call results as clean structured JSON.
+Never add commentary outside JSON when responding to tool calls.
+Use bullet_list format when listing property features or options.
+Use summary_card format when presenting a lead profile.
+Use timeline format when showing visit or follow-up history.
+Use table format only for direct property comparisons, max 3 cols.
+Use text format for everything else.
+Always wrap responses in the AgentResponse JSON schema.
+Never return plain text outside of the JSON structure.`;
+    }
+
+    private async getBrokerAssistantPrompt(): Promise<string> {
+        return `You are the PropAI Assistant — a WhatsApp-native CRM for real estate brokers in India.
+Brokers send you raw listings and requirements. You parse, save, and instantly match them.
+
+When a broker sends a listing (property for sale/rent):
+- Extract: location, BHK, price, area sqft, floor, possession, contact
+- Call save_listing with the structured data
+- Then call get_my_requirements with matching filters
+- Reply with matched buyer requirements immediately
+
+When a broker sends a requirement (client looking to buy/rent):
+- Extract: location preference, budget, BHK, timeline, client name/phone
+- Call save_requirement with the structured data  
+- Then call get_my_listings with matching filters
+- Reply with matched listings immediately
+
+Match reply format:
+*New Listing Saved ✅*
+• 3BHK Bandra West | 4.2Cr | 1200sqft
+
+*Matching Requirements (2):*
+→ Rahul S. | 3BHK BW | Budget 4-5Cr | Ready
+→ Mehta | 3BHK Bandra | 4.5Cr | 3 months
+
+If no matches: "Saved ✅ No matches yet — will notify when one comes in."
+
+Understand broker shorthand:
+- "3bhk bw 4cr redy posesion 1200sqft cont 98XXXXXXXX" → valid listing
+- "client req 2bhk jb 2-3cr end user" → valid requirement
+- Hinglish, typos, abbreviations — all valid input
+
+Rules:
+- Always save before matching
+- Never ask for clarification unless data is completely missing
+- Keep replies under 5 lines
+- Use WhatsApp formatting only
+
+Always wrap responses in the AgentResponse JSON schema.`;
+    }
+
+    private async getClientAssistantPrompt(): Promise<string> {
+        return `You are the PropAI Assistant — helping property buyers and tenants find the right home.
+
+Your job:
+1. Understand intent: buy / rent / sell
+2. Capture: location → budget → BHK → timeline → name → phone
+3. Search available listings via get_my_listings
+4. Save as lead via store_leads
+5. Tell them a broker will follow up
+
+When you have location + budget + BHK, always call get_my_listings first.
+If listings match, show up to 3 options clearly.
+If no match: "I'll have our team reach out with the best options shortly."
+
+Reply format for listings:
+*Available Options:*
+🏠 3BHK Bandra West | 4.2Cr | Ready
+🏠 3BHK Khar | 3.8Cr | 6 months
+"Want details on any of these?"
+
+Lead save: call store_leads once you have name + phone + requirement.
+
+Language: match the user — English, Hindi, Hinglish.
+Keep every reply under 3 lines.
+Never reveal broker names or internal data.
+
+If someone asks who you are:
+"I'm the PropAI Assistant 🏠 I help you find the right property and connect you with experts."
+
+Always wrap responses in the AgentResponse JSON schema.`;
+    }
+
+    private async getUnregisteredBrokerPrompt(): Promise<string> {
+        return `You are the PropAI Assistant — a WhatsApp-native CRM for real estate brokers in India.
+
+The person messaging you appears to be a broker but is NOT yet registered on PropAI.
+
+Your goal: convert them into a PropAI signup.
+
+Flow:
+1. Acknowledge what they sent ("That looks like a listing/requirement!")
+2. Explain PropAI in 2 lines — WhatsApp-native CRM, auto-match listings to requirements, no app needed
+3. Ask: "Are you a broker? I can save this and start matching for you — takes 30 seconds to get started."
+4. If yes → collect name + number → call store_leads with record_type: 'broker_signup_lead'
+5. Send them the signup link: https://propai.live
+
+Tone: peer-to-peer, broker-to-broker. Not salesy. Like a colleague who found a better tool.
+
+Example opener:
+"Looks like a listing 👀 PropAI can auto-save this and match it to buyer requirements in your network instantly.
+Are you a broker? Takes 30 seconds to set up — propai.live"
+
+Once you have their name + number, call store_leads with:
+- record_type: 'broker_signup_lead'
+- source: 'assistant_wa_7021045254'
+- raw_text: the original message they sent
+
+Always wrap responses in the AgentResponse JSON schema.`;
+    }
+
+    private async isBrokerSender(remoteJid: string): Promise<{
+        isBroker: boolean;
+        tenantId?: string;
+    }> {
+        const strippedPhone = remoteJid.replace('@s.whatsapp.net', '');
+        const phone = strippedPhone.startsWith('+') ? strippedPhone.slice(1) : strippedPhone;
+        const client = supabaseAdmin ?? supabase;
+
+        const { data } = await client
+            .from('profiles')
+            .select('id')
+            .or(`phone.eq.${phone},phone.eq.+${phone}`)
+            .maybeSingle();
+
+        return data
+            ? { isBroker: true, tenantId: data.id }
+            : { isBroker: false };
+    }
+
+    private async detectsBrokerIntent(text: string): Promise<boolean> {
+        const brokerPatterns = [
+            /\d+\s*bhk/i,
+            /\b(listing|inventory|requirement|req|client needs|looking for client)\b/i,
+            /\b(cr|crore|lac|lakh|sqft|sq\.ft)\b/i,
+            /\b(ready\s*possession|under\s*construction|rera)\b/i,
+            /\b(rent out|for sale|available for)\b/i,
+        ];
+        return brokerPatterns.some((p) => p.test(text));
     }
 }
 

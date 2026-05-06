@@ -3,13 +3,18 @@
   "build": {
     "type": "dockerfile",
     "dockerfile": "apps/api/Dockerfile",
-    "context": "/"
+    "context": "."
   },
-  "environment": {
+    "environment": {
     "PORT": "3001",
-    "OLLAMA_BASE_URL": "http://ollama:11434",
-    "CAMOFOX_URL": "http://camofox-browser:9377",
-    "CAMOFOX_ALLOWED_HOSTS": "variable",
+    "ENABLE_SYSTEM_WHATSAPP_SESSION": "false",
+    "GOOGLE_MODEL": "gemini-2.5-flash",
+    "GROQ_BASE_URL": "https://api.groq.com/openai/v1",
+    "GROQ_MODEL": "llama3-8b-8192",
+    "OPENROUTER_BASE_URL": "https://openrouter.ai/api/v1",
+    "OPENROUTER_MODEL": "openai/gpt-4o-mini",
+    "DOUBLEWORD_BASE_URL": "https://api.doubleword.ai/v1",
+    "DOUBLEWORD_MODEL": "qwen3-235b",
     "SUPABASE_URL": "variable",
     "SUPABASE_ANON_KEY": "variable",
     "SUPABASE_SERVICE_ROLE_KEY": "variable"

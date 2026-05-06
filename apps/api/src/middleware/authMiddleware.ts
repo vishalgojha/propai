@@ -1,10 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseAdmin = createClient(
-    process.env.SUPABASE_URL!,
-    (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY)!
-);
+import { supabaseAdmin } from '../config/supabase';
+import { resolveImpersonationToken } from '../services/impersonationStore';
 
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
@@ -14,10 +10,35 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     }
 
     const token = authHeader.split(' ')[1];
-    
+
+    // ── Impersonation path ───────────────────────────────────────────────────
+    if (token.startsWith('imp_')) {
+        const session = resolveImpersonationToken(token);
+        if (!session) {
+            return res.status(401).json({ status: 'error', message: 'Impersonation token expired or invalid' });
+        }
+        (req as any).user = {
+            id: session.partnerId,
+            email: session.partnerEmail,
+            app_metadata: {},
+            user_metadata: { full_name: session.partnerFullName },
+            is_impersonation: true,
+            impersonated_by: session.adminEmail,
+        };
+        (req as any).tenantId = session.tenantId;
+        return next();
+    }
+
+    // ── Standard Supabase path ───────────────────────────────────────────────
+    if (!supabaseAdmin) {
+        return res.status(503).json({
+            status: 'error',
+            message: 'Supabase auth is not configured on this deployment',
+        });
+    }
+
     try {
         const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-        
         if (error || !user) {
             return res.status(401).json({ status: 'error', message: 'Invalid or expired token' });
         }

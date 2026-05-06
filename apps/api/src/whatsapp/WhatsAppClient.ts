@@ -1,479 +1,469 @@
-import makeWASocket, { 
-    DisconnectReason, 
-    useMultiFileAuthState, 
-    fetchLatestBaileysVersion, 
-    ConnectionState 
+import makeWASocket, {
+    DisconnectReason,
+    fetchLatestBaileysVersion,
+    type WASocket,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
-import fs from 'fs';
-import path from 'path';
-import { supabase } from '../config/supabase';
-import { whatsappParseConsentService } from '../services/whatsappParseConsentService';
-import { whatsappStreamIngestionService } from '../services/whatsappStreamIngestionService';
+import { sanitizeForWhatsApp } from './sanitizer';
+import { createSupabaseAuthState, type SupabaseAuthState } from './SupabaseAuthState';
+import { CircuitBreaker } from './CircuitBreaker';
+import type {
+    ConnectionStatus,
+    GroupInfo,
+    IncomingMessageRecord,
+    SessionCreateOptions,
+    SessionSnapshot,
+    WhatsAppRuntimeHooks,
+    WhatsAppStorageAdapter,
+} from '@vishalgojha/whatsapp-baileys-runtime';
 
-export interface WhatsAppClientOptions {
+type WhatsAppClientOptions = {
     tenantId: string;
-    onQR: (qr: string) => void;
-    onConnectionUpdate: (status: string) => void;
-    label?: string;
-    ownerName?: string;
-}
+    storage: WhatsAppStorageAdapter;
+    hooks?: WhatsAppRuntimeHooks;
+} & SessionCreateOptions;
 
-export interface WhatsAppMediaFile {
-    data: string;
-    mimeType: string;
-    fileName: string;
-    caption?: string;
+export interface BroadcastOptions {
+    batchSize?: number;
+    delayBetweenMessages?: number;
+    delayBetweenBatches?: number;
+    onProgress?: (sent: number, total: number, groupId: string) => void;
+    onError?: (groupId: string, error: unknown) => void;
 }
-
-const PULSE_ASSISTANT_PHONE = '7021045254';
 
 export class WhatsAppClient {
-    private socket: any;
-    private tenantId: string;
-    private onQR: (qr: string) => void;
-    private onConnectionUpdate: (status: string) => void;
-    private sessionPath: string;
-    private isConnecting: boolean = false;
-    private label: string;
-    private ownerName: string | undefined;
-    private connectedPhoneNumber: string | undefined;
-    private recentOutgoingMessages = new Map<string, number>();
+    private socket: WASocket | null = null;
+    private readonly tenantId: string;
+    private readonly storage: WhatsAppStorageAdapter;
+    private readonly hooks?: WhatsAppRuntimeHooks;
+    private readonly label: string;
+    private readonly ownerName?: string;
+    private connectedPhoneNumber?: string;
+    private connectedLidJid?: string;
+    private isConnecting = false;
+    private connectionStatus: ConnectionStatus = 'disconnected';
+    private readonly recentOutgoingMessages = new Map<string, number>();
+    private authState: SupabaseAuthState | null = null;
+    private reconnectAttempts = 0;
+    private readonly maxReconnectAttempts = 10;
+    private reconnectTimer: NodeJS.Timeout | null = null;
+    private circuitBreaker = new CircuitBreaker();
+    private healthCheckInterval: NodeJS.Timeout | null = null;
 
     constructor(options: WhatsAppClientOptions) {
-        if (!/^[a-z0-9-]+$/i.test(options.tenantId)) {
-            throw new Error('Invalid tenantId format');
-        }
         this.tenantId = options.tenantId;
-        this.onQR = options.onQR;
-        this.onConnectionUpdate = options.onConnectionUpdate;
-        this.label = options.label || 'Owner';
+        this.storage = options.storage;
+        this.hooks = options.hooks;
+        this.label = options.label;
         this.ownerName = options.ownerName;
-        this.sessionPath = path.join(__dirname, `../../sessions/${this.tenantId}_${this.label}`);
+        this.connectedPhoneNumber = options.phoneNumber || options.usePairingCode;
     }
 
-    async connect(options: { usePairingCode?: string } = {}) {
-        if (this.isConnecting) return;
+    async connect(options: { usePairingCode?: string; phoneNumber?: string } = {}) {
+        if (this.isConnecting) {
+            return;
+        }
+
         this.isConnecting = true;
-        this.connectedPhoneNumber = options.usePairingCode || this.connectedPhoneNumber;
+        this.connectedPhoneNumber = options.phoneNumber || options.usePairingCode || this.connectedPhoneNumber;
+        this.connectionStatus = 'connecting';
+        await this.persistStatus('connecting');
+
+        if (this.reconnectAttempts > 0) {
+            console.log(`[WhatsAppClient] Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} for ${this.tenantId}:${this.label}`);
+        }
 
         try {
-            const { state, saveCreds } = await useMultiFileAuthState(this.sessionPath);
-            const { version } = await fetchLatestBaileysVersion();
+            const sessionId = `${this.tenantId}:${this.label}`;
+            const { state, saveCreds, authState } = await createSupabaseAuthState({
+                sessionId,
+                tenantId: this.tenantId,
+                label: this.label,
+                ownerName: this.ownerName || null,
+                phoneNumber: this.connectedPhoneNumber || null,
+            });
+            this.authState = authState;
+
+            let version: [number, number, number] = [2, 3000, 0];
+            try {
+                const fetched = await fetchLatestBaileysVersion();
+                version = fetched.version;
+            } catch (error) {
+                console.log('[WhatsAppClient] Version fetch failed, using default:', error);
+            }
 
             if (this.socket) {
-                this.socket.ev.removeAllListeners();
+                await this.socket.logout().catch(() => undefined);
+                this.socket = null;
             }
 
             this.socket = makeWASocket({
                 version,
                 auth: state,
                 printQRInTerminal: false,
+                connectTimeoutMs: 30000,
+                qrTimeout: 120000,
             });
+
+            console.log(`[WhatsAppClient] Socket created for ${this.tenantId}:${this.label}, waiting for QR...`);
 
             if (options.usePairingCode) {
                 const code = await this.socket.requestPairingCode(options.usePairingCode);
-                this.onQR(code); 
+                await this.emitQR(code);
             }
 
             this.socket.ev.on('connection.update', async (update: any) => {
-                const { connection, lastDisconnect, qr } = update;
+                try {
+                    const connection = update?.connection;
+                    const lastDisconnect = update?.lastDisconnect;
+                    const qr = update?.qr;
 
-                if (qr && !options.usePairingCode) {
-                    this.onQR(qr);
-                }
-
-                if (connection === 'close') {
-                    const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-                    console.log('Connection closed for tenant', this.tenantId, 'due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect);
-                    if (shouldReconnect) {
-                        this.connect(options);
-                    } else {
-                        this.updateSessionStatus('disconnected');
+                    if (qr && !options.usePairingCode) {
+                        await this.emitQR(qr);
                     }
-                } else if (connection === 'open') {
-                    console.log('Opened connection for tenant:', this.tenantId);
-                    this.connectedPhoneNumber = this.socket?.user?.id || this.connectedPhoneNumber;
-                    this.updateSessionStatus('connected');
-                    this.onConnectionUpdate('connected');
+
+                    const userId = String(this.socket?.user?.id || '');
+                    if (userId) {
+                        const separatorIndex = userId.indexOf(':');
+                        const normalizedPhone = separatorIndex >= 0 ? userId.slice(0, separatorIndex) : userId;
+                        this.connectedPhoneNumber = normalizedPhone || this.connectedPhoneNumber;
+                        this.authState?.updatePhoneNumber(this.connectedPhoneNumber || null);
+                        await saveCreds();
+                    }
+
+                    const userLid = String((this.socket?.user as { lid?: string } | undefined)?.lid || '');
+                    if (userLid) {
+                        const separatorIndex = userLid.indexOf(':');
+                        const suffixIndex = userLid.indexOf('@');
+                        this.connectedLidJid = separatorIndex >= 0 && suffixIndex > separatorIndex
+                            ? `${userLid.slice(0, separatorIndex)}${userLid.slice(suffixIndex)}`
+                            : userLid;
+                    }
+
+                    if (connection === 'close') {
+                        this.connectionStatus = 'disconnected';
+                        const statusCode = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode;
+                        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+                        if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+                            this.reconnectAttempts++;
+                            this.circuitBreaker.recordFailure();
+
+                            const backoffMs = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+                            await this.persistStatus('connecting');
+                            this.reconnectTimer = setTimeout(() => {
+                                this.tryReconnect();
+                            }, backoffMs);
+                        } else {
+                            this.reconnectAttempts = 0;
+                            this.circuitBreaker.recordFailure();
+                            await this.persistStatus('disconnected');
+                        }
+                    } else if (connection === 'open') {
+                        this.connectionStatus = 'connected';
+                        this.reconnectAttempts = 0;
+                        this.circuitBreaker.recordSuccess();
+                        if (this.reconnectTimer) {
+                            clearTimeout(this.reconnectTimer);
+                            this.reconnectTimer = null;
+                        }
+                        await this.persistStatus('connected');
+                    }
+                } catch (error) {
+                    await this.hooks?.onError?.({
+                        tenantId: this.tenantId,
+                        label: this.label,
+                        error,
+                        stage: 'connection.update',
+                    });
                 }
             });
 
-            this.socket.ev.on('creds.update', saveCreds);
-
-            this.socket.ev.on('messages.upsert', async (m: any) => {
-                const msg = m.messages[0];
-                if (!msg.message) return;
-
-                const messageText = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-                const remoteJid = msg.key.remoteJid || '';
-
-                if (!messageText.trim() || !remoteJid) return;
-
-                const fromMe = Boolean(msg.key.fromMe);
-                const isAssistantThread = this.isPulseAssistantThread(remoteJid);
-
-                if (fromMe && this.isRecentOutgoingMessage(remoteJid, messageText)) {
-                    return;
+            this.socket.ev.on('creds.update', async () => {
+                try {
+                    await saveCreds();
+                } catch (error) {
+                    await this.hooks?.onError?.({
+                        tenantId: this.tenantId,
+                        label: this.label,
+                        error,
+                        stage: 'creds.update',
+                    });
                 }
+            });
 
-                if (fromMe && !isAssistantThread) {
-                    return;
-                }
-
-                await this.saveMessage(
-                    remoteJid,
-                    messageText,
-                    msg.pushName || null,
-                    isAssistantThread,
-                    {
-                        timestamp: this.normalizeMessageTimestamp(msg.messageTimestamp),
-                        senderNumber: this.normalizeComparablePhone(msg.key.participant || remoteJid) || null,
-                        groupName: remoteJid.endsWith('@g.us') ? await this.getGroupName(remoteJid) : null,
+            this.socket.ev.on('messages.upsert', async (payload: any) => {
+                try {
+                    const msg = payload?.messages?.[0];
+                    if (!msg?.message) {
+                        return;
                     }
-                );
+
+                    const messageText = this.extractMessageText(msg.message);
+                    const remoteJid = msg.key?.remoteJid || '';
+                    const remoteJidAlt = String(msg.key?.remoteJidAlt || '');
+                    const wasSentByThisClient = this.isRecentOutgoingMessage(remoteJid, messageText);
+
+                    if (!messageText) {
+                        return;
+                    }
+
+                    if (msg.key?.fromMe && wasSentByThisClient) {
+                        return;
+                    }
+
+                    if (msg.key?.fromMe && remoteJid.endsWith('@lid') && remoteJidAlt.startsWith(`${this.connectedPhoneNumber}@`)) {
+                        this.connectedLidJid = remoteJid;
+                        await this.persistStatus(this.connectionStatus);
+                    }
+
+                    const event: IncomingMessageRecord = {
+                        tenantId: this.tenantId,
+                        label: this.label,
+                        remoteJid,
+                        text: messageText,
+                        sender: msg.pushName || null,
+                        timestamp: new Date().toISOString(),
+                        fromMe: Boolean(msg.key?.fromMe),
+                        rawMessage: msg,
+                    };
+
+                    await this.storage.saveInboundMessage(event);
+                    await this.hooks?.onMessage?.(event);
+                } catch (error) {
+                    await this.hooks?.onError?.({
+                        tenantId: this.tenantId,
+                        label: this.label,
+                        error,
+                        stage: 'messages.upsert',
+                    });
+                }
             });
         } catch (error) {
-            console.error(`Failed to connect WhatsApp for tenant ${this.tenantId}:`, error);
-            this.updateSessionStatus('disconnected');
+            this.connectionStatus = 'disconnected';
+            await this.persistStatus('disconnected');
+            await this.hooks?.onError?.({
+                tenantId: this.tenantId,
+                label: this.label,
+                error,
+                stage: 'connect',
+            });
         } finally {
             this.isConnecting = false;
         }
     }
 
-    private async updateSessionStatus(status: string) {
-        try {
-            if (this.tenantId === 'system') {
-                return;
-            }
-
-            const payload = {
-                tenant_id: this.tenantId,
-                session_id: this.label,
-                label: this.label,
-                owner_name: this.ownerName || null,
-                status,
-                session_data: {},
-                last_sync: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            };
-
-            const { data: existing, error: selectError } = await supabase
-                .from('whatsapp_sessions')
-                .select('id')
-                .eq('tenant_id', this.tenantId)
-                .eq('session_id', this.label)
-                .maybeSingle();
-
-            if (selectError) throw selectError;
-
-            if (existing?.id) {
-                const { error } = await supabase
-                    .from('whatsapp_sessions')
-                    .update(payload)
-                    .eq('id', existing.id);
-                if (error) throw error;
-                return;
-            }
-
-            const { error } = await supabase
-                .from('whatsapp_sessions')
-                .insert(payload);
-            if (error) throw error;
-        } catch (error) {
-            console.error(`Supabase error updating status for ${this.tenantId}:`, error);
-        }
-    }
-
-    private async saveMessage(
-        remoteJid: string,
-        text: string,
-        senderName?: string | null,
-        bypassPrivacyGate = false,
-        metadata: { timestamp?: string | null; senderNumber?: string | null; groupName?: string | null } = {}
-    ) {
-        try {
-            if (await this.handleVerificationReply(remoteJid, text)) {
-                return;
-            }
-
-            if (!bypassPrivacyGate) {
-                const parseConsent = await whatsappParseConsentService.getDecision({
-                    tenantId: this.tenantId,
-                    sessionLabel: this.label,
-                    remoteJid,
-                    displayName: senderName,
-                    timestamp: new Date().toISOString(),
-                });
-
-                if (!parseConsent.allowed) {
-                    console.log(
-                        `Skipping private WhatsApp ${parseConsent.targetType} for ${this.tenantId}: ${parseConsent.reason}`
-                    );
-                    return;
-                }
-            }
-
-            await supabase
-                .from('messages')
-                .insert({ 
-                    tenant_id: this.tenantId, 
-                    remote_jid: remoteJid, 
-                    text,
-                    sender: remoteJid.endsWith('@g.us') ? 'Broker' : 'Client',
-                });
-
-            if (!bypassPrivacyGate && remoteJid.endsWith('@g.us')) {
-                await whatsappStreamIngestionService.captureGroupMessage({
-                    tenantId: this.tenantId,
-                    groupId: remoteJid,
-                    groupName: metadata.groupName || remoteJid,
-                    message: text,
-                    senderNumber: metadata.senderNumber || null,
-                    senderName: senderName || null,
-                    timestamp: metadata.timestamp || new Date().toISOString(),
-                });
-            }
-
-            await this.handleIncomingMessage(remoteJid, text, bypassPrivacyGate);
-        } catch (error) {
-            console.error(`Supabase error saving message for ${this.tenantId}:`, error);
-        }
-    }
-
-    private async handleVerificationReply(remoteJid: string, text: string) {
-        if (text.toUpperCase() !== 'YES') {
-            return false;
-        }
-
-        try {
-            const phone = remoteJid.split('@')[0];
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('phone', phone)
-                .single();
-
-            if (!profile) {
-                return false;
-            }
-
-            await supabase
-                .from('profiles')
-                .update({ phone_verified: true })
-                .eq('id', profile.id);
-            
-            await this.sendText(remoteJid, "Verified! You now have full access to PropAI Sync. Welcome aboard!");
-            return true;
-        } catch (e) {
-            console.error('Verification reply error:', e);
-            return false;
-        }
-    }
-
-    private async handleIncomingMessage(remoteJid: string, text: string, isAssistantThread = false) {
-        // Basic filters after consent has already passed.
-        if (text.length < 20 && !isAssistantThread) return;
-        if (!isAssistantThread && text.match(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E6}-\u{1F1FF}]/gu) && text.replace(/[\s\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E6}-\u{1F1FF}]/gu, '').length === 0) return;
-        
-        const isGroup = remoteJid.endsWith('@g.us');
-
-        if (isAssistantThread) {
-            await this.triggerAgent(remoteJid, text);
-            return;
-        }
-
-        if (isGroup) {
-            const { data: config } = await supabase
-                .from('group_configs')
-                .select('behavior')
-                .eq('group_id', remoteJid)
-                .single();
-
-            if (config?.behavior !== 'Listen' && config?.behavior !== 'AutoReply') return;
-        } else {
-            const { data: contact } = await supabase
-                .from('contacts')
-                .select('classification')
-                .eq('remote_jid', remoteJid)
-                .single();
-
-            if (contact?.classification === 'Broker') return;
-        }
-
-        await this.triggerAgent(remoteJid, text);
-    }
-
-    private async triggerAgent(remoteJid: string, text: string) {
-        try {
-            const { agentExecutor } = require('../services/AgentExecutor');
-            const response = await agentExecutor.processMessage(this.tenantId, remoteJid, text);
-            
-            await this.sendText(remoteJid, response);
-            
-            await supabase.from('messages').insert({
-                tenant_id: this.tenantId,
-                remote_jid: remoteJid,
-                text: response,
-                sender: 'AI'
-            });
-        } catch (error) {
-            console.error('Agent Execution Loop Error:', error);
-        }
-    }
-
     async sendText(jid: string, text: string) {
-        try {
-            this.rememberOutgoingMessage(jid, text);
-            await this.socket.sendMessage(jid, { text });
-        } catch (error) {
-            console.error(`Failed to send message for tenant ${this.tenantId}:`, error);
-            throw error;
-        }
+        return this.sendMessage(jid, text);
     }
 
-    private isPulseAssistantThread(remoteJid: string) {
-        const labelLooksAssistant = this.label.toLowerCase() === 'assistant';
-        const connectedPhone = this.normalizeComparablePhone(this.connectedPhoneNumber);
-        const remotePhone = this.normalizeComparablePhone(remoteJid);
-
-        return (
-            labelLooksAssistant ||
-            connectedPhone === PULSE_ASSISTANT_PHONE ||
-            (Boolean(connectedPhone) && connectedPhone === remotePhone) ||
-            remotePhone === PULSE_ASSISTANT_PHONE
-        );
-    }
-
-    private normalizeMessageTimestamp(timestamp: unknown) {
-        if (timestamp == null) return new Date().toISOString();
-        const numeric = Number(timestamp);
-        if (Number.isFinite(numeric) && numeric > 0) {
-            const millis = numeric > 1000000000000 ? numeric : numeric * 1000;
-            return new Date(millis).toISOString();
-        }
-        return new Date().toISOString();
-    }
-
-    private async getGroupName(remoteJid: string) {
-        try {
-            if (this.socket.groupMetadata) {
-                const metadata = await this.socket.groupMetadata(remoteJid);
-                return metadata?.subject || remoteJid;
-            }
-        } catch (error) {
-            console.warn(`Failed to fetch WhatsApp group metadata for ${remoteJid}:`, error);
+    async sendMessage(jid: string, text: string) {
+        if (!this.socket) {
+            throw new Error('WhatsApp session is not connected');
         }
 
-        return remoteJid;
-    }
-
-    private rememberOutgoingMessage(jid: string, text: string) {
-        const key = this.messageKey(jid, text);
-        this.recentOutgoingMessages.set(key, Date.now());
-
-        for (const [entryKey, timestamp] of this.recentOutgoingMessages.entries()) {
-            if (Date.now() - timestamp > 30000) {
-                this.recentOutgoingMessages.delete(entryKey);
-            }
-        }
-    }
-
-    private isRecentOutgoingMessage(jid: string, text: string) {
-        const key = this.messageKey(jid, text);
-        const timestamp = this.recentOutgoingMessages.get(key);
-        if (!timestamp) return false;
-
-        if (Date.now() - timestamp > 30000) {
-            this.recentOutgoingMessages.delete(key);
-            return false;
-        }
-
-        return true;
-    }
-
-    private messageKey(jid: string, text: string) {
-        return `${this.normalizeJid(jid)}:${String(text || '').trim()}`;
-    }
-
-    private normalizeJid(value?: string | null) {
-        const jid = String(value || '').trim();
-        const suffixIndex = jid.indexOf('@');
-        const separatorIndex = jid.indexOf(':');
-
-        if (separatorIndex >= 0 && suffixIndex > separatorIndex) {
-            return `${jid.slice(0, separatorIndex)}${jid.slice(suffixIndex)}`;
-        }
-
-        return jid;
-    }
-
-    private normalizeComparablePhone(value?: string | null) {
-        return String(value || '').split('').filter((c) => c >= '0' && c <= '9').join('').slice(-10);
-    }
-
-    async sendMedia(jid: string, file: WhatsAppMediaFile) {
-        try {
-            const buffer = this.mediaBufferFromDataUrl(file.data);
-            const fileName = file.fileName || 'attachment';
-            const mimetype = file.mimeType || 'application/octet-stream';
-            const caption = file.caption?.trim();
-
-            if (mimetype.startsWith('image/')) {
-                await this.socket.sendMessage(jid, { image: buffer, mimetype, fileName, caption });
-                return;
-            }
-
-            if (mimetype.startsWith('video/')) {
-                await this.socket.sendMessage(jid, { video: buffer, mimetype, fileName, caption });
-                return;
-            }
-
-            if (mimetype.startsWith('audio/')) {
-                await this.socket.sendMessage(jid, { audio: buffer, mimetype, fileName, ptt: false });
-                return;
-            }
-
-            await this.socket.sendMessage(jid, { document: buffer, mimetype, fileName, caption });
-        } catch (error) {
-            console.error(`Failed to send media for tenant ${this.tenantId}:`, error);
-            throw error;
-        }
-    }
-
-    private mediaBufferFromDataUrl(data: string) {
-        const base64 = data.includes(',') ? data.split(',').pop() || '' : data;
-        return Buffer.from(base64, 'base64');
+        const sanitizedText = sanitizeForWhatsApp(text);
+        this.rememberOutgoingMessage(jid, sanitizedText);
+        await this.socket.sendMessage(jid, { text: sanitizedText });
+        await this.hooks?.onOutgoingMessage?.({
+            tenantId: this.tenantId,
+            label: this.label,
+            remoteJid: jid,
+            text: sanitizedText,
+            timestamp: new Date().toISOString(),
+        });
     }
 
     async getGroups() {
-        if (this.socket.groupFetchAllParticipating) {
-            const groups = await this.socket.groupFetchAllParticipating();
-            return Object.values(groups).map((g: any) => ({
-                id: g.id,
-                name: g.subject || g.name || g.id,
-                participantsCount: Array.isArray(g.participants) ? g.participants.length : 0,
+        return this.getParticipatingGroups();
+    }
+
+    async getParticipatingGroups(): Promise<GroupInfo[]> {
+        if (!this.socket) {
+            throw new Error('WhatsApp session is not connected');
+        }
+
+        const groups = await this.socket.groupFetchAllParticipating?.();
+        if (groups) {
+            return Object.values(groups).map((group: any) => ({
+                id: group.id,
+                name: group.subject || group.name || group.id,
             }));
         }
 
-        const chats = this.socket.store?.chats?.chats || [];
-        const groups = Array.isArray(chats)
-            ? chats.filter((chat: any) => chat.id.endsWith('@g.us'))
-            : [];
-        return groups.map((g: any) => ({ id: g.id, name: g.name || g.subject || g.id, participantsCount: 0 }));
+        return [];
     }
 
-    getSessionLabel() {
-        return this.label;
+    getStatusSnapshot(): SessionSnapshot & { reconnectAttempts?: number; isReconnecting?: boolean; circuitBreaker?: any } {
+        return {
+            label: this.label,
+            ownerName: this.ownerName || null,
+            phoneNumber: this.connectedPhoneNumber || null,
+            status: this.connectionStatus,
+            reconnectAttempts: this.reconnectAttempts,
+            isReconnecting: this.reconnectAttempts > 0 && this.connectionStatus === 'connecting',
+            circuitBreaker: this.circuitBreaker.getStatus(),
+        };
+    }
+
+    private async tryReconnect() {
+        if (!this.circuitBreaker.canAttempt()) {
+            console.log(`[WhatsAppClient] Circuit breaker ${this.circuitBreaker.state} for ${this.tenantId}:${this.label}`);
+            return;
+        }
+
+        try {
+            await this.connect({ usePairingCode: undefined, phoneNumber: this.connectedPhoneNumber });
+            this.circuitBreaker.recordSuccess();
+        } catch (error) {
+            this.circuitBreaker.recordFailure();
+            console.error(`[WhatsAppClient] Reconnect failed:`, error);
+        }
+    }
+
+    private startHealthCheck() {
+        if (this.healthCheckInterval) return;
+        
+        const interval = setInterval(() => {
+            if (this.circuitBreaker.state === 'open') {
+                const timeSinceFailure = Date.now() - this.circuitBreaker.lastFailureTime;
+                if (timeSinceFailure >= 60000) {
+                    console.log(`[WhatsAppClient] Health check: attempting half-open for ${this.tenantId}:${this.label}`);
+                    this.tryReconnect();
+                }
+            }
+        }, 30000);
+        this.healthCheckInterval = interval;
+    }
+
+    private stopHealthCheck() {
+        if (this.healthCheckInterval) {
+            clearInterval(this.healthCheckInterval);
+            this.healthCheckInterval = null;
+        }
+    }
+
+    async broadcastToGroups(groupJids: string[], text: string, options: BroadcastOptions = {}) {
+        const uniqueGroupJids = Array.from(new Set((groupJids || []).filter(Boolean)));
+        const batchSize = options.batchSize || 5;
+        const delayBetweenMessages = options.delayBetweenMessages || 3000;
+        const delayBetweenBatches = options.delayBetweenBatches || 180000;
+        const sent: string[] = [];
+        const failed: string[] = [];
+
+        const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+        const normalizedBatchSize = Math.max(1, batchSize);
+        const batches: string[][] = [];
+
+        for (let index = 0; index < uniqueGroupJids.length; index += normalizedBatchSize) {
+            batches.push(uniqueGroupJids.slice(index, index + normalizedBatchSize));
+        }
+
+        for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+            const batch = batches[batchIndex];
+
+            for (let itemIndex = 0; itemIndex < batch.length; itemIndex += 1) {
+                const groupId = batch[itemIndex];
+                try {
+                    await this.sendText(groupId, text);
+                    sent.push(groupId);
+                    options.onProgress?.(sent.length, uniqueGroupJids.length, groupId);
+                } catch (error) {
+                    failed.push(groupId);
+                    options.onError?.(groupId, error);
+                }
+
+                if (itemIndex < batch.length - 1) {
+                    await sleep(delayBetweenMessages);
+                }
+            }
+
+            if (batchIndex < batches.length - 1) {
+                await sleep(delayBetweenBatches);
+            }
+        }
+
+        return { sent, failed };
     }
 
     async disconnect() {
-        if (this.socket) {
-            await this.socket.logout();
-            if (fs.existsSync(this.sessionPath)) {
-                fs.rmSync(this.sessionPath, { recursive: true, force: true });
-            }
-            this.updateSessionStatus('disconnected');
+        if (!this.socket) {
+            return;
         }
+
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+        this.reconnectAttempts = 0;
+
+        await this.socket.logout();
+        this.socket = null;
+        this.connectionStatus = 'disconnected';
+        await this.persistStatus('disconnected');
+        await this.storage.deleteSession?.({
+            tenantId: this.tenantId,
+            label: this.label,
+        });
+    }
+
+    private async emitQR(qr: string) {
+        await this.hooks?.onQR?.({
+            tenantId: this.tenantId,
+            label: this.label,
+            qr,
+        });
+    }
+
+    private async persistStatus(status: ConnectionStatus) {
+        const payload = {
+            tenantId: this.tenantId,
+            label: this.label,
+            ownerName: this.ownerName || null,
+            phoneNumber: this.connectedPhoneNumber || null,
+            lidJid: this.connectedLidJid || null,
+            status,
+            lastSync: new Date().toISOString(),
+        };
+
+        await this.storage.saveSessionStatus(payload);
+        await this.hooks?.onConnectionUpdate?.(payload);
+    }
+
+    private extractMessageText(message: any): string {
+        return (
+            message?.conversation ||
+            message?.extendedTextMessage?.text ||
+            message?.imageMessage?.caption ||
+            message?.videoMessage?.caption ||
+            ''
+        );
+    }
+
+    private createOutgoingMessageKey(jid: string, text: string) {
+        return `${jid}:${text.trim()}`;
+    }
+
+    private rememberOutgoingMessage(jid: string, text: string) {
+        const key = this.createOutgoingMessageKey(jid, text);
+        this.recentOutgoingMessages.set(key, Date.now() + 60000);
+    }
+
+    private isRecentOutgoingMessage(jid: string, text: string) {
+        const now = Date.now();
+        for (const [key, expiresAt] of this.recentOutgoingMessages.entries()) {
+            if (expiresAt <= now) {
+                this.recentOutgoingMessages.delete(key);
+            }
+        }
+
+        const key = this.createOutgoingMessageKey(jid, text);
+        const expiresAt = this.recentOutgoingMessages.get(key);
+        if (!expiresAt) {
+            return false;
+        }
+
+        this.recentOutgoingMessages.delete(key);
+        return true;
     }
 }

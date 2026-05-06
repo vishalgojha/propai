@@ -1,0 +1,14 @@
+http:
+  routers:
+    ollama-models:
+      rule: "Host(`api.propai.live`) && PathPrefix(`/api/ai/models`)"
+      tls: true
+      service: ollama-service
+      entryPoints:
+          - https
+
+  services:
+    ollama-service:
+      loadBalancer:
+          servers:
+            - url: "http://10.0.1.1:3003"

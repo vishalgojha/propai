@@ -8,22 +8,22 @@
     "test:run": "vitest run",
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
-    "build": "tsc",
-    "run:scraper:latest": "ts-node src/scripts/runGrasScraper.ts latest",
-    "run:scraper:all": "ts-node src/scripts/runGrasScraper.ts all"
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@hapi/boom": "^9.1.4",
+    "@hapi/boom": "^10.0.1",
     "@supabase/supabase-js": "^2.103.3",
+    "@vishalgojha/whatsapp-baileys-runtime": "https://codeload.github.com/vishalgojha/whatsapp-baileys-runtime/tar.gz/5912f0d",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "axios": "^1.15.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "zod": "^3.24.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

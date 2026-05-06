@@ -1,0 +1,282 @@
+import { Request, Response } from 'express';
+import { supabase, supabaseAdmin } from '../config/supabase';
+import { workspaceAccessService } from '../services/workspaceAccessService';
+import { workspaceActivityService } from '../services/workspaceActivityService';
+
+const db = supabaseAdmin || supabase;
+
+export const getWorkspaceOverview = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext((req as any).user);
+
+        const [ownerResult, membersResult] = await Promise.all([
+            db
+                .from('profiles')
+                .select('id, email, full_name, phone')
+                .eq('id', context.workspaceOwnerId)
+                .maybeSingle(),
+            db
+                .from('workspace_members')
+                .select('id, member_email, member_name, member_phone, role, status, invited_at, joined_at, last_active_at')
+                .eq('workspace_owner_id', context.workspaceOwnerId)
+                .order('invited_at', { ascending: false }),
+        ]);
+
+        if (ownerResult.error) throw ownerResult.error;
+        if (membersResult.error) throw membersResult.error;
+
+        res.json({
+            success: true,
+            workspace: {
+                ownerId: context.workspaceOwnerId,
+                ownerEmail: ownerResult.data?.email || context.currentUserEmail,
+                ownerName: ownerResult.data?.full_name || null,
+                memberRole: context.memberRole,
+                isWorkspaceOwner: context.isWorkspaceOwner,
+                canManageTeam: context.canManageTeam,
+                canSendOutbound: context.canSendOutbound,
+                teamSize: (membersResult.data || []).length + 1,
+            },
+        });
+    } catch (error: any) {
+        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load workspace overview' });
+    }
+};
+
+export const listWorkspaceTeam = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext((req as any).user);
+
+        const [ownerResult, membersResult] = await Promise.all([
+            db
+                .from('profiles')
+                .select('id, email, full_name, phone')
+                .eq('id', context.workspaceOwnerId)
+                .maybeSingle(),
+            db
+                .from('workspace_members')
+                .select('id, member_user_id, member_email, member_name, member_phone, role, status, invited_at, joined_at, last_active_at, updated_at')
+                .eq('workspace_owner_id', context.workspaceOwnerId)
+                .order('invited_at', { ascending: false }),
+        ]);
+
+        if (ownerResult.error) throw ownerResult.error;
+        if (membersResult.error) throw membersResult.error;
+
+        const members = (membersResult.data || []).map((member: any) => ({
+            id: member.id,
+            userId: member.member_user_id || null,
+            email: member.member_email,
+            fullName: member.member_name || null,
+            phone: member.member_phone || null,
+            role: member.role,
+            status: member.status,
+            invitedAt: member.invited_at || null,
+            joinedAt: member.joined_at || null,
+            lastActiveAt: member.last_active_at || null,
+            updatedAt: member.updated_at || null,
+        }));
+
+        res.json({
+            success: true,
+            workspace: {
+                ownerId: context.workspaceOwnerId,
+                ownerEmail: ownerResult.data?.email || context.currentUserEmail,
+                ownerName: ownerResult.data?.full_name || null,
+                memberRole: context.memberRole,
+                isWorkspaceOwner: context.isWorkspaceOwner,
+                canManageTeam: context.canManageTeam,
+                canSendOutbound: context.canSendOutbound,
+            },
+            members,
+        });
+    } catch (error: any) {
+        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load workspace team' });
+    }
+};
+
+export const addWorkspaceMember = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.requireWorkspaceAdmin((req as any).user);
+        const memberEmail = String(req.body?.email || '').trim().toLowerCase();
+        const fullName = String(req.body?.fullName || '').trim() || null;
+        const phone = String(req.body?.phone || '').split('').filter(c => c >= '0' && c <= '9').join('') || null;
+        const role = String(req.body?.role || 'realtor').trim().toLowerCase();
+
+        if (!memberEmail) {
+            return res.status(400).json({ error: 'Member email is required' });
+        }
+
+        if (!['admin', 'realtor', 'ops', 'viewer'].includes(role)) {
+            return res.status(400).json({ error: 'Invalid team role' });
+        }
+
+        const profileLookup = await db
+            .from('profiles')
+            .select('id, email, full_name, phone')
+            .eq('email', memberEmail)
+            .maybeSingle();
+
+        if (profileLookup.error) {
+            throw profileLookup.error;
+        }
+
+        const now = new Date().toISOString();
+        const payload = {
+            workspace_owner_id: context.workspaceOwnerId,
+            member_user_id: profileLookup.data?.id || null,
+            member_email: memberEmail,
+            member_name: fullName || profileLookup.data?.full_name || null,
+            member_phone: phone || profileLookup.data?.phone || null,
+            role,
+            status: profileLookup.data?.id ? 'active' : 'invited',
+            invited_by: context.currentUserId,
+            invited_at: now,
+            joined_at: profileLookup.data?.id ? now : null,
+            last_active_at: profileLookup.data?.id ? now : null,
+            updated_at: now,
+        };
+
+        const { data, error } = await db
+            .from('workspace_members')
+            .upsert(payload, { onConflict: 'workspace_owner_id,member_email' })
+            .select('id, member_user_id, member_email, member_name, member_phone, role, status, invited_at, joined_at, last_active_at, updated_at')
+            .single();
+
+        if (error || !data) {
+            throw error || new Error('Failed to save workspace member');
+        }
+
+        await workspaceActivityService.track({
+            actor: (req as any).user,
+            workspaceOwnerId: context.workspaceOwnerId,
+            actorRole: context.memberRole,
+            eventType: 'workspace.member.added',
+            entityType: 'workspace_member',
+            entityId: data.id,
+            summary: `Added ${data.member_email} to the workspace as ${data.role}.`,
+            metadata: {
+                memberEmail: data.member_email,
+                role: data.role,
+                status: data.status,
+            },
+        });
+
+        res.json({
+            success: true,
+            member: {
+                id: data.id,
+                userId: data.member_user_id || null,
+                email: data.member_email,
+                fullName: data.member_name || null,
+                phone: data.member_phone || null,
+                role: data.role,
+                status: data.status,
+                invitedAt: data.invited_at || null,
+                joinedAt: data.joined_at || null,
+                lastActiveAt: data.last_active_at || null,
+                updatedAt: data.updated_at || null,
+            },
+        });
+    } catch (error: any) {
+        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to add workspace member' });
+    }
+};
+
+export const updateWorkspaceMember = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.requireWorkspaceAdmin((req as any).user);
+        const memberId = String(req.params.memberId || '').trim();
+        if (!memberId) {
+            return res.status(400).json({ error: 'Workspace member ID is required' });
+        }
+
+        const patch: Record<string, unknown> = {
+            updated_at: new Date().toISOString(),
+        };
+
+        if (req.body?.fullName !== undefined) patch.member_name = String(req.body.fullName || '').trim() || null;
+        if (req.body?.phone !== undefined) patch.member_phone = String(req.body.phone || '').split('').filter(c => c >= '0' && c <= '9').join('') || null;
+        if (req.body?.role !== undefined) {
+            const role = String(req.body.role || '').trim().toLowerCase();
+            if (!['admin', 'realtor', 'ops', 'viewer'].includes(role)) {
+                return res.status(400).json({ error: 'Invalid team role' });
+            }
+            patch.role = role;
+        }
+        if (req.body?.status !== undefined) {
+            const status = String(req.body.status || '').trim().toLowerCase();
+            if (!['invited', 'active', 'inactive'].includes(status)) {
+                return res.status(400).json({ error: 'Invalid member status' });
+            }
+            patch.status = status;
+        }
+
+        const { data, error } = await db
+            .from('workspace_members')
+            .update(patch)
+            .eq('workspace_owner_id', context.workspaceOwnerId)
+            .eq('id', memberId)
+            .select('id, member_user_id, member_email, member_name, member_phone, role, status, invited_at, joined_at, last_active_at, updated_at')
+            .single();
+
+        if (error || !data) {
+            throw error || new Error('Failed to update workspace member');
+        }
+
+        await workspaceActivityService.track({
+            actor: (req as any).user,
+            workspaceOwnerId: context.workspaceOwnerId,
+            actorRole: context.memberRole,
+            eventType: 'workspace.member.updated',
+            entityType: 'workspace_member',
+            entityId: data.id,
+            summary: `Updated ${data.member_email} (${data.role}, ${data.status}).`,
+            metadata: {
+                memberEmail: data.member_email,
+                role: data.role,
+                status: data.status,
+            },
+        });
+
+        res.json({
+            success: true,
+            member: {
+                id: data.id,
+                userId: data.member_user_id || null,
+                email: data.member_email,
+                fullName: data.member_name || null,
+                phone: data.member_phone || null,
+                role: data.role,
+                status: data.status,
+                invitedAt: data.invited_at || null,
+                joinedAt: data.joined_at || null,
+                lastActiveAt: data.last_active_at || null,
+                updatedAt: data.updated_at || null,
+            },
+        });
+    } catch (error: any) {
+        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to update workspace member' });
+    }
+};
+
+export const listWorkspaceActivity = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext((req as any).user);
+        const limit = Math.max(10, Math.min(200, Number(req.query.limit || 80)));
+        const activity = await workspaceActivityService.list(context.workspaceOwnerId, limit);
+
+        res.json({
+            success: true,
+            workspace: {
+                ownerId: context.workspaceOwnerId,
+                memberRole: context.memberRole,
+                canManageTeam: context.canManageTeam,
+                canSendOutbound: context.canSendOutbound,
+            },
+            activity,
+        });
+    } catch (error: any) {
+        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load workspace activity' });
+    }
+};

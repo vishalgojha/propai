@@ -1,0 +1,1033 @@
+import React from 'react';
+import {
+  ChevronDown,
+  Filter,
+  IndianRupee,
+  Layers,
+  Loader2,
+  MapPin,
+  MessageSquare,
+  Search,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { cn } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
+import {
+  fetchChannels,
+  markChannelRead,
+  type PersonalChannel,
+} from '../services/channelApi';
+import { handleApiError } from '../services/api';
+import { correctStreamItem, fetchLiveStreamItems, rebuildStreamFromSavedMessages } from '../services/streamService';
+import { createSupabaseBrowserClient } from '../services/supabaseBrowser';
+import type { StreamItem } from '../data/mockStream';
+
+const formatChannelTitle = (name: string) => `#${name}`;
+const PAGE_SIZE = 20;
+const ALL_TYPES = ['Rent', 'Sale', 'Requirement', 'Pre-leased'] as const;
+const ALL_BHK = ['1 BHK', '2 BHK', '3 BHK', '4+ BHK'] as const;
+const BROKER_TAG_PATTERN = /\b(broker|broking|agnt|agent)\b/i;
+const OWNER_SUPER_ADMIN_EMAILS = new Set([
+  'vishal@chaoscraftlabs.com',
+  'vishal@chaoscraftslabs.com',
+]);
+const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
+const buildWhatsAppLink = (source: string) => {
+  const digits = source.replace(/\D/g, '');
+  return digits.length >= 10 ? `https://wa.me/${digits}` : null;
+};
+const formatLayoutLabel = (value: string) => {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d+)(\+)?\s*bhk$/i);
+
+  if (match) {
+    const [, count, plus] = match;
+    return `${count}${plus ? '+' : ''} bedroom`;
+  }
+
+  return trimmed
+    .replace(/(\d)(bedroom)/gi, '$1 bedroom')
+    .replace(/\bbhk\b/gi, 'bedroom');
+};
+
+const isBrokerTagged = (item: StreamItem) =>
+  BROKER_TAG_PATTERN.test([item.source, item.description].filter(Boolean).join(' '));
+
+type StreamCorrectionDraft = {
+  type: StreamItem['type'];
+  location: string;
+  city: string;
+  price: string;
+  priceNumeric: string;
+  bhk: string;
+  source: string;
+  sourcePhone: string;
+  recordType: string;
+  dealType: string;
+  assetClass: string;
+  confidence: number;
+  parseNotes: string;
+};
+
+const buildCorrectionDraft = (item: StreamItem): StreamCorrectionDraft => ({
+  type: item.type,
+  location: item.location,
+  city: item.city || '',
+  price: item.price,
+  priceNumeric: '',
+  bhk: item.bhk,
+  source: item.source,
+  sourcePhone: item.sourcePhone || '',
+  recordType: item.recordType || '',
+  dealType: item.dealType || '',
+  assetClass: item.assetClass || '',
+  confidence: item.confidence,
+  parseNotes: item.parseNotes || '',
+});
+
+export const Listings: React.FC = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const channelId = searchParams.get('channel');
+  const [selectedSessionLabel, setSelectedSessionLabel] = React.useState<string | null>(() => {
+    try {
+      return window.localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const [channels, setChannels] = React.useState<PersonalChannel[]>([]);
+  const [search, setSearch] = React.useState('');
+  const [expandedListingId, setExpandedListingId] = React.useState<string | null>(null);
+  const [editMode, setEditMode] = React.useState(false);
+  const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
+  const [streamItems, setStreamItems] = React.useState<StreamItem[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = React.useState<string | null>(null);
+  const [showFilters, setShowFilters] = React.useState(false);
+  const [filterType, setFilterType] = React.useState<string>('all');
+  const [filterBhk, setFilterBhk] = React.useState<string>('all');
+  const [filterConfidenceMin, setFilterConfidenceMin] = React.useState<number>(0);
+  const [filterConfidenceMax, setFilterConfidenceMax] = React.useState<number>(100);
+  const [filterSource, setFilterSource] = React.useState<string>('all');
+  const [brokerOnly, setBrokerOnly] = React.useState(false);
+  const [isSavingCorrection, setIsSavingCorrection] = React.useState(false);
+  const [correctionDraft, setCorrectionDraft] = React.useState<StreamCorrectionDraft | null>(null);
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
+
+  const loadData = React.useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [channelRecords, items] = await Promise.all([
+        fetchChannels(),
+        fetchLiveStreamItems(channelId, selectedSessionLabel),
+      ]);
+
+      setChannels(channelRecords);
+      setStreamItems(items);
+
+      if (channelId) {
+        await markChannelRead(channelId);
+        window.dispatchEvent(new Event('channels:refresh'));
+      }
+    } catch (err) {
+      setError(handleApiError(err));
+      setStreamItems([]);
+      setChannels([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [channelId, selectedSessionLabel]);
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    const run = async () => {
+      if (!mounted) return;
+      await loadData();
+    };
+
+    void run();
+    return () => {
+      mounted = false;
+    };
+  }, [loadData]);
+
+  React.useEffect(() => {
+    if (!user?.token || channelId) {
+      return;
+    }
+
+    const supabaseClient = createSupabaseBrowserClient(user.token);
+    const channel = supabaseClient
+      .channel(`global-stream:${selectedSessionLabel || 'all'}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'stream_items',
+        },
+        () => {
+          void loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabaseClient.removeChannel(channel);
+    };
+  }, [channelId, loadData, selectedSessionLabel, user?.token]);
+
+  React.useEffect(() => {
+    const handleSelectedSession = (event: Event) => {
+      const detail = (event as CustomEvent<{ label?: string | null }>).detail;
+      setSelectedSessionLabel(detail?.label || null);
+    };
+
+    window.addEventListener('whatsapp:selected-session', handleSelectedSession as EventListener);
+    return () => {
+      window.removeEventListener('whatsapp:selected-session', handleSelectedSession as EventListener);
+    };
+  }, []);
+
+  const handleRebuildStream = async () => {
+    setInfoMessage(null);
+    setError(null);
+    try {
+      const result = await rebuildStreamFromSavedMessages(500);
+      setInfoMessage(`Rebuild complete. Scanned ${result.scanned} saved messages and mapped ${result.ingested} into Stream. Total stream items: ${result.totalStreamItems}.`);
+      await loadData();
+    } catch (err) {
+      setError(handleApiError(err));
+    }
+  };
+
+  const activeChannel = React.useMemo(
+    () => channels.find((channel) => channel.id === channelId) || null,
+    [channels, channelId],
+  );
+  const isSuperAdmin =
+    user?.appRole === 'super_admin' ||
+    OWNER_SUPER_ADMIN_EMAILS.has(String(user?.email || '').trim().toLowerCase());
+
+  const uniqueSources = React.useMemo(() => {
+    const sources = new Set<string>();
+    streamItems.forEach((item) => sources.add(item.source));
+    return Array.from(sources).sort();
+  }, [streamItems]);
+
+  const visibleStream = React.useMemo(() => {
+    const query = search.trim().toLowerCase();
+    let filtered = streamItems;
+
+    if (query) {
+      filtered = filtered.filter((listing) => {
+        const haystack = [
+          listing.id,
+          listing.type,
+          listing.title,
+          listing.location,
+          listing.price,
+          listing.bhk,
+          listing.posted,
+          listing.source,
+          listing.description,
+        ].join(' ').toLowerCase();
+        return haystack.includes(query);
+      });
+    }
+
+    if (filterType !== 'all') {
+      filtered = filtered.filter((item) => item.type === filterType);
+    }
+
+    if (filterBhk !== 'all') {
+      if (filterBhk === '4+ BHK') {
+        filtered = filtered.filter((item) => /4\+?\s*bhk/i.test(item.bhk));
+      } else {
+        filtered = filtered.filter((item) => item.bhk.toLowerCase().includes(filterBhk.toLowerCase().replace(' bhk', '')));
+      }
+    }
+
+    filtered = filtered.filter(
+      (item) => item.confidence >= filterConfidenceMin && item.confidence <= filterConfidenceMax
+    );
+
+    if (filterSource !== 'all') {
+      filtered = filtered.filter((item) => item.source === filterSource);
+    }
+
+    if (brokerOnly) {
+      filtered = filtered.filter(isBrokerTagged);
+    }
+
+    return filtered;
+  }, [streamItems, search, filterType, filterBhk, filterConfidenceMin, filterConfidenceMax, filterSource, brokerOnly]);
+
+  const activeFilterCount = React.useMemo(() => {
+    let count = 0;
+    if (filterType !== 'all') count++;
+    if (filterBhk !== 'all') count++;
+    if (filterConfidenceMin > 0 || filterConfidenceMax < 100) count++;
+    if (filterSource !== 'all') count++;
+    if (brokerOnly) count++;
+    return count;
+  }, [filterType, filterBhk, filterConfidenceMin, filterConfidenceMax, filterSource, brokerOnly]);
+
+  const clearAllFilters = () => {
+    setFilterType('all');
+    setFilterBhk('all');
+    setFilterConfidenceMin(0);
+    setFilterConfidenceMax(100);
+    setFilterSource('all');
+    setBrokerOnly(false);
+  };
+
+  React.useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [activeChannel?.id, search, filterType, filterBhk, filterConfidenceMin, filterConfidenceMax, filterSource, brokerOnly]);
+
+  React.useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        setVisibleCount((current) => Math.min(current + PAGE_SIZE, visibleStream.length));
+      },
+      {
+        root: null,
+        rootMargin: '240px',
+        threshold: 0,
+      },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleStream.length]);
+
+  const renderedStream = React.useMemo(
+    () => visibleStream.slice(0, visibleCount),
+    [visibleStream, visibleCount],
+  );
+  const hasMore = visibleCount < visibleStream.length;
+
+  return (
+    <div className="space-y-5 sm:space-y-6">
+      <div className="rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-3xl">
+            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Stream</p>
+            <h2 className="mt-1 text-[20px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
+              Live intake from broker WhatsApp messages
+            </h2>
+            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+              Stream now reads real inbound WhatsApp messages. Pulse keeps the full intake here and routes matching items into your saved personal channels on the sidebar.
+            </p>
+            <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              Confidence is auto-scored from message completeness, recency, and signal clarity.
+            </p>
+
+            {activeChannel ? (
+              <div className="mt-4 inline-flex flex-wrap items-center gap-2 rounded-full border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-2 text-[11px] font-medium text-[var(--text-primary)]">
+                <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
+                <span>{formatChannelTitle(activeChannel.name)}</span>
+                <span className="text-[var(--text-secondary)]">
+                  / {visibleStream.length} routed item{visibleStream.length === 1 ? '' : 's'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => navigate('/stream')}
+                  className="rounded-full border border-[color:var(--border)] bg-[var(--bg-surface)] px-2 py-1 text-[10px] text-[var(--text-secondary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
+                >
+                  Show full stream
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleRebuildStream()}
+              className="rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)] transition-colors hover:brightness-110"
+            >
+              Rebuild Stream
+            </button>
+            <div className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">
+              {activeChannel ? formatChannelTitle(activeChannel.name) : 'All stream'}
+            </div>
+            <div className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+              {visibleStream.length} items
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {infoMessage ? (
+        <div className="rounded-[10px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 text-[12px] text-[var(--text-primary)]">
+          {infoMessage}
+        </div>
+      ) : null}
+
+      <div className="flex flex-col items-stretch justify-between gap-4 rounded-2xl border border-neutral-900 bg-neutral-900/30 p-4 md:flex-row md:items-center">
+        <div className="relative w-full md:w-96 group">
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500 transition-colors group-focus-within:text-primary" />
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={activeChannel ? `Search ${activeChannel.name}...` : 'Search stream...'}
+            className="w-full rounded-xl border border-neutral-800 bg-black py-2 pl-12 pr-4 text-sm transition-all focus:border-primary focus:outline-none"
+          />
+        </div>
+
+        <div className="flex w-full flex-wrap items-center gap-3 md:w-auto md:flex-nowrap">
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold transition-all md:flex-none',
+              showFilters || activeFilterCount > 0
+                ? 'border-primary/40 bg-primary/10 text-primary'
+                : 'border-neutral-800 bg-neutral-900 text-neutral-400 hover:text-white',
+            )}
+          >
+            <Filter className="h-3 w-3" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-black text-black">
+                {activeFilterCount}
+              </span>
+            )}
+            <ChevronDown className={cn('h-3 w-3 transition-transform', showFilters && 'rotate-180')} />
+          </button>
+          <div className="hidden h-6 w-px bg-neutral-800 md:block" />
+          <p className="px-2 text-[10px] font-black uppercase tracking-widest text-neutral-500">
+            {visibleStream.length} Stream Items
+          </p>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/50 p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-300">Filter stream</h3>
+                {activeFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    className="flex items-center gap-1 text-[10px] font-bold text-neutral-500 transition-colors hover:text-white"
+                  >
+                    <X className="h-3 w-3" />
+                    Clear all
+                  </button>
+                )}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Type</label>
+                  <select
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value)}
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-xs text-white focus:border-primary focus:outline-none"
+                  >
+                    <option value="all">All types</option>
+                    {ALL_TYPES.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Layout</label>
+                  <select
+                    value={filterBhk}
+                    onChange={(e) => setFilterBhk(e.target.value)}
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-xs text-white focus:border-primary focus:outline-none"
+                  >
+                    <option value="all">All layouts</option>
+                    {ALL_BHK.map((b) => (
+                      <option key={b} value={b}>{formatLayoutLabel(b)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-neutral-500">
+                    Confidence: {filterConfidenceMin}% - {filterConfidenceMax}%
+                  </label>
+                  <div className="space-y-2">
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={filterConfidenceMin}
+                      onChange={(e) => setFilterConfidenceMin(Math.min(Number(e.target.value), filterConfidenceMax))}
+                      className="w-full accent-primary"
+                    />
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={filterConfidenceMax}
+                      onChange={(e) => setFilterConfidenceMax(Math.max(Number(e.target.value), filterConfidenceMin))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Source</label>
+                  <select
+                    value={filterSource}
+                    onChange={(e) => setFilterSource(e.target.value)}
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-xs text-white focus:border-primary focus:outline-none"
+                  >
+                    <option value="all">All sources</option>
+                    {uniqueSources.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-neutral-800 bg-black/35 p-4">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={brokerOnly}
+                    onChange={(e) => setBrokerOnly(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-neutral-700 bg-neutral-900 text-primary focus:ring-primary"
+                  />
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white">Broker-tagged only</p>
+                    <p className="mt-1 text-[11px] leading-5 text-neutral-400">
+                      Show only items where the parsed source or message text contains terms like <span className="text-neutral-200">broker</span>, <span className="text-neutral-200">broking</span>, <span className="text-neutral-200">agnt</span>, or <span className="text-neutral-200">agent</span>.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="glass-panel overflow-hidden rounded-2xl border-neutral-900">
+        <div className="divide-y divide-neutral-900/50 lg:hidden">
+          {isLoading ? (
+            <div className="flex items-center justify-center gap-3 px-5 py-12 text-sm text-neutral-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading live stream...
+            </div>
+          ) : error ? (
+            <div className="px-5 py-12 text-center text-sm text-red-400">
+              {error}
+            </div>
+          ) : renderedStream.length === 0 ? (
+            <div className="px-5 py-12 text-center text-sm text-neutral-500">
+              No live WhatsApp items have landed here yet.
+            </div>
+          ) : (
+            renderedStream.map((listing) => {
+              const isExpanded = expandedListingId === listing.id;
+              const isEditing = isExpanded && editMode;
+              const whatsappLink = listing.sourcePhone ? `https://wa.me/91${listing.sourcePhone.replace(/\D/g, '')}` : null;
+
+              return (
+                <div key={listing.id} className="border-b border-neutral-900/50">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedListingId(isExpanded ? null : listing.id)}
+                    className="w-full px-5 py-4 text-left transition-colors hover:bg-neutral-900/40"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <span
+                          className={cn(
+                            'inline-flex w-fit rounded px-2 py-0.5 text-[10px] font-black uppercase tracking-widest',
+                            listing.type === 'Rent'
+                              ? 'border border-blue-500/20 bg-blue-500/10 text-blue-500'
+                              : listing.type === 'Sale'
+                                ? 'border border-green-500/20 bg-green-500/10 text-green-500'
+                                : listing.type === 'Pre-leased'
+                                  ? 'border border-cyan-500/20 bg-cyan-500/10 text-cyan-400'
+                                  : 'border border-primary/20 bg-primary/10 text-primary',
+                          )}
+                        >
+                          {listing.type}
+                        </span>
+                        <p className="mt-3 text-base font-bold text-white">{listing.title || listing.location}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isExpanded ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setEditMode(!editMode); setCorrectionDraft(buildCorrectionDraft(listing)); }}
+                            className="rounded-lg p-1.5 text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-white"
+                          >
+                            ✏️
+                          </button>
+                        ) : null}
+                        <div
+                          className={cn(
+                            'shrink-0 rounded-full px-2 py-1 text-[10px] font-bold',
+                            listing.confidence > 90 ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500',
+                          )}
+                        >
+                          {listing.confidence}%
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-neutral-400">
+                      <span>{listing.price}</span>
+                      <span>{formatLayoutLabel(listing.bhk)}</span>
+                      <span>{listing.source}</span>
+                      <span>{listing.posted}</span>
+                    </div>
+
+                    {listing.title && listing.title !== listing.location ? (
+                      <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.08em] text-neutral-500">
+                        {listing.location}
+                      </p>
+                    ) : null}
+                  </button>
+
+                  {isExpanded ? (
+                    <div className="border-t border-neutral-900/50 bg-neutral-900/20 px-5 py-4">
+                      {isEditing ? (
+                        <div className="space-y-4">
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <label className="block">
+                              <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-neutral-500">Type</span>
+                              <select
+                                value={correctionDraft?.type || listing.type}
+                                onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, type: event.target.value as StreamItem['type']})}
+                                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                              >
+                                {ALL_TYPES.map((type) => (
+                                  <option key={type} value={type}>{type}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="block">
+                              <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-neutral-500">Confidence</span>
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={correctionDraft?.confidence ?? listing.confidence}
+                                onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, confidence: Math.max(0, Math.min(100, Number(event.target.value) || 0))})}
+                                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                              />
+                            </label>
+                          </div>
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <label className="block">
+                              <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-neutral-500">Locality</span>
+                              <input
+                                value={correctionDraft?.location || listing.location}
+                                onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, location: event.target.value})}
+                                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-neutral-500">City</span>
+                              <input
+                                value={correctionDraft?.city || listing.city || ''}
+                                onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, city: event.target.value})}
+                                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                              />
+                            </label>
+                          </div>
+                          <div className="grid gap-4 sm:grid-cols-3">
+                            <label className="block">
+                              <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-neutral-500">Price label</span>
+                              <input
+                                value={correctionDraft?.price || listing.price}
+                                onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, price: event.target.value})}
+                                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-neutral-500">Layout</span>
+                              <input
+                                value={correctionDraft?.bhk || listing.bhk}
+                                onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, bhk: event.target.value})}
+                                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                              />
+                            </label>
+                          </div>
+                          <div className="flex gap-3">
+                            <button
+                              type="button"
+                              onClick={() => { setEditMode(false); setCorrectionDraft(null); }}
+                              className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!correctionDraft) return;
+                                void (async () => {
+                                  setIsSavingCorrection(true);
+                                  try {
+                                    const result = await correctStreamItem(listing.id, {
+                                      type: correctionDraft.type,
+                                      location: correctionDraft.location,
+                                      city: correctionDraft.city,
+                                      price: correctionDraft.price,
+                                      bhk: correctionDraft.bhk,
+                                      source: correctionDraft.source,
+                                      sourcePhone: correctionDraft.sourcePhone,
+                                      confidence: correctionDraft.confidence,
+                                    });
+                                    setStreamItems((current) => current.map((item) => (item.id === result.item.id ? result.item : item)));
+                                    setInfoMessage('Stream correction saved. Pulse can now use this as a supervised correction example.');
+                                    setEditMode(false);
+                                    setCorrectionDraft(null);
+                                  } catch (err) {
+                                    setError(handleApiError(err));
+                                  } finally {
+                                    setIsSavingCorrection(false);
+                                  }
+                                })();
+                              }}
+                              disabled={isSavingCorrection}
+                              className="rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-black transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {isSavingCorrection ? 'Saving...' : 'Save'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div>
+                            <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-neutral-600">Raw Message</p>
+                            <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-300">{listing.description}</p>
+                          </div>
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-neutral-600">Source</p>
+                              <p className="text-sm font-bold text-white">{listing.source}</p>
+                            </div>
+                            <div>
+                              <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-neutral-600">Confidence</p>
+                              <p className="text-sm font-bold text-primary">{listing.confidence}%</p>
+                            </div>
+                          </div>
+                          {listing.parseNotes ? (
+                            <div>
+                              <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-amber-300">Parse Notes</p>
+                              <p className="text-sm leading-6 text-neutral-300">{listing.parseNotes}</p>
+                            </div>
+                          ) : null}
+                          {whatsappLink ? (
+                            <a
+                              href={whatsappLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-black transition-all hover:bg-yellow-500"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              Open WhatsApp
+                            </a>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="hidden overflow-x-auto lg:block">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-neutral-900 bg-neutral-950/50">
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-neutral-500">ID / Type</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-neutral-500">Location</th>
+                <th className="px-6 py-4 text-right text-[10px] font-black uppercase tracking-widest text-neutral-500">Price</th>
+                <th className="px-6 py-4 text-center text-[10px] font-black uppercase tracking-widest text-neutral-500">Layout</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-neutral-500">Broker / Posted</th>
+                <th className="px-6 py-4 text-center text-[10px] font-black uppercase tracking-widest text-neutral-500">Confidence</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-neutral-900/50">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-neutral-500">
+                    <span className="inline-flex items-center gap-3">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading live stream...
+                    </span>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-red-400">
+                    {error}
+                  </td>
+                </tr>
+              ) : renderedStream.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-neutral-500">
+                    No live WhatsApp items have landed here yet.
+                  </td>
+                </tr>
+              ) : (
+                renderedStream.map((listing) => {
+                  const isExpanded = expandedListingId === listing.id;
+                  const isEditing = isExpanded && editMode;
+                  const whatsappLink = listing.sourcePhone ? `https://wa.me/91${listing.sourcePhone.replace(/\D/g, '')}` : null;
+
+                  return (
+                    <>
+                      <motion.tr
+                        key={listing.id}
+                        onClick={() => setExpandedListingId(isExpanded ? null : listing.id)}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="cursor-pointer transition-colors hover:bg-neutral-900/50 group"
+                      >
+                        <td className="px-6 py-5">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-mono font-bold text-neutral-600">{listing.id}</span>
+                            <span
+                              className={cn(
+                                'w-fit rounded px-2 py-0.5 text-[10px] font-black uppercase tracking-widest',
+                                listing.type === 'Rent'
+                                  ? 'border border-blue-500/20 bg-blue-500/10 text-blue-500'
+                                  : listing.type === 'Sale'
+                                    ? 'border border-green-500/20 bg-green-500/10 text-green-500'
+                                    : listing.type === 'Pre-leased'
+                                      ? 'border border-cyan-500/20 bg-cyan-500/10 text-cyan-400'
+                                      : 'border border-primary/20 bg-primary/10 text-primary',
+                              )}
+                            >
+                              {listing.type}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-2">
+                            <p className="mb-1 text-sm font-bold text-white transition-colors group-hover:text-primary">{listing.title || listing.location}</p>
+                            {isExpanded ? (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setEditMode(!editMode); setCorrectionDraft(buildCorrectionDraft(listing)); }}
+                                className="rounded-lg p-1 text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-white"
+                              >
+                                ✏️
+                              </button>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-1 opacity-50">
+                            <MapPin className="h-3 w-3" />
+                            <span className="max-w-[180px] truncate text-[10px] font-medium uppercase">{listing.location}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5 text-right">
+                          <p className="text-sm font-black text-white">{listing.price}</p>
+                        </td>
+                        <td className="px-6 py-5 text-center">
+                          <span className="rounded-full bg-neutral-800 px-3 py-1 text-xs font-bold text-white">{formatLayoutLabel(listing.bhk)}</span>
+                        </td>
+                        <td className="px-6 py-5">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">{listing.source}</p>
+                          <p className="mt-1 text-[10px] italic text-neutral-600">{listing.posted}</p>
+                        </td>
+                        <td className="px-6 py-5 text-center">
+                          <div
+                            className={cn(
+                              'inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold',
+                              listing.confidence > 90 ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500',
+                            )}
+                          >
+                            <ShieldCheck className="h-3 w-3" />
+                            {listing.confidence}%
+                          </div>
+                        </td>
+                      </motion.tr>
+                      {isExpanded ? (
+                        <tr key={`${listing.id}-expanded`}>
+                          <td colSpan={6} className="border-t border-neutral-900/50 bg-neutral-900/20 px-6 py-4">
+                            {isEditing ? (
+                              <div className="space-y-4">
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                  <label className="block">
+                                    <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-neutral-500">Type</span>
+                                    <select
+                                      value={correctionDraft?.type || listing.type}
+                                      onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, type: event.target.value as StreamItem['type']})}
+                                      className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                                    >
+                                      {ALL_TYPES.map((type) => (
+                                        <option key={type} value={type}>{type}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  <label className="block">
+                                    <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-neutral-500">Confidence</span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={100}
+                                      value={correctionDraft?.confidence ?? listing.confidence}
+                                      onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, confidence: Math.max(0, Math.min(100, Number(event.target.value) || 0))})}
+                                      className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                                    />
+                                  </label>
+                                </div>
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                  <label className="block">
+                                    <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-neutral-500">Locality</span>
+                                    <input
+                                      value={correctionDraft?.location || listing.location}
+                                      onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, location: event.target.value})}
+                                      className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                                    />
+                                  </label>
+                                  <label className="block">
+                                    <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-neutral-500">City</span>
+                                    <input
+                                      value={correctionDraft?.city || listing.city || ''}
+                                      onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, city: event.target.value})}
+                                      className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                                    />
+                                  </label>
+                                </div>
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                  <label className="block">
+                                    <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-neutral-500">Price label</span>
+                                    <input
+                                      value={correctionDraft?.price || listing.price}
+                                      onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, price: event.target.value})}
+                                      className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                                    />
+                                  </label>
+                                  <label className="block">
+                                    <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-neutral-500">Layout</span>
+                                    <input
+                                      value={correctionDraft?.bhk || listing.bhk}
+                                      onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, bhk: event.target.value})}
+                                      className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                                    />
+                                  </label>
+                                </div>
+                                <div className="flex gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => { setEditMode(false); setCorrectionDraft(null); }}
+                                    className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (!correctionDraft) return;
+                                      void (async () => {
+                                        setIsSavingCorrection(true);
+                                        try {
+                                          const result = await correctStreamItem(listing.id, {
+                                            type: correctionDraft.type,
+                                            location: correctionDraft.location,
+                                            city: correctionDraft.city,
+                                            price: correctionDraft.price,
+                                            bhk: correctionDraft.bhk,
+                                            source: correctionDraft.source,
+                                            sourcePhone: correctionDraft.sourcePhone,
+                                            confidence: correctionDraft.confidence,
+                                          });
+                                          setStreamItems((current) => current.map((item) => (item.id === result.item.id ? result.item : item)));
+                                          setInfoMessage('Stream correction saved. Pulse can now use this as a supervised correction example.');
+                                          setEditMode(false);
+                                          setCorrectionDraft(null);
+                                        } catch (err) {
+                                          setError(handleApiError(err));
+                                        } finally {
+                                          setIsSavingCorrection(false);
+                                        }
+                                      })();
+                                    }}
+                                    disabled={isSavingCorrection}
+                                    className="rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-black transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {isSavingCorrection ? 'Saving...' : 'Save'}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-4">
+                                <div>
+                                  <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-neutral-600">Raw Message</p>
+                                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-300">{listing.description}</p>
+                                </div>
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                  <div>
+                                    <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-neutral-600">Source</p>
+                                    <p className="text-sm font-bold text-white">{listing.source}</p>
+                                  </div>
+                                  <div>
+                                    <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-neutral-600">Confidence</p>
+                                    <p className="text-sm font-bold text-primary">{listing.confidence}%</p>
+                                  </div>
+                                </div>
+                                {listing.parseNotes ? (
+                                  <div>
+                                    <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-amber-300">Parse Notes</p>
+                                    <p className="text-sm leading-6 text-neutral-300">{listing.parseNotes}</p>
+                                  </div>
+                                ) : null}
+                                {whatsappLink ? (
+                                  <a
+                                    href={whatsappLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-black transition-all hover:bg-yellow-500"
+                                  >
+                                    <MessageSquare className="h-4 w-4" />
+                                    Open WhatsApp
+                                  </a>
+                                ) : null}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ) : null}
+                    </>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div ref={sentinelRef} className="px-6 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+          {hasMore ? `${renderedStream.length} of ${visibleStream.length} loaded. More items appear as you scroll.` : 'End of stream'}
+        </div>
+    </div>
+  );
+};

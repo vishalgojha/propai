@@ -1,0 +1,13 @@
+http:
+  routers:
+    api-backend:
+      rule: "Host(`api.propai.live`)"
+      service: backend-service
+      entryPoints:
+          - web
+
+  services:
+    backend-service:
+      loadBalancer:
+        servers:
+          - url: "http://10.0.1.1:3001"
