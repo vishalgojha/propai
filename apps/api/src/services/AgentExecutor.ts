@@ -13,6 +13,7 @@ import {
 } from '../memory/conversationMemory';
 import { followUpService } from './followUpService';
 import { subscriptionService } from './subscriptionService';
+import { igrQueryService } from './igrQueryService';
 
 type ChatTurn = {
     role: 'system' | 'user' | 'assistant';
@@ -154,6 +155,29 @@ export class AgentExecutor {
         });
     }
 
+    private formatCurrency(value: number | null | undefined) {
+        if (value == null || !Number.isFinite(value)) return 'N/A';
+        if (value >= 10000000) {
+            return `₹${(value / 10000000).toFixed(2)}Cr`;
+        }
+        if (value >= 100000) {
+            return `₹${(value / 100000).toFixed(1)}L`;
+        }
+        return `₹${Math.round(value).toLocaleString('en-IN')}`;
+    }
+
+    private formatSquareFeet(value: number | null | undefined) {
+        if (value == null || !Number.isFinite(value)) return 'N/A';
+        return `${Math.round(value).toLocaleString('en-IN')} sqft`;
+    }
+
+    private formatDate(value: string | null | undefined) {
+        if (!value) return 'unknown date';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
     private async executeTool(name: string, args: any, tenantId: string, remoteJid: string, promptText: string): Promise<any> {
         switch (name) {
             case 'get_groups': {
@@ -274,6 +298,47 @@ export class AgentExecutor {
             case 'get_broker_subscription': {
                 return await this.getBrokerSubscriptionByPhone(args?.phone_number, tenantId, remoteJid);
             }
+            case 'igr_last_transaction': {
+                const buildingName = String(args?.building_name || '').trim();
+                const locality = String(args?.locality || '').trim();
+
+                if (!buildingName && !locality) {
+                    return { error: 'building_name or locality is required' };
+                }
+
+                const transaction = buildingName
+                    ? await igrQueryService.getLastTransactionForBuilding(buildingName)
+                    : null;
+
+                if (transaction) {
+                    const stats = transaction.locality
+                        ? await igrQueryService.getLocalityStats(transaction.locality, 6)
+                        : (locality ? await igrQueryService.getLocalityStats(locality, 6) : null);
+                    const marketRate = stats?.avg_price_per_sqft ?? null;
+                    const dealRate = transaction.price_per_sqft ?? null;
+                    const comparison = marketRate != null && dealRate != null
+                        ? dealRate > marketRate ? 'above' : dealRate < marketRate ? 'below' : 'at'
+                        : null;
+
+                    return {
+                        message: `Last registered transaction in ${transaction.building_name || buildingName}, ${transaction.locality || locality || 'Unknown locality'}: ${this.formatCurrency(transaction.consideration)} on ${this.formatDate(transaction.reg_date)} (${this.formatSquareFeet(transaction.area_sqft)}, ₹${dealRate != null ? Math.round(dealRate).toLocaleString('en-IN') : 'N/A'}/sqft)\nArea average (last 6 months): ₹${marketRate != null ? Math.round(marketRate).toLocaleString('en-IN') : 'N/A'}/sqft${comparison ? ` — this transaction was ${comparison} market.` : '.'}`,
+                        transaction,
+                        locality_stats: stats,
+                    };
+                }
+
+                if (locality) {
+                    const stats = await igrQueryService.getLocalityStats(locality, 6);
+                    if (stats.transaction_count > 0) {
+                        return {
+                            message: `No exact building match found. Area average in ${locality} (last 6 months): ₹${stats.avg_price_per_sqft != null ? Math.round(stats.avg_price_per_sqft).toLocaleString('en-IN') : 'N/A'}/sqft across ${stats.transaction_count} transactions.`,
+                            locality_stats: stats,
+                        };
+                    }
+                }
+
+                return { message: 'No IGR transaction data available for this building yet.' };
+            }
             case 'upgrade_plan': {
                 // In real world, generate Razorpay link here
                 const paymentLink = `https://rzp.io/i/propai_${args.plan}_${tenantId}`;
@@ -317,6 +382,45 @@ export class AgentExecutor {
             }
             case 'verify_rera': {
                 return { status: 'Verified', reg_no: 'P518000XXXX', state: args.state };
+            }
+            case 'get_market_intelligence': {
+                const buildingName = String(args?.building_name || '').trim();
+                const locality = String(args?.locality || '').trim();
+
+                if (!buildingName && !locality) {
+                    return { error: 'building_name or locality is required' };
+                }
+
+                const transaction = buildingName
+                    ? await igrQueryService.getLastTransactionForBuilding(buildingName)
+                    : null;
+
+                if (transaction) {
+                    const stats = transaction.locality
+                        ? await igrQueryService.getLocalityStats(transaction.locality, 6)
+                        : (locality ? await igrQueryService.getLocalityStats(locality, 6) : null);
+                    const marketRate = stats?.avg_price_per_sqft ?? null;
+                    const dealRate = transaction.price_per_sqft ?? null;
+                    const comparison = marketRate != null && dealRate != null
+                        ? dealRate > marketRate ? 'above' : dealRate < marketRate ? 'below' : 'at'
+                        : null;
+
+                    return {
+                        message: `Last registered transaction in ${transaction.building_name || buildingName}, ${transaction.locality || locality || 'Unknown locality'}: ${this.formatCurrency(transaction.consideration)} on ${this.formatDate(transaction.reg_date)} (${this.formatSquareFeet(transaction.area_sqft)}, ₹${dealRate != null ? Math.round(dealRate).toLocaleString('en-IN') : 'N/A'}/sqft)\nArea average (last 6 months): ₹${marketRate != null ? Math.round(marketRate).toLocaleString('en-IN') : 'N/A'}/sqft${comparison ? ` — this transaction was ${comparison} market.` : '.'}`,
+                        transaction,
+                        locality_stats: stats,
+                    };
+                }
+
+                const stats = await igrQueryService.getLocalityStats(locality || buildingName, 6);
+                if (stats.transaction_count > 0) {
+                    return {
+                        message: `No exact building match found. Area average in ${stats.locality} (last 6 months): ₹${stats.avg_price_per_sqft != null ? Math.round(stats.avg_price_per_sqft).toLocaleString('en-IN') : 'N/A'}/sqft across ${stats.transaction_count} transactions.`,
+                        locality_stats: stats,
+                    };
+                }
+
+                return { message: 'No recent registration data found for this building.' };
             }
             default:
                 return { error: `Tool ${name} not implemented` };
@@ -580,6 +684,8 @@ Tools:
 - schedule_callback: use for follow-ups and reminders. Args: lead_name, due_at, action_type, notes.
 - check_callbacks: use for follow-up queue requests.
 - get_callbacks: use for pending callbacks. Args: phone_number when available.
+- igr_last_transaction: use when a broker asks for the latest registered sale or rent transaction for a building or locality.
+- get_market_intelligence: use when a broker asks for price per sqft, market value, or whether a building is above or below recent IGR comps.
 - search_listings: use for matching inventory searches. Args: query, location, bhk, max_price, deal_type.
 - classify_contact: use when the contact type is obvious. Args: classification.
 - check_subscription: use for plan and limit questions.

@@ -8,7 +8,9 @@
     "test:run": "vitest run",
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "run:scraper:latest": "ts-node src/scripts/runGrasScraper.ts latest",
+    "run:scraper:all": "ts-node src/scripts/runGrasScraper.ts all"
   },
   "keywords": [],
   "author": "",
