@@ -23,6 +23,7 @@ import { Admin } from './pages/Admin';
 import { Settings } from './pages/Settings';
 import { ImpersonatePage } from './pages/ImpersonatePage';
 import { Team } from './pages/Team';
+import { HistorySync } from './pages/HistorySync';
 import Analytics from './pages/Analytics';
 import Intelligence from './pages/Intelligence';
 import HomeSearch from './pages/HomeSearch';
@@ -93,6 +94,7 @@ export default function App() {
             <Route path="/stream" element={<Listings />} />
             <Route path="/listings" element={<Navigate to="/stream" replace />} />
             <Route path="/whatsapp" element={<WhatsApp />} />
+            <Route path="/history-sync" element={<HistorySync />} />
             <Route path="/pricing" element={<WhatsApp />} />
             <Route path="/wabro" element={<WhatsApp />} />
             <Route path="/sources" element={<Navigate to="/whatsapp" replace />} />

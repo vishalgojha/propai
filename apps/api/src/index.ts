@@ -17,6 +17,7 @@ import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
 import { authMiddleware } from './middleware/authMiddleware';
 import { sessionManager } from './whatsapp/SessionManager';
+import { historySyncWorker } from './services/historySyncWorker';
 import { ROUTE_PATHS } from './routes/routePaths';
 
 const app = express();
@@ -157,6 +158,7 @@ app.listen(PORT, () => {
     void (async () => {
         try {
             await sessionManager.rehydratePersistedSessions();
+            historySyncWorker.start();
             if (ENABLE_SYSTEM_WHATSAPP_SESSION) {
                 await sessionManager.initSystemSession();
             } else {
