@@ -2,15 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ListingCard } from "@/components/listing-card";
-import { getAllListingIds, getListingById, getRelatedListings } from "@/lib/listings";
+import { getListingById, getRelatedListings } from "@/lib/listings";
 import { canonicalUrl } from "@/lib/site";
 
-export const revalidate = 3600;
-
-export async function generateStaticParams() {
-  const ids = await getAllListingIds();
-  return ids.map((id) => ({ id }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const listing = await getListingById(params.id);

@@ -4,7 +4,7 @@ import { ListingCard } from "@/components/listing-card";
 import { LocalityCard } from "@/components/locality-card";
 import { getHomepageData } from "@/lib/listings";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const data = await getHomepageData();

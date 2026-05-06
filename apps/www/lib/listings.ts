@@ -253,10 +253,7 @@ export async function getLocalityPageData(slug: string, page = 1, perPage = 24) 
   };
 }
 
-export async function getAllListingIds() {
-  const listings = await getAllListings();
-  return listings.map((listing) => listing.id);
-}
+// Removed: Static generation not needed - using dynamic rendering
 
 export async function getAllLocalitySlugs() {
   const listings = await getAllListings();

@@ -4,7 +4,7 @@ import { ListingCard } from "@/components/listing-card";
 import { canonicalUrl, slugifyLocality } from "@/lib/site";
 import { getListingsPageData } from "@/lib/listings";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 type PageProps = {
   searchParams: Record<string, string | string[] | undefined>;

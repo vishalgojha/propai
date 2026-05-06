@@ -4,12 +4,9 @@ import { ListingCard } from "@/components/listing-card";
 import { getAllLocalitySlugs, getLocalityPageData } from "@/lib/listings";
 import { canonicalUrl, formatCurrencyShort, localityDescriptions, nearbyLocalities, slugifyLocality } from "@/lib/site";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
-export async function generateStaticParams() {
-  const slugs = await getAllLocalitySlugs();
-  return slugs.map((slug) => ({ slug }));
-}
+// Removed generateStaticParams - using dynamic rendering
 
 export async function generateMetadata({
   params,
