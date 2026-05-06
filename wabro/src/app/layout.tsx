@@ -4,7 +4,7 @@ import Providers from "./providers";
 
 export const metadata: Metadata = {
   title: "Wabro - WhatsApp Broadcast",
-  description: "Secure bulk messaging for WhatsApp",
+  description: "Broadcast WhatsApp messages from the PropAI workspace with a 7-day trial and a one-time ₹499 unlock.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://wabro.propai.live")
 };
 

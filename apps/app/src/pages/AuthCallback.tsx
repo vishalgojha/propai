@@ -41,8 +41,14 @@ export const AuthCallback: React.FC = () => {
       refreshToken: hashParams.get('refresh_token') || queryParams.get('refresh_token'),
       email: hashParams.get('email') || queryParams.get('email'),
       expiresAt: hashParams.get('expires_at') || queryParams.get('expires_at'),
+      next: queryParams.get('next'),
     };
   }, []);
+
+  const nextPath = useMemo(() => {
+    const next = params.next;
+    return next && next.startsWith('/') ? next : '/dashboard';
+  }, [params.next]);
 
   useEffect(() => {
     const token = params.accessToken;
@@ -71,12 +77,12 @@ export const AuthCallback: React.FC = () => {
       );
       setMessage('Session restored successfully. Redirecting...');
       window.setTimeout(() => {
-        navigate('/dashboard', { replace: true });
+        navigate(nextPath, { replace: true });
       }, 650);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not complete sign in.');
     }
-  }, [login, navigate, params.accessToken, params.email]);
+  }, [login, navigate, nextPath, params.accessToken, params.email, params.next, params.refreshToken, params.expiresAt]);
 
   return (
     <div className="min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] flex items-center justify-center px-4">

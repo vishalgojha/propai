@@ -8,6 +8,7 @@
   "environment": {
     "PORT": "3000",
     "NEXT_PUBLIC_SITE_URL": "https://wabro.propai.live",
+    "NEXT_PUBLIC_APP_URL": "https://app.propai.live",
     "NEXT_PUBLIC_API_URL": "https://api.propai.live"
   },
   "network": "propai-network",

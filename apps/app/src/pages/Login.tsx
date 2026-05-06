@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { LegalFooter } from '../components/LegalFooter';
@@ -116,6 +116,13 @@ export const Login: React.FC = () => {
   const [resetError, setResetError] = useState<string | null>(null);
   const { user, login, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const nextPath = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const next = params.get('next');
+    return next && next.startsWith('/') ? next : '/dashboard';
+  }, [location.search]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -127,9 +134,9 @@ export const Login: React.FC = () => {
 
   useEffect(() => {
     if (!isLoading && user) {
-      navigate('/dashboard', { replace: true });
+      navigate(nextPath, { replace: true });
     }
-  }, [isLoading, navigate, user]);
+  }, [isLoading, navigate, nextPath, user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -187,7 +194,7 @@ export const Login: React.FC = () => {
           remember: rememberMe,
           has_email: Boolean(response.data?.user?.email || email),
         });
-        navigate('/dashboard', { replace: true });
+        navigate(nextPath, { replace: true });
       } else {
         track(mode === 'signup' ? 'signup_failed' : 'signin_failed');
         setError('Login failed. Please try again.');

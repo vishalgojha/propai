@@ -140,9 +140,43 @@ type OutboundRecipient = {
 };
 
 const planCards = [
-  { name: '7-day trial', price: 'Free', devices: '2 devices', blurb: 'Every new workspace starts here, with room for two WhatsApp numbers while you test Pulse.' },
-  { name: 'Base', price: '₹1499', devices: '2 devices', blurb: 'Good for a broker plus one teammate or backup device.' },
-  { name: 'Team', price: '₹2999', devices: '5 numbers', blurb: 'For a shared team workspace with multiple brokers.' },
+  {
+    name: '7-day free trial',
+    price: 'Free',
+    devices: 'Full Wabro workspace',
+    blurb: 'Use the PropAI login, connect WhatsApp, and test the broadcast flow before you pay anything.',
+  },
+  {
+    name: 'One-time unlock',
+    price: '₹499',
+    devices: 'Single payment',
+    blurb: 'Keep the core Wabro workspace active with no recurring billing for the broadcast product.',
+  },
+  {
+    name: 'PropAI account',
+    price: 'Required',
+    devices: 'One login',
+    blurb: 'There is no separate Wabro sign-in. Your app.propai.live account is the access point.',
+  },
+];
+
+const wabroCapabilities = [
+  {
+    title: 'Broadcast to groups, brokers, and leads',
+    copy: 'Run one message across named WhatsApp groups, broker contacts, and buyer follow-ups from a single control surface.',
+  },
+  {
+    title: 'Send with pace controls and live status',
+    copy: 'Choose a safe sending mode, watch the live progress counters, and see success or failure before the batch finishes.',
+  },
+  {
+    title: 'Work from saved lists instead of raw phone books',
+    copy: 'Filter by locality, tags, and contact buckets so outreach stays intentional instead of messy.',
+  },
+  {
+    title: 'Stay inside the PropAI workspace',
+    copy: 'Use the same account, same session, and same billing state as the rest of app.propai.live.',
+  },
 ];
 
 const normalizePhoneNumber = (value: string) => value.split('').filter(c => c >= '0' && c <= '9').join('');
@@ -887,18 +921,17 @@ export const Sources: React.FC = () => {
               WhatsApp
             </div>
             <h2 className="mt-4 text-[28px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">
-              Save broker details first, then connect WhatsApp.
+              Wabro lives inside your PropAI account, not as a separate app.
             </h2>
             <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              This page is the broker WhatsApp setup flow. We store the broker name and number first, then reveal the QR connect step.
-              Once a session is live, we show the connected number globally and support multiple devices based on plan.
+              Log in at app.propai.live, open WhatsApp from the workspace, and unlock the broadcast tools with a 7-day free trial or a ₹499 one-time payment.
             </p>
           </div>
 
           <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
-            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Current plan</p>
+            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access model</p>
             <p className="mt-1 text-[14px] font-bold text-[var(--text-primary)]">{status.plan || 'Free'}</p>
-            <p className="text-[11px] text-[var(--text-secondary)]">{status.activeCount}/{status.limit} connected devices</p>
+            <p className="text-[11px] text-[var(--text-secondary)]">7-day trial, then ₹499 one-time unlock</p>
             {isAtDeviceLimit ? (
               <p className="mt-2 text-[11px] text-[var(--amber)]">Device limit reached for this workspace.</p>
             ) : null}
@@ -936,7 +969,7 @@ export const Sources: React.FC = () => {
                 <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Manual outbound center</p>
                 <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Groups, brokers, and leads</h3>
                 <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--text-secondary)]">
-                  This is a manual send surface only. Pulse will not send anything from here unless you explicitly select recipients and click send.
+                  This is a manual send surface only. Wabro will not send anything from here unless you explicitly select recipients and click send.
                 </p>
               </div>
               <button
@@ -1218,7 +1251,7 @@ export const Sources: React.FC = () => {
             </div>
             <div>
               <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plan caps</p>
-              <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">WhatsApp device limits</h3>
+              <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">7-day trial, then a ₹499 one-time unlock</h3>
             </div>
           </div>
 
@@ -1235,8 +1268,17 @@ export const Sources: React.FC = () => {
 
           <div className="mt-5 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
             <p className="text-[12px] leading-6 text-[var(--text-secondary)]">
-              Save the broker details first, then scan the QR. The connected number is surfaced globally in the header so the whole app knows which WhatsApp is active.
+              Wabro is the WhatsApp broadcast workspace inside PropAI. It is designed for broker desks that need one place to send group announcements, contact saved brokers, and follow up with leads from the same logged-in account.
             </p>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {wabroCapabilities.map((item) => (
+              <div key={item.title} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">{item.title}</p>
+                <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">{item.copy}</p>
+              </div>
+            ))}
           </div>
         </div>
       ) : activeTab === 'logs' ? (
