@@ -7,7 +7,6 @@ import type { BrokerToolIntent, BrokerToolPlan } from '../services/brokerWorkflo
 import { agentRouterService } from '../services/agentRouterService';
 import { PULSE_CHAT_SYSTEM_PROMPT } from '../services/pulseChatPrompt';
 import { parseAgentResponse, toAgentResponse } from '../types/agent';
-import { renderOutput } from '../whatsapp/formatter';
 import { browserToolService } from '../services/browserToolService';
 import { productKnowledgeService } from '../services/productKnowledgeService';
 import { sessionManager } from '../whatsapp/SessionManager';
@@ -76,7 +75,7 @@ export const chat = async (req: Request, res: Response) => {
                 'text',
                 toolResult.data,
             );
-            const renderedReply = maybePersonalizeGreeting(renderOutput(agentResponse), profile?.full_name, isFirstReply);
+            const renderedReply = maybePersonalizeGreeting(agentResponse.message, profile?.full_name, isFirstReply);
             await saveToHistory(conversationKey, prompt, renderedReply);
             return res.json({
                 reply: renderedReply,
@@ -91,7 +90,7 @@ export const chat = async (req: Request, res: Response) => {
         if (directWorkflow.handled) {
             const capabilityHint = buildCapabilityHintFromReply(directWorkflow.reply);
             const agentResponse = toWorkflowAgentResponse(directWorkflow.reply, directWorkflow.data);
-            const renderedReply = maybePersonalizeGreeting(renderOutput(agentResponse), profile?.full_name, isFirstReply);
+            const renderedReply = maybePersonalizeGreeting(agentResponse.message, profile?.full_name, isFirstReply);
             await saveToHistory(conversationKey, prompt, renderedReply);
             return res.json({
                 reply: renderedReply,
@@ -111,7 +110,7 @@ export const chat = async (req: Request, res: Response) => {
             const workflow = await brokerWorkflowService.executePlan(tenantId, workflowPlan, prompt);
             if (workflow.handled) {
                 const agentResponse = toWorkflowAgentResponse(workflow.reply, workflow.data);
-                const renderedReply = maybePersonalizeGreeting(renderOutput(agentResponse), profile?.full_name, isFirstReply);
+                const renderedReply = maybePersonalizeGreeting(agentResponse.message, profile?.full_name, isFirstReply);
                 await saveToHistory(conversationKey, prompt, renderedReply);
                 return res.json({
                     reply: renderedReply,
@@ -163,7 +162,7 @@ export const chat = async (req: Request, res: Response) => {
             });
         }
         const agentResponse = parseAgentResponse(response.text);
-        const renderedReply = maybePersonalizeGreeting(renderOutput(agentResponse), profile?.full_name, isFirstReply);
+        const renderedReply = maybePersonalizeGreeting(agentResponse.message, profile?.full_name, isFirstReply);
         await saveToHistory(conversationKey, prompt, renderedReply);
         res.json({ ...response, reply: renderedReply, text: renderedReply, agent_response: agentResponse, route, capability_hint: capabilityHint });
     } catch (error: any) {
@@ -171,8 +170,8 @@ export const chat = async (req: Request, res: Response) => {
         const fallbackError = error?.message || 'AI provider unavailable';
         const agentResponse = toAgentResponse(`Pulse could not reach the model chain. ${fallbackError}`);
         res.json({
-            reply: renderOutput(agentResponse),
-            text: renderOutput(agentResponse),
+            reply: agentResponse.message,
+            text: agentResponse.message,
             agent_response: agentResponse,
             route: { intent: 'general_answer' },
             capability_hint: capabilityHint,
