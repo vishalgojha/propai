@@ -20,7 +20,6 @@ ENV PORT=3000
 
 COPY --from=builder /app/wabro/.next/standalone ./
 COPY --from=builder /app/wabro/.next/static ./.next/static
-COPY --from=builder /app/wabro/public ./public
 
 EXPOSE 3000
 
