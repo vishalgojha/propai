@@ -28,14 +28,54 @@ router.get(ROUTE_PATHS.whatsapp.groups, getGroups);
 router.get(ROUTE_PATHS.whatsapp.recipients, getOutboundRecipients);
 
 router.post(ROUTE_PATHS.whatsapp.config, async (req: Request, res: Response) => {
-    const { group_id, behavior } = req.body;
+    const { group_id, behavior, session_label, parse_direct_messages, self_chat_enabled } = req.body;
     const tenant_id = (req as any).user?.id;
-    // Simplified update for the prompt
-    const { error } = await (require('../config/supabase').supabase)
-        .from('group_configs')
-        .upsert({ group_id, tenant_id, behavior });
-    
-    if (error) return res.status(500).json({ error: error.message });
+    const db = require('../config/supabase').supabase;
+
+    if (group_id) {
+        const { error } = await db
+            .from('group_configs')
+            .upsert({ group_id, tenant_id, behavior: behavior || 'Listen' });
+
+        if (error) return res.status(500).json({ error: error.message });
+    }
+
+    if (session_label && (typeof parse_direct_messages === 'boolean' || typeof self_chat_enabled === 'boolean')) {
+        const { data: sessionRow, error: sessionError } = await db
+            .from('whatsapp_sessions')
+            .select('session_data')
+            .eq('tenant_id', tenant_id)
+            .eq('label', session_label)
+            .maybeSingle();
+
+        if (sessionError) return res.status(500).json({ error: sessionError.message });
+
+        const sessionData = (sessionRow?.session_data && typeof sessionRow.session_data === 'object')
+            ? sessionRow.session_data as Record<string, any>
+            : {};
+
+        const { error } = await db
+            .from('whatsapp_sessions')
+            .update({
+                session_data: {
+                    ...sessionData,
+                    ...(typeof parse_direct_messages === 'boolean' ? {
+                        parseDirectMessages: parse_direct_messages,
+                        parse_direct_messages,
+                    } : {}),
+                    ...(typeof self_chat_enabled === 'boolean' ? {
+                        selfChatEnabled: self_chat_enabled,
+                        self_chat_enabled,
+                    } : {}),
+                },
+                updated_at: new Date().toISOString(),
+            })
+            .eq('tenant_id', tenant_id)
+            .eq('label', session_label);
+
+        if (error) return res.status(500).json({ error: error.message });
+    }
+
     res.json({ success: true });
 });
 

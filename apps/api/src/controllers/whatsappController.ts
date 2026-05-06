@@ -307,6 +307,7 @@ export const getStatus = async (req: Request, res: Response) => {
         ownerName: row.owner_name,
         status: row.status,
         phoneNumber: row.session_data?.phoneNumber || null,
+        sessionData: row.session_data || null,
         lastSync: row.last_sync,
     }));
     const liveSessions = sessionManager.getLiveSessionSnapshots(tenantId);

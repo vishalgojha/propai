@@ -131,13 +131,13 @@ export const Team: React.FC = () => {
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
               <GroupsIcon className="h-3.5 w-3.5" />
-              Broker workspace admin
+              Team workspace
             </div>
             <h2 className="mt-4 text-[28px] font-bold tracking-[-0.03em] text-[var(--text-primary)] md:text-[34px]">
-              Add team members and monitor their activity
+              Add teammates and monitor their activity
             </h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              This is the broker-facing admin surface. Use it to build your internal team, assign roles, and keep an eye on WhatsApp, broadcast, and workspace actions from one place.
+              Use this workspace to build your internal team, assign roles, and keep an eye on WhatsApp, broadcast, and workspace actions from one place.
             </p>
           </div>
           <button
@@ -190,7 +190,7 @@ export const Team: React.FC = () => {
                 <h3 className="text-lg font-bold text-[var(--text-primary)]">Add team member</h3>
               </div>
               <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                Invite a realtor, ops teammate, or internal admin by email. If they already have an account, the membership becomes active immediately. Otherwise it stays invited until they sign in.
+                Invite a realtor, ops teammate, or internal team member by email. If they already have an account, the membership becomes active immediately. Otherwise it stays invited until they sign in.
               </p>
 
               <div className="mt-5 space-y-3">

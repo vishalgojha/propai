@@ -72,6 +72,8 @@ export const Layout: React.FC = () => {
       case '/sources':
       case '/whatsapp':
         return 'WhatsApp';
+      case '/wabro':
+        return 'Wabro';
       case '/pricing':
         return 'Pricing';
       case '/docs':

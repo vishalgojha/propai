@@ -94,6 +94,7 @@ export default function App() {
             <Route path="/listings" element={<Navigate to="/stream" replace />} />
             <Route path="/whatsapp" element={<WhatsApp />} />
             <Route path="/pricing" element={<WhatsApp />} />
+            <Route path="/wabro" element={<WhatsApp />} />
             <Route path="/sources" element={<Navigate to="/whatsapp" replace />} />
             <Route path="/messages" element={<Navigate to="/inbox" replace />} />
             <Route path="/agent" element={<Agent />} />

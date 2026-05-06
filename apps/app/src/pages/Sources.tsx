@@ -29,6 +29,12 @@ type WhatsappSession = {
   ownerName?: string | null;
   phoneNumber?: string | null;
   status: 'connected' | 'connecting' | 'disconnected';
+  sessionData?: {
+    parseDirectMessages?: boolean;
+    parse_direct_messages?: boolean;
+    selfChatEnabled?: boolean;
+    self_chat_enabled?: boolean;
+  } | null;
   lastSync?: string;
 };
 
@@ -230,7 +236,10 @@ export const Sources: React.FC = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'setup' | 'outbound' | 'pricing' | 'logs'>(location.pathname === '/pricing' ? 'pricing' : 'setup');
+  const isWabroRoute = location.pathname === '/wabro';
+  const [activeTab, setActiveTab] = useState<'setup' | 'outbound' | 'pricing' | 'logs'>(
+    location.pathname === '/pricing' ? 'pricing' : location.pathname === '/wabro' ? 'outbound' : 'setup',
+  );
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [deviceOwnerName, setDeviceOwnerName] = useState('');
@@ -259,6 +268,9 @@ export const Sources: React.FC = () => {
   const [groupOutboundText, setGroupOutboundText] = useState('');
   const [brokerOutboundText, setBrokerOutboundText] = useState('');
   const [leadOutboundText, setLeadOutboundText] = useState('');
+  const [parseDirectMessages, setParseDirectMessages] = useState(false);
+  const [selfChatEnabled, setSelfChatEnabled] = useState(false);
+  const [isSavingParsingPrefs, setIsSavingParsingPrefs] = useState(false);
   const [isLoadingOutbound, setIsLoadingOutbound] = useState(false);
   const [outboundFeedback, setOutboundFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const [sendState, setSendState] = useState<{ groups: boolean; brokers: boolean; leads: boolean }>({
@@ -302,6 +314,12 @@ export const Sources: React.FC = () => {
     return null;
   }, [deviceOwnerName, expectedSessionLabel, normalizedDevicePhone, status.connectedOwnerName, status.connectedPhoneNumber, status.sessions]);
   const currentSessionStatus = currentSession?.status || (pairingArtifact ? 'connecting' : 'disconnected');
+  const currentSessionParseDirectMessages = Boolean(
+    currentSession?.sessionData?.parseDirectMessages ?? currentSession?.sessionData?.parse_direct_messages,
+  );
+  const currentSessionSelfChatEnabled = Boolean(
+    currentSession?.sessionData?.selfChatEnabled ?? currentSession?.sessionData?.self_chat_enabled,
+  );
   const isAtDeviceLimit = status.activeCount >= status.limit && !currentSession;
   const primaryConnectedSession = useMemo(
     () => status.sessions.find((session) => session.status === 'connected') || null,
@@ -322,6 +340,10 @@ export const Sources: React.FC = () => {
     setActiveTab((current) => {
       if (location.pathname === '/pricing') {
         return 'pricing';
+      }
+
+      if (location.pathname === '/wabro') {
+        return 'outbound';
       }
 
       return current === 'pricing' ? 'setup' : current;
@@ -500,6 +522,14 @@ export const Sources: React.FC = () => {
       setError(null);
     }
   }, [currentSessionStatus]);
+
+  useEffect(() => {
+    setParseDirectMessages(currentSessionParseDirectMessages);
+  }, [currentSessionParseDirectMessages, currentSession?.label]);
+
+  useEffect(() => {
+    setSelfChatEnabled(currentSessionSelfChatEnabled);
+  }, [currentSessionSelfChatEnabled, currentSession?.label]);
 
   useEffect(() => {
     if (!pairingArtifact || currentSessionStatus === 'connected') {
@@ -751,6 +781,30 @@ export const Sources: React.FC = () => {
     }
   };
 
+  const handleSaveParsingPreferences = async () => {
+    if (!currentSession?.label) {
+      setError('Connect a WhatsApp session first.');
+      return;
+    }
+
+    setIsSavingParsingPrefs(true);
+    setError(null);
+    try {
+      await backendApi.post(ENDPOINTS.whatsapp.config, {
+        session_label: currentSession.label,
+        parse_direct_messages: parseDirectMessages,
+        self_chat_enabled: selfChatEnabled,
+      });
+      await fetchStatus();
+      await fetchLogs();
+      await fetchHealth();
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsSavingParsingPrefs(false);
+    }
+  };
+
   const handleAddAnotherNumber = () => {
     setDeviceOwnerName(fullName || '');
     setDevicePhoneNumber('');
@@ -918,13 +972,17 @@ export const Sources: React.FC = () => {
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
               <Smartphone className="h-3.5 w-3.5" />
-              WhatsApp
+              {isWabroRoute ? 'Wabro Broadcast' : 'WhatsApp'}
             </div>
             <h2 className="mt-4 text-[28px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">
-              Wabro lives inside your PropAI account, not as a separate app.
+              {isWabroRoute
+                ? 'Broadcast like a human, from the same PropAI account.'
+                : 'Wabro lives inside your PropAI account, not as a separate app.'}
             </h2>
             <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              Log in at app.propai.live, open WhatsApp from the workspace, and unlock the broadcast tools with a 7-day free trial or a ₹499 one-time payment.
+              {isWabroRoute
+                ? 'Use app.propai.live to queue group announcements, broker outreach, and lead follow-ups with paced sending that looks natural, not robotic.'
+                : 'Log in at app.propai.live, open WhatsApp from the workspace, and unlock the broadcast tools with a 7-day free trial or a ₹499 one-time payment.'}
             </p>
           </div>
 
@@ -942,7 +1000,7 @@ export const Sources: React.FC = () => {
       <div className="flex items-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-1">
         {[
           { id: 'setup' as const, label: 'Setup' },
-          { id: 'outbound' as const, label: 'DM controls' },
+          { id: 'outbound' as const, label: isWabroRoute ? 'Broadcast controls' : 'Parsing controls' },
           { id: 'pricing' as const, label: 'Pricing' },
           { id: 'logs' as const, label: 'Logs' },
         ].map((tab) => (
@@ -961,15 +1019,94 @@ export const Sources: React.FC = () => {
         ))}
       </div>
 
+      {!isWabroRoute ? (
+      <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Broker-controlled privacy</p>
+            <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Only parse the groups and direct chats you explicitly allow</h3>
+            <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
+              Group parsing follows the per-group Listen/AutoReply setting. The AI assistant on this number and direct messages stay off until you enable them for the current connected session.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 md:flex-row md:items-center">
+            <div className="flex items-center gap-3">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">AI assistant on this number</p>
+                <p className="text-[13px] font-semibold text-[var(--text-primary)]">{selfChatEnabled ? 'Enabled' : 'Off'}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelfChatEnabled((current) => !current)}
+                className={cn(
+                  'relative h-6 w-11 rounded-full border transition-colors',
+                  selfChatEnabled
+                    ? 'border-[color:var(--accent-border)] bg-[var(--accent)]'
+                    : 'border-[color:var(--border)] bg-[var(--bg-base)]',
+                )}
+                aria-pressed={selfChatEnabled}
+                aria-label="Toggle AI assistant on this number"
+              >
+                <span
+                  className={cn(
+                    'absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform',
+                    selfChatEnabled ? 'translate-x-5' : 'translate-x-0.5',
+                  )}
+                />
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Direct messages</p>
+                <p className="text-[13px] font-semibold text-[var(--text-primary)]">{parseDirectMessages ? 'Enabled' : 'Off'}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setParseDirectMessages((current) => !current)}
+                className={cn(
+                  'relative h-6 w-11 rounded-full border transition-colors',
+                  parseDirectMessages
+                    ? 'border-[color:var(--accent-border)] bg-[var(--accent)]'
+                    : 'border-[color:var(--border)] bg-[var(--bg-base)]',
+                )}
+                aria-pressed={parseDirectMessages}
+                aria-label="Toggle direct message parsing"
+              >
+                <span
+                  className={cn(
+                    'absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform',
+                    parseDirectMessages ? 'translate-x-5' : 'translate-x-0.5',
+                  )}
+                />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleSaveParsingPreferences()}
+              disabled={isSavingParsingPrefs || !currentSession?.label}
+              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-colors hover:brightness-95 disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {isSavingParsingPrefs ? 'Saving...' : 'Save assistant settings'}
+            </button>
+          </div>
+        </div>
+      </div>
+      ) : null}
+
       {activeTab === 'outbound' ? (
         <div className="space-y-6">
           <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Manual outbound center</p>
-                <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Groups, brokers, and leads</h3>
+                <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">
+                  {isWabroRoute ? 'Broadcast groups, brokers, and leads' : 'Groups, brokers, and leads'}
+                </h3>
                 <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--text-secondary)]">
-                  This is a manual send surface only. Wabro will not send anything from here unless you explicitly select recipients and click send.
+                  {isWabroRoute
+                    ? 'Wabro is the outbound tool: select recipients, choose a sender lane, and send at a human pace with nothing auto-posted.'
+                    : 'This is a manual send surface only. Wabro will not send anything from here unless you explicitly select recipients and click send.'}
                 </p>
               </div>
               <button
@@ -1070,8 +1207,8 @@ export const Sources: React.FC = () => {
                   <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">Broadcast manually</h4>
                 </div>
               </div>
-              <p className="mt-3 text-[12px] leading-5 text-[var(--text-secondary)]">
-                Select named WhatsApp groups by locality, category, or tags. PropAI keeps the raw group IDs hidden in the background.
+                <p className="mt-3 text-[12px] leading-5 text-[var(--text-secondary)]">
+                Select named WhatsApp groups by locality, category, or tags. {isWabroRoute ? 'Use paced sends that mirror a human operator instead of a bulk blast.' : 'Only groups marked for listening are eligible for parsing, and the raw group IDs stay hidden in the background.'}
               </p>
               <input
                 value={groupSearchTerm}
@@ -1139,7 +1276,7 @@ export const Sources: React.FC = () => {
                 </div>
               </div>
               <p className="mt-3 text-[12px] leading-5 text-[var(--text-secondary)]">
-                Built from saved inventory-side contacts with real phone numbers in your workspace data.
+                Built from saved inventory-side contacts with real phone numbers in your workspace data. {isWabroRoute ? 'Broadcast to brokers with a natural cadence and per-session sender control.' : 'Direct parsing stays under session-level consent so the broker stays in control of what gets mirrored.'}
               </p>
               <div className="mt-4 max-h-[240px] space-y-2 overflow-y-auto pr-1">
                 {brokerRecipients.length === 0 ? (
@@ -1191,7 +1328,7 @@ export const Sources: React.FC = () => {
                 </div>
               </div>
               <p className="mt-3 text-[12px] leading-5 text-[var(--text-secondary)]">
-                Built from buyer requirements and the pending callback queue so you can reach back out intentionally.
+                Built from buyer requirements and the pending callback queue so you can reach back out intentionally. {isWabroRoute ? 'The tool keeps your follow-up list ready for human-paced outreach.' : 'Requirements are parsed the same way as listings when they are explicitly allowed.'}
               </p>
               <div className="mt-4 max-h-[240px] space-y-2 overflow-y-auto pr-1">
                 {leadRecipients.length === 0 ? (

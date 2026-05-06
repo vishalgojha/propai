@@ -67,6 +67,44 @@ async function triggerAgent(tenantId: string, remoteJid: string, text: string, s
     }
 }
 
+async function isDirectParsingEnabled(tenantId: string, sessionLabel?: string) {
+    if (!sessionLabel) {
+        return false;
+    }
+
+    const { data } = await db
+        .from('whatsapp_sessions')
+        .select('session_data')
+        .eq('tenant_id', tenantId)
+        .eq('label', sessionLabel)
+        .maybeSingle();
+
+    const sessionData = (data?.session_data && typeof data.session_data === 'object')
+        ? data.session_data as Record<string, any>
+        : {};
+
+    return sessionData.parseDirectMessages === true || sessionData.parse_direct_messages === true;
+}
+
+async function isSelfChatEnabled(tenantId: string, sessionLabel?: string) {
+    if (!sessionLabel) {
+        return false;
+    }
+
+    const { data } = await db
+        .from('whatsapp_sessions')
+        .select('session_data')
+        .eq('tenant_id', tenantId)
+        .eq('label', sessionLabel)
+        .maybeSingle();
+
+    const sessionData = (data?.session_data && typeof data.session_data === 'object')
+        ? data.session_data as Record<string, any>
+        : {};
+
+    return sessionData.selfChatEnabled === true || sessionData.self_chat_enabled === true;
+}
+
 async function notifyBroker(tenantId: string, message: string) {
     try {
         const { data: profile } = await db
@@ -298,6 +336,12 @@ async function processInboundMessage(event: IncomingMessageRecord) {
 
     console.log('[SelfChat Debug] isAssistantSession:', isAssistantSession, 'isAssistantDM:', isAssistantDM);
 
+    const selfChatEnabled = await isSelfChatEnabled(tenantId, label);
+    if (isSelfChat && !selfChatEnabled) {
+        console.log('[SelfChat Debug] Self chat disabled for this session, skipping');
+        return;
+    }
+
     if (text.toUpperCase() === 'YES') {
         try {
             const verified = await handleVerificationReply(remoteJid);
@@ -310,7 +354,7 @@ async function processInboundMessage(event: IncomingMessageRecord) {
         }
     }
 
-    // Short-message and emoji filters do NOT apply to assistant or self-chat sessions
+    // Short-message and emoji filters do NOT apply to assistant or enabled self-chat sessions
     if (text.length < 20 && !fromMe && !isSelfChat && !isAssistantDM) {
         console.log('[SelfChat Debug] Message too short, skipping');
         return;
@@ -326,7 +370,7 @@ async function processInboundMessage(event: IncomingMessageRecord) {
             .from('group_configs')
             .select('behavior')
             .eq('group_id', remoteJid)
-            .single();
+            .maybeSingle();
 
         if (config?.behavior !== 'Listen' && config?.behavior !== 'AutoReply') {
             console.log('[SelfChat Debug] Group not in Listen/AutoReply mode, skipping');
@@ -334,9 +378,12 @@ async function processInboundMessage(event: IncomingMessageRecord) {
         }
     }
 
-    // Safety rule: only process self-chat and assistant DMs
-    if (!isSelfChat && !isAssistantDM) {
-        console.log('[SelfChat Debug] Not self-chat or assistant DM, skipping');
+    const directParsingEnabled = await isDirectParsingEnabled(tenantId, label);
+
+    // Direct messages are broker-controlled. Only parse them when the session
+    // explicitly opts in, or when they are self-chat / assistant review lanes.
+    if (!isGroup && !isSelfChat && !isAssistantDM && !directParsingEnabled) {
+        console.log('[SelfChat Debug] Direct messages not enabled for parsing, skipping');
         return;
     }
 

@@ -44,6 +44,7 @@ export const ENDPOINTS = {
     groupsHealth: '/whatsapp/groups/health',
     events: '/whatsapp/events',
     profile: '/whatsapp/profile',
+    config: '/whatsapp/config',
     qrForceRefresh: '/whatsapp/qr/force-refresh',
     groups: '/whatsapp/groups',
     recipients: '/whatsapp/recipients',

@@ -52,35 +52,9 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
         const rawDumpId = crypto.randomUUID();
 
         try {
-            const { data: rawDump, error: rawDumpError } = await db
-                .from('raw_dump')
-                .insert({
-                    id: rawDumpId,
-                    workspace_id: input.tenantId,
-                    session_id: input.label,
-                    group_jid: input.remoteJid,
-                    sender_jid: input.sender ?? null,
-                    raw_text: input.text,
-                    received_at: input.timestamp ?? new Date().toISOString(),
-                    gate_status: 'pending',
-                })
-                .select('*')
-                .single();
-
-            if (rawDumpError) {
-                console.error('[PropAISupabaseAdapter] Failed to insert into raw_dump', rawDumpError);
-            }
-
             const gateResult = await this.runPriceGate(input.text);
 
             if (!gateResult.shouldParse) {
-                await db
-                    .from('raw_dump')
-                    .update({
-                        gate_status: 'rejected',
-                        rejection_reason: gateResult.reason,
-                    })
-                    .eq('id', rawDumpId);
                 await whatsappHealthService.recordMessageMetrics({
                     tenantId: input.tenantId,
                     sessionLabel: input.label,
@@ -91,13 +65,23 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                 return { id: rawDumpId };
             }
 
-            await db
+            const { error: rawDumpError } = await db
                 .from('raw_dump')
-                .update({
+                .insert({
+                    id: rawDumpId,
+                    workspace_id: input.tenantId,
+                    session_id: input.label,
+                    group_jid: input.remoteJid,
+                    sender_jid: input.sender ?? null,
+                    raw_text: input.text,
+                    received_at: input.timestamp ?? new Date().toISOString(),
                     gate_status: 'passed',
                     rejection_reason: null,
-                })
-                .eq('id', rawDumpId);
+                });
+
+            if (rawDumpError) {
+                console.error('[PropAISupabaseAdapter] Failed to insert into raw_dump', rawDumpError);
+            }
 
             const { data, error } = await db
                 .from('messages')
