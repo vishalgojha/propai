@@ -69,9 +69,12 @@ function renderAuthorizePage(params: Record<string, string>, error?: string) {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PropAI MCP Authorization</title>
+  <link rel="icon" href="/favicon.svg" sizes="any" type="image/svg+xml" />
   <style>
     body { font-family: Arial, sans-serif; background: #081018; color: #fff; margin: 0; }
     .wrap { max-width: 420px; margin: 8vh auto; padding: 24px; background: #101923; border: 1px solid #223243; border-radius: 16px; }
+    .mark { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .mark img { width: 32px; height: 32px; border-radius: 10px; }
     h1 { margin: 0 0 8px; font-size: 24px; }
     p { color: #9eb0c1; line-height: 1.5; }
     label { display: block; margin-top: 16px; font-size: 14px; color: #d7e1ea; }
@@ -83,7 +86,10 @@ function renderAuthorizePage(params: Record<string, string>, error?: string) {
 </head>
 <body>
   <div class="wrap">
-    <h1>Authorize PropAI MCP</h1>
+    <div class="mark">
+      <img src="/favicon.svg" alt="PropAI" />
+      <h1>Authorize PropAI MCP</h1>
+    </div>
     <p>Sign in with your PropAI account to connect this MCP server.</p>
     ${error ? `<div class="error">${escapeHtml(error)}</div>` : ""}
     <form method="post" action="/authorize">

@@ -56,6 +56,24 @@ app.get("/", (_req, res) => {
   });
 });
 
+app.get("/favicon.svg", (_req, res) => {
+  // Inline favicon so the MCP service doesn't need static assets.
+  res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+  return res.send(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="16" fill="#090d12"/>
+  <path d="M37 6L18 35h13L27 58l19-29H33L37 6Z" fill="#25d366"/>
+  <path d="M37 6L18 35h13L27 58l19-29H33L37 6Z" fill="url(#glow)" opacity="0.18"/>
+  <defs>
+    <linearGradient id="glow" x1="18" y1="6" x2="46" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7CFFB2"/>
+      <stop offset="1" stop-color="#25d366"/>
+    </linearGradient>
+  </defs>
+</svg>`,
+  );
+});
+
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "propai-mcp", port: PORT });
 });
