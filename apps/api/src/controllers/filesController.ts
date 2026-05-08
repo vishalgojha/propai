@@ -93,29 +93,33 @@ async function extractTextIfSupported(buffer: Buffer, mimeType: string, fileName
   return text.length > MAX_EXTRACTED_TEXT_CHARS ? `${text.slice(0, MAX_EXTRACTED_TEXT_CHARS)}\n\n[Truncated]` : text;
 }
 
-async function ensureBucket(bucket = DEFAULT_BUCKET) {
+type EnsureBucketResult =
+  | { ok: true }
+  | { ok: false; reason: string };
+
+async function ensureBucket(bucket = DEFAULT_BUCKET): Promise<EnsureBucketResult> {
   if (!supabaseAdmin) {
-    return { ok: false, reason: 'storage_admin_unavailable' as const };
+    return { ok: false, reason: 'storage_admin_unavailable' };
   }
 
   try {
     const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets();
     if (listError) {
-      return { ok: false, reason: listError.message as const };
+      return { ok: false, reason: listError.message };
     }
 
     if (Array.isArray(buckets) && buckets.some((b) => b.name === bucket)) {
-      return { ok: true as const };
+      return { ok: true };
     }
 
     const { error: createError } = await supabaseAdmin.storage.createBucket(bucket, { public: false });
     if (createError) {
-      return { ok: false, reason: createError.message as const };
+      return { ok: false, reason: createError.message };
     }
 
-    return { ok: true as const };
+    return { ok: true };
   } catch (err: any) {
-    return { ok: false, reason: err?.message || 'bucket_error' as const };
+    return { ok: false, reason: err?.message || 'bucket_error' };
   }
 }
 
