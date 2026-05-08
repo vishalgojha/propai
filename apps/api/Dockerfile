@@ -10,6 +10,8 @@ COPY apps/api/package.json ./apps/api/
 COPY packages/pulse-core/package.json ./packages/pulse-core/
 COPY packages/agent/package.json ./packages/agent/
 
+RUN apk add --no-cache git
+
 # Install dependencies.
 # The API package.json changes more frequently than the shared workspace lockfile
 # in this repo, so avoid failing deploys on a stale root lockfile here.
