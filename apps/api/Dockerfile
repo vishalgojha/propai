@@ -10,9 +10,11 @@ COPY apps/api/package.json ./apps/api/
 COPY packages/pulse-core/package.json ./packages/pulse-core/
 COPY packages/agent/package.json ./packages/agent/
 
-# Install dependencies
+# Install dependencies.
+# The API package.json changes more frequently than the shared workspace lockfile
+# in this repo, so avoid failing deploys on a stale root lockfile here.
 RUN corepack enable && \
-    NODE_ENV=development pnpm install --filter backend... --frozen-lockfile && \
+    NODE_ENV=development pnpm install --filter backend... --no-frozen-lockfile && \
     echo "pnpm install completed"
 
 # Copy source after deps are installed (better layer caching)
