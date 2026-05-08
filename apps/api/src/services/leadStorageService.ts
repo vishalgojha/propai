@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { serverClientOptions } from '../config/supabase';
 
 const LeadStorageInputSchema = z.object({
     confirmation_token: z.string().min(1),
@@ -56,14 +57,11 @@ export class LeadStorageService {
 
     private createRequestClient(accessToken: string): SupabaseClient {
         return createClient(this.supabaseUrl, this.supabaseAnonKey, {
+            ...serverClientOptions,
             global: {
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
                 },
-            },
-            auth: {
-                persistSession: false,
-                autoRefreshToken: false,
             },
         });
     }

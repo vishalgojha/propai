@@ -15,6 +15,11 @@ export const ENDPOINTS = {
     get: '/settings',
     save: '/settings',
   },
+  files: {
+    upload: '/files/upload',
+    list: '/files',
+    text: (fileId: string) => `/files/${encodeURIComponent(fileId)}/text`,
+  },
   admin: {
     workspaces: '/admin/workspaces',
     updateSubscription: (tenantId: string) => `/admin/workspaces/${tenantId}/subscription`,
@@ -31,6 +36,7 @@ export const ENDPOINTS = {
     team: '/workspace/team',
     updateMember: (memberId: string) => `/workspace/team/${memberId}`,
     activity: '/workspace/activity',
+    metadata: '/workspace/metadata',
   },
   whatsapp: {
     connect: '/whatsapp/connect',

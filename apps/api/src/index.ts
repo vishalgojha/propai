@@ -12,6 +12,7 @@ import voiceRoutes from './routes/voiceRoutes';
 import authRoutes from './routes/authRoutes';
 import settingsRoutes from './routes/settingsRoutes';
 import workspaceRoutes from './routes/workspaceRoutes';
+import fileRoutes from './routes/fileRoutes';
 import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
@@ -42,7 +43,7 @@ process.on('uncaughtException', (error) => {
 });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 app.use(ROUTE_PATHS.api.voiceListen, express.raw({ type: 'audio/wav', limit: '10mb' }));
 
@@ -92,6 +93,7 @@ app.use('/api/stream-items', authMiddleware, streamRoutes);
 app.use(ROUTE_PATHS.api.broadcast, authMiddleware, broadcastRoutes);
 app.use(ROUTE_PATHS.api.settings, authMiddleware, settingsRoutes);
 app.use(ROUTE_PATHS.api.workspace, authMiddleware, workspaceRoutes);
+app.use(ROUTE_PATHS.api.files, fileRoutes);
 app.use(ROUTE_PATHS.api.ai, authMiddleware, aiRoutes);
 app.use(ROUTE_PATHS.api.agent, authMiddleware, agentRoutes);
 app.use(ROUTE_PATHS.api.admin, authMiddleware, adminRoutes);

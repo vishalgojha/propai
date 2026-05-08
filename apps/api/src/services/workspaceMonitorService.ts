@@ -45,6 +45,7 @@ export class WorkspaceMonitorService {
                 .from('messages')
                 .select('id, remote_jid, sender, text, timestamp')
                 .eq('tenant_id', workspaceOwnerId)
+                .order('timestamp', { ascending: false })
                 .limit(800),
             db
                 .from('whatsapp_sessions')
@@ -94,8 +95,16 @@ export class WorkspaceMonitorService {
                 return false;
             }
 
-            if (sessionLabel && isGroup && sessionGroupIds.size > 0 && !sessionGroupIds.has(remoteJid)) {
-                return false;
+            // If a session label filter is active, restrict group chats to the
+            // groups that are known to belong to that session. If group sync
+            // has not completed yet, hide group chats rather than mixing across sessions.
+            if (sessionLabel && isGroup) {
+                if (sessionGroupIds.size === 0) {
+                    return false;
+                }
+                if (!sessionGroupIds.has(remoteJid)) {
+                    return false;
+                }
             }
 
             return true;

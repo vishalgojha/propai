@@ -5,6 +5,12 @@ import { workspaceActivityService } from '../services/workspaceActivityService';
 
 const db = supabaseAdmin || supabase;
 
+type WorkspaceServiceAreaInput = {
+    city: string;
+    locality: string;
+    priority?: number;
+};
+
 export const getWorkspaceOverview = async (req: Request, res: Response) => {
     try {
         const context = await workspaceAccessService.resolveContext((req as any).user);
@@ -40,6 +46,138 @@ export const getWorkspaceOverview = async (req: Request, res: Response) => {
         });
     } catch (error: any) {
         res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load workspace overview' });
+    }
+};
+
+export const getWorkspaceMetadata = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext((req as any).user);
+
+        const [workspaceResult, areasResult] = await Promise.all([
+            db
+                .from('workspaces')
+                .select('owner_id, agency_name, primary_city, created_at, updated_at')
+                .eq('owner_id', context.workspaceOwnerId)
+                .maybeSingle(),
+            db
+                .from('workspace_service_areas')
+                .select('city, locality, priority')
+                .eq('workspace_id', context.workspaceOwnerId)
+                .order('priority', { ascending: false })
+                .order('locality', { ascending: true }),
+        ]);
+
+        if (workspaceResult.error) throw workspaceResult.error;
+        if (areasResult.error) throw areasResult.error;
+
+        res.json({
+            success: true,
+            workspace: {
+                ownerId: context.workspaceOwnerId,
+                memberRole: context.memberRole,
+                canManageTeam: context.canManageTeam,
+                canSendOutbound: context.canSendOutbound,
+            },
+            metadata: {
+                agencyName: workspaceResult.data?.agency_name || null,
+                primaryCity: workspaceResult.data?.primary_city || null,
+                serviceAreas: (areasResult.data || []).map((row: any) => ({
+                    city: String(row.city || '').trim(),
+                    locality: String(row.locality || '').trim(),
+                    priority: Number(row.priority || 0),
+                })),
+                updatedAt: workspaceResult.data?.updated_at || null,
+            },
+        });
+    } catch (error: any) {
+        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load workspace metadata' });
+    }
+};
+
+export const saveWorkspaceMetadata = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.requireWorkspaceAdmin((req as any).user);
+        const agencyName = String(req.body?.agencyName || '').trim() || null;
+        const primaryCity = String(req.body?.primaryCity || '').trim() || null;
+        const serviceAreas = Array.isArray(req.body?.serviceAreas) ? req.body.serviceAreas as WorkspaceServiceAreaInput[] : [];
+
+        if (agencyName && agencyName.length > 80) {
+            return res.status(400).json({ error: 'Agency name is too long.' });
+        }
+
+        if (primaryCity && primaryCity.length > 60) {
+            return res.status(400).json({ error: 'Primary city is too long.' });
+        }
+
+        const cleanedAreas = serviceAreas
+            .map((area) => ({
+                city: String(area?.city || '').trim(),
+                locality: String(area?.locality || '').trim(),
+                priority: Number.isFinite(Number(area?.priority)) ? Number(area?.priority) : 0,
+            }))
+            .filter((area) => area.city && area.locality)
+            .slice(0, 60);
+
+        const now = new Date().toISOString();
+        const { error: upsertError } = await db
+            .from('workspaces')
+            .upsert({
+                owner_id: context.workspaceOwnerId,
+                agency_name: agencyName,
+                primary_city: primaryCity,
+                updated_at: now,
+            }, { onConflict: 'owner_id' });
+
+        if (upsertError) throw upsertError;
+
+        const { error: deleteError } = await db
+            .from('workspace_service_areas')
+            .delete()
+            .eq('workspace_id', context.workspaceOwnerId);
+
+        if (deleteError) throw deleteError;
+
+        if (cleanedAreas.length > 0) {
+            const { error: insertError } = await db
+                .from('workspace_service_areas')
+                .insert(cleanedAreas.map((area) => ({
+                    workspace_id: context.workspaceOwnerId,
+                    city: area.city,
+                    locality: area.locality,
+                    priority: area.priority,
+                    created_at: now,
+                    updated_at: now,
+                })));
+
+            if (insertError) throw insertError;
+        }
+
+        void workspaceActivityService.track({
+            actor: (req as any).user,
+            workspaceOwnerId: context.workspaceOwnerId,
+            actorRole: context.memberRole,
+            eventType: 'workspace.metadata.updated',
+            entityType: 'workspace',
+            entityId: context.workspaceOwnerId,
+            summary: `Updated workspace metadata (${agencyName || 'Agency'}).`,
+            metadata: {
+                agencyName,
+                primaryCity,
+                serviceAreasCount: cleanedAreas.length,
+            },
+        });
+
+        res.json({
+            success: true,
+            metadata: {
+                agencyName,
+                primaryCity,
+                serviceAreas: cleanedAreas,
+                updatedAt: now,
+            },
+        });
+    } catch (error: any) {
+        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to save workspace metadata' });
     }
 };
 

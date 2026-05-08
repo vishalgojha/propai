@@ -322,7 +322,7 @@ export const Monitor: React.FC = () => {
             <div>
               <p className="text-sm font-semibold text-white">Monitor</p>
               <p className="text-[11px] text-[#8696a0]">
-                All workspace chats · {data?.summary.totalChats || 0} chats · {data?.summary.groupChats || 0} groups
+                Live mirror of your WhatsApp activity (groups + DMs) · {data?.summary.totalChats || 0} chats · {data?.summary.groupChats || 0} groups
               </p>
             </div>
             <button

@@ -246,7 +246,7 @@ export const Inbox: React.FC = () => {
             <div>
               <p className="text-sm font-semibold text-white">Inbox</p>
               <p className="text-[11px] text-[#8696a0]">
-                Direct conversations only · {data?.summary.totalChats || 0} chats · {data?.summary.totalMessages || 0} messages
+                1:1 direct messages only (no groups) · {data?.summary.totalChats || 0} chats · {data?.summary.totalMessages || 0} messages
               </p>
             </div>
             <button

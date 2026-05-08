@@ -236,7 +236,7 @@ export class HistoryBatchService {
     try {
       const { data: profile, error: profileError } = await db
         .from('profiles')
-        .select('phone, history_processed, history_processed_at, history_message_count')
+        .select('phone, history_processed, history_processed_at, history_message_count, history_total_count')
         .eq('id', profileId)
         .maybeSingle();
 
@@ -265,6 +265,7 @@ export class HistoryBatchService {
             history_processed: false,
             history_processed_at: null,
             history_message_count: 0,
+            history_total_count: 0,
           })
           .eq('id', profileId);
 
@@ -278,6 +279,24 @@ export class HistoryBatchService {
         .filter((record) => !isSystemOrMediaMessage(record))
         .map((record, index) => normalizeHistoryRecord(record, index, sessionLabel, profileId))
         .filter((record): record is NonNullable<ReturnType<typeof normalizeHistoryRecord>> => Boolean(record));
+
+      const { error: totalError } = await db
+        .from('profiles')
+        .update({
+          history_processed: false,
+          history_processed_at: null,
+          history_message_count: 0,
+          history_total_count: normalized.length,
+        })
+        .eq('id', profileId);
+
+      if (totalError) {
+        console.error('[HistoryBatchService] Failed to persist history total count', {
+          tenantId: profileId,
+          sessionLabel,
+          error: totalError,
+        });
+      }
 
       let processed = 0;
       let listings = 0;
@@ -351,6 +370,7 @@ export class HistoryBatchService {
           .from('profiles')
           .update({
             history_message_count: processed,
+            history_total_count: normalized.length,
           })
           .eq('id', profileId);
 
@@ -372,6 +392,7 @@ export class HistoryBatchService {
           history_processed: true,
           history_processed_at: historyProcessedAt,
           history_message_count: normalized.length,
+          history_total_count: normalized.length,
         })
         .eq('id', profileId);
 

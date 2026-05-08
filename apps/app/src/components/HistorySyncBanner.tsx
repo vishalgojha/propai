@@ -36,7 +36,7 @@ export const HistorySyncBanner: React.FC = () => {
           </h3>
           <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
             {isProcessing
-              ? `The first-connection batch import is running in the background. ${totalProcessed} messages have already been processed.`
+              ? `The history import is running in the background. ${totalProcessed} messages have already been processed.`
               : `Imported ${totalProcessed} historical messages into the AI memory layer.`}
           </p>
         </div>
@@ -61,4 +61,3 @@ export const HistorySyncBanner: React.FC = () => {
     </div>
   );
 };
-

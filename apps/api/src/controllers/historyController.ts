@@ -8,7 +8,7 @@ function getTenantId(req: Request) {
 
 export const importHistoryTxt = async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
-  const { content, fileName, sessionLabel } = req.body || {};
+  const { content, fileName, sessionLabel, forceProcess } = req.body || {};
 
   if (typeof content !== 'string' || !content.trim()) {
     return res.status(400).json({ error: 'TXT content is required' });
@@ -16,6 +16,7 @@ export const importHistoryTxt = async (req: Request, res: Response) => {
 
   const name = typeof fileName === 'string' ? fileName.trim() : null;
   const label = typeof sessionLabel === 'string' ? sessionLabel.trim() : null;
+  const force = typeof forceProcess === 'boolean' ? forceProcess : false;
 
   setImmediate(() => {
     void historyTextImportService.importTxt({
@@ -23,11 +24,13 @@ export const importHistoryTxt = async (req: Request, res: Response) => {
       rawText: content,
       fileName: name,
       sessionLabel: label,
+      forceProcess: force,
     }).catch((error) => {
       console.error('[HistoryController] Failed to import TXT history', {
         tenantId,
         fileName: name,
         sessionLabel: label,
+        forceProcess: force,
         error,
       });
     });
@@ -37,5 +40,6 @@ export const importHistoryTxt = async (req: Request, res: Response) => {
     success: true,
     queued: true,
     fileName: name,
+    forceProcess: force,
   });
 };

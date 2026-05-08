@@ -12,6 +12,7 @@ import {
   ArrowUpIcon,
   ChevronRightIcon,
   GlobeIcon,
+  PaperclipIcon,
   RefreshIcon,
   WorkflowIcon,
   XIcon,
@@ -142,6 +143,185 @@ function buildAgentStorageKey(email?: string | null) {
 function buildAgentDraftStorageKey(email?: string | null) {
   return `propai_agent_chat_draft:${email?.trim().toLowerCase() || 'guest'}`;
 }
+
+type RichBlock =
+  | { type: 'paragraph'; text: string }
+  | { type: 'code'; language: string | null; code: string }
+  | { type: 'table'; headers: string[]; rows: string[][] };
+
+function splitRichBlocks(content: string): RichBlock[] {
+  const lines = String(content || '').replace(/\r\n/g, '\n').split('\n');
+  const blocks: RichBlock[] = [];
+
+  let inCode = false;
+  let codeLang: string | null = null;
+  let codeLines: string[] = [];
+  let paraLines: string[] = [];
+
+  const flushParagraph = () => {
+    const text = paraLines.join('\n').trimEnd();
+    if (text.trim()) blocks.push({ type: 'paragraph', text });
+    paraLines = [];
+  };
+
+  const flushCode = () => {
+    const code = codeLines.join('\n').replace(/\s+$/g, '');
+    blocks.push({ type: 'code', language: codeLang, code });
+    codeLines = [];
+    codeLang = null;
+  };
+
+  const parseTableAt = (startIndex: number) => {
+    const header = lines[startIndex];
+    const separator = lines[startIndex + 1] || '';
+    if (!header.includes('|')) return null;
+    if (!/^\s*\|?[\s:-]+\|[\s|:-]*\|?\s*$/.test(separator)) return null;
+
+    const parseRow = (row: string) => row
+      .trim()
+      .replace(/^\|/, '')
+      .replace(/\|$/, '')
+      .split('|')
+      .map((cell) => cell.trim());
+
+    const headers = parseRow(header);
+    const rows: string[][] = [];
+    let i = startIndex + 2;
+    while (i < lines.length && lines[i].includes('|') && lines[i].trim()) {
+      rows.push(parseRow(lines[i]));
+      i += 1;
+    }
+    return { headers, rows, endIndex: i };
+  };
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const fence = line.match(/^```(\w+)?\s*$/);
+    if (fence) {
+      if (inCode) {
+        inCode = false;
+        flushCode();
+      } else {
+        flushParagraph();
+        inCode = true;
+        codeLang = fence[1] || null;
+      }
+      continue;
+    }
+
+    if (inCode) {
+      codeLines.push(line);
+      continue;
+    }
+
+    const table = i + 1 < lines.length ? parseTableAt(i) : null;
+    if (table) {
+      flushParagraph();
+      blocks.push({ type: 'table', headers: table.headers, rows: table.rows });
+      i = table.endIndex - 1;
+      continue;
+    }
+
+    paraLines.push(line);
+  }
+
+  flushParagraph();
+  if (inCode) {
+    flushCode();
+  }
+
+  return blocks;
+}
+
+const RichMessage: React.FC<{ content: string }> = ({ content }) => {
+  const blocks = React.useMemo(() => splitRichBlocks(content), [content]);
+  const downloadCsv = React.useCallback((headers: string[], rows: string[][], baseName = 'pulse-table') => {
+    const escapeCell = (value: string) => {
+      const raw = String(value ?? '');
+      const needsQuotes = /[",\n]/.test(raw);
+      const escaped = raw.replace(/"/g, '""');
+      return needsQuotes ? `"${escaped}"` : escaped;
+    };
+
+    const csv = [
+      headers.map(escapeCell).join(','),
+      ...rows.map((row) => row.map(escapeCell).join(',')),
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${baseName}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }, []);
+  return (
+    <div className="space-y-3">
+      {blocks.map((block, index) => {
+        if (block.type === 'code') {
+          return (
+            <pre
+              key={index}
+              className="overflow-x-auto rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-[12px] leading-6 text-[var(--text-primary)]"
+            >
+              <code>{block.code}</code>
+            </pre>
+          );
+        }
+
+        if (block.type === 'table') {
+          return (
+            <div key={index} className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold text-[var(--text-secondary)]">Table</p>
+                <button
+                  type="button"
+                  onClick={() => downloadCsv(block.headers, block.rows, `pulse-table-${index + 1}`)}
+                  className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold text-[var(--text-primary)] transition hover:bg-[var(--bg-base)]"
+                >
+                  Download CSV
+                </button>
+              </div>
+              <div className="overflow-x-auto rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-surface)]">
+                <table className="min-w-full text-left text-[12px] text-[var(--text-primary)]">
+                  <thead className="border-b border-[color:var(--border)] bg-[var(--bg-elevated)]">
+                    <tr>
+                      {block.headers.map((header, headerIndex) => (
+                        <th key={headerIndex} className="px-3 py-2 font-semibold">
+                          {header || '—'}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {block.rows.map((row, rowIndex) => (
+                      <tr key={rowIndex} className="border-b border-[color:var(--border)] last:border-0">
+                        {row.map((cell, cellIndex) => (
+                          <td key={cellIndex} className="px-3 py-2 text-[var(--text-secondary)]">
+                            {cell || '—'}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div key={index} className="whitespace-pre-wrap">
+            {block.text}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 export const Agent: React.FC = () => {
   const { user } = useAuth();
@@ -399,9 +579,9 @@ export const Agent: React.FC = () => {
     el.style.height = `${Math.min(el.scrollHeight, 72)}px`;
   }, [input]);
 
-  const handleSend = async (text = input) => {
-    const prompt = text.trim();
-    if (!prompt) return;
+	  const handleSend = async (text = input) => {
+	    const prompt = text.trim();
+	    if (!prompt) return;
 
     track('ai_prompt_sent', {
       words: wordCount(prompt),
@@ -412,11 +592,15 @@ export const Agent: React.FC = () => {
       ...prev,
       { role: 'user', content: prompt, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
     ]);
-    setInput('');
-    setIsTyping(true);
+	    setInput('');
+	    setIsTyping(true);
 
-    try {
-      const response = await backendApi.post(ENDPOINTS.ai.chat, { message: prompt, model: selectedModel });
+	    try {
+	      const response = await backendApi.post(ENDPOINTS.ai.chat, {
+	        message: prompt,
+	        model: selectedModel,
+	        attachments: attachedFiles.map((file) => file.id),
+	      });
       const reply = [
         response.data.reply,
         response.data.capability_hint,
@@ -454,16 +638,18 @@ export const Agent: React.FC = () => {
         }
       }
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'ai',
-          content: reply || 'Pulse is ready.',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          route,
-        },
-      ]);
-    } catch (err) {
+	      setMessages((prev) => [
+	        ...prev,
+	        {
+	          role: 'ai',
+	          content: reply || 'Pulse is ready.',
+	          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+	          route,
+	        },
+	      ]);
+	      setAttachedFiles([]);
+	      setAttachmentNote(null);
+	    } catch (err) {
       console.error(handleApiError(err));
       const isProxyOrNetworkError =
         (err as any)?.response?.status === 502 ||
@@ -509,6 +695,57 @@ export const Agent: React.FC = () => {
         el.style.height = `${Math.min(el.scrollHeight, 72)}px`;
       }
     });
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachmentNote, setAttachmentNote] = useState<string | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<Array<{ id: string; fileName: string; mimeType: string | null; byteSize: number; hasText: boolean }>>([]);
+
+  const handleAttachFile = async (file: File) => {
+    try {
+      setAttachmentNote(null);
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
+
+      const response = await backendApi.post(ENDPOINTS.files.upload, {
+        fileName: file.name || 'attachment',
+        mimeType: file.type || null,
+        base64: dataUrl,
+      });
+
+      const uploaded = response.data?.file;
+      if (!uploaded?.id) {
+        setAttachmentNote('Upload failed: no file id returned.');
+        return;
+      }
+
+      setAttachedFiles((current) => ([
+        ...current,
+        {
+          id: String(uploaded.id),
+          fileName: String(uploaded.fileName || file.name || 'attachment'),
+          mimeType: uploaded.mimeType ? String(uploaded.mimeType) : null,
+          byteSize: Number(uploaded.byteSize || file.size || 0),
+          hasText: Boolean(uploaded.extractedText && String(uploaded.extractedText).trim().length > 0),
+        },
+      ]).slice(0, 6));
+
+      const hasText = Boolean(uploaded.extractedText && String(uploaded.extractedText).trim().length > 0);
+      const status = String(uploaded.extractionStatus || '');
+      const note = hasText
+        ? `Attached ${uploaded.fileName || file.name} (${Math.round((uploaded.byteSize || file.size) / 1024)} KB)`
+        : status === 'failed'
+          ? `Attached ${uploaded.fileName || file.name} — OCR failed on this file. Try a clearer scan or paste the text.`
+          : `Attached ${uploaded.fileName || file.name} — no text extracted. If this is a scanned PDF/image and OCR isn’t enabled, Pulse can’t read it.`;
+      setAttachmentNote(note);
+      requestAnimationFrame(() => inputRef.current?.focus());
+    } catch (err: any) {
+      setAttachmentNote(`Upload failed: ${handleApiError(err)}`);
+    }
   };
 
   const openAssistantPanel = (tab: AssistantPanelTab = 'runtime') => {
@@ -619,12 +856,7 @@ export const Agent: React.FC = () => {
                       <span className="text-[10px] text-[var(--text-secondary)]">{message.timestamp}</span>
                     </div>
                     <div className={cn('text-[13px] leading-6 sm:leading-7', isAi ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
-                      {message.content.split('\n').map((line, lineIndex) => (
-                        <React.Fragment key={lineIndex}>
-                          {lineIndex > 0 && <br />}
-                          {line}
-                        </React.Fragment>
-                      ))}
+                      <RichMessage content={message.content} />
                     </div>
                   </div>
                 </motion.div>
@@ -662,37 +894,86 @@ export const Agent: React.FC = () => {
           )}
         </div>
 
-        <div className="border-t border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-4 sm:px-6">
-          <div className="space-y-3">
-            <div className="relative">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => handleInputChange(e.target.value)}
+	        <div className="border-t border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-4 sm:px-6">
+	          <div className="space-y-3">
+	            <div className="relative">
+		              <input
+		                ref={fileInputRef}
+		                type="file"
+		                accept=".txt,.csv,.md,.json,.pdf,text/plain,text/csv,application/json,application/pdf"
+		                className="hidden"
+		                onChange={(e) => {
+		                  const file = e.target.files?.[0] || null;
+		                  if (file) {
+	                    void handleAttachFile(file);
+	                  }
+	                  e.currentTarget.value = '';
+	                }}
+	              />
+	              <textarea
+	                ref={inputRef}
+	                value={input}
+	                onChange={(e) => handleInputChange(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     handleSend();
                   }
                 }}
-                placeholder="Ask Pulse anything..."
-                rows={1}
-                className="w-full resize-none border-b border-[color:var(--border)] bg-transparent py-2 pr-10 text-[13px] font-normal text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-muted)] focus:border-[color:var(--accent)]"
-              />
+	                placeholder="Ask Pulse anything..."
+	                rows={1}
+	                className="w-full resize-none border-b border-[color:var(--border)] bg-transparent py-2 pr-20 text-[13px] font-normal text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-muted)] focus:border-[color:var(--accent)]"
+	              />
 
-              <button
-                onClick={() => handleSend()}
-                className={cn(
-                  'absolute right-0 top-2 flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07] transition-all duration-150',
-                  input.trim() ? 'scale-100 opacity-100' : 'pointer-events-none scale-90 opacity-0',
-                )}
-                aria-label="Send"
-              >
-                <ArrowUpIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
-              </button>
-            </div>
+	              <button
+	                type="button"
+	                onClick={() => fileInputRef.current?.click()}
+	                className="absolute right-10 top-2 flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+	                aria-label="Attach file"
+	              >
+	                <PaperclipIcon className="h-3.5 w-3.5" />
+	              </button>
 
-            <div className="flex flex-wrap gap-2">
+	              <button
+	                onClick={() => handleSend()}
+	                className={cn(
+	                  'absolute right-0 top-2 flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07] transition-all duration-150',
+	                  input.trim() ? 'scale-100 opacity-100' : 'pointer-events-none scale-90 opacity-0',
+	                )}
+	                aria-label="Send"
+	              >
+	                <ArrowUpIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
+	              </button>
+	            </div>
+
+		            {attachmentNote ? (
+		              <div className="text-[11px] text-[var(--text-secondary)]">{attachmentNote}</div>
+		            ) : null}
+
+		            {attachedFiles.length > 0 ? (
+		              <div className="flex flex-wrap gap-2">
+		                {attachedFiles.map((file) => (
+		                  <button
+		                    key={file.id}
+		                    type="button"
+		                    onClick={() => setAttachedFiles((current) => current.filter((f) => f.id !== file.id))}
+		                    className={cn(
+		                      'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold transition',
+		                      file.hasText
+		                        ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] text-[var(--accent)]'
+		                        : 'border-[color:rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.08)] text-[var(--amber)]',
+		                    )}
+		                    title="Click to remove"
+		                  >
+		                    <PaperclipIcon className="h-3 w-3" />
+		                    <span className="max-w-[220px] truncate">{file.fileName}</span>
+		                    <span className="opacity-70">×</span>
+		                  </button>
+		                ))}
+		              </div>
+		            ) : null}
+
+		            <div className="flex flex-wrap gap-2">
               {quickActions.map((action) => (
                 <button
                   key={action.label}

@@ -1,8 +1,34 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Zap } from 'lucide-react';
+import { Activity, ArrowRight, Eye, History, Inbox, MessageSquare, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import backendApi, { handleApiError } from '../services/api';
+import { ENDPOINTS } from '../services/endpoints';
+import { cn } from '../lib/utils';
+import { useHistorySync } from '../hooks/useHistorySync';
+
+type StreamStats = {
+  total: number;
+  unread: number;
+  avgConfidence: number;
+};
+
+type WhatsappStatusResponse = {
+  status: 'connected' | 'connecting' | 'disconnected';
+  activeCount: number;
+  connectedPhoneNumber?: string | null;
+  connectedOwnerName?: string | null;
+};
+
+type WorkspaceMetadata = {
+  agencyName: string | null;
+  primaryCity: string | null;
+  serviceAreas: Array<{ city: string; locality: string; priority: number }>;
+  updatedAt?: string | null;
+};
 
 const EmptyState: React.FC = () => {
+  const navigate = useNavigate();
   return (
     <div className="mx-auto flex min-h-[60vh] max-w-5xl flex-col justify-center space-y-6">
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
@@ -38,6 +64,26 @@ const EmptyState: React.FC = () => {
             <ShieldCheck className="h-3.5 w-3.5 text-[var(--accent)]" />
             Your workspace is secured and ready to receive WhatsApp data.
           </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/whatsapp')}
+              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[12px] font-semibold text-[#020f07] transition hover:brightness-95"
+            >
+              <Sparkles className="h-4 w-4" />
+              Connect WhatsApp
+              <ArrowRight className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/history-sync')}
+              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[12px] font-semibold text-[var(--text-primary)] transition hover:bg-[var(--bg-base)]"
+            >
+              <History className="h-4 w-4 text-[var(--accent)]" />
+              Import chat history
+            </button>
+          </div>
         </div>
 
         <div className="rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-surface)] p-6 md:p-8">
@@ -71,17 +117,338 @@ const EmptyState: React.FC = () => {
   );
 };
 
+const StatCard: React.FC<{
+  title: string;
+  value: string;
+  hint: string;
+  icon: React.ReactNode;
+  tone?: 'good' | 'warn' | 'neutral';
+  onClick?: () => void;
+  cta?: string;
+}> = ({ title, value, hint, icon, tone = 'neutral', onClick, cta }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={!onClick}
+    className={cn(
+      'group w-full rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5 text-left transition',
+      onClick ? 'hover:bg-[var(--bg-elevated)]' : 'cursor-default',
+    )}
+  >
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">{title}</p>
+        <p className="mt-2 truncate text-[26px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">{value}</p>
+        <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{hint}</p>
+      </div>
+      <div className={cn(
+        'flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border',
+        tone === 'good'
+          ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+          : tone === 'warn'
+            ? 'border-[color:rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.12)] text-[var(--amber)]'
+            : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
+      )}>
+        {icon}
+      </div>
+    </div>
+    {cta ? (
+      <div className="mt-4 inline-flex items-center gap-2 text-[12px] font-semibold text-[var(--accent)]">
+        <span>{cta}</span>
+        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+      </div>
+    ) : null}
+  </button>
+);
 
 export const Dashboard: React.FC = () => {
-  const hasData = false;
+  const navigate = useNavigate();
+  const historySync = useHistorySync();
+  const [whatsapp, setWhatsapp] = React.useState<WhatsappStatusResponse | null>(null);
+  const [streamStats, setStreamStats] = React.useState<StreamStats | null>(null);
+  const [workspaceMetadata, setWorkspaceMetadata] = React.useState<WorkspaceMetadata | null>(null);
+  const [isSavingMetadata, setIsSavingMetadata] = React.useState(false);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
-  if (!hasData) {
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [statusResponse, statsResponse, metadataResponse] = await Promise.all([
+        backendApi.get<WhatsappStatusResponse>(ENDPOINTS.whatsapp.status),
+        backendApi.get<StreamStats>(ENDPOINTS.streamItems.stats),
+        backendApi.get<{ metadata: WorkspaceMetadata }>(ENDPOINTS.workspace.metadata),
+      ]);
+
+      setWhatsapp(statusResponse.data || null);
+      setStreamStats(statsResponse.data || { total: 0, unread: 0, avgConfidence: 0 });
+      setWorkspaceMetadata(metadataResponse.data?.metadata || null);
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void load();
+  }, [load]);
+
+  const isConnected = whatsapp?.status === 'connected';
+  const hasStreamData = Number(streamStats?.total || 0) > 0;
+  const hasAnyData = hasStreamData || historySync.totalProcessed > 0 || isConnected;
+  const needsOnboarding = !workspaceMetadata?.agencyName || !workspaceMetadata?.primaryCity || (workspaceMetadata?.serviceAreas?.length || 0) === 0;
+
+  if (!hasAnyData && !loading && !error) {
     return <EmptyState />;
   }
 
+  const whatsappValue = loading ? '—' : (
+    whatsapp?.status === 'connected'
+      ? `${whatsapp.activeCount || 1} connected`
+      : whatsapp?.status === 'connecting'
+        ? 'Connecting'
+        : 'Disconnected'
+  );
+
+  const whatsappHint = whatsapp?.status === 'connected'
+    ? `Pulse is receiving data from ${whatsapp.connectedOwnerName || 'your device'}${whatsapp.connectedPhoneNumber ? ` · ${whatsapp.connectedPhoneNumber}` : ''}.`
+    : whatsapp?.status === 'connecting'
+      ? 'Finish pairing / QR scan to start live parsing.'
+      : 'Connect WhatsApp to start live group parsing.';
+
+  const unread = Number(streamStats?.unread || 0);
+  const total = Number(streamStats?.total || 0);
+  const avgConfidence = Number(streamStats?.avgConfidence || 0);
+
+  const handleSaveMetadata = async (payload: { agencyName: string; primaryCity: string; serviceAreas: WorkspaceMetadata['serviceAreas'] }) => {
+    setIsSavingMetadata(true);
+    setError(null);
+    try {
+      const response = await backendApi.post<{ metadata: WorkspaceMetadata }>(ENDPOINTS.workspace.metadata, payload);
+      if (response.data?.metadata) {
+        setWorkspaceMetadata(response.data.metadata);
+      } else {
+        await load();
+      }
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsSavingMetadata(false);
+    }
+  };
+
   return (
-    <div className="text-center text-[var(--text-secondary)]">
-      Dashboard data will appear here once the workspace is populated.
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Home</p>
+          <h1 className="mt-1 text-[22px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">Pulse Dashboard</h1>
+          <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--text-secondary)]">
+            A quick view of what’s connected, what’s new, and what to do next.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-[12px] font-semibold text-[var(--text-primary)] transition hover:bg-[var(--bg-elevated)]"
+          >
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/agent')}
+            className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[12px] font-semibold text-[#020f07] transition hover:brightness-95"
+          >
+            <MessageSquare className="h-4 w-4" />
+            Ask the agent
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {error ? (
+        <div className="rounded-[14px] border border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] px-5 py-4 text-[12px] text-[var(--text-primary)]">
+          {error}
+        </div>
+      ) : null}
+
+      {needsOnboarding && (
+        <OnboardingCard
+          initial={workspaceMetadata}
+          isSaving={isSavingMetadata}
+          onSave={handleSaveMetadata}
+        />
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <StatCard
+          title="WhatsApp connection"
+          value={whatsappValue}
+          hint={whatsappHint}
+          icon={<Activity className="h-5 w-5" />}
+          tone={whatsapp?.status === 'connected' ? 'good' : whatsapp?.status === 'connecting' ? 'warn' : 'neutral'}
+          onClick={() => navigate('/whatsapp')}
+          cta={whatsapp?.status === 'connected' ? 'Manage sources' : 'Connect now'}
+        />
+        <StatCard
+          title="Stream"
+          value={loading ? '—' : `${unread} unread`}
+          hint={loading ? 'Loading stream stats...' : `${total} total items · avg confidence ${Math.round(avgConfidence)}%`}
+          icon={<Sparkles className="h-5 w-5" />}
+          tone={unread > 0 ? 'warn' : total > 0 ? 'good' : 'neutral'}
+          onClick={() => navigate('/stream')}
+          cta={unread > 0 ? 'Review new items' : total > 0 ? 'Open Stream' : 'Seed with history'}
+        />
+        <StatCard
+          title="History sync"
+          value={historySync.isProcessing ? 'Importing' : historySync.totalProcessed > 0 ? 'Complete' : 'Not started'}
+          hint={historySync.totalProcessed > 0
+            ? `${historySync.totalProcessed} messages processed · ${typeof historySync.progress === 'number' ? `${Math.round(historySync.progress)}%` : '…'}`
+            : 'Import a WhatsApp TXT export to backfill listings and requirements.'}
+          icon={<History className="h-5 w-5" />}
+          tone={historySync.isProcessing ? 'warn' : historySync.totalProcessed > 0 ? 'good' : 'neutral'}
+          onClick={() => navigate('/history-sync')}
+          cta={historySync.totalProcessed > 0 ? 'View importer' : 'Import TXT'}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <StatCard
+          title="Monitor"
+          value="Groups + DMs"
+          hint="Live mirror view of your WhatsApp activity for debugging and review."
+          icon={<Eye className="h-5 w-5" />}
+          onClick={() => navigate('/monitor')}
+          cta="Open Monitor"
+        />
+        <StatCard
+          title="Inbox"
+          value="Direct messages"
+          hint="1:1 follow-up lane (no groups). Keep conversations clean and searchable."
+          icon={<Inbox className="h-5 w-5" />}
+          onClick={() => navigate('/inbox')}
+          cta="Open Inbox"
+        />
+        <StatCard
+          title="Next actions"
+          value={isConnected ? (unread > 0 ? 'Review Stream' : 'Ask agent') : 'Connect WhatsApp'}
+          hint={isConnected
+            ? (unread > 0 ? 'Clear unread items to keep follow-ups moving.' : 'Describe a buyer need and get matching inventory instantly.')
+            : 'Connect WhatsApp to start live group parsing and auto-capture.'}
+          icon={<ArrowRight className="h-5 w-5" />}
+          tone={isConnected ? (unread > 0 ? 'warn' : 'good') : 'warn'}
+          onClick={() => navigate(isConnected ? (unread > 0 ? '/stream' : '/agent') : '/whatsapp')}
+          cta="Go"
+        />
+      </div>
+    </div>
+  );
+};
+
+const parseAreas = (value: string, primaryCity: string) => {
+  const tokens = value
+    .split(',')
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  const areas = new Map<string, { city: string; locality: string; priority: number }>();
+  for (const token of tokens) {
+    const normalized = token.replace(/\s+/g, ' ').trim();
+    if (!normalized) continue;
+    const key = `${primaryCity.toLowerCase()}::${normalized.toLowerCase()}`;
+    areas.set(key, { city: primaryCity, locality: normalized, priority: 0 });
+  }
+  return Array.from(areas.values()).slice(0, 30);
+};
+
+const OnboardingCard: React.FC<{
+  initial: WorkspaceMetadata | null;
+  isSaving: boolean;
+  onSave: (payload: { agencyName: string; primaryCity: string; serviceAreas: WorkspaceMetadata['serviceAreas'] }) => void;
+}> = ({ initial, isSaving, onSave }) => {
+  const [agencyName, setAgencyName] = React.useState(initial?.agencyName || '');
+  const [primaryCity, setPrimaryCity] = React.useState(initial?.primaryCity || 'Mumbai');
+  const [areasText, setAreasText] = React.useState(() => (initial?.serviceAreas || []).map((a) => a.locality).join(', '));
+
+  React.useEffect(() => {
+    setAgencyName((current) => current || initial?.agencyName || '');
+    setPrimaryCity((current) => current || initial?.primaryCity || 'Mumbai');
+    setAreasText((current) => {
+      if (current.trim()) return current;
+      const next = (initial?.serviceAreas || []).map((a) => a.locality).join(', ');
+      return next || current;
+    });
+  }, [initial?.agencyName, initial?.primaryCity, initial?.serviceAreas]);
+
+  const cleanedAgencyName = agencyName.trim();
+  const cleanedCity = primaryCity.trim();
+  const previewAreas = React.useMemo(() => parseAreas(areasText, cleanedCity || 'Mumbai'), [areasText, cleanedCity]);
+
+  const canSave = cleanedAgencyName.length >= 2 && cleanedCity.length >= 2 && previewAreas.length > 0 && !isSaving;
+
+  return (
+    <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">First-time setup</p>
+          <h2 className="mt-1 text-[16px] font-semibold text-[var(--text-primary)]">Tell Pulse where you operate</h2>
+          <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--text-secondary)]">
+            This creates structured workspace metadata (agency name, city, service areas) so Stream and AI don’t have to guess.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-3">
+        <label className="block">
+          <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Agency name</span>
+          <input
+            value={agencyName}
+            onChange={(e) => setAgencyName(e.target.value)}
+            placeholder="e.g., Shah Realty"
+            className="mt-2 w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Primary city</span>
+          <input
+            value={primaryCity}
+            onChange={(e) => setPrimaryCity(e.target.value)}
+            placeholder="e.g., Mumbai"
+            className="mt-2 w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+          />
+        </label>
+        <label className="block lg:col-span-3">
+          <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Locations you serve</span>
+          <textarea
+            value={areasText}
+            onChange={(e) => setAreasText(e.target.value)}
+            placeholder="Bandra West, Khar West, Santacruz West, Andheri West"
+            className="mt-2 min-h-[86px] w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+          />
+          <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
+            Tip: comma-separated is fine. We’ll turn this into structured service areas.
+          </p>
+        </label>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-[11px] text-[var(--text-secondary)]">
+          {previewAreas.length > 0 ? `${previewAreas.length} service areas ready` : 'Add at least one locality'}
+        </div>
+        <button
+          type="button"
+          onClick={() => onSave({ agencyName: cleanedAgencyName, primaryCity: cleanedCity, serviceAreas: previewAreas })}
+          disabled={!canSave}
+          className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[12px] font-semibold text-[#020f07] transition hover:brightness-95 disabled:opacity-50"
+        >
+          {isSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+          Save workspace profile
+        </button>
+      </div>
     </div>
   );
 };

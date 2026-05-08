@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { serverClientOptions } from '../config/supabase';
 import { followUpService } from './followUpService';
 import { extractIndianCity, extractIndianLocality, parseIndianLocation } from '../utils/locationParser';
 import { channelService } from './channelService';
@@ -56,9 +57,7 @@ export class BrokerWorkflowService {
     private readonly admin: SupabaseClient;
 
     constructor() {
-        this.admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || 'placeholder-service-key', {
-            auth: { persistSession: false, autoRefreshToken: false },
-        });
+        this.admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || 'placeholder-service-key', serverClientOptions);
     }
 
     async handlePrompt(tenantId: string, prompt: string): Promise<WorkflowResult> {

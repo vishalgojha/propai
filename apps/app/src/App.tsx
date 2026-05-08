@@ -26,7 +26,6 @@ import { Team } from './pages/Team';
 import { HistorySync } from './pages/HistorySync';
 import Analytics from './pages/Analytics';
 import Intelligence from './pages/Intelligence';
-import HomeSearch from './pages/HomeSearch';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { Terms } from './pages/Terms';
 import { RefundPolicy } from './pages/RefundPolicy';
@@ -58,22 +57,16 @@ const AnalyticsPageView: React.FC = () => {
 };
 
 export default function App() {
-  const host =
-    typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
-  const isAppHost = host === 'app.propai.live' || host.startsWith('app.');
-  const landingRoute = isAppHost ? '/login' : '/search';
-  const LoginRoute = isAppHost
-    ? Login
-    : () => <Navigate to="/search" replace />;
+  const landingRoute = '/login';
 
   return (
     <Router>
       <AuthProvider>
         <AnalyticsPageView />
         <Routes>
-          <Route path="/" element={isAppHost ? <Login /> : <HomeSearch />} />
-          <Route path="/login" element={<LoginRoute />} />
-          <Route path="/search" element={<HomeSearch />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/search" element={<Navigate to="/login" replace />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/refund-policy" element={<RefundPolicy />} />

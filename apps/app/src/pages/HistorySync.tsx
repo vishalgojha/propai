@@ -9,6 +9,7 @@ export const HistorySync: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [forceProcess, setForceProcess] = useState(false);
 
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
@@ -32,16 +33,20 @@ export const HistorySync: React.FC = () => {
       await backendApi.post(ENDPOINTS.whatsapp.historyImport, {
         fileName: selectedFile.name,
         content,
+        forceProcess,
       });
 
-      setUploadMessage(`Queued ${selectedFile.name} for background parsing.`);
+      setUploadMessage(forceProcess
+        ? `Re-import queued: ${selectedFile.name}.`
+        : `Queued ${selectedFile.name} for background parsing.`);
       setSelectedFile(null);
+      setForceProcess(false);
     } catch (error) {
       setUploadError(handleApiError(error));
     } finally {
       setIsUploading(false);
     }
-  }, [selectedFile]);
+  }, [forceProcess, selectedFile]);
 
   return (
     <div className="space-y-6">
@@ -91,9 +96,21 @@ export const HistorySync: React.FC = () => {
             className="inline-flex items-center justify-center gap-2 rounded-[12px] bg-[var(--accent)] px-4 py-3 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isUploading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <PlusIcon className="h-4 w-4" />}
-            {isUploading ? 'Uploading' : 'Import TXT'}
+            {isUploading ? 'Uploading' : forceProcess ? 'Re-import TXT' : 'Import TXT'}
           </button>
         </div>
+
+        <label className="mt-4 flex items-start gap-3 rounded-[12px] border border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] px-4 py-3 text-[12px] text-[var(--text-secondary)]">
+          <input
+            type="checkbox"
+            checked={forceProcess}
+            onChange={(event) => setForceProcess(event.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-[color:var(--border-strong)] bg-[var(--bg-base)] text-[var(--accent)] accent-[var(--accent)]"
+          />
+          <span>
+            Re-import (danger): resets history import progress and reprocesses the TXT. Leave this off for one-time onboarding.
+          </span>
+        </label>
 
         {selectedFile ? (
           <p className="mt-3 text-[12px] text-[var(--text-secondary)]">Selected: {selectedFile.name}</p>

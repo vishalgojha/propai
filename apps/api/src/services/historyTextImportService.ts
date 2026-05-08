@@ -12,6 +12,7 @@ type ImportOptions = {
   rawText: string;
   fileName?: string | null;
   sessionLabel?: string | null;
+  forceProcess?: boolean;
   onProgress?: (progress: {
     total: number;
     processed: number;
@@ -169,7 +170,7 @@ function buildRemoteJid(fileName: string | null | undefined, messages: ParsedTex
 
 export class HistoryTextImportService {
   async importTxt(options: ImportOptions) {
-    const { tenantId, rawText, fileName, sessionLabel, onProgress } = options;
+    const { tenantId, rawText, fileName, sessionLabel, onProgress, forceProcess = false } = options;
     const messages = parseMessages(rawText);
 
     if (!messages.length) {
@@ -192,7 +193,7 @@ export class HistoryTextImportService {
       tenantId,
       sessionLabel: String(sourceLabel),
       messages: historyMessages,
-      forceProcess: true,
+      forceProcess,
       onProgress,
     });
   }

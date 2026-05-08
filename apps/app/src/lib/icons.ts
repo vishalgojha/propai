@@ -30,6 +30,7 @@ export {
   MessageSquare as MessageSquareIcon,
   MessageSquareText as MessageSquareTextIcon,
   Mic as MicIcon,
+  Paperclip as PaperclipIcon,
   PhoneCall as CallbackIcon,
   Pin as PinIcon,
   Plus as PlusIcon,

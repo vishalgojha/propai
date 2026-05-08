@@ -143,6 +143,19 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             }
         );
 
+        // QR generation can be async (Baileys emits it after socket init). Poll briefly so the UI
+        // usually gets a QR immediately, especially for the 2nd+ device flow.
+        const waitForArtifact = async () => {
+            const deadline = Date.now() + 7000;
+            while (Date.now() < deadline) {
+                const current = sessionManager.getQR(tenantId, sessionLabel);
+                if (current) return current;
+                await new Promise((resolve) => setTimeout(resolve, 250));
+            }
+            return null;
+        };
+        const artifactAfterCreate = await waitForArtifact();
+
         await dbClient
             .from('whatsapp_sessions')
             .upsert({
@@ -158,7 +171,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
                 last_sync: new Date().toISOString(),
             }, { onConflict: 'tenant_id,label' });
 
-        const artifact = sessionManager.getQR(tenantId, sessionLabel);
+        const artifact = sessionManager.getQR(tenantId, sessionLabel) || artifactAfterCreate;
         res.json({
             message: 'Connection initiated',
             label: sessionLabel,
@@ -652,7 +665,37 @@ export const getGroups = async (req: Request, res: Response) => {
         }
 
         const directoryGroups = await whatsappGroupService.listGroups(tenantId as string);
-        res.json(directoryGroups);
+
+        const groupIds = directoryGroups.map((group: any) => String(group.id || group.groupJid || '')).filter(Boolean);
+        const behaviorMap = new Map<string, string>();
+
+        if (groupIds.length > 0) {
+            const dbClient = getDbClient();
+            const chunkSize = 200;
+            for (let i = 0; i < groupIds.length; i += chunkSize) {
+                const chunk = groupIds.slice(i, i + chunkSize);
+                const { data: configs, error } = await dbClient
+                    .from('group_configs')
+                    .select('group_id,behavior')
+                    .eq('tenant_id', tenantId)
+                    .in('group_id', chunk);
+
+                if (error) {
+                    throw error;
+                }
+
+                for (const row of configs || []) {
+                    if (row?.group_id) {
+                        behaviorMap.set(String(row.group_id), String(row.behavior || ''));
+                    }
+                }
+            }
+        }
+
+        res.json(directoryGroups.map((group: any) => ({
+            ...group,
+            behavior: behaviorMap.get(String(group.id)) || 'Listen',
+        })));
     } catch (error: any) {
         res.status(500).json({ error: error.message || 'Failed to load WhatsApp groups' });
     }

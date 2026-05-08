@@ -9,6 +9,7 @@ type HistoryProfile = {
   history_processed?: boolean | null;
   history_processed_at?: string | null;
   history_message_count?: number | null;
+  history_total_count?: number | null;
 };
 
 type WhatsappHealthSession = {
@@ -64,7 +65,7 @@ export function useHistorySync() {
         const [{ data: profile }, healthResponse] = await Promise.all([
           supabase
             .from('profiles')
-            .select('id, history_processed, history_processed_at, history_message_count')
+            .select('id, history_processed, history_processed_at, history_message_count, history_total_count')
             .eq('id', authData.user.id)
             .maybeSingle<HistoryProfile>(),
           backendApi.get<WhatsappHealthResponse>(ENDPOINTS.whatsapp.health).catch((error) => {
@@ -79,8 +80,8 @@ export function useHistorySync() {
           .sort((a, b) => new Date(a.connectedAt || 0).getTime() - new Date(b.connectedAt || 0).getTime())[0] || null;
 
         const totalProcessed = Number(profile?.history_message_count || 0);
-        const isProcessing = Boolean(connectedSession && !profile?.history_processed);
-        const totalSource = Number(connectedSession?.messagesReceived24h || 0);
+        const totalSource = Number(profile?.history_total_count || 0) || Number(connectedSession?.messagesReceived24h || 0);
+        const isProcessing = Boolean(!profile?.history_processed && (totalSource > 0 || connectedSession));
         const progress = profile?.history_processed
           ? 100
           : totalProcessed > 0 && totalSource > 0
@@ -118,4 +119,3 @@ export function useHistorySync() {
 
   return state;
 }
-

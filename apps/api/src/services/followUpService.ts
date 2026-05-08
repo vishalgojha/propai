@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { serverClientOptions } from '../config/supabase';
 
 type FollowUpAction = 'call' | 'email' | 'visit';
 type FollowUpStatus = 'pending' | 'completed' | 'cancelled';
@@ -10,9 +11,7 @@ export class FollowUpService {
     private readonly admin: SupabaseClient;
 
     constructor() {
-        this.admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || 'placeholder-service-key', {
-            auth: { persistSession: false, autoRefreshToken: false },
-        });
+        this.admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || 'placeholder-service-key', serverClientOptions);
     }
 
     private requireServiceRole() {

@@ -10,6 +10,7 @@ import { parseAgentResponse, toAgentResponse } from '../types/agent';
 import { browserToolService } from '../services/browserToolService';
 import { productKnowledgeService } from '../services/productKnowledgeService';
 import { sessionManager } from '../whatsapp/SessionManager';
+import { igrQueryService } from '../services/igrQueryService';
 import {
     getConversationHistory,
     getConversationMessageCount,
@@ -44,15 +45,21 @@ function isWorkflowIntent(intent: AgentRoutePlan['intent']): intent is BrokerToo
 export const chat = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const tenantId = user.id;
-    const prompt = req.body.prompt || req.body.message;
+    const rawPrompt = req.body.prompt || req.body.message;
     const modelPreference = req.body.modelPreference || req.body.model;
-    if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
+    if (!rawPrompt) return res.status(400).json({ error: 'Prompt is required' });
 
     try {
         const profile = await getBrokerProfile(tenantId);
         const conversationKey = profile?.phone || tenantId;
         const history = await getConversationHistory(conversationKey);
         const isFirstReply = (await getConversationMessageCount(conversationKey)) === 0;
+
+        const attachments = Array.isArray(req.body?.attachments) ? req.body.attachments : [];
+        const attachmentContext = await buildAttachmentContext(tenantId, attachments);
+        const prompt = attachmentContext
+            ? `${rawPrompt}\n\n---\nAttached context:\n${attachmentContext}\n---`
+            : rawPrompt;
 
         const knowledgeAnswer = await productKnowledgeService.answer(tenantId, prompt);
         if (knowledgeAnswer) {
@@ -83,6 +90,74 @@ export const chat = async (req: Request, res: Response) => {
                 agent_response: agentResponse,
                 route: { intent: browserToolPlan.tool },
                 capability_hint: 'You can keep using web fetch, web search, listing extract, or RERA verify in plain language.',
+            });
+        }
+
+        const igrIntent = detectIgrIntent(prompt);
+        if (igrIntent) {
+            const { buildingName, locality } = igrIntent;
+            const transaction = buildingName
+                ? await igrQueryService.getLastTransactionForBuilding(buildingName)
+                : null;
+
+            if (transaction) {
+                const stats = transaction.locality
+                    ? await igrQueryService.getLocalityStats(transaction.locality, 6)
+                    : (locality ? await igrQueryService.getLocalityStats(locality, 6) : null);
+
+                const marketRate = stats?.avg_price_per_sqft ?? null;
+                const dealRate = transaction.price_per_sqft ?? null;
+                const comparison = marketRate != null && dealRate != null
+                    ? dealRate > marketRate ? 'above' : dealRate < marketRate ? 'below' : 'at'
+                    : null;
+
+                const rendered = [
+                    `Last registered transaction for **${transaction.building_name || buildingName}** (${transaction.locality || locality || 'Unknown locality'})`,
+                    '',
+                    `- Date: ${formatIgrDate(transaction.reg_date)}`,
+                    `- Consideration: ${formatInr(transaction.consideration)}`,
+                    `- Area: ${formatSqft(transaction.area_sqft)}`,
+                    `- Rate: ${formatRate(dealRate)}`,
+                    stats?.transaction_count
+                        ? `- Locality average (last 6 months): ${formatRate(marketRate)} across ${stats.transaction_count} transactions${comparison ? ` (this deal was ${comparison} market)` : ''}`
+                        : null,
+                ].filter(Boolean).join('\n');
+
+                await saveToHistory(conversationKey, prompt, rendered);
+                return res.json({
+                    reply: rendered,
+                    text: rendered,
+                    agent_response: toAgentResponse(rendered),
+                    route: { intent: 'igr_last_transaction' },
+                    capability_hint: 'You can ask: “Give me the latest IGR transaction for <building/locality>” or “Compare <building> vs locality market rate”.',
+                    data: { transaction, locality_stats: stats },
+                });
+            }
+
+            if (locality) {
+                const stats = await igrQueryService.getLocalityStats(locality, 6);
+                if (stats.transaction_count > 0) {
+                    const rendered = `No exact building match found. Locality average in **${stats.locality}** (last 6 months): ${formatRate(stats.avg_price_per_sqft)} across ${stats.transaction_count} transactions.`;
+                    await saveToHistory(conversationKey, prompt, rendered);
+                    return res.json({
+                        reply: rendered,
+                        text: rendered,
+                        agent_response: toAgentResponse(rendered),
+                        route: { intent: 'igr_locality_stats' },
+                        capability_hint: 'If you share the exact building name (as per registration), I can try a closer match.',
+                        data: { locality_stats: stats },
+                    });
+                }
+            }
+
+            const rendered = 'I could not find IGR transaction data for that building/locality in this workspace yet.';
+            await saveToHistory(conversationKey, prompt, rendered);
+            return res.json({
+                reply: rendered,
+                text: rendered,
+                agent_response: toAgentResponse(rendered),
+                route: { intent: 'igr_last_transaction' },
+                capability_hint: 'If this is a new building, we might not have ingested its IGR feed yet. Share locality + building name and I’ll try again.',
             });
         }
 
@@ -180,6 +255,102 @@ export const chat = async (req: Request, res: Response) => {
         });
     }
 };
+
+async function buildAttachmentContext(tenantId: string, attachments: any[]) {
+    const ids = attachments
+        .map((item) => (typeof item === 'string' ? item : item?.fileId))
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+        .slice(0, 6);
+
+    if (ids.length === 0) return '';
+
+    const client = supabaseAdmin ?? supabase;
+    const { data, error } = await client
+        .from('workspace_files')
+        .select('id, file_name, mime_type, extracted_text, extraction_status, extraction_error')
+        .eq('workspace_id', tenantId)
+        .in('id', ids);
+
+    if (error || !Array.isArray(data) || data.length === 0) {
+        return '';
+    }
+
+    const parts: string[] = [];
+    for (const row of data) {
+        const name = String((row as any).file_name || 'attachment');
+        const mime = String((row as any).mime_type || '');
+        const text = String((row as any).extracted_text || '').trim();
+        const status = String((row as any).extraction_status || '');
+        const extractionError = String((row as any).extraction_error || '').trim();
+        if (!text) {
+            if (status === 'failed') {
+                parts.push(`[${name}${mime ? ` (${mime})` : ''}] OCR/text extraction failed${extractionError ? `: ${extractionError}` : '.'} If this is a scanned PDF/image, try a clearer file or paste the key text.`);
+            } else {
+                parts.push(`[${name}${mime ? ` (${mime})` : ''}] No text extracted. If this is a scanned PDF/image and OCR is not enabled on this deployment, the model cannot read it. Please paste the key text or upload a text-based PDF/TXT.`);
+            }
+            continue;
+        }
+        const clipped = text.length > 30_000 ? `${text.slice(0, 30_000)}\n\n[Truncated]` : text;
+        parts.push(`[${name}${mime ? ` (${mime})` : ''}]\n${clipped}`);
+    }
+
+    return parts.join('\n\n');
+}
+
+function detectIgrIntent(prompt: string): { buildingName: string | null; locality: string | null } | null {
+    const lowered = String(prompt || '').toLowerCase();
+    const looksLikeIgr = (
+        lowered.includes('igr') ||
+        lowered.includes('registration') ||
+        lowered.includes('registered') ||
+        lowered.includes('transaction') ||
+        lowered.includes('sale deed') ||
+        lowered.includes('stamp duty')
+    );
+
+    if (!looksLikeIgr) return null;
+
+    const compact = lowered
+        .replace(/[^\p{L}\p{N}\s,.-]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const localityMatch = compact.match(/\b(in|at|near)\s+([a-z][a-z0-9 .-]{2,40})$/i);
+    const locality = localityMatch?.[2]?.trim() || null;
+
+    const cleanedBuilding = compact
+        .replace(/\b(latest|last|recent|transaction|transactions|data|details|igr|registration|registered|record|records|sale deed|stamp duty|of|for|please|plz|chahiye|chaiye|chahiyeh)\b/g, ' ')
+        .replace(/\b(in|at|near)\b\s+[a-z][a-z0-9 .-]{2,40}$/i, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const buildingName = cleanedBuilding.length >= 3 ? cleanedBuilding : null;
+    if (!buildingName && !locality) return null;
+    return { buildingName, locality };
+}
+
+function formatInr(value: number | null) {
+    if (value == null || !Number.isFinite(value)) return 'N/A';
+    return `₹${Math.round(value).toLocaleString('en-IN')}`;
+}
+
+function formatSqft(value: number | null) {
+    if (value == null || !Number.isFinite(value)) return 'N/A';
+    return `${Math.round(value).toLocaleString('en-IN')} sqft`;
+}
+
+function formatRate(value: number | null) {
+    if (value == null || !Number.isFinite(value)) return 'N/A';
+    return `₹${Math.round(value).toLocaleString('en-IN')}/sqft`;
+}
+
+function formatIgrDate(value: string | null) {
+    if (!value) return 'Unknown';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed);
+}
 
 async function getBrokerProfile(tenantId: string) {
     const client = supabaseAdmin ?? supabase;

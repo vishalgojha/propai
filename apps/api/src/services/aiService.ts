@@ -18,7 +18,7 @@ type ProviderError = {
     message: string;
 };
 
-type ProviderId = 'Groq' | 'Google' | 'OpenRouter' | 'Doubleword';
+type ProviderId = 'Concentrate' | 'Groq' | 'Google' | 'OpenRouter' | 'Doubleword';
 
 type OpenAICompatibleConfig = {
     baseURL: string;
@@ -30,6 +30,8 @@ type OpenAICompatibleConfig = {
 };
 
 export class AIService {
+    private concentrateBaseURL = process.env.CONCENTRATE_BASE_URL || 'https://api.concentrate.ai/v1';
+    private concentrateModel = process.env.CONCENTRATE_MODEL || 'auto';
     private googleModel = process.env.GOOGLE_MODEL || 'gemini-2.5-flash';
     private groqBaseURL = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
     private groqModel = process.env.GROQ_MODEL || 'llama3-8b-8192';
@@ -77,9 +79,9 @@ export class AIService {
             case 'listing_parsing':
             case 'agent_router':
             case 'lead_qualification':
-                return 'Google';
+                return process.env.CONCENTRATE_API_KEY ? 'Concentrate' : 'Google';
             default:
-                return 'Google';
+                return process.env.CONCENTRATE_API_KEY ? 'Concentrate' : 'Google';
         }
     }
 
@@ -87,6 +89,10 @@ export class AIService {
         const normalized = (value || '').trim().toLowerCase();
 
         switch (normalized) {
+            case 'concentrate':
+            case 'auto':
+            case 'concentrate-auto':
+                return 'Concentrate';
             case 'google':
             case 'gemini':
             case 'gemini-2.5-flash':
@@ -113,7 +119,9 @@ export class AIService {
             this.normalizeProviderPreference(modelPreference && modelPreference !== 'Auto' ? modelPreference : null) ||
             this.normalizeProviderPreference(savedDefault) ||
             this.routeByTask(taskType);
-        const order: ProviderId[] = ['Google', 'Groq', 'OpenRouter', 'Doubleword'];
+        const order: ProviderId[] = process.env.CONCENTRATE_API_KEY
+            ? ['Concentrate', 'Google', 'Groq', 'OpenRouter', 'Doubleword']
+            : ['Google', 'Groq', 'OpenRouter', 'Doubleword'];
 
         if (preferred && order.includes(preferred)) {
             return [preferred, ...order.filter((provider) => provider !== preferred)];
@@ -159,8 +167,17 @@ export class AIService {
         return messages;
     }
 
+    private buildConversationTranscript(prompt: string, systemPrompt?: string, conversationHistory: ChatMessage[] = []): string {
+        const messages = this.buildMessages(prompt, systemPrompt, conversationHistory);
+        return messages
+            .map((entry) => `${entry.role.toUpperCase()}: ${entry.content}`)
+            .join('\n\n');
+    }
+
     private async callModel(prompt: string, modelId: ProviderId, tenantId?: string, systemPrompt?: string, conversationHistory: ChatMessage[] = []): Promise<AIResponse> {
         switch (modelId) {
+            case 'Concentrate':
+                return await this.callConcentrate(prompt, tenantId, systemPrompt, conversationHistory);
             case 'Groq':
                 return await this.callGroq(prompt, tenantId, systemPrompt, conversationHistory);
             case 'Google':
@@ -184,6 +201,8 @@ export class AIService {
         }
 
         switch (provider) {
+            case 'Concentrate':
+                return this.getEnvKeys(process.env.CONCENTRATE_API_KEY);
             case 'Google':
                 return this.getEnvKeys(process.env.GOOGLE_API_KEY);
             case 'Groq':
@@ -247,6 +266,43 @@ export class AIService {
             text: res.data.choices[0].message.content, 
             model: `Groq ${this.groqModel}`, 
             latency: 0 
+        };
+    }
+
+    private async callConcentrate(prompt: string, tenantId?: string, systemPrompt?: string, conversationHistory: ChatMessage[] = []): Promise<AIResponse> {
+        const keys = await this.getKeysForProvider('Concentrate', tenantId);
+        if (!keys.length) {
+            throw new Error('Concentrate API key not configured');
+        }
+
+        const res = await this.withKeyRotation('Concentrate', keys, (key) => {
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${key}`,
+            };
+            const baseURL = this.concentrateBaseURL.endsWith('/') ? this.concentrateBaseURL.slice(0, -1) : this.concentrateBaseURL;
+            return axios.post(`${baseURL}/responses`, {
+                model: this.concentrateModel,
+                input: this.buildConversationTranscript(prompt, systemPrompt, conversationHistory),
+            }, { headers });
+        });
+
+        const output = Array.isArray(res.data?.output) ? res.data.output : [];
+        const text = output
+            .flatMap((entry: any) => Array.isArray(entry?.content) ? entry.content : [])
+            .filter((part: any) => part?.type === 'output_text' && typeof part?.text === 'string')
+            .map((part: any) => part.text)
+            .join('\n')
+            .trim();
+
+        if (!text) {
+            throw new Error('Concentrate returned an empty response');
+        }
+
+        return {
+            text,
+            model: `Concentrate ${res.data?.model || this.concentrateModel}`,
+            latency: 0,
         };
     }
 
@@ -338,6 +394,7 @@ export class AIService {
         const tenantGoogleKey = tenantId ? await keyService.getKey(tenantId, 'Google') : null;
         const tenantOpenRouterKey = tenantId ? await keyService.getKey(tenantId, 'OpenRouter') : null;
         const tenantDoublewordKey = tenantId ? await keyService.getKey(tenantId, 'Doubleword') : null;
+        const hasConcentrate = Boolean(process.env.CONCENTRATE_API_KEY);
         const hasGroq = Boolean(tenantGroqKey || process.env.GROQ_API_KEY);
         const hasGoogle = Boolean(tenantGoogleKey || process.env.GOOGLE_API_KEY);
         const hasOpenRouter = Boolean(tenantOpenRouterKey || process.env.OPENROUTER_API_KEY);
@@ -345,6 +402,7 @@ export class AIService {
 
         return {
           models: {
+            Concentrate: { name: `Concentrate ${this.concentrateModel}`, latency: 250, status: hasConcentrate ? 'online' : 'offline' },
             Groq: { name: `Groq ${this.groqModel}`, latency: 150, status: hasGroq ? 'online' : 'offline' },
             Google: { name: 'Gemini 2.5 Flash', latency: 300, status: hasGoogle ? 'online' : 'offline' },
             OpenRouter: { name: `OpenRouter ${this.openRouterModel}`, latency: 350, status: hasOpenRouter ? 'online' : 'offline' },

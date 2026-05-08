@@ -129,6 +129,7 @@ type WhatsappGroupOption = {
   category?: string | null;
   tags?: string[];
   broadcastEnabled?: boolean;
+  behavior?: string;
   participantsCount: number;
   lastActiveAt?: string | null;
 };
@@ -186,6 +187,7 @@ const wabroCapabilities = [
 ];
 
 const normalizePhoneNumber = (value: string) => value.split('').filter(c => c >= '0' && c <= '9').join('');
+const isGroupParsingEnabled = (behavior?: string | null) => behavior === 'Listen' || behavior === 'AutoReply';
 
 const buildSessionLabel = (ownerName?: string, phoneNumber?: string) => {
   const raw = `${ownerName || 'Owner'}-${phoneNumber || 'device'}`;
@@ -273,6 +275,7 @@ export const Sources: React.FC = () => {
   const [isSavingParsingPrefs, setIsSavingParsingPrefs] = useState(false);
   const [isLoadingOutbound, setIsLoadingOutbound] = useState(false);
   const [outboundFeedback, setOutboundFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+  const [savingGroupBehavior, setSavingGroupBehavior] = useState<Record<string, boolean>>({});
   const [sendState, setSendState] = useState<{ groups: boolean; brokers: boolean; leads: boolean }>({
     groups: false,
     brokers: false,
@@ -579,12 +582,28 @@ export const Sources: React.FC = () => {
     }
   };
 
+  const ensureConnectUiVisible = useCallback(() => {
+    if (location.pathname === '/pricing') {
+      navigate('/whatsapp');
+    }
+    if (activeTab !== 'setup') {
+      setActiveTab('setup');
+    }
+  }, [activeTab, location.pathname, navigate]);
+
   useEffect(() => {
     if (searchParams.get('connect') === '1') {
+      ensureConnectUiVisible();
       void handleConnect();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  useEffect(() => {
+    if ((isConnecting && connectionArtifactType) || pairingArtifact) {
+      ensureConnectUiVisible();
+    }
+  }, [connectionArtifactType, ensureConnectUiVisible, isConnecting, pairingArtifact]);
 
   useEffect(() => {
     if (activeTab === 'outbound') {
@@ -596,6 +615,7 @@ export const Sources: React.FC = () => {
   const handleConnectWrapper = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
+    ensureConnectUiVisible();
 
     const nameToUse = deviceOwnerName || fullName;
     const phoneToUse = devicePhoneNumber || phoneNumber;
@@ -669,6 +689,7 @@ export const Sources: React.FC = () => {
     mode: 'qr' | 'pairing' = 'qr',
     values?: { ownerName?: string; phoneNumber?: string },
   ) => {
+    ensureConnectUiVisible();
     const ownerNameToUse = values?.ownerName ?? deviceOwnerName;
     const phoneNumberToUse = values?.phoneNumber ?? normalizedDevicePhone;
     const sessionLabelToUse = buildSessionLabel(ownerNameToUse || 'Owner', phoneNumberToUse || 'device');
@@ -760,7 +781,7 @@ export const Sources: React.FC = () => {
     } finally {
       setIsConnecting(false);
     }
-  }, [deviceOwnerName, fetchStatus, normalizedDevicePhone, status.activeCount, status.limit, status.plan, status.sessions, waitForQR]);
+  }, [deviceOwnerName, ensureConnectUiVisible, fetchStatus, normalizedDevicePhone, status.activeCount, status.limit, status.plan, status.sessions, waitForQR]);
 
   const handleDisconnect = async (label?: string) => {
     setIsConnecting(true);
@@ -835,6 +856,59 @@ export const Sources: React.FC = () => {
   const toggleSelection = (current: string[], id: string) => (
     current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
   );
+
+  const handleSetGroupParsing = async (groupId: string, enabled: boolean) => {
+    setSavingGroupBehavior((current) => ({ ...current, [groupId]: true }));
+    setError(null);
+    try {
+      await backendApi.post(ENDPOINTS.whatsapp.config, {
+        group_id: groupId,
+        behavior: enabled ? 'Listen' : 'Off',
+      });
+      setOutboundGroups((current) => current.map((group) => (
+        group.id === groupId ? { ...group, behavior: enabled ? 'Listen' : 'Off' } : group
+      )));
+      track('whatsapp_group_parsing_toggled', { enabled, group_id: groupId });
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setSavingGroupBehavior((current) => ({ ...current, [groupId]: false }));
+    }
+  };
+
+  const handleBulkSetGroupParsing = async (enabled: boolean) => {
+    if (filteredOutboundGroups.length === 0) {
+      setOutboundFeedback({ tone: 'error', message: 'No groups found to update.' });
+      return;
+    }
+
+    setOutboundFeedback(null);
+    setError(null);
+    const groupIds = filteredOutboundGroups.map((group) => group.id);
+    setSavingGroupBehavior((current) => ({
+      ...current,
+      ...Object.fromEntries(groupIds.map((id) => [id, true])),
+    }));
+
+    try {
+      await Promise.all(groupIds.map((groupId) => backendApi.post(ENDPOINTS.whatsapp.config, {
+        group_id: groupId,
+        behavior: enabled ? 'Listen' : 'Off',
+      })));
+      setOutboundGroups((current) => current.map((group) => (
+        groupIds.includes(group.id) ? { ...group, behavior: enabled ? 'Listen' : 'Off' } : group
+      )));
+      setOutboundFeedback({ tone: 'success', message: `${enabled ? 'Enabled' : 'Paused'} parsing for ${groupIds.length} group${groupIds.length === 1 ? '' : 's'}.` });
+      track('whatsapp_group_parsing_bulk_toggled', { enabled, count: groupIds.length });
+    } catch (err) {
+      setOutboundFeedback({ tone: 'error', message: handleApiError(err) });
+    } finally {
+      setSavingGroupBehavior((current) => ({
+        ...current,
+        ...Object.fromEntries(groupIds.map((id) => [id, false])),
+      }));
+    }
+  };
 
   const handleSendGroups = async () => {
     if (!outboundSessionKey) {
@@ -1025,9 +1099,9 @@ export const Sources: React.FC = () => {
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="max-w-3xl">
               <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Broker-controlled privacy</p>
-              <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Only parse the groups and direct chats you explicitly allow</h3>
+              <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Group parsing is on by default. Direct chats stay off until you enable them.</h3>
               <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-              Group parsing follows the per-group Listen/AutoReply setting. The AI assistant on this number and 1:1 direct messages stay off until you enable them for the current connected session.
+              Groups from the connected number are parsed unless you explicitly disable a specific group. The AI assistant on this number and 1:1 direct messages stay off until you enable them for the current connected session.
               </p>
             </div>
           <div className="flex flex-col gap-3 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 md:flex-row md:items-center">
@@ -1147,8 +1221,18 @@ export const Sources: React.FC = () => {
             </div>
 
             {!isCurrentSessionConnected && (
-              <div className="mt-4 rounded-[10px] border border-[color:rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.08)] px-4 py-3 text-[12px] text-[var(--amber)]">
-                Connect WhatsApp first. The assistant, 1:1 message controls, and group sync all stay locked until the live session is connected.
+              <div className="mt-4 flex flex-col gap-3 rounded-[10px] border border-[color:rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.08)] px-4 py-3 text-[12px] text-[var(--amber)] md:flex-row md:items-center md:justify-between">
+                <span>
+                  Connect WhatsApp first. The assistant, 1:1 message controls, and group sync all stay locked until the live session is connected.
+                </span>
+                <button
+                  type="button"
+                  onClick={ensureConnectUiVisible}
+                  className="inline-flex items-center justify-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95"
+                >
+                  <QrCode className="h-3.5 w-3.5" />
+                  Open setup
+                </button>
               </div>
             )}
 
@@ -1205,11 +1289,13 @@ export const Sources: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Connected WhatsApp groups</p>
-                  <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">Groups synced from this number</h4>
+                  <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">{isWabroRoute ? 'Groups synced from this number' : 'Choose which groups get parsed'}</h4>
                 </div>
               </div>
               <p className="mt-3 text-[12px] leading-5 text-[var(--text-secondary)]">
-                These are the WhatsApp groups synced from the connected number. Select the ones you want to broadcast to, then send at a human pace.
+                {isWabroRoute
+                  ? 'These are the WhatsApp groups synced from the connected number. Select the ones you want to broadcast to, then send at a human pace.'
+                  : 'Groups are parsed by default. Pause parsing for specific groups if you want them excluded from Pulse.'}
               </p>
               <input
                 value={groupSearchTerm}
@@ -1217,6 +1303,28 @@ export const Sources: React.FC = () => {
                 placeholder="Search by group name, locality, category, or tag"
                 className="mt-4 w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
               />
+              {!isWabroRoute ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleBulkSetGroupParsing(true)}
+                    disabled={!isCurrentSessionConnected || isLoadingOutbound || filteredOutboundGroups.length === 0}
+                    className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-base)] disabled:opacity-50"
+                  >
+                    <Power className="h-3.5 w-3.5" />
+                    Enable parsing (filtered)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleBulkSetGroupParsing(false)}
+                    disabled={!isCurrentSessionConnected || isLoadingOutbound || filteredOutboundGroups.length === 0}
+                    className="inline-flex items-center gap-2 rounded-full border border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] px-3 py-1.5 text-[11px] font-semibold text-[var(--red)] transition-colors hover:bg-[rgba(239,68,68,0.12)] disabled:opacity-50"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    Pause parsing (filtered)
+                  </button>
+                </div>
+              ) : null}
               <div className="mt-4 max-h-[240px] space-y-2 overflow-y-auto pr-1">
                 {filteredOutboundGroups.length === 0 ? (
                   <div className="rounded-[10px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
@@ -1225,22 +1333,54 @@ export const Sources: React.FC = () => {
                 ) : (
                   filteredOutboundGroups.map((group) => (
                     <label key={group.id} className="flex cursor-pointer items-start gap-3 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedGroupIds.includes(group.id)}
-                        onChange={() => setSelectedGroupIds((current) => toggleSelection(current, group.id))}
-                        className="mt-0.5 h-4 w-4 rounded border-[color:var(--border-strong)] bg-[var(--bg-base)] text-[var(--accent)] accent-[var(--accent)]"
-                      />
+                      {isWabroRoute ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedGroupIds.includes(group.id)}
+                          onChange={() => setSelectedGroupIds((current) => toggleSelection(current, group.id))}
+                          className="mt-0.5 h-4 w-4 rounded border-[color:var(--border-strong)] bg-[var(--bg-base)] text-[var(--accent)] accent-[var(--accent)]"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            void handleSetGroupParsing(group.id, !isGroupParsingEnabled(group.behavior));
+                          }}
+                          disabled={!isCurrentSessionConnected || Boolean(savingGroupBehavior[group.id])}
+                          className={cn(
+                            'relative mt-0.5 h-6 w-11 rounded-full border transition-colors disabled:opacity-50',
+                            isGroupParsingEnabled(group.behavior)
+                              ? 'border-[color:var(--accent-border)] bg-[var(--accent)]'
+                              : 'border-[color:var(--border)] bg-[var(--bg-elevated)]',
+                          )}
+                          aria-pressed={isGroupParsingEnabled(group.behavior)}
+                          aria-label={`Toggle parsing for ${group.name}`}
+                        >
+                          <span
+                            className={cn(
+                              'absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform',
+                              isGroupParsingEnabled(group.behavior) ? 'translate-x-5' : 'translate-x-0.5',
+                            )}
+                          />
+                        </button>
+                      )}
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{group.name}</p>
                           <span className={cn(
                             'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
-                            group.broadcastEnabled
-                              ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] text-[var(--accent)]'
-                              : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
+                            isWabroRoute
+                              ? (group.broadcastEnabled
+                                ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] text-[var(--accent)]'
+                                : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]')
+                              : (isGroupParsingEnabled(group.behavior)
+                                ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] text-[var(--accent)]'
+                                : 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]'),
                           )}>
-                            {group.broadcastEnabled ? 'Broadcast ready' : 'Synced'}
+                            {isWabroRoute
+                              ? (group.broadcastEnabled ? 'Broadcast ready' : 'Synced')
+                              : (isGroupParsingEnabled(group.behavior) ? 'Parsing on' : 'Paused')}
                           </span>
                         </div>
                         <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
@@ -1260,20 +1400,24 @@ export const Sources: React.FC = () => {
                   ))
                 )}
               </div>
-              <textarea
-                value={groupOutboundText}
-                onChange={(event) => setGroupOutboundText(event.target.value)}
-                placeholder="Write the message to send into the selected groups"
-                className="mt-4 min-h-[120px] w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[color:var(--accent)]"
-              />
-              <button
-                onClick={() => void handleSendGroups()}
-                disabled={!isCurrentSessionConnected || !outboundSessionKey || sendState.groups}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-[18px] py-[11px] text-[11px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
-              >
-                {sendState.groups ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                <span>Send to selected groups</span>
-              </button>
+              {isWabroRoute ? (
+                <>
+                  <textarea
+                    value={groupOutboundText}
+                    onChange={(event) => setGroupOutboundText(event.target.value)}
+                    placeholder="Write the message to send into the selected groups"
+                    className="mt-4 min-h-[120px] w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[color:var(--accent)]"
+                  />
+                  <button
+                    onClick={() => void handleSendGroups()}
+                    disabled={!isCurrentSessionConnected || !outboundSessionKey || sendState.groups}
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-[18px] py-[11px] text-[11px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
+                  >
+                    {sendState.groups ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    <span>Send to selected groups</span>
+                  </button>
+                </>
+              ) : null}
             </div>
 
             <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">

@@ -6,7 +6,7 @@ import { subscriptionService } from './subscriptionService';
 
 type RuntimeSnapshot = {
     ai: {
-        provider: 'Google' | 'Groq' | 'OpenRouter' | 'Doubleword';
+        provider: 'Concentrate' | 'Google' | 'Groq' | 'OpenRouter' | 'Doubleword';
         model: string;
         configured: boolean;
     };
@@ -32,6 +32,13 @@ function mapDefaultModelToProvider(defaultModel?: string | null) {
     const normalized = (defaultModel || '').trim().toLowerCase();
 
     switch (normalized) {
+        case 'concentrate':
+        case 'auto':
+        case 'concentrate-auto':
+            return {
+                provider: 'Concentrate' as const,
+                model: process.env.CONCENTRATE_MODEL || 'auto',
+            };
         case 'groq':
         case 'llama3-8b-8192':
         case 'groq llama3-8b-8192':
@@ -54,6 +61,12 @@ function mapDefaultModelToProvider(defaultModel?: string | null) {
                 model: process.env.DOUBLEWORD_MODEL || 'qwen3-235b',
             };
         default:
+            if (process.env.CONCENTRATE_API_KEY) {
+                return {
+                    provider: 'Concentrate' as const,
+                    model: process.env.CONCENTRATE_MODEL || 'auto',
+                };
+            }
             return {
                 provider: 'Google' as const,
                 model: process.env.GOOGLE_MODEL || 'gemini-2.5-flash',
@@ -88,6 +101,8 @@ export class RuntimeStatusService {
 
         const configured = aiSelection.provider === 'Google'
             ? Boolean(googleKey || process.env.GOOGLE_API_KEY)
+            : aiSelection.provider === 'Concentrate'
+                ? Boolean(process.env.CONCENTRATE_API_KEY)
             : aiSelection.provider === 'Groq'
                 ? Boolean(groqKey || process.env.GROQ_API_KEY)
                 : aiSelection.provider === 'OpenRouter'

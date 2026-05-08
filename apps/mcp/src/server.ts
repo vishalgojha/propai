@@ -2,7 +2,15 @@ import crypto from "node:crypto";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createMcpServer } from "./index.js";
-import { oauthTokenHandler } from "./oauth.js";
+import {
+  oauthAuthorizationServerMetadata,
+  oauthAuthorizeGetHandler,
+  oauthAuthorizePostHandler,
+  oauthProtectedResourceMetadata,
+  oauthRegisterHandler,
+  oauthTokenHandler,
+  setMcpUnauthorizedHeaders,
+} from "./oauth.js";
 import { verifyPropAIToken } from "./supabase.js";
 import type { AuthenticatedUser } from "./types.js";
 
@@ -26,6 +34,7 @@ type McpSession = {
 const sessions = new Map<string, McpSession>();
 
 app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
@@ -76,13 +85,19 @@ app.get("/.well-known/mcp-server.json", (_req, res) => {
   });
 });
 
+app.get("/.well-known/oauth-authorization-server", oauthAuthorizationServerMetadata);
+app.get("/.well-known/oauth-protected-resource", oauthProtectedResourceMetadata);
+app.get("/authorize", oauthAuthorizeGetHandler);
+app.post("/authorize", oauthAuthorizePostHandler);
 app.post("/oauth/token", oauthTokenHandler);
+app.post("/register", oauthRegisterHandler);
 
 async function authMiddleware(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length).trim() : "";
 
   if (!token) {
+    setMcpUnauthorizedHeaders(req, res);
     return res.status(401).json({ error: "Unauthorized" });
   }
 
@@ -90,6 +105,7 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
     req.user = await verifyPropAIToken(token);
     return next();
   } catch {
+    setMcpUnauthorizedHeaders(req, res);
     return res.status(401).json({ error: "Invalid token" });
   }
 }

@@ -307,8 +307,14 @@ async function processInboundMessage(event: IncomingMessageRecord) {
     const isSelfChat = !isGroup && messageJids.some((jid) => botJids.includes(jid));
     console.log('[SelfChat Debug] isSelfChat:', isSelfChat, { fromMe, botJids, messageJids });
 
+    // Guardrail: never treat outbound messages to other contacts as "self chat".
+    // Self chat should only be the broker messaging their own QR-scanned number.
+    const normalizedRemoteJid = normalizeJid(remoteJid);
+    const isRemoteBotJid = Boolean(normalizedRemoteJid) && botJids.includes(normalizedRemoteJid);
+    const effectiveIsSelfChat = Boolean(isSelfChat && !fromMe && isRemoteBotJid);
+
     // Self-chat welcome message
-    if (isSelfChat && text.toUpperCase() === 'HI') {
+    if (effectiveIsSelfChat && text.toUpperCase() === 'HI') {
         const { sessionManager } = require('./SessionManager');
         const client = await sessionManager.getSession(tenantId, label);
         if (client) {
@@ -337,7 +343,7 @@ async function processInboundMessage(event: IncomingMessageRecord) {
     console.log('[SelfChat Debug] isAssistantSession:', isAssistantSession, 'isAssistantDM:', isAssistantDM);
 
     const selfChatEnabled = await isSelfChatEnabled(tenantId, label);
-    if (isSelfChat && !selfChatEnabled) {
+    if (effectiveIsSelfChat && !selfChatEnabled) {
         console.log('[SelfChat Debug] Self chat disabled for this session, skipping');
         return;
     }
@@ -355,12 +361,12 @@ async function processInboundMessage(event: IncomingMessageRecord) {
     }
 
     // Short-message and emoji filters do NOT apply to assistant or enabled self-chat sessions
-    if (text.length < 20 && !fromMe && !isSelfChat && !isAssistantDM) {
+    if (text.length < 20 && !fromMe && !effectiveIsSelfChat && !isAssistantDM) {
         console.log('[SelfChat Debug] Message too short, skipping');
         return;
     }
 
-    if (isEmojiOnly(text) && !isSelfChat && !isAssistantDM) {
+    if (isEmojiOnly(text) && !effectiveIsSelfChat && !isAssistantDM) {
         console.log('[SelfChat Debug] Emoji only, skipping');
         return;
     }
@@ -369,10 +375,13 @@ async function processInboundMessage(event: IncomingMessageRecord) {
         const { data: config } = await db
             .from('group_configs')
             .select('behavior')
+            .eq('tenant_id', tenantId)
             .eq('group_id', remoteJid)
             .maybeSingle();
 
-        if (config?.behavior !== 'Listen' && config?.behavior !== 'AutoReply') {
+        // Default behavior is to parse group messages unless a broker explicitly
+        // disables the group (cold-start coverage > opt-in friction).
+        if (config && config.behavior !== 'Listen' && config.behavior !== 'AutoReply') {
             console.log('[SelfChat Debug] Group not in Listen/AutoReply mode, skipping');
             return;
         }
@@ -382,13 +391,13 @@ async function processInboundMessage(event: IncomingMessageRecord) {
 
     // Direct messages are broker-controlled. Only parse them when the session
     // explicitly opts in, or when they are self-chat / assistant review lanes.
-    if (!isGroup && !isSelfChat && !isAssistantDM && !directParsingEnabled) {
+    if (!isGroup && !effectiveIsSelfChat && !isAssistantDM && !directParsingEnabled) {
         console.log('[SelfChat Debug] Direct messages not enabled for parsing, skipping');
         return;
     }
 
     // Relevance filter: only process real estate related messages
-    if (!isSelfChat && !isAssistantDM && !isRealEstateMessage(text)) {
+    if (!effectiveIsSelfChat && !isAssistantDM && !isRealEstateMessage(text)) {
         console.log(`[SelfChat Debug] Non-real-estate message, skipping: ${text.substring(0, 60)}`);
         return;
     }

@@ -27,31 +27,32 @@ function normalizeComparablePhone(value?: string | null) {
 
 export class AgentExecutor {
     async processMessage(tenantId: string, remoteJid: string, text: string, sessionLabel?: string): Promise<string> {
-        const MARKETING_PHONE = '7021054254';
-        const jidStripped = remoteJid.replace('@s.whatsapp.net', '');
-        const jidWithoutPlus = jidStripped.startsWith('+') ? jidStripped.slice(1) : jidStripped;
-        const normalizedRemote = normalizeComparablePhone(jidWithoutPlus);
-        const isAssistant = sessionLabel === 'Assistant' || normalizedRemote === normalizeComparablePhone(MARKETING_PHONE);
+        const ASSISTANT_PHONE = '7021045254'; // last 10 digits of +91 70210 45254
         let effectiveTenantId = tenantId;
         let systemPrompt: string;
 
-        if (isAssistant) {
-            const { isBroker, tenantId: brokerTenantId } = await this.isBrokerSender(remoteJid);
+        const assistantSessionPhone = await this.getSessionPhoneNumber(tenantId, sessionLabel);
+        const isAssistantSession = normalizeComparablePhone(assistantSessionPhone) === normalizeComparablePhone(ASSISTANT_PHONE);
 
-            if (isBroker) {
-                // Registered broker → CRM mode
+        if (isAssistantSession) {
+            const brokerResolution = await this.resolveBrokerWorkspaceBySender(remoteJid);
+
+            if (brokerResolution.isBroker && brokerResolution.verified) {
+                // Verified broker → CRM mode inside their workspace
                 systemPrompt = await this.getBrokerAssistantPrompt();
-                effectiveTenantId = brokerTenantId!;
+                effectiveTenantId = brokerResolution.tenantId!;
             } else {
-                // Not a registered broker - check if they look like a broker
                 const looksLikeBroker = await this.detectsBrokerIntent(text);
-
-                if (looksLikeBroker) {
+                if (brokerResolution.isBroker && !brokerResolution.verified) {
+                    // Known broker phone but not verified → ask for verification first
+                    systemPrompt = await this.getUnregisteredBrokerPrompt();
+                    effectiveTenantId = tenantId; // system/assistant tenant
+                } else if (looksLikeBroker) {
                     // Unregistered broker → onboarding mode
                     systemPrompt = await this.getUnregisteredBrokerPrompt();
                     effectiveTenantId = tenantId; // system/assistant tenant
                 } else {
-                    // Client → qualification mode
+                    // Client / unknown intent → qualification mode
                     systemPrompt = await this.getClientAssistantPrompt();
                     effectiveTenantId = tenantId; // system/assistant tenant
                 }
@@ -846,6 +847,86 @@ Always wrap responses in the AgentResponse JSON schema.`;
         return data
             ? { isBroker: true, tenantId: data.id }
             : { isBroker: false };
+    }
+
+    private async getSessionPhoneNumber(tenantId: string, sessionLabel?: string) {
+        const client = supabaseAdmin ?? supabase;
+        let query = client
+            .from('whatsapp_sessions')
+            .select('session_data')
+            .eq('tenant_id', tenantId);
+
+        if (sessionLabel?.trim()) {
+            query = query.eq('label', sessionLabel.trim());
+        }
+
+        const { data } = await query
+            .order('last_sync', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        const sessionData = (data?.session_data && typeof data.session_data === 'object')
+            ? data.session_data as Record<string, any>
+            : {};
+
+        return String(sessionData.phoneNumber || '').trim();
+    }
+
+    private async resolveBrokerWorkspaceBySender(remoteJid: string): Promise<{
+        isBroker: boolean;
+        verified: boolean;
+        tenantId?: string;
+        role?: string | null;
+    }> {
+        const strippedPhone = remoteJid.replace('@s.whatsapp.net', '');
+        const phone = strippedPhone.startsWith('+') ? strippedPhone.slice(1) : strippedPhone;
+        const normalizedPhone = normalizeComparablePhone(phone);
+        const client = supabaseAdmin ?? supabase;
+
+        // 1) Direct profile match (owner)
+        const { data: ownerProfile } = await client
+            .from('profiles')
+            .select('id, phone_verified')
+            .or(`phone.eq.${phone},phone.eq.+${phone}`)
+            .maybeSingle();
+
+        if (ownerProfile?.id) {
+            return {
+                isBroker: true,
+                verified: Boolean(ownerProfile.phone_verified),
+                tenantId: ownerProfile.id,
+                role: 'owner',
+            };
+        }
+
+        // 2) Workspace member match (team)
+        const { data: member } = await client
+            .from('workspace_members')
+            .select('workspace_owner_id, role, status')
+            .or(`member_phone.eq.${phone},member_phone.eq.+${phone}`)
+            .maybeSingle();
+
+        if (member?.workspace_owner_id && String(member.status || '').toLowerCase() === 'active') {
+            // Workspace verification is tied to the owner profile phone verification, not the member phone.
+            const { data: workspaceOwner } = await client
+                .from('profiles')
+                .select('id, phone_verified, phone')
+                .eq('id', member.workspace_owner_id)
+                .maybeSingle();
+
+            const ownerVerified = Boolean(workspaceOwner?.phone_verified);
+            const memberMatchesOwnerPhone = normalizeComparablePhone(workspaceOwner?.phone) === normalizedPhone;
+            const verified = ownerVerified || memberMatchesOwnerPhone;
+
+            return {
+                isBroker: true,
+                verified,
+                tenantId: member.workspace_owner_id,
+                role: member.role || null,
+            };
+        }
+
+        return { isBroker: false, verified: false };
     }
 
     private async detectsBrokerIntent(text: string): Promise<boolean> {

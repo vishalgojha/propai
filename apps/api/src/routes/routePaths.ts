@@ -10,6 +10,7 @@ export const ROUTE_PATHS = {
     admin: '/api/admin',
     voice: '/api/voice',
     settings: '/api/settings',
+    files: '/api/files',
     voiceListen: '/api/voice/listen',
     health: '/health',
     propertiesSearch: '/api/properties/search',
@@ -80,6 +81,7 @@ export const ROUTE_PATHS = {
     team: '/team',
     updateMember: '/team/:memberId',
     activity: '/activity',
+    metadata: '/metadata',
   },
   voice: {
     speak: '/speak',
