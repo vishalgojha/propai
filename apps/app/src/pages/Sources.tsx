@@ -240,6 +240,7 @@ export const Sources: React.FC = () => {
   const [connectionArtifactType, setConnectionArtifactType] = useState<'qr' | 'pairing' | null>(null);
   const [pairingArtifact, setPairingArtifact] = useState<string | null>(null);
   const [renderedQrImageUrl, setRenderedQrImageUrl] = useState<string | null>(null);
+  const [renderedQrMarkup, setRenderedQrMarkup] = useState<string | null>(null);
   const [qrGeneratedAt, setQrGeneratedAt] = useState<number | null>(null);
   const [qrTimeLeft, setQrTimeLeft] = useState(0);
   const [scanProgress, setScanProgress] = useState(0);
@@ -603,22 +604,32 @@ export const Sources: React.FC = () => {
     let cancelled = false;
 
     const renderQr = async () => {
-      if (!pairingArtifact || connectionArtifactType !== 'qr') {
+      const artifact = pairingArtifact?.trim() || '';
+
+      if (!artifact || connectionArtifactType !== 'qr') {
         setRenderedQrImageUrl(null);
+        setRenderedQrMarkup(null);
         return;
       }
 
-      if (/^(https?:\/\/|data:)/i.test(pairingArtifact)) {
-        setRenderedQrImageUrl(pairingArtifact);
+      if (/^(https?:\/\/|data:)/i.test(artifact)) {
+        setRenderedQrImageUrl(artifact);
+        setRenderedQrMarkup(null);
+        return;
+      }
+
+      if (/^<svg[\s>]/i.test(artifact)) {
+        setRenderedQrImageUrl(null);
+        setRenderedQrMarkup(artifact);
         return;
       }
 
       try {
         const { default: QRCode } = await import('qrcode');
-        const dataUrl = await QRCode.toDataURL(pairingArtifact, {
+        const svgMarkup = await QRCode.toString(artifact, {
+          type: 'svg',
           errorCorrectionLevel: 'M',
-          margin: 2,
-          scale: 10,
+          margin: 1,
           width: 420,
           color: {
             dark: '#111827',
@@ -627,12 +638,14 @@ export const Sources: React.FC = () => {
         });
 
         if (!cancelled) {
-          setRenderedQrImageUrl(dataUrl);
+          setRenderedQrImageUrl(null);
+          setRenderedQrMarkup(svgMarkup);
         }
       } catch (error) {
         console.error('Failed to render WhatsApp QR locally', error);
         if (!cancelled) {
           setRenderedQrImageUrl(null);
+          setRenderedQrMarkup(null);
         }
       }
     };
@@ -1087,6 +1100,7 @@ export const Sources: React.FC = () => {
   const staleGroupCount = groupHealth.filter((group) => group.status === 'stale').length;
   const activeGroupCount = groupHealth.filter((group) => group.status === 'active').length;
   const qrImageUrl = connectionArtifactType === 'qr' ? renderedQrImageUrl : null;
+  const qrMarkup = connectionArtifactType === 'qr' ? renderedQrMarkup : null;
 
   const planCards = PROPAI_PLAN_CARDS;
 
@@ -1991,7 +2005,17 @@ export const Sources: React.FC = () => {
             ) : null}
 
             <div className="mt-4">
-              {qrImageUrl ? (
+              {qrMarkup ? (
+                <div className={cn(
+                  'flex min-h-[420px] items-center justify-center rounded-[12px] border border-[color:var(--border)] bg-white p-5 transition-opacity',
+                  isQrExpired && 'opacity-55'
+                )}>
+                  <div
+                    className="w-full max-w-[320px]"
+                    dangerouslySetInnerHTML={{ __html: qrMarkup }}
+                  />
+                </div>
+              ) : qrImageUrl ? (
                 <div className={cn(
                   'flex min-h-[420px] items-center justify-center rounded-[12px] border border-[color:var(--border)] bg-white p-5 transition-opacity',
                   isQrExpired && 'opacity-55'
