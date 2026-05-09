@@ -16,8 +16,12 @@ const manualChunks = (id: string) => {
     return 'motion-vendor';
   }
 
-  if (id.includes('/@supabase/') || id.includes('/axios/')) {
-    return 'data-vendor';
+  if (id.includes('/@supabase/')) {
+    return 'supabase-vendor';
+  }
+
+  if (id.includes('/axios/')) {
+    return 'http-vendor';
   }
 
   if (id.includes('/lucide-react/')) {
@@ -26,6 +30,10 @@ const manualChunks = (id: string) => {
 
   if (id.includes('/@google/genai/')) {
     return 'ai-vendor';
+  }
+
+  if (id.includes('/posthog-js/')) {
+    return 'analytics-vendor';
   }
 
   return undefined;
