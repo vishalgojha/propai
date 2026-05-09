@@ -6,10 +6,10 @@
 import React, { Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { Layout } from './components/Layout';
 import { Skeleton } from './components/ui/Skeleton';
 import { track } from './services/analytics';
 
+const ProtectedLayout = React.lazy(async () => ({ default: (await import('./components/Layout')).Layout }));
 const Login = React.lazy(async () => ({ default: (await import('./pages/Login')).Login }));
 const Dashboard = React.lazy(async () => ({ default: (await import('./pages/Dashboard')).Dashboard }));
 const Listings = React.lazy(async () => ({ default: (await import('./pages/Listings')).Listings }));
@@ -84,7 +84,7 @@ export default function App() {
             <Route path="/impersonate" element={<ImpersonatePage />} />
             <Route element={
               <ProtectedRoute>
-                <Layout />
+                <ProtectedLayout />
               </ProtectedRoute>
             }>
               <Route path="/dashboard" element={<Dashboard />} />
