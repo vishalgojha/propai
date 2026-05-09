@@ -268,6 +268,11 @@ export const Sources: React.FC = () => {
     brokers: false,
     leads: false,
   });
+  const [pendingConnection, setPendingConnection] = useState<{
+    label: string;
+    ownerName: string;
+    phoneNumber: string;
+  } | null>(null);
   const [status, setStatus] = useState<WhatsappStatus>({
     status: 'disconnected',
     activeCount: 0,
@@ -283,27 +288,30 @@ export const Sources: React.FC = () => {
     () => buildSessionLabel(deviceOwnerName || 'Owner', normalizedDevicePhone || 'device'),
     [deviceOwnerName, normalizedDevicePhone],
   );
+  const activeSessionLabel = pendingConnection?.label || expectedSessionLabel;
+  const activeConnectionPhone = pendingConnection?.phoneNumber || normalizedDevicePhone;
+  const activeConnectionOwnerName = pendingConnection?.ownerName || deviceOwnerName;
   const currentSession = useMemo(() => {
-    const exactMatch = status.sessions.find((session) => session.label === expectedSessionLabel);
+    const exactMatch = status.sessions.find((session) => session.label === activeSessionLabel);
     if (exactMatch) return exactMatch;
 
-    const phoneMatch = normalizedDevicePhone
-      ? status.sessions.find((session) => normalizePhoneNumber(session.phoneNumber || '') === normalizedDevicePhone)
+    const phoneMatch = activeConnectionPhone
+      ? status.sessions.find((session) => normalizePhoneNumber(session.phoneNumber || '') === activeConnectionPhone)
       : null;
     if (phoneMatch) return phoneMatch;
 
-    if (status.connectedPhoneNumber && normalizedDevicePhone && normalizePhoneNumber(status.connectedPhoneNumber) === normalizedDevicePhone) {
+    if (status.connectedPhoneNumber && activeConnectionPhone && normalizePhoneNumber(status.connectedPhoneNumber) === activeConnectionPhone) {
       return {
-        label: expectedSessionLabel,
-        ownerName: deviceOwnerName || status.connectedOwnerName || 'Broker device',
+        label: activeSessionLabel,
+        ownerName: activeConnectionOwnerName || status.connectedOwnerName || 'Broker device',
         phoneNumber: status.connectedPhoneNumber,
         status: 'connected' as const,
       };
     }
 
     return null;
-  }, [deviceOwnerName, expectedSessionLabel, normalizedDevicePhone, status.connectedOwnerName, status.connectedPhoneNumber, status.sessions]);
-  const currentSessionStatus = currentSession?.status || (pairingArtifact ? 'connecting' : 'disconnected');
+  }, [activeConnectionOwnerName, activeConnectionPhone, activeSessionLabel, status.connectedOwnerName, status.connectedPhoneNumber, status.sessions]);
+  const currentSessionStatus = currentSession?.status || (pendingConnection || pairingArtifact ? 'connecting' : 'disconnected');
   const currentSessionParseDirectMessages = Boolean(
     currentSession?.sessionData?.parseDirectMessages ?? currentSession?.sessionData?.parse_direct_messages,
   );
@@ -482,6 +490,7 @@ export const Sources: React.FC = () => {
 
       setDeviceOwnerName(session.ownerName || fullName || '');
       setDevicePhoneNumber(session.phoneNumber || '');
+      setPendingConnection(null);
       setPairingArtifact(null);
       setConnectionArtifactType(null);
       setQrGeneratedAt(null);
@@ -500,6 +509,7 @@ export const Sources: React.FC = () => {
 
   useEffect(() => {
     if (currentSessionStatus === 'connected') {
+      setPendingConnection(null);
       setPairingArtifact(null);
       setConnectionArtifactType(null);
       setQrGeneratedAt(null);
@@ -681,11 +691,15 @@ export const Sources: React.FC = () => {
           params: { label },
         });
 
-        if (response.data?.ready === true && !response.data?.qr) {
+        if (
+          response.data?.ready === true &&
+          !response.data?.qr &&
+          String(response.data?.message || '').toLowerCase().includes('already connected')
+        ) {
           return null;
         }
 
-        if (response.data?.ready === false || !response.data?.qr) {
+        if (!response.data?.qr) {
           if (attempt === QR_POLL_ATTEMPTS - 1) {
             throw new Error('QR code is taking longer than expected. Try once more in a few seconds.');
           }
@@ -734,6 +748,11 @@ export const Sources: React.FC = () => {
       return;
     }
 
+    setPendingConnection({
+      label: sessionLabelToUse,
+      ownerName: ownerNameToUse,
+      phoneNumber: phoneNumberToUse,
+    });
     if (demoMode) {
       setIsConnecting(true);
       setScanProgress(0);
@@ -781,6 +800,7 @@ export const Sources: React.FC = () => {
         device_limit: status.limit,
       });
       if (response.data?.connected) {
+        setPendingConnection(null);
         setPairingArtifact(null);
         setConnectionArtifactType(null);
         setQrGeneratedAt(null);
@@ -805,6 +825,7 @@ export const Sources: React.FC = () => {
       }
       await fetchStatus();
     } catch (err) {
+      setPendingConnection(null);
       setError(handleApiError(err));
     } finally {
       setIsConnecting(false);
@@ -823,6 +844,7 @@ export const Sources: React.FC = () => {
       setConnectionArtifactType(null);
       setQrGeneratedAt(null);
       setQrTimeLeft(0);
+      setPendingConnection(null);
       await fetchStatus();
     } catch (err) {
       setError(handleApiError(err));
@@ -858,6 +880,7 @@ export const Sources: React.FC = () => {
   const handleAddAnotherNumber = () => {
     setDeviceOwnerName(fullName || '');
     setDevicePhoneNumber('');
+    setPendingConnection(null);
     setPairingArtifact(null);
     setConnectionArtifactType(null);
     setQrGeneratedAt(null);
@@ -868,6 +891,7 @@ export const Sources: React.FC = () => {
   const handleSelectExistingSession = (session: WhatsappSession) => {
     setDeviceOwnerName(session.ownerName || fullName || '');
     setDevicePhoneNumber(session.phoneNumber || '');
+    setPendingConnection(null);
     setPairingArtifact(null);
     setConnectionArtifactType(null);
     setQrGeneratedAt(null);
@@ -1024,8 +1048,8 @@ export const Sources: React.FC = () => {
 
   const displayConnectedNumber = status.connectedPhoneNumber || 'Not connected';
   const displayConnectedName = status.connectedOwnerName || fullName || 'Broker device';
-  const displaySelectedDeviceNumber = currentSession?.phoneNumber || devicePhoneNumber || 'Not connected';
-  const displaySelectedDeviceName = currentSession?.ownerName || deviceOwnerName || 'Broker device';
+  const displaySelectedDeviceNumber = currentSession?.phoneNumber || pendingConnection?.phoneNumber || devicePhoneNumber || 'Not connected';
+  const displaySelectedDeviceName = currentSession?.ownerName || pendingConnection?.ownerName || deviceOwnerName || 'Broker device';
   const isCurrentSessionConnected = currentSessionStatus === 'connected';
   const isCurrentSessionConnecting = currentSessionStatus === 'connecting';
   const displayCurrentConnectionNumber = isCurrentSessionConnected ? displayConnectedNumber : displaySelectedDeviceNumber;
