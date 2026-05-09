@@ -56,6 +56,30 @@ type Profile = {
   phoneVerified?: boolean;
 };
 
+type ConnectionArtifact = {
+  mode: 'qr' | 'pairing';
+  format: 'text';
+  value: string;
+};
+
+type ConnectWhatsAppResponse = {
+  message?: string;
+  label?: string;
+  artifact?: ConnectionArtifact | null;
+  qr?: string | null;
+  pairingCode?: string | null;
+  connected?: boolean;
+  mode?: 'qr' | 'pairing' | 'connected';
+};
+
+type GetQrResponse = {
+  ready?: boolean;
+  artifact?: ConnectionArtifact | null;
+  qr?: string | null;
+  label?: string;
+  message?: string;
+};
+
 type WhatsappLogRecord = {
   id: string;
   sender: string;
@@ -236,10 +260,7 @@ export const Sources: React.FC = () => {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [connectMethod, setConnectMethod] = useState<'qr' | 'pairing'>('qr');
-  const [connectionArtifactType, setConnectionArtifactType] = useState<'qr' | 'pairing' | null>(null);
-  const [pairingArtifact, setPairingArtifact] = useState<string | null>(null);
-  const [renderedQrImageUrl, setRenderedQrImageUrl] = useState<string | null>(null);
+  const [connectionArtifact, setConnectionArtifact] = useState<ConnectionArtifact | null>(null);
   const [renderedQrMarkup, setRenderedQrMarkup] = useState<string | null>(null);
   const [qrGeneratedAt, setQrGeneratedAt] = useState<number | null>(null);
   const [qrTimeLeft, setQrTimeLeft] = useState(0);
@@ -313,7 +334,9 @@ export const Sources: React.FC = () => {
 
     return null;
   }, [activeConnectionOwnerName, activeConnectionPhone, activeSessionLabel, status.connectedOwnerName, status.connectedPhoneNumber, status.sessions]);
-  const currentSessionStatus = currentSession?.status || (pendingConnection || pairingArtifact ? 'connecting' : 'disconnected');
+  const currentSessionStatus = currentSession?.status || (pendingConnection || connectionArtifact ? 'connecting' : 'disconnected');
+  const artifactValue = connectionArtifact?.value || null;
+  const artifactMode = connectionArtifact?.mode || null;
   const currentSessionParseDirectMessages = Boolean(
     currentSession?.sessionData?.parseDirectMessages ?? currentSession?.sessionData?.parse_direct_messages,
   );
@@ -512,8 +535,7 @@ export const Sources: React.FC = () => {
   useEffect(() => {
     if (currentSessionStatus === 'connected') {
       setPendingConnection(null);
-      setPairingArtifact(null);
-      setConnectionArtifactType(null);
+      setConnectionArtifact(null);
       setQrGeneratedAt(null);
       setQrTimeLeft(0);
       setIsConnecting(false);
@@ -530,7 +552,7 @@ export const Sources: React.FC = () => {
   }, [currentSessionSelfChatEnabled, currentSession?.label]);
 
   useEffect(() => {
-    if (!pairingArtifact || currentSessionStatus === 'connected') {
+    if (!artifactValue || currentSessionStatus === 'connected') {
       setQrTimeLeft(0);
       return undefined;
     }
@@ -546,10 +568,10 @@ export const Sources: React.FC = () => {
     const interval = window.setInterval(updateTimeLeft, 1000);
 
     return () => window.clearInterval(interval);
-  }, [currentSessionStatus, pairingArtifact, qrGeneratedAt]);
+  }, [artifactValue, currentSessionStatus, qrGeneratedAt]);
 
   useEffect(() => {
-    if (!pairingArtifact && status.status !== 'connecting') {
+    if (!artifactValue && status.status !== 'connecting') {
       return undefined;
     }
 
@@ -558,7 +580,7 @@ export const Sources: React.FC = () => {
     }, currentSessionStatus === 'connected' ? 15000 : 4000);
 
     return () => window.clearInterval(interval);
-  }, [currentSessionStatus, fetchStatus, pairingArtifact, status.status]);
+  }, [artifactValue, currentSessionStatus, fetchStatus, status.status]);
 
   const selectTab = (tab: 'setup' | 'outbound' | 'pricing' | 'logs') => {
     setActiveTab(tab);
@@ -595,32 +617,19 @@ export const Sources: React.FC = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    if ((isConnecting && connectionArtifactType) || pairingArtifact) {
+    if ((isConnecting && artifactMode) || artifactValue) {
       ensureConnectUiVisible();
     }
-  }, [connectionArtifactType, ensureConnectUiVisible, isConnecting, pairingArtifact]);
+  }, [artifactMode, artifactValue, ensureConnectUiVisible, isConnecting]);
 
   useEffect(() => {
     let cancelled = false;
 
     const renderQr = async () => {
-      const artifact = pairingArtifact?.trim() || '';
+      const artifact = artifactValue?.trim() || '';
 
-      if (!artifact || connectionArtifactType !== 'qr') {
-        setRenderedQrImageUrl(null);
+      if (!artifact || artifactMode !== 'qr') {
         setRenderedQrMarkup(null);
-        return;
-      }
-
-      if (/^(https?:\/\/|data:)/i.test(artifact)) {
-        setRenderedQrImageUrl(artifact);
-        setRenderedQrMarkup(null);
-        return;
-      }
-
-      if (/^<svg[\s>]/i.test(artifact)) {
-        setRenderedQrImageUrl(null);
-        setRenderedQrMarkup(artifact);
         return;
       }
 
@@ -638,13 +647,11 @@ export const Sources: React.FC = () => {
         });
 
         if (!cancelled) {
-          setRenderedQrImageUrl(null);
           setRenderedQrMarkup(svgMarkup);
         }
       } catch (error) {
         console.error('Failed to render WhatsApp QR locally', error);
         if (!cancelled) {
-          setRenderedQrImageUrl(null);
           setRenderedQrMarkup(null);
         }
       }
@@ -655,7 +662,7 @@ export const Sources: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [connectionArtifactType, pairingArtifact]);
+  }, [artifactMode, artifactValue]);
 
   useEffect(() => {
     if (activeTab === 'outbound') {
@@ -698,22 +705,22 @@ export const Sources: React.FC = () => {
     await handleConnect('qr', { ownerName: nameToUse, phoneNumber: normalizedPhone });
   };
 
-  const waitForQR = useCallback(async (label: string): Promise<string | null> => {
+  const waitForQR = useCallback(async (label: string): Promise<ConnectionArtifact | null> => {
     for (let attempt = 0; attempt < QR_POLL_ATTEMPTS; attempt += 1) {
       try {
-        const response = await backendApi.get(ENDPOINTS.whatsapp.qr, {
+        const response = await backendApi.get<GetQrResponse>(ENDPOINTS.whatsapp.qr, {
           params: { label },
         });
 
         if (
           response.data?.ready === true &&
-          !response.data?.qr &&
+          !response.data?.artifact &&
           String(response.data?.message || '').toLowerCase().includes('already connected')
         ) {
           return null;
         }
 
-        if (!response.data?.qr) {
+        if (!response.data?.artifact) {
           if (attempt === QR_POLL_ATTEMPTS - 1) {
             throw new Error('QR code is taking longer than expected. Try once more in a few seconds.');
           }
@@ -721,7 +728,7 @@ export const Sources: React.FC = () => {
           continue;
         }
 
-        return response.data.qr as string;
+        return response.data.artifact;
       } catch (err) {
         const message = handleApiError(err);
         const isStillPreparing =
@@ -751,7 +758,6 @@ export const Sources: React.FC = () => {
     const sessionLabelToUse = buildSessionLabel(ownerNameToUse || 'Owner', phoneNumberToUse || 'device');
     const sessionForLabel = status.sessions.find((session) => session.label === sessionLabelToUse);
 
-    setConnectMethod(mode);
     if (!ownerNameToUse.trim() || phoneNumberToUse.length < 10 || phoneNumberToUse.length > 15) {
       setError('Enter the device owner name and WhatsApp number you want to connect first.');
       return;
@@ -770,8 +776,11 @@ export const Sources: React.FC = () => {
     if (demoMode) {
       setIsConnecting(true);
       setScanProgress(0);
-      setConnectionArtifactType('qr');
-      const demoQR = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(`WA:${phoneNumberToUse}:${ownerNameToUse}`);
+      setConnectionArtifact({
+        mode: 'qr',
+        format: 'text',
+        value: `WA:${phoneNumberToUse}:${ownerNameToUse}`,
+      });
       const interval = window.setInterval(() => {
         setScanProgress((current) => {
           const next = current + 14;
@@ -784,8 +793,6 @@ export const Sources: React.FC = () => {
       }, 180);
 
       window.setTimeout(() => {
-        setPairingArtifact(demoQR);
-        setConnectionArtifactType('qr');
         setQrGeneratedAt(Date.now());
         setQrTimeLeft(QR_FRESHNESS_SECONDS);
         setStatus((current) => ({ ...current, status: 'connecting' }));
@@ -798,12 +805,11 @@ export const Sources: React.FC = () => {
     setIsConnecting(true);
     setError(null);
     setScanProgress(0);
-    setPairingArtifact(null);
-    setConnectionArtifactType(mode);
+    setConnectionArtifact(null);
     setQrGeneratedAt(null);
     setQrTimeLeft(0);
     try {
-      const response = await backendApi.post(ENDPOINTS.whatsapp.connect, {
+      const response = await backendApi.post<ConnectWhatsAppResponse>(ENDPOINTS.whatsapp.connect, {
         phoneNumber: phoneNumberToUse,
         ownerName: ownerNameToUse,
         label: sessionLabelToUse,
@@ -815,24 +821,19 @@ export const Sources: React.FC = () => {
       });
       if (response.data?.connected) {
         setPendingConnection(null);
-        setPairingArtifact(null);
-        setConnectionArtifactType(null);
+        setConnectionArtifact(null);
         setQrGeneratedAt(null);
         setQrTimeLeft(0);
       } else {
-        const responseArtifact = mode === 'pairing'
-          ? response.data?.pairingCode || response.data?.qr
-          : response.data?.qr;
-        const qrArtifact = responseArtifact || (mode === 'qr'
+        const nextArtifact = response.data?.artifact || (mode === 'qr'
           ? await waitForQR(response.data?.label || sessionLabelToUse)
           : null);
-        if (qrArtifact) {
-          setPairingArtifact(qrArtifact);
+        if (nextArtifact) {
+          setConnectionArtifact(nextArtifact);
           setQrGeneratedAt(Date.now());
           setQrTimeLeft(QR_FRESHNESS_SECONDS);
         } else {
-          setPairingArtifact(null);
-          setConnectionArtifactType(null);
+          setConnectionArtifact(null);
           setQrGeneratedAt(null);
           setQrTimeLeft(0);
         }
@@ -854,8 +855,7 @@ export const Sources: React.FC = () => {
       track('whatsapp_disconnected', {
         label: label || currentSession?.label || 'unknown',
       });
-      setPairingArtifact(null);
-      setConnectionArtifactType(null);
+      setConnectionArtifact(null);
       setQrGeneratedAt(null);
       setQrTimeLeft(0);
       setPendingConnection(null);
@@ -895,8 +895,7 @@ export const Sources: React.FC = () => {
     setDeviceOwnerName(fullName || '');
     setDevicePhoneNumber('');
     setPendingConnection(null);
-    setPairingArtifact(null);
-    setConnectionArtifactType(null);
+    setConnectionArtifact(null);
     setQrGeneratedAt(null);
     setQrTimeLeft(0);
     setError(null);
@@ -906,8 +905,7 @@ export const Sources: React.FC = () => {
     setDeviceOwnerName(session.ownerName || fullName || '');
     setDevicePhoneNumber(session.phoneNumber || '');
     setPendingConnection(null);
-    setPairingArtifact(null);
-    setConnectionArtifactType(null);
+    setConnectionArtifact(null);
     setQrGeneratedAt(null);
     setQrTimeLeft(0);
     setError(null);
@@ -1094,13 +1092,12 @@ export const Sources: React.FC = () => {
     });
   }, [groupSearchTerm, outboundGroups]);
   const disconnectTargetLabel = currentSession?.label || primaryConnectedSession?.label || null;
-  const isQrExpired = Boolean(pairingArtifact) && qrTimeLeft === 0 && !isCurrentSessionConnected;
-  const showConnectionArtifactPanel = Boolean(pairingArtifact) || (isConnecting && Boolean(connectionArtifactType) && !isCurrentSessionConnected);
+  const isQrExpired = Boolean(artifactValue) && qrTimeLeft === 0 && !isCurrentSessionConnected;
+  const showConnectionArtifactPanel = Boolean(artifactValue) || (isConnecting && Boolean(artifactMode) && !isCurrentSessionConnected);
   const primaryHealthSession = health.sessions[0];
   const staleGroupCount = groupHealth.filter((group) => group.status === 'stale').length;
   const activeGroupCount = groupHealth.filter((group) => group.status === 'active').length;
-  const qrImageUrl = connectionArtifactType === 'qr' ? renderedQrImageUrl : null;
-  const qrMarkup = connectionArtifactType === 'qr' ? renderedQrMarkup : null;
+  const qrMarkup = artifactMode === 'qr' ? renderedQrMarkup : null;
 
   const planCards = PROPAI_PLAN_CARDS;
 
@@ -1884,8 +1881,8 @@ export const Sources: React.FC = () => {
             <div className="mt-4 space-y-3">
               {status.sessions.length === 0 ? (
                 <div className="rounded-[10px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
-                  {pairingArtifact || isCurrentSessionConnecting
-                    ? connectionArtifactType === 'pairing'
+                  {artifactValue || isCurrentSessionConnecting
+                    ? artifactMode === 'pairing'
                       ? 'Pairing code is live. Enter it in WhatsApp on the broker phone to finish connecting.'
                       : 'QR is live. Scan it in WhatsApp to finish connecting this broker number.'
                     : 'No WhatsApp sessions connected yet.'}
@@ -1947,33 +1944,33 @@ export const Sources: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                    {connectionArtifactType === 'pairing' ? 'WhatsApp pairing code' : 'WhatsApp QR'}
+                    {artifactMode === 'pairing' ? 'WhatsApp pairing code' : 'WhatsApp QR'}
                   </p>
                   <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">QR panel</h3>
                 </div>
               </div>
               <span className={cn(sourcePill, 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]')}>
-                {connectionArtifactType === 'pairing' ? 'Pairing code' : demoMode ? 'Demo QR' : 'Live QR'}
+                {artifactMode === 'pairing' ? 'Pairing code' : demoMode ? 'Demo QR' : 'Live QR'}
               </span>
             </div>
 
             <p className="text-[12px] leading-6 text-[var(--text-secondary)]">
-              {!pairingArtifact && !showConnectionArtifactPanel
+              {!artifactValue && !showConnectionArtifactPanel
                 ? 'This right panel is reserved for the active connection artifact. Start or refresh a connect flow on the left to show the QR or pairing code here.'
-                : !pairingArtifact
-                  ? connectionArtifactType === 'pairing'
+                : !artifactValue
+                  ? artifactMode === 'pairing'
                     ? 'Preparing the WhatsApp pairing code. Keep this page open.'
                     : 'Preparing the WhatsApp QR. Keep this page open.'
                   : isQrExpired
-                    ? connectionArtifactType === 'pairing'
+                    ? artifactMode === 'pairing'
                       ? 'This pairing code has expired. Request a fresh code to continue connecting.'
                       : 'This QR has expired. Generate a fresh QR to continue connecting.'
-                    : connectionArtifactType === 'pairing'
+                    : artifactMode === 'pairing'
                       ? 'Use this pairing code in WhatsApp on the broker phone to finish connecting.'
                       : 'Scan this QR in WhatsApp on the broker phone to finish connecting.'}
             </p>
 
-            {pairingArtifact ? (
+            {artifactValue ? (
               <div className={cn(
                 'mt-4 flex items-center justify-between rounded-[10px] border px-3 py-2',
                 isQrExpired
@@ -1982,23 +1979,23 @@ export const Sources: React.FC = () => {
               )}>
                 <div>
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                    {connectionArtifactType === 'pairing' ? 'Pairing freshness' : 'QR freshness'}
+                    {artifactMode === 'pairing' ? 'Pairing freshness' : 'QR freshness'}
                   </p>
                   <p className={cn(
                     'mt-1 text-[13px] font-semibold',
                     isQrExpired ? 'text-[var(--red)]' : 'text-[var(--text-primary)]'
                   )}>
-                    {isQrExpired ? 'Expired' : connectionArtifactType === 'pairing' ? `${qrTimeLeft}s left to use` : `${qrTimeLeft}s left to scan`}
+                    {isQrExpired ? 'Expired' : artifactMode === 'pairing' ? `${qrTimeLeft}s left to use` : `${qrTimeLeft}s left to scan`}
                   </p>
                 </div>
                 {isQrExpired ? (
                   <button
-                    onClick={() => void handleConnect(connectionArtifactType === 'pairing' ? 'pairing' : 'qr')}
+                    onClick={() => void handleConnect(artifactMode === 'pairing' ? 'pairing' : 'qr')}
                     disabled={isConnecting}
                     className={cn(sourcePrimaryButton, 'px-3 py-2 text-[10px]')}
                   >
                     {isConnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                    <span>{connectionArtifactType === 'pairing' ? 'Request new code' : 'Generate fresh QR'}</span>
+                    <span>{artifactMode === 'pairing' ? 'Request new code' : 'Generate fresh QR'}</span>
                   </button>
                 ) : null}
               </div>
@@ -2015,25 +2012,13 @@ export const Sources: React.FC = () => {
                     dangerouslySetInnerHTML={{ __html: qrMarkup }}
                   />
                 </div>
-              ) : qrImageUrl ? (
-                <div className={cn(
-                  'flex min-h-[420px] items-center justify-center rounded-[12px] border border-[color:var(--border)] bg-white p-5 transition-opacity',
-                  isQrExpired && 'opacity-55'
-                )}>
-                  <img
-                    src={qrImageUrl}
-                    alt="WhatsApp QR"
-                    className="h-auto w-full max-w-[320px]"
-                    style={{ imageRendering: 'crisp-edges' }}
-                  />
-                </div>
-              ) : pairingArtifact ? (
+              ) : artifactValue ? (
                 <div className="min-h-[420px] rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4">
                   <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-                    {connectionArtifactType === 'pairing' ? 'Pairing code' : 'QR payload'}
+                    {artifactMode === 'pairing' ? 'Pairing code' : 'QR payload'}
                   </p>
                   <p className="break-all rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 font-mono text-[15px] tracking-[0.14em] text-[var(--text-primary)]">
-                    {pairingArtifact}
+                    {artifactValue}
                   </p>
                 </div>
               ) : showConnectionArtifactPanel ? (
@@ -2042,7 +2027,7 @@ export const Sources: React.FC = () => {
                     <Loader2 className="h-5 w-5 animate-spin text-[var(--accent)]" />
                     <div>
                       <p className="text-[13px] font-semibold text-[var(--text-primary)]">
-                        {connectionArtifactType === 'pairing' ? 'Generating pairing code' : 'Generating QR'}
+                        {artifactMode === 'pairing' ? 'Generating pairing code' : 'Generating QR'}
                       </p>
                       <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
                         This can take a few seconds after a new WhatsApp session starts.
@@ -2071,7 +2056,7 @@ export const Sources: React.FC = () => {
                   <div className="h-full bg-[var(--accent)] transition-all duration-150" style={{ width: `${scanProgress}%` }} />
                 </div>
                 <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
-                  {connectionArtifactType === 'pairing' ? 'Preparing the WhatsApp pairing code...' : 'Preparing the WhatsApp QR...'}
+                  {artifactMode === 'pairing' ? 'Preparing the WhatsApp pairing code...' : 'Preparing the WhatsApp QR...'}
                 </p>
               </div>
             ) : null}

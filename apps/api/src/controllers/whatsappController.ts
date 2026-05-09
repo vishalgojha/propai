@@ -61,6 +61,26 @@ function toWhatsAppJid(phoneOrJid?: string | null) {
 
 const profileSelectColumns = 'id, full_name, phone, email, phone_verified';
 
+type ConnectionArtifactMode = 'qr' | 'pairing';
+type ConnectionArtifact = {
+    mode: ConnectionArtifactMode;
+    format: 'text';
+    value: string;
+} | null;
+
+function buildConnectionArtifact(mode: ConnectionArtifactMode, value?: string | null): ConnectionArtifact {
+    const normalized = typeof value === 'string' ? value.trim() : '';
+    if (!normalized) {
+        return null;
+    }
+
+    return {
+        mode,
+        format: 'text',
+        value: normalized,
+    };
+}
+
 function formatProfileResponse(profile: any, fallback?: { id: string; fullName: string; phone: string; email?: string | null }) {
     if (profile) {
         return {
@@ -107,7 +127,9 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             return res.json({
                 message: 'WhatsApp already connected',
                 label: sessionLabel,
+                artifact: null,
                 qr: null,
+                pairingCode: null,
                 connected: true,
                 mode: 'connected',
             });
@@ -172,9 +194,13 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             }, { onConflict: 'tenant_id,label' });
 
         const artifact = sessionManager.getQR(tenantId, sessionLabel) || artifactAfterCreate;
+        const connectionArtifact = connectMethod === 'qr'
+            ? buildConnectionArtifact('qr', artifact)
+            : buildConnectionArtifact('pairing', artifact);
         res.json({
             message: 'Connection initiated',
             label: sessionLabel,
+            artifact: connectionArtifact,
             qr: connectMethod === 'qr' ? artifact || null : null,
             pairingCode: connectMethod === 'pairing' ? artifact || null : null,
             mode: connectMethod,
@@ -255,7 +281,12 @@ export const getQR = async (req: Request, res: Response) => {
     const qr = sessionManager.getQR(tenantId as string, label);
     
     if (qr) {
-        return res.json({ qr, label, ready: true });
+        return res.json({
+            qr,
+            artifact: buildConnectionArtifact('qr', qr),
+            label,
+            ready: true,
+        });
     }
 
     // Check if session exists but QR not ready
@@ -267,6 +298,7 @@ export const getQR = async (req: Request, res: Response) => {
     if (targetSession?.status === 'connected') {
         return res.json({ 
             ready: true, 
+            artifact: null,
             qr: null, 
             label: targetSession.label,
             message: 'WhatsApp already connected' 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { connectWhatsApp, disconnectWhatsApp, getProfile, saveProfile } from '../src/controllers/whatsappController';
+import { connectWhatsApp, disconnectWhatsApp, getProfile, getQR, saveProfile } from '../src/controllers/whatsappController';
 
 const { mockDb } = vi.hoisted(() => ({
     mockDb: {
@@ -26,6 +26,7 @@ vi.mock('../src/whatsapp/SessionManager', () => ({
         getSession: vi.fn(),
         createSession: vi.fn().mockResolvedValue(undefined),
         getQR: vi.fn(),
+        getLiveSessionSnapshots: vi.fn().mockReturnValue([]),
         removeSession: vi.fn().mockResolvedValue(undefined),
     },
 }));
@@ -153,6 +154,11 @@ describe('whatsappController profile endpoints', () => {
         expect(res.json).toHaveBeenCalledWith({
             message: 'Connection initiated',
             label: 'vishal-919820056180',
+            artifact: {
+                mode: 'qr',
+                format: 'text',
+                value: 'qr-payload',
+            },
             qr: 'qr-payload',
             pairingCode: null,
             mode: 'qr',
@@ -195,9 +201,42 @@ describe('whatsappController profile endpoints', () => {
         expect(res.json).toHaveBeenCalledWith({
             message: 'Connection initiated',
             label: 'vishal-919820056180',
+            artifact: {
+                mode: 'pairing',
+                format: 'text',
+                value: 'PAIR-1234',
+            },
             qr: null,
             pairingCode: 'PAIR-1234',
             mode: 'pairing',
+        });
+    });
+
+    it('returns a typed QR artifact from the QR polling endpoint', async () => {
+        const req = {
+            query: {
+                label: 'vishal-919820056180',
+            },
+            user: {
+                id: 'user-1',
+            },
+        } as any;
+        const res = createResponse();
+
+        const sessionManager = await import('../src/whatsapp/SessionManager');
+        (sessionManager.sessionManager.getQR as any).mockReturnValueOnce('qr-payload');
+
+        await getQR(req, res as any);
+
+        expect(res.json).toHaveBeenCalledWith({
+            qr: 'qr-payload',
+            artifact: {
+                mode: 'qr',
+                format: 'text',
+                value: 'qr-payload',
+            },
+            label: 'vishal-919820056180',
+            ready: true,
         });
     });
 
