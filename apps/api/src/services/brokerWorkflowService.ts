@@ -730,12 +730,12 @@ export class BrokerWorkflowService {
         return value ? String(value) : '';
     }
 
-    private extractBudgetNumeric(text: string) {
+    private extractBudgetNumeric(text: string): number | null {
         const match = text.match(/(\d+(?:\.\d+)?)\s*(cr|crore|crores|lakh|lakhs|lac|lacs|k|thousand)\b/i);
-        if (!match) return undefined;
+        if (!match) return null;
         const amount = Number(match[1]);
         const unit = match[2].toLowerCase();
-        if (Number.isNaN(amount)) return undefined;
+        if (Number.isNaN(amount)) return null;
         if (unit === 'cr' || unit === 'crore' || unit === 'crores') return amount * 10000000;
         if (unit === 'lakh' || unit === 'lakhs' || unit === 'lac' || unit === 'lacs') return amount * 100000;
         if (unit === 'k' || unit === 'thousand') return amount * 1000;
