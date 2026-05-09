@@ -1,7 +1,6 @@
 import React from 'react';
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
-import { motion, AnimatePresence } from 'framer-motion';
 import { LegalFooter } from './LegalFooter';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
@@ -231,19 +230,14 @@ export const Layout: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] lg:h-screen lg:overflow-hidden">
-      <AnimatePresence>
-        {isSidebarOpen ? (
-          <motion.button
-            type="button"
-            aria-label="Close navigation"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setIsSidebarOpen(false)}
-            className="fixed inset-0 z-30 bg-black/70 backdrop-blur-sm lg:hidden"
-          />
-        ) : null}
-      </AnimatePresence>
+      {isSidebarOpen ? (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 z-30 bg-black/70 backdrop-blur-sm transition-opacity duration-200 lg:hidden"
+        />
+      ) : null}
 
       <Sidebar
         isOpen={isSidebarOpen}
@@ -345,18 +339,9 @@ export const Layout: React.FC = () => {
         </header>
 
         <div className="pulse-scrollbar flex-1 overflow-y-auto">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-              className="p-4 sm:p-6 lg:p-8"
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
+          <div key={location.pathname} className="p-4 sm:p-6 lg:p-8">
+            <Outlet />
+          </div>
         </div>
 
         <LegalFooter compact />

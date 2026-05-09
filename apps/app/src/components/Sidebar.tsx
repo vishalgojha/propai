@@ -1,6 +1,5 @@
 import React from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '../lib/utils';
 import {
   ActivityIcon,
@@ -253,6 +252,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
       : whatsappStatus.status === 'connecting'
         ? 'text-[var(--amber)]'
         : 'text-[var(--red)]';
+  const uplinkFillClassName =
+    whatsappStatus.status === 'connected'
+      ? 'w-[82%] animate-pulse'
+      : whatsappStatus.status === 'connecting'
+        ? 'w-[55%] animate-pulse'
+        : 'w-[12%]';
 
   const goTo = (path: string) => {
     navigate(path);
@@ -457,27 +462,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
 
         <div className={cn('shrink-0 space-y-3 border-t-[0.5px] border-[color:var(--border)] px-3 py-3', isCollapsed && 'lg:hidden')}>
           <SidebarCard className="flex items-center gap-3 px-3 py-2">
-            <motion.div
-              className="h-1.5 flex-1 overflow-hidden rounded-full bg-[rgba(255,255,255,0.04)]"
-              initial={false}
-              animate={{ opacity: 1 }}
-            >
-              <motion.div
-                className={cn('h-full rounded-full', uplinkBarClassName)}
-                animate={
-                  whatsappStatus.status === 'connected'
-                    ? { width: ['35%', '82%', '42%'] }
-                    : whatsappStatus.status === 'connecting'
-                      ? { width: ['18%', '55%', '30%'] }
-                      : { width: '12%' }
-                }
-                transition={
-                  whatsappStatus.status === 'disconnected'
-                    ? { duration: 0.2, ease: 'easeOut' }
-                    : { duration: 2.4, repeat: Infinity, ease: 'easeInOut' }
-                }
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[rgba(255,255,255,0.04)]">
+              <div
+                className={cn('h-full rounded-full transition-all duration-300 ease-out', uplinkBarClassName, uplinkFillClassName)}
               />
-            </motion.div>
+            </div>
             <span className={cn('text-[9px] font-bold uppercase tracking-[0.22em]', uplinkTextClassName)}>{uplinkLabel}</span>
           </SidebarCard>
 
@@ -527,17 +516,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
         </div>
       </div>
 
-      <AnimatePresence>
-        {isCreateOpen ? (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 px-3">
-            <motion.div
-              initial={{ opacity: 0, y: 12, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.98 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="w-full shadow-2xl"
-            >
-              <SidebarCard variant="surface" className="rounded-[12px] p-4">
+      {isCreateOpen ? (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 px-3">
+          <div className="w-full shadow-2xl transition-all duration-200 ease-out">
+            <SidebarCard variant="surface" className="rounded-[12px] p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[9px] font-bold uppercase tracking-[0.28em] text-[var(--text-secondary)]">Create channel</p>
@@ -594,11 +576,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
                   Save channel
                 </button>
               </div>
-              </SidebarCard>
-            </motion.div>
+            </SidebarCard>
           </div>
-        ) : null}
-      </AnimatePresence>
+        </div>
+      ) : null}
     </aside>
   );
 };

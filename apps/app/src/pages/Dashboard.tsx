@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Activity, ArrowRight, Eye, History, Inbox, MessageSquare, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import backendApi, { handleApiError } from '../services/api';
@@ -104,15 +103,10 @@ const EmptyState: React.FC = () => {
           </div>
         </div>
       </div>
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="flex flex-col gap-2 rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-surface)] px-5 py-4 text-[12px] text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between"
-      >
+      <div className="flex flex-col gap-2 rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-surface)] px-5 py-4 text-[12px] text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between">
         <span>Connect WhatsApp in the Sources page to activate live group message parsing.</span>
         <span className="text-[var(--text-primary)]">Workspace ready</span>
-      </motion.div>
+      </div>
     </div>
   );
 };
