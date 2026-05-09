@@ -11,7 +11,7 @@ COPY packages/pulse-core/package.json ./packages/pulse-core/
 
 # Install dependencies
 RUN corepack enable && \
-    NODE_ENV=development pnpm install --filter react-example... --frozen-lockfile && \
+    NODE_ENV=development pnpm install --filter react-example... --no-frozen-lockfile && \
     echo "pnpm install completed"
 
 # Copy source
