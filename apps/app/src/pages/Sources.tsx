@@ -146,27 +146,6 @@ type OutboundRecipient = {
   latestAt?: string | null;
 };
 
-const planCards = [
-  {
-    name: '7-day free trial',
-    price: 'Free',
-    devices: 'Full Wabro workspace',
-    blurb: 'Use the PropAI login, connect WhatsApp, and test the broadcast flow before you pay anything.',
-  },
-  {
-    name: 'One-time unlock',
-    price: '₹499',
-    devices: 'Single payment',
-    blurb: 'Keep the core Wabro workspace active with no recurring billing for the broadcast product.',
-  },
-  {
-    name: 'PropAI account',
-    price: 'Required',
-    devices: 'One login',
-    blurb: 'There is no separate Wabro sign-in. Your app.propai.live account is the access point.',
-  },
-];
-
 const wabroCapabilities = [
   {
     title: 'Broadcast to groups, brokers, and leads',
@@ -1040,6 +1019,48 @@ export const Sources: React.FC = () => {
     return `https://api.qrserver.com/v1/create-qr-code/?size=420x420&format=svg&qzone=2&data=${encodeURIComponent(pairingArtifact)}`;
   }, [connectionArtifactType, pairingArtifact]);
 
+  const planCards = isWabroRoute
+    ? [
+        {
+          name: 'Wabro unlock',
+          price: '₹499',
+          devices: 'One-time payment',
+          blurb: 'Wabro is the broadcast add-on. Pay once to unlock manual broker, lead, and group broadcasts inside PropAI.',
+        },
+        {
+          name: 'PropAI account',
+          price: 'Required',
+          devices: 'Same login',
+          blurb: 'There is no separate Wabro sign-in. Broadcast runs inside the same app.propai.live workspace.',
+        },
+        {
+          name: 'No recurring Wabro fee',
+          price: 'Included',
+          devices: 'After unlock',
+          blurb: 'The recurring subscription belongs to the core PropAI WhatsApp ingestion platform, not to Wabro.',
+        },
+      ]
+    : [
+        {
+          name: 'Core platform',
+          price: '₹999/mo',
+          devices: 'Up to 2 devices',
+          blurb: 'This is the main PropAI WhatsApp ingestion platform for Stream, parsing, AI, and monitoring.',
+        },
+        {
+          name: 'Growth platform',
+          price: '₹2999/mo',
+          devices: 'Up to 5 devices',
+          blurb: 'For desks that need more connected WhatsApp numbers feeding Stream and the shared workspace.',
+        },
+        {
+          name: 'Referral reward',
+          price: '1 month free',
+          devices: 'Every 3 referrals',
+          blurb: 'For every 3 brokers you refer who convert, your workspace earns 1 month free on the main PropAI plan.',
+        },
+      ];
+
   return (
     <div className="space-y-8">
       <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6 md:p-8">
@@ -1052,19 +1073,21 @@ export const Sources: React.FC = () => {
             <h2 className="mt-4 text-[28px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">
               {isWabroRoute
                 ? 'Broadcast like a human, from the same PropAI account.'
-                : 'Wabro lives inside your PropAI account, not as a separate app.'}
+                : 'WhatsApp is the ingestion engine that powers Stream.'}
             </h2>
             <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
               {isWabroRoute
-                ? 'Use app.propai.live to queue group announcements, broker outreach, and lead follow-ups with paced sending that looks natural, not robotic.'
-                : 'Log in at app.propai.live, open WhatsApp from the workspace, and unlock the broadcast tools with a 7-day free trial or a ₹499 one-time payment.'}
+                ? 'Wabro is the broadcast layer inside PropAI. Use it to queue group announcements, broker outreach, and lead follow-ups with paced sending that looks natural, not robotic.'
+                : 'Connect broker WhatsApp numbers here so PropAI can ingest chats, parse groups into Stream, power the monitor, and run the assistant on top of the live message flow.'}
             </p>
           </div>
 
           <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access model</p>
             <p className="mt-1 text-[14px] font-bold text-[var(--text-primary)]">{status.plan || 'Free'}</p>
-            <p className="text-[11px] text-[var(--text-secondary)]">7-day trial, then ₹499 one-time unlock</p>
+            <p className="text-[11px] text-[var(--text-secondary)]">
+              {isWabroRoute ? '₹499 one-time broadcast unlock' : '₹999/mo for up to 2 devices or ₹2999/mo for up to 5 devices'}
+            </p>
             {isAtDeviceLimit ? (
               <p className="mt-2 text-[11px] text-[var(--amber)]">Device limit reached for this workspace.</p>
             ) : null}
@@ -1181,7 +1204,7 @@ export const Sources: React.FC = () => {
                 <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--text-secondary)]">
                   {isWabroRoute
                     ? 'Wabro is the outbound tool: select recipients, choose a sender lane, and send at a human pace with nothing auto-posted.'
-                    : 'This is a manual send surface only. Wabro will not send anything from here unless you explicitly select recipients and click send.'}
+                    : 'This page is primarily the ingestion and parsing control surface. Broadcast is handled by Wabro, while WhatsApp here controls what gets connected, read, parsed, and mirrored into Stream.'}
                 </p>
               </div>
               <button
@@ -1543,7 +1566,9 @@ export const Sources: React.FC = () => {
             </div>
             <div>
               <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plan caps</p>
-              <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">7-day trial, then a ₹499 one-time unlock</h3>
+              <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">
+                {isWabroRoute ? 'Wabro is ₹499 one time. Core PropAI pricing is separate.' : 'Core PropAI pricing for WhatsApp ingestion and Stream.'}
+              </h3>
             </div>
           </div>
 
@@ -1560,9 +1585,20 @@ export const Sources: React.FC = () => {
 
           <div className="mt-5 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
             <p className="text-[12px] leading-6 text-[var(--text-secondary)]">
-              Wabro is the WhatsApp broadcast workspace inside PropAI. It is designed for broker desks that need one place to send group announcements, contact saved brokers, and follow up with leads from the same logged-in account.
+              {isWabroRoute
+                ? 'Wabro is the WhatsApp broadcast workspace inside PropAI. It is designed for broker desks that need one place to send group announcements, contact saved brokers, and follow up with leads from the same logged-in account.'
+                : 'WhatsApp here is the main ingestion engine for PropAI. It connects broker numbers, reads inbound activity, feeds Stream, powers Monitor, and gives the AI assistant live message context.'}
             </p>
           </div>
+
+          {!isWabroRoute ? (
+            <div className="mt-5 rounded-[12px] border border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">Referral program</p>
+              <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
+                Refer 3 brokers who convert to paid PropAI and your workspace gets 1 month free on the main platform plan. The cycle repeats for every next 3 successful referrals.
+              </p>
+            </div>
+          ) : null}
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {wabroCapabilities.map((item) => (
