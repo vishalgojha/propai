@@ -32,6 +32,7 @@ const RefundPolicy = React.lazy(async () => ({ default: (await import('./pages/R
 const CancellationPolicy = React.lazy(async () => ({ default: (await import('./pages/CancellationPolicy')).CancellationPolicy }));
 const ContactUs = React.lazy(async () => ({ default: (await import('./pages/ContactUs')).ContactUs }));
 const AuthCallback = React.lazy(async () => ({ default: (await import('./pages/AuthCallback')).AuthCallback }));
+const ReferralCapture = React.lazy(async () => ({ default: (await import('./pages/ReferralCapture')).ReferralCapture }));
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
@@ -81,6 +82,7 @@ export default function App() {
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/auth/confirm" element={<AuthCallback />} />
+            <Route path="/ref/:code" element={<ReferralCapture />} />
             <Route path="/impersonate" element={<ImpersonatePage />} />
             <Route element={
               <ProtectedRoute>

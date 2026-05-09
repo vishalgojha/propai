@@ -22,6 +22,7 @@ import { cn } from '../lib/utils';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { track } from '../services/analytics';
+import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_ASSISTANT_PHONE_DIGITS, PROPAI_PLAN_CARDS } from '../lib/propai';
 
 type WhatsappSession = {
   label: string;
@@ -180,7 +181,7 @@ const buildSessionLabel = (ownerName?: string, phoneNumber?: string) => {
 const QR_FRESHNESS_SECONDS = 45;
 const QR_POLL_ATTEMPTS = 90;
 const QR_POLL_INTERVAL_MS = 1000;
-const MARKETING_AGENT_PHONE = '7021054254';
+const MARKETING_AGENT_PHONE = PROPAI_ASSISTANT_PHONE_DIGITS;
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
 
 const defaultHealthSummary: WhatsappHealthSummary = {
@@ -277,7 +278,7 @@ export const Sources: React.FC = () => {
     status: 'disconnected',
     activeCount: 0,
     limit: 2,
-    plan: 'Free',
+    plan: 'Trial',
     sessions: [],
   });
   const [error, setError] = useState<string | null>(null);
@@ -372,7 +373,7 @@ export const Sources: React.FC = () => {
           status: response.data.status || 'disconnected',
           activeCount: response.data.activeCount || 0,
           limit: response.data.limit || 2,
-          plan: response.data.plan || 'Free',
+          plan: response.data.plan || 'Trial',
           connectedPhoneNumber: response.data.connectedPhoneNumber || null,
           connectedOwnerName: response.data.connectedOwnerName || null,
           sessions: response.data.sessions || response.data.sessions || [],
@@ -1087,26 +1088,7 @@ export const Sources: React.FC = () => {
   const activeGroupCount = groupHealth.filter((group) => group.status === 'active').length;
   const qrImageUrl = connectionArtifactType === 'qr' ? renderedQrImageUrl : null;
 
-  const planCards = [
-    {
-      name: 'Core platform',
-      price: '₹999/mo',
-      devices: 'Up to 2 devices',
-      blurb: 'This is the main PropAI WhatsApp ingestion platform for Stream, parsing, AI, monitor, and outbound control.',
-    },
-    {
-      name: 'Growth platform',
-      price: '₹2999/mo',
-      devices: 'Up to 5 devices',
-      blurb: 'For desks that need more connected WhatsApp numbers feeding Stream and the shared workspace.',
-    },
-    {
-      name: 'Referral reward',
-      price: '1 month free',
-      devices: 'Every 3 referrals',
-      blurb: 'For every 3 brokers you refer who convert, your workspace earns 1 month free on the main PropAI plan.',
-    },
-  ];
+  const planCards = PROPAI_PLAN_CARDS;
 
   return (
     <div className="space-y-8">
@@ -1127,10 +1109,19 @@ export const Sources: React.FC = () => {
 
           <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access model</p>
-            <p className="mt-1 text-[14px] font-bold text-[var(--text-primary)]">{status.plan || 'Free'}</p>
-            <p className="text-[11px] text-[var(--text-secondary)]">₹999/mo for up to 2 devices or ₹2999/mo for up to 5 devices</p>
+            <p className="mt-1 text-[14px] font-bold text-[var(--text-primary)]">{status.plan || 'Trial'}</p>
+            <p className="text-[11px] text-[var(--text-secondary)]">Trial 3 days free, Solo ₹999/mo for 2 devices, Team ₹2999/mo for 5 devices</p>
             {isAtDeviceLimit ? (
-              <p className="mt-2 text-[11px] text-[var(--amber)]">Device limit reached for this workspace.</p>
+              <div className="mt-2 space-y-2">
+                <p className="text-[11px] text-[var(--amber)]">Device limit reached for this workspace.</p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/pricing')}
+                  className={cn(sourcePrimaryButton, 'px-3 py-2 text-[10px]')}
+                >
+                  Upgrade plan
+                </button>
+              </div>
             ) : null}
           </div>
         </div>
@@ -1585,8 +1576,11 @@ export const Sources: React.FC = () => {
           <div className="mt-5 rounded-[12px] border border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">Referral program</p>
             <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
-              Refer 3 brokers who convert to paid PropAI and your workspace gets 1 month free on the main platform plan. The cycle repeats for every next 3 successful referrals.
+              Refer 3 brokers who complete trial and payment and your workspace gets 1 free month added to the subscription. Share the PropAI Assistant contact too: {PROPAI_ASSISTANT_NUMBER}.
             </p>
+            <a href={PROPAI_ASSISTANT_WA_LINK} target="_blank" rel="noreferrer" className={cn(sourceSecondaryButton, 'mt-3 px-3 py-2 text-[10px]')}>
+              Open Assistant WhatsApp
+            </a>
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">

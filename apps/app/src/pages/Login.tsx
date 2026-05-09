@@ -7,6 +7,7 @@ import { ENDPOINTS } from '../services/endpoints';
 import { buildSessionFromSupabase } from '../services/authSession';
 import { track } from '../services/analytics';
 import { cn } from '../lib/utils';
+import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_PLAN_CARDS } from '../lib/propai';
 import {
   ArrowRightIcon,
   ActivityIcon,
@@ -96,6 +97,7 @@ const authPill =
   'inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]';
 const authFieldClassName =
   'w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 px-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]';
+const REFERRAL_STORAGE_KEY = 'propai.referral_code';
 
 const resolveAppRole = (email?: string | null, appRole?: string) => {
   if (appRole === 'super_admin') {
@@ -122,6 +124,8 @@ export const Login: React.FC = () => {
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState('');
+  const [referralLabel, setReferralLabel] = useState('');
   const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -145,6 +149,21 @@ export const Login: React.FC = () => {
       navigate(nextPath, { replace: true });
     }
   }, [isLoading, navigate, nextPath, user]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const nextCode = String(params.get('ref') || window.localStorage.getItem(REFERRAL_STORAGE_KEY) || '').trim().toUpperCase();
+    if (!nextCode) {
+      setReferralCode('');
+      setReferralLabel('');
+      return;
+    }
+
+    window.localStorage.setItem(REFERRAL_STORAGE_KEY, nextCode);
+    setReferralCode(nextCode);
+    setReferralLabel(`Referral code applied: ${nextCode}`);
+    setMode('signup');
+  }, [location.search]);
 
   useEffect(() => {
     let cancelled = false;
@@ -183,6 +202,7 @@ export const Login: React.FC = () => {
         password,
         fullName,
         phone: phoneNumber,
+        referralCode: mode === 'signup' ? referralCode || undefined : undefined,
       });
       const session = response.data?.session;
       if (response.data.success && session?.access_token) {
@@ -195,9 +215,15 @@ export const Login: React.FC = () => {
               response.data?.profile?.appRole || response.data?.user?.appRole
             ),
             subscription: response.data?.subscription,
+            referral: response.data?.referral || null,
           },
           rememberMe,
         );
+        if (mode === 'signup') {
+          window.localStorage.removeItem(REFERRAL_STORAGE_KEY);
+          setReferralCode('');
+          setReferralLabel('');
+        }
         track(mode === 'signup' ? 'signup_success' : 'signin_success', {
           remember: rememberMe,
           has_email: Boolean(response.data?.user?.email || email),
@@ -360,6 +386,32 @@ export const Login: React.FC = () => {
 
               <AuthCard className="p-5">
                 <div className="flex items-center gap-2">
+                  <ShieldCheckIcon className="h-4 w-4 text-[var(--accent)]" />
+                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plans and onboarding</p>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {PROPAI_PLAN_CARDS.map((plan) => (
+                    <div key={plan.name} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">{plan.name}</p>
+                      <p className="mt-2 text-[22px] font-bold text-[var(--text-primary)]">{plan.price}</p>
+                      <p className="text-[12px] text-[var(--text-secondary)]">{plan.devices}</p>
+                      <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">{plan.blurb}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">PropAI Assistant</p>
+                  <p className="mt-2 text-[12px] leading-5 text-[var(--text-primary)]">
+                    Need help onboarding? Message the PropAI Assistant on WhatsApp at {PROPAI_ASSISTANT_NUMBER}.
+                  </p>
+                  <a href={PROPAI_ASSISTANT_WA_LINK} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07]">
+                    Open WhatsApp
+                  </a>
+                </div>
+              </AuthCard>
+
+              <AuthCard className="p-5">
+                <div className="flex items-center gap-2">
               <WorkflowIcon className="h-4 w-4 text-[var(--accent)]" />
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Sample conversation</p>
                 </div>
@@ -453,6 +505,13 @@ export const Login: React.FC = () => {
                       : 'Sign in to start the agent. First time here? Switch to Create account and get set up in under 5 minutes.'}
                   </p>
                 </div>
+
+                {referralLabel ? (
+                  <div className="mb-5 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">Referral applied</p>
+                    <p className="mt-1 text-[12px] leading-5 text-[var(--text-primary)]">{referralLabel}</p>
+                  </div>
+                ) : null}
 
                 <div className="mb-5 grid grid-cols-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-1">
                   <button
@@ -737,6 +796,12 @@ export const Login: React.FC = () => {
                             </button>
                           </div>
                         </label>
+
+                        {referralCode ? (
+                          <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[11px] text-[var(--text-secondary)]">
+                            Referral link applied. When you complete trial and payment, your referrer gets credit.
+                          </div>
+                        ) : null}
 
                         {error && (
                           <div className="rounded-[6px] border-[0.5px] border-[color:rgba(239,68,68,0.2)] bg-[var(--red-dim)] px-3 py-2 text-[12px] text-[var(--red)]">

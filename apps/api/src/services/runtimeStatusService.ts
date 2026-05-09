@@ -2,7 +2,7 @@ import { keyService } from './keyService';
 import { getWorkspaceDefaultModel } from './workspaceSettingsService';
 import { browserToolService } from './browserToolService';
 import { sessionManager } from '../whatsapp/SessionManager';
-import { subscriptionService } from './subscriptionService';
+import { normalizePlanName, subscriptionService } from './subscriptionService';
 
 type RuntimeSnapshot = {
     ai: {
@@ -84,7 +84,7 @@ export class RuntimeStatusService {
             keyService.getKey(tenantId, 'OpenRouter').catch(() => null),
             keyService.getKey(tenantId, 'Doubleword').catch(() => null),
             subscriptionService.getSubscription(tenantId).catch(() => ({
-                plan: 'Free' as const,
+                plan: 'Trial' as const,
                 status: 'trial',
                 created_at: null,
                 renewal_date: null,
@@ -112,6 +112,7 @@ export class RuntimeStatusService {
                     ? Boolean(openRouterKey || process.env.OPENROUTER_API_KEY)
                     : Boolean(doublewordKey || process.env.DOUBLEWORD_API_KEY);
 
+        const normalizedPlan = normalizePlanName(subscription.plan);
         return {
             ai: {
                 provider: aiSelection.provider,
@@ -134,8 +135,8 @@ export class RuntimeStatusService {
                 liveBrowser: browserToolService.hasLiveBrowser(),
             },
             subscription: {
-                plan: subscription.plan,
-                sessionsLimit: subscriptionService.getLimit(subscription.plan, 'sessions'),
+                plan: normalizedPlan,
+                sessionsLimit: subscriptionService.getLimit(normalizedPlan, 'sessions'),
                 trialDaysRemaining: subscription.trial_days_remaining ?? null,
             },
         };

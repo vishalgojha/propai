@@ -344,7 +344,7 @@ export const getStatus = async (req: Request, res: Response) => {
         });
         const connectedSessions = sessions.filter((session) => session.status === 'connected');
         const connectingSessions = sessions.filter((session) => session.status === 'connecting');
-        const plan = await subscriptionService.getSubscription(tenantId, user?.email).catch(() => ({ plan: 'Free' as const, status: 'active', renewal_date: null }));
+        const plan = await subscriptionService.getSubscription(tenantId, user?.email).catch(() => ({ plan: 'Trial' as const, status: 'active', renewal_date: null }));
         const limit = subscriptionService.getLimit(plan.plan, 'sessions');
         const primaryConnectedSession = connectedSessions[0] || null;
 

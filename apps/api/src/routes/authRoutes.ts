@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { createSupabaseAnonClient, supabaseAdmin } from '../config/supabase';
 import { ROUTE_PATHS } from './routePaths';
+import { referralService } from '../services/referralService';
 import { subscriptionService } from '../services/subscriptionService';
 import { emailNotificationService } from '../services/emailNotificationService';
 
@@ -143,7 +144,7 @@ router.post(ROUTE_PATHS.auth.requestVerification, async (req, res) => {
 });
 
 router.post(ROUTE_PATHS.auth.password, async (req, res) => {
-    const { mode, email, password, fullName, phone } = req.body || {};
+    const { mode, email, password, fullName, phone, referralCode } = req.body || {};
 
     if (!email || !password) {
         return res.status(400).json({ error: 'Email and password are required' });
@@ -233,6 +234,10 @@ router.post(ROUTE_PATHS.auth.password, async (req, res) => {
                 accessToken
             );
             await subscriptionService.ensureTrialSubscription(authData.user.id, authData.user.email || email);
+            await referralService.ensureParticipant(authData.user.id, authData.user.email || email, fullName);
+            if (referralCode) {
+                await referralService.applyReferralCode(authData.user.id, referralCode, authData.user.email || email, fullName);
+            }
             void emailNotificationService.sendWelcomeEmail({
                 to: authData.user.email || email,
                 fullName,
@@ -248,6 +253,13 @@ router.post(ROUTE_PATHS.auth.password, async (req, res) => {
                 accessToken
             );
         }
+
+        const subscription = await subscriptionService.ensureTrialSubscription(authData.user.id, authData.user.email || email);
+        const referral = await referralService.getSummary(
+            authData.user.id,
+            authData.user.email || email,
+            profile?.full_name || fullName || null,
+        );
 
         return res.json({
             success: true,
@@ -266,7 +278,8 @@ router.post(ROUTE_PATHS.auth.password, async (req, res) => {
                     appRole: profile.app_role || (isOwnerSuperAdminEmail(authData.user.email) ? 'super_admin' : 'broker'),
                 }
                 : null,
-            subscription: await subscriptionService.ensureTrialSubscription(authData.user.id, authData.user.email || email),
+            subscription,
+            referral,
         });
     } catch (error: any) {
         console.error('Password auth error:', error);
@@ -370,10 +383,32 @@ router.post(ROUTE_PATHS.auth.resetPassword, async (req, res) => {
     }
 });
 
+router.get(ROUTE_PATHS.auth.referralPreview, async (req, res) => {
+    try {
+        const code = String(req.params.code || '').trim();
+        const preview = await referralService.resolveCode(code);
+        if (!preview) {
+            return res.status(404).json({ error: 'Referral code not found' });
+        }
+
+        return res.json({
+            success: true,
+            referral: preview,
+        });
+    } catch (error: any) {
+        return res.status(500).json({ error: error?.message || 'Failed to resolve referral code' });
+    }
+});
+
 router.get('/me', authMiddleware, async (req, res) => {
     const user = (req as any).user;
     const profile = await getProfileById(user.id).catch(() => null);
     const subscription = await subscriptionService.ensureTrialSubscription(user.id, user.email);
+    const referral = await referralService.getSummary(
+        user.id,
+        user.email,
+        profile?.full_name || user?.user_metadata?.full_name || null,
+    );
     res.json({
         success: true,
         user: {
@@ -392,6 +427,7 @@ router.get('/me', authMiddleware, async (req, res) => {
             }
             : null,
         subscription,
+        referral,
     });
 });
 

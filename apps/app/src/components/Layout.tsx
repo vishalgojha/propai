@@ -6,6 +6,7 @@ import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { MenuIcon, PowerIcon, LogoutIcon } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
+import { PROPAI_ASSISTANT_WA_LINK } from '../lib/propai';
 
 type WhatsAppSessionSummary = {
   label: string;
@@ -27,8 +28,6 @@ type WhatsAppStatusSummary = {
 
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'propai.sidebar_collapsed';
-const PROPAI_ASSISTANT_WA_LINK = 'https://wa.me/917021045254';
-
 export const Layout: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -207,6 +206,13 @@ export const Layout: React.FC = () => {
       null
     );
   }, [connectedSessions, whatsappStatus.selectedSessionLabel, whatsappStatus.sessions]);
+  const subscription = user?.subscription;
+  const planLabel = React.useMemo(() => {
+    const normalized = String(subscription?.plan || '').trim().toLowerCase();
+    if (normalized === 'trial' || normalized === 'free') return 'Trial';
+    if (normalized === 'solo' || normalized === 'pro') return 'Solo';
+    return subscription?.plan || 'Team';
+  }, [subscription?.plan]);
 
   const handleDisconnectSelectedSession = React.useCallback(async () => {
     if (!selectedSession?.label) {
@@ -291,6 +297,14 @@ export const Layout: React.FC = () => {
             >
               Chat Assistant
             </a>
+            {subscription ? (
+              <div className="flex items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">{planLabel}</span>
+                {typeof subscription.trial_days_remaining === 'number' ? (
+                  <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">{subscription.trial_days_remaining}d left</span>
+                ) : null}
+              </div>
+            ) : null}
             <div className="flex min-w-0 items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1">
               <span className={selectedSession?.status === 'connected' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : selectedSession?.status === 'connecting' ? 'h-2 w-2 rounded-full bg-[var(--amber)]' : 'h-2 w-2 rounded-full bg-[var(--red)]'} />
               <span className="hidden text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)] sm:inline">WhatsApp</span>

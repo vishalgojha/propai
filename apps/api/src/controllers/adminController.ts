@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../config/supabase';
 import { whatsappGroupService } from '../services/whatsappGroupService';
 import { createImpersonationToken, resolveImpersonationToken, revokeImpersonationToken, listActiveImpersonations } from '../services/impersonationStore';
 import { recordAuditEvent, getAuditLog } from '../services/auditLog';
+import { normalizePlanName } from '../services/subscriptionService';
 
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
     'vishal@chaoscraftlabs.com',
@@ -155,7 +156,7 @@ export const listAdminWorkspaces = async (req: Request, res: Response) => {
                 createdAt: profile.created_at || null,
                 role,
                 subscription: {
-                    plan: isOwnerSuperAdminEmail(profile.email) ? 'Team' : subscription?.plan || 'Free',
+                    plan: isOwnerSuperAdminEmail(profile.email) ? 'Team' : normalizePlanName(subscription?.plan || 'Trial'),
                     status: isOwnerSuperAdminEmail(profile.email) ? 'active' : subscription?.status || 'trial',
                     createdAt: subscription?.created_at || profile.created_at || null,
                     renewalDate: isOwnerSuperAdminEmail(profile.email) ? null : subscription?.renewal_date || null,
@@ -192,7 +193,7 @@ export const listAdminWorkspaces = async (req: Request, res: Response) => {
         const summary = workspaces.reduce(
             (acc, w) => {
                 acc.totalWorkspaces += 1;
-                if (w.subscription.status === 'trial' || w.subscription.plan === 'Free') acc.trialWorkspaces += 1;
+                if (w.subscription.status === 'trial' || w.subscription.plan === 'Trial') acc.trialWorkspaces += 1;
                 if (w.whatsapp.connectedSessions > 0) acc.connectedWorkspaces += 1;
                 acc.messagesParsed24h += w.whatsapp.messagesParsed24h;
                 return acc;
@@ -246,7 +247,7 @@ export const updateWorkspaceSubscription = async (req: Request, res: Response) =
 
         const payload = {
             tenant_id: tenantId,
-            plan: plan || existing?.plan || 'Free',
+            plan: normalizePlanName(plan || existing?.plan || 'Trial'),
             status: status || existing?.status || 'trial',
             created_at: createdAt,
             renewal_date: nextRenewal,

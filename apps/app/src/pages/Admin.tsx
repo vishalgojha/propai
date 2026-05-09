@@ -379,8 +379,8 @@ export const Admin: React.FC = () => {
               className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none"
             >
               <option value="">All Plans</option>
-              <option value="Free">Free</option>
-              <option value="Pro">Pro</option>
+              <option value="Trial">Trial</option>
+              <option value="Solo">Solo</option>
               <option value="Team">Team</option>
             </select>
             <select
@@ -443,10 +443,10 @@ export const Admin: React.FC = () => {
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-secondary)]">Billing Actions</p>
                         <div className="mt-2 grid grid-cols-3 gap-1.5">
-                          {['Free', 'Pro', 'Team'].map((plan) => (
+                          {['Trial', 'Solo', 'Team'].map((plan) => (
                             <button
                               key={plan}
-                              onClick={() => void updateSubscription(workspace.id, { plan, status: plan === 'Free' ? 'trial' : 'active' })}
+                              onClick={() => void updateSubscription(workspace.id, { plan, status: plan === 'Trial' ? 'trial' : 'active' })}
                               disabled={isSaving === workspace.id}
                               className={cn(
                                 'rounded-[10px] px-2 py-1.5 text-[10px] font-bold transition-colors',

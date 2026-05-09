@@ -208,7 +208,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   );
   const subscription = user?.subscription;
   const trialDays = subscription?.trial_days_remaining;
-  const isTrial = subscription?.status === 'trial' || subscription?.status === 'trialing' || subscription?.plan === 'Free';
+  const isTrial = subscription?.status === 'trial' || subscription?.status === 'trialing' || subscription?.plan === 'Free' || subscription?.plan === 'Trial';
+  const planLabel = React.useMemo(() => {
+    const normalized = String(subscription?.plan || '').trim().toLowerCase();
+    if (normalized === 'trial' || normalized === 'free') return 'Trial';
+    if (normalized === 'solo' || normalized === 'pro') return 'Solo';
+    return subscription?.plan || 'Team';
+  }, [subscription?.plan]);
 
   const visibleChannels = React.useMemo(() => {
     const filtered = channels.filter((channel) => matchesChannelQuery(channel, channelSearch));
@@ -492,7 +498,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               <SidebarCard variant="accent" className="mt-3 px-3 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">
-                    {isTrial ? '7-day trial' : subscription.plan}
+                    {isTrial ? '3-day trial' : planLabel}
                   </span>
                   {typeof trialDays === 'number' ? (
                     <span className="text-[10px] font-semibold text-[var(--text-primary)]">{trialDays}d left</span>

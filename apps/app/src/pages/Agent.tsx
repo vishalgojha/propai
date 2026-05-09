@@ -362,7 +362,7 @@ export const Agent: React.FC = () => {
     [runtimeStatus],
   );
   const subscription = user?.subscription;
-  const isTrial = subscription?.status === 'trial' || subscription?.status === 'trialing' || subscription?.plan === 'Free';
+  const isTrial = subscription?.status === 'trial' || subscription?.status === 'trialing' || subscription?.plan === 'Free' || subscription?.plan === 'Trial';
   const conversationCount = useMemo(() => messages.filter((message) => message.role === 'user').length, [messages]);
   const aiReplyCount = useMemo(() => Math.max(messages.filter((message) => message.role === 'ai').length - 1, 0), [messages]);
   const hasConversation = conversationCount > 0;
@@ -1183,7 +1183,7 @@ export const Agent: React.FC = () => {
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Workspace plan</p>
                           <h4 className="mt-1 text-[14px] font-semibold text-[var(--text-primary)]">
-                            {isTrial ? '7-day free trial' : subscription.plan}
+                            {isTrial ? '3-day free trial' : subscription.plan}
                           </h4>
                         </div>
                         <ActivityIcon className="h-4 w-4 text-[var(--accent)]" />

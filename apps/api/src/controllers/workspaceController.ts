@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import { supabase, supabaseAdmin } from '../config/supabase';
+import { referralService } from '../services/referralService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { workspaceActivityService } from '../services/workspaceActivityService';
 
@@ -150,6 +151,25 @@ export const getWorkspaceMetadata = async (req: Request, res: Response) => {
         });
     } catch (error: any) {
         res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load workspace metadata' });
+    }
+};
+
+export const getWorkspaceReferral = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext((req as any).user);
+        const actor = (req as any).user;
+        const summary = await referralService.getSummary(
+            context.workspaceOwnerId,
+            actor?.email || null,
+            actor?.user_metadata?.full_name || null,
+        );
+
+        res.json({
+            success: true,
+            referral: summary,
+        });
+    } catch (error: any) {
+        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load referral summary' });
     }
 };
 

@@ -5,6 +5,8 @@ import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
 import { useHistorySync } from '../hooks/useHistorySync';
+import { useAuth } from '../context/AuthContext';
+import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_PLAN_CARDS } from '../lib/propai';
 
 type StreamStats = {
   total: number;
@@ -26,8 +28,28 @@ type WorkspaceMetadata = {
   updatedAt?: string | null;
 };
 
+type ReferralSummary = {
+  code: string;
+  link: string;
+  qualifiedReferrals: number;
+  pendingReferrals: number;
+  progressToNextReward: number;
+  freeMonthsEarned: number;
+  assistantNumber: string;
+  assistantWaLink: string;
+  shareMessage: string;
+};
+
+const formatPlanLabel = (plan?: string | null) => {
+  const normalized = String(plan || '').trim().toLowerCase();
+  if (normalized === 'trial' || normalized === 'free') return 'Trial';
+  if (normalized === 'solo' || normalized === 'pro') return 'Solo';
+  return 'Team';
+};
+
 const EmptyState: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   return (
     <div className="mx-auto flex min-h-[60vh] max-w-5xl flex-col justify-center space-y-6">
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
@@ -82,6 +104,15 @@ const EmptyState: React.FC = () => {
               <History className="h-4 w-4 text-[var(--accent)]" />
               Import chat history
             </button>
+            <a
+              href={PROPAI_ASSISTANT_WA_LINK}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[12px] font-semibold text-[var(--text-primary)] transition hover:bg-[var(--bg-base)]"
+            >
+              <MessageSquare className="h-4 w-4 text-[var(--accent)]" />
+              Message Assistant
+            </a>
           </div>
         </div>
 
@@ -101,6 +132,28 @@ const EmptyState: React.FC = () => {
               <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">Check matched requirements, pending follow-ups, and hot leads — all in one place, ranked by urgency.</p>
             </div>
           </div>
+        </div>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plans</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {PROPAI_PLAN_CARDS.map((plan) => (
+              <div key={plan.name} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">{plan.name}</p>
+                <p className="mt-2 text-[22px] font-bold text-[var(--text-primary)]">{plan.price}</p>
+                <p className="text-[12px] text-[var(--text-secondary)]">{plan.devices}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[14px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-5">
+          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--accent)]">Referral lane</p>
+          <p className="mt-2 text-[14px] font-semibold text-[var(--text-primary)]">Refer 3 paying brokers, get 1 free month.</p>
+          <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
+            Your referral code is {user?.referral?.code || 'generated after signup'}. Share Pulse with the PropAI Assistant contact included for onboarding help.
+          </p>
+          <p className="mt-3 text-[12px] font-medium text-[var(--text-primary)]">Assistant: {PROPAI_ASSISTANT_NUMBER}</p>
         </div>
       </div>
       <div className="flex flex-col gap-2 rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-surface)] px-5 py-4 text-[12px] text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between">
@@ -157,10 +210,12 @@ const StatCard: React.FC<{
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const historySync = useHistorySync();
   const [whatsapp, setWhatsapp] = React.useState<WhatsappStatusResponse | null>(null);
   const [streamStats, setStreamStats] = React.useState<StreamStats | null>(null);
   const [workspaceMetadata, setWorkspaceMetadata] = React.useState<WorkspaceMetadata | null>(null);
+  const [referral, setReferral] = React.useState<ReferralSummary | null>(null);
   const [isSavingMetadata, setIsSavingMetadata] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -169,15 +224,17 @@ export const Dashboard: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [statusResponse, statsResponse, metadataResponse] = await Promise.all([
+      const [statusResponse, statsResponse, metadataResponse, referralResponse] = await Promise.all([
         backendApi.get<WhatsappStatusResponse>(ENDPOINTS.whatsapp.status),
         backendApi.get<StreamStats>(ENDPOINTS.streamItems.stats),
         backendApi.get<{ metadata: WorkspaceMetadata }>(ENDPOINTS.workspace.metadata),
+        backendApi.get<{ referral: ReferralSummary }>(ENDPOINTS.workspace.referral),
       ]);
 
       setWhatsapp(statusResponse.data || null);
       setStreamStats(statsResponse.data || { total: 0, unread: 0, avgConfidence: 0 });
       setWorkspaceMetadata(metadataResponse.data?.metadata || null);
+      setReferral(referralResponse.data?.referral || null);
     } catch (err) {
       setError(handleApiError(err));
     } finally {
@@ -215,6 +272,10 @@ export const Dashboard: React.FC = () => {
   const unread = Number(streamStats?.unread || 0);
   const total = Number(streamStats?.total || 0);
   const avgConfidence = Number(streamStats?.avgConfidence || 0);
+  const subscription = user?.subscription;
+  const planLabel = formatPlanLabel(subscription?.plan);
+  const trialDaysLeft = subscription?.trial_days_remaining;
+  const deviceLimit = planLabel === 'Team' ? 5 : 2;
 
   const handleSaveMetadata = async (payload: { agencyName: string; primaryCity: string; serviceAreas: WorkspaceMetadata['serviceAreas'] }) => {
     setIsSavingMetadata(true);
@@ -261,6 +322,85 @@ export const Dashboard: React.FC = () => {
             Ask the agent
             <ArrowRight className="h-4 w-4" />
           </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plan status</p>
+              <h2 className="mt-1 text-[20px] font-bold text-[var(--text-primary)]">{planLabel}</h2>
+              <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
+                {planLabel === 'Trial'
+                  ? `Your 3-day free trial is live${typeof trialDaysLeft === 'number' ? ` with ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left.` : '.'}`
+                  : `Your workspace is on the ${planLabel} plan.`}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+                {whatsapp?.activeCount || 0}/{deviceLimit} devices active
+              </span>
+              {typeof trialDaysLeft === 'number' ? (
+                <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">
+                  Trial countdown: {trialDaysLeft}d
+                </span>
+              ) : null}
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {PROPAI_PLAN_CARDS.map((plan) => (
+              <div key={plan.name} className={cn(
+                'rounded-[12px] border p-4',
+                plan.name === planLabel
+                  ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)]'
+                  : 'border-[color:var(--border)] bg-[var(--bg-elevated)]',
+              )}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">{plan.name}</p>
+                <p className="mt-2 text-[20px] font-bold text-[var(--text-primary)]">{plan.price}</p>
+                <p className="text-[12px] text-[var(--text-secondary)]">{plan.devices}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Referral progress</p>
+          <h2 className="mt-1 text-[20px] font-bold text-[var(--text-primary)]">{referral?.progressToNextReward || 0}/3 referrals</h2>
+          <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
+            Refer 3 paying brokers who complete trial and payment to earn 1 free month. Free months earned so far: {referral?.freeMonthsEarned || 0}.
+          </p>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+            <div className="h-full bg-[var(--accent)] transition-all" style={{ width: `${((referral?.progressToNextReward || 0) / 3) * 100}%` }} />
+          </div>
+          <div className="mt-4 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">Share code</p>
+            <p className="mt-1 text-[16px] font-bold text-[var(--text-primary)]">{referral?.code || 'Generating...'}</p>
+            <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
+              Share {referral?.link || 'your referral link'} and tell new brokers they can message the PropAI Assistant at {PROPAI_ASSISTANT_NUMBER} for onboarding help.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (referral?.shareMessage) {
+                    void navigator.clipboard.writeText(referral.shareMessage);
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[11px] font-semibold text-[#020f07]"
+              >
+                Copy referral copy
+              </button>
+              <a
+                href={PROPAI_ASSISTANT_WA_LINK}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[11px] font-semibold text-[var(--text-primary)]"
+              >
+                Message Assistant
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 

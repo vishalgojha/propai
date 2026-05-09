@@ -17,6 +17,7 @@ interface User {
   expiresAt?: number;
   appRole?: string;
   subscription?: SubscriptionState | null;
+  referral?: ReferralState | null;
   isImpersonation?: boolean;
   impersonatedBy?: string;
   impersonationExpiresAt?: number;
@@ -28,6 +29,20 @@ export interface SubscriptionState {
   created_at?: string | null;
   renewal_date?: string | null;
   trial_days_remaining?: number | null;
+}
+
+export interface ReferralState {
+  code: string;
+  link: string;
+  referredByCode?: string | null;
+  referredByTenantId?: string | null;
+  qualifiedReferrals: number;
+  pendingReferrals: number;
+  progressToNextReward: number;
+  freeMonthsEarned: number;
+  assistantNumber: string;
+  assistantWaLink: string;
+  shareMessage: string;
 }
 
 interface AuthContextType {
@@ -100,6 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 serverUser.appRole || activeSession.appRole || response.data?.profile?.appRole
               ),
               subscription: response.data?.subscription,
+              referral: response.data?.referral || null,
             });
           identify(serverUser.email, { restored: true });
           track('session_restored', { restored: true });
@@ -171,6 +187,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       expiresAt: session.expiresAt,
       appRole: resolveAppRole(email, session.appRole),
       subscription: session.subscription,
+      referral: session.referral,
       isImpersonation: session.isImpersonation,
       impersonatedBy: session.impersonatedBy,
       impersonationExpiresAt: session.impersonationExpiresAt,

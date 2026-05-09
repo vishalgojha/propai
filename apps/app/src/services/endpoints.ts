@@ -5,6 +5,7 @@ export const ENDPOINTS = {
     password: '/auth/password',
     me: '/auth/me',
     resetPassword: '/auth/reset-password',
+    referralPreview: (code: string) => `/auth/referral/${encodeURIComponent(code)}`,
   },
   ai: {
     chat: '/ai/chat',
@@ -37,6 +38,7 @@ export const ENDPOINTS = {
     updateMember: (memberId: string) => `/workspace/team/${memberId}`,
     activity: '/workspace/activity',
     metadata: '/workspace/metadata',
+    referral: '/workspace/referral',
   },
   whatsapp: {
     connect: '/whatsapp/connect',

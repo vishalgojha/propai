@@ -35,6 +35,7 @@ export const ROUTE_PATHS = {
     me: '/me',
     refresh: '/refresh',
     resetPassword: '/reset-password',
+    referralPreview: '/referral/:code',
   },
      whatsapp: {
      connect: '/connect',
@@ -82,6 +83,7 @@ export const ROUTE_PATHS = {
     updateMember: '/team/:memberId',
     activity: '/activity',
     metadata: '/metadata',
+    referral: '/referral',
   },
   voice: {
     speak: '/speak',

@@ -1,6 +1,7 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
+import { referralService } from './referralService';
 
-export type Plan = 'Free' | 'Pro' | 'Team';
+export type Plan = 'Trial' | 'Solo' | 'Team';
 
 export interface Subscription {
     plan: Plan;
@@ -15,13 +16,20 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
     'vishal@chaoscraftslabs.com',
 ]);
 
-const DEFAULT_TRIAL_DAYS = 7;
+const DEFAULT_TRIAL_DAYS = 3;
+
+export function normalizePlanName(plan?: string | null): Plan {
+    const normalized = String(plan || '').trim().toLowerCase();
+    if (normalized === 'free' || normalized === 'trial') return 'Trial';
+    if (normalized === 'pro' || normalized === 'solo') return 'Solo';
+    return 'Team';
+}
 
 export class SubscriptionService {
     private db = supabaseAdmin ?? supabase;
     private planLimits = {
-        Free: { sessions: 2, leads: 50, features: ['basic_parser'] }, // 7-day trial
-        Pro: { sessions: 2, leads: Infinity, features: ['basic_parser', 'portal_posting'] }, // Base
+        Trial: { sessions: 2, leads: 50, features: ['basic_parser'] },
+        Solo: { sessions: 2, leads: Infinity, features: ['basic_parser', 'portal_posting'] },
         Team: { sessions: 5, leads: Infinity, features: ['basic_parser', 'portal_posting', 'priority_support'] }, // Scale
     };
 
@@ -38,7 +46,7 @@ export class SubscriptionService {
     }
 
     private normalizeStatus(status: string | null | undefined, plan: Plan) {
-        if (!status) return plan === 'Free' ? 'trial' : 'active';
+        if (!status) return plan === 'Trial' ? 'trial' : 'active';
         return status === 'trialing' ? 'trial' : status;
     }
 
@@ -89,14 +97,16 @@ export class SubscriptionService {
             .maybeSingle();
 
         if (!existingError && existing) {
+            const normalizedPlan = normalizePlanName(existing.plan);
             const createdAt = existing.created_at || new Date().toISOString();
-            const renewalDate = existing.renewal_date || (existing.plan === 'Free' ? this.addDays(new Date(createdAt), DEFAULT_TRIAL_DAYS).toISOString() : this.addDays(new Date(createdAt), 30).toISOString());
-            const normalizedStatus = this.normalizeStatus(existing.status, existing.plan);
+            const renewalDate = existing.renewal_date || (normalizedPlan === 'Trial' ? this.addDays(new Date(createdAt), DEFAULT_TRIAL_DAYS).toISOString() : this.addDays(new Date(createdAt), 30).toISOString());
+            const normalizedStatus = this.normalizeStatus(existing.status, normalizedPlan);
 
-            if (!existing.created_at || !existing.renewal_date) {
+            if (!existing.created_at || !existing.renewal_date || existing.plan !== normalizedPlan) {
                 await this.db
                     .from('subscriptions')
                     .update({
+                        plan: normalizedPlan,
                         created_at: createdAt,
                         renewal_date: renewalDate,
                         status: normalizedStatus,
@@ -106,6 +116,7 @@ export class SubscriptionService {
 
             return {
                 ...existing,
+                plan: normalizedPlan,
                 created_at: createdAt,
                 renewal_date: renewalDate,
                 status: normalizedStatus,
@@ -119,7 +130,7 @@ export class SubscriptionService {
             .from('subscriptions')
             .upsert({
                 tenant_id: tenantId,
-                plan: 'Free',
+                plan: 'Trial',
                 status: 'trial',
                 created_at: createdAt.toISOString(),
                 renewal_date: renewalDate,
@@ -129,7 +140,7 @@ export class SubscriptionService {
 
         if (error || !data) {
             return {
-                plan: 'Free',
+                plan: 'Trial',
                 status: 'trial',
                 created_at: createdAt.toISOString(),
                 renewal_date: renewalDate,
@@ -155,30 +166,34 @@ export class SubscriptionService {
             .maybeSingle();
 
         if (error || !data) {
-            // Return default Free plan if no record exists
-            return { plan: 'Free', status: 'trial', created_at: null, renewal_date: null, trial_days_remaining: null };
+            // Return the default trial plan if no record exists.
+            return { plan: 'Trial', status: 'trial', created_at: null, renewal_date: null, trial_days_remaining: null };
         }
 
+        const normalizedPlan = normalizePlanName(data.plan);
         return {
             ...data,
-            status: this.normalizeStatus(data.status, data.plan),
+            plan: normalizedPlan,
+            status: this.normalizeStatus(data.status, normalizedPlan),
             trial_days_remaining: this.daysRemaining(data.renewal_date),
         };
     }
 
     async upgradePlan(tenantId: string, plan: Plan) {
         const activatedAt = new Date();
+        const normalizedPlan = normalizePlanName(plan);
         const { error } = await this.db
             .from('subscriptions')
             .upsert({ 
                 tenant_id: tenantId, 
-                plan, 
+                plan: normalizedPlan, 
                 status: 'active',
                 created_at: activatedAt.toISOString(),
                 renewal_date: this.addDays(activatedAt, 30).toISOString(),
             });
         
         if (error) throw error;
+        await referralService.qualifyPaidReferral(tenantId).catch(() => null);
     }
 
     async cancelSubscription(tenantId: string) {
@@ -190,12 +205,12 @@ export class SubscriptionService {
         if (error) throw error;
     }
 
-    getLimit(plan: Plan, feature: 'sessions' | 'leads') {
-        return this.planLimits[plan][feature];
+    getLimit(plan: Plan | string, feature: 'sessions' | 'leads') {
+        return this.planLimits[normalizePlanName(plan)][feature];
     }
 
-    hasFeature(plan: Plan, feature: string) {
-        return this.planLimits[plan].features.includes(feature);
+    hasFeature(plan: Plan | string, feature: string) {
+        return this.planLimits[normalizePlanName(plan)].features.includes(feature);
     }
 }
 
