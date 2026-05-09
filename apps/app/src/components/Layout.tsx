@@ -28,6 +28,7 @@ type WhatsAppStatusSummary = {
 
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'propai.sidebar_collapsed';
+const PROPAI_ASSISTANT_WA_LINK = 'https://wa.me/917021045254';
 
 export const Layout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -287,6 +288,14 @@ export const Layout: React.FC = () => {
               <div className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
               <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">System Live</span>
             </div>
+            <a
+              href={PROPAI_ASSISTANT_WA_LINK}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-colors hover:brightness-95"
+            >
+              Chat Assistant
+            </a>
             <div className="flex min-w-0 items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1">
               <span className={selectedSession?.status === 'connected' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : selectedSession?.status === 'connecting' ? 'h-2 w-2 rounded-full bg-[var(--amber)]' : 'h-2 w-2 rounded-full bg-[var(--red)]'} />
               <span className="hidden text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)] sm:inline">WhatsApp</span>
