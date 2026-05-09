@@ -218,6 +218,8 @@ export const Monitor: React.FC = () => {
   const [search, setSearch] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [replyText, setReplyText] = React.useState('');
+  const [isSending, setIsSending] = React.useState(false);
 
   const loadMonitor = React.useCallback(async () => {
     setIsLoading(true);
@@ -313,6 +315,33 @@ export const Monitor: React.FC = () => {
     () => (data?.messages || []).filter((message) => message.chatId === selectedChat?.id),
     [data?.messages, selectedChat?.id],
   );
+
+  React.useEffect(() => {
+    setReplyText('');
+  }, [selectedChat?.id]);
+
+  const handleSendReply = async () => {
+    const text = replyText.trim();
+    if (!selectedChat?.remoteJid || !text || isSending) {
+      return;
+    }
+
+    setIsSending(true);
+    setError(null);
+
+    try {
+      await backendApi.post(ENDPOINTS.whatsapp.send, {
+        remoteJid: selectedChat.remoteJid,
+        text,
+      });
+      setReplyText('');
+      await loadMonitor();
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   return (
     <div className="h-[calc(100vh-10rem)] overflow-hidden rounded-[28px] border border-[#202c33] bg-[#111b21] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
@@ -468,6 +497,34 @@ export const Monitor: React.FC = () => {
               </div>
             )}
           </div>
+
+          {selectedChat ? (
+            <div className="border-t border-[#202c33] bg-[#202c33] px-4 py-3">
+              <div className="flex items-end gap-3">
+                <textarea
+                  value={replyText}
+                  onChange={(event) => setReplyText(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      void handleSendReply();
+                    }
+                  }}
+                  placeholder={`Reply to ${selectedChat.title}`}
+                  rows={1}
+                  className="min-h-[44px] flex-1 resize-none rounded-[14px] border border-transparent bg-[#111b21] px-4 py-3 text-sm text-white outline-none placeholder:text-[#8696a0] focus:border-[#00a884]"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleSendReply()}
+                  disabled={!replyText.trim() || isSending}
+                  className="inline-flex h-11 shrink-0 items-center justify-center rounded-[14px] bg-[#00a884] px-4 text-[12px] font-bold uppercase tracking-[0.08em] text-[#0b141a] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSending ? 'Sending' : 'Send'}
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
       </div>
     </div>

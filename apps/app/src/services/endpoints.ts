@@ -57,6 +57,7 @@ export const ENDPOINTS = {
     recipients: '/whatsapp/recipients',
     broadcast: '/whatsapp/broadcast',
     messages: '/whatsapp/messages',
+    send: '/whatsapp/send',
     sendBulk: '/whatsapp/send-bulk',
   },
   channels: {
