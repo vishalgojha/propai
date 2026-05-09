@@ -24,6 +24,17 @@ type ImportOptions = {
   }) => void;
 };
 
+type ImportManyOptions = {
+  tenantId: string;
+  files: Array<{
+    fileName?: string | null;
+    content: string;
+  }>;
+  sessionLabel?: string | null;
+  forceProcess?: boolean;
+  onProgress?: ImportOptions['onProgress'];
+};
+
 const START_PATTERNS = [
   /^\s*\[(?<date>\d{1,2}[/-]\d{1,2}[/-]\d{2,4}),\s+(?<time>\d{1,2}:\d{2}(?:\s?[APap][Mm])?)\]\s+(?<body>.+)$/,
   /^\s*(?<date>\d{1,2}[/-]\d{1,2}[/-]\d{2,4}),\s+(?<time>\d{1,2}:\d{2}(?:\s?[APap][Mm])?)\s+-\s+(?<body>.+)$/,
@@ -168,26 +179,59 @@ function buildRemoteJid(fileName: string | null | undefined, messages: ParsedTex
   return `history-${base}${suffix}`;
 }
 
+function buildHistoryMessages(rawText: string, fileName?: string | null) {
+  const messages = parseMessages(rawText);
+  if (!messages.length) {
+    return [];
+  }
+
+  const remoteJid = buildRemoteJid(fileName, messages);
+  return messages.map((message, index) => ({
+    id: crypto.createHash('sha1').update(`${remoteJid}:${message.timestamp}:${index}:${message.sender}:${message.text}`).digest('hex'),
+    remoteJid,
+    sender: message.sender,
+    messageTimestamp: message.timestamp,
+    message: {
+      conversation: message.text,
+    },
+  }));
+}
+
 export class HistoryTextImportService {
   async importTxt(options: ImportOptions) {
     const { tenantId, rawText, fileName, sessionLabel, onProgress, forceProcess = false } = options;
-    const messages = parseMessages(rawText);
-
-    if (!messages.length) {
+    const historyMessages = buildHistoryMessages(rawText, fileName);
+    if (!historyMessages.length) {
       throw new Error('No WhatsApp messages were found in that TXT file.');
     }
 
-    const remoteJid = buildRemoteJid(fileName, messages);
     const sourceLabel = sessionLabel || fileName || 'txt-import';
-    const historyMessages = messages.map((message, index) => ({
-      id: crypto.createHash('sha1').update(`${remoteJid}:${message.timestamp}:${index}:${message.sender}:${message.text}`).digest('hex'),
-      remoteJid,
-      sender: message.sender,
-      messageTimestamp: message.timestamp,
-      message: {
-        conversation: message.text,
-      },
-    }));
+
+    return historyBatchService.processHistoryBatch({
+      tenantId,
+      sessionLabel: String(sourceLabel),
+      messages: historyMessages,
+      forceProcess,
+      onProgress,
+    });
+  }
+
+  async importManyTxt(options: ImportManyOptions) {
+    const { tenantId, files, sessionLabel, onProgress, forceProcess = false } = options;
+    const normalizedFiles = Array.isArray(files)
+      ? files.filter((file) => typeof file?.content === 'string' && file.content.trim().length > 0)
+      : [];
+
+    if (!normalizedFiles.length) {
+      throw new Error('At least one TXT file is required.');
+    }
+
+    const historyMessages = normalizedFiles.flatMap((file) => buildHistoryMessages(file.content, file.fileName));
+    if (!historyMessages.length) {
+      throw new Error('No WhatsApp messages were found in the uploaded TXT files.');
+    }
+
+    const sourceLabel = sessionLabel || (normalizedFiles.length === 1 ? normalizedFiles[0]?.fileName : 'multi-txt-import') || 'txt-import';
 
     return historyBatchService.processHistoryBatch({
       tenantId,

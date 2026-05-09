@@ -27,12 +27,16 @@ export type HistorySyncState = {
   isProcessing: boolean;
   progress: number | null;
   totalProcessed: number;
+  totalSource: number;
+  historyProcessedAt: string | null;
 };
 
 const defaultState: HistorySyncState = {
   isProcessing: false,
   progress: null,
   totalProcessed: 0,
+  totalSource: 0,
+  historyProcessedAt: null,
 };
 
 export function useHistorySync() {
@@ -74,14 +78,13 @@ export function useHistorySync() {
           }),
         ]);
 
+        const totalProcessed = Number(profile?.history_message_count || 0);
         const sessions = Array.isArray(healthResponse.data?.sessions) ? healthResponse.data.sessions : [];
         const connectedSession = sessions
           .filter((session) => session.connectionStatus === 'connected')
           .sort((a, b) => new Date(a.connectedAt || 0).getTime() - new Date(b.connectedAt || 0).getTime())[0] || null;
-
-        const totalProcessed = Number(profile?.history_message_count || 0);
         const totalSource = Number(profile?.history_total_count || 0) || Number(connectedSession?.messagesReceived24h || 0);
-        const isProcessing = Boolean(!profile?.history_processed && (totalSource > 0 || connectedSession));
+        const isProcessing = Boolean(!profile?.history_processed && totalSource > 0);
         const progress = profile?.history_processed
           ? 100
           : totalProcessed > 0 && totalSource > 0
@@ -95,6 +98,8 @@ export function useHistorySync() {
             isProcessing,
             progress,
             totalProcessed,
+            totalSource,
+            historyProcessedAt: profile?.history_processed_at || null,
           });
         }
       } catch {

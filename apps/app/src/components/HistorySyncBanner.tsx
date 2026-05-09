@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { cn } from '../lib/utils';
-import { LoaderIcon, RefreshIcon, ShieldCheckIcon } from '../lib/icons';
+import { LoaderIcon, ShieldCheckIcon } from '../lib/icons';
 import { useHistorySync } from '../hooks/useHistorySync';
 
 export const HistorySyncBanner: React.FC = () => {
-  const { isProcessing, progress, totalProcessed } = useHistorySync();
+  const { isProcessing, progress, totalProcessed, totalSource, historyProcessedAt } = useHistorySync();
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
@@ -36,8 +36,8 @@ export const HistorySyncBanner: React.FC = () => {
           </h3>
           <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
             {isProcessing
-              ? `The history import is running in the background. ${totalProcessed} messages have already been processed.`
-              : `Imported ${totalProcessed} historical messages into the AI memory layer.`}
+              ? `The history import is running in the background. ${totalProcessed} of ${Math.max(totalSource, totalProcessed)} messages have been processed so far.`
+              : `Imported ${totalProcessed} historical messages. Only extracted listings and requirements show up in Stream; the rest still enrich AI memory.`}
           </p>
         </div>
       </div>
@@ -50,7 +50,7 @@ export const HistorySyncBanner: React.FC = () => {
           />
         </div>
         <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--text-secondary)]">
-          <span>{isProcessing ? 'Syncing history' : 'Ready'}</span>
+          <span>{isProcessing ? 'Syncing history' : historyProcessedAt ? `Finished ${new Date(historyProcessedAt).toLocaleString()}` : 'Ready'}</span>
           <span>{typeof progress === 'number' ? `${Math.round(progress)}%` : '...'}</span>
         </div>
       </div>
