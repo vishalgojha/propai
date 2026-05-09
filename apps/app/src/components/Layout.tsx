@@ -75,8 +75,6 @@ export const Layout: React.FC = () => {
         return 'WhatsApp';
       case '/history-sync':
         return 'History Sync';
-      case '/wabro':
-        return 'Wabro';
       case '/pricing':
         return 'Pricing';
       case '/docs':

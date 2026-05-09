@@ -147,7 +147,7 @@ type OutboundRecipient = {
   latestAt?: string | null;
 };
 
-const wabroCapabilities = [
+const whatsappCapabilities = [
   {
     title: 'Broadcast to groups, brokers, and leads',
     copy: 'Run one message across named WhatsApp groups, broker contacts, and buyer follow-ups from a single control surface.',
@@ -218,9 +218,8 @@ export const Sources: React.FC = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const isWabroRoute = location.pathname === '/wabro';
   const [activeTab, setActiveTab] = useState<'setup' | 'outbound' | 'pricing' | 'logs'>(
-    location.pathname === '/pricing' ? 'pricing' : location.pathname === '/wabro' ? 'outbound' : 'setup',
+    location.pathname === '/pricing' ? 'pricing' : 'setup',
   );
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -324,10 +323,6 @@ export const Sources: React.FC = () => {
     setActiveTab((current) => {
       if (location.pathname === '/pricing') {
         return 'pricing';
-      }
-
-      if (location.pathname === '/wabro') {
-        return 'outbound';
       }
 
       return current === 'pricing' ? 'setup' : current;
@@ -1060,47 +1055,26 @@ export const Sources: React.FC = () => {
   const activeGroupCount = groupHealth.filter((group) => group.status === 'active').length;
   const qrImageUrl = connectionArtifactType === 'qr' ? renderedQrImageUrl : null;
 
-  const planCards = isWabroRoute
-    ? [
-        {
-          name: 'Wabro unlock',
-          price: '₹499',
-          devices: 'One-time payment',
-          blurb: 'Wabro is the broadcast add-on. Pay once to unlock manual broker, lead, and group broadcasts inside PropAI.',
-        },
-        {
-          name: 'PropAI account',
-          price: 'Required',
-          devices: 'Same login',
-          blurb: 'There is no separate Wabro sign-in. Broadcast runs inside the same app.propai.live workspace.',
-        },
-        {
-          name: 'No recurring Wabro fee',
-          price: 'Included',
-          devices: 'After unlock',
-          blurb: 'The recurring subscription belongs to the core PropAI WhatsApp ingestion platform, not to Wabro.',
-        },
-      ]
-    : [
-        {
-          name: 'Core platform',
-          price: '₹999/mo',
-          devices: 'Up to 2 devices',
-          blurb: 'This is the main PropAI WhatsApp ingestion platform for Stream, parsing, AI, and monitoring.',
-        },
-        {
-          name: 'Growth platform',
-          price: '₹2999/mo',
-          devices: 'Up to 5 devices',
-          blurb: 'For desks that need more connected WhatsApp numbers feeding Stream and the shared workspace.',
-        },
-        {
-          name: 'Referral reward',
-          price: '1 month free',
-          devices: 'Every 3 referrals',
-          blurb: 'For every 3 brokers you refer who convert, your workspace earns 1 month free on the main PropAI plan.',
-        },
-      ];
+  const planCards = [
+    {
+      name: 'Core platform',
+      price: '₹999/mo',
+      devices: 'Up to 2 devices',
+      blurb: 'This is the main PropAI WhatsApp ingestion platform for Stream, parsing, AI, monitor, and outbound control.',
+    },
+    {
+      name: 'Growth platform',
+      price: '₹2999/mo',
+      devices: 'Up to 5 devices',
+      blurb: 'For desks that need more connected WhatsApp numbers feeding Stream and the shared workspace.',
+    },
+    {
+      name: 'Referral reward',
+      price: '1 month free',
+      devices: 'Every 3 referrals',
+      blurb: 'For every 3 brokers you refer who convert, your workspace earns 1 month free on the main PropAI plan.',
+    },
+  ];
 
   return (
     <div className="space-y-8">
@@ -1109,26 +1083,20 @@ export const Sources: React.FC = () => {
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
               <Smartphone className="h-3.5 w-3.5" />
-              {isWabroRoute ? 'Wabro Broadcast' : 'WhatsApp'}
+              WhatsApp
             </div>
             <h2 className="mt-4 text-[28px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">
-              {isWabroRoute
-                ? 'Broadcast like a human, from the same PropAI account.'
-                : 'WhatsApp is the ingestion engine that powers Stream.'}
+              WhatsApp is the ingestion engine that powers Stream.
             </h2>
             <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              {isWabroRoute
-                ? 'Wabro is the broadcast layer inside PropAI. Use it to queue group announcements, broker outreach, and lead follow-ups with paced sending that looks natural, not robotic.'
-                : 'Connect broker WhatsApp numbers here so PropAI can ingest chats, parse groups into Stream, power the monitor, and run the assistant on top of the live message flow.'}
+              Connect broker WhatsApp numbers here so PropAI can ingest chats, parse groups into Stream, power the monitor, run the assistant, and handle deliberate outbound outreach from the same workspace.
             </p>
           </div>
 
           <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access model</p>
             <p className="mt-1 text-[14px] font-bold text-[var(--text-primary)]">{status.plan || 'Free'}</p>
-            <p className="text-[11px] text-[var(--text-secondary)]">
-              {isWabroRoute ? '₹499 one-time broadcast unlock' : '₹999/mo for up to 2 devices or ₹2999/mo for up to 5 devices'}
-            </p>
+            <p className="text-[11px] text-[var(--text-secondary)]">₹999/mo for up to 2 devices or ₹2999/mo for up to 5 devices</p>
             {isAtDeviceLimit ? (
               <p className="mt-2 text-[11px] text-[var(--amber)]">Device limit reached for this workspace.</p>
             ) : null}
@@ -1139,7 +1107,7 @@ export const Sources: React.FC = () => {
       <div className="flex items-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-1">
         {[
           { id: 'setup' as const, label: 'Setup' },
-          { id: 'outbound' as const, label: isWabroRoute ? 'Broadcast controls' : 'Parsing controls' },
+          { id: 'outbound' as const, label: 'Outbound' },
           { id: 'pricing' as const, label: 'Pricing' },
           { id: 'logs' as const, label: 'Logs' },
         ].map((tab) => (
@@ -1158,7 +1126,6 @@ export const Sources: React.FC = () => {
         ))}
       </div>
 
-      {!isWabroRoute ? (
       <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="max-w-3xl">
@@ -1231,7 +1198,6 @@ export const Sources: React.FC = () => {
           </div>
         </div>
       </div>
-      ) : null}
 
       {activeTab === 'outbound' ? (
         <div className="space-y-6">
@@ -1239,13 +1205,9 @@ export const Sources: React.FC = () => {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Manual outbound center</p>
-                <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">
-                  {isWabroRoute ? 'Broadcast groups, brokers, and leads' : 'Groups, brokers, and leads'}
-                </h3>
+                <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Groups, brokers, and leads</h3>
                 <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--text-secondary)]">
-                  {isWabroRoute
-                    ? 'Wabro is the outbound tool: select recipients, choose a sender lane, and send at a human pace with nothing auto-posted.'
-                    : 'This page is primarily the ingestion and parsing control surface. Broadcast is handled by Wabro, while WhatsApp here controls what gets connected, read, parsed, and mirrored into Stream.'}
+                  Use the same PropAI WhatsApp workspace for manual outbound sends: select recipients, choose a sender lane, and send at a human pace with nothing auto-posted.
                 </p>
               </div>
               <button
@@ -1353,13 +1315,11 @@ export const Sources: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Connected WhatsApp groups</p>
-                  <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">{isWabroRoute ? 'Groups synced from this number' : 'Choose which groups get parsed'}</h4>
+                  <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">Groups synced from this number</h4>
                 </div>
               </div>
               <p className="mt-3 text-[12px] leading-5 text-[var(--text-secondary)]">
-                {isWabroRoute
-                  ? 'These are the WhatsApp groups synced from the connected number. Select the ones you want to broadcast to, then send at a human pace.'
-                  : 'Groups are parsed by default. Pause parsing for specific groups if you want them excluded from Pulse.'}
+                These are the WhatsApp groups synced from the connected number. Select the ones you want to message, or pause parsing for specific groups if you want them excluded from Pulse.
               </p>
               <input
                 value={groupSearchTerm}
@@ -1367,28 +1327,26 @@ export const Sources: React.FC = () => {
                 placeholder="Search by group name, locality, category, or tag"
                 className="mt-4 w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
               />
-              {!isWabroRoute ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleBulkSetGroupParsing(true)}
-                    disabled={!isCurrentSessionConnected || isLoadingOutbound || filteredOutboundGroups.length === 0}
-                    className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-base)] disabled:opacity-50"
-                  >
-                    <Power className="h-3.5 w-3.5" />
-                    Enable parsing (filtered)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleBulkSetGroupParsing(false)}
-                    disabled={!isCurrentSessionConnected || isLoadingOutbound || filteredOutboundGroups.length === 0}
-                    className="inline-flex items-center gap-2 rounded-full border border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] px-3 py-1.5 text-[11px] font-semibold text-[var(--red)] transition-colors hover:bg-[rgba(239,68,68,0.12)] disabled:opacity-50"
-                  >
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                    Pause parsing (filtered)
-                  </button>
-                </div>
-              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleBulkSetGroupParsing(true)}
+                  disabled={!isCurrentSessionConnected || isLoadingOutbound || filteredOutboundGroups.length === 0}
+                  className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-base)] disabled:opacity-50"
+                >
+                  <Power className="h-3.5 w-3.5" />
+                  Enable parsing (filtered)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleBulkSetGroupParsing(false)}
+                  disabled={!isCurrentSessionConnected || isLoadingOutbound || filteredOutboundGroups.length === 0}
+                  className="inline-flex items-center gap-2 rounded-full border border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] px-3 py-1.5 text-[11px] font-semibold text-[var(--red)] transition-colors hover:bg-[rgba(239,68,68,0.12)] disabled:opacity-50"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Pause parsing (filtered)
+                </button>
+              </div>
               <div className="mt-4 max-h-[240px] space-y-2 overflow-y-auto pr-1">
                 {filteredOutboundGroups.length === 0 ? (
                   <div className="rounded-[10px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
@@ -1397,54 +1355,22 @@ export const Sources: React.FC = () => {
                 ) : (
                   filteredOutboundGroups.map((group) => (
                     <label key={group.id} className="flex cursor-pointer items-start gap-3 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
-                      {isWabroRoute ? (
-                        <input
-                          type="checkbox"
-                          checked={selectedGroupIds.includes(group.id)}
-                          onChange={() => setSelectedGroupIds((current) => toggleSelection(current, group.id))}
-                          className="mt-0.5 h-4 w-4 rounded border-[color:var(--border-strong)] bg-[var(--bg-base)] text-[var(--accent)] accent-[var(--accent)]"
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            void handleSetGroupParsing(group.id, !isGroupParsingEnabled(group.behavior));
-                          }}
-                          disabled={!isCurrentSessionConnected || Boolean(savingGroupBehavior[group.id])}
-                          className={cn(
-                            'relative mt-0.5 h-6 w-11 rounded-full border transition-colors disabled:opacity-50',
-                            isGroupParsingEnabled(group.behavior)
-                              ? 'border-[color:var(--accent-border)] bg-[var(--accent)]'
-                              : 'border-[color:var(--border)] bg-[var(--bg-elevated)]',
-                          )}
-                          aria-pressed={isGroupParsingEnabled(group.behavior)}
-                          aria-label={`Toggle parsing for ${group.name}`}
-                        >
-                          <span
-                            className={cn(
-                              'absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform',
-                              isGroupParsingEnabled(group.behavior) ? 'translate-x-5' : 'translate-x-0.5',
-                            )}
-                          />
-                        </button>
-                      )}
+                      <input
+                        type="checkbox"
+                        checked={selectedGroupIds.includes(group.id)}
+                        onChange={() => setSelectedGroupIds((current) => toggleSelection(current, group.id))}
+                        className="mt-0.5 h-4 w-4 rounded border-[color:var(--border-strong)] bg-[var(--bg-base)] text-[var(--accent)] accent-[var(--accent)]"
+                      />
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{group.name}</p>
                           <span className={cn(
                             'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
-                            isWabroRoute
-                              ? (group.broadcastEnabled
-                                ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] text-[var(--accent)]'
-                                : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]')
-                              : (isGroupParsingEnabled(group.behavior)
-                                ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] text-[var(--accent)]'
-                                : 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]'),
+                            isGroupParsingEnabled(group.behavior)
+                              ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] text-[var(--accent)]'
+                              : 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
                           )}>
-                            {isWabroRoute
-                              ? (group.broadcastEnabled ? 'Broadcast ready' : 'Synced')
-                              : (isGroupParsingEnabled(group.behavior) ? 'Parsing on' : 'Paused')}
+                            {isGroupParsingEnabled(group.behavior) ? 'Parsing on' : 'Paused'}
                           </span>
                         </div>
                         <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
@@ -1464,24 +1390,20 @@ export const Sources: React.FC = () => {
                   ))
                 )}
               </div>
-              {isWabroRoute ? (
-                <>
-                  <textarea
-                    value={groupOutboundText}
-                    onChange={(event) => setGroupOutboundText(event.target.value)}
-                    placeholder="Write the message to send into the selected groups"
-                    className="mt-4 min-h-[120px] w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[color:var(--accent)]"
-                  />
-                  <button
-                    onClick={() => void handleSendGroups()}
-                    disabled={!isCurrentSessionConnected || !outboundSessionKey || sendState.groups}
-                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-[18px] py-[11px] text-[11px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
-                  >
-                    {sendState.groups ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    <span>Send to selected groups</span>
-                  </button>
-                </>
-              ) : null}
+              <textarea
+                value={groupOutboundText}
+                onChange={(event) => setGroupOutboundText(event.target.value)}
+                placeholder="Write the message to send into the selected groups"
+                className="mt-4 min-h-[120px] w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[color:var(--accent)]"
+              />
+              <button
+                onClick={() => void handleSendGroups()}
+                disabled={!isCurrentSessionConnected || !outboundSessionKey || sendState.groups}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-[18px] py-[11px] text-[11px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
+              >
+                {sendState.groups ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                <span>Send to selected groups</span>
+              </button>
             </div>
 
             <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
@@ -1495,7 +1417,7 @@ export const Sources: React.FC = () => {
                 </div>
               </div>
               <p className="mt-3 text-[12px] leading-5 text-[var(--text-secondary)]">
-                Built from saved inventory-side contacts with real phone numbers in your workspace data. {isWabroRoute ? 'Broadcast to brokers with a natural cadence and per-session sender control.' : 'Direct parsing stays under session-level consent so the broker stays in control of what gets mirrored.'}
+                Built from saved inventory-side contacts with real phone numbers in your workspace data. Send to brokers with a natural cadence and per-session sender control.
               </p>
               <div className="mt-4 max-h-[240px] space-y-2 overflow-y-auto pr-1">
                 {brokerRecipients.length === 0 ? (
@@ -1547,7 +1469,7 @@ export const Sources: React.FC = () => {
                 </div>
               </div>
               <p className="mt-3 text-[12px] leading-5 text-[var(--text-secondary)]">
-                Built from buyer requirements and the pending callback queue so you can reach back out intentionally. {isWabroRoute ? 'The tool keeps your follow-up list ready for human-paced outreach.' : 'Requirements are parsed the same way as listings when they are explicitly allowed.'}
+                Built from buyer requirements and the pending callback queue so you can reach back out intentionally. The tool keeps your follow-up list ready for human-paced outreach.
               </p>
               <div className="mt-4 max-h-[240px] space-y-2 overflow-y-auto pr-1">
                 {leadRecipients.length === 0 ? (
@@ -1601,17 +1523,15 @@ export const Sources: React.FC = () => {
         </div>
       ) : activeTab === 'pricing' ? (
         <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
-              <MessageSquare className="h-5 w-5 text-[var(--accent)]" />
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
+                <MessageSquare className="h-5 w-5 text-[var(--accent)]" />
+              </div>
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plan caps</p>
+                <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">Core PropAI pricing for WhatsApp ingestion, outbound, and Stream.</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plan caps</p>
-              <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">
-                {isWabroRoute ? 'Wabro is ₹499 one time. Core PropAI pricing is separate.' : 'Core PropAI pricing for WhatsApp ingestion and Stream.'}
-              </h3>
-            </div>
-          </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             {planCards.map((plan) => (
@@ -1626,23 +1546,19 @@ export const Sources: React.FC = () => {
 
           <div className="mt-5 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
             <p className="text-[12px] leading-6 text-[var(--text-secondary)]">
-              {isWabroRoute
-                ? 'Wabro is the WhatsApp broadcast workspace inside PropAI. It is designed for broker desks that need one place to send group announcements, contact saved brokers, and follow up with leads from the same logged-in account.'
-                : 'WhatsApp here is the main ingestion engine for PropAI. It connects broker numbers, reads inbound activity, feeds Stream, powers Monitor, and gives the AI assistant live message context.'}
+              WhatsApp here is the main ingestion engine for PropAI. It connects broker numbers, reads inbound activity, feeds Stream, powers Monitor, gives the AI assistant live message context, and supports controlled outbound sends from the same workspace.
             </p>
           </div>
 
-          {!isWabroRoute ? (
-            <div className="mt-5 rounded-[12px] border border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">Referral program</p>
-              <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
-                Refer 3 brokers who convert to paid PropAI and your workspace gets 1 month free on the main platform plan. The cycle repeats for every next 3 successful referrals.
-              </p>
-            </div>
-          ) : null}
+          <div className="mt-5 rounded-[12px] border border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">Referral program</p>
+            <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
+              Refer 3 brokers who convert to paid PropAI and your workspace gets 1 month free on the main platform plan. The cycle repeats for every next 3 successful referrals.
+            </p>
+          </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {wabroCapabilities.map((item) => (
+            {whatsappCapabilities.map((item) => (
               <div key={item.title} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">{item.title}</p>
                 <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">{item.copy}</p>

@@ -42,7 +42,6 @@ const NAV_ITEMS = [
   { label: 'Dashboard', path: '/dashboard', icon: DashboardIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
   { label: 'History Sync', path: '/history-sync', icon: RefreshIcon },
-  { label: 'Wabro', path: '/wabro', icon: GroupsIcon },
   { label: 'Team', path: '/team', icon: ShieldIcon },
   { label: 'Intelligence', path: '/intelligence', icon: StreamIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },

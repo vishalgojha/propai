@@ -92,7 +92,6 @@ export default function App() {
             <Route path="/aiusage" element={<AiUsage />} />
             <Route path="/ai-usage" element={<Navigate to="/aiusage" replace />} />
             <Route path="/pricing" element={<WhatsApp />} />
-            <Route path="/wabro" element={<WhatsApp />} />
             <Route path="/sources" element={<Navigate to="/whatsapp" replace />} />
             <Route path="/messages" element={<Navigate to="/inbox" replace />} />
             <Route path="/agent" element={<Agent />} />
