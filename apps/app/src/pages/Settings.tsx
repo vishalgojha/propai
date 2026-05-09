@@ -51,8 +51,8 @@ const aiProviders = [
   {
     id: 'concentrate',
     name: 'Concentrate',
-    logo: 'doubleword',
-    description: 'Primary OpenAI-compatible path using your Concentrate credit pool.',
+    logo: 'concentrate',
+    description: 'Platform-backed primary path using PropAI Concentrate credit. Broker key is optional unless you want to use your own pool.',
   },
   {
     id: 'gemini',
@@ -85,8 +85,8 @@ const defaultModelOptions = [
     value: 'concentrate',
     title: 'Concentrate',
     provider: 'Concentrate auto',
-    logo: 'doubleword' as const,
-    description: 'Use Concentrate first when you want PropAI to spend the saved Concentrate credit before Gemini.',
+    logo: 'concentrate' as const,
+    description: 'Use Concentrate first and spend the platform Concentrate credit before Gemini fallback.',
   },
   {
     value: 'gemini-2.5-flash',
@@ -198,6 +198,7 @@ export const Settings: React.FC = () => {
   });
 
   const [aiKeys, setAiKeys] = useState<AIConfig>({
+    concentrate: '',
     gemini: '',
     groq: '',
     openrouter: '',
@@ -288,7 +289,7 @@ export const Settings: React.FC = () => {
                 AI keys optional
               </span>
               <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                Gemini first
+                Concentrate credit live
               </span>
               <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
                 WhatsApp sync and follow-ups
@@ -371,7 +372,7 @@ export const Settings: React.FC = () => {
                         data-lpignore="true"
                         value={aiKeys[providerKey] || ''}
                         onChange={(e) => updateAiKey(providerKey, e.target.value)}
-                        placeholder={`Paste ${provider.name} keys, one per line`}
+                        placeholder={provider.id === 'concentrate' ? 'Optional: paste your own Concentrate keys, one per line' : `Paste ${provider.name} keys, one per line`}
                         style={{ WebkitTextSecurity: showKeys[provider.id] ? 'none' : 'disc' } as React.CSSProperties}
                         className="min-h-[104px] w-full resize-y rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] py-3 pl-3 pr-10 text-[12px] leading-5 text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[color:var(--accent)]"
                       />
@@ -385,7 +386,13 @@ export const Settings: React.FC = () => {
                       </button>
                     </div>
                     <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                      {keyCount ? `${keyCount} key${keyCount === 1 ? '' : 's'} configured` : 'No keys configured'}
+                      {provider.id === 'concentrate'
+                        ? keyCount
+                          ? `${keyCount} personal key${keyCount === 1 ? '' : 's'} configured`
+                          : 'Platform credit available without broker key'
+                        : keyCount
+                          ? `${keyCount} key${keyCount === 1 ? '' : 's'} configured`
+                          : 'No keys configured'}
                     </p>
                   </div>
                 );

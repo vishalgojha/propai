@@ -56,6 +56,9 @@ export function normalizeDefaultModel(value?: string | null) {
     const normalized = (value || '').trim().toLowerCase();
 
     switch (normalized) {
+        case 'concentrate':
+        case 'concentrate-auto':
+            return 'concentrate';
         case '':
         case 'auto':
         case 'google':

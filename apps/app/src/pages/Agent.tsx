@@ -32,6 +32,9 @@ type RuntimeModel = {
 };
 
 type RuntimeStatusPayload = {
+  preferredProvider?: 'Concentrate' | 'Google' | 'Groq' | 'OpenRouter' | 'Doubleword';
+  providerOrder?: Array<'Concentrate' | 'Google' | 'Groq' | 'OpenRouter' | 'Doubleword'>;
+  defaultModel?: string;
   models?: Record<string, RuntimeModel>;
 };
 
@@ -65,7 +68,7 @@ const quickActions = [
     prompt: 'Extract the structured details from this property URL: ',
   },
 ] as const;
-const runtimeProviderOrder = ['Google', 'Groq', 'OpenRouter', 'Doubleword'] as const;
+const runtimeProviderOrder = ['Concentrate', 'Google', 'Groq', 'OpenRouter', 'Doubleword'] as const;
 const assistantPanelTabs = [
   { id: 'runtime' as const, label: 'Runtime', icon: ActivityIcon },
   { id: 'activity' as const, label: 'Activity', icon: WorkflowIcon },
@@ -346,20 +349,27 @@ export const Agent: React.FC = () => {
   const draftStorageKey = useMemo(() => buildAgentDraftStorageKey(user?.email), [user?.email]);
 
   const visibleMessages = useMemo(() => messages, [messages]);
+  const effectiveRuntimeOrder = useMemo(
+    () => runtimeStatus?.providerOrder?.length ? runtimeStatus.providerOrder : runtimeProviderOrder,
+    [runtimeStatus],
+  );
   const runtimeModels = useMemo(() => {
     const models = runtimeStatus?.models || {};
-    return runtimeProviderOrder.map((provider) => ({
+    return effectiveRuntimeOrder.map((provider) => ({
       provider,
       ...models[provider],
     }));
-  }, [runtimeStatus]);
+  }, [effectiveRuntimeOrder, runtimeStatus]);
   const availableProviderCount = useMemo(
     () => runtimeModels.filter((model) => model?.status === 'online').length,
     [runtimeModels],
   );
   const activeRuntimeProvider = useMemo(
-    () => runtimeProviderOrder.find((provider) => runtimeStatus?.models?.[provider]?.status === 'online') || null,
-    [runtimeStatus],
+    () =>
+      effectiveRuntimeOrder.find((provider) => runtimeStatus?.models?.[provider]?.status === 'online') ||
+      runtimeStatus?.preferredProvider ||
+      null,
+    [effectiveRuntimeOrder, runtimeStatus],
   );
   const subscription = user?.subscription;
   const isTrial = subscription?.status === 'trial' || subscription?.status === 'trialing' || subscription?.plan === 'Free' || subscription?.plan === 'Trial';
@@ -792,7 +802,9 @@ export const Agent: React.FC = () => {
             <div className="flex w-full flex-col gap-2 text-[11px] text-[var(--text-secondary)] sm:w-auto sm:items-end">
               <div className="flex items-center gap-2">
                 <WorkflowIcon className="h-3.5 w-3.5 text-[var(--accent)]" />
-                <span>Gemini first, Groq and OpenRouter fallback</span>
+                <span>
+                  {effectiveRuntimeOrder.join(' -> ')}
+                </span>
               </div>
               <div
                 className={cn(
@@ -1125,7 +1137,7 @@ export const Agent: React.FC = () => {
                   <div className="space-y-3">
                     {runtimeModels.map((item) => {
                       const status = item?.status || 'offline';
-                      const providerKey = (item.provider === 'Google' ? 'gemini' : item.provider.toLowerCase()) as 'gemini' | 'groq' | 'openrouter' | 'doubleword';
+                      const providerKey = (item.provider === 'Google' ? 'gemini' : item.provider.toLowerCase()) as 'concentrate' | 'gemini' | 'groq' | 'openrouter' | 'doubleword';
                       return (
                         <div key={item.provider} className="flex items-start gap-3 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-3">
                           <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]">
@@ -1148,7 +1160,9 @@ export const Agent: React.FC = () => {
                             <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
                               {status === 'online'
                                 ? `Latency ${item.latency >= 0 ? `${item.latency}ms` : 'ready'}`
-                                : 'Add key in Settings'}
+                                : item.provider === 'Concentrate'
+                                  ? 'Platform credit unavailable'
+                                  : 'Add key in Settings'}
                             </p>
                           </div>
                         </div>
@@ -1159,21 +1173,25 @@ export const Agent: React.FC = () => {
                   <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
                     <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Chain order</p>
                     <div className="mt-3 space-y-3">
-                      {[
-                        { label: 'Gemini', desc: 'Google Gemini 2.5 Flash is the primary model path' },
-                        { label: 'Groq', desc: 'Fast fallback if Gemini is unavailable' },
-                        { label: 'OpenRouter', desc: 'Third fallback through your OpenRouter key' },
-                      ].map((item, index) => (
-                        <div key={item.label} className="flex items-start gap-3 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-3">
-                          <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[10px] font-bold text-[var(--accent)]">
-                            {index + 1}
+                      {effectiveRuntimeOrder.map((provider, index) => {
+                        const model = runtimeStatus?.models?.[provider];
+                        const desc = index === 0
+                          ? `Primary path${runtimeStatus?.defaultModel ? ` from workspace default ${runtimeStatus.defaultModel}` : ''}`
+                          : `Fallback ${index} if the earlier provider is unavailable`;
+                        return (
+                          <div key={provider} className="flex items-start gap-3 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-3">
+                            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[10px] font-bold text-[var(--accent)]">
+                              {index + 1}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[12px] font-semibold text-[var(--text-primary)]">{provider}</p>
+                              <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
+                                {model?.name ? `${model.name}. ` : ''}{desc}
+                              </p>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-[12px] font-semibold text-[var(--text-primary)]">{item.label}</p>
-                            <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">{item.desc}</p>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 

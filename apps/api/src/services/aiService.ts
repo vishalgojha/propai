@@ -392,17 +392,31 @@ export class AIService {
 
 
     async getStatus(tenantId?: string) {
+        const tenantConcentrateKey = tenantId ? await keyService.getKey(tenantId, 'Concentrate').catch(() => null) : null;
         const tenantGroqKey = tenantId ? await keyService.getKey(tenantId, 'Groq') : null;
         const tenantGoogleKey = tenantId ? await keyService.getKey(tenantId, 'Google') : null;
         const tenantOpenRouterKey = tenantId ? await keyService.getKey(tenantId, 'OpenRouter') : null;
         const tenantDoublewordKey = tenantId ? await keyService.getKey(tenantId, 'Doubleword') : null;
-        const hasConcentrate = Boolean(process.env.CONCENTRATE_API_KEY);
+        const savedDefault = tenantId ? await getWorkspaceDefaultModel(tenantId).catch(() => null) : null;
+        const hasConcentrate = Boolean(tenantConcentrateKey || process.env.CONCENTRATE_API_KEY);
         const hasGroq = Boolean(tenantGroqKey || process.env.GROQ_API_KEY);
         const hasGoogle = Boolean(tenantGoogleKey || process.env.GOOGLE_API_KEY);
         const hasOpenRouter = Boolean(tenantOpenRouterKey || process.env.OPENROUTER_API_KEY);
         const hasDoubleword = Boolean(tenantDoublewordKey || process.env.DOUBLEWORD_API_KEY);
+        const preferred =
+            this.normalizeProviderPreference(savedDefault) ||
+            (hasConcentrate ? 'Concentrate' : 'Google');
+        const providerOrder: ProviderId[] = hasConcentrate
+            ? ['Concentrate', 'Google', 'Groq', 'OpenRouter', 'Doubleword']
+            : ['Google', 'Groq', 'OpenRouter', 'Doubleword'];
+        const orderedProviders = preferred && providerOrder.includes(preferred)
+            ? [preferred, ...providerOrder.filter((provider) => provider !== preferred)]
+            : providerOrder;
 
         return {
+          preferredProvider: preferred,
+          providerOrder: orderedProviders,
+          defaultModel: savedDefault || (hasConcentrate ? 'concentrate' : this.googleModel),
           models: {
             Concentrate: { name: `Concentrate ${this.concentrateModel}`, latency: 250, status: hasConcentrate ? 'online' : 'offline' },
             Groq: { name: `Groq ${this.groqModel}`, latency: 150, status: hasGroq ? 'online' : 'offline' },
