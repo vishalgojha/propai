@@ -8,6 +8,24 @@ type WorkflowResult =
     | { handled: false }
     | { handled: true; reply: string; data?: any };
 
+export type GroupMentionListingMatch = {
+    id: string;
+    title: string;
+    location: string;
+    city: string | null;
+    bhk: string | null;
+    priceLabel: string | null;
+    priceNumeric: number | null;
+    areaSqft: number | null;
+    propertyCategory: string | null;
+    brokerName: string | null;
+    brokerPhone: string | null;
+    sourcePhone: string | null;
+    rawText: string;
+    createdAt: string;
+    score: number;
+};
+
 type ParsedIntake = {
     record_type: 'inventory_listing' | 'buyer_requirement';
     name: string;
@@ -141,6 +159,42 @@ export class BrokerWorkflowService {
             default:
                 return { handled: false };
         }
+    }
+
+    async matchListingToRequirements(tenantId: string, prompt: string, limit = 3): Promise<GroupMentionListingMatch[]> {
+        const queryText = String(prompt || '').trim();
+        if (!queryText) {
+            return [];
+        }
+
+        const location = this.extractLocation(queryText).toLowerCase();
+        const city = this.extractCity(queryText).toLowerCase();
+        const bhk = this.extractBhk(queryText).toLowerCase();
+        const budget = this.extractBudgetNumeric(queryText);
+        const tokens = queryText
+            .toLowerCase()
+            .split(/[^a-z0-9]+/i)
+            .map((token) => token.trim())
+            .filter((token) => token.length >= 2 && !['in', 'at', 'for', 'and', 'the', 'with', 'from'].includes(token));
+
+        const { data, error } = await this.admin
+            .from('stream_items')
+            .select('id, locality, city, bhk, price_label, price_numeric, property_category, area_sqft, raw_text, created_at, confidence_score, source_phone, parsed_payload, record_type')
+            .eq('tenant_id', tenantId)
+            .eq('record_type', 'listing')
+            .order('created_at', { ascending: false })
+            .limit(250);
+
+        if (error || !data) {
+            return [];
+        }
+
+        const scored = data
+            .map((item: any) => this.scoreGroupMentionListing(item, { queryText, tokens, location, city, bhk, budget }))
+            .filter((item): item is GroupMentionListingMatch => Boolean(item))
+            .sort((a, b) => b.score - a.score || (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+
+        return scored.slice(0, Math.max(1, Math.min(limit, 10)));
     }
 
     private isCallbackCheck(text: string) {
@@ -984,6 +1038,108 @@ export class BrokerWorkflowService {
         }
 
         return `Saved ${date.toLocaleString()}`;
+    }
+
+    private scoreGroupMentionListing(
+        item: any,
+        criteria: {
+            queryText: string;
+            tokens: string[];
+            location: string;
+            city: string;
+            bhk: string;
+            budget: number | null;
+        },
+    ): GroupMentionListingMatch | null {
+        const payload = (item?.parsed_payload && typeof item.parsed_payload === 'object') ? item.parsed_payload as Record<string, any> : {};
+        const locality = String(item?.locality || payload.locality || payload.microLocation || '').trim();
+        const city = String(item?.city || payload.city || '').trim() || null;
+        const bhk = String(item?.bhk || payload.bhk || '').trim() || null;
+        const priceLabel = String(item?.price_label || payload.priceLabel || '').trim() || null;
+        const priceNumeric = Number.isFinite(Number(item?.price_numeric)) ? Number(item.price_numeric) : null;
+        const areaSqft = Number.isFinite(Number(item?.area_sqft)) ? Number(item.area_sqft) : null;
+        const propertyCategory = String(item?.property_category || payload.propertyCategory || '').trim() || null;
+        const rawText = String(item?.raw_text || '').trim();
+        const brokerName = String(payload.contactName || payload.sourceLabel || '').trim() || null;
+        const brokerPhone = String(payload.contactPhone || item?.source_phone || '').trim() || null;
+        const sourcePhone = String(item?.source_phone || '').trim() || null;
+        const title = String(payload.displayTitle || [bhk, locality, priceLabel].filter(Boolean).join(' | ') || rawText || 'Listing').trim();
+        const haystack = [
+            title,
+            locality,
+            city || '',
+            bhk || '',
+            priceLabel || '',
+            rawText,
+            JSON.stringify(payload || {}),
+        ].join(' ').toLowerCase();
+
+        if (criteria.location && !haystack.includes(criteria.location)) {
+            return null;
+        }
+
+        if (criteria.city && !haystack.includes(criteria.city)) {
+            return null;
+        }
+
+        if (criteria.bhk && !haystack.includes(criteria.bhk)) {
+            return null;
+        }
+
+        let score = Number(item?.confidence_score || 0) / 20;
+
+        if (criteria.location && haystack.includes(criteria.location)) {
+            score += 5;
+        }
+
+        if (criteria.city && haystack.includes(criteria.city)) {
+            score += 3;
+        }
+
+        if (criteria.bhk && haystack.includes(criteria.bhk)) {
+            score += 4;
+        }
+
+        if (criteria.budget != null && priceNumeric != null) {
+            if (priceNumeric <= criteria.budget * 1.05) {
+                score += 4;
+            } else if (priceNumeric <= criteria.budget * 1.2) {
+                score += 2;
+            } else if (priceNumeric > criteria.budget * 1.4) {
+                score -= 4;
+            } else {
+                score -= 1;
+            }
+        }
+
+        const tokenHits = criteria.tokens.reduce((count, token) => count + (haystack.includes(token) ? 1 : 0), 0);
+        score += tokenHits;
+
+        if (criteria.tokens.length > 0 && tokenHits === 0) {
+            return null;
+        }
+
+        if (score <= 0) {
+            return null;
+        }
+
+        return {
+            id: String(item?.id || ''),
+            title,
+            location: locality || 'Location not parsed yet',
+            city,
+            bhk,
+            priceLabel,
+            priceNumeric,
+            areaSqft,
+            propertyCategory,
+            brokerName,
+            brokerPhone,
+            sourcePhone,
+            rawText,
+            createdAt: String(item?.created_at || new Date().toISOString()),
+            score,
+        };
     }
 }
 

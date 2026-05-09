@@ -3,6 +3,7 @@ import { supabase, supabaseAdmin } from '../config/supabase';
 import { emailNotificationService } from '../services/emailNotificationService';
 import { whatsappHealthService } from '../services/whatsappHealthService';
 import { whatsappGroupService } from '../services/whatsappGroupService';
+import type { GroupMentionListingMatch } from '../services/brokerWorkflowService';
 
 const db = supabaseAdmin || supabase;
 
@@ -65,6 +66,22 @@ async function triggerAgent(tenantId: string, remoteJid: string, text: string, s
             await client.sendText(remoteJid, 'Sorry, something went wrong. A crash report has been sent to support@propai.live. Please try again.');
         }
     }
+}
+
+async function sendAutomatedReply(tenantId: string, remoteJid: string, text: string, sessionLabel?: string) {
+    const { sessionManager } = require('./SessionManager');
+    const client = await sessionManager.getSession(tenantId, sessionLabel);
+    if (!client) {
+        throw new Error('No active WhatsApp session found');
+    }
+
+    await client.sendText(remoteJid, text);
+    await db.from('messages').insert({
+        tenant_id: tenantId,
+        remote_jid: remoteJid,
+        text,
+        sender: 'PropAI AI',
+    });
 }
 
 async function isDirectParsingEnabled(tenantId: string, sessionLabel?: string) {
@@ -269,6 +286,119 @@ function normalizeJid(value?: string | null) {
     return withoutDevice;
 }
 
+function normalizeMentionToken(value?: string | null) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function extractMessageContext(rawMessage: any) {
+    const message = rawMessage?.message || {};
+    return (
+        message?.extendedTextMessage?.contextInfo ||
+        message?.imageMessage?.contextInfo ||
+        message?.videoMessage?.contextInfo ||
+        message?.buttonsResponseMessage?.contextInfo ||
+        {}
+    ) as Record<string, any>;
+}
+
+function extractPropAIMentionQuery(
+    event: IncomingMessageRecord,
+    _botJids: string[],
+): string | null {
+    const rawMessage = (event.rawMessage || {}) as any;
+    const contextInfo = extractMessageContext(rawMessage);
+    const mentionedJids = [
+        ...(Array.isArray(contextInfo?.mentionedJid) ? contextInfo.mentionedJid : []),
+        ...(Array.isArray(contextInfo?.groupMentions) ? contextInfo.groupMentions.map((entry: any) => entry?.jid || entry?.participant || '') : []),
+    ]
+        .map(normalizeJid)
+        .filter((jid): jid is string => Boolean(jid));
+
+    const quotedParticipant = normalizeJid(
+        contextInfo?.participant ||
+        contextInfo?.remoteJid ||
+        contextInfo?.quotedParticipant ||
+        contextInfo?.stanzaIdParticipant,
+    );
+
+    const mentionTargets = new Set([
+        '917021045254@s.whatsapp.net',
+        '7021045254@s.whatsapp.net',
+    ]);
+
+    const text = String(event.text || '').trim();
+    const lower = normalizeMentionToken(text);
+    const hasTextMention = /(^|\s)@propai\b/i.test(text) || /(^|\s)(?:\+?91)?7021045254\b/.test(text) || /(^|\s)(?:\+?91)?917021045254\b/.test(text);
+    const hasDirectMention = mentionedJids.some((jid) => mentionTargets.has(jid));
+    const hasQuotedMention = Boolean(quotedParticipant) && mentionTargets.has(quotedParticipant);
+
+    if (!hasTextMention && !hasDirectMention && !hasQuotedMention) {
+        return null;
+    }
+
+    const directTextQuery = text
+        .replace(/.*?@propai[\s:,\-]*/i, '')
+        .replace(/.*?(?:\+?91)?7021045254[\s:,\-]*/i, '')
+        .replace(/.*?(?:\+?91)?917021045254[\s:,\-]*/i, '')
+        .trim();
+
+    if (directTextQuery) {
+        return directTextQuery;
+    }
+
+    if (hasDirectMention) {
+        const withoutFirstMentionToken = text
+            .replace(/^@\S+\s*/, '')
+            .replace(/^(?:\+?91)?7021045254\s*/, '')
+            .replace(/^(?:\+?91)?917021045254\s*/, '')
+            .trim();
+        if (withoutFirstMentionToken) {
+            return withoutFirstMentionToken;
+        }
+    }
+
+    if (hasQuotedMention && lower) {
+        return text;
+    }
+
+    return null;
+}
+
+function formatGroupMentionMatches(matches: GroupMentionListingMatch[]) {
+    const lines = ['Top matching listings:'];
+
+    matches.slice(0, 3).forEach((match, index) => {
+        const detailParts = [
+            match.bhk,
+            match.location,
+            match.priceLabel,
+            match.areaSqft ? `${Math.round(match.areaSqft)} sqft` : null,
+        ].filter(Boolean);
+
+        lines.push(
+            '',
+            `${index + 1}. ${match.title}`,
+            detailParts.join(' | '),
+            `Broker: ${match.brokerName || 'Unknown broker'}`,
+            `Contact: ${match.brokerPhone || match.sourcePhone || 'Not available'}`,
+        );
+    });
+
+    return lines.join('\n');
+}
+
+async function handleGroupMentionSearch(tenantId: string, remoteJid: string, query: string, sessionLabel?: string) {
+    const { brokerWorkflowService } = require('../services/brokerWorkflowService');
+    const matches = await brokerWorkflowService.matchListingToRequirements(tenantId, query, 3);
+
+    if (!matches.length) {
+        await sendAutomatedReply(tenantId, remoteJid, "No matching listings found right now. I'll notify you when something comes in.", sessionLabel);
+        return;
+    }
+
+    await sendAutomatedReply(tenantId, remoteJid, formatGroupMentionMatches(matches), sessionLabel);
+}
+
 async function getBotJids(tenantId: string, sessionLabel?: string): Promise<string[]> {
     let query = db
         .from('whatsapp_sessions')
@@ -383,6 +513,13 @@ async function processInboundMessage(event: IncomingMessageRecord) {
         // disables the group (cold-start coverage > opt-in friction).
         if (config && config.behavior !== 'Listen' && config.behavior !== 'AutoReply') {
             console.log('[SelfChat Debug] Group not in Listen/AutoReply mode, skipping');
+            return;
+        }
+
+        const mentionQuery = extractPropAIMentionQuery(event, botJids);
+        if (mentionQuery) {
+            console.log('[SelfChat Debug] PropAI group mention detected, routing to listing matcher', { mentionQuery });
+            await handleGroupMentionSearch(tenantId, remoteJid, mentionQuery, label);
             return;
         }
     }
