@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import QRCode from 'qrcode';
 import {
   CheckCircle2,
   Building2,
@@ -231,6 +232,7 @@ export const Sources: React.FC = () => {
   const [connectMethod, setConnectMethod] = useState<'qr' | 'pairing'>('qr');
   const [connectionArtifactType, setConnectionArtifactType] = useState<'qr' | 'pairing' | null>(null);
   const [pairingArtifact, setPairingArtifact] = useState<string | null>(null);
+  const [renderedQrImageUrl, setRenderedQrImageUrl] = useState<string | null>(null);
   const [qrGeneratedAt, setQrGeneratedAt] = useState<number | null>(null);
   const [qrTimeLeft, setQrTimeLeft] = useState(0);
   const [scanProgress, setScanProgress] = useState(0);
@@ -583,6 +585,50 @@ export const Sources: React.FC = () => {
       ensureConnectUiVisible();
     }
   }, [connectionArtifactType, ensureConnectUiVisible, isConnecting, pairingArtifact]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const renderQr = async () => {
+      if (!pairingArtifact || connectionArtifactType !== 'qr') {
+        setRenderedQrImageUrl(null);
+        return;
+      }
+
+      if (/^(https?:\/\/|data:)/i.test(pairingArtifact)) {
+        setRenderedQrImageUrl(pairingArtifact);
+        return;
+      }
+
+      try {
+        const dataUrl = await QRCode.toDataURL(pairingArtifact, {
+          errorCorrectionLevel: 'M',
+          margin: 2,
+          scale: 10,
+          width: 420,
+          color: {
+            dark: '#111827',
+            light: '#ffffff',
+          },
+        });
+
+        if (!cancelled) {
+          setRenderedQrImageUrl(dataUrl);
+        }
+      } catch (error) {
+        console.error('Failed to render WhatsApp QR locally', error);
+        if (!cancelled) {
+          setRenderedQrImageUrl(null);
+        }
+      }
+    };
+
+    void renderQr();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connectionArtifactType, pairingArtifact]);
 
   useEffect(() => {
     if (activeTab === 'outbound') {
@@ -979,6 +1025,8 @@ export const Sources: React.FC = () => {
   const displaySelectedDeviceName = currentSession?.ownerName || deviceOwnerName || 'Broker device';
   const isCurrentSessionConnected = currentSessionStatus === 'connected';
   const isCurrentSessionConnecting = currentSessionStatus === 'connecting';
+  const displayCurrentConnectionNumber = isCurrentSessionConnected ? displayConnectedNumber : displaySelectedDeviceNumber;
+  const displayCurrentConnectionName = isCurrentSessionConnected ? displayConnectedName : displaySelectedDeviceName;
   const selectedOutboundSession = connectedSenderSessions.find((session) => session.label === outboundSessionKey) || null;
   const outboundSenderDescription = selectedOutboundSession
     ? normalizePhoneNumber(selectedOutboundSession.phoneNumber || '') === MARKETING_AGENT_PHONE
@@ -1010,14 +1058,7 @@ export const Sources: React.FC = () => {
   const primaryHealthSession = health.sessions[0];
   const staleGroupCount = groupHealth.filter((group) => group.status === 'stale').length;
   const activeGroupCount = groupHealth.filter((group) => group.status === 'active').length;
-  const qrImageUrl = useMemo(() => {
-    if (!pairingArtifact || connectionArtifactType !== 'qr') return null;
-    if (/^(https?:\/\/|data:)/i.test(pairingArtifact)) {
-      return pairingArtifact;
-    }
-
-    return `https://api.qrserver.com/v1/create-qr-code/?size=420x420&format=svg&qzone=2&data=${encodeURIComponent(pairingArtifact)}`;
-  }, [connectionArtifactType, pairingArtifact]);
+  const qrImageUrl = connectionArtifactType === 'qr' ? renderedQrImageUrl : null;
 
   const planCards = isWabroRoute
     ? [
@@ -1867,8 +1908,8 @@ export const Sources: React.FC = () => {
                           ? 'Ready to connect'
                           : 'Disconnected'}
                   </p>
-                  <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{displayConnectedNumber}</p>
-                  <p className="mt-1 text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{displayConnectedName}</p>
+                  <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{displayCurrentConnectionNumber}</p>
+                  <p className="mt-1 text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{displayCurrentConnectionName}</p>
                   <p className="mt-2 text-[11px] text-[var(--text-secondary)]">{status.activeCount}/{status.limit} numbers connected on this workspace</p>
                 </div>
                 {disconnectTargetLabel && status.status === 'connected' && (
