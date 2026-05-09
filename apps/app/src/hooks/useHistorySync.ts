@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
-import { createSupabaseBrowserClient } from '../services/supabaseBrowser';
 import { useAuth } from '../context/AuthContext';
 
 type HistoryProfile = {
@@ -60,6 +59,7 @@ export function useHistorySync() {
       }
 
       try {
+        const { createSupabaseBrowserClient } = await import('../services/supabaseBrowser');
         const supabase = createSupabaseBrowserClient(user.token);
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError || !authData?.user?.id) {

@@ -24,7 +24,6 @@ import {
 } from '../services/channelApi';
 import { handleApiError } from '../services/api';
 import { fetchStreamItems, fetchStreamStats, correctStreamItem, type StreamItem } from '../services/streamAPI';
-import { createSupabaseBrowserClient } from '../services/supabaseBrowser';
 import { rebuildStreamFromSavedMessages } from '../services/streamService';
 
 const formatChannelTitle = (name: string) => `#${name}`;
@@ -409,28 +408,45 @@ export const Listings: React.FC = () => {
   }, [loadData]);
 
   React.useEffect(() => {
+    let active = true;
+    let cleanup: (() => void) | undefined;
+
     if (!user?.token || channelId) {
       return;
     }
 
-    const supabaseClient = createSupabaseBrowserClient(user.token);
-    const channel = supabaseClient
-      .channel(`global-stream:${selectedSessionLabel || 'all'}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'stream_items',
-        },
-        () => {
-          void loadData();
-        }
-      )
-      .subscribe();
+    const setupRealtime = async () => {
+      const { createSupabaseBrowserClient } = await import('../services/supabaseBrowser');
+      if (!active) {
+        return;
+      }
+
+      const supabaseClient = createSupabaseBrowserClient(user.token);
+      const channel = supabaseClient
+        .channel(`global-stream:${selectedSessionLabel || 'all'}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'stream_items',
+          },
+          () => {
+            void loadData();
+          }
+        )
+        .subscribe();
+
+      cleanup = () => {
+        void supabaseClient.removeChannel(channel);
+      };
+    };
+
+    void setupRealtime();
 
     return () => {
-      void supabaseClient.removeChannel(channel);
+      active = false;
+      cleanup?.();
     };
   }, [channelId, loadData, selectedSessionLabel, user?.token]);
 
