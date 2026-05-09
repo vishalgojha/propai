@@ -212,6 +212,15 @@ const getHealthTone = (state: WhatsappHealthSummary['healthState'] | WhatsappHea
   }
 };
 
+const sourcePrimaryButton =
+  'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] shadow-[0_10px_28px_rgba(37,211,102,0.18)] transition-all duration-150 hover:-translate-y-[1px] hover:brightness-95 disabled:opacity-50 disabled:hover:translate-y-0';
+const sourceSecondaryButton =
+  'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-all duration-150 hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)]';
+const sourcePill =
+  'inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]';
+const sourceFieldClassName =
+  'w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]';
+
 export const Sources: React.FC = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -1512,7 +1521,7 @@ export const Sources: React.FC = () => {
               <button
                 onClick={() => void handleSendDirect('leads')}
                 disabled={!isCurrentSessionConnected || !outboundSessionKey || sendState.leads}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-[18px] py-[11px] text-[11px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
+                className={cn(sourcePrimaryButton, 'mt-4 w-full')}
               >
                 {sendState.leads ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 <span>Send to selected leads</span>
@@ -1580,7 +1589,7 @@ export const Sources: React.FC = () => {
                 void fetchLogs();
                 void fetchHealth();
               }}
-              className="rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-2 text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+              className={cn(sourceSecondaryButton, 'rounded-full px-3 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]')}
             >
               <RefreshCw className="h-4 w-4" />
             </button>
@@ -1754,7 +1763,7 @@ export const Sources: React.FC = () => {
                   value={deviceOwnerName || fullName}
                   onChange={(e) => { setDeviceOwnerName(e.target.value); setFullName(e.target.value); }}
                   placeholder="Enter your name"
-                  className="w-full rounded-[8px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[color:var(--accent)]"
+                  className={sourceFieldClassName}
                 />
               </label>
 
@@ -1766,7 +1775,7 @@ export const Sources: React.FC = () => {
                     value={devicePhoneNumber || phoneNumber}
                     onChange={(e) => { setDevicePhoneNumber(e.target.value); setPhoneNumber(e.target.value); }}
                     placeholder="919876543210"
-                    className="w-full rounded-[8px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 pl-9 pr-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[color:var(--accent)]"
+                    className={cn(sourceFieldClassName, 'pl-9')}
                   />
                 </div>
                 <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
@@ -1775,7 +1784,7 @@ export const Sources: React.FC = () => {
               </label>
 
               {error && (
-                <div className="rounded-[8px] border border-[color:rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] px-3 py-2 text-[12px] text-[var(--red)]">
+                <div className="rounded-[12px] border border-[color:rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] px-3 py-2.5 text-[12px] text-[var(--red)]">
                   {error}
                 </div>
               )}
@@ -1783,7 +1792,7 @@ export const Sources: React.FC = () => {
               <button
                 type="submit"
                 disabled={isConnecting}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-[18px] py-[11px] text-[11px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
+                className={cn(sourcePrimaryButton, 'w-full')}
               >
                 {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
                 <span>Connect WhatsApp</span>
@@ -1804,7 +1813,7 @@ export const Sources: React.FC = () => {
               </div>
               <button
                 onClick={fetchStatus}
-                className="rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-2 text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+                className={cn(sourceSecondaryButton, 'rounded-full px-3 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]')}
               >
                 <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
               </button>
@@ -1831,7 +1840,7 @@ export const Sources: React.FC = () => {
                   <button
                     onClick={() => handleDisconnect(disconnectTargetLabel)}
                     disabled={isConnecting}
-                    className="inline-flex items-center gap-2 rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--text-secondary)] transition-colors hover:text-[var(--red)] disabled:opacity-50"
+                    className={cn(sourceSecondaryButton, 'bg-[var(--bg-base)] px-3 py-2.5 text-[var(--text-secondary)] hover:text-[var(--red)]')}
                   >
                     <Power className="h-4 w-4" />
                     Disconnect
@@ -1851,7 +1860,7 @@ export const Sources: React.FC = () => {
                 </div>
               ) : (
                 status.sessions.map((session) => (
-                  <div key={session.label} className="flex items-center justify-between rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3">
+                  <div key={session.label} className="flex items-center justify-between rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                     <button
                       type="button"
                       onClick={() => handleSelectExistingSession(session)}
@@ -1862,7 +1871,7 @@ export const Sources: React.FC = () => {
                     </button>
                     <div className="ml-3 flex items-center gap-2">
                       <span className={cn(
-                        'rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]',
+                        sourcePill,
                         session.status === 'connected'
                           ? 'bg-[rgba(37,211,102,0.12)] text-[var(--accent)]'
                           : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
@@ -1874,7 +1883,7 @@ export const Sources: React.FC = () => {
                           type="button"
                           onClick={() => handleDisconnect(session.label)}
                           disabled={isConnecting}
-                          className="inline-flex items-center gap-1 rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-secondary)] transition-colors hover:text-[var(--red)] disabled:opacity-50"
+                          className={cn(sourceSecondaryButton, 'px-3 py-1.5 text-[10px] text-[var(--text-secondary)] hover:text-[var(--red)]')}
                         >
                           <Power className="h-3.5 w-3.5" />
                           Disconnect
@@ -1911,7 +1920,7 @@ export const Sources: React.FC = () => {
                   <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">QR panel</h3>
                 </div>
               </div>
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+              <span className={cn(sourcePill, 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]')}>
                 {connectionArtifactType === 'pairing' ? 'Pairing code' : demoMode ? 'Demo QR' : 'Live QR'}
               </span>
             </div>
@@ -1954,7 +1963,7 @@ export const Sources: React.FC = () => {
                   <button
                     onClick={() => void handleConnect(connectionArtifactType === 'pairing' ? 'pairing' : 'qr')}
                     disabled={isConnecting}
-                    className="inline-flex items-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
+                    className={cn(sourcePrimaryButton, 'px-3 py-2 text-[10px]')}
                   >
                     {isConnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                     <span>{connectionArtifactType === 'pairing' ? 'Request new code' : 'Generate fresh QR'}</span>

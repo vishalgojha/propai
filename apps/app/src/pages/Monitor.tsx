@@ -205,6 +205,13 @@ const sanitizeMonitorError = (message: string) => {
   return message;
 };
 
+const monitorPill =
+  'inline-flex items-center gap-2 rounded-full border border-[#2b3b45] bg-[#111b21] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#d1d7db]';
+const monitorSecondaryButton =
+  'inline-flex items-center justify-center gap-2 rounded-full border border-[#2b3b45] bg-[#111b21] px-3 py-2 text-[11px] font-semibold text-[#d1d7db] transition-all duration-150 hover:border-[#3f5968] hover:text-white';
+const monitorPrimaryButton =
+  'inline-flex items-center justify-center rounded-[14px] bg-[#00a884] px-4 text-[12px] font-bold uppercase tracking-[0.08em] text-[#0b141a] shadow-[0_10px_24px_rgba(0,168,132,0.2)] transition-all duration-150 hover:-translate-y-[1px] hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0';
+
 export const Monitor: React.FC = () => {
   const [data, setData] = React.useState<MonitorResponse | null>(null);
   const [selectedSessionLabel, setSelectedSessionLabel] = React.useState<string | null>(() => {
@@ -344,7 +351,7 @@ export const Monitor: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-10rem)] overflow-hidden rounded-[28px] border border-[#202c33] bg-[#111b21] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+    <div className="h-[calc(100vh-10rem)] overflow-hidden rounded-[30px] border border-[#202c33] bg-[#111b21] shadow-[0_28px_90px_rgba(0,0,0,0.38)]">
       <div className="grid h-full grid-cols-[380px_minmax(0,1fr)]">
         <aside className="flex h-full flex-col border-r border-[#202c33] bg-[#111b21]">
           <div className="flex items-center justify-between border-b border-[#202c33] bg-[#202c33] px-4 py-3">
@@ -357,7 +364,7 @@ export const Monitor: React.FC = () => {
             <button
               type="button"
               onClick={() => void loadMonitor()}
-              className="inline-flex items-center gap-2 rounded-full bg-[#111b21] px-3 py-1.5 text-[11px] font-semibold text-[#d1d7db] transition-colors hover:text-white"
+              className={monitorSecondaryButton}
             >
               {isLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <RefreshIcon className="h-4 w-4" />}
               Refresh
@@ -371,7 +378,7 @@ export const Monitor: React.FC = () => {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search groups and direct chats"
-                className="w-full rounded-lg border border-transparent bg-[#202c33] py-2.5 pl-11 pr-4 text-sm text-white outline-none placeholder:text-[#8696a0] focus:border-[#00a884]"
+                className="w-full rounded-[14px] border border-transparent bg-[#202c33] py-3 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-[#8696a0] focus:border-[#00a884]"
               />
             </div>
           </div>
@@ -395,7 +402,7 @@ export const Monitor: React.FC = () => {
                 onClick={() => setSelectedChatId(chat.id)}
                 className={cn(
                   'flex w-full items-start gap-3 border-b border-[#202c33] px-3 py-3 text-left transition-colors hover:bg-[#202c33]',
-                  selectedChat?.id === chat.id && 'bg-[#2a3942]',
+                  selectedChat?.id === chat.id && 'bg-[#2a3942] shadow-[inset_3px_0_0_0_#00a884]',
                 )}
               >
                 <div className="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#233138] text-[#d1d7db]">
@@ -410,9 +417,9 @@ export const Monitor: React.FC = () => {
                     {chat.sender ? `${chat.sender}: ` : ''}
                     {chat.preview || 'No message text'}
                   </p>
-                  <div className="mt-1 flex items-center gap-2 text-[10px] uppercase tracking-[0.08em] text-[#8696a0]">
-                    <span>{chat.type === 'group' ? 'Group' : 'Direct'}</span>
-                    {chat.locality ? <span>{chat.locality}</span> : null}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className={monitorPill}>{chat.type === 'group' ? 'Group' : 'Direct'}</span>
+                    {chat.locality ? <span className={monitorPill}>{chat.locality}</span> : null}
                   </div>
                 </div>
               </button>
@@ -443,9 +450,15 @@ export const Monitor: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 text-[#8696a0]">
-                  <MessageSquareIcon className="h-5 w-5" />
-                  <ActivityIcon className="h-5 w-5" />
+                <div className="flex items-center gap-2">
+                  <span className={monitorPill}>
+                    <MessageSquareIcon className="h-3.5 w-3.5" />
+                    {selectedChat.type === 'group' ? 'Group thread' : 'Direct thread'}
+                  </span>
+                  <span className={monitorPill}>
+                    <ActivityIcon className="h-3.5 w-3.5" />
+                    Live mirror
+                  </span>
                 </div>
               </>
             ) : (
@@ -467,7 +480,7 @@ export const Monitor: React.FC = () => {
                   <div
                     key={message.id}
                     className={cn(
-                      'max-w-[78%] rounded-[10px] px-3 py-2 shadow-[0_1px_0_rgba(0,0,0,0.25)]',
+                      'max-w-[78%] rounded-[14px] px-3.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.25)]',
                       message.direction === 'outbound'
                         ? 'ml-auto bg-[#005c4b] text-white'
                         : 'bg-[#202c33] text-[#e9edef]',
@@ -500,6 +513,10 @@ export const Monitor: React.FC = () => {
 
           {selectedChat ? (
             <div className="border-t border-[#202c33] bg-[#202c33] px-4 py-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8696a0]">Reply from PropAI</p>
+                <span className={monitorPill}>Enter to send</span>
+              </div>
               <div className="flex items-end gap-3">
                 <textarea
                   value={replyText}
@@ -512,13 +529,13 @@ export const Monitor: React.FC = () => {
                   }}
                   placeholder={`Reply to ${selectedChat.title}`}
                   rows={1}
-                  className="min-h-[44px] flex-1 resize-none rounded-[14px] border border-transparent bg-[#111b21] px-4 py-3 text-sm text-white outline-none placeholder:text-[#8696a0] focus:border-[#00a884]"
+                  className="min-h-[46px] flex-1 resize-none rounded-[16px] border border-transparent bg-[#111b21] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-[#8696a0] focus:border-[#00a884]"
                 />
                 <button
                   type="button"
                   onClick={() => void handleSendReply()}
                   disabled={!replyText.trim() || isSending}
-                  className="inline-flex h-11 shrink-0 items-center justify-center rounded-[14px] bg-[#00a884] px-4 text-[12px] font-bold uppercase tracking-[0.08em] text-[#0b141a] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  className={cn(monitorPrimaryButton, 'h-11 shrink-0 px-4')}
                 >
                   {isSending ? 'Sending' : 'Send'}
                 </button>
