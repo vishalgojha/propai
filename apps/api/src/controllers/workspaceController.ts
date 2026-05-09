@@ -1,15 +1,49 @@
 import { Request, Response } from 'express';
+import fs from 'fs/promises';
+import path from 'path';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { workspaceActivityService } from '../services/workspaceActivityService';
 
 const db = supabaseAdmin || supabase;
+const WORKSPACE_METADATA_FILE = path.join(process.cwd(), 'data', 'workspace-metadata.json');
 
 type WorkspaceServiceAreaInput = {
     city: string;
     locality: string;
     priority?: number;
 };
+
+type StoredWorkspaceMetadata = Record<string, {
+    agencyName: string | null;
+    primaryCity: string | null;
+    serviceAreas: Array<{ city: string; locality: string; priority: number }>;
+    updatedAt: string | null;
+}>;
+
+function isMissingWorkspaceMetadataRelationError(error: any) {
+    const message = String(error?.message || '').toLowerCase();
+    return error?.code === '42P01' || message.includes('schema cache') || message.includes('does not exist');
+}
+
+async function readWorkspaceMetadataStore(): Promise<StoredWorkspaceMetadata> {
+    try {
+        const raw = await fs.readFile(WORKSPACE_METADATA_FILE, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+            return parsed as StoredWorkspaceMetadata;
+        }
+    } catch {
+        // ignore missing/invalid file
+    }
+
+    return {};
+}
+
+async function writeWorkspaceMetadataStore(store: StoredWorkspaceMetadata) {
+    await fs.mkdir(path.dirname(WORKSPACE_METADATA_FILE), { recursive: true });
+    await fs.writeFile(WORKSPACE_METADATA_FILE, JSON.stringify(store, null, 2), 'utf8');
+}
 
 export const getWorkspaceOverview = async (req: Request, res: Response) => {
     try {
@@ -67,8 +101,33 @@ export const getWorkspaceMetadata = async (req: Request, res: Response) => {
                 .order('locality', { ascending: true }),
         ]);
 
-        if (workspaceResult.error) throw workspaceResult.error;
-        if (areasResult.error) throw areasResult.error;
+        const workspaceMissing = isMissingWorkspaceMetadataRelationError(workspaceResult.error);
+        const areasMissing = isMissingWorkspaceMetadataRelationError(areasResult.error);
+
+        if (workspaceResult.error && !workspaceMissing) throw workspaceResult.error;
+        if (areasResult.error && !areasMissing) throw areasResult.error;
+
+        if (workspaceMissing || areasMissing) {
+            const store = await readWorkspaceMetadataStore();
+            const fallback = store[context.workspaceOwnerId] || {
+                agencyName: null,
+                primaryCity: null,
+                serviceAreas: [],
+                updatedAt: null,
+            };
+
+            return res.json({
+                success: true,
+                workspace: {
+                    ownerId: context.workspaceOwnerId,
+                    memberRole: context.memberRole,
+                    canManageTeam: context.canManageTeam,
+                    canSendOutbound: context.canSendOutbound,
+                },
+                metadata: fallback,
+                legacyStorage: true,
+            });
+        }
 
         res.json({
             success: true,
@@ -128,28 +187,47 @@ export const saveWorkspaceMetadata = async (req: Request, res: Response) => {
                 updated_at: now,
             }, { onConflict: 'owner_id' });
 
-        if (upsertError) throw upsertError;
+        const missingWorkspaceTable = isMissingWorkspaceMetadataRelationError(upsertError);
+        if (upsertError && !missingWorkspaceTable) throw upsertError;
 
-        const { error: deleteError } = await db
-            .from('workspace_service_areas')
-            .delete()
-            .eq('workspace_id', context.workspaceOwnerId);
-
-        if (deleteError) throw deleteError;
-
-        if (cleanedAreas.length > 0) {
-            const { error: insertError } = await db
+        let missingServiceAreasTable = false;
+        if (!missingWorkspaceTable) {
+            const { error: deleteError } = await db
                 .from('workspace_service_areas')
-                .insert(cleanedAreas.map((area) => ({
-                    workspace_id: context.workspaceOwnerId,
-                    city: area.city,
-                    locality: area.locality,
-                    priority: area.priority,
-                    created_at: now,
-                    updated_at: now,
-                })));
+                .delete()
+                .eq('workspace_id', context.workspaceOwnerId);
 
-            if (insertError) throw insertError;
+            missingServiceAreasTable = isMissingWorkspaceMetadataRelationError(deleteError);
+            if (deleteError && !missingServiceAreasTable) throw deleteError;
+
+            if (!missingServiceAreasTable && cleanedAreas.length > 0) {
+                const { error: insertError } = await db
+                    .from('workspace_service_areas')
+                    .insert(cleanedAreas.map((area) => ({
+                        workspace_id: context.workspaceOwnerId,
+                        city: area.city,
+                        locality: area.locality,
+                        priority: area.priority,
+                        created_at: now,
+                        updated_at: now,
+                    })));
+
+                if (insertError && !isMissingWorkspaceMetadataRelationError(insertError)) throw insertError;
+                if (isMissingWorkspaceMetadataRelationError(insertError)) {
+                    missingServiceAreasTable = true;
+                }
+            }
+        }
+
+        if (missingWorkspaceTable || missingServiceAreasTable) {
+            const store = await readWorkspaceMetadataStore();
+            store[context.workspaceOwnerId] = {
+                agencyName,
+                primaryCity,
+                serviceAreas: cleanedAreas,
+                updatedAt: now,
+            };
+            await writeWorkspaceMetadataStore(store);
         }
 
         void workspaceActivityService.track({
@@ -175,6 +253,7 @@ export const saveWorkspaceMetadata = async (req: Request, res: Response) => {
                 serviceAreas: cleanedAreas,
                 updatedAt: now,
             },
+            legacyStorage: missingWorkspaceTable || missingServiceAreasTable,
         });
     } catch (error: any) {
         res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to save workspace metadata' });
