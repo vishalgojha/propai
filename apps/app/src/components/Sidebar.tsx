@@ -25,6 +25,8 @@ import {
   XIcon,
 } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
+import backendApi from '../services/api';
+import { ENDPOINTS } from '../services/endpoints';
 import {
   createChannel,
   fetchChannels,
@@ -55,6 +57,67 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'vishal@chaoscraftlabs.com',
   'vishal@chaoscraftslabs.com',
 ]);
+
+const AI_MODEL_PRICING = {
+  'gemini-2.5-flash': {
+    label: 'Gemini 2.5 Flash',
+    provider: 'Google',
+    inputRate: 0.3,
+    outputRate: 2.5,
+    note: 'Based on paid-tier text pricing per 1M tokens.',
+  },
+  groq: {
+    label: 'Groq',
+    provider: 'Groq',
+    inputRate: 0.05,
+    outputRate: 0.08,
+    note: 'Uses the low-latency 8B Groq baseline as the default estimate.',
+  },
+  openrouter: {
+    label: 'GPT-4o Mini',
+    provider: 'OpenRouter',
+    inputRate: 0.15,
+    outputRate: 0.6,
+    note: 'Uses the OpenRouter GPT-4o Mini rate card by default.',
+  },
+  doubleword: {
+    label: 'Qwen3 235B',
+    provider: 'Doubleword',
+    inputRate: 0.1,
+    outputRate: 0.4,
+    note: 'Uses the current Doubleword realtime Qwen3 235B estimate.',
+  },
+} as const;
+
+const DEFAULT_AI_MODEL_KEY = 'gemini-2.5-flash';
+
+function normalizeAiModelKey(value?: string | null) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return DEFAULT_AI_MODEL_KEY;
+  if (normalized === 'gemini' || normalized === 'google' || normalized === 'models/gemini-2.5-flash') {
+    return DEFAULT_AI_MODEL_KEY;
+  }
+  if (normalized in AI_MODEL_PRICING) {
+    return normalized as keyof typeof AI_MODEL_PRICING;
+  }
+  return DEFAULT_AI_MODEL_KEY;
+}
+
+function formatUsd(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: value >= 100 ? 0 : 2,
+    maximumFractionDigits: value >= 100 ? 0 : 2,
+  }).format(value);
+}
+
+function formatCompactNumber(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    notation: value >= 1000 ? 'compact' : 'standard',
+    maximumFractionDigits: value >= 1000 ? 1 : 0,
+  }).format(value);
+}
 
 const splitValues = (value: string) =>
   value
@@ -121,6 +184,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   const [localitiesText, setLocalitiesText] = React.useState('');
   const [keywordsText, setKeywordsText] = React.useState('');
   const [isChannelsLoading, setIsChannelsLoading] = React.useState(false);
+  const [usageModelKey, setUsageModelKey] = React.useState<keyof typeof AI_MODEL_PRICING>(DEFAULT_AI_MODEL_KEY);
+  const [usageCalculator, setUsageCalculator] = React.useState({
+    inputTokens: '1500',
+    outputTokens: '600',
+    requestsPerDay: '40',
+    inputRate: String(AI_MODEL_PRICING[DEFAULT_AI_MODEL_KEY].inputRate),
+    outputRate: String(AI_MODEL_PRICING[DEFAULT_AI_MODEL_KEY].outputRate),
+  });
+
+  const isSuperAdmin =
+    user?.appRole === 'super_admin' ||
+    OWNER_SUPER_ADMIN_EMAILS.has(String(user?.email || '').trim().toLowerCase());
 
   React.useEffect(() => {
     let mounted = true;
@@ -199,6 +274,42 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
     };
   }, [user?.email]);
 
+  React.useEffect(() => {
+    if (!isSuperAdmin) return;
+    let cancelled = false;
+
+    const loadUsageModel = async () => {
+      try {
+        const response = await backendApi.get(ENDPOINTS.settings.get);
+        if (cancelled) return;
+        const nextKey = normalizeAiModelKey(response.data?.settings?.defaultModel);
+        const nextPricing = AI_MODEL_PRICING[nextKey];
+        setUsageModelKey(nextKey);
+        setUsageCalculator((current) => ({
+          ...current,
+          inputRate: String(nextPricing.inputRate),
+          outputRate: String(nextPricing.outputRate),
+        }));
+      } catch {
+        if (cancelled) return;
+        const fallbackKey = DEFAULT_AI_MODEL_KEY;
+        const fallbackPricing = AI_MODEL_PRICING[fallbackKey];
+        setUsageModelKey(fallbackKey);
+        setUsageCalculator((current) => ({
+          ...current,
+          inputRate: String(fallbackPricing.inputRate),
+          outputRate: String(fallbackPricing.outputRate),
+        }));
+      }
+    };
+
+    void loadUsageModel();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperAdmin]);
+
   const activeChannel = React.useMemo(
     () => channels.find((channel) => channel.id === selectedChannelId) || null,
     [channels, selectedChannelId],
@@ -227,10 +338,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   }, [channels, channelSearch]);
 
   const navItems = React.useMemo(() => {
-    const isSuperAdmin =
-      user?.appRole === 'super_admin' ||
-      OWNER_SUPER_ADMIN_EMAILS.has(String(user?.email || '').trim().toLowerCase());
-
     if (!isSuperAdmin) {
       return NAV_ITEMS;
     }
@@ -240,7 +347,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
       { label: 'Admin', path: '/admin', icon: ShieldIcon },
       ...NAV_ITEMS.slice(8),
     ] as const;
-  }, [user?.appRole, user?.email]);
+  }, [isSuperAdmin]);
+
+  const usagePricing = AI_MODEL_PRICING[usageModelKey];
+  const usageInputTokens = Math.max(0, Number(usageCalculator.inputTokens) || 0);
+  const usageOutputTokens = Math.max(0, Number(usageCalculator.outputTokens) || 0);
+  const usageRequestsPerDay = Math.max(0, Number(usageCalculator.requestsPerDay) || 0);
+  const usageInputRate = Math.max(0, Number(usageCalculator.inputRate) || 0);
+  const usageOutputRate = Math.max(0, Number(usageCalculator.outputRate) || 0);
+  const usageCostPerRequest =
+    (usageInputTokens / 1_000_000) * usageInputRate +
+    (usageOutputTokens / 1_000_000) * usageOutputRate;
+  const usageDailyCost = usageCostPerRequest * usageRequestsPerDay;
+  const usageMonthlyCost = usageDailyCost * 30;
+  const usageMonthlyInputTokens = usageInputTokens * usageRequestsPerDay * 30;
+  const usageMonthlyOutputTokens = usageOutputTokens * usageRequestsPerDay * 30;
 
   const uplinkLabel =
     whatsappStatus.status === 'connected'
@@ -463,6 +584,91 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
         </div>
 
         <div className={cn('shrink-0 space-y-3 border-t-[0.5px] border-[color:var(--border)] px-3 py-3', isCollapsed && 'lg:hidden')}>
+          {isSuperAdmin ? (
+            <SidebarCard className="p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">AI usage</p>
+                  <p className="mt-1 text-[12px] font-semibold text-[var(--text-primary)]">{usagePricing.label}</p>
+                  <p className="text-[10px] text-[var(--text-secondary)]">{usagePricing.provider} model from workspace settings</p>
+                </div>
+                <div className="rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--accent)]">
+                  Admin
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <label className="block">
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">In tokens</span>
+                  <input
+                    value={usageCalculator.inputTokens}
+                    onChange={(event) => setUsageCalculator((current) => ({ ...current, inputTokens: event.target.value }))}
+                    inputMode="numeric"
+                    className="mt-1 w-full rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2 py-2 text-[11px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Out tokens</span>
+                  <input
+                    value={usageCalculator.outputTokens}
+                    onChange={(event) => setUsageCalculator((current) => ({ ...current, outputTokens: event.target.value }))}
+                    inputMode="numeric"
+                    className="mt-1 w-full rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2 py-2 text-[11px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Req/day</span>
+                  <input
+                    value={usageCalculator.requestsPerDay}
+                    onChange={(event) => setUsageCalculator((current) => ({ ...current, requestsPerDay: event.target.value }))}
+                    inputMode="numeric"
+                    className="mt-1 w-full rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2 py-2 text-[11px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">$ / 1M in</span>
+                  <input
+                    value={usageCalculator.inputRate}
+                    onChange={(event) => setUsageCalculator((current) => ({ ...current, inputRate: event.target.value }))}
+                    inputMode="decimal"
+                    className="mt-1 w-full rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2 py-2 text-[11px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">$ / 1M out</span>
+                  <input
+                    value={usageCalculator.outputRate}
+                    onChange={(event) => setUsageCalculator((current) => ({ ...current, outputRate: event.target.value }))}
+                    inputMode="decimal"
+                    className="mt-1 w-full rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2 py-2 text-[11px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2 py-2">
+                  <p className="text-[9px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Per req</p>
+                  <p className="mt-1 text-[12px] font-semibold text-[var(--text-primary)]">{formatUsd(usageCostPerRequest)}</p>
+                </div>
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2 py-2">
+                  <p className="text-[9px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Daily</p>
+                  <p className="mt-1 text-[12px] font-semibold text-[var(--text-primary)]">{formatUsd(usageDailyCost)}</p>
+                </div>
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2 py-2">
+                  <p className="text-[9px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">30 days</p>
+                  <p className="mt-1 text-[12px] font-semibold text-[var(--text-primary)]">{formatUsd(usageMonthlyCost)}</p>
+                </div>
+              </div>
+
+              <p className="mt-3 text-[10px] leading-5 text-[var(--text-secondary)]">
+                Monthly volume: {formatCompactNumber(usageMonthlyInputTokens)} input + {formatCompactNumber(usageMonthlyOutputTokens)} output tokens. {usagePricing.note}
+              </p>
+            </SidebarCard>
+          ) : null}
+
           <SidebarCard className="flex items-center gap-3 px-3 py-2">
             <motion.div
               className="h-1.5 flex-1 overflow-hidden rounded-full bg-[rgba(255,255,255,0.04)]"
