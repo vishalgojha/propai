@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
@@ -839,11 +838,8 @@ export const Agent: React.FC = () => {
               const isAi = message.role === 'ai';
 
               return (
-                <motion.div
+                <div
                   key={`${index}-${message.timestamp}`}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.18 }}
                   className="group px-0"
                 >
                   <div className="flex items-start gap-3">
@@ -867,7 +863,7 @@ export const Agent: React.FC = () => {
                       </span>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               );
             })}
 
@@ -1001,14 +997,9 @@ export const Agent: React.FC = () => {
         </div>
       </section>
 
-      <AnimatePresence initial={false}>
-        {showAssistantRail ? (
-          <motion.aside
+      {showAssistantRail ? (
+          <aside
             id="agent-side-panel"
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
             className="overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.22)] lg:sticky lg:top-6 lg:self-start"
           >
             <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-4 py-4">
@@ -1308,9 +1299,8 @@ export const Agent: React.FC = () => {
                 </div>
               )}
             </div>
-          </motion.aside>
+          </aside>
         ) : null}
-      </AnimatePresence>
     </div>
   );
 };
