@@ -43,7 +43,7 @@ async function triggerAgent(tenantId: string, remoteJid: string, text: string, s
             tenant_id: tenantId,
             remote_jid: remoteJid,
             text: response,
-            sender: 'AI',
+            sender: 'PropAI AI',
         });
 
         console.log('[SelfChat Debug] Agent response sent successfully');

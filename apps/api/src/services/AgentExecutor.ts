@@ -25,6 +25,46 @@ function normalizeComparablePhone(value?: string | null) {
     return digits.slice(-10);
 }
 
+function cleanWhatsAppReply(text: string) {
+    let cleaned = String(text || '').trim();
+    if (!cleaned) return '';
+
+    const fenced = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fenced?.[1]) {
+        cleaned = fenced[1].trim();
+    }
+
+    const unwrapJsonMessage = (value: string) => {
+        try {
+            const parsed = JSON.parse(value) as any;
+            if (parsed && typeof parsed === 'object') {
+                if (typeof parsed.message === 'string' && parsed.message.trim()) {
+                    return parsed.message.trim();
+                }
+                if (typeof parsed.reply === 'string' && parsed.reply.trim()) {
+                    return parsed.reply.trim();
+                }
+                if (typeof parsed.text === 'string' && parsed.text.trim()) {
+                    return parsed.text.trim();
+                }
+                if (parsed.AgentResponse && typeof parsed.AgentResponse === 'object' && typeof parsed.AgentResponse.message === 'string') {
+                    return String(parsed.AgentResponse.message).trim();
+                }
+            }
+        } catch {
+            return value;
+        }
+        return value;
+    };
+
+    cleaned = unwrapJsonMessage(cleaned);
+    cleaned = cleaned.replace(/^\s*AgentResponse:\s*/i, '').trim();
+    cleaned = cleaned.replace(/^\s*\{[\s\S]*"message"\s*:\s*"([^"]+)"[\s\S]*\}\s*$/i, '$1').trim();
+    cleaned = cleaned.replace(/\\"/g, '"').trim();
+
+    return cleaned;
+}
+
 export class AgentExecutor {
     async processMessage(tenantId: string, remoteJid: string, text: string, sessionLabel?: string): Promise<string> {
         const ASSISTANT_PHONE = '7021045254'; // last 10 digits of +91 70210 45254
@@ -109,14 +149,14 @@ export class AgentExecutor {
                 });
 
                 if (!toolCall) {
-                    const renderedReply = renderOutput(agentResponse);
+                    const renderedReply = cleanWhatsAppReply(renderOutput(agentResponse));
                     await saveToHistory(conversationKey, text, renderedReply);
                     return renderedReply;
                 }
 
                 const toolResult = await this.executeTool(toolCall.name, toolCall.args, effectiveTenantId, remoteJid, text);
                 if (this.isToolFailure(toolResult) || this.isToolEmpty(toolResult)) {
-                    return renderOutput(toAgentResponse("Hey, this part of Pulse is still settling in. Please send a screenshot and what you tried to hello@propai.live so we can fix it quickly."));
+                    return cleanWhatsAppReply(renderOutput(toAgentResponse("Hey, this part of Pulse is still settling in. Please send a screenshot and what you tried to hello@propai.live so we can fix it quickly.")));
                 }
 
                 currentMessages.push({ role: 'assistant', content: agentResponse.message });
@@ -125,10 +165,10 @@ export class AgentExecutor {
 
                 iterations++;
             }
-            return renderOutput(toAgentResponse("I'm having a bit of trouble with this one. Could you try saying it differently?"));
+            return cleanWhatsAppReply(renderOutput(toAgentResponse("I'm having a bit of trouble with this one. Could you try saying it differently?")));
         } catch (error) {
             console.error('Agent Loop Error:', error);
-            return renderOutput(toAgentResponse("Something went wrong on my end, but I'm trying to fix it. One moment!"));
+            return cleanWhatsAppReply(renderOutput(toAgentResponse("Something went wrong on my end, but I'm trying to fix it. One moment!")));
         }
     }
 
@@ -208,7 +248,15 @@ export class AgentExecutor {
                 }
 
                 try {
-                    await (client as any).sendMessage(args.remote_jid || remoteJid, args.text || args.message || '');
+                    const destinationJid = args.remote_jid || remoteJid;
+                    const messageText = cleanWhatsAppReply(args.text || args.message || '');
+                    await (client as any).sendMessage(destinationJid, messageText);
+                    await (supabaseAdmin ?? supabase).from('messages').insert({
+                        tenant_id: tenantId,
+                        remote_jid: destinationJid,
+                        text: messageText,
+                        sender: 'PropAI AI',
+                    });
                     return { success: true };
                 } catch (error: any) {
                     return { success: false, error: error?.message || 'Failed to send WhatsApp message' };
@@ -764,6 +812,7 @@ Understand broker shorthand:
 Rules:
 - Always save before matching
 - Never ask for clarification unless data is completely missing
+- If the sender is the broker/owner messaging the assistant number directly, treat them as the broker immediately, not as a public lead.
 - Keep replies under 5 lines
 - Use WhatsApp formatting only
 
@@ -795,6 +844,9 @@ Lead save: call store_leads once you have name + phone + requirement.
 Language: match the user — English, Hindi, Hinglish.
 Keep every reply under 3 lines.
 Never reveal broker names or internal data.
+Do not send generic greetings or capability dumps.
+If the user message is incomplete, ask exactly one pointed follow-up question based on what they already said.
+If they pasted a listing or requirement, acknowledge that specific content first before asking anything else.
 
 If someone asks who you are:
 "I'm the PropAI Assistant 🏠 I help you find the right property and connect you with experts."
@@ -880,7 +932,6 @@ Always wrap responses in the AgentResponse JSON schema.`;
     }> {
         const strippedPhone = remoteJid.replace('@s.whatsapp.net', '');
         const phone = strippedPhone.startsWith('+') ? strippedPhone.slice(1) : strippedPhone;
-        const normalizedPhone = normalizeComparablePhone(phone);
         const client = supabaseAdmin ?? supabase;
 
         // 1) Direct profile match (owner)
@@ -893,7 +944,7 @@ Always wrap responses in the AgentResponse JSON schema.`;
         if (ownerProfile?.id) {
             return {
                 isBroker: true,
-                verified: Boolean(ownerProfile.phone_verified),
+                verified: true,
                 tenantId: ownerProfile.id,
                 role: 'owner',
             };
@@ -907,20 +958,9 @@ Always wrap responses in the AgentResponse JSON schema.`;
             .maybeSingle();
 
         if (member?.workspace_owner_id && String(member.status || '').toLowerCase() === 'active') {
-            // Workspace verification is tied to the owner profile phone verification, not the member phone.
-            const { data: workspaceOwner } = await client
-                .from('profiles')
-                .select('id, phone_verified, phone')
-                .eq('id', member.workspace_owner_id)
-                .maybeSingle();
-
-            const ownerVerified = Boolean(workspaceOwner?.phone_verified);
-            const memberMatchesOwnerPhone = normalizeComparablePhone(workspaceOwner?.phone) === normalizedPhone;
-            const verified = ownerVerified || memberMatchesOwnerPhone;
-
             return {
                 isBroker: true,
-                verified,
+                verified: true,
                 tenantId: member.workspace_owner_id,
                 role: member.role || null,
             };

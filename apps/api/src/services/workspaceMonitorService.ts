@@ -26,7 +26,7 @@ function normalizePhone(value?: string | null) {
 
 function isOutboundSender(sender?: string | null) {
     const value = String(sender || '').trim().toLowerCase();
-    return value === 'ai' || value.includes('@');
+    return value === 'ai' || value === 'propai ai' || value.includes('@');
 }
 
 function buildDirectLabel(row: MessageRow) {
