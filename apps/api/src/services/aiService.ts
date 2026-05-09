@@ -79,9 +79,9 @@ export class AIService {
             case 'listing_parsing':
             case 'agent_router':
             case 'lead_qualification':
-                return process.env.CONCENTRATE_API_KEY ? 'Concentrate' : 'Google';
+                return 'Google';
             default:
-                return process.env.CONCENTRATE_API_KEY ? 'Concentrate' : 'Google';
+                return 'Google';
         }
     }
 
@@ -115,11 +115,13 @@ export class AIService {
 
     private async buildProviderOrder(modelPreference: string, taskType?: string, tenantId?: string): Promise<ProviderId[]> {
         const savedDefault = tenantId ? await getWorkspaceDefaultModel(tenantId).catch(() => null) : null;
+        const tenantConcentrateKey = tenantId ? await keyService.getKey(tenantId, 'Concentrate').catch(() => null) : null;
+        const hasConcentrate = Boolean(tenantConcentrateKey || process.env.CONCENTRATE_API_KEY);
         const preferred =
             this.normalizeProviderPreference(modelPreference && modelPreference !== 'Auto' ? modelPreference : null) ||
             this.normalizeProviderPreference(savedDefault) ||
             this.routeByTask(taskType);
-        const order: ProviderId[] = process.env.CONCENTRATE_API_KEY
+        const order: ProviderId[] = hasConcentrate
             ? ['Concentrate', 'Google', 'Groq', 'OpenRouter', 'Doubleword']
             : ['Google', 'Groq', 'OpenRouter', 'Doubleword'];
 

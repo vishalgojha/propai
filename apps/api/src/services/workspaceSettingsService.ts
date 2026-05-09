@@ -3,6 +3,7 @@ import path from 'path';
 import { supabase, supabaseAdmin } from '../config/supabase';
 
 export type AIConfig = {
+    concentrate?: string;
     gemini?: string;
     groq?: string;
     openrouter?: string;
@@ -134,6 +135,7 @@ export async function getWorkspaceSettingsRecord(tenantId: string) {
             return {
                 settings: sanitizeSettings((data as any).settings || {}),
                 aiKeys: {
+                    concentrate: '',
                     gemini: '',
                     groq: '',
                     openrouter: '',
@@ -152,6 +154,7 @@ export async function getWorkspaceSettingsRecord(tenantId: string) {
     return {
         settings: sanitizeSettings(record?.settings || {}),
             aiKeys: {
+                concentrate: record?.aiKeys?.concentrate || '',
                 gemini: record?.aiKeys?.gemini || '',
                 groq: record?.aiKeys?.groq || '',
                 openrouter: record?.aiKeys?.openrouter || '',
@@ -168,6 +171,7 @@ export async function saveWorkspaceSettingsRecord(tenantId: string, settings: Pa
     store[tenantId] = {
         settings: sanitizedSettings,
         aiKeys: {
+            concentrate: typeof aiKeys.concentrate === 'string' ? aiKeys.concentrate : '',
             gemini: typeof aiKeys.gemini === 'string' ? aiKeys.gemini : '',
             groq: typeof aiKeys.groq === 'string' ? aiKeys.groq : '',
             openrouter: typeof aiKeys.openrouter === 'string' ? aiKeys.openrouter : '',

@@ -24,6 +24,7 @@ import { SurfaceSection } from '../components/ui/SurfaceSection';
 import { ProviderLogo } from '../components/ui/ProviderLogo';
 
 interface AIConfig {
+  concentrate?: string;
   gemini?: string;
   groq?: string;
   openrouter?: string;
@@ -47,6 +48,12 @@ interface SettingsState {
 }
 
 const aiProviders = [
+  {
+    id: 'concentrate',
+    name: 'Concentrate',
+    logo: 'doubleword',
+    description: 'Primary OpenAI-compatible path using your Concentrate credit pool.',
+  },
   {
     id: 'gemini',
     name: 'Google Gemini',
@@ -74,6 +81,13 @@ const aiProviders = [
 ] as const;
 
 const defaultModelOptions = [
+  {
+    value: 'concentrate',
+    title: 'Concentrate',
+    provider: 'Concentrate auto',
+    logo: 'doubleword' as const,
+    description: 'Use Concentrate first when you want PropAI to spend the saved Concentrate credit before Gemini.',
+  },
   {
     value: 'gemini-2.5-flash',
     title: 'Gemini 2.5 Flash',
@@ -221,6 +235,7 @@ export const Settings: React.FC = () => {
     try {
       await backendApi.post(ENDPOINTS.settings.save, { settings, aiKeys });
       track('settings_saved', {
+        has_concentrate_key: Boolean(aiKeys.concentrate),
         has_gemini_key: Boolean(aiKeys.gemini),
         has_groq_key: Boolean(aiKeys.groq),
         has_openrouter_key: Boolean(aiKeys.openrouter),

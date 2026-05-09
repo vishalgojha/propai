@@ -77,9 +77,8 @@ function mapDefaultModelToProvider(defaultModel?: string | null) {
 export class RuntimeStatusService {
     async getSnapshot(tenantId: string): Promise<RuntimeSnapshot> {
         const defaultModel = await getWorkspaceDefaultModel(tenantId).catch(() => null);
-        const aiSelection = mapDefaultModelToProvider(defaultModel);
-
-        const [googleKey, groqKey, openRouterKey, doublewordKey, subscription] = await Promise.all([
+        const [concentrateKey, googleKey, groqKey, openRouterKey, doublewordKey, subscription] = await Promise.all([
+            keyService.getKey(tenantId, 'Concentrate').catch(() => null),
             keyService.getKey(tenantId, 'Google').catch(() => null),
             keyService.getKey(tenantId, 'Groq').catch(() => null),
             keyService.getKey(tenantId, 'OpenRouter').catch(() => null),
@@ -93,6 +92,10 @@ export class RuntimeStatusService {
             })),
         ]);
 
+        const aiSelection = mapDefaultModelToProvider(
+            defaultModel || (concentrateKey ? 'concentrate' : null),
+        );
+
         const liveSessions = sessionManager.getLiveSessionSnapshots(tenantId);
         const connectedSessions = liveSessions.filter((session) => session.status === 'connected');
         const connectingSessions = liveSessions.filter((session) => session.status === 'connecting');
@@ -102,7 +105,7 @@ export class RuntimeStatusService {
         const configured = aiSelection.provider === 'Google'
             ? Boolean(googleKey || process.env.GOOGLE_API_KEY)
             : aiSelection.provider === 'Concentrate'
-                ? Boolean(process.env.CONCENTRATE_API_KEY)
+                ? Boolean(concentrateKey || process.env.CONCENTRATE_API_KEY)
             : aiSelection.provider === 'Groq'
                 ? Boolean(groqKey || process.env.GROQ_API_KEY)
                 : aiSelection.provider === 'OpenRouter'
