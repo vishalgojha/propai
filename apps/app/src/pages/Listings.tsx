@@ -1,5 +1,4 @@
 import React from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import {
   ChevronDown,
   Filter,
@@ -831,16 +830,9 @@ if (brokerOnly) {
         </div>
       </div>
 
-      <AnimatePresence>
-        {showFilters && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="rounded-2xl border border-[color:var(--border-strong)] bg-[var(--bg-surface)] p-4 sm:p-5">
+      {showFilters ? (
+        <div className="overflow-hidden">
+          <div className="rounded-2xl border border-[color:var(--border-strong)] bg-[var(--bg-surface)] p-4 sm:p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)]">Filters</h3>
                 {activeFilterCount > 0 && (
@@ -917,9 +909,8 @@ if (brokerOnly) {
                 </label>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
+      ) : null}
 
       <div className="glass-panel overflow-hidden rounded-2xl border-[color:var(--border)]">
         <div className="divide-y divide-[color:var(--border)] lg:hidden">
@@ -1232,7 +1223,7 @@ if (brokerOnly) {
 
                   return (
                     <React.Fragment key={listing.id}>
-                      <motion.tr
+                      <tr
                         onClick={() => {
                           setExpandedListingId(isExpanded ? null : listing.id);
                           if (!isExpanded && editingListingId && editingListingId !== listing.id) {
@@ -1240,8 +1231,6 @@ if (brokerOnly) {
                             setCorrectionDraft(null);
                           }
                         }}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
                         className="group cursor-pointer transition-colors hover:bg-neutral-900/50"
                       >
                         <td className="px-6 py-5">
@@ -1407,7 +1396,7 @@ if (brokerOnly) {
                             </div>
                           </div>
                         </td>
-                      </motion.tr>
+                      </tr>
                       {isExpanded ? (
                         <tr key={`${listing.id}-expanded`}>
                           <td colSpan={7} className="border-t border-[color:var(--border)] bg-[var(--bg-surface)]/20 px-6 py-4">
