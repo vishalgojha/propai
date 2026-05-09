@@ -837,7 +837,6 @@ export const Agent: React.FC = () => {
           <div className="space-y-4">
             {visibleMessages.map((message, index) => {
               const isAi = message.role === 'ai';
-              const bubbleBase = 'w-full max-w-full rounded-[18px] border px-4 py-3 shadow-[0_14px_36px_rgba(0,0,0,0.12)] sm:max-w-[min(760px,90%)]';
 
               return (
                 <motion.div
@@ -845,18 +844,27 @@ export const Agent: React.FC = () => {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.18 }}
-                  className={cn('flex', isAi ? 'justify-start' : 'justify-end')}
+                  className="group px-0"
                 >
-                  <div className={cn(bubbleBase, isAi ? 'border-[color:var(--border)] bg-[var(--bg-elevated)]' : 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.06)]')}>
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <div className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg-surface)] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                        {isAi ? <ActivityIcon className="h-3 w-3 text-[var(--accent)]" /> : null}
+                  <div className="flex items-start gap-3">
+                    <div className="w-[48px] shrink-0 pt-[3px]">
+                      <div className={cn(
+                        'inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em]',
+                        isAi ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]',
+                      )}>
+                        {isAi ? <ActivityIcon className="h-3 w-3" /> : null}
                         <span>{isAi ? 'Pulse' : 'You'}</span>
                       </div>
-                      <span className="text-[10px] text-[var(--text-secondary)]">{message.timestamp}</span>
                     </div>
-                    <div className={cn('text-[13px] leading-6 sm:leading-7', isAi ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
+
+                    <div className={cn('min-w-0 flex-1 text-[13px] leading-6 sm:leading-7', isAi ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]')}>
                       <RichMessage content={message.content} />
+                    </div>
+
+                    <div className="hidden min-w-[72px] text-right sm:block">
+                      <span className="inline-block text-[10px] font-medium text-[var(--text-ghost)] opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                        {message.timestamp}
+                      </span>
                     </div>
                   </div>
                 </motion.div>
@@ -864,13 +872,16 @@ export const Agent: React.FC = () => {
             })}
 
             {isTyping && (
-              <div className="flex justify-start">
-                <div className="w-full max-w-full rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 shadow-[0_14px_36px_rgba(0,0,0,0.12)] sm:max-w-[min(760px,90%)]">
-                  <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg-surface)] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                    <ActivityIcon className="h-3 w-3 text-[var(--accent)]" />
-                    <span>Pulse</span>
+              <div className="group px-0">
+                <div className="flex items-start gap-3">
+                  <div className="w-[48px] shrink-0 pt-[3px]">
+                    <div className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">
+                      <ActivityIcon className="h-3 w-3" />
+                      <span>Pulse</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2.5 pt-1">
+
+                  <div className="flex min-w-0 flex-1 items-center gap-2.5 pt-1">
                     <div className="pulse-agent-spinner" aria-hidden="true">
                       <div className="pulse-agent-spinner-inner" />
                     </div>
@@ -878,6 +889,8 @@ export const Agent: React.FC = () => {
                       Thinking through the model chain.
                     </p>
                   </div>
+
+                  <div className="hidden min-w-[72px] sm:block" />
                 </div>
               </div>
             )}
