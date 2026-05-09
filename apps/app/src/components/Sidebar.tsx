@@ -46,7 +46,7 @@ const NAV_ITEMS = [
   { label: 'Team', path: '/team', icon: ShieldIcon },
   { label: 'Intelligence', path: '/intelligence', icon: StreamIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },
-  { label: 'AI Usage', path: '/ai-usage', icon: CreditCardIcon },
+  { label: 'AI Usage', path: '/aiusage', icon: CreditCardIcon },
   { label: 'Pricing', path: '/pricing', icon: CreditCardIcon },
   { label: 'Docs', path: '/docs', icon: BookOpenIcon },
   { label: 'Settings', path: '/settings', icon: SettingsIcon },

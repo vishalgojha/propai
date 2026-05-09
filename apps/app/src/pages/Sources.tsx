@@ -1834,9 +1834,7 @@ export const Sources: React.FC = () => {
               </button>
             </form>
           </div>
-        </div>
 
-        <div className="space-y-6">
           <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1845,7 +1843,7 @@ export const Sources: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Live status</p>
-                  <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">WhatsApp session</h3>
+                  <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">WhatsApp sessions</h3>
                 </div>
               </div>
               <button
@@ -1931,116 +1929,7 @@ export const Sources: React.FC = () => {
                 ))
               )}
             </div>
-
-                {showConnectionArtifactPanel && !isCurrentSessionConnected && (
-                  <div className="mt-5 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                    <div className="mb-4 flex items-center justify-between">
-                      <div>
-                        <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                          {connectionArtifactType === 'pairing' ? 'WhatsApp pairing code' : 'WhatsApp QR'}
-                        </p>
-                        <p className="text-[12px] text-[var(--text-secondary)]">
-                          {!pairingArtifact
-                            ? connectionArtifactType === 'pairing'
-                              ? 'Preparing the WhatsApp pairing code. Keep this page open.'
-                              : 'Preparing the WhatsApp QR. Keep this page open.'
-                            : isQrExpired
-                            ? connectionArtifactType === 'pairing'
-                              ? 'This pairing code has expired. Request a fresh code to continue connecting.'
-                              : 'This QR has expired. Generate a fresh QR to continue connecting.'
-                            : connectionArtifactType === 'pairing'
-                              ? 'Use this pairing code in WhatsApp on the broker phone to finish connecting.'
-                              : 'Scan this QR in WhatsApp on the saved broker number to finish connecting.'}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
-                    {connectionArtifactType === 'pairing' ? 'Pairing code' : demoMode ? 'Demo QR' : 'Live QR'}
-                  </span>
-                </div>
-
-                    {pairingArtifact ? (
-                      <div className={cn(
-                      'mb-4 flex items-center justify-between rounded-[10px] border px-3 py-2',
-                      isQrExpired
-                        ? 'border-[color:rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)]'
-                        : 'border-[color:var(--border)] bg-[var(--bg-base)]'
-                      )}>
-                        <div>
-                          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                            {connectionArtifactType === 'pairing' ? 'Pairing freshness' : 'QR freshness'}
-                          </p>
-                          <p className={cn(
-                            'mt-1 text-[13px] font-semibold',
-                            isQrExpired ? 'text-[var(--red)]' : 'text-[var(--text-primary)]'
-                          )}>
-                            {isQrExpired ? 'Expired' : connectionArtifactType === 'pairing' ? `${qrTimeLeft}s left to use` : `${qrTimeLeft}s left to scan`}
-                          </p>
-                        </div>
-                        {isQrExpired ? (
-                          <button
-                            onClick={() => void handleConnect(connectionArtifactType === 'pairing' ? 'pairing' : 'qr')}
-                            disabled={isConnecting}
-                            className="inline-flex items-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
-                          >
-                            {isConnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                            <span>{connectionArtifactType === 'pairing' ? 'Request new code' : 'Generate fresh QR'}</span>
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
-
-                    {qrImageUrl ? (
-                      <div className={cn(
-                        'flex items-center justify-center rounded-[12px] border border-[color:var(--border)] bg-white p-5 transition-opacity',
-                        isQrExpired && 'opacity-55'
-                      )}>
-                        <img
-                          src={qrImageUrl}
-                          alt="WhatsApp QR"
-                          className="h-auto w-full max-w-[320px]"
-                          style={{ imageRendering: 'crisp-edges' }}
-                        />
-                      </div>
-                    ) : pairingArtifact ? (
-                      <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4">
-                        <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-                          {connectionArtifactType === 'pairing' ? 'Pairing code' : 'QR payload'}
-                        </p>
-                        <p className="break-all rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 font-mono text-[15px] tracking-[0.14em] text-[var(--text-primary)]">
-                          {pairingArtifact}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="rounded-[12px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-5">
-                        <div className="flex items-center gap-3">
-                          <Loader2 className="h-5 w-5 animate-spin text-[var(--accent)]" />
-                          <div>
-                            <p className="text-[13px] font-semibold text-[var(--text-primary)]">
-                              {connectionArtifactType === 'pairing' ? 'Generating pairing code' : 'Generating QR'}
-                            </p>
-                            <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
-                              This can take a few seconds after a new WhatsApp session starts.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
-                          <div className="h-full w-1/2 animate-pulse rounded-full bg-[var(--accent)]" />
-                        </div>
-                      </div>
-                    )}
-                    {isConnecting && (
-                      <div className="mt-4">
-                        <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-base)]">
-                          <div className="h-full bg-[var(--accent)] transition-all duration-150" style={{ width: `${scanProgress}%` }} />
-                        </div>
-                        <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
-                          {connectionArtifactType === 'pairing' ? 'Preparing the WhatsApp pairing code...' : 'Preparing the WhatsApp QR...'}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+          </div>
 
           <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
             <div className="flex items-start gap-3">
@@ -2049,6 +1938,136 @@ export const Sources: React.FC = () => {
                 Save the broker details first, then connect with QR. If the broker is away from a laptop, use the pairing code fallback instead. The connected number is surfaced globally in the header so the whole app knows which WhatsApp is active.
               </p>
             </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
+                  <QrCode className="h-5 w-5 text-[var(--accent)]" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                    {connectionArtifactType === 'pairing' ? 'WhatsApp pairing code' : 'WhatsApp QR'}
+                  </p>
+                  <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">QR panel</h3>
+                </div>
+              </div>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+                {connectionArtifactType === 'pairing' ? 'Pairing code' : demoMode ? 'Demo QR' : 'Live QR'}
+              </span>
+            </div>
+
+            <p className="text-[12px] leading-6 text-[var(--text-secondary)]">
+              {!pairingArtifact && !showConnectionArtifactPanel
+                ? 'This right panel is reserved for the active connection artifact. Start or refresh a connect flow on the left to show the QR or pairing code here.'
+                : !pairingArtifact
+                  ? connectionArtifactType === 'pairing'
+                    ? 'Preparing the WhatsApp pairing code. Keep this page open.'
+                    : 'Preparing the WhatsApp QR. Keep this page open.'
+                  : isQrExpired
+                    ? connectionArtifactType === 'pairing'
+                      ? 'This pairing code has expired. Request a fresh code to continue connecting.'
+                      : 'This QR has expired. Generate a fresh QR to continue connecting.'
+                    : connectionArtifactType === 'pairing'
+                      ? 'Use this pairing code in WhatsApp on the broker phone to finish connecting.'
+                      : 'Scan this QR in WhatsApp on the broker phone to finish connecting.'}
+            </p>
+
+            {pairingArtifact ? (
+              <div className={cn(
+                'mt-4 flex items-center justify-between rounded-[10px] border px-3 py-2',
+                isQrExpired
+                  ? 'border-[color:rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)]'
+                  : 'border-[color:var(--border)] bg-[var(--bg-base)]'
+              )}>
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                    {connectionArtifactType === 'pairing' ? 'Pairing freshness' : 'QR freshness'}
+                  </p>
+                  <p className={cn(
+                    'mt-1 text-[13px] font-semibold',
+                    isQrExpired ? 'text-[var(--red)]' : 'text-[var(--text-primary)]'
+                  )}>
+                    {isQrExpired ? 'Expired' : connectionArtifactType === 'pairing' ? `${qrTimeLeft}s left to use` : `${qrTimeLeft}s left to scan`}
+                  </p>
+                </div>
+                {isQrExpired ? (
+                  <button
+                    onClick={() => void handleConnect(connectionArtifactType === 'pairing' ? 'pairing' : 'qr')}
+                    disabled={isConnecting}
+                    className="inline-flex items-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
+                  >
+                    {isConnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    <span>{connectionArtifactType === 'pairing' ? 'Request new code' : 'Generate fresh QR'}</span>
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="mt-4">
+              {qrImageUrl ? (
+                <div className={cn(
+                  'flex min-h-[420px] items-center justify-center rounded-[12px] border border-[color:var(--border)] bg-white p-5 transition-opacity',
+                  isQrExpired && 'opacity-55'
+                )}>
+                  <img
+                    src={qrImageUrl}
+                    alt="WhatsApp QR"
+                    className="h-auto w-full max-w-[320px]"
+                    style={{ imageRendering: 'crisp-edges' }}
+                  />
+                </div>
+              ) : pairingArtifact ? (
+                <div className="min-h-[420px] rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4">
+                  <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+                    {connectionArtifactType === 'pairing' ? 'Pairing code' : 'QR payload'}
+                  </p>
+                  <p className="break-all rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 font-mono text-[15px] tracking-[0.14em] text-[var(--text-primary)]">
+                    {pairingArtifact}
+                  </p>
+                </div>
+              ) : showConnectionArtifactPanel ? (
+                <div className="min-h-[420px] rounded-[12px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-5">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-5 w-5 animate-spin text-[var(--accent)]" />
+                    <div>
+                      <p className="text-[13px] font-semibold text-[var(--text-primary)]">
+                        {connectionArtifactType === 'pairing' ? 'Generating pairing code' : 'Generating QR'}
+                      </p>
+                      <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
+                        This can take a few seconds after a new WhatsApp session starts.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+                    <div className="h-full w-1/2 animate-pulse rounded-full bg-[var(--accent)]" />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex min-h-[420px] items-center justify-center rounded-[12px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-5 text-center">
+                  <div>
+                    <p className="text-[13px] font-semibold text-[var(--text-primary)]">QR only panel</p>
+                    <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
+                      The QR or pairing artifact for the selected broker number will always appear here, including when you connect a second number.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {isConnecting ? (
+              <div className="mt-4">
+                <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-base)]">
+                  <div className="h-full bg-[var(--accent)] transition-all duration-150" style={{ width: `${scanProgress}%` }} />
+                </div>
+                <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
+                  {connectionArtifactType === 'pairing' ? 'Preparing the WhatsApp pairing code...' : 'Preparing the WhatsApp QR...'}
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

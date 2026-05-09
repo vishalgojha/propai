@@ -85,6 +85,9 @@ export const Layout: React.FC = () => {
         return 'Team';
       case '/admin':
         return 'Admin';
+      case '/aiusage':
+      case '/ai-usage':
+        return 'AI Usage';
       case '/agent': return 'PropAI Agent';
       case '/intelligence': return 'Intelligence';
       case '/settings': return 'Studio Settings';
