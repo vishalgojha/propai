@@ -497,7 +497,7 @@ function initWhatsAppSettings() {
     saveEnvBtn.disabled = true;
     saveEnvBtn.textContent = 'Saving...';
     try {
-      const coolifyBase = 'http://46.62.211.251:8000/api/v1';
+      const coolifyBase = 'http://116.202.9.89:8000/api/v1';
       const headers = { 'Authorization': 'Bearer 3|EZTAO9SDr8onCqpahr0hnpWDIHbXWkjkophIfqgd04a6ffdd' };
       const envVars = [
         { key: 'OLLAMA_BASE', value: ollamaBase },
@@ -508,17 +508,17 @@ function initWhatsAppSettings() {
         { key: 'ELEVENLABS_API_KEY', value: elevenlabsKey },
         { key: 'ELEVENLABS_VOICE_ID', value: elevenlabsVoice },
       ];
-      const envRes = await fetch(`${coolifyBase}/environments/npzdbunmlfs68oc9i5ca4p2x`, { headers });
+      const envRes = await fetch(`${coolifyBase}/environments/e14dehiuoxbdlexzw6utkth2`, { headers });
       const envData = await envRes.json();
       const existingVars = envData?.variables || [];
       const updatedVars = [...existingVars.filter(v => !envVars.some(e => e.key === v.key))];
       for (const v of envVars) { if (v.value) updatedVars.push(v); }
-      await fetch(`${coolifyBase}/environments/npzdbunmlfs68oc9i5ca4p2x`, {
+      await fetch(`${coolifyBase}/environments/e14dehiuoxbdlexzw6utkth2`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ variables: updatedVars }),
       });
-      await fetch(`${coolifyBase}/applications/n329rfts3ngi3jsbvi0jgl17/restart`, { method: 'POST', headers });
+      await fetch(`${coolifyBase}/applications/lburg4buwnc94z9hpx0walg5/restart`, { method: 'POST', headers });
       saveEnvBtn.textContent = 'Saved & Restarting!';
       setTimeout(() => { saveEnvBtn.textContent = 'Save & Restart'; saveEnvBtn.disabled = false; }, 4000);
     } catch {
@@ -588,9 +588,9 @@ function updateWhatsAppUI(data) {
 
 async function loadEnvSettings() {
   try {
-    const coolifyBase = 'http://46.62.211.251:8000/api/v1';
+    const coolifyBase = 'http://116.202.9.89:8000/api/v1';
     const headers = { 'Authorization': 'Bearer 3|EZTAO9SDr8onCqpahr0hnpWDIHbXWkjkophIfqgd04a6ffdd' };
-    const envRes = await fetch(`${coolifyBase}/environments/npzdbunmlfs68oc9i5ca4p2x`, { headers });
+    const envRes = await fetch(`${coolifyBase}/environments/e14dehiuoxbdlexzw6utkth2`, { headers });
     const envData = await envRes.json();
     const vars = envData?.variables || [];
     const byKey = (k) => vars.find(v => v.key === k)?.value || '';
