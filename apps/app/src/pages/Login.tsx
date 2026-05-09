@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { LegalFooter } from '../components/LegalFooter';
 import backendApi, { handleApiError } from '../services/api';
@@ -88,6 +87,15 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'vishal@chaoscraftlabs.com',
   'vishal@chaoscraftslabs.com',
 ]);
+
+const authPrimaryButton =
+  'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] shadow-[0_10px_28px_rgba(37,211,102,0.18)] transition-all duration-150 hover:-translate-y-[1px] hover:brightness-95 disabled:opacity-50 disabled:hover:translate-y-0';
+const authSecondaryButton =
+  'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-all duration-150 hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)]';
+const authPill =
+  'inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]';
+const authFieldClassName =
+  'w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 px-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]';
 
 const resolveAppRole = (email?: string | null, appRole?: string) => {
   if (appRole === 'super_admin') {
@@ -243,8 +251,8 @@ export const Login: React.FC = () => {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
           <AuthCard className="mb-6 flex flex-col items-start justify-between gap-3 px-4 py-3 sm:flex-row sm:items-center">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-[8px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]">
-            <ActivityIcon className="h-4 w-4" strokeWidth={2} />
+              <div className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)] shadow-[0_0_0_1px_rgba(37,211,102,0.08)]">
+                <ActivityIcon className="h-4 w-4" strokeWidth={2} />
               </div>
               <div>
                 <p className="text-[13px] font-bold tracking-[0.06em]">PROPAI PULSE</p>
@@ -254,7 +262,7 @@ export const Login: React.FC = () => {
             <div className="hidden md:flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">
               <ShieldCheckIcon className="h-3.5 w-3.5" />
               <span>Email login | Tool-calling | Lead ops</span>
-              <span className="ml-2 inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">
+              <span className={cn('ml-2', authPill)}>
                 <span className={apiStatus === 'online' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : apiStatus === 'offline' ? 'h-2 w-2 rounded-full bg-[var(--red)]' : 'h-2 w-2 rounded-full bg-[var(--amber)]'} />
                 {apiStatus === 'online' ? 'API connected' : apiStatus === 'offline' ? 'API offline' : 'Checking API'}
               </span>
@@ -279,7 +287,7 @@ export const Login: React.FC = () => {
                   setPhoneNumber('');
                   setMode('signin');
                 }}
-                className="rounded-[6px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--text-primary)] transition-colors hover:border-[color:var(--red)] hover:text-[var(--red)]"
+                className={cn(authSecondaryButton, 'px-4 py-2.5 hover:border-[color:var(--red)] hover:text-[var(--red)]')}
               >
                 Sign out
               </button>
@@ -287,15 +295,10 @@ export const Login: React.FC = () => {
           )}
 
           <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] items-start">
-            <motion.section
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35 }}
-              className="order-2 space-y-6 lg:order-1"
-            >
+            <section className="order-2 space-y-6 lg:order-1">
               <AuthCard className="p-6 md:p-8">
-                <div className="inline-flex items-center gap-2 rounded-[4px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-2 text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--accent)]">
-            <WorkflowIcon className="h-3.5 w-3.5" />
+                <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
+                  <WorkflowIcon className="h-3.5 w-3.5" />
                   No tool names. No training. Just talk.
                 </div>
 
@@ -322,15 +325,10 @@ export const Login: React.FC = () => {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 {capabilities.map((item, index) => (
-                  <motion.div
-                    key={item.title}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25, delay: 0.05 * index }}
-                  >
-                    <AuthCard className="p-5 transition-colors duration-150 hover:border-[color:var(--border-strong)]">
+                  <div key={item.title}>
+                    <AuthCard className="p-5 transition-all duration-150 hover:-translate-y-[1px] hover:border-[color:var(--border-strong)]">
                       <div className="flex items-start gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]">
                           <item.icon className="h-4 w-4" strokeWidth={1.5} />
                         </div>
                         <div className="min-w-0">
@@ -339,7 +337,7 @@ export const Login: React.FC = () => {
                         </div>
                       </div>
                     </AuthCard>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
 
@@ -352,7 +350,7 @@ export const Login: React.FC = () => {
                   {examples.map((item) => (
                     <div
                       key={item}
-                      className="rounded-[6px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[12px] text-[var(--text-primary)]"
+                      className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
                     >
                       {item}
                     </div>
@@ -436,14 +434,9 @@ export const Login: React.FC = () => {
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[var(--bg-elevated)] to-transparent" />
                 </div>
               </AuthCard>
-            </motion.section>
+            </section>
 
-            <motion.aside
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.05 }}
-              className="order-1 lg:order-2 lg:sticky lg:top-8"
-            >
+            <aside className="order-1 lg:order-2 lg:sticky lg:top-8">
               <AuthCard variant="accent" className="p-6">
                 <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
               <MailIcon className="h-3.5 w-3.5" />
@@ -494,14 +487,8 @@ export const Login: React.FC = () => {
                   </button>
                 </div>
 
-                <AnimatePresence mode="wait">
-                  {mode === 'signin' ? (
-                    <motion.div
-                      key="signin-form"
-                      initial={{ opacity: 0, x: -12 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 12 }}
-                    >
+                {mode === 'signin' ? (
+                    <div key="signin-form">
                       <form onSubmit={handlePasswordAuth} className="space-y-4">
                         <label className="block">
                           <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
@@ -516,7 +503,7 @@ export const Login: React.FC = () => {
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
                               placeholder="you@agency.com"
-                              className="w-full rounded-[8px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 pl-9 pr-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]"
+                              className={cn(authFieldClassName, 'pl-9')}
                             />
                           </div>
                         </label>
@@ -533,12 +520,12 @@ export const Login: React.FC = () => {
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
                               placeholder="Enter password"
-                              className="w-full rounded-[8px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 px-3 pr-11 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]"
+                              className={cn(authFieldClassName, 'pr-11')}
                             />
                             <button
                               type="button"
                               onClick={() => setShowPassword((current) => !current)}
-                              className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-[6px] border border-[color:var(--border)] bg-[var(--bg-base)] text-[var(--text-secondary)] transition-colors duration-150 hover:text-[var(--text-primary)]"
+                              className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-base)] text-[var(--text-secondary)] transition-colors duration-150 hover:border-[color:var(--accent-border)] hover:text-[var(--text-primary)]"
                               aria-label={showPassword ? 'Hide password' : 'Show password'}
                             >
               {showPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
@@ -579,14 +566,14 @@ export const Login: React.FC = () => {
                         <button
                           type="submit"
                           disabled={isLoading}
-                          className="inline-flex w-full items-center justify-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-[18px] py-[11px] text-[11px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
+                          className={cn(authPrimaryButton, 'w-full')}
                         >
             {isLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <ArrowRightIcon className="h-4 w-4" strokeWidth={2} />}
                           <span>Sign in</span>
                         </button>
                       </form>
 
-                      <div className="mt-5 rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-4">
+                      <div className="mt-5 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-4">
                         <div className="flex items-center gap-2">
             <CheckIcon className="h-3.5 w-3.5 text-[var(--accent)]" />
                           <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">No tool names needed</p>
@@ -600,7 +587,7 @@ export const Login: React.FC = () => {
                       {showForgotPassword && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => setShowForgotPassword(false)}>
                           <div
-                            className="w-full max-w-md rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-6"
+                            className="w-full max-w-md rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-base)] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.4)]"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="mb-4 flex items-center justify-between">
@@ -631,7 +618,7 @@ export const Login: React.FC = () => {
                                     setShowForgotPassword(false);
                                     setResetSent(false);
                                   }}
-                                  className="w-full rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                                  className={cn(authSecondaryButton, 'w-full')}
                                 >
                                   Back to sign in
                                 </button>
@@ -653,7 +640,7 @@ export const Login: React.FC = () => {
                                       value={resetEmail}
                                       onChange={(e) => setResetEmail(e.target.value)}
                                       placeholder="you@agency.com"
-                                      className="w-full rounded-[8px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 pl-9 pr-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]"
+                                      className={cn(authFieldClassName, 'pl-9')}
                                     />
                                   </div>
                                 </label>
@@ -667,7 +654,7 @@ export const Login: React.FC = () => {
                                 <button
                                   type="submit"
                                   disabled={resetLoading}
-                                  className="inline-flex w-full items-center justify-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-[18px] py-[11px] text-[11px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
+                                  className={cn(authPrimaryButton, 'w-full')}
                                 >
                                   {resetLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <ArrowRightIcon className="h-4 w-4" strokeWidth={2} />}
                                   <span>Send reset link</span>
@@ -677,14 +664,9 @@ export const Login: React.FC = () => {
                           </div>
                         </div>
                       )}
-                    </motion.div>
+                    </div>
                   ) : (
-                    <motion.div
-                      key="signup-form"
-                      initial={{ opacity: 0, x: 12 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -12 }}
-                    >
+                    <div key="signup-form">
                       <form onSubmit={handlePasswordAuth} className="space-y-4">
                         <label className="block">
                           <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
@@ -696,7 +678,7 @@ export const Login: React.FC = () => {
                             value={fullName}
                             onChange={(e) => setFullName(e.target.value)}
                             placeholder="Your full name"
-                            className="w-full rounded-[8px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 px-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]"
+                            className={authFieldClassName}
                           />
                         </label>
 
@@ -710,7 +692,7 @@ export const Login: React.FC = () => {
                             value={phoneNumber}
                             onChange={(e) => setPhoneNumber(e.target.value.split('').filter(c => c >= '0' && c <= '9').join(''))}
                             placeholder="919876543210"
-                            className="w-full rounded-[8px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 px-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]"
+                            className={authFieldClassName}
                           />
                           <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
                             Type digits only with country code. Example: <span className="text-[var(--text-primary)]">919876543210</span>
@@ -727,7 +709,7 @@ export const Login: React.FC = () => {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="you@agency.com"
-                            className="w-full rounded-[8px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 px-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]"
+                            className={authFieldClassName}
                           />
                         </label>
 
@@ -743,12 +725,12 @@ export const Login: React.FC = () => {
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
                               placeholder="Create a password"
-                              className="w-full rounded-[8px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 px-3 pr-11 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]"
+                              className={cn(authFieldClassName, 'pr-11')}
                             />
                             <button
                               type="button"
                               onClick={() => setShowPassword((current) => !current)}
-                              className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-[6px] border border-[color:var(--border)] bg-[var(--bg-base)] text-[var(--text-secondary)] transition-colors duration-150 hover:text-[var(--text-primary)]"
+                              className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-base)] text-[var(--text-secondary)] transition-colors duration-150 hover:border-[color:var(--accent-border)] hover:text-[var(--text-primary)]"
                               aria-label={showPassword ? 'Hide password' : 'Show password'}
                             >
           {showPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
@@ -765,7 +747,7 @@ export const Login: React.FC = () => {
                         <button
                           type="submit"
                           disabled={isLoading}
-                          className="inline-flex w-full items-center justify-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-[18px] py-[11px] text-[11px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
+                          className={cn(authPrimaryButton, 'w-full')}
                         >
           {isLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : 'Create account'}
                         </button>
@@ -777,13 +759,12 @@ export const Login: React.FC = () => {
                           setMode('signin');
                           setError(null);
                         }}
-                        className="mt-3 w-full rounded-[8px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] font-medium text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                        className={cn(authSecondaryButton, 'mt-3 w-full')}
                       >
                         I already have an account
                       </button>
-                    </motion.div>
+                    </div>
                   )}
-                </AnimatePresence>
               </AuthCard>
 
               <AuthCard className="mt-4 p-4">
@@ -795,7 +776,7 @@ export const Login: React.FC = () => {
                   After login, Pulse keeps coaching you with examples like add listing, save requirement, schedule follow-up, and check the queue. No manual entry, no spreadsheets.
                 </p>
               </AuthCard>
-            </motion.aside>
+            </aside>
           </div>
         </div>
       </div>

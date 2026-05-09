@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { useAuth } from '../context/AuthContext';
@@ -78,6 +77,13 @@ type ImpersonationSession = {
 
 const formatDate = (value?: string | number | null) =>
   value ? new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : 'Not set';
+
+const adminPrimaryButton =
+  'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] shadow-[0_10px_28px_rgba(37,211,102,0.18)] transition-all hover:-translate-y-[1px] hover:brightness-95 disabled:opacity-50 disabled:hover:translate-y-0';
+const adminSecondaryButton =
+  'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-all hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)]';
+const adminPill =
+  'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em]';
 
 export const Admin: React.FC = () => {
   const { user } = useAuth();
@@ -289,7 +295,7 @@ export const Admin: React.FC = () => {
           <button
             type="button"
             onClick={() => activeTab === 'audit' ? loadAuditLog() : activeTab === 'system' ? loadImpersonations() : loadAdminData(pagination.page)}
-            className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
+            className={cn(adminSecondaryButton, 'rounded-full')}
           >
             <RefreshIcon className={cn('h-4 w-4', isLoading && 'animate-spin')} />
             Refresh
@@ -304,7 +310,7 @@ export const Admin: React.FC = () => {
       ) : null}
 
       {/* Navigation Tabs */}
-      <div className="flex flex-wrap gap-2 rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-2">
+      <div className="flex flex-wrap gap-2 rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-2 shadow-[0_14px_40px_rgba(0,0,0,0.12)]">
         {[
           { id: 'overview', label: 'Overview' },
           { id: 'partners', label: 'Partners & Billing' },
@@ -316,9 +322,9 @@ export const Admin: React.FC = () => {
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
-              'rounded-[14px] px-5 py-2.5 text-[12px] font-semibold transition-colors',
+              'rounded-[14px] px-5 py-2.5 text-[12px] font-semibold transition-all',
               activeTab === tab.id
-                ? 'bg-[var(--accent)] text-[#020f07]'
+                ? 'bg-[var(--accent)] text-[#020f07] shadow-[0_8px_20px_rgba(37,211,102,0.16)]'
                 : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
             )}
           >
@@ -331,7 +337,7 @@ export const Admin: React.FC = () => {
       
       {/* ── OVERVIEW ───────────────────────────────────────────────────────── */}
       {activeTab === 'overview' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-4">
           {[
             { label: 'Total Partners', value: summary.totalWorkspaces, icon: GroupsIcon },
             { label: 'Trial Accounts', value: summary.trialWorkspaces, icon: CreditCardIcon },
@@ -349,12 +355,12 @@ export const Admin: React.FC = () => {
               </div>
             );
           })}
-        </motion.div>
+        </div>
       )}
 
       {/* ── PARTNERS & BILLING ─────────────────────────────────────────────── */}
       {activeTab === 'partners' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+        <div className="space-y-4">
           {/* Filters */}
           <div className="flex flex-col gap-3 rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4 md:flex-row md:items-center">
             <div className="relative flex-1">
@@ -401,18 +407,18 @@ export const Admin: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <p className="text-[14px] font-bold text-[var(--text-primary)]">{workspace.fullName || 'No Name'}</p>
                           {workspace.role === 'super_admin' && (
-                            <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-500">Super Admin</span>
+                            <span className={cn(adminPill, 'border-amber-500/30 bg-amber-500/10 text-amber-400')}>Super Admin</span>
                           )}
                         </div>
                         <p className="text-[12px] text-[var(--text-secondary)]">{workspace.email} • {workspace.phone || 'No Phone'}</p>
                       </div>
                       
                       <div className="flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.08em]">
-                        <span className="rounded border border-[color:var(--border)] px-2 py-1 text-[var(--text-primary)]">Plan: {workspace.subscription.plan}</span>
-                        <span className={cn("rounded border px-2 py-1", workspace.subscription.status === 'active' ? "border-green-500/30 text-green-400" : "border-[color:var(--border)] text-[var(--text-secondary)]")}>
+                        <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-primary)]')}>Plan: {workspace.subscription.plan}</span>
+                        <span className={cn(adminPill, workspace.subscription.status === 'active' ? 'border-green-500/30 bg-green-500/10 text-green-400' : 'border-[color:var(--border)] text-[var(--text-secondary)]')}>
                           Status: {workspace.subscription.status}
                         </span>
-                        <span className="rounded border border-[color:var(--border)] px-2 py-1 text-[var(--text-secondary)]">
+                        <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>
                           WA: {workspace.whatsapp.connectedSessions ? 'Live' : 'Offline'}
                         </span>
                       </div>
@@ -443,10 +449,10 @@ export const Admin: React.FC = () => {
                               onClick={() => void updateSubscription(workspace.id, { plan, status: plan === 'Free' ? 'trial' : 'active' })}
                               disabled={isSaving === workspace.id}
                               className={cn(
-                                'rounded px-2 py-1.5 text-[10px] font-bold',
+                                'rounded-[10px] px-2 py-1.5 text-[10px] font-bold transition-colors',
                                 workspace.subscription.plan === plan
                                   ? 'bg-[var(--accent)] text-black'
-                                  : 'border border-[color:var(--border)] text-[var(--text-primary)] hover:border-[color:var(--accent-border)]'
+                                  : 'border border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-primary)] hover:border-[color:var(--accent-border)]'
                               )}
                             >
                               {plan}
@@ -456,13 +462,13 @@ export const Admin: React.FC = () => {
                         <div className="mt-1.5 grid grid-cols-2 gap-1.5">
                           <button
                             onClick={() => void updateSubscription(workspace.id, { status: 'active' })}
-                            className="rounded border border-[color:var(--border)] px-2 py-1.5 text-[10px] font-bold text-[var(--text-primary)] hover:border-[color:var(--accent-border)]"
+                            className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-[10px] font-bold text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)]"
                           >
                             Set Active
                           </button>
                           <button
                             onClick={() => void updateSubscription(workspace.id, { extendTrialDays: 7 })}
-                            className="rounded border border-[color:var(--border)] px-2 py-1.5 text-[10px] font-bold text-[var(--text-primary)] hover:border-[color:var(--accent-border)]"
+                            className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2 py-1.5 text-[10px] font-bold text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)]"
                           >
                             +7d Trial
                           </button>
@@ -473,7 +479,7 @@ export const Admin: React.FC = () => {
                         <button
                           onClick={() => impersonatePartner(workspace.id)}
                           disabled={isSaving === workspace.id + '_imp'}
-                          className="flex w-full items-center justify-center gap-2 rounded bg-[var(--text-primary)] px-3 py-2 text-[11px] font-bold text-black hover:bg-white"
+                          className={cn(adminPrimaryButton, 'w-full')}
                         >
                           <LogoutIcon className="h-3 w-3" />
                           Access Workspace
@@ -490,7 +496,7 @@ export const Admin: React.FC = () => {
                   <button
                     disabled={pagination.page <= 1}
                     onClick={() => loadAdminData(pagination.page - 1)}
-                    className="rounded border border-[color:var(--border)] px-3 py-1.5 text-[11px] disabled:opacity-50"
+                    className={cn(adminSecondaryButton, 'px-3 py-2 disabled:opacity-50')}
                   >
                     Previous
                   </button>
@@ -498,7 +504,7 @@ export const Admin: React.FC = () => {
                   <button
                     disabled={pagination.page >= pagination.pages}
                     onClick={() => loadAdminData(pagination.page + 1)}
-                    className="rounded border border-[color:var(--border)] px-3 py-1.5 text-[11px] disabled:opacity-50"
+                    className={cn(adminSecondaryButton, 'px-3 py-2 disabled:opacity-50')}
                   >
                     Next
                   </button>
@@ -506,12 +512,12 @@ export const Admin: React.FC = () => {
               )}
             </div>
           )}
-        </motion.div>
+        </div>
       )}
 
       {/* ── GROUP DIRECTORY ─────────────────────────────────────────────────── */}
       {activeTab === 'groups' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+        <div className="space-y-4">
           <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-center">
               <select
@@ -583,12 +589,12 @@ export const Admin: React.FC = () => {
               ))}
             </div>
           )}
-        </motion.div>
+        </div>
       )}
 
       {/* ── SYSTEM & SESSIONS ─────────────────────────────────────────────── */}
       {activeTab === 'system' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+        <div className="space-y-6">
           <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)]">
             <div className="border-b border-[color:var(--border)] px-5 py-4">
               <h3 className="text-[14px] font-bold text-[var(--text-primary)]">Active Impersonation Sessions</h3>
@@ -608,7 +614,7 @@ export const Admin: React.FC = () => {
                       <button
                         onClick={() => revokeImpersonation(imp.token)}
                         disabled={isSaving === imp.token}
-                        className="rounded border border-red-500/30 px-3 py-1.5 text-[11px] font-bold text-red-400 hover:bg-red-500/10"
+                        className="rounded-[10px] border border-red-500/30 px-3 py-2 text-[11px] font-bold text-red-400 transition-colors hover:bg-red-500/10"
                       >
                         Revoke Access
                       </button>
@@ -618,12 +624,12 @@ export const Admin: React.FC = () => {
               )}
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* ── AUDIT LOG ─────────────────────────────────────────────────────── */}
       {activeTab === 'audit' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <div>
           <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] overflow-hidden">
              <div className="border-b border-[color:var(--border)] px-5 py-4">
               <h3 className="text-[14px] font-bold text-[var(--text-primary)]">Security Audit Log</h3>
@@ -657,7 +663,7 @@ export const Admin: React.FC = () => {
               )}
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   );
