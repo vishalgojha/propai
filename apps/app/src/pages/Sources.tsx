@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import QRCode from 'qrcode';
 import {
   CheckCircle2,
   Building2,
@@ -596,6 +595,7 @@ export const Sources: React.FC = () => {
       }
 
       try {
+        const { default: QRCode } = await import('qrcode');
         const dataUrl = await QRCode.toDataURL(pairingArtifact, {
           errorCorrectionLevel: 'M',
           margin: 2,
