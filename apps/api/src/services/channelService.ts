@@ -1068,13 +1068,7 @@ export class ChannelService {
     }
 
     private shouldPersistParsedCandidate(parsed: ParsedStreamCandidate) {
-        if (parsed.recordType === 'requirement') {
-            return true;
-        }
-
-        return typeof parsed.priceNumeric === 'number'
-            && Number.isFinite(parsed.priceNumeric)
-            && parsed.priceNumeric > 0;
+        return true;
     }
 
     async createChannel(tenantId: string, input: CreateChannelInput): Promise<PersonalChannelRecord> {
