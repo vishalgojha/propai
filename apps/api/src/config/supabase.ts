@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 
-const supabaseUrl = process.env.SUPABASE_URL || 'https://wnrwntumacbirbndfvwg.supabase.co';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InducndudHVtYWNiaXJibmRmdndnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNTgwNjcsImV4cCI6MjA4OTgzNDA2N30.ub1zIhw1535oPMY9io07BPTgTfWiNdivAkfTerjeoYQ';
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const realtimeTransport = WebSocket as unknown as any;
 export const serverClientOptions = {
@@ -20,8 +20,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Supabase credentials not provided - auth features disabled');
 }
 
-export const createSupabaseAnonClient = (accessToken?: string) =>
-  createClient(supabaseUrl, supabaseAnonKey, accessToken
+function requireSupabaseAnonConfig() {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY must be configured');
+  }
+}
+
+export const createSupabaseAnonClient = (accessToken?: string) => {
+  requireSupabaseAnonConfig();
+  return createClient(supabaseUrl, supabaseAnonKey, accessToken
     ? {
         ...serverClientOptions,
         global: {
@@ -31,9 +38,10 @@ export const createSupabaseAnonClient = (accessToken?: string) =>
         },
       }
     : serverClientOptions);
+};
 
 export const createSupabaseServiceClient = () =>
-  supabaseServiceRoleKey ? createClient(supabaseUrl, supabaseServiceRoleKey, serverClientOptions) : null;
+  supabaseUrl && supabaseServiceRoleKey ? createClient(supabaseUrl, supabaseServiceRoleKey, serverClientOptions) : null;
 
 export const supabase = createSupabaseAnonClient();
 export const supabaseAdmin = createSupabaseServiceClient();

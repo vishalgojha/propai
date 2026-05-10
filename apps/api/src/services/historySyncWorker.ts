@@ -20,6 +20,12 @@ type ProfileRow = {
 
 const db = supabaseAdmin ?? supabase;
 const inProgress = new Set<InProgressKey>();
+const completedWithoutProfileFlags = new Set<string>();
+
+function isMissingHistoryProfileColumnError(error: any) {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('history_processed') || message.includes('history_processed_at') || message.includes('history_message_count') || message.includes('history_total_count');
+}
 
 function getPollIntervalMs() {
   const raw = Number(process.env.HISTORY_SYNC_POLL_INTERVAL_MS || 45_000);
@@ -84,10 +90,27 @@ export class HistorySyncWorker {
 
   private async tick() {
     try {
-      const { data: profiles, error: profileError } = await db
+      let profiles: ProfileRow[] | null = null;
+      let profileError: any = null;
+
+      const profilesResult = await db
         .from('profiles')
         .select('id, history_processed')
         .eq('history_processed', false);
+
+      profiles = profilesResult.data as ProfileRow[] | null;
+      profileError = profilesResult.error;
+
+      if (profileError && isMissingHistoryProfileColumnError(profileError)) {
+        const fallbackResult = await db
+          .from('profiles')
+          .select('id');
+
+        profiles = ((fallbackResult.data || []) as Array<{ id: string }>)
+          .map((row) => ({ id: row.id, history_processed: null }))
+          .filter((row) => row.id && !completedWithoutProfileFlags.has(row.id));
+        profileError = fallbackResult.error;
+      }
 
       if (profileError || !Array.isArray(profiles) || profiles.length === 0) {
         return;
@@ -144,6 +167,9 @@ export class HistorySyncWorker {
             sessionLabel: candidate.session_label,
             messages: historyMessages,
           });
+          if (profile.history_processed === null) {
+            completedWithoutProfileFlags.add(profile.id);
+          }
         } catch (error) {
           console.error('[HistorySyncWorker] Failed to process history batch', {
             tenantId: profile.id,

@@ -10,6 +10,10 @@ create table profiles (
   trial_started_at timestamp with time zone,
   trial_used boolean default false,
   is_admin boolean default false,
+  history_processed boolean default false,
+  history_processed_at timestamp with time zone,
+  history_message_count integer default 0,
+  history_total_count integer default 0,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -163,8 +167,9 @@ create table messages (
   tenant_id uuid references profiles(id) on delete cascade not null,
   remote_jid text not null,
   text text,
-  sender text check (sender in ('Broker', 'Client', 'AI')) not null,
-  timestamp timestamp with time zone default timezone('utc'::text, now()) not null
+  sender text not null,
+  timestamp timestamp with time zone default timezone('utc'::text, now()) not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
 -- Agent Events

@@ -675,10 +675,14 @@ export const getMessages = async (req: Request, res: Response) => {
 
 export const getGroups = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
+    const requestedSessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel.trim() : null;
 
     try {
-        const client = await sessionManager.getSession(tenantId as string);
-        if (client) {
+        const liveClients = requestedSessionLabel
+            ? [await sessionManager.getSession(tenantId as string, requestedSessionLabel)].filter(Boolean)
+            : await sessionManager.getAllSessionsForTenant(tenantId as string);
+
+        for (const client of liveClients) {
             const groups = await (client as any).getGroups();
             const normalizedGroups = Array.isArray(groups)
                 ? groups.map((group: any, index: number) => ({
@@ -692,13 +696,16 @@ export const getGroups = async (req: Request, res: Response) => {
                 typeof (client as any).getStatusSnapshot === 'function'
                     ? (client as any).getStatusSnapshot()
                     : null;
-            const sessionLabel = String(sessionSnapshot?.label || 'default');
+            const sessionLabel = String(sessionSnapshot?.label || requestedSessionLabel || 'default');
             await whatsappGroupService.syncGroups(tenantId as string, sessionLabel, normalizedGroups);
         }
 
         const directoryGroups = await whatsappGroupService.listGroups(tenantId as string);
+        const filteredGroups = requestedSessionLabel
+            ? directoryGroups.filter((group: any) => String(group.sessionLabel || '') === requestedSessionLabel)
+            : directoryGroups;
 
-        const groupIds = directoryGroups.map((group: any) => String(group.id || group.groupJid || '')).filter(Boolean);
+        const groupIds = filteredGroups.map((group: any) => String(group.id || group.groupJid || '')).filter(Boolean);
         const behaviorMap = new Map<string, string>();
 
         if (groupIds.length > 0) {
@@ -724,7 +731,7 @@ export const getGroups = async (req: Request, res: Response) => {
             }
         }
 
-        res.json(directoryGroups.map((group: any) => ({
+        res.json(filteredGroups.map((group: any) => ({
             ...group,
             behavior: behaviorMap.get(String(group.id)) || 'Listen',
         })));
@@ -843,7 +850,7 @@ export const sendMessage = async (req: Request, res: Response) => {
             tenant_id: tenantId,
             remote_jid: remoteJid,
             text: String(text).trim(),
-            sender: user?.email || 'Broker',
+            sender: 'Broker',
             timestamp: new Date().toISOString(),
         });
         void workspaceActivityService.track({
@@ -896,7 +903,7 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
                     tenant_id: tenantId,
                     remote_jid: remoteJid,
                     text: String(text).trim(),
-                    sender: user?.email || 'Broker',
+                    sender: 'Broker',
                     timestamp: new Date().toISOString(),
                 });
                 sent.push({ remoteJid, label });
@@ -958,7 +965,7 @@ export const broadcastToGroups = async (req: Request, res: Response) => {
                 tenant_id: tenantId,
                 remote_jid: groupJid,
                 text: String(text).trim(),
-                sender: user?.email || 'Broker',
+                sender: 'Broker',
                 timestamp,
             }));
 

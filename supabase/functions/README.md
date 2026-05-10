@@ -13,12 +13,12 @@ These Supabase Edge Functions power the broker automation workers for PropAI Pul
 1. Log into the linked project:
    ```bash
    supabase login
-   supabase link --project-ref wnrwntumacbirbndfvwg
+   supabase link --project-ref <your-project-ref>
    ```
 
 2. Set the function secrets:
    ```bash
-   supabase secrets set SUPABASE_URL=https://wnrwntumacbirbndfvwg.supabase.co
+   supabase secrets set SUPABASE_URL=https://<your-project-ref>.supabase.co
    supabase secrets set SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
    supabase secrets set OPENROUTER_API_KEY=YOUR_OPENROUTER_API_KEY
    supabase secrets set OPENROUTER_BASE_URL=https://openrouter.ai/api/v1

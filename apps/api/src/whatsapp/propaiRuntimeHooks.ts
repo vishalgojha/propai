@@ -6,6 +6,39 @@ import { whatsappGroupService } from '../services/whatsappGroupService';
 import type { GroupMentionListingMatch } from '../services/brokerWorkflowService';
 
 const db = supabaseAdmin || supabase;
+const AI_SENDER = 'AI';
+const recentSelfChatReplies = new Map<string, number>();
+
+function makeSelfChatReplyKey(tenantId: string, sessionLabel: string | undefined, remoteJid: string, text: string) {
+    return `${tenantId}:${sessionLabel || 'default'}:${remoteJid}:${text.trim()}`;
+}
+
+function rememberSelfChatReply(tenantId: string, sessionLabel: string | undefined, remoteJid: string, text: string) {
+    const key = makeSelfChatReplyKey(tenantId, sessionLabel, remoteJid, text);
+    const now = Date.now();
+    recentSelfChatReplies.set(key, now);
+
+    for (const [entryKey, timestamp] of recentSelfChatReplies.entries()) {
+        if (now - timestamp > 60_000) {
+            recentSelfChatReplies.delete(entryKey);
+        }
+    }
+}
+
+function isRecentSelfChatReply(tenantId: string, sessionLabel: string | undefined, remoteJid: string, text: string) {
+    const key = makeSelfChatReplyKey(tenantId, sessionLabel, remoteJid, text);
+    const timestamp = recentSelfChatReplies.get(key);
+    if (!timestamp) {
+        return false;
+    }
+
+    if (Date.now() - timestamp > 60_000) {
+        recentSelfChatReplies.delete(key);
+        return false;
+    }
+
+    return true;
+}
 
 async function sendViaTenantSession(tenantId: string, remoteJid: string, text: string) {
     const { sessionManager } = require('./SessionManager');
@@ -39,17 +72,33 @@ async function triggerAgent(tenantId: string, remoteJid: string, text: string, s
         }
 
         await client.sendText(remoteJid, response);
+        rememberSelfChatReply(tenantId, sessionLabel, remoteJid, response);
 
         await db.from('messages').insert({
             tenant_id: tenantId,
             remote_jid: remoteJid,
             text: response,
-            sender: 'PropAI AI',
+            sender: AI_SENDER,
+            timestamp: new Date().toISOString(),
         });
 
         console.log('[SelfChat Debug] Agent response sent successfully');
+        await whatsappHealthService.appendEvent(
+            tenantId,
+            sessionLabel || 'default',
+            'agent_reply_sent',
+            'PropAI agent replied on WhatsApp.',
+            { remoteJid, selfChat: true },
+        );
     } catch (error) {
         console.error('[SelfChat Debug] Agent execution FAILED:', error);
+        await whatsappHealthService.appendEvent(
+            tenantId,
+            sessionLabel || 'default',
+            'agent_reply_failed',
+            error instanceof Error ? error.message : 'Agent execution failed',
+            { remoteJid, selfChat: true },
+        ).catch(() => undefined);
 
         try {
             await emailNotificationService.sendCrashReport({
@@ -76,11 +125,13 @@ async function sendAutomatedReply(tenantId: string, remoteJid: string, text: str
     }
 
     await client.sendText(remoteJid, text);
+    rememberSelfChatReply(tenantId, sessionLabel, remoteJid, text);
     await db.from('messages').insert({
         tenant_id: tenantId,
         remote_jid: remoteJid,
         text,
-        sender: 'PropAI AI',
+        sender: AI_SENDER,
+        timestamp: new Date().toISOString(),
     });
 }
 
@@ -441,7 +492,11 @@ async function processInboundMessage(event: IncomingMessageRecord) {
     // Self chat should only be the broker messaging their own QR-scanned number.
     const normalizedRemoteJid = normalizeJid(remoteJid);
     const isRemoteBotJid = Boolean(normalizedRemoteJid) && botJids.includes(normalizedRemoteJid);
-    const effectiveIsSelfChat = Boolean(isSelfChat && !fromMe && isRemoteBotJid);
+    const effectiveIsSelfChat = Boolean(isSelfChat && isRemoteBotJid);
+
+    if (effectiveIsSelfChat && fromMe && isRecentSelfChatReply(tenantId, label, remoteJid, text)) {
+        return;
+    }
 
     // Self-chat welcome message
     if (effectiveIsSelfChat && text.toUpperCase() === 'HI') {
@@ -475,6 +530,13 @@ async function processInboundMessage(event: IncomingMessageRecord) {
     const selfChatEnabled = await isSelfChatEnabled(tenantId, label);
     if (effectiveIsSelfChat && !selfChatEnabled) {
         console.log('[SelfChat Debug] Self chat disabled for this session, skipping');
+        await whatsappHealthService.appendEvent(
+            tenantId,
+            label || 'default',
+            'self_chat_disabled',
+            'Self chat message skipped because self-chat is disabled for this session.',
+            { remoteJid },
+        ).catch(() => undefined);
         return;
     }
 
@@ -530,6 +592,13 @@ async function processInboundMessage(event: IncomingMessageRecord) {
     // explicitly opts in, or when they are self-chat / assistant review lanes.
     if (!isGroup && !effectiveIsSelfChat && !isAssistantDM && !directParsingEnabled) {
         console.log('[SelfChat Debug] Direct messages not enabled for parsing, skipping');
+        await whatsappHealthService.appendEvent(
+            tenantId,
+            label || 'default',
+            'direct_message_skipped',
+            'Direct message skipped because direct parsing is disabled for this session.',
+            { remoteJid },
+        ).catch(() => undefined);
         return;
     }
 
@@ -540,6 +609,13 @@ async function processInboundMessage(event: IncomingMessageRecord) {
     }
 
     console.log('[SelfChat Debug] Calling triggerAgent...');
+    await whatsappHealthService.appendEvent(
+        tenantId,
+        label || 'default',
+        effectiveIsSelfChat ? 'self_chat_received' : (isAssistantDM ? 'assistant_dm_received' : 'message_routed_to_agent'),
+        'WhatsApp message routed to PropAI agent.',
+        { remoteJid, isGroup, selfChat: effectiveIsSelfChat, assistantDm: isAssistantDM },
+    ).catch(() => undefined);
     await triggerAgent(tenantId, remoteJid, text, label);
 }
 

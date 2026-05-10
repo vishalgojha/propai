@@ -27,7 +27,10 @@ const PORT = process.env.PORT || 3001;
 const ENABLE_SYSTEM_WHATSAPP_SESSION = process.env.ENABLE_SYSTEM_WHATSAPP_SESSION === 'true';
 
 function getSupabaseProjectRef() {
-    const url = process.env.SUPABASE_URL || 'https://wnrwntumacbirbndfvwg.supabase.co';
+    const url = process.env.SUPABASE_URL;
+    if (!url) {
+        return null;
+    }
     try {
         return new URL(url).hostname.split('.')[0] || null;
     } catch {

@@ -1,13 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl =
-  (import.meta as any).env.VITE_SUPABASE_URL ||
-  'https://wnrwntumacbirbndfvwg.supabase.co';
+  (import.meta as any).env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey =
-  (import.meta as any).env.VITE_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InducndudHVtYWNiaXJibmRmdndnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNTgwNjcsImV4cCI6MjA4OTgzNDA2N30.ub1zIhw1535oPMY9io07BPTgTfWiNdivAkfTerjeoYQ';
+  (import.meta as any).env.VITE_SUPABASE_ANON_KEY || '';
 
 export function createSupabaseBrowserClient(accessToken?: string | null) {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be configured');
+  }
+
   const client = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: false,

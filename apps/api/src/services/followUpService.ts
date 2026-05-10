@@ -4,19 +4,19 @@ import { serverClientOptions } from '../config/supabase';
 type FollowUpAction = 'call' | 'email' | 'visit';
 type FollowUpStatus = 'pending' | 'completed' | 'cancelled';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://wnrwntumacbirbndfvwg.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '';
 
 export class FollowUpService {
     private readonly admin: SupabaseClient;
 
     constructor() {
-        this.admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || 'placeholder-service-key', serverClientOptions);
+        this.admin = createClient(SUPABASE_URL || 'http://127.0.0.1:54321', SUPABASE_SERVICE_KEY || 'missing-service-role-key', serverClientOptions);
     }
 
     private requireServiceRole() {
-        if (!SUPABASE_SERVICE_KEY) {
-            throw new Error('Service role key is not configured');
+        if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+            throw new Error('SUPABASE_URL and service role key must be configured');
         }
     }
 

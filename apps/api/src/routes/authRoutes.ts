@@ -317,11 +317,11 @@ router.post(ROUTE_PATHS.auth.refresh, async (req, res) => {
     if (!refreshToken) return res.status(400).json({ error: 'Refresh token is required' });
 
     try {
-        const supabaseUrl = process.env.SUPABASE_URL || 'https://wnrwntumacbirbndfvwg.supabase.co';
+        const supabaseUrl = process.env.SUPABASE_URL;
         const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
-        if (!supabaseAnonKey) {
-            return res.status(503).json({ error: 'Supabase anon key is not configured' });
+        if (!supabaseUrl || !supabaseAnonKey) {
+            return res.status(503).json({ error: 'Supabase URL or anon key is not configured' });
         }
 
         const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {

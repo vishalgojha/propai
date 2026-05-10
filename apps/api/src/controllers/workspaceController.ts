@@ -87,6 +87,13 @@ export const getWorkspaceOverview = async (req: Request, res: Response) => {
 export const getWorkspaceMetadata = async (req: Request, res: Response) => {
     try {
         const context = await workspaceAccessService.resolveContext((req as any).user);
+        const store = await readWorkspaceMetadataStore();
+        const fallback = store[context.workspaceOwnerId] || {
+            agencyName: null,
+            primaryCity: null,
+            serviceAreas: [],
+            updatedAt: null,
+        };
 
         const [workspaceResult, areasResult] = await Promise.all([
             db
@@ -109,14 +116,6 @@ export const getWorkspaceMetadata = async (req: Request, res: Response) => {
         if (areasResult.error && !areasMissing) throw areasResult.error;
 
         if (workspaceMissing || areasMissing) {
-            const store = await readWorkspaceMetadataStore();
-            const fallback = store[context.workspaceOwnerId] || {
-                agencyName: null,
-                primaryCity: null,
-                serviceAreas: [],
-                updatedAt: null,
-            };
-
             return res.json({
                 success: true,
                 workspace: {
@@ -130,6 +129,24 @@ export const getWorkspaceMetadata = async (req: Request, res: Response) => {
             });
         }
 
+        const dbMetadata = {
+            agencyName: workspaceResult.data?.agency_name || null,
+            primaryCity: workspaceResult.data?.primary_city || null,
+            serviceAreas: (areasResult.data || []).map((row: any) => ({
+                city: String(row.city || '').trim(),
+                locality: String(row.locality || '').trim(),
+                priority: Number(row.priority || 0),
+            })),
+            updatedAt: workspaceResult.data?.updated_at || null,
+        };
+
+        const metadata = {
+            agencyName: dbMetadata.agencyName || fallback.agencyName || null,
+            primaryCity: dbMetadata.primaryCity || fallback.primaryCity || null,
+            serviceAreas: dbMetadata.serviceAreas.length > 0 ? dbMetadata.serviceAreas : fallback.serviceAreas,
+            updatedAt: dbMetadata.updatedAt || fallback.updatedAt || null,
+        };
+
         res.json({
             success: true,
             workspace: {
@@ -138,16 +155,7 @@ export const getWorkspaceMetadata = async (req: Request, res: Response) => {
                 canManageTeam: context.canManageTeam,
                 canSendOutbound: context.canSendOutbound,
             },
-            metadata: {
-                agencyName: workspaceResult.data?.agency_name || null,
-                primaryCity: workspaceResult.data?.primary_city || null,
-                serviceAreas: (areasResult.data || []).map((row: any) => ({
-                    city: String(row.city || '').trim(),
-                    locality: String(row.locality || '').trim(),
-                    priority: Number(row.priority || 0),
-                })),
-                updatedAt: workspaceResult.data?.updated_at || null,
-            },
+            metadata,
         });
     } catch (error: any) {
         res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load workspace metadata' });
@@ -196,6 +204,7 @@ export const saveWorkspaceMetadata = async (req: Request, res: Response) => {
             }))
             .filter((area) => area.city && area.locality)
             .slice(0, 60);
+        const store = await readWorkspaceMetadataStore();
 
         const now = new Date().toISOString();
         const { error: upsertError } = await db
@@ -239,16 +248,13 @@ export const saveWorkspaceMetadata = async (req: Request, res: Response) => {
             }
         }
 
-        if (missingWorkspaceTable || missingServiceAreasTable) {
-            const store = await readWorkspaceMetadataStore();
-            store[context.workspaceOwnerId] = {
-                agencyName,
-                primaryCity,
-                serviceAreas: cleanedAreas,
-                updatedAt: now,
-            };
-            await writeWorkspaceMetadataStore(store);
-        }
+        store[context.workspaceOwnerId] = {
+            agencyName,
+            primaryCity,
+            serviceAreas: cleanedAreas,
+            updatedAt: now,
+        };
+        await writeWorkspaceMetadataStore(store);
 
         void workspaceActivityService.track({
             actor: (req as any).user,

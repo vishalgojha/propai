@@ -1267,7 +1267,7 @@ export class ChannelService {
     async rebuildStreamFromMessages(tenantId: string, limit = 500) {
         const { data: messages, error } = await this.db
             .from('messages')
-            .select('id, remote_jid, sender, text, timestamp, created_at')
+            .select('id, remote_jid, sender, text, timestamp')
             .eq('tenant_id', tenantId)
             .order('timestamp', { ascending: true })
             .limit(limit);

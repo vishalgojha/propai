@@ -1,5 +1,5 @@
 import { keyService } from './keyService';
-import { getWorkspaceDefaultModel } from './workspaceSettingsService';
+import { getWorkspaceDefaultModel, getWorkspaceExplicitDefaultModel } from './workspaceSettingsService';
 import { browserToolService } from './browserToolService';
 import { sessionManager } from '../whatsapp/SessionManager';
 import { normalizePlanName, subscriptionService } from './subscriptionService';
@@ -28,7 +28,7 @@ type RuntimeSnapshot = {
     };
 };
 
-function mapDefaultModelToProvider(defaultModel?: string | null) {
+function mapDefaultModelToProvider(defaultModel?: string | null, hasConcentrate = false) {
     const normalized = (defaultModel || '').trim().toLowerCase();
 
     switch (normalized) {
@@ -61,7 +61,7 @@ function mapDefaultModelToProvider(defaultModel?: string | null) {
                 model: process.env.DOUBLEWORD_MODEL || 'qwen3-235b',
             };
         default:
-            if (process.env.CONCENTRATE_API_KEY) {
+            if (hasConcentrate || process.env.CONCENTRATE_API_KEY) {
                 return {
                     provider: 'Concentrate' as const,
                     model: process.env.CONCENTRATE_MODEL || 'auto',
@@ -91,9 +91,12 @@ export class RuntimeStatusService {
                 trial_days_remaining: null,
             })),
         ]);
+        const explicitDefaultModel = await getWorkspaceExplicitDefaultModel(tenantId).catch(() => null);
+        const hasConcentrate = Boolean(concentrateKey || process.env.CONCENTRATE_API_KEY);
 
         const aiSelection = mapDefaultModelToProvider(
-            defaultModel || (concentrateKey ? 'concentrate' : null),
+            explicitDefaultModel || (hasConcentrate ? 'concentrate' : defaultModel),
+            hasConcentrate,
         );
 
         const liveSessions = sessionManager.getLiveSessionSnapshots(tenantId);
@@ -105,7 +108,7 @@ export class RuntimeStatusService {
         const configured = aiSelection.provider === 'Google'
             ? Boolean(googleKey || process.env.GOOGLE_API_KEY)
             : aiSelection.provider === 'Concentrate'
-                ? Boolean(concentrateKey || process.env.CONCENTRATE_API_KEY)
+                ? hasConcentrate
             : aiSelection.provider === 'Groq'
                 ? Boolean(groqKey || process.env.GROQ_API_KEY)
                 : aiSelection.provider === 'OpenRouter'

@@ -32,6 +32,11 @@ const db = supabaseAdmin ?? supabase;
 const BATCH_SIZE = 50;
 const processingTenants = new Set<string>();
 
+function isMissingHistoryProfileColumnError(error: any) {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('history_processed') || message.includes('history_processed_at') || message.includes('history_message_count') || message.includes('history_total_count');
+}
+
 function getProfileId(tenantId: string) {
   return String(tenantId || '').trim();
 }
@@ -234,17 +239,35 @@ export class HistoryBatchService {
     processingTenants.add(profileId);
 
     try {
-      const { data: profile, error: profileError } = await db
+      let profile: any = null;
+      let profileError: any = null;
+      let supportsHistoryProfileColumns = true;
+
+      const profileResult = await db
         .from('profiles')
         .select('phone, history_processed, history_processed_at, history_message_count, history_total_count')
         .eq('id', profileId)
         .maybeSingle();
 
+      profile = profileResult.data;
+      profileError = profileResult.error;
+
+      if (profileError && isMissingHistoryProfileColumnError(profileError)) {
+        supportsHistoryProfileColumns = false;
+        const fallbackResult = await db
+          .from('profiles')
+          .select('phone')
+          .eq('id', profileId)
+          .maybeSingle();
+        profile = fallbackResult.data;
+        profileError = fallbackResult.error;
+      }
+
       if (profileError) {
         throw new Error(profileError.message);
       }
 
-      if (profile?.history_processed && !forceProcess) {
+      if (supportsHistoryProfileColumns && profile?.history_processed && !forceProcess) {
         return {
           total: 0,
           processed: 0,
@@ -258,7 +281,7 @@ export class HistoryBatchService {
         };
       }
 
-      if (forceProcess) {
+      if (forceProcess && supportsHistoryProfileColumns) {
         const { error: resetError } = await db
           .from('profiles')
           .update({
@@ -280,22 +303,24 @@ export class HistoryBatchService {
         .map((record, index) => normalizeHistoryRecord(record, index, sessionLabel, profileId))
         .filter((record): record is NonNullable<ReturnType<typeof normalizeHistoryRecord>> => Boolean(record));
 
-      const { error: totalError } = await db
-        .from('profiles')
-        .update({
-          history_processed: false,
-          history_processed_at: null,
-          history_message_count: 0,
-          history_total_count: normalized.length,
-        })
-        .eq('id', profileId);
+      if (supportsHistoryProfileColumns) {
+        const { error: totalError } = await db
+          .from('profiles')
+          .update({
+            history_processed: false,
+            history_processed_at: null,
+            history_message_count: 0,
+            history_total_count: normalized.length,
+          })
+          .eq('id', profileId);
 
-      if (totalError) {
-        console.error('[HistoryBatchService] Failed to persist history total count', {
-          tenantId: profileId,
-          sessionLabel,
-          error: totalError,
-        });
+        if (totalError && !isMissingHistoryProfileColumnError(totalError)) {
+          console.error('[HistoryBatchService] Failed to persist history total count', {
+            tenantId: profileId,
+            sessionLabel,
+            error: totalError,
+          });
+        }
       }
 
       let processed = 0;
@@ -366,38 +391,42 @@ export class HistoryBatchService {
           failed,
         });
 
-        const { error: progressError } = await db
-          .from('profiles')
-          .update({
-            history_message_count: processed,
-            history_total_count: normalized.length,
-          })
-          .eq('id', profileId);
+        if (supportsHistoryProfileColumns) {
+          const { error: progressError } = await db
+            .from('profiles')
+            .update({
+              history_message_count: processed,
+              history_total_count: normalized.length,
+            })
+            .eq('id', profileId);
 
-        if (progressError) {
-          console.error('[HistoryBatchService] Failed to persist progress counter', {
-            tenantId: profileId,
-            sessionLabel,
-            error: progressError,
-          });
+          if (progressError && !isMissingHistoryProfileColumnError(progressError)) {
+            console.error('[HistoryBatchService] Failed to persist progress counter', {
+              tenantId: profileId,
+              sessionLabel,
+              error: progressError,
+            });
+          }
         }
 
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
       const historyProcessedAt = new Date().toISOString();
-      const { error: updateError } = await db
-        .from('profiles')
-        .update({
-          history_processed: true,
-          history_processed_at: historyProcessedAt,
-          history_message_count: normalized.length,
-          history_total_count: normalized.length,
-        })
-        .eq('id', profileId);
+      if (supportsHistoryProfileColumns) {
+        const { error: updateError } = await db
+          .from('profiles')
+          .update({
+            history_processed: true,
+            history_processed_at: historyProcessedAt,
+            history_message_count: normalized.length,
+            history_total_count: normalized.length,
+          })
+          .eq('id', profileId);
 
-      if (updateError) {
-        throw new Error(updateError.message);
+        if (updateError) {
+          throw new Error(updateError.message);
+        }
       }
 
       return {

@@ -68,14 +68,14 @@ export type BrokerToolPlan = {
     args?: Record<string, unknown>;
 };
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://wnrwntumacbirbndfvwg.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '';
 
 export class BrokerWorkflowService {
     private readonly admin: SupabaseClient;
 
     constructor() {
-        this.admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || 'placeholder-service-key', serverClientOptions);
+        this.admin = createClient(SUPABASE_URL || 'http://127.0.0.1:54321', SUPABASE_SERVICE_KEY || 'missing-service-role-key', serverClientOptions);
     }
 
     async handlePrompt(tenantId: string, prompt: string): Promise<WorkflowResult> {

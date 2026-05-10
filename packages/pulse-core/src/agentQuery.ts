@@ -4,7 +4,7 @@ import { computeInsights } from './insights.js';
 import { formatPrice, formatListingDisplay } from './utils.js';
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434/api/generate';
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://wnrwntumacbirbndfvwg.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
 
 export interface IntentFilters {
@@ -52,6 +52,9 @@ async function ollamaGenerate(prompt: string, model = 'qwen3:14b'): Promise<stri
 }
 
 async function supabaseQuery(table: string, params: Record<string, unknown>) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    throw new Error('SUPABASE_URL and a Supabase API key must be configured');
+  }
   const url = `${SUPABASE_URL}/rest/v1/${table}`;
   const { data } = await axios.get(url, {
     headers: {

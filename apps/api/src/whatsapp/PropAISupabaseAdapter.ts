@@ -92,7 +92,7 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                     sender: input.sender ?? undefined,
                     timestamp: input.timestamp ?? new Date().toISOString(),
                 })
-                .select('id, remote_jid, sender, text, timestamp, created_at')
+                .select('id, remote_jid, sender, text, timestamp')
                 .single();
 
             const messageRecord = data || {
@@ -101,7 +101,6 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                 sender: input.sender ?? undefined,
                 text: input.text,
                 timestamp: input.timestamp ?? new Date().toISOString(),
-                created_at: input.timestamp ?? new Date().toISOString(),
             };
 
             if (error) {

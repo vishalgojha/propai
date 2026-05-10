@@ -52,10 +52,14 @@ export class LeadStorageServiceError extends Error {
 }
 
 export class LeadStorageService {
-    private readonly supabaseUrl = process.env.SUPABASE_URL || 'https://wnrwntumacbirbndfvwg.supabase.co';
-    private readonly supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InducndudHVtYWNiaXJibmRmdndnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNTgwNjcsImV4cCI6MjA4OTgzNDA2N30.ub1zIhw1535oPMY9io07BPTgTfWiNdivAkfTerjeoYQ';
+    private readonly supabaseUrl = process.env.SUPABASE_URL || '';
+    private readonly supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 
     private createRequestClient(accessToken: string): SupabaseClient {
+        if (!this.supabaseUrl || !this.supabaseAnonKey) {
+            throw new LeadStorageServiceError('SUPABASE_URL and SUPABASE_ANON_KEY must be configured');
+        }
+
         return createClient(this.supabaseUrl, this.supabaseAnonKey, {
             ...serverClientOptions,
             global: {

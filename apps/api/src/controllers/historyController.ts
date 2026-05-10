@@ -9,6 +9,11 @@ function getTenantId(req: Request) {
 
 const db = supabaseAdmin ?? supabase;
 
+function isMissingHistoryProfileColumnError(error: any) {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('history_processed') || message.includes('history_processed_at') || message.includes('history_message_count') || message.includes('history_total_count');
+}
+
 type HistoryImportFile = {
   fileName?: string | null;
   content?: string | null;
@@ -45,11 +50,11 @@ export const importHistoryTxt = async (req: Request, res: Response) => {
       .eq('id', tenantId)
       .maybeSingle();
 
-    if (profileError) {
+    if (profileError && !isMissingHistoryProfileColumnError(profileError)) {
       return res.status(500).json({ error: profileError.message });
     }
 
-    if (profile?.history_processed) {
+    if (!profileError && profile?.history_processed) {
       return res.status(200).json({
         success: true,
         queued: false,

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { keyService, parseApiKeys } from './keyService';
-import { getWorkspaceDefaultModel } from './workspaceSettingsService';
+import { getWorkspaceDefaultModel, getWorkspaceExplicitDefaultModel } from './workspaceSettingsService';
 
 interface AIResponse {
     text: string;
@@ -115,11 +115,12 @@ export class AIService {
 
     private async buildProviderOrder(modelPreference: string, taskType?: string, tenantId?: string): Promise<ProviderId[]> {
         const savedDefault = tenantId ? await getWorkspaceDefaultModel(tenantId).catch(() => null) : null;
+        const explicitDefault = tenantId ? await getWorkspaceExplicitDefaultModel(tenantId).catch(() => null) : null;
         const tenantConcentrateKey = tenantId ? await keyService.getKey(tenantId, 'Concentrate').catch(() => null) : null;
         const hasConcentrate = Boolean(tenantConcentrateKey || process.env.CONCENTRATE_API_KEY);
         const preferred =
             this.normalizeProviderPreference(modelPreference && modelPreference !== 'Auto' ? modelPreference : null) ||
-            this.normalizeProviderPreference(savedDefault) ||
+            this.normalizeProviderPreference(explicitDefault || (hasConcentrate ? 'concentrate' : savedDefault)) ||
             this.routeByTask(taskType);
         const order: ProviderId[] = hasConcentrate
             ? ['Concentrate', 'Google', 'Groq', 'OpenRouter', 'Doubleword']
@@ -398,13 +399,14 @@ export class AIService {
         const tenantOpenRouterKey = tenantId ? await keyService.getKey(tenantId, 'OpenRouter') : null;
         const tenantDoublewordKey = tenantId ? await keyService.getKey(tenantId, 'Doubleword') : null;
         const savedDefault = tenantId ? await getWorkspaceDefaultModel(tenantId).catch(() => null) : null;
+        const explicitDefault = tenantId ? await getWorkspaceExplicitDefaultModel(tenantId).catch(() => null) : null;
         const hasConcentrate = Boolean(tenantConcentrateKey || process.env.CONCENTRATE_API_KEY);
         const hasGroq = Boolean(tenantGroqKey || process.env.GROQ_API_KEY);
         const hasGoogle = Boolean(tenantGoogleKey || process.env.GOOGLE_API_KEY);
         const hasOpenRouter = Boolean(tenantOpenRouterKey || process.env.OPENROUTER_API_KEY);
         const hasDoubleword = Boolean(tenantDoublewordKey || process.env.DOUBLEWORD_API_KEY);
         const preferred =
-            this.normalizeProviderPreference(savedDefault) ||
+            this.normalizeProviderPreference(explicitDefault || (hasConcentrate ? 'concentrate' : savedDefault)) ||
             (hasConcentrate ? 'Concentrate' : 'Google');
         const providerOrder: ProviderId[] = hasConcentrate
             ? ['Concentrate', 'Google', 'Groq', 'OpenRouter', 'Doubleword']
@@ -416,7 +418,7 @@ export class AIService {
         return {
           preferredProvider: preferred,
           providerOrder: orderedProviders,
-          defaultModel: savedDefault || (hasConcentrate ? 'concentrate' : this.googleModel),
+          defaultModel: explicitDefault || (hasConcentrate ? 'concentrate' : (savedDefault || this.googleModel)),
           models: {
             Concentrate: { name: `Concentrate ${this.concentrateModel}`, latency: 250, status: hasConcentrate ? 'online' : 'offline' },
             Groq: { name: `Groq ${this.groqModel}`, latency: 150, status: hasGroq ? 'online' : 'offline' },

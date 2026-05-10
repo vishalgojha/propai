@@ -97,12 +97,10 @@ export class WorkspaceMonitorService {
 
             // If a session label filter is active, restrict group chats to the
             // groups that are known to belong to that session. If group sync
-            // has not completed yet, hide group chats rather than mixing across sessions.
+            // has not completed yet, fall back to raw group messages rather than
+            // collapsing the monitor to zero groups.
             if (sessionLabel && isGroup) {
-                if (sessionGroupIds.size === 0) {
-                    return false;
-                }
-                if (!sessionGroupIds.has(remoteJid)) {
+                if (sessionGroupIds.size > 0 && !sessionGroupIds.has(remoteJid)) {
                     return false;
                 }
             }

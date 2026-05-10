@@ -117,8 +117,8 @@ security definer
 as $$
 declare
   request_id bigint;
-  project_url text := 'https://wnrwntumacbirbndfvwg.supabase.co';
-  anon_key text := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InducndudHVtYWNiaXJibmRmdndnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNTgwNjcsImV4cCI6MjA4OTgzNDA2N30.ub1zIhw1535oPMY9io07BPTgTfWiNdivAkfTerjeoYQ';
+  project_url text := null;
+  anon_key text := null;
 begin
   if exists (
     select 1
@@ -136,6 +136,10 @@ begin
     from vault.decrypted_secrets
     where name = 'anon_key'
     limit 1;
+  end if;
+
+  if project_url is null or anon_key is null then
+    raise exception 'Vault secrets project_url and anon_key must be configured';
   end if;
 
   select net.http_post(

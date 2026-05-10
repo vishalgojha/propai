@@ -422,6 +422,10 @@ export class WhatsAppHealthService {
         }));
     }
 
+    async appendEvent(tenantId: string, sessionLabel: string, eventType: string, message: string, metadata: Record<string, unknown> = {}) {
+        await this.logEvent(tenantId, sessionLabel, eventType, message, metadata);
+    }
+
     private async countActiveGroups24h(tenantId: string, sessionLabel: string, ensureGroupId?: string, ensureTimestamp?: string) {
         const cutoff = new Date(Date.now() - DAY_MS).toISOString();
         const { data, error } = await db

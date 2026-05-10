@@ -440,11 +440,19 @@ export const Sources: React.FC = () => {
         backendApi.get(ENDPOINTS.whatsapp.events),
       ]);
 
+      const nextGroupHealth = Array.isArray(groupResponse.data) ? groupResponse.data : [];
+      const derivedGroupCount = nextGroupHealth.length;
+      const derivedActiveGroups24h = nextGroupHealth.filter((group) => group.status === 'active').length;
+
       setHealth({
         sessions: Array.isArray(healthResponse.data?.sessions) ? healthResponse.data.sessions : [],
-        summary: healthResponse.data?.summary || defaultHealthSummary,
+        summary: {
+          ...(healthResponse.data?.summary || defaultHealthSummary),
+          groupCount: Math.max(Number(healthResponse.data?.summary?.groupCount || 0), derivedGroupCount),
+          activeGroups24h: Math.max(Number(healthResponse.data?.summary?.activeGroups24h || 0), derivedActiveGroups24h),
+        },
       });
-      setGroupHealth(Array.isArray(groupResponse.data) ? groupResponse.data : []);
+      setGroupHealth(nextGroupHealth);
       setEventLogs(Array.isArray(eventResponse.data) ? eventResponse.data : []);
     } catch (err) {
       console.error(handleApiError(err));

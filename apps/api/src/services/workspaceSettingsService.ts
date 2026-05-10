@@ -220,3 +220,28 @@ export async function getWorkspaceDefaultModel(tenantId: string) {
     const record = await getWorkspaceSettingsRecord(tenantId);
     return record.settings.defaultModel;
 }
+
+export async function getWorkspaceExplicitDefaultModel(tenantId: string): Promise<string | null> {
+    try {
+        const { data, error } = await getSettingsStoreClient()
+            .from(SETTINGS_TABLE)
+            .select('settings')
+            .eq('tenant_id', tenantId)
+            .maybeSingle();
+
+        if (!error && data) {
+            const rawValue = (data as any)?.settings?.defaultModel;
+            return typeof rawValue === 'string' && rawValue.trim()
+                ? normalizeDefaultModel(rawValue)
+                : null;
+        }
+    } catch (error) {
+        console.error('[WorkspaceSettings] Unexpected DB defaultModel load failure', error);
+    }
+
+    const store = await readStore();
+    const rawValue = store[tenantId]?.settings?.defaultModel;
+    return typeof rawValue === 'string' && rawValue.trim()
+        ? normalizeDefaultModel(rawValue)
+        : null;
+}

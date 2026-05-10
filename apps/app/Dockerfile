@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -20,17 +20,28 @@ COPY apps/app/public ./apps/app/public
 COPY apps/app/index.html ./apps/app/
 COPY apps/app/tsconfig.json ./apps/app/
 COPY apps/app/vite.config.ts ./apps/app/
+COPY apps/app/server.js ./apps/app/server.js
 
 # Build
 WORKDIR /app/apps/app
 RUN pnpm run build
 
 # Production image
-FROM nginx:alpine
+FROM node:22-alpine
 
-COPY --from=builder /app/apps/app/dist /usr/share/nginx/html
-COPY apps/app/nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app/apps/app
 
-EXPOSE 3000
+# Copy built files and server.js
+COPY --from=builder /app/apps/app/dist ./dist
+COPY --from=builder /app/apps/app/server.js ./server.js
 
-CMD ["nginx", "-g", "daemon off;"]
+# Install production dependencies
+COPY --from=builder /app/apps/app/package.json ./package.json
+COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
+RUN corepack enable && \
+    NODE_ENV=production pnpm install --no-frozen-lockfile && \
+    echo "pnpm install completed"
+
+EXPOSE 3002
+
+CMD ["node", "server.js"]
