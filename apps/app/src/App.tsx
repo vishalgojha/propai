@@ -40,6 +40,7 @@ const ReferralCapture = React.lazy(async () => ({ default: (await import('./page
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
   const [onboardingCheck, setOnboardingCheck] = useState<'loading' | 'needed' | 'done' | null>(null);
 
   useEffect(() => {
@@ -63,7 +64,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <div className="h-screen bg-black flex items-center justify-center"><Skeleton className="w-64 h-8" /></div>;
   }
   if (!user) return <Navigate to="/login" replace />;
-  if (onboardingCheck === 'needed') return <Navigate to="/onboarding" replace />;
+  if (onboardingCheck === 'needed' && location.pathname !== '/onboarding') return <Navigate to="/onboarding" replace />;
 
   return <>{children}</>;
 };
@@ -109,6 +110,7 @@ export default function App() {
             <Route path="/auth/confirm" element={<AuthCallback />} />
             <Route path="/ref/:code" element={<ReferralCapture />} />
             <Route path="/impersonate" element={<ImpersonatePage />} />
+            <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route element={
               <ProtectedRoute>
                 <ProtectedLayout />
@@ -133,7 +135,6 @@ export default function App() {
               <Route path="/team" element={<Team />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/analytics" element={<Analytics />} />
-              <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/connect-whatsapp" element={<ConnectWhatsApp />} />
               <Route path="/setup-groups" element={<SetupGroups />} />
               <Route path="/intelligence" element={<Navigate to="/agent" replace />} />
