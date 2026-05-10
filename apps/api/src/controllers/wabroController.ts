@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase';
+import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 
 function getTenant(req: Request): string {
-  return (req as any).user?.id || '';
+  return req.user?.id || '';
 }
 
 // ── Campaigns ──────────────────────────────────────────
@@ -23,7 +24,7 @@ export async function createCampaign(req: Request, res: Response) {
     if (ce) throw ce;
 
     if (contacts?.length) {
-      const campaignContacts = contacts.map((c: any) => ({
+      const campaignContacts = contacts.map((c: { phone: string; name?: string }) => ({
         campaign_id: campaign.id,
         phone: c.phone,
         name: c.name || '',
@@ -40,8 +41,8 @@ export async function createCampaign(req: Request, res: Response) {
     }
 
     res.json({ success: true, campaign });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -55,8 +56,8 @@ export async function listCampaigns(req: Request, res: Response) {
       .order('created_at', { ascending: false });
     if (error) throw error;
     res.json({ campaigns: data || [] });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -79,8 +80,8 @@ export async function getCampaign(req: Request, res: Response) {
       .order('status');
 
     res.json({ campaign: data, contacts: contacts || [] });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -94,7 +95,7 @@ export async function updateCampaignStatus(req: Request, res: Response) {
       return res.status(400).json({ error: `Invalid status. Must be one of: ${valid.join(', ')}` });
     }
 
-    const updates: any = { status, updated_at: new Date().toISOString() };
+    const updates: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
     if (status === 'running') updates.started_at = new Date().toISOString();
     if (status === 'completed') updates.completed_at = new Date().toISOString();
 
@@ -105,8 +106,8 @@ export async function updateCampaignStatus(req: Request, res: Response) {
       .eq('tenant_id', tenantId);
     if (error) throw error;
     res.json({ success: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -121,8 +122,8 @@ export async function deleteCampaign(req: Request, res: Response) {
       .eq('tenant_id', tenantId);
     if (error) throw error;
     res.json({ success: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -140,8 +141,8 @@ export async function scheduleCampaign(req: Request, res: Response) {
       .eq('tenant_id', tenantId);
     if (error) throw error;
     res.json({ success: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -163,8 +164,8 @@ export async function listContactLists(req: Request, res: Response) {
     }
     const lists = Array.from(listMap.entries()).map(([name, count]) => ({ name, count }));
     res.json({ lists });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -180,8 +181,8 @@ export async function getContactsByList(req: Request, res: Response) {
       .order('created_at', { ascending: false });
     if (error) throw error;
     res.json({ contacts: data || [] });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -193,7 +194,7 @@ export async function addContacts(req: Request, res: Response) {
       return res.status(400).json({ error: 'list_name and contacts array required' });
     }
 
-    const rows = contacts.map((c: any) => ({
+    const rows = contacts.map((c: { phone: string; name?: string; locality?: string; budget?: string; language?: string }) => ({
       tenant_id: tenantId,
       list_name,
       phone: c.phone,
@@ -209,8 +210,8 @@ export async function addContacts(req: Request, res: Response) {
     });
     if (error) throw error;
     res.json({ success: true, count: rows.length });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -225,8 +226,8 @@ export async function deleteContact(req: Request, res: Response) {
       .eq('tenant_id', tenantId);
     if (error) throw error;
     res.json({ success: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -249,8 +250,8 @@ export async function registerDevice(req: Request, res: Response) {
     }, { onConflict: 'device_id' });
     if (error) throw error;
     res.json({ success: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -265,8 +266,8 @@ export async function deviceHeartbeat(req: Request, res: Response) {
       .eq('tenant_id', tenantId);
     if (error) throw error;
     res.json({ success: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -300,8 +301,8 @@ export async function getPendingCampaigns(req: Request, res: Response) {
     }));
 
     res.json({ campaigns: campaignsWithContacts });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -315,7 +316,7 @@ export async function syncSendLogs(req: Request, res: Response) {
       return res.status(400).json({ error: 'campaign_id and logs array required' });
     }
 
-    const rows = logs.map((log: any) => ({
+    const rows = logs.map((log: { phone: string; name?: string; status: string; error?: string }) => ({
       campaign_id,
       tenant_id: tenantId,
       contact_phone: log.phone,
@@ -348,7 +349,7 @@ export async function syncSendLogs(req: Request, res: Response) {
       .single();
     const total = totalRow?.total_contacts || 0;
 
-    const updates: any = { sent_count: sent, failed_count: failed, skipped_count: skipped };
+    const updates: Record<string, unknown> = { sent_count: sent, failed_count: failed, skipped_count: skipped };
     if (done >= total) {
       updates.status = 'completed';
       updates.completed_at = new Date().toISOString();
@@ -357,8 +358,8 @@ export async function syncSendLogs(req: Request, res: Response) {
     await supabaseAdmin!.from('wabro_campaigns').update(updates).eq('id', campaign_id);
 
     res.json({ success: true, sent, failed, skipped, total });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -368,7 +369,7 @@ export async function syncCampaignProgress(req: Request, res: Response) {
     const { campaignId } = req.params;
     const { sent_count, failed_count, skipped_count, status } = req.body;
 
-    const updates: any = { updated_at: new Date().toISOString() };
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (sent_count !== undefined) updates.sent_count = sent_count;
     if (failed_count !== undefined) updates.failed_count = failed_count;
     if (skipped_count !== undefined) updates.skipped_count = skipped_count;
@@ -385,8 +386,8 @@ export async function syncCampaignProgress(req: Request, res: Response) {
       .eq('tenant_id', tenantId);
     if (error) throw error;
     res.json({ success: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -407,8 +408,8 @@ export async function reportCrash(req: Request, res: Response) {
     }, { onConflict: 'device_id' });
 
     res.json({ success: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }
 
@@ -456,7 +457,7 @@ export async function dashboardStats(req: Request, res: Response) {
       },
       campaigns: campaigns || [],
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
   }
 }

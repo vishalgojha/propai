@@ -5,6 +5,8 @@ import { supabase, supabaseAdmin } from '../config/supabase';
 import { referralService } from '../services/referralService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { workspaceActivityService } from '../services/workspaceActivityService';
+import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
+import '../types/express';
 
 const db = supabaseAdmin || supabase;
 const WORKSPACE_METADATA_FILE = path.join(process.cwd(), 'data', 'workspace-metadata.json');
@@ -22,9 +24,10 @@ type StoredWorkspaceMetadata = Record<string, {
     updatedAt: string | null;
 }>;
 
-function isMissingWorkspaceMetadataRelationError(error: any) {
-    const message = String(error?.message || '').toLowerCase();
-    return error?.code === '42P01' || message.includes('schema cache') || message.includes('does not exist');
+function isMissingWorkspaceMetadataRelationError(error: unknown) {
+    const err = error as { message?: string; code?: string } | null;
+    const message = String(err?.message || '').toLowerCase();
+    return err?.code === '42P01' || message.includes('schema cache') || message.includes('does not exist');
 }
 
 async function readWorkspaceMetadataStore(): Promise<StoredWorkspaceMetadata> {
@@ -48,7 +51,7 @@ async function writeWorkspaceMetadataStore(store: StoredWorkspaceMetadata) {
 
 export const getWorkspaceOverview = async (req: Request, res: Response) => {
     try {
-        const context = await workspaceAccessService.resolveContext((req as any).user);
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
 
         const [ownerResult, membersResult] = await Promise.all([
             db
@@ -79,14 +82,14 @@ export const getWorkspaceOverview = async (req: Request, res: Response) => {
                 teamSize: (membersResult.data || []).length + 1,
             },
         });
-    } catch (error: any) {
-        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load workspace overview' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load workspace overview') });
     }
 };
 
 export const getWorkspaceMetadata = async (req: Request, res: Response) => {
     try {
-        const context = await workspaceAccessService.resolveContext((req as any).user);
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
         const store = await readWorkspaceMetadataStore();
         const fallback = store[context.workspaceOwnerId] || {
             agencyName: null,
@@ -132,7 +135,7 @@ export const getWorkspaceMetadata = async (req: Request, res: Response) => {
         const dbMetadata = {
             agencyName: workspaceResult.data?.agency_name || null,
             primaryCity: workspaceResult.data?.primary_city || null,
-            serviceAreas: (areasResult.data || []).map((row: any) => ({
+            serviceAreas: (areasResult.data || []).map((row: { city: string | null; locality: string | null; priority: number | null }) => ({
                 city: String(row.city || '').trim(),
                 locality: String(row.locality || '').trim(),
                 priority: Number(row.priority || 0),
@@ -157,33 +160,33 @@ export const getWorkspaceMetadata = async (req: Request, res: Response) => {
             },
             metadata,
         });
-    } catch (error: any) {
-        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load workspace metadata' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load workspace metadata') });
     }
 };
 
 export const getWorkspaceReferral = async (req: Request, res: Response) => {
     try {
-        const context = await workspaceAccessService.resolveContext((req as any).user);
-        const actor = (req as any).user;
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const actor = req.user;
         const summary = await referralService.getSummary(
             context.workspaceOwnerId,
             actor?.email || null,
-            actor?.user_metadata?.full_name || null,
+            (typeof actor?.user_metadata?.full_name === 'string' ? actor.user_metadata.full_name : null),
         );
 
         res.json({
             success: true,
             referral: summary,
         });
-    } catch (error: any) {
-        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load referral summary' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load referral summary') });
     }
 };
 
 export const saveWorkspaceMetadata = async (req: Request, res: Response) => {
     try {
-        const context = await workspaceAccessService.requireWorkspaceAdmin((req as any).user);
+        const context = await workspaceAccessService.requireWorkspaceAdmin(req.user ?? {});
         const agencyName = String(req.body?.agencyName || '').trim() || null;
         const primaryCity = String(req.body?.primaryCity || '').trim() || null;
         const serviceAreas = Array.isArray(req.body?.serviceAreas) ? req.body.serviceAreas as WorkspaceServiceAreaInput[] : [];
@@ -257,7 +260,7 @@ export const saveWorkspaceMetadata = async (req: Request, res: Response) => {
         await writeWorkspaceMetadataStore(store);
 
         void workspaceActivityService.track({
-            actor: (req as any).user,
+            actor: req.user,
             workspaceOwnerId: context.workspaceOwnerId,
             actorRole: context.memberRole,
             eventType: 'workspace.metadata.updated',
@@ -281,14 +284,14 @@ export const saveWorkspaceMetadata = async (req: Request, res: Response) => {
             },
             legacyStorage: missingWorkspaceTable || missingServiceAreasTable,
         });
-    } catch (error: any) {
-        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to save workspace metadata' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to save workspace metadata') });
     }
 };
 
 export const listWorkspaceTeam = async (req: Request, res: Response) => {
     try {
-        const context = await workspaceAccessService.resolveContext((req as any).user);
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
 
         const [ownerResult, membersResult] = await Promise.all([
             db
@@ -306,7 +309,7 @@ export const listWorkspaceTeam = async (req: Request, res: Response) => {
         if (ownerResult.error) throw ownerResult.error;
         if (membersResult.error) throw membersResult.error;
 
-        const members = (membersResult.data || []).map((member: any) => ({
+        const members = (membersResult.data || []).map((member: { id: string; member_user_id: string | null; member_email: string; member_name: string | null; member_phone: string | null; role: string; status: string; invited_at: string | null; joined_at: string | null; last_active_at: string | null; updated_at: string | null }) => ({
             id: member.id,
             userId: member.member_user_id || null,
             email: member.member_email,
@@ -333,14 +336,14 @@ export const listWorkspaceTeam = async (req: Request, res: Response) => {
             },
             members,
         });
-    } catch (error: any) {
-        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load workspace team' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load workspace team') });
     }
 };
 
 export const addWorkspaceMember = async (req: Request, res: Response) => {
     try {
-        const context = await workspaceAccessService.requireWorkspaceAdmin((req as any).user);
+        const context = await workspaceAccessService.requireWorkspaceAdmin(req.user ?? {});
         const memberEmail = String(req.body?.email || '').trim().toLowerCase();
         const fullName = String(req.body?.fullName || '').trim() || null;
         const phone = String(req.body?.phone || '').split('').filter(c => c >= '0' && c <= '9').join('') || null;
@@ -391,7 +394,7 @@ export const addWorkspaceMember = async (req: Request, res: Response) => {
         }
 
         await workspaceActivityService.track({
-            actor: (req as any).user,
+            actor: req.user,
             workspaceOwnerId: context.workspaceOwnerId,
             actorRole: context.memberRole,
             eventType: 'workspace.member.added',
@@ -421,14 +424,14 @@ export const addWorkspaceMember = async (req: Request, res: Response) => {
                 updatedAt: data.updated_at || null,
             },
         });
-    } catch (error: any) {
-        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to add workspace member' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to add workspace member') });
     }
 };
 
 export const updateWorkspaceMember = async (req: Request, res: Response) => {
     try {
-        const context = await workspaceAccessService.requireWorkspaceAdmin((req as any).user);
+        const context = await workspaceAccessService.requireWorkspaceAdmin(req.user ?? {});
         const memberId = String(req.params.memberId || '').trim();
         if (!memberId) {
             return res.status(400).json({ error: 'Workspace member ID is required' });
@@ -468,7 +471,7 @@ export const updateWorkspaceMember = async (req: Request, res: Response) => {
         }
 
         await workspaceActivityService.track({
-            actor: (req as any).user,
+            actor: req.user,
             workspaceOwnerId: context.workspaceOwnerId,
             actorRole: context.memberRole,
             eventType: 'workspace.member.updated',
@@ -498,14 +501,14 @@ export const updateWorkspaceMember = async (req: Request, res: Response) => {
                 updatedAt: data.updated_at || null,
             },
         });
-    } catch (error: any) {
-        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to update workspace member' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to update workspace member') });
     }
 };
 
 export const listWorkspaceActivity = async (req: Request, res: Response) => {
     try {
-        const context = await workspaceAccessService.resolveContext((req as any).user);
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
         const limit = Math.max(10, Math.min(200, Number(req.query.limit || 80)));
         const activity = await workspaceActivityService.list(context.workspaceOwnerId, limit);
 
@@ -519,7 +522,7 @@ export const listWorkspaceActivity = async (req: Request, res: Response) => {
             },
             activity,
         });
-    } catch (error: any) {
-        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load workspace activity' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load workspace activity') });
     }
 };

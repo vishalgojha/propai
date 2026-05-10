@@ -3,14 +3,16 @@ import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getInbox
 import { importHistoryTxt } from '../controllers/historyController';
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
+import { validate } from '../middleware/validate';
+import { connectWhatsAppSchema, forceRefreshQRSchema, saveProfileSchema, sendMessageSchema, sendBulkSchema, broadcastSchema, disconnectSchema } from '../schemas/whatsappSchemas';
 
 const router = Router();
 
 router.use(authMiddleware);
 
-router.post(ROUTE_PATHS.whatsapp.connect, connectWhatsApp);
+router.post(ROUTE_PATHS.whatsapp.connect, validate(connectWhatsAppSchema), connectWhatsApp);
 router.get(ROUTE_PATHS.whatsapp.qr, getQR);
-router.post(ROUTE_PATHS.whatsapp.qrForceRefresh, forceRefreshQR);
+router.post(ROUTE_PATHS.whatsapp.qrForceRefresh, validate(forceRefreshQRSchema), forceRefreshQR);
 router.post(ROUTE_PATHS.whatsapp.historyImport, importHistoryTxt);
 router.get(ROUTE_PATHS.whatsapp.status, getStatus);
 router.get(ROUTE_PATHS.whatsapp.monitor, getMonitor);
@@ -20,18 +22,18 @@ router.get(ROUTE_PATHS.whatsapp.healthDetailed, getDetailedHealth);
 router.get(ROUTE_PATHS.whatsapp.groupsHealth, getGroupHealth);
 router.get(ROUTE_PATHS.whatsapp.events, getEvents);
 router.get(ROUTE_PATHS.whatsapp.profile, getProfile);
-router.post(ROUTE_PATHS.whatsapp.profile, saveProfile);
+router.post(ROUTE_PATHS.whatsapp.profile, validate(saveProfileSchema), saveProfile);
 router.get(ROUTE_PATHS.whatsapp.messages, getMessages);
-router.post(ROUTE_PATHS.whatsapp.send, sendMessage);
-router.post(ROUTE_PATHS.whatsapp.sendBulk, sendBulkDirectMessages);
-router.post(ROUTE_PATHS.whatsapp.broadcast, broadcastToGroups);
-router.post(ROUTE_PATHS.whatsapp.disconnect, disconnectWhatsApp);
+router.post(ROUTE_PATHS.whatsapp.send, validate(sendMessageSchema), sendMessage);
+router.post(ROUTE_PATHS.whatsapp.sendBulk, validate(sendBulkSchema), sendBulkDirectMessages);
+router.post(ROUTE_PATHS.whatsapp.broadcast, validate(broadcastSchema), broadcastToGroups);
+router.post(ROUTE_PATHS.whatsapp.disconnect, validate(disconnectSchema), disconnectWhatsApp);
 router.get(ROUTE_PATHS.whatsapp.groups, getGroups);
 router.get(ROUTE_PATHS.whatsapp.recipients, getOutboundRecipients);
 
 router.post(ROUTE_PATHS.whatsapp.config, async (req: Request, res: Response) => {
     const { group_id, behavior, session_label, parse_direct_messages, self_chat_enabled } = req.body;
-    const tenant_id = (req as any).user?.id;
+    const tenant_id = req.user?.id;
     const db = require('../config/supabase').supabase;
 
     if (group_id) {

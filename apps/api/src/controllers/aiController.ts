@@ -5,27 +5,26 @@ import { keyService } from '../services/keyService';
 import { agentRouterService } from '../services/agentRouterService';
 import { PULSE_CHAT_SYSTEM_PROMPT } from '../services/pulseChatPrompt';
 import { parseAgentResponse, toAgentResponse } from '../types/agent';
-import { agentToolService } from '../services/agentToolService';
 import {
     getConversationHistory,
     getConversationMessageCount,
     saveToHistory,
 } from '../memory/conversationMemory';
-import { supabase, supabaseAdmin } from '../config/supabase';
 import {
     buildCapabilityHint,
     buildPersonalizedSystemPrompt,
     executeSharedRoute,
     getBrokerProfile,
 } from '../services/unifiedAgentService';
-
-type StructuredToolCall = {
-    toolCode: string;
-    toolParams: Record<string, unknown>;
-};
+import { searchProperties } from '../services/propertySearchService';
+import { buildAttachmentContext } from '../services/attachmentContextService';
+import { extractStructuredToolCall, executeStructuredToolCall } from '../services/structuredToolService';
+import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
+import '../types/express';
 
 export const chat = async (req: Request, res: Response) => {
-    const user = (req as any).user;
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
     const tenantId = user.id;
     const rawPrompt = req.body.prompt || req.body.message;
     const modelPreference = req.body.modelPreference || req.body.model;
@@ -103,9 +102,9 @@ export const chat = async (req: Request, res: Response) => {
         const renderedReply = maybePersonalizeGreeting(agentResponse.message, profile?.full_name, isFirstReply);
         await saveToHistory(conversationKey, prompt, renderedReply);
         res.json({ ...response, reply: renderedReply, text: renderedReply, agent_response: agentResponse, route, capability_hint: capabilityHint });
-    } catch (error: any) {
+    } catch (error: unknown) {
         const capabilityHint = buildCapabilityHint('general_answer');
-        const fallbackError = error?.message || 'AI provider unavailable';
+        const fallbackError = getErrorMessage(error, 'AI provider unavailable');
         const agentResponse = toAgentResponse(`Pulse could not reach the model chain. ${fallbackError}`);
         res.json({
             reply: agentResponse.message,
@@ -114,52 +113,10 @@ export const chat = async (req: Request, res: Response) => {
             route: { intent: 'general_answer' },
             capability_hint: capabilityHint,
             fallback_error: fallbackError,
-            provider_errors: error?.providerErrors || [],
+            provider_errors: error instanceof Error && 'providerErrors' in error ? (error as Record<string, unknown>).providerErrors as Array<unknown> : [],
         });
     }
 };
-
-async function buildAttachmentContext(tenantId: string, attachments: any[]) {
-    const ids = attachments
-        .map((item) => (typeof item === 'string' ? item : item?.fileId))
-        .map((value) => String(value || '').trim())
-        .filter(Boolean)
-        .slice(0, 6);
-
-    if (ids.length === 0) return '';
-
-    const client = supabaseAdmin ?? supabase;
-    const { data, error } = await client
-        .from('workspace_files')
-        .select('id, file_name, mime_type, extracted_text, extraction_status, extraction_error')
-        .eq('workspace_id', tenantId)
-        .in('id', ids);
-
-    if (error || !Array.isArray(data) || data.length === 0) {
-        return '';
-    }
-
-    const parts: string[] = [];
-    for (const row of data) {
-        const name = String((row as any).file_name || 'attachment');
-        const mime = String((row as any).mime_type || '');
-        const text = String((row as any).extracted_text || '').trim();
-        const status = String((row as any).extraction_status || '');
-        const extractionError = String((row as any).extraction_error || '').trim();
-        if (!text) {
-            if (status === 'failed') {
-                parts.push(`[${name}${mime ? ` (${mime})` : ''}] OCR/text extraction failed${extractionError ? `: ${extractionError}` : '.'} If this is a scanned PDF/image, try a clearer file or paste the key text.`);
-            } else {
-                parts.push(`[${name}${mime ? ` (${mime})` : ''}] No text extracted. If this is a scanned PDF/image and OCR is not enabled on this deployment, the model cannot read it. Please paste the key text or upload a text-based PDF/TXT.`);
-            }
-            continue;
-        }
-        const clipped = text.length > 30_000 ? `${text.slice(0, 30_000)}\n\n[Truncated]` : text;
-        parts.push(`[${name}${mime ? ` (${mime})` : ''}]\n${clipped}`);
-    }
-
-    return parts.join('\n\n');
-}
 
 function maybePersonalizeGreeting(reply: string, _fullName?: string, _shouldGreet?: boolean) {
     return reply.trim();
@@ -169,161 +126,49 @@ function logAgentInvocation(stage: 'request' | 'response', metadata: Record<stri
     console.info('[agent-invocation]', JSON.stringify({ stage, ...metadata }));
 }
 
-function extractStructuredToolCall(rawText: string): StructuredToolCall | null {
-    const fenced = rawText.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    const candidate = fenced?.[1]?.trim() || rawText.trim();
-    const start = candidate.indexOf('{');
-    const end = candidate.lastIndexOf('}');
-
-    if (start < 0 || end <= start) {
-        return null;
-    }
-
-    try {
-        const parsed = JSON.parse(candidate.slice(start, end + 1)) as Record<string, unknown>;
-        if (typeof parsed.tool_code !== 'string') {
-            return null;
-        }
-
-        return {
-            toolCode: parsed.tool_code,
-            toolParams: parsed.tool_params && typeof parsed.tool_params === 'object'
-                ? parsed.tool_params as Record<string, unknown>
-                : {},
-        };
-    } catch {
-        return null;
-    }
-}
-
-function normalizeWhatsAppJid(value: string) {
-    const digits = value.split('').filter(c => c >= '0' && c <= '9').join('');
-    return digits ? `${digits}@s.whatsapp.net` : '';
-}
-
-async function executeStructuredToolCall(tenantId: string, call: StructuredToolCall) {
-    switch (call.toolCode) {
-        case 'send_message_to_whatsapp_contact': {
-            const contactNumber = String(call.toolParams.contact_number || '').trim();
-            const messageContent = String(call.toolParams.message_content || '').trim();
-
-            if (!contactNumber || !messageContent) {
-                return 'I could not send that because the contact number or message was missing.';
-            }
-
-            const remoteJid = normalizeWhatsAppJid(contactNumber);
-            if (!remoteJid) {
-                return 'I could not send that because the WhatsApp number was invalid.';
-            }
-
-            const toolResult = await agentToolService.executeTool('send_whatsapp_message', {
-                remote_jid: remoteJid,
-                text: messageContent,
-            }, {
-                tenantId,
-                remoteJid,
-                promptText: messageContent,
-            });
-
-            if (toolResult?.success === false || toolResult?.error) {
-                return 'WhatsApp is not connected right now, so I could not send that message.';
-            }
-
-            return `Sent. I sent "${messageContent}" to ${contactNumber}.`;
-        }
-        default:
-            return 'I recognized the requested action, but that tool is not wired in this workspace yet.';
-    }
-}
-
 
 export const getAIStatus = async (req: Request, res: Response) => {
-    const user = (req as any).user;
-    const status = await aiService.getStatus(user?.id);
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const status = await aiService.getStatus(req.user.id);
     res.json(status);
 };
 
 export const getModels = async (req: Request, res: Response) => {
-    const user = (req as any).user;
-    const tenantId = user.id;
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
-        const models = await modelDiscoveryService.discoverModels(tenantId);
+        const models = await modelDiscoveryService.discoverModels(req.user.id);
         res.json(models);
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load models') });
     }
 };
 
 export const updateKey = async (req: Request, res: Response) => {
-    const user = (req as any).user;
-    const tenantId = user.id;
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { provider, key } = req.body;
     if (!provider || !key) return res.status(400).json({ error: 'Provider and key are required' });
 
     try {
-        const result = await keyService.saveKey(tenantId, provider, key);
+        const result = await keyService.saveKey(req.user.id, provider, key);
         if (!result.success) return res.status(500).json({ error: result.error });
         res.json({ message: 'Key updated successfully' });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to update key') });
     }
 };
 
 export const propertySearch = async (req: Request, res: Response) => {
-    const user = (req as any).user;
-    const tenantId = user?.id;
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { message } = req.body;
     if (!message) return res.status(400).json({ error: 'Message is required' });
 
     try {
-        const { supabase } = await import('../config/supabase');
-        const normalizedTokens = String(message)
-            .toLowerCase()
-            .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
-            .split(/\s+/)
-            .map((token) => token.trim())
-            .filter((token) => token.length >= 3);
-
-        const { data: listings, error } = await supabase
-            .from('listings')
-            .select('id, raw_text, structured_data')
-            .eq('status', 'Active')
-            .order('created_at', { ascending: false })
-            .limit(100);
-
-        if (error) throw error;
-
-        const ranked = (listings || [])
-            .map((listing: any) => {
-                const haystack = JSON.stringify(listing.structured_data || {}).toLowerCase();
-                const score = normalizedTokens.reduce((sum, token) => sum + (haystack.includes(token) ? 1 : 0), 0);
-                return { listing, score };
-            })
-            .filter((entry) => entry.score > 0)
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 5);
-
-        const properties = ranked.map(({ listing, score }) => ({
-            id: listing.id,
-            title: listing.structured_data?.title || listing.structured_data?.building_name || 'Property listing',
-            location: listing.structured_data?.location || listing.structured_data?.locality || 'Location unavailable',
-            price: listing.structured_data?.price || listing.structured_data?.budget || 'Price unavailable',
-            details: listing.raw_text || '',
-            match: Math.max(50, Math.min(99, score * 20)),
-        }));
-
-        const aiResponse = properties.length
-            ? `I found ${properties.length} matching ${properties.length === 1 ? 'listing' : 'listings'} from your workspace data.`
-            : 'I could not find any trustworthy listing match for that query in your workspace right now.';
-
-        res.json({
-            response: aiResponse,
-            properties,
-        });
-    } catch (error: any) {
-        res.status(500).json({
-            error: error.message || 'Property search is unavailable right now.',
+        const result = await searchProperties(req.user.id, message);
+        res.json(result);
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({
+            error: getErrorMessage(error, 'Property search is unavailable right now.'),
             response: 'Property search is unavailable right now.',
             properties: [],
         });
@@ -331,16 +176,15 @@ export const propertySearch = async (req: Request, res: Response) => {
 };
 
 export const testKey = async (req: Request, res: Response) => {
-    const user = (req as any).user;
-    const tenantId = user.id;
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { provider } = req.body;
     if (!provider) return res.status(400).json({ error: 'Provider is required' });
 
     try {
-        const result = await keyService.testConnection(tenantId, provider);
+        const result = await keyService.testConnection(req.user.id, provider);
         if (!result.success) return res.status(400).json({ error: result.error });
         res.json({ message: 'Connected ✅' });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to test key') });
     }
 };

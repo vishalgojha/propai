@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { validate } from '../middleware/validate';
 import {
     listAdminWorkspaces,
     updateWorkspaceSubscription,
@@ -10,14 +11,20 @@ import {
     listImpersonations,
     getAdminAuditLog,
 } from '../controllers/adminController';
+import {
+    listWorkspacesQuerySchema,
+    updateSubscriptionBodySchema,
+    updateGroupBodySchema,
+    getAuditLogQuerySchema,
+} from '../schemas/adminSchemas';
 
 const router = Router();
 
 // Workspace list (paginated, searchable)
-router.get('/workspaces', listAdminWorkspaces);
-router.post('/workspaces/:tenantId/subscription', updateWorkspaceSubscription);
+router.get('/workspaces', validate(listWorkspacesQuerySchema, 'query'), listAdminWorkspaces);
+router.post('/workspaces/:tenantId/subscription', validate(updateSubscriptionBodySchema), updateWorkspaceSubscription);
 router.get('/workspaces/:tenantId/groups', listWorkspaceGroups);
-router.post('/workspaces/:tenantId/groups/:groupJid', updateWorkspaceGroup);
+router.post('/workspaces/:tenantId/groups/:groupJid', validate(updateGroupBodySchema), updateWorkspaceGroup);
 
 // Impersonation
 router.post('/workspaces/:tenantId/impersonate', impersonateWorkspace);
@@ -26,6 +33,6 @@ router.delete('/impersonation/:token', revokeImpersonation);
 router.get('/impersonations', listImpersonations);
 
 // Audit log
-router.get('/audit', getAdminAuditLog);
+router.get('/audit', validate(getAuditLogQuerySchema, 'query'), getAdminAuditLog);
 
 export default router;

@@ -1,10 +1,18 @@
 import { Router } from 'express';
+import { validate } from '../middleware/validate';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { createSupabaseAnonClient, supabaseAdmin } from '../config/supabase';
 import { ROUTE_PATHS } from './routePaths';
 import { referralService } from '../services/referralService';
 import { subscriptionService } from '../services/subscriptionService';
 import { emailNotificationService } from '../services/emailNotificationService';
+import {
+    requestVerificationBodySchema,
+    passwordAuthBodySchema,
+    verifyOtpBodySchema,
+    refreshTokenBodySchema,
+    resetPasswordBodySchema,
+} from '../schemas/authSchemas';
 
 const router = Router();
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
@@ -116,9 +124,8 @@ async function getLegacyUserSeed(userId: string) {
     return data;
 }
 
-router.post(ROUTE_PATHS.auth.requestVerification, async (req, res) => {
+router.post(ROUTE_PATHS.auth.requestVerification, validate(requestVerificationBodySchema), async (req, res) => {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email is required' });
 
     try {
         const authClient = createSupabaseAnonClient();
@@ -143,12 +150,8 @@ router.post(ROUTE_PATHS.auth.requestVerification, async (req, res) => {
     }
 });
 
-router.post(ROUTE_PATHS.auth.password, async (req, res) => {
+router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (req, res) => {
     const { mode, email, password, fullName, phone, referralCode } = req.body || {};
-
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required' });
-    }
 
     const loginMode = mode === 'signup' ? 'signup' : 'signin';
 
@@ -287,9 +290,8 @@ router.post(ROUTE_PATHS.auth.password, async (req, res) => {
     }
 });
 
-router.post(ROUTE_PATHS.auth.verify, async (req, res) => {
+router.post(ROUTE_PATHS.auth.verify, validate(verifyOtpBodySchema), async (req, res) => {
     const { email, otp } = req.body;
-    if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
 
     const authClient = createSupabaseAnonClient();
     const { data, error } = await authClient.auth.verifyOtp({
@@ -312,9 +314,8 @@ router.post(ROUTE_PATHS.auth.verify, async (req, res) => {
     });
 });
 
-router.post(ROUTE_PATHS.auth.refresh, async (req, res) => {
+router.post(ROUTE_PATHS.auth.refresh, validate(refreshTokenBodySchema), async (req, res) => {
     const { refreshToken } = req.body;
-    if (!refreshToken) return res.status(400).json({ error: 'Refresh token is required' });
 
     try {
         const supabaseUrl = process.env.SUPABASE_URL;
@@ -358,9 +359,8 @@ router.post(ROUTE_PATHS.auth.refresh, async (req, res) => {
     }
 });
 
-router.post(ROUTE_PATHS.auth.resetPassword, async (req, res) => {
+router.post(ROUTE_PATHS.auth.resetPassword, validate(resetPasswordBodySchema), async (req, res) => {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email is required' });
 
     try {
         const authClient = createSupabaseAnonClient();

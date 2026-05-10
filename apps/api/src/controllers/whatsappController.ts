@@ -8,9 +8,13 @@ import { workspaceMonitorService } from '../services/workspaceMonitorService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { workspaceActivityService } from '../services/workspaceActivityService';
 import { sendWhatsAppLifecycleEmail } from '../whatsapp/propaiRuntimeHooks';
+import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
+import type { WhatsAppClient } from '../whatsapp/WhatsAppClient';
+import type { SessionSnapshot } from '@vishalgojha/whatsapp-baileys-runtime';
+import '../types/express';
 
 function getTenantId(req: Request) {
-    const user = (req as any).user;
+    const user = req.user;
     return user?.id || 'system';
 }
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
@@ -81,15 +85,15 @@ function buildConnectionArtifact(mode: ConnectionArtifactMode, value?: string | 
     };
 }
 
-function formatProfileResponse(profile: any, fallback?: { id: string; fullName: string; phone: string; email?: string | null }) {
+function formatProfileResponse(profile: Record<string, unknown> | null, fallback?: { id: string; fullName: string; phone: string; email?: string | null }) {
     if (profile) {
         return {
             id: profile.id,
-            fullName: profile.full_name,
+            fullName: String(profile?.full_name ?? ''),
             phone: profile.phone,
-            email: profile.email,
-            phoneVerified: profile.phone_verified,
-            appRole: profile.app_role || (isOwnerSuperAdminEmail(profile.email || fallback?.email) ? 'super_admin' : 'broker'),
+            email: String(profile?.email ?? ''),
+            phoneVerified: Boolean(profile?.phone_verified),
+            appRole: String(profile?.app_role || '') || (isOwnerSuperAdminEmail(String(profile?.email || '') || fallback?.email) ? 'super_admin' : 'broker'),
         };
     }
 
@@ -207,7 +211,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
         });
 
         void workspaceActivityService.track({
-            actor: (req as any).user,
+            actor: req.user,
             workspaceOwnerId: tenantId,
             eventType: 'whatsapp.session.connecting',
             entityType: 'whatsapp_session',
@@ -219,7 +223,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
                 ownerName: ownerName || null,
             },
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Connect Error:', error);
         await getDbClient()
             .from('whatsapp_sessions')
@@ -229,7 +233,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             })
             .eq('tenant_id', tenantId)
             .eq('label', sessionLabel);
-        res.status(500).json({ error: error.message || 'Could not start connection. Please try again.' });
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Could not start connection. Please try again.') });
     }
 };
 
@@ -258,7 +262,7 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
         });
 
         void workspaceActivityService.track({
-            actor: (req as any).user,
+            actor: req.user,
             workspaceOwnerId: tenantId,
             eventType: 'whatsapp.qr.force_refresh',
             entityType: 'whatsapp_session',
@@ -266,10 +270,10 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
             summary: `Force refreshed QR code for session ${result.label}.`,
             metadata: { label: result.label },
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Force Refresh QR Error:', error);
-        res.status(500).json({ 
-            error: error.message || 'Could not refresh QR code. Please try disconnecting and reconnecting.' 
+        res.status(getErrorStatus(error)).json({ 
+            error: getErrorMessage(error, 'Could not refresh QR code. Please try disconnecting and reconnecting.') 
         });
     }
 };
@@ -331,7 +335,7 @@ export const getQR = async (req: Request, res: Response) => {
 
 export const getStatus = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
-    const user = (req as any).user;
+    const user = req.user;
 
     if (tenantId === 'system') {
         const status = await sessionManager.getSystemStatus();
@@ -347,7 +351,7 @@ export const getStatus = async (req: Request, res: Response) => {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    const dbSessions = (data || []).map((row: any) => ({
+    const dbSessions = (data || []).map((row: { label: string; owner_name: string | null; status: string; session_data: { phoneNumber?: string } | null; last_sync: string }) => ({
         label: row.label,
         ownerName: row.owner_name,
         status: row.status,
@@ -355,27 +359,27 @@ export const getStatus = async (req: Request, res: Response) => {
         sessionData: row.session_data || null,
         lastSync: row.last_sync,
     }));
-    const liveSessions = sessionManager.getLiveSessionSnapshots(tenantId);
-    const sessionMap = new Map<string, any>();
+        const liveSessions: (SessionSnapshot & { reconnectAttempts?: number; isReconnecting?: boolean })[] = sessionManager.getLiveSessionSnapshots(tenantId) as (SessionSnapshot & { reconnectAttempts?: number; isReconnecting?: boolean })[];
+        const sessionMap = new Map<string, Record<string, unknown>>();
 
-    for (const session of dbSessions) {
-        sessionMap.set(session.label, session);
-    }
+        for (const session of dbSessions) {
+            sessionMap.set(session.label, session as unknown as Record<string, unknown>);
+        }
 
-    for (const liveSession of liveSessions) {
-        const existing = sessionMap.get(liveSession.label);
-        sessionMap.set(liveSession.label, {
-            ...existing,
-            ...liveSession,
-            lastSync: existing?.lastSync || new Date().toISOString(),
-        });
-    }
+        for (const liveSession of liveSessions) {
+            const existing = sessionMap.get(liveSession.label);
+            sessionMap.set(liveSession.label, {
+                ...existing,
+                ...liveSession,
+                lastSync: existing?.lastSync || new Date().toISOString(),
+            });
+        }
 
         const sessions = Array.from(sessionMap.values()).sort((a, b) => {
-            return new Date(b.lastSync || 0).getTime() - new Date(a.lastSync || 0).getTime();
+            return new Date(String((b as Record<string, string | undefined>).lastSync || 0)).getTime() - new Date(String((a as Record<string, string | undefined>).lastSync || 0)).getTime();
         });
-        const connectedSessions = sessions.filter((session) => session.status === 'connected');
-        const connectingSessions = sessions.filter((session) => session.status === 'connecting');
+        const connectedSessions = sessions.filter((session) => (session as Record<string, string>).status === 'connected');
+        const connectingSessions = sessions.filter((session) => (session as Record<string, string>).status === 'connecting');
         const plan = await subscriptionService.getSubscription(tenantId, user?.email).catch(() => ({ plan: 'Trial' as const, status: 'active', renewal_date: null }));
         const limit = subscriptionService.getLimit(plan.plan, 'sessions');
         const primaryConnectedSession = connectedSessions[0] || null;
@@ -389,15 +393,15 @@ export const getStatus = async (req: Request, res: Response) => {
             connectedOwnerName: primaryConnectedSession?.ownerName || null,
             sessions: sessions.map(s => ({
                 ...s,
-                reconnectAttempts: s.reconnectAttempts || 0,
-                isReconnecting: s.isReconnecting || false,
+                reconnectAttempts: (s as Record<string, number | undefined>).reconnectAttempts || 0,
+                isReconnecting: (s as Record<string, boolean | undefined>).isReconnecting || false,
             })),
         });
 };
 
 export const getMonitor = async (req: Request, res: Response) => {
     try {
-        const context = await workspaceAccessService.resolveContext((req as any).user);
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
         const data = await workspaceMonitorService.getMonitorData(context.workspaceOwnerId, false, sessionLabel);
 
@@ -411,14 +415,14 @@ export const getMonitor = async (req: Request, res: Response) => {
             },
             ...data,
         });
-    } catch (error: any) {
-        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load WhatsApp monitor' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp monitor') });
     }
 };
 
 export const getInbox = async (req: Request, res: Response) => {
     try {
-        const context = await workspaceAccessService.resolveContext((req as any).user);
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
         const data = await workspaceMonitorService.getMonitorData(context.workspaceOwnerId, true, sessionLabel);
 
@@ -432,8 +436,8 @@ export const getInbox = async (req: Request, res: Response) => {
             },
             ...data,
         });
-    } catch (error: any) {
-        res.status(error?.statusCode || 500).json({ error: error?.message || 'Failed to load realtor inbox' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load realtor inbox') });
     }
 };
 
@@ -441,7 +445,7 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
     const { label, sessionKey, phoneNumber } = req.body || {};
     const targetSessionKey = sessionKey || label || phoneNumber;
-    const user = (req as any).user;
+    const user = req.user;
     const fallbackEmail = String(user?.email || '').trim().toLowerCase() || null;
     const fallbackFullName = String(user?.full_name || user?.name || '').trim() || null;
 
@@ -466,7 +470,7 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
         });
 
         void workspaceActivityService.track({
-            actor: (req as any).user,
+            actor: req.user,
             workspaceOwnerId: tenantId,
             eventType: 'whatsapp.session.disconnected',
             entityType: 'whatsapp_session',
@@ -477,9 +481,9 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
             },
         });
         res.json({ message: 'Disconnected successfully' });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Disconnect Error:', error);
-        res.status(500).json({ error: 'Could not disconnect. Please try again.' });
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Could not disconnect. Please try again.') });
     }
 };
 
@@ -489,14 +493,14 @@ export const getIngestionHealth = async (req: Request, res: Response) => {
     try {
         const health = await whatsappHealthService.getHealth(tenantId);
         res.json(health);
-    } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to load WhatsApp health' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp health') });
     }
 };
 
 export const getDetailedHealth = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
-    const user = (req as any).user;
+    const user = req.user;
 
     try {
         const [health, sessionsResult, eventsResult] = await Promise.all([
@@ -509,7 +513,7 @@ export const getDetailedHealth = async (req: Request, res: Response) => {
             whatsappHealthService.getEvents(tenantId, 50),
         ]);
 
-        const sessions = (sessionsResult.data || []).map((row: any) => ({
+        const sessions = (sessionsResult.data || []).map((row: { label: string; owner_name: string | null; status: string; session_data: { phoneNumber?: string } | null; last_sync: string }) => ({
             label: row.label,
             ownerName: row.owner_name,
             status: row.status,
@@ -517,8 +521,8 @@ export const getDetailedHealth = async (req: Request, res: Response) => {
             lastSync: row.last_sync,
         }));
 
-        const liveSessions = sessionManager.getLiveSessionSnapshots(tenantId);
-        const sessionMap = new Map<string, any>();
+        const liveSessions: (SessionSnapshot & { reconnectAttempts?: number; isReconnecting?: boolean })[] = sessionManager.getLiveSessionSnapshots(tenantId) as (SessionSnapshot & { reconnectAttempts?: number; isReconnecting?: boolean })[];
+        const sessionMap = new Map<string, Record<string, unknown>>();
         
         for (const session of sessions) {
             sessionMap.set(session.label, { ...session, liveData: null });
@@ -530,8 +534,8 @@ export const getDetailedHealth = async (req: Request, res: Response) => {
                 ...existing,
                 ...liveSession,
                 liveData: {
-                    reconnectAttempts: (liveSession as any).reconnectAttempts || 0,
-                    isReconnecting: (liveSession as any).isReconnecting || false,
+                    reconnectAttempts: liveSession.reconnectAttempts || 0,
+                    isReconnecting: liveSession.isReconnecting || false,
                 }
             });
         }
@@ -547,14 +551,14 @@ export const getDetailedHealth = async (req: Request, res: Response) => {
             ops: {
                 totalSessions: enrichedSessions.length,
                 connectedSessions: enrichedSessions.filter(s => s.status === 'connected').length,
-                reconnectingSessions: enrichedSessions.filter(s => s.liveData?.isReconnecting).length,
-                totalReconnectAttempts: enrichedSessions.reduce((sum, s) => sum + (s.liveData?.reconnectAttempts || 0), 0),
+                reconnectingSessions: enrichedSessions.filter(s => !!(s as Record<string, { isReconnecting?: boolean } | undefined>).liveData?.isReconnecting).length,
+                totalReconnectAttempts: enrichedSessions.reduce((sum, s) => sum + ((s as Record<string, { reconnectAttempts?: number } | undefined>).liveData?.reconnectAttempts || 0), 0),
                 healthState: health.summary?.healthState || 'unknown',
             },
         });
-    } catch (error: any) {
-        res.status(500).json({ 
-            error: error.message || 'Failed to load detailed WhatsApp health',
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ 
+            error: getErrorMessage(error, 'Failed to load detailed WhatsApp health'),
             timestamp: new Date().toISOString(),
         });
     }
@@ -566,8 +570,8 @@ export const getGroupHealth = async (req: Request, res: Response) => {
     try {
         const groups = await whatsappHealthService.getGroupHealth(tenantId);
         res.json(groups);
-    } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to load WhatsApp group health' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp group health') });
     }
 };
 
@@ -577,8 +581,8 @@ export const getEvents = async (req: Request, res: Response) => {
     try {
         const events = await whatsappHealthService.getEvents(tenantId);
         res.json(events);
-    } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to load WhatsApp events' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp events') });
     }
 };
 
@@ -607,7 +611,7 @@ export const getProfile = async (req: Request, res: Response) => {
 export const saveProfile = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
     const { fullName, phone } = req.body || {};
-    const user = (req as any).user;
+    const user = req.user;
     const normalizedFullName = String(fullName || '').trim();
 
     if (!normalizedFullName || !phone) {
@@ -659,7 +663,7 @@ export const saveProfile = async (req: Request, res: Response) => {
 };
 
 export const getMessages = async (req: Request, res: Response) => {
-    const context = await workspaceAccessService.resolveContext((req as any).user);
+    const context = await workspaceAccessService.resolveContext(req.user ?? {});
     const tenantId = context.workspaceOwnerId;
 
     const { data, error } = await getDbClient()
@@ -679,22 +683,22 @@ export const getGroups = async (req: Request, res: Response) => {
 
     try {
         const liveClients = requestedSessionLabel
-            ? [await sessionManager.getSession(tenantId as string, requestedSessionLabel)].filter(Boolean)
+            ? [await sessionManager.getSession(tenantId as string, requestedSessionLabel)].filter((x): x is WhatsAppClient => x != null)
             : await sessionManager.getAllSessionsForTenant(tenantId as string);
 
         for (const client of liveClients) {
-            const groups = await (client as any).getGroups();
+            const groups = await client.getGroups() as Array<Record<string, unknown>>;
             const normalizedGroups = Array.isArray(groups)
-                ? groups.map((group: any, index: number) => ({
+                ? groups.map((group, index) => ({
                     id: String(group.id || group.remoteJid || `group-${index}`),
                     name: String(group.subject || group.name || group.title || group.id || `Group ${index + 1}`),
-                    participantsCount: Number(group.participantsCount || group.size || group.participants?.length || 0),
+                    participantsCount: Number(group.participantsCount || group.size || (group.participants as Array<unknown>)?.length || 0),
                 }))
                 : [];
 
             const sessionSnapshot =
-                typeof (client as any).getStatusSnapshot === 'function'
-                    ? (client as any).getStatusSnapshot()
+                typeof client.getStatusSnapshot === 'function'
+                    ? client.getStatusSnapshot()
                     : null;
             const sessionLabel = String(sessionSnapshot?.label || requestedSessionLabel || 'default');
             await whatsappGroupService.syncGroups(tenantId as string, sessionLabel, normalizedGroups);
@@ -702,10 +706,10 @@ export const getGroups = async (req: Request, res: Response) => {
 
         const directoryGroups = await whatsappGroupService.listGroups(tenantId as string);
         const filteredGroups = requestedSessionLabel
-            ? directoryGroups.filter((group: any) => String(group.sessionLabel || '') === requestedSessionLabel)
+            ? directoryGroups.filter((group) => String(group.sessionLabel || '') === requestedSessionLabel)
             : directoryGroups;
 
-        const groupIds = filteredGroups.map((group: any) => String(group.id || group.groupJid || '')).filter(Boolean);
+        const groupIds = filteredGroups.map((group) => String(group.id || group.groupJid || '')).filter(Boolean);
         const behaviorMap = new Map<string, string>();
 
         if (groupIds.length > 0) {
@@ -731,12 +735,12 @@ export const getGroups = async (req: Request, res: Response) => {
             }
         }
 
-        res.json(filteredGroups.map((group: any) => ({
+        res.json(filteredGroups.map((group: Record<string, unknown>) => ({
             ...group,
             behavior: behaviorMap.get(String(group.id)) || 'Listen',
         })));
-    } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to load WhatsApp groups' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp groups') });
     }
 };
 
@@ -767,8 +771,8 @@ export const getOutboundRecipients = async (req: Request, res: Response) => {
         if (leadsError) return res.status(500).json({ error: leadsError.message });
         if (callbacksError) return res.status(500).json({ error: callbacksError.message });
 
-        const brokerMap = new Map<string, any>();
-        const leadMap = new Map<string, any>();
+    const brokerMap = new Map<string, Record<string, unknown>>();
+    const leadMap = new Map<string, Record<string, unknown>>();
 
         for (const row of leadsData || []) {
             const normalizedPhone = normalizeRecipientPhone(row.phone);
@@ -825,16 +829,16 @@ export const getOutboundRecipients = async (req: Request, res: Response) => {
             brokers: Array.from(brokerMap.values()),
             leads: Array.from(leadMap.values()),
         });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to load outbound recipients' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load outbound recipients') });
     }
 };
 
 export const sendMessage = async (req: Request, res: Response) => {
-    const context = await workspaceAccessService.requireOutboundAccess((req as any).user);
+    const context = await workspaceAccessService.requireOutboundAccess(req.user ?? {});
     const tenantId = context.workspaceOwnerId;
     const { remoteJid, text } = req.body;
-    const user = (req as any).user;
+    const user = req.user;
     if (!tenantId || !remoteJid || !text) {
         return res.status(400).json({ error: 'remoteJid and text are required' });
     }
@@ -845,7 +849,7 @@ export const sendMessage = async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'No active WhatsApp session found' });
         }
 
-        await (client as any).sendText(remoteJid, text);
+        await client.sendText(remoteJid, text);
         await getDbClient().from('messages').insert({
             tenant_id: tenantId,
             remote_jid: remoteJid,
@@ -864,16 +868,16 @@ export const sendMessage = async (req: Request, res: Response) => {
         });
         
         res.json({ message: 'Message sent successfully' });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to send message') });
     }
 };
 
 export const sendBulkDirectMessages = async (req: Request, res: Response) => {
-    const context = await workspaceAccessService.requireOutboundAccess((req as any).user);
+    const context = await workspaceAccessService.requireOutboundAccess(req.user ?? {});
     const tenantId = context.workspaceOwnerId;
     const { recipients, text, sessionKey } = req.body || {};
-    const user = (req as any).user;
+    const user = req.user;
 
     if (!tenantId || !Array.isArray(recipients) || recipients.length === 0 || !String(text || '').trim()) {
         return res.status(400).json({ error: 'recipients and text are required' });
@@ -898,7 +902,7 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
             }
 
             try {
-                await (client as any).sendText(remoteJid, String(text).trim());
+                await client.sendText(remoteJid, String(text).trim());
                 await getDbClient().from('messages').insert({
                     tenant_id: tenantId,
                     remote_jid: remoteJid,
@@ -907,8 +911,8 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
                     timestamp: new Date().toISOString(),
                 });
                 sent.push({ remoteJid, label });
-            } catch (error: any) {
-                failed.push({ remoteJid, label, error: error?.message || 'Failed to send message' });
+            } catch (error: unknown) {
+                failed.push({ remoteJid, label, error: getErrorMessage(error, 'Failed to send message') });
             }
         }
 
@@ -932,16 +936,16 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
             failed,
             total: recipients.length,
         });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to send direct messages' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to send direct messages') });
     }
 };
 
 export const broadcastToGroups = async (req: Request, res: Response) => {
-    const context = await workspaceAccessService.requireOutboundAccess((req as any).user);
+    const context = await workspaceAccessService.requireOutboundAccess(req.user ?? {});
     const tenantId = context.workspaceOwnerId;
     const { groupJids, text, batchSize, delayBetweenMessages, delayBetweenBatches, sessionKey } = req.body || {};
-    const user = (req as any).user;
+    const user = req.user;
 
     if (!tenantId || !Array.isArray(groupJids) || groupJids.length === 0 || !text) {
         return res.status(400).json({ error: 'groupJids and text are required' });
@@ -953,7 +957,7 @@ export const broadcastToGroups = async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'No active WhatsApp session found' });
         }
 
-        const result = await (client as any).broadcastToGroups(groupJids, text, {
+        const result = await client.broadcastToGroups(groupJids, text, {
             batchSize: Number(batchSize) || undefined,
             delayBetweenMessages: Number(delayBetweenMessages) || undefined,
             delayBetweenBatches: Number(delayBetweenBatches) || undefined,
@@ -992,7 +996,7 @@ export const broadcastToGroups = async (req: Request, res: Response) => {
             failed: result.failed,
             total: groupJids.length,
         });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message || 'Failed to broadcast message' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to broadcast message') });
     }
 };
