@@ -15,6 +15,13 @@ const CITIES = [
   'Kochi', 'Kalyan', 'Vasai-Virar', 'Agra', 'Varanasi',
   'Srinagar', 'Amritsar', 'Ranchi', 'Raipur', 'Guwahati',
 ];
+const LOCALITY_PRESETS = [
+  'Bandra West', 'Bandra East', 'Khar West', 'Santacruz West', 'Santacruz East',
+  'Juhu', 'Andheri West', 'Andheri East', 'Jogeshwari', 'Goregaon', 'Malad',
+  'Kandivali', 'Borivali', 'Dahisar', 'Versova', 'Lokhandwala', 'Powai', 'BKC',
+  'Kurla', 'Ghatkopar', 'Mulund', 'Thane', 'Navi Mumbai', 'Vashi', 'Kharghar',
+  'Panvel', 'Mira Road', 'Vasai', 'Virar', 'Nalasopara',
+];
 
 type TeamMember = { name?: string; mobile?: string };
 type OnboardingData = {
@@ -122,8 +129,8 @@ export const Onboarding: React.FC = () => {
         }
     };
 
-    const addLocality = () => {
-        const val = localityInput.trim();
+    const addLocality = (loc?: string) => {
+        const val = (loc || localityInput).trim();
         if (val && !(data.localities || []).includes(val)) {
             updateData({ localities: [...(data.localities || []), val] });
         }
@@ -279,22 +286,13 @@ export const Onboarding: React.FC = () => {
                     )}
 
                     {step === 3 && (
-                        <div>
+                        <div className="relative">
                             <p className="mb-2 text-[13px] font-medium uppercase tracking-[0.1em] text-gray-500">Step 4</p>
                             <h2 className="mb-8 text-[28px] font-bold leading-tight text-white">Which localities do you serve?</h2>
-                            <div className="flex gap-2">
-                                <input
-                                    value={localityInput}
-                                    onChange={(e) => setLocalityInput(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addLocality())}
-                                    placeholder="Type a locality and press Enter"
-                                    className="flex-1 border-0 border-b-2 border-gray-700 bg-transparent pb-3 text-[22px] font-semibold text-white outline-none transition placeholder:text-gray-600 focus:border-[var(--accent)]"
-                                    autoFocus
-                                />
-                            </div>
-                            {(data.localities || []).length > 0 && (
-                                <div className="mt-6 flex flex-wrap gap-2">
-                                    {(data.localities || []).map((loc, i) => (
+
+                            {data.localities && data.localities.length > 0 && (
+                                <div className="mb-6 flex flex-wrap gap-2">
+                                    {data.localities.map((loc, i) => (
                                         <span key={i} className="inline-flex items-center gap-2 rounded-full border border-gray-700 bg-gray-900 px-4 py-2 text-[15px] text-white">
                                             {loc}
                                             <button onClick={() => removeLocality(i)} className="text-gray-500 hover:text-red-400">
@@ -302,6 +300,51 @@ export const Onboarding: React.FC = () => {
                                             </button>
                                         </span>
                                     ))}
+                                </div>
+                            )}
+
+                            <input
+                                value={localityInput}
+                                onChange={(e) => setLocalityInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        const matches = LOCALITY_PRESETS.filter(
+                                            l => l.toLowerCase().includes(localityInput.toLowerCase()) && !(data.localities || []).includes(l)
+                                        );
+                                        if (matches.length === 1) {
+                                            addLocality(matches[0]);
+                                        } else if (!LOCALITY_PRESETS.some(l => l.toLowerCase() === localityInput.trim().toLowerCase())) {
+                                            addLocality();
+                                        }
+                                    }
+                                }}
+                                placeholder="Search localities..."
+                                className="w-full border-0 border-b-2 border-gray-700 bg-transparent pb-3 text-[22px] font-semibold text-white outline-none transition placeholder:text-gray-600 focus:border-[var(--accent)]"
+                                autoFocus
+                            />
+
+                            {localityInput.trim() && (
+                                <div className="mt-3 max-h-56 overflow-y-auto rounded-xl border border-gray-800 bg-gray-900 py-2">
+                                    {LOCALITY_PRESETS
+                                        .filter(l => l.toLowerCase().includes(localityInput.toLowerCase()) && !(data.localities || []).includes(l))
+                                        .map(loc => (
+                                            <button
+                                                key={loc}
+                                                onClick={() => addLocality(loc)}
+                                                className="w-full px-5 py-3 text-left text-[17px] text-white transition hover:bg-gray-800"
+                                            >
+                                                {loc}
+                                            </button>
+                                        ))}
+                                    {!LOCALITY_PRESETS.some(l => l.toLowerCase() === localityInput.trim().toLowerCase()) && (
+                                        <button
+                                            onClick={() => addLocality()}
+                                            className="w-full px-5 py-3 text-left text-[17px] text-gray-400 transition hover:bg-gray-800"
+                                        >
+                                            Add &ldquo;{localityInput.trim()}&rdquo;
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>
