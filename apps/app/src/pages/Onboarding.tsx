@@ -90,13 +90,17 @@ export const Onboarding: React.FC = () => {
         setError(null);
         try {
             const nextStep = Math.min(step + 1, 5);
-            await backendApi.post(ENDPOINTS.identity.onboarding, {
+            const resp = await backendApi.post(ENDPOINTS.identity.onboarding, {
                 ...data, ...patch, onboarding_step: nextStep,
             });
+            if (resp.status !== 200 && resp.status !== 201) {
+                throw new Error(`Server returned ${resp.status}`);
+            }
             setData((prev) => ({ ...prev, ...patch, onboarding_step: nextStep }));
             setStep(nextStep);
             if (nextStep < 5) { setFieldValue(''); setOtherCityInput(''); }
         } catch (err) {
+            console.error('[Onboarding] saveStep POST failed:', err);
             setError(handleApiError(err));
         }
         setSaving(false);
@@ -120,11 +124,15 @@ export const Onboarding: React.FC = () => {
             setSaving(true);
             setError(null);
             try {
-                await backendApi.post(ENDPOINTS.identity.onboarding, {
+                const resp = await backendApi.post(ENDPOINTS.identity.onboarding, {
                     ...data, onboarding_step: 6, onboarding_completed: true,
                 });
+                if (resp.status !== 200 && resp.status !== 201) {
+                    throw new Error(`Server returned ${resp.status}`);
+                }
                 setSuccess(true);
             } catch (err) {
+                console.error('[Onboarding] Finish step POST failed:', err);
                 setError(handleApiError(err));
             }
             setSaving(false);
