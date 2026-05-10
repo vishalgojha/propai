@@ -609,6 +609,17 @@ async function processInboundMessage(event: IncomingMessageRecord) {
     }
 
     console.log('[SelfChat Debug] Calling triggerAgent...');
+    try {
+        await db.from('messages').insert({
+            tenant_id: tenantId,
+            remote_jid: remoteJid,
+            text,
+            sender: remoteJid.split('@')[0],
+            timestamp: new Date().toISOString(),
+        });
+    } catch (error) {
+        console.error('[propaiRuntimeHooks] Failed to persist inbound message', { tenantId, remoteJid, error });
+    }
     await whatsappHealthService.appendEvent(
         tenantId,
         label || 'default',
