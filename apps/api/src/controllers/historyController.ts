@@ -1,17 +1,19 @@
 import { Request, Response } from 'express';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { historyTextImportService } from '../services/historyTextImportService';
+import { getErrorMessage } from '../utils/controllerHelpers';
+import '../types/express';
 
 function getTenantId(req: Request) {
-  const user = (req as any).user;
-  return String(user?.id || 'system');
+  if (!req.user) return 'system';
+  return req.user.id;
 }
 
 const db = supabaseAdmin ?? supabase;
 
-function isMissingHistoryProfileColumnError(error: any) {
-  const message = String(error?.message || '').toLowerCase();
-  return message.includes('history_processed') || message.includes('history_processed_at') || message.includes('history_message_count') || message.includes('history_total_count');
+function isMissingHistoryProfileColumnError(error: unknown) {
+  const message = String(error instanceof Error ? error.message : '').toLowerCase();
+  return message.includes('history_processed') || message.includes('history_processed_at') || message.includes('history_message_count') || message.includes('history_total_count') || message.includes('history_import_result');
 }
 
 type HistoryImportFile = {

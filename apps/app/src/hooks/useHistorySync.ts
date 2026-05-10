@@ -5,12 +5,24 @@ import { useAuth } from '../context/AuthContext';
 
 const HISTORY_CACHE_KEY = 'propai.history_sync_cache';
 
+export type HistoryImportResult = {
+  listings: number;
+  leads: number;
+  parsed: number;
+  skipped: number;
+  failed: number;
+  total: number;
+  processed: number;
+  completedAt: string;
+};
+
 type HistoryProfile = {
   id: string;
   history_processed?: boolean | null;
   history_processed_at?: string | null;
   history_message_count?: number | null;
   history_total_count?: number | null;
+  history_import_result?: HistoryImportResult | null;
 };
 
 type WhatsappHealthSession = {
@@ -30,6 +42,7 @@ export type HistorySyncState = {
   totalProcessed: number;
   totalSource: number;
   historyProcessedAt: string | null;
+  result: HistoryImportResult | null;
 };
 
 const defaultState: HistorySyncState = {
@@ -38,6 +51,7 @@ const defaultState: HistorySyncState = {
   totalProcessed: 0,
   totalSource: 0,
   historyProcessedAt: null,
+  result: null,
 };
 
 function readCachedState(): HistorySyncState {
@@ -94,7 +108,7 @@ export function useHistorySync() {
         const [{ data: profile }, healthResponse] = await Promise.all([
           supabase
             .from('profiles')
-            .select('id, history_processed, history_processed_at, history_message_count, history_total_count')
+            .select('id, history_processed, history_processed_at, history_message_count, history_total_count, history_import_result')
             .eq('id', authData.user.id)
             .maybeSingle<HistoryProfile>(),
           backendApi.get<WhatsappHealthResponse>(ENDPOINTS.whatsapp.health).catch((error) => {
@@ -118,12 +132,47 @@ export function useHistorySync() {
               ? 15
               : 0;
 
+        let result: HistoryImportResult | null = (profile?.history_import_result || null) as HistoryImportResult | null;
+
+        if (!result && profile?.history_processed) {
+          const [listingRes, leadRes] = await Promise.all([
+            supabase
+              .from('stream_items')
+              .select('id', { count: 'exact', head: true })
+              .eq('tenant_id', authData.user.id)
+              .like('source_group_id', 'history-%')
+              .eq('record_type', 'listing'),
+            supabase
+              .from('stream_items')
+              .select('id', { count: 'exact', head: true })
+              .eq('tenant_id', authData.user.id)
+              .like('source_group_id', 'history-%')
+              .eq('record_type', 'requirement'),
+          ]);
+          const listingCount = listingRes.count || 0;
+          const leadCount = leadRes.count || 0;
+          const totalParsed = listingCount + leadCount;
+          if (totalParsed > 0) {
+            result = {
+              listings: listingCount,
+              leads: leadCount,
+              parsed: totalParsed,
+              skipped: Math.max(0, totalProcessed - totalParsed),
+              failed: 0,
+              total: totalSource || totalProcessed,
+              processed: totalProcessed,
+              completedAt: profile?.history_processed_at || new Date().toISOString(),
+            };
+          }
+        }
+
         updateState({
           isProcessing,
           progress,
           totalProcessed,
           totalSource,
           historyProcessedAt: profile?.history_processed_at || null,
+          result,
         });
       } catch {
         updateState(defaultState);

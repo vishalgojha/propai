@@ -32,7 +32,7 @@ function formatBytes(value: number) {
 }
 
 export const HistorySync: React.FC = () => {
-  const { totalProcessed, totalSource, historyProcessedAt } = useHistorySync();
+  const { totalProcessed, totalSource, historyProcessedAt, result } = useHistorySync();
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
@@ -108,6 +108,41 @@ export const HistorySync: React.FC = () => {
           copy="When the import finishes, the profile records how many history messages were processed and when it completed."
         />
       </div>
+
+      {result ? (
+        <div className="rounded-[18px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-5">
+          <h3 className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--accent)]">Import results</h3>
+          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <p className="text-2xl font-bold text-[var(--text-primary)]">{result.listings}</p>
+              <p className="text-[11px] text-[var(--text-secondary)]">Listings found</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-[var(--text-primary)]">{result.leads}</p>
+              <p className="text-[11px] text-[var(--text-secondary)]">Requirements found</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-[var(--text-primary)]">{result.parsed}</p>
+              <p className="text-[11px] text-[var(--text-secondary)]">Extracted items</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-[var(--text-red, #ef4444)]">{result.failed}</p>
+              <p className="text-[11px] text-[var(--text-secondary)]">Failed to parse</p>
+            </div>
+          </div>
+          <div className="mt-4 flex gap-3">
+            <a
+              href="/stream"
+              className="inline-flex items-center gap-2 rounded-[12px] bg-[var(--accent)] px-4 py-2.5 text-[12px] font-semibold text-white transition hover:opacity-90"
+            >
+              View in Stream
+            </a>
+            <p className="self-center text-[11px] text-[var(--text-secondary)]">
+              Processed {result.processed} of {result.total} messages{result.skipped > 0 ? ` · ${result.skipped} skipped` : ''}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-3 md:grid-cols-3">
         <InfoCard
