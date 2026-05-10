@@ -144,7 +144,7 @@ class EmailNotificationService {
 
     private async sendEmail(payload: EmailPayload): Promise<EmailSendResult> {
         if (!this.isConfigured()) {
-            console.log('[EmailNotificationService] Email provider not configured, skipping email:', payload.subject);
+            console.warn('[EmailNotificationService] Email provider not configured (RESEND_API_KEY or EMAIL_FROM missing), skipping email:', payload.subject);
             return { skipped: true };
         }
 
