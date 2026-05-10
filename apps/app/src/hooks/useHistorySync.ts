@@ -3,6 +3,8 @@ import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { useAuth } from '../context/AuthContext';
 
+const HISTORY_CACHE_KEY = 'propai.history_sync_cache';
+
 type HistoryProfile = {
   id: string;
   history_processed?: boolean | null;
@@ -38,9 +40,27 @@ const defaultState: HistorySyncState = {
   historyProcessedAt: null,
 };
 
+function readCachedState(): HistorySyncState {
+  try {
+    const raw = localStorage.getItem(HISTORY_CACHE_KEY);
+    if (!raw) return defaultState;
+    return JSON.parse(raw) as HistorySyncState;
+  } catch {
+    return defaultState;
+  }
+}
+
+function writeCachedState(state: HistorySyncState) {
+  try {
+    localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(state));
+  } catch {
+    /* quota exceeded */
+  }
+}
+
 export function useHistorySync() {
   const { user } = useAuth();
-  const [state, setState] = useState<HistorySyncState>(defaultState);
+  const [state, setState] = useState<HistorySyncState>(readCachedState);
 
   const pollIntervalMs = useMemo(() => {
     return state.isProcessing ? 5000 : 15000;
@@ -50,11 +70,16 @@ export function useHistorySync() {
     let cancelled = false;
     let timer: number | null = null;
 
+    const updateState = (next: HistorySyncState) => {
+      if (!cancelled) {
+        setState(next);
+        writeCachedState(next);
+      }
+    };
+
     const load = async () => {
       if (!user?.token) {
-        if (!cancelled) {
-          setState(defaultState);
-        }
+        updateState(defaultState);
         return;
       }
 
@@ -93,19 +118,15 @@ export function useHistorySync() {
               ? 15
               : 0;
 
-        if (!cancelled) {
-          setState({
-            isProcessing,
-            progress,
-            totalProcessed,
-            totalSource,
-            historyProcessedAt: profile?.history_processed_at || null,
-          });
-        }
+        updateState({
+          isProcessing,
+          progress,
+          totalProcessed,
+          totalSource,
+          historyProcessedAt: profile?.history_processed_at || null,
+        });
       } catch {
-        if (!cancelled) {
-          setState(defaultState);
-        }
+        updateState(defaultState);
       }
     };
 

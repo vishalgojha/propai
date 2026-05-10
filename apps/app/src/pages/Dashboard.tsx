@@ -8,6 +8,33 @@ import { useHistorySync } from '../hooks/useHistorySync';
 import { useAuth } from '../context/AuthContext';
 import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_PLAN_CARDS } from '../lib/propai';
 
+const DASHBOARD_CACHE_KEY = 'propai.dashboard_cache';
+
+type DashboardCache = {
+  whatsapp: WhatsappStatusResponse | null;
+  streamStats: StreamStats;
+  workspaceMetadata: WorkspaceMetadata | null;
+  referral: ReferralSummary | null;
+};
+
+function readDashboardCache(): DashboardCache | null {
+  try {
+    const raw = localStorage.getItem(DASHBOARD_CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as DashboardCache;
+  } catch {
+    return null;
+  }
+}
+
+function writeDashboardCache(data: DashboardCache) {
+  try {
+    localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(data));
+  } catch {
+    /* quota exceeded — ignore */
+  }
+}
+
 type StreamStats = {
   total: number;
   unread: number;
@@ -212,10 +239,11 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const historySync = useHistorySync();
-  const [whatsapp, setWhatsapp] = React.useState<WhatsappStatusResponse | null>(null);
-  const [streamStats, setStreamStats] = React.useState<StreamStats | null>(null);
-  const [workspaceMetadata, setWorkspaceMetadata] = React.useState<WorkspaceMetadata | null>(null);
-  const [referral, setReferral] = React.useState<ReferralSummary | null>(null);
+  const cached = React.useRef(readDashboardCache());
+  const [whatsapp, setWhatsapp] = React.useState<WhatsappStatusResponse | null>(cached.current?.whatsapp ?? null);
+  const [streamStats, setStreamStats] = React.useState<StreamStats | null>(cached.current?.streamStats ?? null);
+  const [workspaceMetadata, setWorkspaceMetadata] = React.useState<WorkspaceMetadata | null>(cached.current?.workspaceMetadata ?? null);
+  const [referral, setReferral] = React.useState<ReferralSummary | null>(cached.current?.referral ?? null);
   const [isSavingMetadata, setIsSavingMetadata] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -231,10 +259,22 @@ export const Dashboard: React.FC = () => {
         backendApi.get<{ referral: ReferralSummary }>(ENDPOINTS.workspace.referral),
       ]);
 
-      setWhatsapp(statusResponse.data || null);
-      setStreamStats(statsResponse.data || { total: 0, unread: 0, avgConfidence: 0 });
-      setWorkspaceMetadata(metadataResponse.data?.metadata || null);
-      setReferral(referralResponse.data?.referral || null);
+      const nextWhatsapp = statusResponse.data || null;
+      const nextStreamStats = statsResponse.data || { total: 0, unread: 0, avgConfidence: 0 };
+      const nextMetadata = metadataResponse.data?.metadata || null;
+      const nextReferral = referralResponse.data?.referral || null;
+
+      setWhatsapp(nextWhatsapp);
+      setStreamStats(nextStreamStats);
+      setWorkspaceMetadata(nextMetadata);
+      setReferral(nextReferral);
+
+      writeDashboardCache({
+        whatsapp: nextWhatsapp,
+        streamStats: nextStreamStats,
+        workspaceMetadata: nextMetadata,
+        referral: nextReferral,
+      });
     } catch (err) {
       setError(handleApiError(err));
     } finally {
@@ -248,7 +288,8 @@ export const Dashboard: React.FC = () => {
 
   const isConnected = whatsapp?.status === 'connected';
   const hasStreamData = Number(streamStats?.total || 0) > 0;
-  const hasAnyData = hasStreamData || historySync.totalProcessed > 0 || isConnected;
+  const hasCachedData = Boolean(cached.current && (cached.current.streamStats.total > 0 || cached.current.whatsapp?.status === 'connected' || cached.current.workspaceMetadata?.agencyName));
+  const hasAnyData = hasStreamData || historySync.totalProcessed > 0 || isConnected || hasCachedData;
   const needsOnboarding = !workspaceMetadata?.agencyName || !workspaceMetadata?.primaryCity || (workspaceMetadata?.serviceAreas?.length || 0) === 0;
 
   if (!hasAnyData && !loading && !error) {
