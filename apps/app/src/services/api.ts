@@ -136,11 +136,11 @@ backendApi.interceptors.response.use(
 export const handleApiError = (error: any) => {
   console.error("API Error:", error);
   const rawMessage = error.response?.data?.error || error.response?.data?.message || error.message || "An unexpected error occurred";
-  const message = rawMessage === 'Missing or invalid authorization header'
-    || rawMessage === 'Invalid or expired token'
+  const normalized = typeof rawMessage === 'object' ? (rawMessage?.message || JSON.stringify(rawMessage)) : String(rawMessage);
+  return normalized === 'Missing or invalid authorization header'
+    || normalized === 'Invalid or expired token'
     ? SESSION_EXPIRED_MESSAGE
-    : rawMessage;
-  return message;
+    : normalized;
 };
 
 export default backendApi;

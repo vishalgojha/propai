@@ -33,7 +33,7 @@ type CrashReportInput = {
 
 class EmailNotificationService {
     private readonly apiKey = process.env.RESEND_API_KEY || '';
-    private readonly from = process.env.EMAIL_FROM || process.env.RESEND_FROM || '';
+    private readonly from = process.env.EMAIL_FROM || process.env.RESEND_FROM || 'hello@propai.live';
     private readonly replyTo = process.env.EMAIL_REPLY_TO || 'hello@propai.live';
     private readonly appUrl = process.env.APP_URL || 'https://app.propai.live';
 

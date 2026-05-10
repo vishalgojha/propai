@@ -3,11 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Skeleton } from './components/ui/Skeleton';
 import { track } from './services/analytics';
+import backendApi from './services/api';
+import { ENDPOINTS } from './services/endpoints';
 
 const ProtectedLayout = React.lazy(async () => ({ default: (await import('./components/Layout')).Layout }));
 const Login = React.lazy(async () => ({ default: (await import('./pages/Login')).Login }));
@@ -38,10 +40,31 @@ const ReferralCapture = React.lazy(async () => ({ default: (await import('./page
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
-  
-  if (isLoading) return <div className="h-screen bg-black flex items-center justify-center"><Skeleton className="w-64 h-8" /></div>;
+  const [onboardingCheck, setOnboardingCheck] = useState<'loading' | 'needed' | 'done' | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await backendApi.get(ENDPOINTS.identity.onboarding);
+        const data = resp.data?.data;
+        if (!cancelled) {
+          setOnboardingCheck(data && data.onboarding_completed ? 'done' : 'needed');
+        }
+      } catch {
+        if (!cancelled) setOnboardingCheck('done');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  if (isLoading || (user && onboardingCheck === null)) {
+    return <div className="h-screen bg-black flex items-center justify-center"><Skeleton className="w-64 h-8" /></div>;
+  }
   if (!user) return <Navigate to="/login" replace />;
-  
+  if (onboardingCheck === 'needed') return <Navigate to="/onboarding" replace />;
+
   return <>{children}</>;
 };
 
