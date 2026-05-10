@@ -5,6 +5,7 @@ import { createImpersonationToken, resolveImpersonationToken, revokeImpersonatio
 import { recordAuditEvent, getAuditLog } from '../services/auditLog';
 import { normalizePlanName } from '../services/subscriptionService';
 import { requireSuperAdmin, getAdminInfo, HttpError, isOwnerSuperAdminEmail } from '../utils/controllerHelpers';
+import { pushRecentAction } from '../services/identityService';
 import '../types/express';
 
 type SessionCounts = { connected: number; connecting: number; disconnected: number };
@@ -251,6 +252,8 @@ export const updateWorkspaceSubscription = async (req: Request, res: Response) =
       targetEmail: profile?.email,
       payload: { plan, status, extendTrialDays, result: { plan: data.plan, status: data.status } },
     });
+
+    void pushRecentAction(tenantId, `Subscription updated to ${data.plan} (${data.status})`);
 
     res.json({
       success: true,

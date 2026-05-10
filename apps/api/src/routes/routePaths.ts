@@ -16,6 +16,7 @@ export const ROUTE_PATHS = {
     health: '/health',
     propertiesSearch: '/api/properties/search',
     aiPropertySearch: '/api/ai/property-search',
+    identity: '/api/identity',
   },
   channels: {
     root: '/',

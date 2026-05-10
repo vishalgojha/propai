@@ -81,4 +81,7 @@ export const ENDPOINTS = {
   properties: {
     search: (query: string) => `/properties/search?q=${encodeURIComponent(query)}`,
   },
+  identity: {
+    onboarding: '/identity/onboarding',
+  },
 } as const;

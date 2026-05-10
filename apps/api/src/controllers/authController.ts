@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { sessionManager } from '../whatsapp/SessionManager';
 import { supabase } from '../config/supabase';
 import crypto from 'crypto';
+import { pushRecentAction } from '../services/identityService';
 
 export const requestVerification = async (req: Request, res: Response) => {
     const { phone } = req.body;
@@ -63,5 +64,8 @@ export const verifyPhone = async (req: Request, res: Response) => {
         .single();
 
     if (updateError) return res.status(500).json({ error: updateError.message });
+
+    void pushRecentAction(updated.id, `Verified phone number`);
+
     res.json({ success: true, user: updated });
 };

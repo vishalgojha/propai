@@ -14,6 +14,7 @@ import settingsRoutes from './routes/settingsRoutes';
 import workspaceRoutes from './routes/workspaceRoutes';
 import fileRoutes from './routes/fileRoutes';
 import wabroRoutes from './routes/wabroRoutes';
+import identityRoutes from './routes/identityRoutes';
 import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
@@ -103,6 +104,7 @@ app.use(ROUTE_PATHS.api.agent, authMiddleware, agentRoutes);
 app.use(ROUTE_PATHS.api.admin, authMiddleware, adminRoutes);
 app.use(ROUTE_PATHS.api.voice, authMiddleware, voiceRoutes);
 app.use(ROUTE_PATHS.api.wabro, authMiddleware, wabroRoutes);
+app.use(ROUTE_PATHS.api.identity, authMiddleware, identityRoutes);
 
 app.get(ROUTE_PATHS.api.health, (req, res) => {
     res.json({

@@ -19,6 +19,7 @@ import {
 import { searchProperties } from '../services/propertySearchService';
 import { buildAttachmentContext } from '../services/attachmentContextService';
 import { extractStructuredToolCall, executeStructuredToolCall } from '../services/structuredToolService';
+import { generateIdentityMd } from '../services/identityService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import '../types/express';
 
@@ -32,6 +33,7 @@ export const chat = async (req: Request, res: Response) => {
 
     try {
         const profile = await getBrokerProfile(tenantId);
+        const identityMd = await generateIdentityMd(tenantId);
         const conversationKey = profile?.phone || tenantId;
         const history = await getConversationHistory(conversationKey);
         const isFirstReply = (await getConversationMessageCount(conversationKey)) === 0;
@@ -73,7 +75,7 @@ export const chat = async (req: Request, res: Response) => {
             modelPreference,
             undefined,
             tenantId,
-            buildPersonalizedSystemPrompt(profile, PULSE_CHAT_SYSTEM_PROMPT, isFirstReply),
+            buildPersonalizedSystemPrompt(profile, PULSE_CHAT_SYSTEM_PROMPT, isFirstReply, identityMd),
             history
         );
         const structuredToolCall = extractStructuredToolCall(response.text);

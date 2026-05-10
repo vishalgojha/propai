@@ -6,6 +6,7 @@ import { referralService } from '../services/referralService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { workspaceActivityService } from '../services/workspaceActivityService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
+import { pushRecentAction } from '../services/identityService';
 import '../types/express';
 
 const db = supabaseAdmin || supabase;
@@ -274,6 +275,8 @@ export const saveWorkspaceMetadata = async (req: Request, res: Response) => {
             },
         });
 
+        void pushRecentAction(context.workspaceOwnerId, `Updated workspace metadata`);
+
         res.json({
             success: true,
             metadata: {
@@ -408,6 +411,8 @@ export const addWorkspaceMember = async (req: Request, res: Response) => {
             },
         });
 
+        void pushRecentAction(context.workspaceOwnerId, `Added team member ${data.member_email}`);
+
         res.json({
             success: true,
             member: {
@@ -484,6 +489,8 @@ export const updateWorkspaceMember = async (req: Request, res: Response) => {
                 status: data.status,
             },
         });
+
+        void pushRecentAction(context.workspaceOwnerId, `Updated team member ${data.member_email}`);
 
         res.json({
             success: true,

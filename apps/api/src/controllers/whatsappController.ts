@@ -8,6 +8,7 @@ import { workspaceMonitorService } from '../services/workspaceMonitorService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { workspaceActivityService } from '../services/workspaceActivityService';
 import { sendWhatsAppLifecycleEmail } from '../whatsapp/propaiRuntimeHooks';
+import { pushRecentAction } from '../services/identityService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import type { WhatsAppClient } from '../whatsapp/WhatsAppClient';
 import type { SessionSnapshot } from '@vishalgojha/whatsapp-baileys-runtime';
@@ -223,6 +224,8 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
                 ownerName: ownerName || null,
             },
         });
+
+        void pushRecentAction(tenantId, `Started WhatsApp connection (${connectMethod})`);
     } catch (error: unknown) {
         console.error('Connect Error:', error);
         await getDbClient()
@@ -480,6 +483,9 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
                 targetSessionKey: targetSessionKey || null,
             },
         });
+
+        void pushRecentAction(tenantId, `Disconnected WhatsApp session`);
+
         res.json({ message: 'Disconnected successfully' });
     } catch (error: unknown) {
         console.error('Disconnect Error:', error);
@@ -651,6 +657,8 @@ export const saveProfile = async (req: Request, res: Response) => {
     if (error) {
         return res.status(500).json({ error: error.message || 'Failed to load saved profile' });
     }
+
+    void pushRecentAction(tenantId, 'Updated profile name');
 
     res.json({
         profile: formatProfileResponse(data, {

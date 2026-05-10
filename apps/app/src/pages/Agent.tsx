@@ -15,6 +15,9 @@ import {
   RefreshIcon,
   WorkflowIcon,
   XIcon,
+  CheckCircleIcon,
+  SmartphoneIcon,
+  ShieldCheckIcon,
 } from '../lib/icons';
 import { ProviderLogo } from '../components/ui/ProviderLogo';
 
@@ -333,6 +336,7 @@ export const Agent: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [showNewMessagePill, setShowNewMessagePill] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const [identityData, setIdentityData] = useState<Record<string, unknown> | null>(null);
   const [isAssistantPanelOpen, setIsAssistantPanelOpen] = useState(false);
   const [assistantPanelTab, setAssistantPanelTab] = useState<AssistantPanelTab>('runtime');
   const [selectedModel] = useState('auto');
@@ -574,6 +578,14 @@ export const Agent: React.FC = () => {
     checkAiStatus();
     const interval = window.setInterval(checkAiStatus, 15000);
 
+    const fetchIdentity = async () => {
+      try {
+        const resp = await backendApi.get(ENDPOINTS.identity.onboarding);
+        if (!cancelled) setIdentityData(resp.data?.data || null);
+      } catch { /* identity not set up yet */ }
+    };
+    fetchIdentity();
+
     return () => {
       cancelled = true;
       window.clearInterval(interval);
@@ -766,6 +778,23 @@ export const Agent: React.FC = () => {
     <div className={cn('grid gap-4 sm:gap-6', showAssistantRail && 'lg:grid-cols-[minmax(0,1fr)_360px]')}>
       <section className="flex min-h-[calc(100dvh-11rem)] flex-col overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.22)] md:min-h-[calc(100vh-160px)]">
         <div className="border-b border-[color:var(--border)] px-4 py-4 sm:px-6 sm:py-5">
+          {identityData && (
+            <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2.5 text-[13px]">
+              <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                <SmartphoneIcon className="h-3.5 w-3.5 text-[var(--accent)]" />
+                Devices: {(identityData as any).connected_devices ?? 0}/{(identityData as any).max_devices ?? 2}
+              </span>
+              {(identityData as any).onboarding_completed ? (
+                <span className="flex items-center gap-1.5 text-[var(--accent)]">
+                  <CheckCircleIcon className="h-3.5 w-3.5" /> Onboarded
+                </span>
+              ) : (
+                <a href="/onboarding" className="flex items-center gap-1.5 text-[var(--amber)] hover:underline">
+                  <ShieldCheckIcon className="h-3.5 w-3.5" /> Setup incomplete
+                </a>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-3">
               <button

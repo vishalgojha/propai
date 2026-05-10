@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { keyService } from '../services/keyService';
 import { getWorkspaceSettingsRecord, saveWorkspaceSettingsRecord } from '../services/workspaceSettingsService';
+import { pushRecentAction } from '../services/identityService';
 
 export const getWorkspaceSettings = async (req: Request, res: Response) => {
     const user = (req as any).user;
@@ -49,6 +50,8 @@ export const saveWorkspaceSettings = async (req: Request, res: Response) => {
             error: failedWrite.error || 'Failed to persist AI API key',
         });
     }
+
+    void pushRecentAction(tenantId, `Updated workspace settings / AI keys`);
 
     res.json({ success: true });
 };

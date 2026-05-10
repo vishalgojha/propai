@@ -10,6 +10,7 @@ import {
     executeSharedRoute,
     getBrokerProfile as getUnifiedBrokerProfile,
 } from './unifiedAgentService';
+import { generateIdentityMd } from './identityService';
 import { agentToolService } from './agentToolService';
 import {
     getConversationHistory,
@@ -101,6 +102,7 @@ export class AgentExecutor {
                 // Verified broker → CRM mode inside their workspace
                 effectiveTenantId = brokerResolution.tenantId!;
                 brokerProfile = await getUnifiedBrokerProfile(effectiveTenantId);
+                const identityMd = await generateIdentityMd(effectiveTenantId);
                 brokerFullName = brokerProfile?.full_name || undefined;
                 shouldGreetBrokerByName = Boolean(
                     brokerProfile?.full_name
@@ -108,7 +110,7 @@ export class AgentExecutor {
                     && brokerProfile.phone
                     && brokerProfile.phone === conversationKey
                 );
-                systemPrompt = this.buildBrokerSystemPrompt(brokerProfile, isFirstReply);
+                systemPrompt = this.buildBrokerSystemPrompt(brokerProfile, isFirstReply, identityMd);
                 shouldUseUnifiedBrokerFlow = true;
             } else {
                 const looksLikeBroker = await this.detectsBrokerIntent(text);
@@ -129,6 +131,7 @@ export class AgentExecutor {
         } else {
             // Original flow for broker's own sessions
             brokerProfile = await getUnifiedBrokerProfile(tenantId);
+            const identityMd = await generateIdentityMd(tenantId);
             shouldGreetBrokerByName = Boolean(
                 brokerProfile?.full_name
                 && !remoteJid.endsWith('@g.us')
@@ -136,7 +139,7 @@ export class AgentExecutor {
                 && brokerProfile.phone === conversationKey
             );
             brokerFullName = brokerProfile?.full_name;
-            systemPrompt = this.buildBrokerSystemPrompt(brokerProfile, isFirstReply);
+            systemPrompt = this.buildBrokerSystemPrompt(brokerProfile, isFirstReply, identityMd);
             shouldUseUnifiedBrokerFlow = true;
         }
 
@@ -262,9 +265,10 @@ export class AgentExecutor {
     private buildBrokerSystemPrompt(
         profile: { full_name?: string; email?: string | null; app_role?: string | null } | null,
         isFirstReply: boolean,
+        identityMd?: string,
     ) {
         return [
-            buildPersonalizedSystemPrompt(profile, PULSE_CHAT_SYSTEM_PROMPT, isFirstReply),
+            buildPersonalizedSystemPrompt(profile, PULSE_CHAT_SYSTEM_PROMPT, isFirstReply, identityMd),
             WHATSAPP_BROKER_FORMATTING_PROMPT,
         ].join('\n\n');
     }

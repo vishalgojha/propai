@@ -120,11 +120,15 @@ export function buildPersonalizedSystemPrompt(
     profile: { full_name?: string; email?: string | null; app_role?: string | null; agency_name?: string | null } | null | undefined,
     basePrompt: string,
     isFirstReply = false,
+    identityMd?: string,
 ) {
-    const promptParts = [
-        basePrompt,
-        buildIstSystemContext(),
-    ];
+    const promptParts: string[] = [];
+
+    if (identityMd) {
+        promptParts.push(identityMd, '---', '');
+    }
+
+    promptParts.push(basePrompt, buildIstSystemContext());
 
     const fullName = profile?.full_name?.trim() || '';
     const isOwner = profile?.app_role === 'super_admin' || isOwnerSuperAdminEmail(profile?.email);

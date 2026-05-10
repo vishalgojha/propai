@@ -25,6 +25,9 @@ const Team = React.lazy(async () => ({ default: (await import('./pages/Team')).T
 const HistorySync = React.lazy(async () => ({ default: (await import('./pages/HistorySync')).HistorySync }));
 const AiUsage = React.lazy(async () => ({ default: (await import('./pages/AiUsage')).AiUsage }));
 const Analytics = React.lazy(() => import('./pages/Analytics'));
+const Onboarding = React.lazy(async () => ({ default: (await import('./pages/Onboarding')).Onboarding }));
+const ConnectWhatsApp = React.lazy(async () => ({ default: (await import('./pages/ConnectWhatsApp')).ConnectWhatsApp }));
+const SetupGroups = React.lazy(async () => ({ default: (await import('./pages/SetupGroups')).SetupGroups }));
 const PrivacyPolicy = React.lazy(async () => ({ default: (await import('./pages/PrivacyPolicy')).PrivacyPolicy }));
 const Terms = React.lazy(async () => ({ default: (await import('./pages/Terms')).Terms }));
 const RefundPolicy = React.lazy(async () => ({ default: (await import('./pages/RefundPolicy')).RefundPolicy }));
@@ -107,6 +110,9 @@ export default function App() {
               <Route path="/team" element={<Team />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/analytics" element={<Analytics />} />
+              <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/connect-whatsapp" element={<ConnectWhatsApp />} />
+              <Route path="/setup-groups" element={<SetupGroups />} />
               <Route path="/intelligence" element={<Navigate to="/agent" replace />} />
             </Route>
             <Route path="*" element={<Navigate to={landingRoute} replace />} />
