@@ -8,7 +8,6 @@ import { agentRouterService } from '../services/agentRouterService';
 import { PULSE_CHAT_SYSTEM_PROMPT } from '../services/pulseChatPrompt';
 import { parseAgentResponse, toAgentResponse } from '../types/agent';
 import { browserToolService } from '../services/browserToolService';
-import { productKnowledgeService } from '../services/productKnowledgeService';
 import { sessionManager } from '../whatsapp/SessionManager';
 import { igrQueryService } from '../services/igrQueryService';
 import {
@@ -42,6 +41,15 @@ function isWorkflowIntent(intent: AgentRoutePlan['intent']): intent is BrokerToo
     return WORKFLOW_INTENTS.has(intent as BrokerToolIntent);
 }
 
+const OWNER_SUPER_ADMIN_EMAILS = new Set([
+    'vishal@chaoscraftlabs.com',
+    'vishal@chaoscraftslabs.com',
+]);
+
+function isOwnerSuperAdminEmail(email?: string | null) {
+    return OWNER_SUPER_ADMIN_EMAILS.has(String(email || '').trim().toLowerCase());
+}
+
 export const chat = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const tenantId = user.id;
@@ -61,124 +69,24 @@ export const chat = async (req: Request, res: Response) => {
             ? `${rawPrompt}\n\n---\nAttached context:\n${attachmentContext}\n---`
             : rawPrompt;
 
-        const knowledgeAnswer = await productKnowledgeService.answer(tenantId, prompt);
-        if (knowledgeAnswer) {
-            const renderedReply = maybePersonalizeGreeting(knowledgeAnswer.reply, profile?.full_name, isFirstReply);
-            await saveToHistory(conversationKey, prompt, renderedReply);
-            return res.json({
-                reply: renderedReply,
-                text: renderedReply,
-                agent_response: toAgentResponse(renderedReply),
-                route: { intent: knowledgeAnswer.intent },
-                capability_hint: buildCapabilityHint(knowledgeAnswer.intent),
-            });
-        }
-
-        const browserToolPlan = browserToolService.detectPrompt(prompt);
-        if (browserToolPlan) {
-            const toolResult = await browserToolService.execute(browserToolPlan.tool, browserToolPlan.args);
-            const agentResponse = toAgentResponse(
-                toolResult.message,
-                'text',
-                toolResult.data,
-            );
-            const renderedReply = maybePersonalizeGreeting(agentResponse.message, profile?.full_name, isFirstReply);
-            await saveToHistory(conversationKey, prompt, renderedReply);
-            return res.json({
-                reply: renderedReply,
-                text: renderedReply,
-                agent_response: agentResponse,
-                route: { intent: browserToolPlan.tool },
-                capability_hint: 'You can keep using web fetch, web search, listing extract, or RERA verify in plain language.',
-            });
-        }
-
-        const igrIntent = detectIgrIntent(prompt);
-        if (igrIntent) {
-            const { buildingName, locality } = igrIntent;
-            const transaction = buildingName
-                ? await igrQueryService.getLastTransactionForBuilding(buildingName)
-                : null;
-
-            if (transaction) {
-                const stats = transaction.locality
-                    ? await igrQueryService.getLocalityStats(transaction.locality, 6)
-                    : (locality ? await igrQueryService.getLocalityStats(locality, 6) : null);
-
-                const marketRate = stats?.avg_price_per_sqft ?? null;
-                const dealRate = transaction.price_per_sqft ?? null;
-                const comparison = marketRate != null && dealRate != null
-                    ? dealRate > marketRate ? 'above' : dealRate < marketRate ? 'below' : 'at'
-                    : null;
-
-                const rendered = [
-                    `Last registered transaction for **${transaction.building_name || buildingName}** (${transaction.locality || locality || 'Unknown locality'})`,
-                    '',
-                    `- Date: ${formatIgrDate(transaction.reg_date)}`,
-                    `- Consideration: ${formatInr(transaction.consideration)}`,
-                    `- Area: ${formatSqft(transaction.area_sqft)}`,
-                    `- Rate: ${formatRate(dealRate)}`,
-                    stats?.transaction_count
-                        ? `- Locality average (last 6 months): ${formatRate(marketRate)} across ${stats.transaction_count} transactions${comparison ? ` (this deal was ${comparison} market)` : ''}`
-                        : null,
-                ].filter(Boolean).join('\n');
-
-                await saveToHistory(conversationKey, prompt, rendered);
-                return res.json({
-                    reply: rendered,
-                    text: rendered,
-                    agent_response: toAgentResponse(rendered),
-                    route: { intent: 'igr_last_transaction' },
-                    capability_hint: 'You can ask: “Give me the latest IGR transaction for <building/locality>” or “Compare <building> vs locality market rate”.',
-                    data: { transaction, locality_stats: stats },
-                });
-            }
-
-            if (locality) {
-                const stats = await igrQueryService.getLocalityStats(locality, 6);
-                if (stats.transaction_count > 0) {
-                    const rendered = `No exact building match found. Locality average in **${stats.locality}** (last 6 months): ${formatRate(stats.avg_price_per_sqft)} across ${stats.transaction_count} transactions.`;
-                    await saveToHistory(conversationKey, prompt, rendered);
-                    return res.json({
-                        reply: rendered,
-                        text: rendered,
-                        agent_response: toAgentResponse(rendered),
-                        route: { intent: 'igr_locality_stats' },
-                        capability_hint: 'If you share the exact building name (as per registration), I can try a closer match.',
-                        data: { locality_stats: stats },
-                    });
-                }
-            }
-
-            const rendered = 'I could not find IGR transaction data for that building/locality in this workspace yet.';
-            await saveToHistory(conversationKey, prompt, rendered);
-            return res.json({
-                reply: rendered,
-                text: rendered,
-                agent_response: toAgentResponse(rendered),
-                route: { intent: 'igr_last_transaction' },
-                capability_hint: 'If this is a new building, we might not have ingested its IGR feed yet. Share locality + building name and I’ll try again.',
-            });
-        }
-
-        const directWorkflow = await brokerWorkflowService.handlePrompt(tenantId, prompt);
-        if (directWorkflow.handled) {
-            const capabilityHint = buildCapabilityHintFromReply(directWorkflow.reply);
-            const agentResponse = toWorkflowAgentResponse(directWorkflow.reply, directWorkflow.data);
-            const renderedReply = maybePersonalizeGreeting(agentResponse.message, profile?.full_name, isFirstReply);
-            await saveToHistory(conversationKey, prompt, renderedReply);
-            return res.json({
-                reply: renderedReply,
-                text: renderedReply,
-                agent_response: agentResponse,
-                workflow: directWorkflow.data,
-                route: { intent: directWorkflow.data?.type || 'general_answer' },
-                capability_hint: capabilityHint,
-            });
-        }
-
         const route = await agentRouterService.route(tenantId, prompt, history);
         const capabilityHint = buildCapabilityHint(route.intent);
+
+        if (isRoutedToolIntent(route.intent)) {
+            const toolResult = await executeRoutedToolIntent(route, prompt);
+            if (toolResult) {
+                const renderedReply = maybePersonalizeGreeting(toolResult.reply, profile?.full_name, isFirstReply);
+                await saveToHistory(conversationKey, prompt, renderedReply);
+                return res.json({
+                    reply: renderedReply,
+                    text: renderedReply,
+                    agent_response: toolResult.agentResponse,
+                    route,
+                    capability_hint: toolResult.capabilityHint || capabilityHint,
+                    data: toolResult.data,
+                });
+            }
+        }
 
         if (isWorkflowIntent(route.intent)) {
             const workflowPlan: BrokerToolPlan = { ...route, intent: route.intent };
@@ -211,7 +119,7 @@ export const chat = async (req: Request, res: Response) => {
             modelPreference,
             undefined,
             tenantId,
-            buildPersonalizedSystemPrompt(profile?.full_name, PULSE_CHAT_SYSTEM_PROMPT, isFirstReply),
+            buildPersonalizedSystemPrompt(profile, PULSE_CHAT_SYSTEM_PROMPT, isFirstReply),
             history
         );
         const structuredToolCall = extractStructuredToolCall(response.text);
@@ -298,6 +206,103 @@ async function buildAttachmentContext(tenantId: string, attachments: any[]) {
     return parts.join('\n\n');
 }
 
+function isRoutedToolIntent(intent: AgentRoutePlan['intent']) {
+    return [
+        'web_fetch',
+        'search_web',
+        'verify_rera',
+        'fetch_property_listing',
+        'igr_last_transaction',
+        'igr_locality_stats',
+    ].includes(intent);
+}
+
+async function executeRoutedToolIntent(route: AgentRoutePlan, prompt: string) {
+    switch (route.intent) {
+        case 'web_fetch':
+        case 'search_web':
+        case 'verify_rera':
+        case 'fetch_property_listing': {
+            const fallbackPlan = browserToolService.detectPrompt(prompt);
+            const rawArgs = route.args && typeof route.args === 'object' ? route.args : {};
+            const args = Object.keys(rawArgs).length > 0 ? rawArgs : (fallbackPlan?.args || {});
+            const toolResult = await browserToolService.execute(route.intent, args);
+            return {
+                reply: toolResult.message,
+                agentResponse: toAgentResponse(toolResult.message, 'text', toolResult.data),
+                capabilityHint: 'You can keep using web fetch, web search, listing extract, or RERA verify in plain language.',
+                data: toolResult.data,
+            };
+        }
+        case 'igr_last_transaction':
+        case 'igr_locality_stats': {
+            const parsed = detectIgrIntent(prompt);
+            const routeArgs = route.args && typeof route.args === 'object' ? route.args as Record<string, unknown> : {};
+            const buildingName = String(routeArgs.buildingName || routeArgs.building_name || parsed?.buildingName || '').trim() || null;
+            const locality = String(routeArgs.locality || parsed?.locality || '').trim() || null;
+            const transaction = buildingName
+                ? await igrQueryService.getLastTransactionForBuilding(buildingName)
+                : null;
+
+            if (transaction) {
+                const stats = transaction.locality
+                    ? await igrQueryService.getLocalityStats(transaction.locality, 6)
+                    : (locality ? await igrQueryService.getLocalityStats(locality, 6) : null);
+
+                const marketRate = stats?.avg_price_per_sqft ?? null;
+                const dealRate = transaction.price_per_sqft ?? null;
+                const comparison = marketRate != null && dealRate != null
+                    ? dealRate > marketRate ? 'above' : dealRate < marketRate ? 'below' : 'at'
+                    : null;
+
+                const rendered = [
+                    `Last registered transaction for **${transaction.building_name || buildingName}** (${transaction.locality || locality || 'Unknown locality'})`,
+                    '',
+                    `- Date: ${formatIgrDate(transaction.reg_date)}`,
+                    `- Consideration: ${formatInr(transaction.consideration)}`,
+                    `- Area: ${formatSqft(transaction.area_sqft)}`,
+                    `- Rate: ${formatRate(dealRate)}`,
+                    stats?.transaction_count
+                        ? `- Locality average (last 6 months): ${formatRate(marketRate)} across ${stats.transaction_count} transactions${comparison ? ` (this deal was ${comparison} market)` : ''}`
+                        : null,
+                ].filter(Boolean).join('\n');
+
+                return {
+                    reply: rendered,
+                    agentResponse: toAgentResponse(rendered),
+                    capabilityHint: 'You can ask: “Give me the latest IGR transaction for <building/locality>” or “Compare <building> vs locality market rate”.',
+                    data: { transaction, locality_stats: stats, buildingName, locality },
+                };
+            }
+
+            if (locality) {
+                const stats = await igrQueryService.getLocalityStats(locality, 6);
+                if (stats.transaction_count > 0) {
+                    const rendered = `No exact building match found. Locality average in **${stats.locality}** (last 6 months): ${formatRate(stats.avg_price_per_sqft)} across ${stats.transaction_count} transactions.`;
+                    return {
+                        reply: rendered,
+                        agentResponse: toAgentResponse(rendered),
+                        capabilityHint: 'If you share the exact building name (as per registration), I can try a closer match.',
+                        data: { locality_stats: stats, buildingName, locality },
+                    };
+                }
+            }
+
+            const rendered = buildingName || locality
+                ? `I checked IGR data for ${[buildingName, locality].filter(Boolean).join(', ')}, but there is no match in this workspace yet.`
+                : 'I could not resolve the building or locality clearly enough to search IGR data yet.';
+            return {
+                reply: rendered,
+                agentResponse: toAgentResponse(rendered),
+                capabilityHint: 'Try the exact registered building name plus locality, for example: “Latest IGR for Kalpataru Magnus, Bandra East”.',
+                data: { buildingName, locality },
+            };
+        }
+        default:
+            return null;
+    }
+}
+
 function detectIgrIntent(prompt: string): { buildingName: string | null; locality: string | null } | null {
     const lowered = String(prompt || '').toLowerCase();
     const looksLikeIgr = (
@@ -316,12 +321,30 @@ function detectIgrIntent(prompt: string): { buildingName: string | null; localit
         .replace(/\s+/g, ' ')
         .trim();
 
-    const localityMatch = compact.match(/\b(in|at|near)\s+([a-z][a-z0-9 .-]{2,40})$/i);
-    const locality = localityMatch?.[2]?.trim() || null;
+    let locality: string | null = null;
+    let cleanedBuilding = compact;
 
-    const cleanedBuilding = compact
-        .replace(/\b(latest|last|recent|transaction|transactions|data|details|igr|registration|registered|record|records|sale deed|stamp duty|of|for|please|plz|chahiye|chaiye|chahiyeh)\b/g, ' ')
-        .replace(/\b(in|at|near)\b\s+[a-z][a-z0-9 .-]{2,40}$/i, ' ')
+    const commaParts = compact
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+    if (commaParts.length >= 2) {
+        const tail = commaParts[commaParts.length - 1];
+        if (tail.length >= 3) {
+            locality = tail;
+            cleanedBuilding = commaParts.slice(0, -1).join(' ');
+        }
+    }
+
+    if (!locality) {
+        const localityMatch = compact.match(/\b(in|at|near|on)\s+([a-z][a-z0-9 .-]{2,40})$/i);
+        locality = localityMatch?.[2]?.trim() || null;
+    }
+
+    cleanedBuilding = cleanedBuilding
+        .replace(/\b(hey|hi|hello|bro|bhai|please|plz|find|fetch|get|give|show|tell|me|using|use|with|for|of|the|a|an|latest|last|recent|transaction|transactions|tractions|data|details|igr|registration|registered|record|records|sale deed|stamp duty)\b/g, ' ')
+        .replace(/\b(in|at|near|on)\b\s+[a-z][a-z0-9 .-]{2,40}$/i, ' ')
         .replace(/\s+/g, ' ')
         .trim();
 
@@ -356,7 +379,7 @@ async function getBrokerProfile(tenantId: string) {
     const client = supabaseAdmin ?? supabase;
     const { data } = await client
         .from('profiles')
-        .select('full_name, phone')
+        .select('full_name, phone, email, app_role')
         .eq('id', tenantId)
         .maybeSingle();
 
@@ -364,25 +387,41 @@ async function getBrokerProfile(tenantId: string) {
         ? {
             full_name: data.full_name || '',
             phone: normalizeConversationPhoneNumber(data.phone || tenantId),
+            email: data.email || null,
+            app_role: data.app_role || null,
         }
         : null;
 }
 
-function buildPersonalizedSystemPrompt(fullName: string | undefined, basePrompt: string, isFirstReply = false) {
+function buildPersonalizedSystemPrompt(
+    profile: { full_name?: string; email?: string | null; app_role?: string | null } | null | undefined,
+    basePrompt: string,
+    isFirstReply = false,
+) {
     const promptParts = [
         basePrompt,
         buildIstSystemContext(),
     ];
 
-    if (!fullName?.trim()) {
-        return promptParts.join('\n\n');
+    const fullName = profile?.full_name?.trim() || '';
+    const isOwner = profile?.app_role === 'super_admin' || isOwnerSuperAdminEmail(profile?.email);
+
+    if (fullName) {
+        promptParts.push([
+            `Broker profile name: ${fullName}.`,
+            `Conversation state: this ${isFirstReply ? 'is' : 'is not'} the first assistant reply in this conversation.`,
+            'If this is the first reply, greet the broker naturally by name.',
+        ].join('\n'));
     }
 
-    promptParts.push([
-        `Broker profile name: ${fullName.trim()}.`,
-        `Conversation state: this ${isFirstReply ? 'is' : 'is not'} the first assistant reply in this conversation.`,
-        'If this is the first reply, greet the broker naturally by name.',
-    ].join('\n'));
+    if (isOwner) {
+        promptParts.push([
+            'Workspace role: owner / super admin.',
+            'This user is the builder-owner side of PropAI, not a generic broker seat.',
+            'If they ask who built PropAI, ownership, roadmap, tool wiring, MCP, or product behavior, answer directly and at an operator/product level.',
+        ].join('\n'));
+    }
+
     return promptParts.join('\n\n');
 }
 
@@ -410,6 +449,17 @@ function buildCapabilityHint(intent: string) {
             return 'You can say: "Show my follow-up queue" to review pending reminders.';
         case 'search_listings':
             return 'You can ask me to find matching inventory in plain language.';
+        case 'web_fetch':
+            return 'You can paste a property or project URL and I will fetch the page contents for you.';
+        case 'search_web':
+            return 'You can ask me to search the web for project, builder, or market information.';
+        case 'verify_rera':
+            return 'You can ask me to verify a project RERA registration in plain language.';
+        case 'fetch_property_listing':
+            return 'You can paste a listing URL and I will extract structured property details.';
+        case 'igr_last_transaction':
+        case 'igr_locality_stats':
+            return 'You can ask for the latest IGR transaction or locality registration stats using building plus locality.';
         case 'identity_question':
             return 'You can ask who built PropAI, what Pulse is, or whether I’m AI, and I’ll answer directly.';
         case 'runtime_status_question':
@@ -425,18 +475,6 @@ function buildCapabilityHint(intent: string) {
         default:
             return '';
     }
-}
-
-function buildCapabilityHintFromReply(reply: string) {
-    const lowered = reply.toLowerCase();
-    if (lowered.includes('listing')) return buildCapabilityHint('save_listing');
-    if (lowered.includes('requirement')) return buildCapabilityHint('save_requirement');
-    if (lowered.includes('channel')) return buildCapabilityHint('create_channel');
-    if (lowered.includes('crm')) return buildCapabilityHint('search_my_crm');
-    if (lowered.includes('callback') || lowered.includes('follow-up')) return buildCapabilityHint('schedule_callback');
-    if (lowered.includes('queue')) return buildCapabilityHint('check_callbacks');
-    if (lowered.includes('search')) return buildCapabilityHint('search_listings');
-    return buildCapabilityHint('general_answer');
 }
 
 function logAgentInvocation(stage: 'request' | 'response', metadata: Record<string, unknown>) {
@@ -556,62 +594,59 @@ export const updateKey = async (req: Request, res: Response) => {
 export const propertySearch = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const tenantId = user?.id;
-    const { message, mode } = req.body;
+    const { message } = req.body;
     if (!message) return res.status(400).json({ error: 'Message is required' });
 
     try {
-        // Search listings in database based on the message
         const { supabase } = await import('../config/supabase');
-        const searchText = message.toLowerCase();
-        
-        // Simple keyword matching for demo
-        let query = supabase.from('listings').select('*').eq('status', 'Active');
-        
-        const { data: listings, error } = await query;
-        
-        if (error) throw error;
-        
-        // Filter properties based on the query
-        const properties = (listings || []).filter((listing: any) => {
-            const text = JSON.stringify(listing.structured_data).toLowerCase();
-            return text.includes(searchText) || 
-                   searchText.includes('bandra') && text.includes('bandra') ||
-                   searchText.includes('worli') && text.includes('worli') ||
-                   searchText.includes('juhu') && text.includes('juhu') ||
-                   searchText.includes('powai') && text.includes('powai') ||
-                   searchText.includes('2bhk') && text.includes('2bhk') ||
-                   searchText.includes('3bhk') && text.includes('3bhk') ||
-                   searchText.includes('rental') && text.includes('rent') ||
-                   searchText.includes('sale') && text.includes('sale');
-        }).slice(0, 5);
+        const normalizedTokens = String(message)
+            .toLowerCase()
+            .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
+            .split(/\s+/)
+            .map((token) => token.trim())
+            .filter((token) => token.length >= 3);
 
-        const { text: aiResponse } = await aiService.chat(
-            `You are a Mumbai real estate expert. A client asked: "${message}". Respond helpfully about finding properties in Mumbai.`,
-            'Auto',
-            undefined,
-            tenantId
-        ).catch(() => ({ text: 'I found properties. Can you tell me more about your budget and preferred location?' }));
+        const { data: listings, error } = await supabase
+            .from('listings')
+            .select('id, raw_text, structured_data')
+            .eq('status', 'Active')
+            .order('created_at', { ascending: false })
+            .limit(100);
+
+        if (error) throw error;
+
+        const ranked = (listings || [])
+            .map((listing: any) => {
+                const haystack = JSON.stringify(listing.structured_data || {}).toLowerCase();
+                const score = normalizedTokens.reduce((sum, token) => sum + (haystack.includes(token) ? 1 : 0), 0);
+                return { listing, score };
+            })
+            .filter((entry) => entry.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5);
+
+        const properties = ranked.map(({ listing, score }) => ({
+            id: listing.id,
+            title: listing.structured_data?.title || listing.structured_data?.building_name || 'Property listing',
+            location: listing.structured_data?.location || listing.structured_data?.locality || 'Location unavailable',
+            price: listing.structured_data?.price || listing.structured_data?.budget || 'Price unavailable',
+            details: listing.raw_text || '',
+            match: Math.max(50, Math.min(99, score * 20)),
+        }));
+
+        const aiResponse = properties.length
+            ? `I found ${properties.length} matching ${properties.length === 1 ? 'listing' : 'listings'} from your workspace data.`
+            : 'I could not find any trustworthy listing match for that query in your workspace right now.';
 
         res.json({
             response: aiResponse,
-            properties: properties.map((p: any) => ({
-                id: p.id,
-                title: p.structured_data?.title || 'Property in Mumbai',
-                location: p.structured_data?.location || 'Mumbai',
-                price: p.structured_data?.price || 'Contact for price',
-                details: p.raw_text || '',
-                match: Math.floor(70 + Math.random() * 30)
-            }))
+            properties,
         });
     } catch (error: any) {
-        // Return demo properties if DB not set up
-        res.json({
-            response: "I understand you're looking for property in Mumbai. Here are some options:",
-            properties: [
-                { id: '1', title: '2BHK in Bandra West', location: 'Bandra West', price: '₹85L', details: '950 sqft, modern amenities', match: 92 },
-                { id: '2', title: '3BHK in Worli Sea Face', location: 'Worli', price: '₹1.2Cr', details: '1500 sqft, sea view', match: 85 },
-                { id: '3', title: '1BHK Rental in Powai', location: 'Powai', price: '₹35k/mo', details: '650 sqft, fully furnished', match: 78 }
-            ]
+        res.status(500).json({
+            error: error.message || 'Property search is unavailable right now.',
+            response: 'Property search is unavailable right now.',
+            properties: [],
         });
     }
 };

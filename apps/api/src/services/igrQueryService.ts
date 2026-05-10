@@ -41,6 +41,28 @@ function round(value: number) {
   return Math.round(value);
 }
 
+function normalizeSearchText(value?: string | null) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getSearchTokens(value?: string | null) {
+  const stopwords = new Set([
+    'building', 'project', 'tower', 'wing', 'sale', 'deed', 'transaction',
+    'transactions', 'latest', 'last', 'recent', 'data', 'details', 'igr',
+    'registration', 'registered', 'record', 'records', 'using', 'with',
+    'from', 'near', 'in', 'at', 'on',
+  ]);
+
+  return normalizeSearchText(value)
+    .split(' ')
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !stopwords.has(token));
+}
+
 function median(values: number[]) {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -68,7 +90,51 @@ export class IgrQueryService {
       throw new Error(error.message);
     }
 
-    if (!data) return null;
+    if (!data) {
+      const tokens = getSearchTokens(name);
+      if (!tokens.length) return null;
+
+      const orQuery = tokens
+        .flatMap((token) => [
+          `building_name.ilike.%${token}%`,
+          `locality.ilike.%${token}%`,
+        ])
+        .join(',');
+
+      const { data: fuzzyRows, error: fuzzyError } = await getClient()
+        .from('igr_transactions')
+        .select('doc_number, reg_date, building_name, locality, consideration, area_sqft, price_per_sqft, config')
+        .or(orQuery)
+        .order('reg_date', { ascending: false })
+        .limit(40);
+
+      if (fuzzyError) {
+        throw new Error(fuzzyError.message);
+      }
+
+      const ranked = (fuzzyRows || [])
+        .map((row) => {
+          const haystack = `${normalizeSearchText(row.building_name)} ${normalizeSearchText(row.locality)}`;
+          const score = tokens.reduce((sum, token) => sum + (haystack.includes(token) ? 1 : 0), 0);
+          return { row, score };
+        })
+        .filter((entry) => entry.score > 0)
+        .sort((a, b) => b.score - a.score);
+
+      const best = ranked[0]?.row;
+      if (!best) return null;
+
+      return {
+        doc_number: best.doc_number ?? null,
+        reg_date: best.reg_date ?? null,
+        building_name: best.building_name ?? null,
+        locality: best.locality ?? null,
+        consideration: toNumber(best.consideration),
+        area_sqft: toNumber(best.area_sqft),
+        price_per_sqft: toNumber(best.price_per_sqft),
+        config: best.config ?? null,
+      };
+    }
 
     return {
       doc_number: data.doc_number ?? null,

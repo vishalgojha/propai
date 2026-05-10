@@ -34,7 +34,6 @@ import { SidebarCard } from './ui/SidebarCard';
 
 const NAV_ITEMS = [
   { label: 'AI Agent', path: '/agent', icon: ActivityIcon },
-  // Move Intelligence below AI Agent but above Admin by placing it after Team
   { label: 'Monitor', path: '/monitor', icon: EyeIcon },
   { label: 'Inbox', path: '/inbox', icon: MessageSquareTextIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
@@ -42,7 +41,6 @@ const NAV_ITEMS = [
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
   { label: 'History Sync', path: '/history-sync', icon: RefreshIcon },
   { label: 'Team', path: '/team', icon: ShieldIcon },
-  { label: 'Intelligence', path: '/intelligence', icon: StreamIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },
   { label: 'AI Usage', path: '/aiusage', icon: CreditCardIcon },
   { label: 'Pricing', path: '/pricing', icon: CreditCardIcon },
