@@ -7,6 +7,14 @@ import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 
 const STEPS = ['Name', 'Agency', 'City', 'Localities', 'Team', 'Done'];
+const CITIES = [
+  'Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai', 'Kolkata',
+  'Ahmedabad', 'Pune', 'Surat', 'Jaipur', 'Lucknow', 'Kanpur',
+  'Nagpur', 'Indore', 'Bhopal', 'Thane', 'Navi Mumbai',
+  'Visakhapatnam', 'Patna', 'Vadodara', 'Chandigarh', 'Coimbatore',
+  'Kochi', 'Kalyan', 'Vasai-Virar', 'Agra', 'Varanasi',
+  'Srinagar', 'Amritsar', 'Ranchi', 'Raipur', 'Guwahati',
+];
 
 type TeamMember = { name?: string; mobile?: string };
 type OnboardingData = {
@@ -36,6 +44,7 @@ export const Onboarding: React.FC = () => {
     const [localityInput, setLocalityInput] = useState('');
     const [teamName, setTeamName] = useState('');
     const [teamPhone, setTeamPhone] = useState('');
+    const [otherCityInput, setOtherCityInput] = useState('');
 
     useEffect(() => {
         (async () => {
@@ -48,7 +57,15 @@ export const Onboarding: React.FC = () => {
                     setStep(s);
                     if (s === 0) setFieldValue(existing.full_name || '');
                     else if (s === 1) setFieldValue(existing.agency_name || '');
-                    else if (s === 2) setFieldValue(existing.city || '');
+                    else if (s === 2) {
+                        const city = existing.city || '';
+                        if (city && !CITIES.includes(city)) {
+                            setFieldValue('Other');
+                            setOtherCityInput(city);
+                        } else {
+                            setFieldValue(city || '');
+                        }
+                    }
                 }
             } catch { }
             setLoading(false);
@@ -69,7 +86,7 @@ export const Onboarding: React.FC = () => {
             });
             setData((prev) => ({ ...prev, ...patch, onboarding_step: nextStep }));
             setStep(nextStep);
-            if (nextStep < 5) setFieldValue('');
+            if (nextStep < 5) { setFieldValue(''); setOtherCityInput(''); }
         } catch (err) {
             setError(handleApiError(err));
         }
@@ -83,8 +100,9 @@ export const Onboarding: React.FC = () => {
         } else if (step === 1) {
             await saveStep({ agency_name: fieldValue.trim() || null });
         } else if (step === 2) {
-            if (!fieldValue.trim()) { setError('Enter your city'); return; }
-            await saveStep({ city: fieldValue.trim() });
+            const city = fieldValue === 'Other' ? otherCityInput.trim() : fieldValue.trim();
+            if (!city) { setError('Enter or select your city'); return; }
+            await saveStep({ city });
         } else if (step === 3) {
             await saveStep({ localities: data.localities });
         } else if (step === 4) {
@@ -209,17 +227,54 @@ export const Onboarding: React.FC = () => {
                     )}
 
                     {step === 2 && (
-                        <div>
+                        <div className="relative">
                             <p className="mb-2 text-[13px] font-medium uppercase tracking-[0.1em] text-gray-500">Step 3</p>
                             <h2 className="mb-8 text-[28px] font-bold leading-tight text-white">Which city do you operate in?</h2>
-                            <input
-                                value={fieldValue}
-                                onChange={(e) => setFieldValue(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleNext())}
-                                placeholder="e.g. Mumbai"
-                                className="w-full border-0 border-b-2 border-gray-700 bg-transparent pb-3 text-[28px] font-semibold text-white outline-none transition placeholder:text-gray-600 focus:border-[var(--accent)]"
-                                autoFocus
-                            />
+                            {fieldValue !== 'Other' ? (
+                                <>
+                                    <input
+                                        value={fieldValue}
+                                        onChange={(e) => {
+                                            setFieldValue(e.target.value);
+                                            setOtherCityInput('');
+                                        }}
+                                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleNext())}
+                                        placeholder="Search city..."
+                                        className="w-full border-0 border-b-2 border-gray-700 bg-transparent pb-3 text-[28px] font-semibold text-white outline-none transition placeholder:text-gray-600 focus:border-[var(--accent)]"
+                                        autoFocus
+                                    />
+                                    {fieldValue && !CITIES.includes(fieldValue) && fieldValue !== 'Other' && (
+                                        <div className="mt-3 max-h-56 overflow-y-auto rounded-xl border border-gray-800 bg-gray-900 py-2">
+                                            {CITIES
+                                                .filter(c => c.toLowerCase().includes(fieldValue.toLowerCase()))
+                                                .map(city => (
+                                                    <button
+                                                        key={city}
+                                                        onClick={() => setFieldValue(city)}
+                                                        className="w-full px-5 py-3 text-left text-[17px] text-white transition hover:bg-gray-800"
+                                                    >
+                                                        {city}
+                                                    </button>
+                                                ))}
+                                            <button
+                                                onClick={() => { setFieldValue('Other'); setOtherCityInput(''); }}
+                                                className="w-full px-5 py-3 text-left text-[17px] text-gray-400 transition hover:bg-gray-800"
+                                            >
+                                                Other
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <input
+                                    value={otherCityInput}
+                                    onChange={(e) => setOtherCityInput(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleNext())}
+                                    placeholder="Type your city name"
+                                    className="w-full border-0 border-b-2 border-gray-700 bg-transparent pb-3 text-[28px] font-semibold text-white outline-none transition placeholder:text-gray-600 focus:border-[var(--accent)]"
+                                    autoFocus
+                                />
+                            )}
                         </div>
                     )}
 
