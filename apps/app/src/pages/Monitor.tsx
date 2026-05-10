@@ -269,6 +269,10 @@ export const Monitor: React.FC = () => {
 
   React.useEffect(() => {
     void loadMonitor();
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') void loadMonitor();
+    }, 4000);
+    return () => clearInterval(interval);
   }, [loadMonitor]);
 
   React.useEffect(() => {
@@ -358,7 +362,8 @@ export const Monitor: React.FC = () => {
             <div>
               <p className="text-sm font-semibold text-white">Monitor</p>
               <p className="text-[11px] text-[#8696a0]">
-                Live mirror of your WhatsApp activity (groups + DMs) · {data?.summary.totalChats || 0} chats · {data?.summary.groupChats || 0} groups
+                <span className="relative mr-1.5 inline-block h-2 w-2 rounded-full bg-[#00a884] shadow-[0_0_6px_#00a884]" />
+                Live · {data?.summary.totalChats || 0} chats · {data?.summary.groupChats || 0} groups
               </p>
             </div>
             <button
