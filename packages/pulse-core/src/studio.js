@@ -9,7 +9,6 @@ import { isBunAvailable } from './runtime.js';
 import { enqueueReply, initializeStorage, listMessages, listReplies, createUser, validateUser, getUserSettings, saveUserSettings, getUserById, enqueueScheduledReply, listScheduledReplies, cancelScheduledReply, claimDueScheduledReplies } from './storage.js';
 import { buildAgentContext } from './utils.js';
 import { listModels, generateResponse } from './agent.js';
-import { routeAgentQuery } from './agentQuery.js';
 import { computeInsights } from './insights.js';
 import { connectToWhatsApp } from './whatsapp.js';
 import { fetchElevenLabs, formatRecordForSpeech, formatBriefingForSpeech, speedToVoiceSettings } from './voice.js';
@@ -566,23 +565,6 @@ async function handleApi(req, res, url) {
     try {
       const response = await generateResponse(model, context, message);
       sendJson(res, { response });
-    } catch (error) {
-      sendJson(res, { error: error.message }, 500);
-    }
-    return;
-  }
-
-  if (req.method === 'POST' && url.pathname === '/api/agent') {
-    const body = await readRequestJson(req);
-    const query = String(body.query || '').trim();
-    if (!query) {
-      sendJson(res, { error: 'query is required' }, 400);
-      return;
-    }
-    try {
-      const records = await listMessages({ limit: 500 });
-      const result = await routeAgentQuery(query, records);
-      sendJson(res, { result });
     } catch (error) {
       sendJson(res, { error: error.message }, 500);
     }

@@ -52,13 +52,9 @@ PropAI Pulse is a high-performance workspace for real estate brokers to automate
    - Add Groq, OpenRouter, or Doubleword keys only if you want extra fallbacks
    - Multiple keys per provider can be separated with newlines, commas, or semicolons
 7. Add the Ollama service only if you still want an optional local provider:
-   - Use the Ollama image defined in `deployment/coolify/qwen3.json`
-   - Keep it on the shared `propai-network`
-   - Expose it through Traefik if you want a direct public Ollama URL
 8. All services auto-deploy on push to `main`.
 9. SSL is handled automatically by Coolify via Traefik and Let's Encrypt.
-10. If you keep Ollama, point `QWEN_BASE_URL` at the Coolify Ollama service name, for example `http://propai-qwen:11434/api/chat`, and set `OLLAMA_MODEL=qwen2.5vl:3b`.
-11. Groq, OpenRouter, and Doubleword use simple OpenAI-compatible env settings:
+10. Groq, OpenRouter, and Doubleword use simple OpenAI-compatible env settings:
    - `GROQ_BASE_URL=https://api.groq.com/openai/v1`
    - `GROQ_MODEL=llama3-8b-8192`
    - `OPENROUTER_BASE_URL=https://openrouter.ai/api/v1`

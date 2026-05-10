@@ -1,9 +1,7 @@
 import { spawn } from 'node:child_process';
 import https from 'node:https';
-import http from 'node:http';
 import { URL } from 'node:url';
 
-const OLLAMA_BASE = process.env.OLLAMA_BASE || 'http://localhost:11434';
 const GEMINI_KEY = process.env.GOOGLE_API_KEY || '';
 
 function parseJsonSafe(text) {
@@ -12,26 +10,6 @@ function parseJsonSafe(text) {
   } catch {
     return null;
   }
-}
-
-async function ollamaListModels() {
-  const url = new URL('/api/tags', OLLAMA_BASE);
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`Ollama error: ${res.status}`);
-  const data = await res.json();
-  return (data.models || []).map((m) => ({ name: m.name, provider: 'ollama' }));
-}
-
-async function ollamaGenerate(model, system, message) {
-  const url = new URL('/api/generate', OLLAMA_BASE);
-  const res = await fetch(url.toString(), {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ model, system, messages: [{ role: 'user', content: message }], stream: false }),
-  });
-  if (!res.ok) throw new Error(`Ollama error: ${res.status}`);
-  const data = await res.json();
-  return data.response || '';
 }
 
 async function geminiListModels(apiKey) {
@@ -88,28 +66,15 @@ async function geminiGenerate(model, system, message, apiKey) {
 }
 
 export async function listModels() {
-  const all = [];
+  if (!GEMINI_KEY) return [];
   try {
-    const ollamaModels = await ollamaListModels();
-    all.push(...ollamaModels);
+    return await geminiListModels(GEMINI_KEY);
   } catch {
-    // Ollama not available
+    return [];
   }
-  if (GEMINI_KEY) {
-    try {
-      const geminiModels = await geminiListModels(GEMINI_KEY);
-      all.push(...geminiModels);
-    } catch {
-      // Gemini not available
-    }
-  }
-  return all;
 }
 
 export async function generateResponse(model, system, message) {
-  if (model.startsWith('gemini-') || model.includes('gemini')) {
-    if (!GEMINI_KEY) throw new Error('GOOGLE_API_KEY not set');
-    return geminiGenerate(model, system, message, GEMINI_KEY);
-  }
-  return ollamaGenerate(model, system, message);
+  if (!GEMINI_KEY) throw new Error('GOOGLE_API_KEY not set');
+  return geminiGenerate(model, system, message, GEMINI_KEY);
 }

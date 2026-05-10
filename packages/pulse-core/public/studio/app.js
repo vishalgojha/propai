@@ -487,9 +487,7 @@ function initWhatsAppSettings() {
   });
 
   saveEnvBtn?.addEventListener('click', async () => {
-    const ollamaBase = document.getElementById('envOllamaBase')?.value || '';
     const googleKey = document.getElementById('envGoogleKey')?.value || '';
-    const ollamaModel = document.getElementById('envOllamaModel')?.value || '';
     const geminiModel = document.getElementById('envGeminiModel')?.value || '';
     const confidence = document.getElementById('envConfidence')?.value || '0.7';
     const elevenlabsKey = document.getElementById('envElevenLabsKey')?.value || '';
@@ -500,8 +498,6 @@ function initWhatsAppSettings() {
       const coolifyBase = 'http://116.202.9.89:8000/api/v1';
       const headers = { 'Authorization': 'Bearer 3|EZTAO9SDr8onCqpahr0hnpWDIHbXWkjkophIfqgd04a6ffdd' };
       const envVars = [
-        { key: 'OLLAMA_BASE', value: ollamaBase },
-        { key: 'OLLAMA_MODEL', value: ollamaModel },
         { key: 'GEMINI_MODEL', value: geminiModel },
         { key: 'GOOGLE_API_KEY', value: googleKey },
         { key: 'REVIEW_CONFIDENCE_THRESHOLD', value: confidence },
@@ -595,14 +591,10 @@ async function loadEnvSettings() {
     const vars = envData?.variables || [];
     const byKey = (k) => vars.find(v => v.key === k)?.value || '';
 
-    const ollamaBaseEl = document.getElementById('envOllamaBase');
-    const ollamaModelEl = document.getElementById('envOllamaModel');
     const geminiModelEl = document.getElementById('envGeminiModel');
     const googleKeyEl = document.getElementById('envGoogleKey');
     const confidenceEl = document.getElementById('envConfidence');
 
-    if (ollamaBaseEl) ollamaBaseEl.value = byKey('OLLAMA_BASE') || 'http://localhost:11434';
-    if (ollamaModelEl) ollamaModelEl.value = byKey('OLLAMA_MODEL') || '';
     if (geminiModelEl) geminiModelEl.value = byKey('GEMINI_MODEL') || '';
     if (googleKeyEl) googleKeyEl.value = byKey('GOOGLE_API_KEY') || '';
     if (confidenceEl) confidenceEl.value = byKey('REVIEW_CONFIDENCE_THRESHOLD') || '0.7';
@@ -611,8 +603,6 @@ async function loadEnvSettings() {
     if (elevenKeyEl) elevenKeyEl.value = byKey('ELEVENLABS_API_KEY') || '';
     if (elevenVoiceEl) elevenVoiceEl.value = byKey('ELEVENLABS_VOICE_ID') || '';
   } catch {
-    const ollamaBaseEl = document.getElementById('envOllamaBase');
-    if (ollamaBaseEl) ollamaBaseEl.value = 'http://localhost:11434';
   }
 }
 

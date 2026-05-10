@@ -1,6 +1,5 @@
 import axios from 'axios';
 
-const OLLAMA_URL = 'http://10.0.1.1:11434/api/generate';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 const EXTRACTION_PROMPT = `You are a real estate data extraction engine for Mumbai property WhatsApp groups.
@@ -86,21 +85,6 @@ function calculateConfidence(listing) {
   return nonNull / totalFields;
 }
 
-async function runOllama(prompt, model) {
-  try {
-    const { data } = await axios.post(
-      OLLAMA_URL,
-      { model, prompt, stream: false },
-      { timeout: 120000 }
-    );
-    return (data?.response || '').trim();
-  } catch (err) {
-    const msg = err?.message || String(err);
-    const status = err?.response?.status;
-    throw new Error(`Ollama failed: ${msg} (status: ${status})`);
-  }
-}
-
 async function runGroq(prompt) {
   const groqKey = process.env.GROQ_API_KEY;
   if (!groqKey) throw new Error('GROQ_API_KEY not configured');
@@ -124,63 +108,17 @@ async function runGroq(prompt) {
 }
 
 export async function extractRealEstateData(text) {
-  const model = 'qwen2.5vl:3b';
   const prompt = EXTRACTION_PROMPT.replace('{{message}}', text);
-  let engine = 'ollama';
+  const raw = await runGroq(prompt);
+  const parsed = parseJsonResponse(raw);
+  const listings = parsed.listings || [];
+  const confidenceList = listings.map(calculateConfidence);
 
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const raw = await runOllama(prompt, model);
-      const parsed = parseJsonResponse(raw);
-      const listings = parsed.listings || [];
-      const confidenceList = listings.map(calculateConfidence);
-
-      return {
-        engine,
-        broker: parsed.broker || null,
-        listings,
-        confidence: confidenceList.length > 0 ? confidenceList[0] : 0,
-        raw_message: text
-      };
-    } catch (err) {
-      if (attempt === 0) {
-        engine = 'groq';
-        try {
-          const raw = await runGroq(prompt);
-          const parsed = parseJsonResponse(raw);
-          const listings = parsed.listings || [];
-          const confidenceList = listings.map(calculateConfidence);
-
-          return {
-            engine,
-            broker: parsed.broker || null,
-            listings,
-            confidence: confidenceList.length > 0 ? confidenceList[0] : 0,
-            raw_message: text
-          };
-        } catch (groqErr) {
-          throw new Error(`All engines failed. Ollama: ${err.message}, Groq: ${groqErr.message}`);
-        }
-      } else {
-        throw err;
-      }
-    }
-  }
-}
-
-export async function generateEmbedding(text) {
-  try {
-    const { data } = await axios.post(
-      'http://10.0.1.1:11434/api/embeddings',
-      {
-        model: 'bge-m3',
-        prompt: text
-      },
-      { timeout: 30000 }
-    );
-    return data?.embedding || null;
-  } catch (err) {
-    console.error('[EMBED] bge-m3 failed:', err.message);
-    return null;
-  }
+  return {
+    engine: 'groq',
+    broker: parsed.broker || null,
+    listings,
+    confidence: confidenceList.length > 0 ? confidenceList[0] : 0,
+    raw_message: text
+  };
 }

@@ -256,7 +256,6 @@ PropAI Pulse is packaged for self-hosted deployment on any server via Coolify.
 |----------|-------------|
 | `MONGODB_URI` | MongoDB connection string (optional if using built-in MongoDB) |
 | `MONGODB_DB` | Database name (`propai_pulse`) |
-| `OLLAMA_BASE` | Ollama endpoint (`http://localhost:11434`) |
 | `GOOGLE_API_KEY` | Gemini API key (optional) |
 
 7. Configure persistent storage for `/app/data` and `/app/auth_info_baileys`
@@ -284,6 +283,5 @@ docker compose up -d
 | `PULSE_RUNTIME` | `node` | Runtime for CLI commands |
 | `MONGODB_URI` | _(empty)_ | MongoDB connection string |
 | `MONGODB_DB` | `propai_pulse` | Database name |
-| `OLLAMA_BASE` | `http://localhost:11434` | Ollama API base |
 | `GOOGLE_API_KEY` | _(empty)_ | Google Gemini API key |
 | `REVIEW_CONFIDENCE_THRESHOLD` | `0.7` | Min confidence for auto-processed |

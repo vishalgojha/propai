@@ -93,7 +93,7 @@ export function buildMessageRecord({ msg, groupName, cleaned, extracted }) {
     cleaned_message: cleaned?.cleaned || '',
     status,
     type: firstType,
-    model: extracted?.engine || 'ollama',
+    model: extracted?.engine || 'groq',
     entries,
     contacts,
     extraction_error: extractionError,
