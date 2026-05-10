@@ -1,12 +1,12 @@
 import React from 'react';
-import { Activity, ArrowRight, Eye, History, Inbox, MessageSquare, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import backendApi, { handleApiError } from '../services/api';
-import { ENDPOINTS } from '../services/endpoints';
-import { cn } from '../lib/utils';
-import { useHistorySync } from '../hooks/useHistorySync';
-import { useAuth } from '../context/AuthContext';
-import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_PLAN_CARDS } from '../lib/propai';
+
+export const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
+  // Dashboard deprecated — /agent is the single home page
+  React.useEffect(() => { navigate('/agent', { replace: true }); }, [navigate]);
+  return null;
+};
 
 const DASHBOARD_CACHE_KEY = 'propai.dashboard_cache';
 

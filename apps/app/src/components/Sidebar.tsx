@@ -8,7 +8,6 @@ import {
   ChannelIcon,
   CreditCardIcon,
   ChevronLeftIcon,
-  DashboardIcon,
   EyeIcon,
   GroupsIcon,
   LogoutIcon,
@@ -37,7 +36,6 @@ const NAV_ITEMS = [
   { label: 'Monitor', path: '/monitor', icon: EyeIcon },
   { label: 'Inbox', path: '/inbox', icon: MessageSquareTextIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
-  { label: 'Dashboard', path: '/dashboard', icon: DashboardIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
   { label: 'History Sync', path: '/history-sync', icon: RefreshIcon },
   { label: 'Team', path: '/team', icon: ShieldIcon },
@@ -360,8 +358,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             <div className="space-y-1">
               {navItems.map((item) => {
                 const isActive =
-                  location.pathname === item.path ||
-                  (item.path === '/dashboard' && location.pathname === '/app/dashboard');
+                  location.pathname === item.path;
                 const Icon = item.icon;
 
                 return (

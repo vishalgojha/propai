@@ -47,7 +47,7 @@ export const AuthCallback: React.FC = () => {
 
   const nextPath = useMemo(() => {
     const next = params.next;
-    return next && next.startsWith('/') ? next : '/dashboard';
+    return next && next.startsWith('/') ? next : '/agent';
   }, [params.next]);
 
   useEffect(() => {

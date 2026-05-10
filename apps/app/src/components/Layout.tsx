@@ -61,7 +61,6 @@ export const Layout: React.FC = () => {
 
   const getPageTitle = (path: string) => {
     switch (path) {
-      case '/dashboard': return 'Pulse Dashboard';
       case '/monitor': return 'Monitor';
       case '/inbox':
       case '/messages':

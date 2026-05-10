@@ -42,7 +42,7 @@ export const ImpersonatePage: React.FC = () => {
           subscription: null,
         }, false /* don't persist impersonation to localStorage */);
 
-        navigate('/dashboard', { replace: true });
+        navigate('/agent', { replace: true });
       } catch (err: any) {
         setStatus('error');
         setErrorMsg(err?.response?.data?.error || 'Failed to resolve impersonation token. It may have expired.');

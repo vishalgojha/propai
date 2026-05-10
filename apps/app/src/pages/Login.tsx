@@ -133,7 +133,7 @@ export const Login: React.FC = () => {
   const nextPath = useMemo(() => {
     const params = new URLSearchParams(location.search);
     const next = params.get('next');
-    return next && next.startsWith('/') ? next : '/dashboard';
+    return next && next.startsWith('/') ? next : '/agent';
   }, [location.search]);
 
   useEffect(() => {

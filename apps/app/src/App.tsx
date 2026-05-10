@@ -13,7 +13,6 @@ import { ENDPOINTS } from './services/endpoints';
 
 const ProtectedLayout = React.lazy(async () => ({ default: (await import('./components/Layout')).Layout }));
 const Login = React.lazy(async () => ({ default: (await import('./pages/Login')).Login }));
-const Dashboard = React.lazy(async () => ({ default: (await import('./pages/Dashboard')).Dashboard }));
 const Listings = React.lazy(async () => ({ default: (await import('./pages/Listings')).Listings }));
 const WhatsApp = React.lazy(async () => ({ default: (await import('./pages/Sources')).Sources }));
 const Monitor = React.lazy(async () => ({ default: (await import('./pages/Monitor')).Monitor }));
@@ -116,8 +115,7 @@ export default function App() {
                 <ProtectedLayout />
               </ProtectedRoute>
             }>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/app/dashboard" element={<Dashboard />} />
+              
               <Route path="/monitor" element={<Monitor />} />
               <Route path="/inbox" element={<Inbox />} />
               <Route path="/stream" element={<Listings />} />
