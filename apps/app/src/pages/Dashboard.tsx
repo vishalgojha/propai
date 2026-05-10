@@ -451,13 +451,39 @@ export const Dashboard: React.FC = () => {
         </div>
       ) : null}
 
-      {needsOnboarding && (
+      {needsOnboarding ? (
         <OnboardingCard
           initial={workspaceMetadata}
           isSaving={isSavingMetadata}
           onSave={handleSaveMetadata}
         />
-      )}
+      ) : workspaceMetadata ? (
+        <div className="rounded-[16px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--accent)]">Workspace profile</p>
+              <h2 className="mt-1 text-[18px] font-bold text-[var(--text-primary)]">{workspaceMetadata.agencyName}</h2>
+              <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
+                {workspaceMetadata.primaryCity}{workspaceMetadata.serviceAreas?.length ? ` · ${workspaceMetadata.serviceAreas.length} service area${workspaceMetadata.serviceAreas.length === 1 ? '' : 's'}` : ''}
+              </p>
+            </div>
+          </div>
+          {workspaceMetadata.serviceAreas?.length ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {workspaceMetadata.serviceAreas.slice(0, 8).map((area) => (
+                <span key={area.locality} className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[11px] text-[var(--text-secondary)]">
+                  {area.locality}
+                </span>
+              ))}
+              {workspaceMetadata.serviceAreas.length > 8 ? (
+                <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[11px] text-[var(--text-secondary)]">
+                  +{workspaceMetadata.serviceAreas.length - 8} more
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <StatCard

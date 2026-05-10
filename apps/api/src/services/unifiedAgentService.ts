@@ -14,6 +14,7 @@ type BrokerProfile = {
     phone: string;
     email: string | null;
     app_role: string | null;
+    agency_name: string | null;
 } | null;
 
 type SharedRouteExecutionResult =
@@ -90,24 +91,33 @@ export async function executeSharedRoute(
 
 export async function getBrokerProfile(tenantId: string): Promise<BrokerProfile> {
     const client = supabaseAdmin ?? supabase;
-    const { data } = await client
-        .from('profiles')
-        .select('full_name, phone, email, app_role')
-        .eq('id', tenantId)
-        .maybeSingle();
+    const [profileResult, workspaceResult] = await Promise.all([
+        client
+            .from('profiles')
+            .select('full_name, phone, email, app_role')
+            .eq('id', tenantId)
+            .maybeSingle(),
+        client
+            .from('workspaces')
+            .select('agency_name')
+            .eq('owner_id', tenantId)
+            .maybeSingle(),
+    ]);
 
-    return data
-        ? {
-            full_name: data.full_name || '',
-            phone: normalizeConversationPhoneNumber(data.phone || tenantId),
-            email: data.email || null,
-            app_role: data.app_role || null,
-        }
-        : null;
+    const profile = profileResult.data;
+    if (!profile) return null;
+
+    return {
+        full_name: profile.full_name || '',
+        phone: normalizeConversationPhoneNumber(profile.phone || tenantId),
+        email: profile.email || null,
+        app_role: profile.app_role || null,
+        agency_name: workspaceResult.data?.agency_name || null,
+    };
 }
 
 export function buildPersonalizedSystemPrompt(
-    profile: { full_name?: string; email?: string | null; app_role?: string | null } | null | undefined,
+    profile: { full_name?: string; email?: string | null; app_role?: string | null; agency_name?: string | null } | null | undefined,
     basePrompt: string,
     isFirstReply = false,
 ) {
@@ -120,11 +130,15 @@ export function buildPersonalizedSystemPrompt(
     const isOwner = profile?.app_role === 'super_admin' || isOwnerSuperAdminEmail(profile?.email);
 
     if (fullName) {
-        promptParts.push([
-            `Broker profile name: ${fullName}.`,
+        const parts = [`Broker profile name: ${fullName}.`];
+        if (profile?.agency_name) {
+            parts.push(`Agency: ${profile.agency_name}.`);
+        }
+        parts.push(
             `Conversation state: this ${isFirstReply ? 'is' : 'is not'} the first assistant reply in this conversation.`,
             'If this is the first reply, greet the broker naturally by name.',
-        ].join('\n'));
+        );
+        promptParts.push(parts.join('\n'));
     }
 
     if (isOwner) {
