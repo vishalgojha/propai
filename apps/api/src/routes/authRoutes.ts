@@ -226,43 +226,65 @@ router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (
 
         const accessToken = authData.session.access_token;
         const authUserMetadata = (authData.user.user_metadata || {}) as Record<string, any>;
-        let profile = await getProfileById(authData.user.id, accessToken);
-
-        if (loginMode === 'signup') {
-            profile = await upsertProfile(
-                authData.user.id,
-                authData.user.email || email,
-                fullName,
-                phone,
-                accessToken
-            );
-            await subscriptionService.ensureTrialSubscription(authData.user.id, authData.user.email || email);
-            await referralService.ensureParticipant(authData.user.id, authData.user.email || email, fullName);
-            if (referralCode) {
-                await referralService.applyReferralCode(authData.user.id, referralCode, authData.user.email || email, fullName);
-            }
-            void emailNotificationService.sendWelcomeEmail({
-                to: authData.user.email || email,
-                fullName,
-                phone,
-            });
-        } else if (!profile) {
-            const legacyUser = await getLegacyUserSeed(authData.user.id);
-            profile = await upsertProfile(
-                authData.user.id,
-                authData.user.email || email || legacyUser?.email || null,
-                authUserMetadata.full_name || legacyUser?.full_name || undefined,
-                authUserMetadata.phone || legacyUser?.profile?.phone || undefined,
-                accessToken
-            );
+        let profile: Record<string, unknown> | null = null;
+        try {
+            profile = await getProfileById(authData.user.id, accessToken);
+        } catch (profileError: unknown) {
+            console.error('[Auth] getProfileById failed (non-fatal):', profileError);
         }
 
-        const subscription = await subscriptionService.ensureTrialSubscription(authData.user.id, authData.user.email || email);
-        const referral = await referralService.getSummary(
-            authData.user.id,
-            authData.user.email || email,
-            profile?.full_name || fullName || null,
-        );
+        try {
+            if (loginMode === 'signup') {
+                profile = await upsertProfile(
+                    authData.user.id,
+                    authData.user.email || email,
+                    fullName,
+                    phone,
+                    accessToken
+                );
+            } else if (!profile) {
+                const legacyUser = await getLegacyUserSeed(authData.user.id);
+                profile = await upsertProfile(
+                    authData.user.id,
+                    authData.user.email || email || legacyUser?.email || null,
+                    authUserMetadata.full_name || legacyUser?.full_name || undefined,
+                    authUserMetadata.phone || legacyUser?.profile?.phone || undefined,
+                    accessToken
+                );
+            }
+        } catch (profileError: unknown) {
+            console.error('[Auth] upsertProfile failed (non-fatal):', profileError);
+        }
+
+        try {
+            if (loginMode === 'signup') {
+                await subscriptionService.ensureTrialSubscription(authData.user.id, authData.user.email || email);
+                await referralService.ensureParticipant(authData.user.id, authData.user.email || email, fullName);
+                if (referralCode) {
+                    await referralService.applyReferralCode(authData.user.id, referralCode, authData.user.email || email, fullName);
+                }
+                void emailNotificationService.sendWelcomeEmail({
+                    to: authData.user.email || email,
+                    fullName,
+                    phone,
+                });
+            }
+        } catch (onboardingError: unknown) {
+            console.error('[Auth] Signup onboarding failed (non-fatal):', onboardingError);
+        }
+
+        let subscription: unknown = null;
+        let referral: unknown = null;
+        try {
+            subscription = await subscriptionService.ensureTrialSubscription(authData.user.id, authData.user.email || email);
+            referral = await referralService.getSummary(
+                authData.user.id,
+                authData.user.email || email,
+                profile?.full_name || fullName || null,
+            );
+        } catch (postAuthError: unknown) {
+            console.error('[Auth] Post-auth subscription/referral failed (non-fatal):', postAuthError);
+        }
 
         return res.json({
             success: true,
