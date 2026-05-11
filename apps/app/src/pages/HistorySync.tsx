@@ -1,8 +1,8 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { HistorySyncBanner } from '../components/HistorySyncBanner';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
-import { MessageSquareTextIcon, PlusIcon, LoaderIcon, CheckIcon } from '../lib/icons';
+import { MessageSquareTextIcon, PlusIcon, LoaderIcon, CheckIcon, AlertTriangleIcon } from '../lib/icons';
 import { useHistorySync } from '../hooks/useHistorySync';
 
 type HistoryImportResponse = {
@@ -13,6 +13,23 @@ type HistoryImportResponse = {
   fileName?: string | null;
   fileCount?: number;
   historyProcessedAt?: string | null;
+  importId?: string | null;
+};
+
+type HistoryImportRecord = {
+  id: string;
+  workspace_id: string;
+  filenames: string[];
+  file_size_kb: number;
+  status: 'queued' | 'parsing' | 'done' | 'failed';
+  total_messages: number;
+  parsed_listings: number;
+  parsed_requirements: number;
+  skipped_messages: number;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
 };
 
 function formatBytes(value: number) {
@@ -38,15 +55,58 @@ export const HistorySync: React.FC = () => {
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [forceProcess, setForceProcess] = useState(false);
+  const [imports, setImports] = useState<HistoryImportRecord[]>([]);
+  const [duplicateWarning, setDuplicateWarning] = useState<{
+    filenames: string[];
+    completedAt: string | null;
+    listings: number;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  const fetchImports = useCallback(async () => {
+    try {
+      const response = await backendApi.get<HistoryImportRecord[]>(ENDPOINTS.whatsapp.historyImports);
+      setImports(Array.isArray(response.data) ? response.data : []);
+    } catch {
+      // silent
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchImports();
+    const interval = window.setInterval(fetchImports, 3000);
+    return () => window.clearInterval(interval);
+  }, [fetchImports]);
+
+  const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     setSelectedFiles(files);
     setUploadMessage(null);
     setUploadError(null);
-  }, []);
+    setDuplicateWarning(null);
 
-  const handleUpload = useCallback(async () => {
+    if (!files.length) return;
+
+    try {
+      const filenames = files.map((f) => f.name);
+      const response = await backendApi.post<{ alreadyImported: string[] }>(ENDPOINTS.whatsapp.historyCheckDuplicates, { filenames });
+      const already = response.data?.alreadyImported || [];
+      if (already.length > 0) {
+        const doneImport = imports.find((imp) =>
+          imp.status === 'done' && imp.filenames.some((name) => already.includes(name)),
+        );
+        setDuplicateWarning({
+          filenames: already,
+          completedAt: doneImport?.completed_at || null,
+          listings: doneImport?.parsed_listings || 0,
+        });
+      }
+    } catch {
+      // non-blocking
+    }
+  }, [imports]);
+
+  const handleUpload = useCallback(async (skipDuplicateCheck = false) => {
     if (!selectedFiles.length) {
       setUploadError('Choose at least one TXT export first.');
       return;
@@ -55,6 +115,7 @@ export const HistorySync: React.FC = () => {
     setIsUploading(true);
     setUploadError(null);
     setUploadMessage(null);
+    setDuplicateWarning(null);
 
     try {
       const files = await Promise.all(selectedFiles.map(async (file) => ({
@@ -63,7 +124,7 @@ export const HistorySync: React.FC = () => {
       })));
       const response = await backendApi.post<HistoryImportResponse>(ENDPOINTS.whatsapp.historyImport, {
         files,
-        forceProcess,
+        forceProcess: forceProcess || skipDuplicateCheck,
       });
       const payload = response.data || {};
 
@@ -73,22 +134,28 @@ export const HistorySync: React.FC = () => {
           ? `History import was already completed on ${new Date(completedAt).toLocaleString()}. Turn on Re-import to process these files again.`
           : 'History import was already completed earlier. Turn on Re-import to process these files again.');
       } else {
-        setUploadMessage(forceProcess
+        setUploadMessage(forceProcess || skipDuplicateCheck
           ? `Re-import queued for ${selectedFiles.length} file${selectedFiles.length === 1 ? '' : 's'}.`
           : `Queued ${selectedFiles.length} file${selectedFiles.length === 1 ? '' : 's'} for background parsing.`);
       }
       setSelectedFiles([]);
       setForceProcess(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      void fetchImports();
     } catch (error) {
       setUploadError(handleApiError(error));
     } finally {
       setIsUploading(false);
     }
-  }, [forceProcess, historyProcessedAt, selectedFiles]);
+  }, [forceProcess, historyProcessedAt, selectedFiles, fetchImports]);
 
   const totalSelectedBytes = selectedFiles.reduce((sum, file) => sum + file.size, 0);
   const selectedCount = selectedFiles.length;
   const visibleTotal = Math.max(totalSource, totalProcessed);
+  const parsingImports = imports.filter((imp) => imp.status === 'parsing');
+  const doneImports = imports.filter((imp) => imp.status === 'done');
+  const failedImports = imports.filter((imp) => imp.status === 'failed');
+  const queuedImports = imports.filter((imp) => imp.status === 'queued');
 
   return (
     <div className="space-y-6">
@@ -220,6 +287,40 @@ export const HistorySync: React.FC = () => {
           </div>
         ) : null}
 
+        {duplicateWarning ? (
+          <div className="mt-3 rounded-[14px] border border-[color:rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.08)] px-4 py-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--amber)]" />
+              <div className="min-w-0">
+                <p className="text-[12px] font-semibold text-[var(--amber)]">Already imported</p>
+                <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+                  {duplicateWarning.filenames.join(', ')} {duplicateWarning.filenames.length === 1 ? 'was' : 'were'} imported on{' '}
+                  {duplicateWarning.completedAt ? new Date(duplicateWarning.completedAt).toLocaleString() : 'a previous date'}
+                  {duplicateWarning.listings > 0 ? ` — ${duplicateWarning.listings} listings extracted.` : '.'}
+                </p>
+                <div className="mt-3 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void handleUpload(true)}
+                    disabled={isUploading}
+                    className="inline-flex items-center gap-2 rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-colors hover:brightness-95 disabled:opacity-50"
+                  >
+                    {isUploading ? <LoaderIcon className="h-3.5 w-3.5 animate-spin" /> : null}
+                    Import again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setDuplicateWarning(null); setSelectedFiles([]); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                    className="inline-flex items-center gap-2 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] font-semibold text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {uploadMessage ? (
           <div className="mt-4 flex items-center gap-2 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 text-[13px] text-[var(--text-primary)]">
             <CheckIcon className="h-4 w-4 text-[var(--accent)]" />
@@ -234,8 +335,95 @@ export const HistorySync: React.FC = () => {
         ) : null}
 
         <div className="mt-4 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[12px] text-[var(--text-secondary)]">
-          The upload runs in the background. You can leave this page open while the History Sync banner shows progress. The request ceiling is now 25 MB total per import request, which is usually enough for several normal TXT exports but not huge archive dumps.
+          The upload runs in the background. You can leave this page open while the Import History section below shows live progress. The request ceiling is now 25 MB total per import request, which is usually enough for several normal TXT exports but not huge archive dumps.
         </div>
+      </div>
+
+      <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <MessageSquareTextIcon className="h-5 w-5 text-[var(--accent)]" />
+            <div>
+              <h2 className="text-[16px] font-semibold text-[var(--text-primary)]">Import History</h2>
+              <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
+                {imports.length} import{imports.length === 1 ? '' : 's'} · {doneImports.length} done · {parsingImports.length} in progress
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void fetchImports()}
+            className="inline-flex items-center gap-2 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] font-semibold text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+          >
+            <LoaderIcon className="h-3.5 w-3.5" />
+            Refresh
+          </button>
+        </div>
+
+        {imports.length === 0 ? (
+          <div className="mt-4 rounded-[14px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-6 text-center text-[13px] text-[var(--text-secondary)]">
+            No imports yet. Upload a TXT file above to get started.
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {imports.map((imp) => (
+              <div key={imp.id} className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-semibold text-[var(--text-primary)]">
+                      {imp.filenames.join(', ')}
+                    </p>
+                    <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
+                      {formatBytes(imp.file_size_kb * 1024)}
+                      {imp.started_at ? ` · Started ${new Date(imp.started_at).toLocaleString()}` : ''}
+                      {imp.completed_at ? ` · ${new Date(imp.completed_at).toLocaleString()}` : ''}
+                    </p>
+                  </div>
+                  <StatusBadge status={imp.status} errorMessage={imp.error_message} />
+                </div>
+
+                {imp.status === 'parsing' ? (
+                  <div className="mt-3">
+                    <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-base)]">
+                      <div
+                        className="h-full animate-pulse rounded-full bg-[var(--accent)] transition-all duration-500"
+                        style={{
+                          width: imp.total_messages > 0
+                            ? `${Math.min(95, Math.round((imp.parsed_listings + imp.parsed_requirements + imp.skipped_messages) / Math.max(1, imp.total_messages) * 100))}%`
+                            : '15%',
+                        }}
+                      />
+                    </div>
+                    <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
+                      Parsing... {imp.parsed_listings + imp.parsed_requirements + imp.skipped_messages} of {imp.total_messages || '?'} messages processed
+                      {imp.parsed_listings > 0 ? ` · ${imp.parsed_listings} listings` : ''}
+                      {imp.parsed_requirements > 0 ? ` · ${imp.parsed_requirements} requirements` : ''}
+                    </p>
+                  </div>
+                ) : imp.status === 'done' ? (
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Messages</p>
+                      <p className="mt-0.5 text-[13px] font-semibold text-[var(--text-primary)]">{imp.total_messages}</p>
+                    </div>
+                    <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Listings</p>
+                      <p className="mt-0.5 text-[13px] font-semibold text-[var(--text-primary)]">{imp.parsed_listings}</p>
+                    </div>
+                    <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Requirements</p>
+                      <p className="mt-0.5 text-[13px] font-semibold text-[var(--text-primary)]">{imp.parsed_requirements}</p>
+                    </div>
+                    <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Skipped</p>
+                      <p className="mt-0.5 text-[13px] font-semibold text-[var(--text-primary)]">{imp.skipped_messages}</p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
@@ -250,6 +438,35 @@ export const HistorySync: React.FC = () => {
     </div>
   );
 };
+
+function StatusBadge({ status, errorMessage }: { status: string; errorMessage?: string | null }) {
+  const base = 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]';
+
+  switch (status) {
+    case 'queued':
+      return <span className={`${base} bg-[var(--bg-base)] text-[var(--text-muted)]`}>Queued</span>;
+    case 'parsing':
+      return (
+        <span className={`${base} bg-[rgba(245,158,11,0.12)] text-[var(--amber)]`}>
+          <LoaderIcon className="h-3 w-3 animate-spin" />
+          Parsing
+        </span>
+      );
+    case 'done':
+      return <span className={`${base} bg-[rgba(37,211,102,0.12)] text-[var(--accent)]`}>&#10003; Done</span>;
+    case 'failed':
+      return (
+        <span
+          className={`${base} bg-[rgba(239,68,68,0.1)] text-[var(--red)] cursor-help`}
+          title={errorMessage || 'Import failed'}
+        >
+          &#10007; Failed
+        </span>
+      );
+    default:
+      return <span className={`${base} bg-[var(--bg-base)] text-[var(--text-muted)]`}>{status}</span>;
+  }
+}
 
 function InfoCard({ title, copy }: { title: string; copy: string }) {
   return (

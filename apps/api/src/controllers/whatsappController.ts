@@ -9,6 +9,8 @@ import { workspaceAccessService } from '../services/workspaceAccessService';
 import { workspaceActivityService } from '../services/workspaceActivityService';
 import { sendWhatsAppLifecycleEmail } from '../whatsapp/propaiRuntimeHooks';
 import { pushRecentAction } from '../services/identityService';
+import { sessionEventService } from '../services/sessionEventService';
+import { emailNotificationService } from '../services/emailNotificationService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import type { WhatsAppClient } from '../whatsapp/WhatsAppClient';
 import type { SessionSnapshot } from '@vishalgojha/whatsapp-baileys-runtime';
@@ -183,6 +185,17 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
         };
         const artifactAfterCreate = await waitForArtifact();
 
+        const { data: existingRowForMerge } = await dbClient
+            .from('whatsapp_sessions')
+            .select('session_data')
+            .eq('tenant_id', tenantId)
+            .eq('label', sessionLabel)
+            .maybeSingle();
+
+        const existingData = (existingRowForMerge?.session_data && typeof existingRowForMerge.session_data === 'object')
+            ? existingRowForMerge.session_data as Record<string, unknown>
+            : {};
+
         await dbClient
             .from('whatsapp_sessions')
             .upsert({
@@ -190,6 +203,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
                 label: sessionLabel,
                 owner_name: ownerName || null,
                 session_data: {
+                    ...existingData,
                     phoneNumber: phoneNumber || null,
                     ownerName: ownerName || null,
                     label: sessionLabel,
@@ -592,6 +606,127 @@ export const getEvents = async (req: Request, res: Response) => {
     }
 };
 
+export const getHealthLogs = async (req: Request, res: Response) => {
+    const tenantId = getTenantId(req);
+
+    try {
+        const [groupsCount, messagesReceived, parseRatio, lastActivity, recentEvents] = await Promise.all([
+            sessionEventService.getGroupsCount(tenantId),
+            sessionEventService.getMessagesReceivedCount(tenantId),
+            sessionEventService.getParseRatio(tenantId),
+            sessionEventService.getLastActivity(tenantId),
+            sessionEventService.getRecent(tenantId, 20),
+        ]);
+
+        res.json({
+            groupsDetected: groupsCount,
+            messagesReceived,
+            parsedIntoPulse: parseRatio.parsed,
+            parseSuccessRate: parseRatio.rate,
+            lastInboundActivity: lastActivity,
+            recentSessionEvents: recentEvents,
+        });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load health logs') });
+    }
+};
+
+export const submitSupportLogs = async (req: Request, res: Response) => {
+    const tenantId = getTenantId(req);
+
+    try {
+        const [groupsCount, messagesReceived, parseRatio, lastActivity, recentEvents, groupHealthRows, profile] = await Promise.all([
+            sessionEventService.getGroupsCount(tenantId),
+            sessionEventService.getMessagesReceivedCount(tenantId),
+            sessionEventService.getParseRatio(tenantId),
+            sessionEventService.getLastActivity(tenantId),
+            sessionEventService.getRecent(tenantId, 50),
+            getDbClient()
+                .from('whatsapp_group_health')
+                .select('group_id, group_name, is_active')
+                .eq('tenant_id', tenantId)
+                .order('last_group_sync_at', { ascending: false })
+                .limit(10),
+            getDbClient()
+                .from('profiles')
+                .select('email, full_name, phone')
+                .eq('id', tenantId)
+                .maybeSingle(),
+        ]);
+
+        const brokerNumber = (profile as any)?.phone || '';
+
+        const payload = {
+            workspace_id: tenantId,
+            broker_number: brokerNumber,
+            timestamp: new Date().toISOString(),
+            health_snapshot: {
+                groupsDetected: groupsCount,
+                messagesReceived,
+                parsedIntoPulse: parseRatio.parsed,
+                parseSuccessRate: parseRatio.rate,
+                lastInboundActivity: lastActivity,
+            },
+            recent_events: recentEvents.map((e: any) => ({
+                event_type: e.event_type,
+                created_at: e.created_at,
+                payload: e.payload,
+            })),
+            groups: (groupHealthRows.data || []).map((g: any) => ({
+                id: g.group_id,
+                name: g.group_name,
+                active: g.is_active,
+            })),
+        };
+
+        const { data: saved, error } = await getDbClient()
+            .from('support_logs')
+            .insert({
+                workspace_id: tenantId,
+                broker_number: brokerNumber,
+                payload,
+                status: 'open',
+            })
+            .select('id')
+            .single();
+
+        if (error) {
+            return res.status(500).json({ error: error.message || 'Failed to save support log' });
+        }
+
+        const emailBody = [
+            'PropAI Support Log',
+            '',
+            `Workspace: ${tenantId}`,
+            `Broker: ${brokerNumber}`,
+            `Time: ${payload.timestamp}`,
+            '',
+            'Health Snapshot:',
+            JSON.stringify(payload.health_snapshot, null, 2),
+            '',
+            `Recent Events (${payload.recent_events.length}):`,
+            JSON.stringify(payload.recent_events.slice(0, 10), null, 2),
+            '',
+            `Groups (${payload.groups.length}):`,
+            JSON.stringify(payload.groups, null, 2),
+        ].join('\n');
+
+        await emailNotificationService.sendCrashReport({
+            subject: `PropAI Support Log — ${brokerNumber || tenantId} — ${new Date().toISOString()}`,
+            error: emailBody,
+            context: { supportLogId: saved.id, workspaceId: tenantId },
+        });
+
+        res.json({
+            success: true,
+            referenceId: saved.id,
+            message: 'Logs sent to PropAI support. We\'ll diagnose and get back to you.',
+        });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to submit support logs') });
+    }
+};
+
 export const getProfile = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
 
@@ -850,6 +985,9 @@ export const sendMessage = async (req: Request, res: Response) => {
     if (!tenantId || !remoteJid || !text) {
         return res.status(400).json({ error: 'remoteJid and text are required' });
     }
+
+    const chatType = String(remoteJid || '').endsWith('@g.us') ? 'GROUP' : 'DIRECT';
+    console.log(`[sendMessage] ${chatType} send to JID: ${remoteJid} (workspace: ${tenantId})`);
 
     try {
         const client = await sessionManager.getSession(tenantId);

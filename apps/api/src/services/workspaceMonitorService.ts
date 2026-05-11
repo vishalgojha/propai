@@ -163,6 +163,28 @@ export class WorkspaceMonitorService {
                 };
             });
 
+        for (const group of groupsData) {
+            const jid = String(group.group_jid || '');
+            if (!jid || chatsMap.has(jid)) continue;
+
+            chatsMap.set(jid, {
+                id: jid,
+                remoteJid: jid,
+                type: 'group',
+                title: group.group_name || 'WhatsApp group',
+                preview: 'No messages yet',
+                lastMessageAt: group.last_active_at || new Date(0).toISOString(),
+                sender: null,
+                locality: group.locality || null,
+                city: group.city || null,
+                category: group.category || null,
+                tags: Array.isArray(group.tags) ? group.tags : [],
+                participantsCount: Number(group.member_count || 0),
+                broadcastEnabled: Boolean(group.broadcast_enabled),
+                messageCount: 0,
+            });
+        }
+
         const chats = Array.from(chatsMap.values()).sort((left, right) => {
             return new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime();
         });

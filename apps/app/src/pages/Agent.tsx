@@ -489,36 +489,63 @@ export const Agent: React.FC = () => {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    try {
-      const savedMessages = window.localStorage.getItem(chatStorageKey);
-      if (savedMessages) {
-        const parsedMessages = JSON.parse(savedMessages) as ChatMessage[];
-        if (Array.isArray(parsedMessages) && parsedMessages.length) {
-          const validMessages = parsedMessages.filter(
-            (message) =>
-              (message.role === 'user' || message.role === 'ai') &&
-              typeof message.content === 'string' &&
-              typeof message.timestamp === 'string',
-          );
-          setMessages(validMessages.length ? validMessages : starterMessages);
-        } else {
-          setMessages(starterMessages);
+    let mounted = true;
+
+    const loadHistory = async () => {
+      try {
+        const resp = await backendApi.get<{ messages: { role: 'user' | 'ai'; content: string }[] }>(ENDPOINTS.ai.history);
+        const serverMessages = resp.data?.messages;
+        if (mounted && Array.isArray(serverMessages) && serverMessages.length > 0) {
+          const withTimestamps = serverMessages.map((msg) => ({
+            role: msg.role as 'user' | 'ai',
+            content: msg.content,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          }));
+          setMessages(withTimestamps);
+          setChatHydrated(true);
+          return;
         }
-      } else {
-        setMessages(starterMessages);
+      } catch {
+        // server history unavailable, fall through to localStorage
       }
-    } catch {
-      setMessages(starterMessages);
-    }
 
-    try {
-      const savedDraft = window.localStorage.getItem(draftStorageKey);
-      setInput(savedDraft || '');
-    } catch {
-      setInput('');
-    }
+      try {
+        const savedMessages = window.localStorage.getItem(chatStorageKey);
+        if (mounted) {
+          if (savedMessages) {
+            const parsedMessages = JSON.parse(savedMessages) as ChatMessage[];
+            if (Array.isArray(parsedMessages) && parsedMessages.length) {
+              const validMessages = parsedMessages.filter(
+                (message) =>
+                  (message.role === 'user' || message.role === 'ai') &&
+                  typeof message.content === 'string' &&
+                  typeof message.timestamp === 'string',
+              );
+              setMessages(validMessages.length ? validMessages : starterMessages);
+            } else {
+              setMessages(starterMessages);
+            }
+          } else {
+            setMessages(starterMessages);
+          }
+        }
+      } catch {
+        if (mounted) setMessages(starterMessages);
+      }
 
-    setChatHydrated(true);
+      try {
+        const savedDraft = window.localStorage.getItem(draftStorageKey);
+        if (mounted) setInput(savedDraft || '');
+      } catch {
+        if (mounted) setInput('');
+      }
+
+      if (mounted) setChatHydrated(true);
+    };
+
+    loadHistory();
+
+    return () => { mounted = false; };
   }, [chatStorageKey, draftStorageKey]);
 
   useEffect(() => {

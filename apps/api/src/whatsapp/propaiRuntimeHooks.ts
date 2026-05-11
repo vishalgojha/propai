@@ -3,6 +3,7 @@ import { supabase, supabaseAdmin } from '../config/supabase';
 import { emailNotificationService } from '../services/emailNotificationService';
 import { whatsappHealthService } from '../services/whatsappHealthService';
 import { whatsappGroupService } from '../services/whatsappGroupService';
+import { sessionEventService } from '../services/sessionEventService';
 import type { GroupMentionListingMatch } from '../services/brokerWorkflowService';
 
 const db = supabaseAdmin || supabase;
@@ -650,16 +651,33 @@ export function createPropAIRuntimeHooks(): WhatsAppRuntimeHooks {
                 });
 
                 if (event.status === 'connected') {
+                    void sessionEventService.log(event.tenantId, 'connected', {
+                        sessionLabel: event.label,
+                        phoneNumber: event.phoneNumber || null,
+                    });
+
                     const { sessionManager } = require('./SessionManager');
                     const client = await sessionManager.getSession(event.tenantId, event.label);
                     if (client) {
                         const groups = await client.getGroups();
                         await whatsappHealthService.syncGroups(event.tenantId, event.label, groups);
                         await whatsappGroupService.syncGroups(event.tenantId, event.label, groups);
+                        void sessionEventService.log(event.tenantId, 'groups_synced', {
+                            sessionLabel: event.label,
+                            count: groups.length,
+                            groupNames: groups.slice(0, 20).map((g) => g.name),
+                        });
                     }
                 }
 
                 if (event.status === 'connected' || event.status === 'disconnected') {
+                    if (event.status === 'disconnected') {
+                        void sessionEventService.log(event.tenantId, 'disconnected', {
+                            sessionLabel: event.label,
+                            phoneNumber: event.phoneNumber || null,
+                        });
+                    }
+
                     await sendWhatsAppLifecycleEmail({
                         tenantId: event.tenantId,
                         label: event.label,

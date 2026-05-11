@@ -156,12 +156,23 @@ export class SupabaseAuthState {
 
     private async persist() {
         this.writeChain = this.writeChain.then(async () => {
+            const { data: existing } = await db
+                .from('whatsapp_sessions')
+                .select('session_data')
+                .eq('session_id', this.sessionId)
+                .maybeSingle();
+
+            const existingData = (existing?.session_data && typeof existing.session_data === 'object')
+                ? existing.session_data as Record<string, unknown>
+                : {};
+
             const payload = {
                 session_id: this.sessionId,
                 tenant_id: this.persistedTenantId,
                 label: this.label,
                 owner_name: this.ownerName || null,
                 session_data: {
+                    ...existingData,
                     phoneNumber: this.phoneNumber || null,
                     ownerName: this.ownerName || null,
                     label: this.label,

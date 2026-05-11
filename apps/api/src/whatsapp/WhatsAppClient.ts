@@ -7,6 +7,7 @@ import { Boom } from '@hapi/boom';
 import { sanitizeForWhatsApp } from './sanitizer';
 import { createSupabaseAuthState, type SupabaseAuthState } from './SupabaseAuthState';
 import { CircuitBreaker } from './CircuitBreaker';
+import { sessionEventService } from '../services/sessionEventService';
 import type {
     ConnectionStatus,
     GroupInfo,
@@ -145,6 +146,13 @@ export class WhatsAppClient {
                         const statusCode = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode;
                         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
+                        if (statusCode === DisconnectReason.loggedOut) {
+                            await this.storage.deleteSession?.({
+                                tenantId: this.tenantId,
+                                label: this.label,
+                            });
+                        }
+
                         if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
                             this.reconnectAttempts++;
                             this.circuitBreaker.recordFailure();
@@ -223,6 +231,15 @@ export class WhatsAppClient {
                         this.connectedLidJid = remoteJid;
                         await this.persistStatus(this.connectionStatus);
                     }
+
+                    const isGroup = remoteJid.endsWith('@g.us');
+                    void sessionEventService.log(this.tenantId, 'message_received', {
+                        remoteJid,
+                        isGroup,
+                        label: this.label,
+                        length: messageText.length,
+                        hasMedia: Boolean(msg.message?.imageMessage || msg.message?.videoMessage),
+                    });
 
                     const event: IncomingMessageRecord = {
                         tenantId: this.tenantId,

@@ -9,6 +9,7 @@ import { supabase, supabaseAdmin } from '../config/supabase';
 import { channelService } from '../services/channelService';
 import { aiService } from '../services/aiService';
 import { whatsappHealthService } from '../services/whatsappHealthService';
+import { sessionEventService } from '../services/sessionEventService';
 
 const db = supabaseAdmin ?? supabase;
 
@@ -24,6 +25,17 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
         const sessionId = `${input.tenantId}:${input.label}`;
         const persistedTenantId = input.tenantId === 'system' ? null : input.tenantId;
         const sessionStatus = input as SessionStatusUpdate & { lidJid?: string | null };
+
+        const { data: existing } = await db
+            .from('whatsapp_sessions')
+            .select('session_data')
+            .eq('session_id', sessionId)
+            .maybeSingle();
+
+        const existingData = (existing?.session_data && typeof existing.session_data === 'object')
+            ? existing.session_data as Record<string, unknown>
+            : {};
+
         const { error } = await db
             .from('whatsapp_sessions')
             .upsert({
@@ -32,6 +44,7 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                 label: input.label,
                 owner_name: input.ownerName ?? null,
                 session_data: {
+                    ...existingData,
                     phoneNumber: input.phoneNumber ?? null,
                     ownerName: input.ownerName ?? null,
                     label: input.label,
@@ -55,6 +68,11 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
             const gateResult = await this.runPriceGate(input.text);
 
             if (!gateResult.shouldParse) {
+                void sessionEventService.log(input.tenantId, 'parse_failed', {
+                    remoteJid: input.remoteJid,
+                    label: input.label,
+                    reason: gateResult.reason || 'price_gate_rejected',
+                });
                 await whatsappHealthService.recordMessageMetrics({
                     tenantId: input.tenantId,
                     sessionLabel: input.label,
@@ -108,6 +126,19 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
             }
 
             const streamItem = await channelService.ingestMessage(input.tenantId, messageRecord);
+            if (streamItem) {
+                void sessionEventService.log(input.tenantId, 'parse_success', {
+                    remoteJid: input.remoteJid,
+                    label: input.label,
+                    streamItemId: typeof streamItem === 'object' && 'id' in streamItem ? (streamItem as any).id : undefined,
+                });
+            } else {
+                void sessionEventService.log(input.tenantId, 'parse_failed', {
+                    remoteJid: input.remoteJid,
+                    label: input.label,
+                    reason: 'ingest_returned_null',
+                });
+            }
             await whatsappHealthService.recordMessageMetrics({
                 tenantId: input.tenantId,
                 sessionLabel: input.label,
@@ -118,6 +149,11 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
 
             return { id: String(messageRecord.id) };
         } catch (error) {
+            void sessionEventService.log(input.tenantId, 'parse_failed', {
+                remoteJid: input.remoteJid,
+                label: input.label,
+                reason: error instanceof Error ? error.message.slice(0, 100) : 'unknown_error',
+            });
             await whatsappHealthService.recordMessageMetrics({
                 tenantId: input.tenantId,
                 sessionLabel: input.label,

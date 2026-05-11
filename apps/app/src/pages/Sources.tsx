@@ -56,6 +56,25 @@ type Profile = {
   phoneVerified?: boolean;
 };
 
+type HealthLogsResponse = {
+  groupsDetected: number;
+  messagesReceived: number;
+  parsedIntoPulse: number;
+  parseSuccessRate: number;
+  lastInboundActivity: string | null;
+  recentSessionEvents: Array<{
+    event_type: string;
+    payload: Record<string, unknown>;
+    created_at: string;
+  }>;
+};
+
+type SupportLogsResponse = {
+  success: boolean;
+  referenceId: string;
+  message: string;
+};
+
 type ConnectionArtifact = {
   mode: 'qr' | 'pairing';
   format: 'text';
@@ -303,6 +322,9 @@ export const Sources: React.FC = () => {
     plan: 'Trial',
     sessions: [],
   });
+  const [healthLogs, setHealthLogs] = useState<HealthLogsResponse | null>(null);
+  const [isSubmittingSupportLogs, setIsSubmittingSupportLogs] = useState(false);
+  const [supportLogsFeedback, setSupportLogsFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const normalizedPhone = useMemo(() => normalizePhoneNumber(phoneNumber), [phoneNumber]);
@@ -462,6 +484,29 @@ export const Sources: React.FC = () => {
     }
   }, []);
 
+  const fetchHealthLogs = useCallback(async () => {
+    try {
+      const response = await backendApi.get<HealthLogsResponse>(ENDPOINTS.whatsapp.healthLogs);
+      setHealthLogs(response.data);
+    } catch (err) {
+      console.error(handleApiError(err));
+      setHealthLogs(null);
+    }
+  }, []);
+
+  const handleSubmitSupportLogs = useCallback(async () => {
+    setIsSubmittingSupportLogs(true);
+    setSupportLogsFeedback(null);
+    try {
+      const response = await backendApi.post<SupportLogsResponse>(ENDPOINTS.whatsapp.supportLogs);
+      setSupportLogsFeedback({ tone: 'success', message: response.data?.message || 'Support logs sent.' });
+    } catch (err) {
+      setSupportLogsFeedback({ tone: 'error', message: handleApiError(err) });
+    } finally {
+      setIsSubmittingSupportLogs(false);
+    }
+  }, []);
+
   const fetchOutboundWorkspace = useCallback(async () => {
     setIsLoadingOutbound(true);
     try {
@@ -602,10 +647,24 @@ export const Sources: React.FC = () => {
     }
 
     if (tab === 'logs') {
+      setSupportLogsFeedback(null);
       void fetchLogs();
       void fetchHealth();
+      void fetchHealthLogs();
     }
   };
+
+  useEffect(() => {
+    if (activeTab !== 'logs') return;
+
+    void fetchHealthLogs();
+
+    const interval = window.setInterval(() => {
+      void fetchHealthLogs();
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, [activeTab, fetchHealthLogs]);
 
   const ensureConnectUiVisible = useCallback(() => {
     if (location.pathname === '/pricing') {
@@ -1621,15 +1680,26 @@ export const Sources: React.FC = () => {
                 This shows whether the connected number is alive, how many groups Pulse can see, how many messages are landing, and whether they are being parsed into the workspace.
               </p>
             </div>
-            <button
-              onClick={() => {
-                void fetchLogs();
-                void fetchHealth();
-              }}
-              className={cn(sourceSecondaryButton, 'rounded-full px-3 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]')}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => void handleSubmitSupportLogs()}
+                disabled={isSubmittingSupportLogs}
+                className={cn(sourcePrimaryButton, 'rounded-full px-3 py-2 text-[10px]')}
+              >
+                {isSubmittingSupportLogs ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                Send logs to support
+              </button>
+              <button
+                onClick={() => {
+                  void fetchLogs();
+                  void fetchHealth();
+                  void fetchHealthLogs();
+                }}
+                className={cn(sourceSecondaryButton, 'rounded-full px-3 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]')}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -1690,6 +1760,17 @@ export const Sources: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {supportLogsFeedback && (
+            <div className={cn(
+              'mt-5 rounded-[12px] border px-4 py-3 text-[12px]',
+              supportLogsFeedback.tone === 'success'
+                ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] text-[var(--accent)]'
+                : 'border-[color:rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
+            )}>
+              {supportLogsFeedback.message}
+            </div>
+          )}
 
           <div className="mt-5 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">

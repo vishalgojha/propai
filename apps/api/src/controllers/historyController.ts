@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { historyTextImportService } from '../services/historyTextImportService';
+import { historyImportTrackingService } from '../services/historyImportTrackingService';
 import { getErrorMessage } from '../utils/controllerHelpers';
 import '../types/express';
 
@@ -68,39 +69,104 @@ export const importHistoryTxt = async (req: Request, res: Response) => {
     }
   }
 
-  setImmediate(() => {
-    const importPromise = importFiles.length > 1
-      ? historyTextImportService.importManyTxt({
-        tenantId,
-        files: importFiles,
-        sessionLabel: label,
-        forceProcess: force,
-      })
-      : historyTextImportService.importTxt({
-        tenantId,
-        rawText: String(importFiles[0]?.content || ''),
-        fileName: importFiles[0]?.fileName || name,
-        sessionLabel: label,
-        forceProcess: force,
-      });
+  const fileNames = importFiles.map((f) => f.fileName || 'unknown.txt').filter(Boolean);
+  const totalBytes = importFiles.reduce((sum, f) => sum + (f.content?.length || 0), 0);
+  const fileSizeKb = Math.round(totalBytes / 1024);
 
-    void importPromise.catch((error) => {
-      console.error('[HistoryController] Failed to import TXT history', {
-        tenantId,
-        fileName: name,
-        fileCount: importFiles.length,
-        sessionLabel: label,
-        forceProcess: force,
-        error,
-      });
-    });
+  let importId: string | null = null;
+  try {
+    importId = await historyImportTrackingService.createImport(tenantId, fileNames, fileSizeKb);
+  } catch (error) {
+    return res.status(500).json({ error: getErrorMessage(error, 'Failed to track import') });
+  }
+
+  const capturedId = importId;
+
+  setImmediate(() => {
+    const onProgress = (progress: { total: number; processed: number; listings: number; leads: number; parsed: number; skipped: number; failed: number }) => {
+      void historyImportTrackingService.updateProgress(capturedId, progress);
+    };
+
+    const executeImport = async () => {
+      await historyImportTrackingService.markParsing(capturedId);
+
+      try {
+        const result = importFiles.length > 1
+          ? await historyTextImportService.importManyTxt({
+              tenantId,
+              files: importFiles,
+              sessionLabel: label,
+              forceProcess: force,
+              onProgress,
+            })
+          : await historyTextImportService.importTxt({
+              tenantId,
+              rawText: String(importFiles[0]?.content || ''),
+              fileName: importFiles[0]?.fileName || name,
+              sessionLabel: label,
+              forceProcess: force,
+              onProgress,
+            });
+
+        await historyImportTrackingService.markDone(capturedId, {
+          total: result.total,
+          processed: result.processed,
+          listings: result.listings,
+          leads: result.leads,
+          parsed: result.parsed,
+          skipped: result.skipped,
+          failed: result.failed,
+        });
+      } catch (error) {
+        const message = getErrorMessage(error, 'Import failed');
+        console.error('[HistoryController] Failed to import TXT history', {
+          tenantId,
+          fileName: name,
+          fileCount: importFiles.length,
+          sessionLabel: label,
+          forceProcess: force,
+          error,
+        });
+        await historyImportTrackingService.markFailed(capturedId, message);
+      }
+    };
+
+    void executeImport();
   });
 
   return res.status(202).json({
     success: true,
     queued: true,
+    importId,
     fileName: importFiles.length === 1 ? importFiles[0]?.fileName || name : null,
     fileCount: importFiles.length,
     forceProcess: force,
   });
+};
+
+export const getHistoryImports = async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+
+  try {
+    const imports = await historyImportTrackingService.getImports(tenantId);
+    res.json(imports);
+  } catch (error: unknown) {
+    res.status(500).json({ error: getErrorMessage(error, 'Failed to load import history') });
+  }
+};
+
+export const checkDuplicateImports = async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { filenames } = req.body || {};
+
+  if (!Array.isArray(filenames) || filenames.length === 0) {
+    return res.status(400).json({ error: 'filenames array is required' });
+  }
+
+  try {
+    const alreadyImported = await historyImportTrackingService.getAlreadyImportedFilenames(tenantId, filenames);
+    res.json({ alreadyImported });
+  } catch (error: unknown) {
+    res.status(500).json({ error: getErrorMessage(error, 'Failed to check duplicates') });
+  }
 };

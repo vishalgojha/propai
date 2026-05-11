@@ -129,6 +129,22 @@ function logAgentInvocation(stage: 'request' | 'response', metadata: Record<stri
 }
 
 
+export const getHistory = async (req: Request, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const profile = await getBrokerProfile(req.user.id);
+        if (!profile) return res.status(500).json({ error: 'Broker profile not found' });
+        const history = await getConversationHistory(profile.phone);
+        const messages = history.map((msg) => ({
+            role: msg.role === 'assistant' ? 'ai' as const : 'user' as const,
+            content: msg.content,
+        }));
+        res.json({ messages });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to fetch history') });
+    }
+};
+
 export const getAIStatus = async (req: Request, res: Response) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const status = await aiService.getStatus(req.user.id);

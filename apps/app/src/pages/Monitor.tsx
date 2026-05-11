@@ -223,10 +223,24 @@ export const Monitor: React.FC = () => {
   });
   const [selectedChatId, setSelectedChatId] = React.useState<string>('');
   const [search, setSearch] = React.useState('');
+  const [chatFilter, setChatFilter] = React.useState<'all' | 'groups' | 'direct'>('all');
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [toast, setToast] = React.useState<string | null>(null);
   const [replyText, setReplyText] = React.useState('');
   const [isSending, setIsSending] = React.useState(false);
+  const [sendStatus, setSendStatus] = React.useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+  const [clearedChatIds, setClearedChatIds] = React.useState<Set<string>>(new Set());
+
+  const handleClearChat = React.useCallback((chatId: string) => {
+    setClearedChatIds((prev) => {
+      const next = new Set(prev);
+      next.add(chatId);
+      return next;
+    });
+    setToast('Chat cleared locally. Messages will reappear after the next sync.');
+    setTimeout(() => setToast(null), 3000);
+  }, []);
 
   const loadMonitor = React.useCallback(async () => {
     setIsLoading(true);
@@ -289,24 +303,34 @@ export const Monitor: React.FC = () => {
 
   const chats = React.useMemo(() => {
     const source = data?.chats || [];
+
+    let filtered = source;
+    if (chatFilter === 'groups') {
+      filtered = source.filter((c) => c.type === 'group');
+    } else if (chatFilter === 'direct') {
+      filtered = source.filter((c) => c.type === 'direct');
+    }
+
     const normalized = search.trim().toLowerCase();
-    if (!normalized) return source;
+    if (normalized) {
+      filtered = filtered.filter((chat) => {
+        const haystack = [
+          chat.title,
+          chat.preview,
+          chat.locality,
+          chat.city,
+          chat.category,
+          ...(chat.tags || []),
+        ]
+          .join(' ')
+          .toLowerCase();
 
-    return source.filter((chat) => {
-      const haystack = [
-        chat.title,
-        chat.preview,
-        chat.locality,
-        chat.city,
-        chat.category,
-        ...(chat.tags || []),
-      ]
-        .join(' ')
-        .toLowerCase();
+        return haystack.includes(normalized);
+      });
+    }
 
-      return haystack.includes(normalized);
-    });
-  }, [data?.chats, search]);
+    return filtered;
+  }, [data?.chats, search, chatFilter]);
 
   React.useEffect(() => {
     if (chats.length === 0) {
@@ -323,8 +347,10 @@ export const Monitor: React.FC = () => {
 
   const selectedChat = chats.find((chat) => chat.id === selectedChatId) || chats[0] || null;
   const visibleMessages = React.useMemo(
-    () => (data?.messages || []).filter((message) => message.chatId === selectedChat?.id),
-    [data?.messages, selectedChat?.id],
+    () => (data?.messages || []).filter(
+      (message) => message.chatId === selectedChat?.id && !clearedChatIds.has(message.chatId),
+    ),
+    [data?.messages, selectedChat?.id, clearedChatIds],
   );
 
   React.useEffect(() => {
@@ -338,17 +364,52 @@ export const Monitor: React.FC = () => {
     }
 
     setIsSending(true);
+    setSendStatus('sending');
     setError(null);
+
+    const jid = selectedChat.remoteJid;
+    const isGroup = selectedChat.type === 'group';
+    const targetLabel = isGroup ? `${selectedChat.title} group` : selectedChat.title;
+
+    console.log(`[Monitor] Sending to ${isGroup ? 'GROUP' : 'DIRECT'} JID: ${jid} (${targetLabel})`);
+
+    const optimisticMessage: MonitorMessage = {
+      id: `optimistic-${Date.now()}`,
+      chatId: jid,
+      type: selectedChat.type,
+      title: selectedChat.title,
+      text,
+      sender: 'You',
+      direction: 'outbound',
+      timestamp: new Date().toISOString(),
+    };
+
+    setData((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        messages: [...current.messages, optimisticMessage],
+        chats: current.chats.map((chat) =>
+          chat.id === jid
+            ? { ...chat, preview: text, lastMessageAt: optimisticMessage.timestamp }
+            : chat,
+        ),
+      };
+    });
+    setReplyText('');
 
     try {
       await backendApi.post(ENDPOINTS.whatsapp.send, {
-        remoteJid: selectedChat.remoteJid,
+        remoteJid: jid,
         text,
       });
-      setReplyText('');
-      await loadMonitor();
+      setSendStatus('sent');
+      setToast(`Sent to ${targetLabel} \u2713`);
+      setTimeout(() => { setSendStatus('idle'); setToast(null); }, 3000);
     } catch (err) {
+      setSendStatus('failed');
       setError(handleApiError(err));
+      setTimeout(() => { setSendStatus('idle'); setError(null); }, 4000);
     } finally {
       setIsSending(false);
     }
@@ -387,6 +448,44 @@ export const Monitor: React.FC = () => {
               />
             </div>
           </div>
+
+          {data?.chats ? (() => {
+            const total = data.chats.length;
+            const groupCount = data.chats.filter((c: MonitorChat) => c.type === 'group').length;
+            const directCount = data.chats.filter((c: MonitorChat) => c.type === 'direct').length;
+            const filters: { key: typeof chatFilter; label: string; count: number }[] = [
+              { key: 'all', label: 'All', count: total },
+              { key: 'groups', label: 'Groups', count: groupCount },
+              { key: 'direct', label: 'Direct', count: directCount },
+            ];
+            return (
+              <div className="flex gap-1 border-b border-[#202c33] bg-[#111b21] px-3 py-2">
+                {filters.map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setChatFilter(f.key)}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                      chatFilter === f.key
+                        ? 'bg-[#00a884] text-white'
+                        : 'bg-[#202c33] text-[#8696a0] hover:bg-[#2a3942] hover:text-white',
+                    )}
+                  >
+                    {f.label}
+                    <span className={cn(
+                      'ml-0.5 rounded-full px-1.5 text-[10px] tabular-nums',
+                      chatFilter === f.key
+                        ? 'bg-white/20 text-white'
+                        : 'bg-[#111b21] text-[#8696a0]',
+                    )}>
+                      {f.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            );
+          })() : null}
 
           {error ? (
             <div className={cn(
@@ -464,6 +563,14 @@ export const Monitor: React.FC = () => {
                     <ActivityIcon className="h-3.5 w-3.5" />
                     Live mirror
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => handleClearChat(selectedChat.id)}
+                    className={cn(monitorPill, 'border-[#3f2a2a] text-[#ff8a8a] hover:bg-[#2a1a1a] transition-colors')}
+                    title="Clear chat from view (does not delete memory or messages)"
+                  >
+                    Clear chat
+                  </button>
                 </div>
               </>
             ) : (
@@ -495,7 +602,12 @@ export const Monitor: React.FC = () => {
                       <p className="mb-1 text-[11px] font-semibold text-[#53bdeb]">{message.sender}</p>
                     ) : null}
                     <p className="whitespace-pre-wrap text-[13px] leading-6">{message.text || 'No message text'}</p>
-                    <div className="mt-1 flex justify-end text-[10px] text-[#8696a0]">
+                    <div className="mt-1 flex items-center justify-end gap-1.5 text-[10px] text-[#8696a0]">
+                      {message.id.startsWith('optimistic-') ? (
+                        <span className="text-[10px] text-[#8696a0]">&#9679;&#9679;&#9679;</span>
+                      ) : message.direction === 'outbound' ? (
+                        <span className="text-[11px] text-[#53bdeb]">&#10003;&#10003;</span>
+                      ) : null}
                       {formatDateTime(message.timestamp)}
                     </div>
                   </div>
@@ -516,11 +628,36 @@ export const Monitor: React.FC = () => {
             )}
           </div>
 
+          {toast ? (
+            <div className="border-t border-[#202c33] bg-[#202c33] px-4 py-2">
+              <div className="rounded-lg bg-[#0b3328] px-3 py-2 text-center text-xs text-[#d8fdd2]">
+                {toast}
+              </div>
+            </div>
+          ) : null}
+
           {selectedChat ? (
             <div className="border-t border-[#202c33] bg-[#202c33] px-4 py-3">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8696a0]">Reply from PropAI</p>
-                <span className={monitorPill}>Enter to send</span>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8696a0]">
+                  {selectedChat.type === 'group'
+                    ? `Send message to ${selectedChat.title} group`
+                    : `Reply to ${selectedChat.title}`}
+                </p>
+                <div className="flex items-center gap-2">
+                  {selectedChat.type === 'group' ? (
+                    <span className={monitorPill}>
+                      <GroupsIcon className="h-3 w-3" />
+                      Group
+                    </span>
+                  ) : (
+                    <span className={monitorPill}>
+                      <SmartphoneIcon className="h-3 w-3" />
+                      Direct
+                    </span>
+                  )}
+                  <span className={monitorPill}>Enter to send</span>
+                </div>
               </div>
               <div className="flex items-end gap-3">
                 <textarea
@@ -532,7 +669,9 @@ export const Monitor: React.FC = () => {
                       void handleSendReply();
                     }
                   }}
-                  placeholder={`Reply to ${selectedChat.title}`}
+                  placeholder={selectedChat.type === 'group'
+                    ? `Message ${selectedChat.title}...`
+                    : `Message ${selectedChat.title}...`}
                   rows={1}
                   className="min-h-[46px] flex-1 resize-none rounded-[16px] border border-transparent bg-[#111b21] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-[#8696a0] focus:border-[#00a884]"
                 />
@@ -540,9 +679,20 @@ export const Monitor: React.FC = () => {
                   type="button"
                   onClick={() => void handleSendReply()}
                   disabled={!replyText.trim() || isSending}
-                  className={cn(monitorPrimaryButton, 'h-11 shrink-0 px-4')}
+                  className={cn(monitorPrimaryButton, 'h-11 w-11 px-0')}
                 >
-                  {isSending ? 'Sending' : 'Send'}
+                  {sendStatus === 'sending' ? (
+                    <LoaderIcon className="h-4 w-4 animate-spin" />
+                  ) : sendStatus === 'sent' ? (
+                    <span className="text-sm">&#10003;</span>
+                  ) : sendStatus === 'failed' ? (
+                    <span className="text-sm">&#10007;</span>
+                  ) : (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="19" x2="12" y2="5" />
+                      <polyline points="5 12 12 5 19 12" />
+                    </svg>
+                  )}
                 </button>
               </div>
             </div>

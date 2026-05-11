@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getInbox, disconnectWhatsApp, getMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getGroupHealth, getEvents, getGroups, getOutboundRecipients } from '../controllers/whatsappController';
-import { importHistoryTxt } from '../controllers/historyController';
+import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getInbox, disconnectWhatsApp, getMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getGroupHealth, getEvents, getHealthLogs, submitSupportLogs, getGroups, getOutboundRecipients } from '../controllers/whatsappController';
+import { importHistoryTxt, getHistoryImports, checkDuplicateImports } from '../controllers/historyController';
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { validate } from '../middleware/validate';
@@ -14,13 +14,17 @@ router.post(ROUTE_PATHS.whatsapp.connect, validate(connectWhatsAppSchema), conne
 router.get(ROUTE_PATHS.whatsapp.qr, getQR);
 router.post(ROUTE_PATHS.whatsapp.qrForceRefresh, validate(forceRefreshQRSchema), forceRefreshQR);
 router.post(ROUTE_PATHS.whatsapp.historyImport, importHistoryTxt);
+router.get(ROUTE_PATHS.whatsapp.historyImports, getHistoryImports);
+router.post(ROUTE_PATHS.whatsapp.historyCheckDuplicates, checkDuplicateImports);
 router.get(ROUTE_PATHS.whatsapp.status, getStatus);
 router.get(ROUTE_PATHS.whatsapp.monitor, getMonitor);
 router.get(ROUTE_PATHS.whatsapp.inbox, getInbox);
 router.get(ROUTE_PATHS.whatsapp.health, getIngestionHealth);
 router.get(ROUTE_PATHS.whatsapp.healthDetailed, getDetailedHealth);
+router.get(ROUTE_PATHS.whatsapp.healthLogs, getHealthLogs);
 router.get(ROUTE_PATHS.whatsapp.groupsHealth, getGroupHealth);
 router.get(ROUTE_PATHS.whatsapp.events, getEvents);
+router.post(ROUTE_PATHS.whatsapp.supportLogs, submitSupportLogs);
 router.get(ROUTE_PATHS.whatsapp.profile, getProfile);
 router.post(ROUTE_PATHS.whatsapp.profile, validate(saveProfileSchema), saveProfile);
 router.get(ROUTE_PATHS.whatsapp.messages, getMessages);

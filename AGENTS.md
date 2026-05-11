@@ -117,6 +117,62 @@ This section reflects the state at the end of the current Codex session on 2026-
 - relabel or implement true RERA verification instead of search-based lookup
 - improve structured CRM/listing search beyond naive token overlap
 
+### Dated Handoff: 2026-05-11
+
+This section reflects the state at the end of the current session on 2026-05-11.
+
+### Pushed This Session
+
+- `bb3fd52` — Guard recent_actions with Array.isArray to prevent .map crash on string values; add CONCENTRATE_API_KEY to .env.example
+
+### What `bb3fd52` Changes
+
+- `identityService.ts` `formatRecentActions()` now guards with `Array.isArray()` instead of assuming the input is always an array — prevents `recent.map is not a function` crash if `recent_actions` column returns as a string.
+- `identityService.ts` `pushRecentAction()` uses `Array.isArray(raw) ? raw : []` instead of `(x as Type[]) || []` — same defense against string-typed recent_actions.
+- `apps/api/.env.example` gains `CONCENTRATE_API_KEY=` entry so the global fallback key is documented alongside other provider keys.
+
+### Also Pushed
+
+- `9e7303c` — Add delayed group sync after WhatsApp connection to fix empty groups on restart
+- `0b08749` — Persist AI keys in workspace_settings table (ai_keys jsonb column)
+
+### What `9e7303c` Changes
+
+- `WhatsAppClient.ts` `connection.update` handler now schedules a second `persistStatus('connected')` call 10 seconds after `connection: 'open'` fires.
+- This re-triggers the `onConnectionUpdate` hook which calls `client.getGroups()` → `groupFetchAllParticipating()` — giving Baileys time to complete the MD history sync after a resume-mode reconnection.
+- Fixes the "0 chats · 0 groups in Monitor despite UPLINK ACTIVE" bug after Coolify restarts.
+
+### What `0b08749` Changes
+
+- Adds `ai_keys jsonb` column to `workspace_settings` table (migration `20260511000001_workspace_ai_keys.sql`, already applied).
+- `getWorkspaceSettingsRecord()` now reads `ai_keys` from the DB instead of hardcoding empty strings.
+- `saveWorkspaceSettingsRecord()` now upserts `ai_keys` alongside settings to the DB.
+- Fixes the "AI keys wiped on restart" bug — previously keys only saved to `data/workspace-settings.json` (container filesystem, wiped on every Coolify redeploy).
+
+### Deployed
+
+- `broker_identity` migration applied.
+- `workspace_ai_keys` migration applied.
+- Credentials used this session:
+  - SUPABASE_URL: `https://mnqkcctegpqxjvgdgakf.supabase.co`
+  - Service role key and PAT provided by user, not persisted.
+
+### Bug Status Summary
+
+| Bug | Status | Fix |
+|-----|--------|-----|
+| Monitor 0 chats/groups after restart | ✅ Fixed in `9e7303c` | Delayed group sync 10s after connection.open |
+| `recent.map is not a function` crash | ✅ Fixed in `bb3fd52` | Array.isArray guard in identityService.ts |
+| AI keys wiped on restart | ✅ Fixed in `0b08749` + migration | ai_keys column in workspace_settings table |
+| Stream 0 items | ✅ Will fix automatically when groups repopulate | Direct consequence of monitor fix |
+| IGR web fetch not wired | ⏸️ Already partially wired — local DB + web fallback work. GRAS scraper placeholder needs OCR migration. | Separate feature, not a bug | 
+
+### Still Pending
+
+- Trigger redeploy of backend API service in Coolify — includes all 3 commits (`bb3fd52`, `9e7303c`, `0b08749`) + 2 migrations.
+- Fresh signup as broker #1 and test full flow after redeploy.
+- Build verification for frontend (`apps/app`) — not yet tested this session.
+
 ### Operational Notes
 
 - Codex shell previously used Snap Git without `remote-https`; the user's machine Git is fixed, but Codex still does not see the same system Git path reliably.

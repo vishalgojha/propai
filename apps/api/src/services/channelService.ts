@@ -1528,9 +1528,18 @@ export class ChannelService {
 
     private async parseMessage(tenantId: string, message: RawInboundMessage): Promise<ParsedStreamCandidate[]> {
         try {
-            return await this.parseMessageWithAI(tenantId, message);
+            const aiResult = await this.parseMessageWithAI(tenantId, message);
+            if (aiResult.length > 0) {
+                return aiResult;
+            }
         } catch (error) {
-            console.error('[ChannelService] AI stream parser failed', error);
+            console.error('[ChannelService] AI stream parser failed, falling back to regex', error);
+        }
+
+        try {
+            return this.parseMessageFallback(message);
+        } catch (error) {
+            console.error('[ChannelService] Regex fallback parser also failed', error);
             return [];
         }
     }
