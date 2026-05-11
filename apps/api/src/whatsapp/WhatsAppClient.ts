@@ -168,6 +168,13 @@ export class WhatsAppClient {
                             this.reconnectTimer = null;
                         }
                         await this.persistStatus('connected');
+
+                        setTimeout(() => {
+                            if (this.connectionStatus !== 'connected') return;
+                            this.persistStatus('connected').catch((error) => {
+                                console.error(`[WhatsAppClient] Delayed group sync failed for ${this.tenantId}:${this.label}`, error);
+                            });
+                        }, 10_000);
                     }
                 } catch (error) {
                     await this.hooks?.onError?.({
