@@ -134,7 +134,8 @@ export const getHistory = async (req: Request, res: Response) => {
     try {
         const profile = await getBrokerProfile(req.user.id);
         if (!profile) return res.status(500).json({ error: 'Broker profile not found' });
-        const history = await getConversationHistory(profile.phone);
+        const rawHistory = await getConversationHistory(profile.phone);
+        const history = Array.isArray(rawHistory) ? rawHistory : [];
         const messages = history.map((msg) => ({
             role: msg.role === 'assistant' ? 'ai' as const : 'user' as const,
             content: msg.content,

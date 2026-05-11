@@ -45,6 +45,7 @@ export class StreamAPI {
     const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error || !data) return [];
+    if (!Array.isArray(data)) return [];
     return data.map(this.mapToStreamItem);
   }
 
@@ -75,6 +76,7 @@ export class StreamAPI {
       .eq('tenant_id', tenantId);
 
     if (error || !data) return { total: 0, unread: 0, avgConfidence: 0 };
+    if (!Array.isArray(data)) return { total: 0, unread: 0, avgConfidence: 0 };
 
     const total = data.length;
     const unread = data.filter((item: any) => !item.is_read).length;
@@ -115,6 +117,7 @@ export class StreamAPI {
       .eq('tenant_id', tenantId);
 
     if (error || !data) return [];
+    if (!Array.isArray(data)) return [];
 
     const channelMap = new Map<string, number>();
     data.forEach((item: any) => {

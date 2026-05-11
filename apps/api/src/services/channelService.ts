@@ -1190,6 +1190,8 @@ export class ChannelService {
                 return [];
             }
 
+            if (!Array.isArray(links)) return [];
+
             const streamIds = links.map((link: any) => link.stream_item_id);
             const { data: items, error: itemsError } = await readClient
                 .from('stream_items')
@@ -1204,9 +1206,10 @@ export class ChannelService {
             const linkMap = new Map<string, any>(links.map((link: any) => [link.stream_item_id, link]));
             const filteredItems = await this.filterItemsBySession(tenantId, (items || []), sessionLabel);
             return this.enrichSourcePhones(
-                filteredItems
-                .map((item: any) => this.mapStreamItem(item, linkMap.get(item.id)?.is_read))
-                .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+                Array.isArray(filteredItems) ? filteredItems
+                    .map((item: any) => this.mapStreamItem(item, linkMap.get(item.id)?.is_read))
+                    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+                : []
             );
         }
 
@@ -1221,11 +1224,13 @@ export class ChannelService {
         }
 
         const filteredItems = await this.filterItemsBySession(tenantId, data || [], sessionLabel);
-        return this.enrichSourcePhones(filteredItems.map((item: any) => this.mapStreamItem(item)));
+        return this.enrichSourcePhones(
+            Array.isArray(filteredItems) ? filteredItems.map((item: any) => this.mapStreamItem(item)) : []
+        );
     }
 
     private async filterItemsBySession(tenantId: string, items: any[], sessionLabel?: string | null) {
-        if (!sessionLabel || items.length === 0) {
+        if (!sessionLabel || !Array.isArray(items) || items.length === 0) {
             return items;
         }
 
@@ -1244,7 +1249,8 @@ export class ChannelService {
             throw new Error(groupsResult.error.message);
         }
 
-        const groupIds = new Set((groupsResult.data || []).map((row: any) => String(row.group_jid || '')).filter(Boolean));
+        const groupData = Array.isArray(groupsResult.data) ? groupsResult.data : [];
+        const groupIds = new Set(groupData.map((row: any) => String(row.group_jid || '')).filter(Boolean));
         if (groupIds.size === 0) {
             return items;
         }
@@ -1271,8 +1277,12 @@ export class ChannelService {
         }
 
         let ingestedCount = 0;
-        for (const message of messages || []) {
-            ingestedCount += await this.ingestMessage(tenantId, message);
+        for (const message of (Array.isArray(messages) ? messages : [])) {
+            try {
+                ingestedCount += await this.ingestMessage(tenantId, message);
+            } catch (error) {
+                console.error('[ChannelService] Failed to ingest message during rebuild', error);
+            }
         }
 
         const { count } = await this.db
@@ -1503,7 +1513,9 @@ export class ChannelService {
             await canonicalizationService.canonicalizeStreamItem(data as any).catch((canonicalError) => {
                 console.error('[ChannelService] Canonicalization failed', canonicalError);
             });
-            await this.matchStreamItemToChannels(tenantId, data);
+            await this.matchStreamItemToChannels(tenantId, data).catch((matchError) => {
+                console.error('[ChannelService] Channel matching failed', matchError);
+            });
         }
 
         return ingestedCount;
@@ -2094,6 +2106,8 @@ ${rawText}
     }
 
     private enrichSourcePhones(items: StreamItemRecord[]) {
+        if (!Array.isArray(items)) return [];
+
         const sourcePhoneMap = new Map<string, string>();
 
         for (const item of items) {

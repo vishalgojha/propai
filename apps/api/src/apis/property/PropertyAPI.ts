@@ -43,6 +43,7 @@ export class PropertyAPI {
     const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error || !data) return [];
+    if (!Array.isArray(data)) return [];
     return data.map(this.mapToPropertyItem);
   }
 
