@@ -126,7 +126,7 @@ export async function getWorkspaceSettingsRecord(tenantId: string) {
     try {
         const { data, error } = await getSettingsStoreClient()
             .from(SETTINGS_TABLE)
-            .select('settings, updated_at')
+            .select('settings, ai_keys, updated_at')
             .eq('tenant_id', tenantId)
             .maybeSingle();
 
@@ -135,14 +135,16 @@ export async function getWorkspaceSettingsRecord(tenantId: string) {
         }
 
         if (data) {
+            const raw = (data as any).ai_keys;
+            const storedKeys: AIConfig = raw && typeof raw === 'object' ? raw : {};
             return {
                 settings: sanitizeSettings((data as any).settings || {}),
                 aiKeys: {
-                    concentrate: '',
-                    gemini: '',
-                    groq: '',
-                    openrouter: '',
-                    doubleword: '',
+                    concentrate: typeof storedKeys.concentrate === 'string' ? storedKeys.concentrate : '',
+                    gemini: typeof storedKeys.gemini === 'string' ? storedKeys.gemini : '',
+                    groq: typeof storedKeys.groq === 'string' ? storedKeys.groq : '',
+                    openrouter: typeof storedKeys.openrouter === 'string' ? storedKeys.openrouter : '',
+                    doubleword: typeof storedKeys.doubleword === 'string' ? storedKeys.doubleword : '',
                 },
                 updatedAt: (data as any).updated_at || null,
             };
@@ -190,6 +192,7 @@ export async function saveWorkspaceSettingsRecord(tenantId: string, settings: Pa
             .upsert({
                 tenant_id: tenantId,
                 settings: sanitizedSettings,
+                ai_keys: store[tenantId].aiKeys,
                 updated_at: store[tenantId].updatedAt,
             }, { onConflict: 'tenant_id' });
 
