@@ -38,13 +38,14 @@ function formatRealtors(realtors: Array<{ name?: string; mobile?: string }>): st
     return String(realtors.length);
 }
 
-function formatRecentActions(actions: Array<{ action?: string; timestamp?: string }>): string {
-    const recent = actions.slice(-5);
+function formatRecentActions(actions: unknown): string {
+    const arr = Array.isArray(actions) ? actions : [];
+    const recent = arr.slice(-5);
     if (!recent.length) return 'No recent activity.';
     return recent
-        .map((a) => {
-            const time = a.timestamp ? new Date(a.timestamp).toLocaleString('en-IN') : '—';
-            return `  - ${a.action || 'Unknown'} (${time})`;
+        .map((a: any) => {
+            const time = a?.timestamp ? new Date(a.timestamp).toLocaleString('en-IN') : '—';
+            return `  - ${a?.action || 'Unknown'} (${time})`;
         })
         .join('\n');
 }
@@ -106,7 +107,8 @@ export async function pushRecentAction(brokerId: string, action: string): Promis
         .eq('broker_id', brokerId)
         .maybeSingle();
 
-    const actions: ActionEntry[] = (data?.recent_actions as ActionEntry[]) || [];
+    const raw = data?.recent_actions;
+    const actions: ActionEntry[] = Array.isArray(raw) ? raw : [];
     actions.push(entry);
     const trimmed = actions.slice(-20);
 
