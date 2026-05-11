@@ -14,6 +14,18 @@ RUN corepack enable && \
     NODE_ENV=development pnpm install --filter react-example... --no-frozen-lockfile && \
     echo "pnpm install completed"
 
+# Build-time args for Vite environment variables
+ARG VITE_API_BASE_URL
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ARG VITE_POSTHOG_KEY
+ARG VITE_POSTHOG_HOST
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+ENV VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY
+ENV VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
+
 # Copy source
 COPY apps/app/src ./apps/app/src
 COPY apps/app/public ./apps/app/public
