@@ -665,7 +665,7 @@ export function createPropAIRuntimeHooks(): WhatsAppRuntimeHooks {
                         void sessionEventService.log(event.tenantId, 'groups_synced', {
                             sessionLabel: event.label,
                             count: groups.length,
-                            groupNames: groups.slice(0, 20).map((g) => g.name),
+                            groupNames: groups.slice(0, 20).map((g: { name?: string }) => g.name),
                         });
                     }
                 }
