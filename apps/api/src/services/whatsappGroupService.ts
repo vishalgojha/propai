@@ -16,6 +16,21 @@ type GroupListFilters = {
 
 const db = supabaseAdmin || supabase;
 
+const NON_REAL_ESTATE_KEYWORDS = [
+    'family', 'sfg', 'friends', 'crypto', 'school',
+    'college', 'personal', 'fun', 'news', 'politics',
+    'gaming', 'memes', 'music', 'movie', 'travel',
+    'food', 'cooking', 'sports', 'fitness', 'health',
+];
+
+function isLikelyRealEstate(name: string): boolean {
+    const normalized = String(name || '').toLowerCase();
+    return !NON_REAL_ESTATE_KEYWORDS.some((kw) => {
+        const pattern = new RegExp(`\\b${kw}\\b`, 'i');
+        return pattern.test(normalized);
+    });
+}
+
 function normalizeName(value: string) {
     return String(value || '')
         .toLowerCase()
@@ -67,55 +82,71 @@ export class WhatsAppGroupService {
         );
         const now = new Date().toISOString();
         const sessionId = `${tenantId}:${sessionLabel}`;
+        let syncedCount = 0;
+        let failedCount = 0;
 
         for (const group of uniqueGroups) {
-            const parsedLocation = parseIndianLocation(group.name || '');
-            const inferredLocality = parsedLocation?.locality || null;
-            const inferredCity = parsedLocation?.city && parsedLocation.city !== 'Unknown' ? parsedLocation.city : null;
-            const inferredCategory = inferCategory(group.name || '');
-            const inferredTags = inferTags(group.name || '', inferredLocality, inferredCategory);
+            try {
+                const parsedLocation = parseIndianLocation(group.name || '');
+                const inferredLocality = parsedLocation?.locality || null;
+                const inferredCity = parsedLocation?.city && parsedLocation.city !== 'Unknown' ? parsedLocation.city : null;
+                const inferredCategory = inferCategory(group.name || '');
+                const inferredTags = inferTags(group.name || '', inferredLocality, inferredCategory);
 
-            const { data: existing, error: existingError } = await db
-                .from('whatsapp_groups')
-                .select('locality, city, category, tags, broadcast_enabled, is_archived')
-                .eq('workspace_id', tenantId)
-                .eq('group_jid', group.id)
-                .maybeSingle();
+                const { data: existing, error: existingError } = await db
+                    .from('whatsapp_groups')
+                    .select('locality, city, category, tags, broadcast_enabled, is_archived, is_parsing')
+                    .eq('workspace_id', tenantId)
+                    .eq('group_jid', group.id)
+                    .maybeSingle();
 
-            if (existingError) {
-                throw existingError;
-            }
+                if (existingError) {
+                    console.error('[WhatsAppGroupService] Failed to fetch existing group', group.id, existingError);
+                    failedCount++;
+                    continue;
+                }
 
-            const payload = {
-                workspace_id: tenantId,
-                session_id: sessionId,
-                tenant_id: tenantId,
-                session_label: sessionLabel,
-                group_jid: group.id,
-                group_name: group.name || group.id,
-                normalized_name: normalizeName(group.name || group.id),
-                locality: existing?.locality || inferredLocality,
-                city: existing?.city || inferredCity,
-                category: existing?.category || inferredCategory,
-                tags: uniqueStrings([...(existing?.tags || []), ...inferredTags]),
-                participant_count: Number(group.participantsCount || 0),
-                member_count: Number(group.participantsCount || 0),
-                is_parsing: true,
-                last_message_at: now,
-                last_active_at: now,
-                broadcast_enabled: typeof existing?.broadcast_enabled === 'boolean' ? existing.broadcast_enabled : true,
-                is_archived: typeof existing?.is_archived === 'boolean' ? existing.is_archived : false,
-                updated_at: now,
-            };
+                const isRealEstate = isLikelyRealEstate(group.name || '');
+                const payload = {
+                    workspace_id: tenantId,
+                    session_id: sessionId,
+                    tenant_id: tenantId,
+                    session_label: sessionLabel,
+                    group_jid: group.id,
+                    group_name: group.name || group.id,
+                    normalized_name: normalizeName(group.name || group.id),
+                    locality: existing?.locality || inferredLocality,
+                    city: existing?.city || inferredCity,
+                    category: existing?.category || inferredCategory,
+                    tags: uniqueStrings([...(existing?.tags || []), ...inferredTags]),
+                    participant_count: Number(group.participantsCount || 0),
+                    member_count: Number(group.participantsCount || 0),
+                    is_parsing: typeof existing?.is_parsing === 'boolean' ? existing.is_parsing : isRealEstate,
+                    last_message_at: now,
+                    last_active_at: now,
+                    broadcast_enabled: typeof existing?.broadcast_enabled === 'boolean' ? existing.broadcast_enabled : true,
+                    is_archived: typeof existing?.is_archived === 'boolean' ? existing.is_archived : false,
+                    updated_at: now,
+                };
 
-            const { error } = await db
-                .from('whatsapp_groups')
-                .upsert(payload, { onConflict: 'workspace_id,group_jid' });
+                const { error } = await db
+                    .from('whatsapp_groups')
+                    .upsert(payload, { onConflict: 'workspace_id,group_jid' });
 
-            if (error) {
-                throw error;
+                if (error) {
+                    console.error('[WhatsAppGroupService] Failed to upsert group', group.id, error);
+                    failedCount++;
+                    continue;
+                }
+
+                syncedCount++;
+            } catch (groupError: unknown) {
+                console.error('[WhatsAppGroupService] Unexpected error syncing group', group.id, groupError);
+                failedCount++;
             }
         }
+
+        return { total: uniqueGroups.length, synced: syncedCount, failed: failedCount };
     }
 
     async listGroups(tenantId: string, filters: GroupListFilters = {}) {
@@ -151,6 +182,7 @@ export class WhatsAppGroupService {
             participantsCount: Number(row.member_count || 0),
             broadcastEnabled: Boolean(row.broadcast_enabled),
             isArchived: Boolean(row.is_archived),
+            isParsing: Boolean(row.is_parsing),
             lastActiveAt: row.last_active_at || null,
             sessionLabel: row.session_label || null,
         }));
@@ -164,6 +196,7 @@ export class WhatsAppGroupService {
         tags?: string[] | null;
         broadcastEnabled?: boolean;
         isArchived?: boolean;
+        isParsing?: boolean;
     }) {
         const payload: Record<string, unknown> = {
             updated_at: new Date().toISOString(),
@@ -179,6 +212,7 @@ export class WhatsAppGroupService {
         if (updates.tags !== undefined) payload.tags = uniqueStrings(updates.tags || []);
         if (updates.broadcastEnabled !== undefined) payload.broadcast_enabled = updates.broadcastEnabled;
         if (updates.isArchived !== undefined) payload.is_archived = updates.isArchived;
+        if (updates.isParsing !== undefined) payload.is_parsing = updates.isParsing;
 
         const { data, error } = await db
             .from('whatsapp_groups')

@@ -60,7 +60,7 @@ export class WorkspaceMonitorService {
         let groupsData: any[] = [];
         let groupsQuery = db
             .from('whatsapp_groups')
-            .select('group_jid, group_name, locality, city, category, tags, member_count, broadcast_enabled, last_active_at, session_label')
+            .select('group_jid, group_name, locality, city, category, tags, member_count, broadcast_enabled, is_parsing, last_active_at, session_label')
             .eq('tenant_id', workspaceOwnerId)
             .eq('is_archived', false);
 
@@ -138,6 +138,7 @@ export class WorkspaceMonitorService {
                     tags: Array.isArray(groupMeta?.tags) ? groupMeta.tags : [],
                     participantsCount: Number(groupMeta?.member_count || 0),
                     broadcastEnabled: Boolean(groupMeta?.broadcast_enabled),
+                    isParsing: groupMeta ? Boolean(groupMeta?.is_parsing) : undefined,
                     messageCount: 0,
                 };
 
@@ -181,6 +182,7 @@ export class WorkspaceMonitorService {
                 tags: Array.isArray(group.tags) ? group.tags : [],
                 participantsCount: Number(group.member_count || 0),
                 broadcastEnabled: Boolean(group.broadcast_enabled),
+                isParsing: Boolean(group.is_parsing),
                 messageCount: 0,
             });
         }

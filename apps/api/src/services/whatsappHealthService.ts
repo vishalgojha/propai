@@ -136,22 +136,33 @@ export class WhatsAppHealthService {
 
         const now = new Date().toISOString();
         const uniqueGroups = Array.from(new Map((groups || []).map((group) => [group.id, group])).values());
+        let syncedCount = 0;
+        let failedCount = 0;
 
         for (const group of uniqueGroups) {
-            const { error } = await db
-                .from('whatsapp_group_health')
-                .upsert({
-                    tenant_id: tenantId,
-                    session_label: sessionLabel,
-                    group_id: group.id,
-                    group_name: group.name || group.id,
-                    is_active: true,
-                    last_group_sync_at: now,
-                    updated_at: now,
-                }, { onConflict: 'tenant_id,session_label,group_id' });
+            try {
+                const { error } = await db
+                    .from('whatsapp_group_health')
+                    .upsert({
+                        tenant_id: tenantId,
+                        session_label: sessionLabel,
+                        group_id: group.id,
+                        group_name: group.name || group.id,
+                        is_active: true,
+                        last_group_sync_at: now,
+                        updated_at: now,
+                    }, { onConflict: 'tenant_id,session_label,group_id' });
 
-            if (error) {
-                throw error;
+                if (error) {
+                    console.error('[WhatsAppHealthService] Failed to upsert group health', group.id, error);
+                    failedCount++;
+                    continue;
+                }
+
+                syncedCount++;
+            } catch (groupError: unknown) {
+                console.error('[WhatsAppHealthService] Unexpected error syncing group health', group.id, groupError);
+                failedCount++;
             }
         }
 

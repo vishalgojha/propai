@@ -4,6 +4,7 @@ import { importHistoryTxt, getHistoryImports, checkDuplicateImports } from '../c
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { validate } from '../middleware/validate';
+import { whatsappGroupService } from '../services/whatsappGroupService';
 import { connectWhatsAppSchema, forceRefreshQRSchema, saveProfileSchema, sendMessageSchema, sendBulkSchema, broadcastSchema, disconnectSchema } from '../schemas/whatsappSchemas';
 
 const router = Router();
@@ -85,6 +86,30 @@ router.post(ROUTE_PATHS.whatsapp.config, async (req: Request, res: Response) => 
     }
 
     res.json({ success: true });
+});
+
+router.patch('/groups/:groupJid/toggle-parsing', async (req: Request, res: Response) => {
+    try {
+        const tenantId = req.user?.id;
+        if (!tenantId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const groupJid = String(req.params.groupJid || '');
+        const { isParsing } = req.body;
+
+        if (!groupJid) {
+            return res.status(400).json({ error: 'groupJid is required' });
+        }
+
+        if (typeof isParsing !== 'boolean') {
+            return res.status(400).json({ error: 'isParsing boolean is required' });
+        }
+
+        const result = await whatsappGroupService.updateGroup(tenantId, groupJid, { isParsing });
+        res.json({ success: true, group: result });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to toggle group parsing';
+        res.status(500).json({ error: message });
+    }
 });
 
 export default router;

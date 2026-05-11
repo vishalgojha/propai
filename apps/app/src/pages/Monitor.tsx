@@ -7,6 +7,7 @@ import {
   GroupsIcon,
   LoaderIcon,
   MessageSquareIcon,
+  PowerIcon,
   RefreshIcon,
   SearchIcon,
   SmartphoneIcon,
@@ -26,6 +27,7 @@ type MonitorChat = {
   tags: string[];
   participantsCount: number;
   broadcastEnabled: boolean;
+  isParsing?: boolean;
   messageCount: number;
 };
 
@@ -563,6 +565,42 @@ export const Monitor: React.FC = () => {
                     <ActivityIcon className="h-3.5 w-3.5" />
                     Live mirror
                   </span>
+                  {selectedChat.type === 'group' ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const jid = selectedChat.remoteJid;
+                        const current = selectedChat.isParsing ?? true;
+                        try {
+                          await backendApi.patch(ENDPOINTS.toggleGroupParsing(jid), { isParsing: !current });
+                          setData((prev) => {
+                            if (!prev) return prev;
+                            return {
+                              ...prev,
+                              chats: prev.chats.map((c) =>
+                                c.id === jid ? { ...c, isParsing: !current } : c,
+                              ),
+                            };
+                          });
+                          setToast(`Parsing ${!current ? 'enabled' : 'paused'} for this group`);
+                        } catch {
+                          setToast('Failed to toggle parsing');
+                        }
+                        setTimeout(() => setToast(null), 3000);
+                      }}
+                      className={cn(
+                        monitorPill,
+                        'cursor-pointer transition-colors',
+                        selectedChat.isParsing ?? true
+                          ? 'border-[#00a884] text-[#00a884] hover:bg-[#0a2a20]'
+                          : 'border-[#5a3a2a] text-[#ff8a5a] hover:bg-[#2a1a0a]',
+                      )}
+                      title="Toggle AI message parsing for this group"
+                    >
+                      <PowerIcon className="h-3 w-3" />
+                      {selectedChat.isParsing ?? true ? 'Parsing' : 'Paused'}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => handleClearChat(selectedChat.id)}
