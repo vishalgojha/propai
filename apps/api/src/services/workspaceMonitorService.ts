@@ -117,7 +117,7 @@ export class WorkspaceMonitorService {
                 const isGroup = remoteJid.endsWith('@g.us');
                 const groupMeta = groupsByJid.get(remoteJid);
                 const title = isGroup
-                    ? groupMeta?.group_name || row.sender || 'WhatsApp group'
+                    ? groupMeta?.group_name || 'WhatsApp group'
                     : buildDirectLabel(row);
                 const messageText = String(row.text || '').trim();
                 const timestamp = row.timestamp || new Date().toISOString();

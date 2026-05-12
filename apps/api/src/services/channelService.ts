@@ -1216,6 +1216,7 @@ export class ChannelService {
         const { data, error } = await readClient
             .from('stream_items')
             .select('*')
+            .eq('tenant_id', tenantId)
             .order('created_at', { ascending: false })
             .limit(200);
 

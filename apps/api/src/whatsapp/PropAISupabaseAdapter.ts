@@ -65,7 +65,7 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
         const rawDumpId = crypto.randomUUID();
 
         try {
-            const gateResult = await this.runPriceGate(input.text);
+            const gateResult = await this.runPriceGate(input.text, input.tenantId);
 
             if (!gateResult.shouldParse) {
                 void sessionEventService.log(input.tenantId, 'parse_failed', {
@@ -183,7 +183,7 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
         return cues.some((cue) => normalized.includes(cue));
     }
 
-    private async runPriceGate(text: string): Promise<PriceGateResult> {
+    private async runPriceGate(text: string, tenantId?: string): Promise<PriceGateResult> {
         if (this.looksLikeRequirement(text)) {
             return {
                 hasPrice: false,
@@ -214,9 +214,9 @@ Message:
 """
 ${text}
 """`,
-                'Google',
+                'Auto',
                 undefined,
-                undefined,
+                tenantId,
                 'You are a price gate for real-estate WhatsApp messages. Return ONLY valid JSON.'
             );
             const result = JSON.parse(response.text.trim());
@@ -229,12 +229,12 @@ ${text}
                 reason: String(result?.reason || (hasPrice ? 'priced_listing' : isRequirement ? 'requirement_message' : 'no_price_detected')),
             };
         } catch (error) {
-            console.error('[PropAISupabaseAdapter] Price gate AI call failed, defaulting to closed', error);
+            console.error('[PropAISupabaseAdapter] Price gate AI call failed, defaulting to open (parse allowed)', error);
             return {
                 hasPrice: false,
                 isRequirement: false,
-                shouldParse: false,
-                reason: 'gate_failed_closed',
+                shouldParse: true,
+                reason: 'gate_failed_open',
             };
         }
     }

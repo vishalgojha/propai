@@ -177,12 +177,7 @@ export class WhatsAppClient {
                         }
                         await this.persistStatus('connected');
 
-                        setTimeout(() => {
-                            if (this.connectionStatus !== 'connected') return;
-                            this.persistStatus('connected').catch((error) => {
-                                console.error(`[WhatsAppClient] Delayed group sync failed for ${this.tenantId}:${this.label}`, error);
-                            });
-                        }, 10_000);
+                        this.scheduleGroupSync();
                     }
                 } catch (error) {
                     await this.hooks?.onError?.({
@@ -437,6 +432,36 @@ export class WhatsAppClient {
             label: this.label,
             qr,
         });
+    }
+
+    private async scheduleGroupSync() {
+        const maxRetries = 5;
+        let attempt = 0;
+
+        const trySync = async (): Promise<void> => {
+            if (this.connectionStatus !== 'connected') return;
+
+            try {
+                const groups = await this.getGroups();
+                if (groups && groups.length > 0) {
+                    await this.persistStatus('connected');
+                    return;
+                }
+            } catch {
+                // retry below
+            }
+
+            attempt++;
+            if (attempt < maxRetries) {
+                const delay = Math.min(10000 * Math.pow(1.5, attempt - 1), 60000);
+                setTimeout(() => { void trySync(); }, delay);
+            } else {
+                console.warn(`[WhatsAppClient] Group sync exhausted ${maxRetries} retries for ${this.tenantId}:${this.label}, syncing anyway`);
+                await this.persistStatus('connected').catch(() => undefined);
+            }
+        };
+
+        setTimeout(() => { void trySync(); }, 10_000);
     }
 
     private async persistStatus(status: ConnectionStatus) {
