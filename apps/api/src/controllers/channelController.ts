@@ -52,34 +52,35 @@ export const rebuildStream = async (req: Request, res: Response) => {
 };
 
 export const correctStreamItem = async (req: Request, res: Response) => {
-    try {
-        await requireSuperAdmin(req);
-        const tenantId = getTenantId(req);
-        const corrected = await channelService.correctStreamItem(
-            tenantId,
-            tenantId,
-            String(req.params.streamItemId || ''),
-            {
-                type: req.body?.type,
-                location: req.body?.location,
-                city: req.body?.city,
-                price: req.body?.price,
-                priceNumeric: typeof req.body?.priceNumeric === 'number' ? req.body.priceNumeric : null,
-                bhk: req.body?.bhk,
-                source: req.body?.source,
-                sourcePhone: req.body?.sourcePhone,
-                recordType: req.body?.recordType,
-                dealType: req.body?.dealType,
-                assetClass: req.body?.assetClass,
-                confidence: typeof req.body?.confidence === 'number' ? req.body.confidence : undefined,
-                parseNotes: req.body?.parseNotes,
-            },
-        );
-        res.json({ success: true, item: corrected });
-    } catch (error: unknown) {
-        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to correct stream item') });
-    }
-};
+     try {
+         await requireSuperAdmin(req);
+         const tenantId = getTenantId(req);
+         const userEmail = String(req.user?.email || '');
+         const corrected = await channelService.correctStreamItem(
+             tenantId,
+             userEmail,
+             String(req.params.streamItemId || ''),
+             {
+                 type: req.body?.type,
+                 location: req.body?.location,
+                 city: req.body?.city,
+                 price: req.body?.price,
+                 priceNumeric: typeof req.body?.priceNumeric === 'number' ? req.body.priceNumeric : null,
+                 bhk: req.body?.bhk,
+                 source: req.body?.source,
+                 sourcePhone: req.body?.sourcePhone,
+                 recordType: req.body?.recordType,
+                 dealType: req.body?.dealType,
+                 assetClass: req.body?.assetClass,
+                 confidence: typeof req.body?.confidence === 'number' ? req.body.confidence : undefined,
+                 parseNotes: req.body?.parseNotes,
+             },
+         );
+         res.json({ success: true, item: corrected });
+     } catch (error: unknown) {
+         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to correct stream item') });
+     }
+ };
 
 export const markChannelRead = async (req: Request, res: Response) => {
     try {
