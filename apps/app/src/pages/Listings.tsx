@@ -406,48 +406,86 @@ export const Listings: React.FC = () => {
     };
   }, [loadData]);
 
-  React.useEffect(() => {
-    let active = true;
-    let cleanup: (() => void) | undefined;
+React.useEffect(() => {
+     let active = true;
+     let cleanup: (() => void) | undefined;
 
-    if (!user?.token || channelId) {
-      return;
-    }
+     if (!user?.token || channelId) {
+       return;
+     }
 
-    const setupRealtime = async () => {
-      const { createSupabaseBrowserClient } = await import('../services/supabaseBrowser');
-      if (!active) {
-        return;
-      }
+     const setupRealtime = async () => {
+       const { createSupabaseBrowserClient } = await import('../services/supabaseBrowser');
+       if (!active) {
+         return;
+       }
 
-      const supabaseClient = createSupabaseBrowserClient(user.token);
-      const channel = supabaseClient
-        .channel(`global-stream:${selectedSessionLabel || 'all'}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'stream_items',
-          },
-          () => {
-            void loadData();
-          }
-        )
-        .subscribe();
+       const supabaseClient = createSupabaseBrowserClient(user.token);
 
-      cleanup = () => {
-        void supabaseClient.removeChannel(channel);
-      };
-    };
+       // Stream items: reload on new insertions
+       const streamChannel = supabaseClient
+         .channel(`global-stream:${selectedSessionLabel || 'all'}`)
+         .on(
+           'postgres_changes',
+           {
+             event: 'INSERT',
+             schema: 'public',
+             table: 'stream_items',
+           },
+           () => {
+             void loadData();
+           }
+         )
+         .subscribe();
 
-    void setupRealtime();
+       // Broker channels: reload when new channels are added or updated
+       const channelsChannel = supabaseClient
+         .channel(`broker-channels:${user?.id}`)
+         .on(
+           'postgres_changes',
+           {
+             event: 'INSERT',
+             schema: 'public',
+             table: 'broker_channels',
+             filter: `tenant_id=eq.${user?.id}`,
+           },
+           () => {
+             void loadData();
+           }
+         )
+         .subscribe();
 
-    return () => {
-      active = false;
-      cleanup?.();
-    };
-  }, [channelId, loadData, selectedSessionLabel, user?.token]);
+       // Channel items: reload when items are routed to channels
+       const channelItemsChannel = supabaseClient
+         .channel(`channel-items:${user?.id}`)
+         .on(
+           'postgres_changes',
+           {
+             event: 'INSERT',
+             schema: 'public',
+             table: 'channel_items',
+             filter: `tenant_id=eq.${user?.id}`,
+           },
+           () => {
+             void loadData();
+           }
+         )
+         .subscribe();
+
+       cleanup = () => {
+         void supabaseClient.removeChannel(streamChannel);
+         void supabaseClient.removeChannel(channelsChannel);
+         void supabaseClient.removeChannel(channelItemsChannel);
+       };
+     };
+
+     void setupRealtime();
+
+     return () => {
+       active = false;
+       cleanup?.();
+     };
+   }, [channelId, loadData, selectedSessionLabel, user?.token]);
 
   React.useEffect(() => {
     const handleSelectedSession = (event: Event) => {
