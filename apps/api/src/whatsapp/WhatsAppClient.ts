@@ -5,10 +5,11 @@ import makeWASocket, {
  } from '@whiskeysockets/baileys';
  import { Boom } from '@hapi/boom';
  import { sanitizeForWhatsApp } from './sanitizer';
- import { createSupabaseAuthState, type SupabaseAuthState } from './SupabaseAuthState';
- import { CircuitBreaker } from './CircuitBreaker';
- import { sessionEventService } from '../services/sessionEventService';
+import { createSupabaseAuthState, type SupabaseAuthState } from './SupabaseAuthState';
+import { CircuitBreaker } from './CircuitBreaker';
+import { sessionEventService } from '../services/sessionEventService';
 import { whatsappGroupService } from '../services/whatsappGroupService';
+import { supabase } from '../config/supabase';
 import { type RawGroupInput } from '../services/whatsappGroupService';
 import type {
     ConnectionStatus,
@@ -261,33 +262,52 @@ this.socket.ev.on('messages.upsert', async (payload: any) => {
                  }
              });
 
-             // Handle message updates (edits and deletions/revocations)
-             this.socket.ev.on('messages.update', async (payload: any) => {
-                 try {
-                     const update = payload?.[0];
-                     if (!update) return;
+// Handle message updates (edits and deletions/revocations)
+              this.socket.ev.on('messages.update', async (payload: any) => {
+                  try {
+                      const update = payload?.[0];
+                      if (!update) return;
 
-                     const key = update.key;
-                     const updateType = update.update?.type; // 'revoked' or 'edited'
-                     const remoteJid = key?.remoteJid || '';
-                     const isGroup = remoteJid.endsWith('@g.us');
+                      const key = update.key;
+                      const updateType = update.update?.type; // 'revoked' or 'edited'
+                      const remoteJid = key?.remoteJid || '';
+                      const messageId = key?.id;
+                      const isGroup = remoteJid.endsWith('@g.us');
 
-                     void sessionEventService.log(this.tenantId, 'message_updated', {
-                         remoteJid,
-                         isGroup,
-                         label: this.label,
-                         updateType,
-                         keyId: key?.id,
-                     });
-                 } catch (error) {
-                     await this.hooks?.onError?.({
-                         tenantId: this.tenantId,
-                         label: this.label,
-                         error,
-                         stage: 'messages.update',
-                     });
-                 }
-             });
+                      void sessionEventService.log(this.tenantId, 'message_updated', {
+                          remoteJid,
+                          isGroup,
+                          label: this.label,
+                          updateType,
+                          keyId: messageId,
+                      });
+
+                      // Mark revoked messages as deleted in the DB
+                      if (updateType === 'revoked' && messageId) {
+try {
+                               await supabase
+                                   .from('messages')
+                                   .update({
+                                       text: '[This message was deleted]',
+                                       sender: 'system',
+                                       is_revoked: true,
+                                       updated_at: new Date().toISOString(),
+                                   })
+                                   .eq('id', messageId)
+                                   .eq('tenant_id', this.tenantId);
+                          } catch {
+                              // Non-fatal: message may not exist in our DB
+                          }
+                      }
+                  } catch (error) {
+                      await this.hooks?.onError?.({
+                          tenantId: this.tenantId,
+                          label: this.label,
+                          error,
+                          stage: 'messages.update',
+                      });
+                  }
+              });
 
 // Handle group participant changes in real-time
               this.socket.ev.on('group-participants.update', async (payload: any) => {

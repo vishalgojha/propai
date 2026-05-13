@@ -7,6 +7,7 @@ export type SessionEventType =
   | 'disconnected'
   | 'groups_synced'
   | 'group_participants_updated'
+  | 'message_deleted'
   | 'message_received'
   | 'message_updated'
   | 'parse_failed'
