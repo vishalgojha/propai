@@ -1,13 +1,15 @@
 import makeWASocket, {
-    DisconnectReason,
-    fetchLatestBaileysVersion,
-    type WASocket,
-} from '@whiskeysockets/baileys';
-import { Boom } from '@hapi/boom';
-import { sanitizeForWhatsApp } from './sanitizer';
-import { createSupabaseAuthState, type SupabaseAuthState } from './SupabaseAuthState';
-import { CircuitBreaker } from './CircuitBreaker';
-import { sessionEventService } from '../services/sessionEventService';
+     DisconnectReason,
+     fetchLatestBaileysVersion,
+     type WASocket,
+ } from '@whiskeysockets/baileys';
+ import { Boom } from '@hapi/boom';
+ import { sanitizeForWhatsApp } from './sanitizer';
+ import { createSupabaseAuthState, type SupabaseAuthState } from './SupabaseAuthState';
+ import { CircuitBreaker } from './CircuitBreaker';
+ import { sessionEventService } from '../services/sessionEventService';
+import { whatsappGroupService } from '../services/whatsappGroupService';
+import { type RawGroupInput } from '../services/whatsappGroupService';
 import type {
     ConnectionStatus,
     GroupInfo,
@@ -202,62 +204,125 @@ export class WhatsAppClient {
                 }
             });
 
-            this.socket.ev.on('messages.upsert', async (payload: any) => {
-                try {
-                    const msg = payload?.messages?.[0];
-                    if (!msg?.message) {
-                        return;
-                    }
+this.socket.ev.on('messages.upsert', async (payload: any) => {
+                 try {
+                     const msg = payload?.messages?.[0];
+                     if (!msg?.message) {
+                         return;
+                     }
 
-                    const messageText = this.extractMessageText(msg.message);
-                    const remoteJid = msg.key?.remoteJid || '';
-                    const remoteJidAlt = String(msg.key?.remoteJidAlt || '');
-                    const wasSentByThisClient = this.isRecentOutgoingMessage(remoteJid, messageText);
+                     const messageText = this.extractMessageText(msg.message);
+                     const remoteJid = msg.key?.remoteJid || '';
+                     const remoteJidAlt = String(msg.key?.remoteJidAlt || '');
+                     const wasSentByThisClient = this.isRecentOutgoingMessage(remoteJid, messageText);
 
-                    if (!messageText) {
-                        return;
-                    }
+                     if (!messageText) {
+                         return;
+                     }
 
-                    if (msg.key?.fromMe && wasSentByThisClient) {
-                        return;
-                    }
+                     if (msg.key?.fromMe && wasSentByThisClient) {
+                         return;
+                     }
 
-                    if (msg.key?.fromMe && remoteJid.endsWith('@lid') && remoteJidAlt.startsWith(`${this.connectedPhoneNumber}@`)) {
-                        this.connectedLidJid = remoteJid;
-                        await this.persistStatus(this.connectionStatus);
-                    }
+                     if (msg.key?.fromMe && remoteJid.endsWith('@lid') && remoteJidAlt.startsWith(`${this.connectedPhoneNumber}@`)) {
+                         this.connectedLidJid = remoteJid;
+                         await this.persistStatus(this.connectionStatus);
+                     }
 
-                    const isGroup = remoteJid.endsWith('@g.us');
-                    void sessionEventService.log(this.tenantId, 'message_received', {
-                        remoteJid,
-                        isGroup,
-                        label: this.label,
-                        length: messageText.length,
-                        hasMedia: Boolean(msg.message?.imageMessage || msg.message?.videoMessage),
-                    });
+                     const isGroup = remoteJid.endsWith('@g.us');
+                     void sessionEventService.log(this.tenantId, 'message_received', {
+                         remoteJid,
+                         isGroup,
+                         label: this.label,
+                         length: messageText.length,
+                         hasMedia: Boolean(msg.message?.imageMessage || msg.message?.videoMessage),
+                     });
 
-                    const event: IncomingMessageRecord = {
-                        tenantId: this.tenantId,
-                        label: this.label,
-                        remoteJid,
-                        text: messageText,
-                        sender: msg.pushName || null,
-                        timestamp: new Date().toISOString(),
-                        fromMe: Boolean(msg.key?.fromMe),
-                        rawMessage: msg,
-                    };
+                     const event: IncomingMessageRecord = {
+                         tenantId: this.tenantId,
+                         label: this.label,
+                         remoteJid,
+                         text: messageText,
+                         sender: msg.pushName || null,
+                         timestamp: new Date().toISOString(),
+                         fromMe: Boolean(msg.key?.fromMe),
+                         rawMessage: msg,
+                     };
 
-                    await this.storage.saveInboundMessage(event);
-                    await this.hooks?.onMessage?.(event);
-                } catch (error) {
-                    await this.hooks?.onError?.({
-                        tenantId: this.tenantId,
-                        label: this.label,
-                        error,
-                        stage: 'messages.upsert',
-                    });
-                }
-            });
+                     await this.storage.saveInboundMessage(event);
+                     await this.hooks?.onMessage?.(event);
+                 } catch (error) {
+                     await this.hooks?.onError?.({
+                         tenantId: this.tenantId,
+                         label: this.label,
+                         error,
+                         stage: 'messages.upsert',
+                     });
+                 }
+             });
+
+             // Handle message updates (edits and deletions/revocations)
+             this.socket.ev.on('messages.update', async (payload: any) => {
+                 try {
+                     const update = payload?.[0];
+                     if (!update) return;
+
+                     const key = update.key;
+                     const updateType = update.update?.type; // 'revoked' or 'edited'
+                     const remoteJid = key?.remoteJid || '';
+                     const isGroup = remoteJid.endsWith('@g.us');
+
+                     void sessionEventService.log(this.tenantId, 'message_updated', {
+                         remoteJid,
+                         isGroup,
+                         label: this.label,
+                         updateType,
+                         keyId: key?.id,
+                     });
+                 } catch (error) {
+                     await this.hooks?.onError?.({
+                         tenantId: this.tenantId,
+                         label: this.label,
+                         error,
+                         stage: 'messages.update',
+                     });
+                 }
+             });
+
+// Handle group participant changes in real-time
+              this.socket.ev.on('group-participants.update', async (payload: any) => {
+                  try {
+                      const { id: groupJid, participants } = payload || {};
+                      if (!groupJid || !participants) return;
+
+                      void sessionEventService.log(this.tenantId, 'group_participants_updated', {
+                          groupJid,
+                          action: payload.action,
+                          participantCount: participants.length,
+                          label: this.label,
+                      });
+
+                      // Re-sync group metadata and participant counts after changes
+                      try {
+                          const currentGroups = await this.getGroups();
+                          const groupInfos: RawGroupInput[] = currentGroups.map((g: any) => ({
+                              id: g.id || g,
+                              name: g.name || '',
+                              participantsCount: g.participantsCount || 0,
+                          }));
+                          await whatsappGroupService.syncGroups(this.tenantId, this.label, groupInfos);
+                      } catch {
+                          // Non-fatal: group sync may fail
+                      }
+                  } catch (error) {
+                      await this.hooks?.onError?.({
+                          tenantId: this.tenantId,
+                          label: this.label,
+                          error,
+                          stage: 'group-participants.update',
+                      });
+                  }
+              });
         } catch (error) {
             this.connectionStatus = 'disconnected';
             await this.persistStatus('disconnected');

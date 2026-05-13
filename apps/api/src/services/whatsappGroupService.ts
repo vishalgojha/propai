@@ -3,7 +3,7 @@ import { parseIndianLocation } from '../utils/locationParser';
 
 type SupportedCategory = 'broker' | 'rental' | 'sale' | 'commercial' | 'mixed' | 'other';
 
-type RawGroupInput = {
+export type RawGroupInput = {
     id: string;
     name: string;
     participantsCount?: number;
