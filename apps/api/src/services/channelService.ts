@@ -1170,9 +1170,17 @@ export class ChannelService {
         return this.mapChannelRow(data as ChannelRow, counts.get(channelId));
     }
 
-    async listStreamItems(tenantId: string, accessToken?: string | null, channelId?: string | null, sessionLabel?: string | null): Promise<StreamItemRecord[]> {
-        await this.ensureStreamBackfilled(tenantId);
-        const readClient = accessToken ? createSupabaseAnonClient(accessToken) : this.db;
+private backfillInitiated = false;
+
+     async listStreamItems(tenantId: string, accessToken?: string | null, channelId?: string | null, sessionLabel?: string | null): Promise<StreamItemRecord[]> {
+         // Only trigger backfill once and don't block the read on it
+         if (!this.backfillInitiated) {
+             this.backfillInitiated = true;
+             // Fire-and-forget: ensureStreamBackfilled runs in the background
+             void this.ensureStreamBackfilled(tenantId);
+         }
+
+         const readClient = accessToken ? createSupabaseAnonClient(accessToken) : this.db;
 
         if (channelId) {
             const { data: links, error: linksError } = await this.db
@@ -1522,22 +1530,33 @@ export class ChannelService {
         return ingestedCount;
     }
 
-    private async ensureStreamBackfilled(tenantId: string) {
-        const { count } = await this.db
-            .from('stream_items')
-            .select('id', { count: 'exact', head: true })
-            .eq('tenant_id', tenantId);
+private async ensureStreamBackfilled(tenantId: string) {
+         // Check if there are any messages to backfill from before running expensive rebuild
+         const { count: messageCount } = await this.db
+             .from('messages')
+             .select('id', { count: 'exact', head: true })
+             .eq('tenant_id', tenantId)
+             .limit(1);
 
-        if ((count || 0) > 0) {
-            return;
-        }
+         if ((messageCount || 0) === 0) {
+             return;
+         }
 
-        try {
-            await this.rebuildStreamFromMessages(tenantId, 200);
-        } catch (error) {
-            console.error('[ChannelService] Failed to backfill stream items from messages', error);
-        }
-    }
+         const { count } = await this.db
+             .from('stream_items')
+             .select('id', { count: 'exact', head: true })
+             .eq('tenant_id', tenantId);
+
+         if ((count || 0) > 0) {
+             return;
+         }
+
+         try {
+             await this.rebuildStreamFromMessages(tenantId, 200);
+         } catch (error) {
+             console.error('[ChannelService] Failed to backfill stream items from messages', error);
+         }
+     }
 
     private async parseMessage(tenantId: string, message: RawInboundMessage): Promise<ParsedStreamCandidate[]> {
         try {
