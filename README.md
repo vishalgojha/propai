@@ -30,7 +30,7 @@ PropAI Pulse is a high-performance workspace for real estate brokers to automate
    - Build context: `/` (repo root)
    - Port: `3000`
    - Add all env vars from `apps/app/.env.example` via Coolify UI
-   - Set `VITE_API_BASE_URL` to your backend Coolify domain
+   - Set `VITE_API_BASE_URL` to your backend Coolify domain with `/api` suffix (e.g. `https://api.propai.live/api`)
 4. Add Service 3 - Public Website:
    - Type: Dockerfile
    - Repo: this repo
