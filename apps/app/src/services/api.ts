@@ -12,6 +12,7 @@ const backendApi = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000,
 });
 
 let refreshInFlight: Promise<ReturnType<typeof refreshSupabaseSession>> | null = null;
