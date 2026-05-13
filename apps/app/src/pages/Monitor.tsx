@@ -1,5 +1,6 @@
 import React from 'react';
 import backendApi, { handleApiError } from '../services/api';
+import { createSupabaseBrowserClient } from '../services/supabaseBrowser';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
 import {
@@ -283,13 +284,52 @@ export const Monitor: React.FC = () => {
     }
   }, [selectedSessionLabel]);
 
-  React.useEffect(() => {
-    void loadMonitor();
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') void loadMonitor();
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [loadMonitor]);
+React.useEffect(() => {
+     void loadMonitor();
+     const interval = setInterval(() => {
+       void loadMonitor();
+     }, 4000);
+
+     // Real-time subscription for instant message updates via Supabase Realtime
+     let supabaseCleanup: (() => void) | undefined;
+
+     const setupRealtime = async () => {
+       try {
+         const client = createSupabaseBrowserClient();
+         const channel = client
+           .channel('monitor:messages')
+           .on(
+             'postgres_changes',
+             {
+               event: 'INSERT',
+               schema: 'public',
+               table: 'messages',
+             },
+             () => {
+               void loadMonitor();
+             }
+           )
+           .subscribe((status) => {
+             if (status === 'CHANNEL_ERROR') {
+               console.warn('[Monitor] Realtime subscription error, falling back to polling only');
+             }
+           });
+
+         supabaseCleanup = () => {
+           void client.removeChannel(channel);
+         };
+       } catch {
+         // Realtime setup failure is non-fatal; polling continues
+       }
+     };
+
+     void setupRealtime();
+
+     return () => {
+       clearInterval(interval);
+       supabaseCleanup?.();
+     };
+   }, [loadMonitor]);
 
   React.useEffect(() => {
     const handleSelectedSession = (event: Event) => {
