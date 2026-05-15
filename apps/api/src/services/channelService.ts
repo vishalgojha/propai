@@ -2,6 +2,7 @@ import { createSupabaseAnonClient, supabase, supabaseAdmin } from '../config/sup
 import { aiService } from './aiService';
 import { canonicalizationService } from './canonicalizationService';
 import { extractIndianCity, extractIndianLocality, parseIndianLocation } from '../utils/locationParser';
+import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 
 type ChannelType = 'listing' | 'requirement' | 'mixed';
 type StreamType = 'Rent' | 'Sale' | 'Requirement' | 'Pre-leased';
@@ -1522,6 +1523,12 @@ private backfillInitiated = false;
                 console.error('[ChannelService] Failed to upsert public listing', pe);
             });
 
+            if (parsed.recordType === 'requirement' || parsed.streamType === 'Requirement') {
+                this.autoMatchRequirement(tenantId, parsed).catch((me) => {
+                    console.error('[ChannelService] Auto-match failed', me);
+                });
+            }
+
             ingestedCount += 1;
             await canonicalizationService.canonicalizeStreamItem(data as any).catch((canonicalError) => {
                 console.error('[ChannelService] Canonicalization failed', canonicalError);
@@ -1596,6 +1603,53 @@ private backfillInitiated = false;
     private extractPhoneFromText(text: string): string | null {
         const m = text.match(/(?:\+?91)?[6-9]\d{9}/);
         return m ? m[0] : null;
+    }
+
+    private async autoMatchRequirement(tenantId: string, parsed: ParsedStreamCandidate): Promise<void> {
+        if (!parsed.locality || parsed.locality === 'Location not parsed yet') return;
+
+        const bhkNum = this.parseBhk(parsed.bhk);
+        const locality = parsed.locality;
+        const budget = parsed.priceNumeric;
+
+        let query = this.db
+            .from('public_listings')
+            .select('source_message_id, location, price, bhk, furnishing, size_sqft, title, primary_contact_wa, message_timestamp')
+            .or(`location.ilike.%${locality}%,area.ilike.%${locality}%`)
+            .order('message_timestamp', { ascending: false })
+            .limit(5);
+
+        if (bhkNum != null) {
+            query = query.eq('bhk', bhkNum);
+        }
+        if (budget != null) {
+            query = query.lte('price', budget * 1.2);
+        }
+
+        const { data, error } = await query;
+        if (error || !data || !data.length) return;
+
+        const matches = data as any[];
+        const lines = matches.map((m: any, i: number) => {
+            const price = m.price ? `₹${(m.price / 10000000).toFixed(2)}Cr` : 'price N/A';
+            const size = m.size_sqft ? ` ${m.size_sqft}sqft` : '';
+            const furn = m.furnishing ? ` ${m.furnishing}` : '';
+            const contact = m.primary_contact_wa ? ` 📞${m.primary_contact_wa}` : '';
+            return `${i + 1}. ${m.bhk}BHK ${m.location}${furn}${size} — ${price}${contact}`;
+        }).join('\n');
+
+        const msg = `🎯 *Match for your requirement*\n${parsed.bhk || ''} ${locality}\n\n${lines}\n\n_Sent by PropAI Auto-Match_`;
+
+        const groupJid = parsed.sourceGroupId;
+        if (groupJid) {
+            try {
+                const gw = getWhatsAppGateway();
+                await gw.sendMessage({ workspaceOwnerId: tenantId, remoteJid: groupJid, text: msg });
+                console.log(`[AutoMatch] Sent ${matches.length} matches to ${groupJid}`);
+            } catch (e: any) {
+                console.error(`[AutoMatch] WhatsApp send failed: ${e.message}`);
+            }
+        }
     }
 
 private async ensureStreamBackfilled(tenantId: string) {
