@@ -2,37 +2,21 @@ import { aiService } from './aiService';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { parseAgentResponse, toAgentResponse } from '../types/agent';
 import { renderOutput } from '../whatsapp/formatter';
-import { agentRouterService } from './agentRouterService';
-import { PULSE_CHAT_SYSTEM_PROMPT } from './pulseChatPrompt';
 import {
-    buildPersonalizedSystemPrompt,
-    executeSharedRoute,
     getBrokerProfile as getUnifiedBrokerProfile,
 } from './unifiedAgentService';
-import { generateIdentityMd } from './identityService';
 import { agentToolService } from './agentToolService';
 import {
     getConversationHistory,
-    getConversationMessageCount,
     normalizeConversationPhoneNumber,
     saveToHistory,
 } from '../memory/conversationMemory';
+import { conversationEngineService } from './conversationEngineService';
 
 type ChatTurn = {
     role: 'system' | 'user' | 'assistant';
     content: string;
 };
-
-const WHATSAPP_BROKER_FORMATTING_PROMPT = [
-    'Channel rules:',
-    '- You are replying inside WhatsApp.',
-    '- Do not use Markdown tables, code fences, headings, or backticks.',
-    '- Prefer plain text and short scannable lines.',
-    '- Use WhatsApp-safe emphasis only when useful: *bold* and _italic_.',
-    '- Use bullets like •, →, or ✅ when listing options.',
-    '- Keep replies compact and readable on a phone screen.',
-    '- Never mention AgentResponse or any internal response schema.',
-].join('\n');
 
 function normalizeComparablePhone(value?: string | null) {
     const digits = String(value || '').split('').filter(c => c >= '0' && c <= '9').join('');
@@ -83,13 +67,12 @@ export class AgentExecutor {
     async processMessage(tenantId: string, remoteJid: string, text: string, sessionLabel?: string): Promise<string> {
         const ASSISTANT_PHONE = '7021045254'; // last 10 digits of +91 70210 45254
         let effectiveTenantId = tenantId;
-        let systemPrompt: string;
+        let systemPrompt = '';
         let shouldUseUnifiedBrokerFlow = false;
         let brokerProfile: Awaited<ReturnType<typeof getUnifiedBrokerProfile>> = null;
         let brokerFullName: string | undefined;
         let shouldGreetBrokerByName = false;
         const conversationKey = normalizeConversationPhoneNumber(remoteJid);
-        const isFirstReply = (await getConversationMessageCount(conversationKey)) === 0;
 
         const assistantSessionPhone = await this.getSessionPhoneNumber(tenantId, sessionLabel);
         const isAssistantSession = normalizeComparablePhone(assistantSessionPhone) === normalizeComparablePhone(ASSISTANT_PHONE);
@@ -101,7 +84,6 @@ export class AgentExecutor {
                 // Verified broker → CRM mode inside their workspace
                 effectiveTenantId = brokerResolution.tenantId!;
                 brokerProfile = await getUnifiedBrokerProfile(effectiveTenantId);
-                const identityMd = await generateIdentityMd(effectiveTenantId);
                 brokerFullName = brokerProfile?.full_name || undefined;
                 shouldGreetBrokerByName = Boolean(
                     brokerProfile?.full_name
@@ -109,7 +91,6 @@ export class AgentExecutor {
                     && brokerProfile.phone
                     && brokerProfile.phone === conversationKey
                 );
-                systemPrompt = this.buildBrokerSystemPrompt(brokerProfile, isFirstReply, identityMd);
                 shouldUseUnifiedBrokerFlow = true;
             } else {
                 const looksLikeBroker = await this.detectsBrokerIntent(text);
@@ -130,7 +111,6 @@ export class AgentExecutor {
         } else {
             // Original flow for broker's own sessions
             brokerProfile = await getUnifiedBrokerProfile(tenantId);
-            const identityMd = await generateIdentityMd(tenantId);
             shouldGreetBrokerByName = Boolean(
                 brokerProfile?.full_name
                 && !remoteJid.endsWith('@g.us')
@@ -138,7 +118,6 @@ export class AgentExecutor {
                 && brokerProfile.phone === conversationKey
             );
             brokerFullName = brokerProfile?.full_name;
-            systemPrompt = this.buildBrokerSystemPrompt(brokerProfile, isFirstReply, identityMd);
             shouldUseUnifiedBrokerFlow = true;
         }
 
@@ -151,30 +130,35 @@ export class AgentExecutor {
 
         try {
             if (shouldUseUnifiedBrokerFlow) {
-                const route = await agentRouterService.route(effectiveTenantId, text, history);
-                const sharedRouteResult = await executeSharedRoute(effectiveTenantId, route, text);
-                if (sharedRouteResult.handled) {
-                    const renderedReply = cleanWhatsAppReply(
-                        renderOutput(sharedRouteResult.agentResponse)
-                    ).replace(/\*\*/g, '*');
-                    const personalizedReply = this.maybePersonalizeGreeting(renderedReply, brokerFullName, shouldGreetBrokerByName);
-                    await saveToHistory(conversationKey, text, personalizedReply);
-                    return personalizedReply;
-                }
-
-                const response = await aiService.chat(
-                    text,
-                    'Auto',
-                    undefined,
-                    effectiveTenantId,
-                    systemPrompt,
-                    history
-                );
-                const agentResponse = parseAgentResponse(response.text);
-                const renderedReply = cleanWhatsAppReply(renderOutput(agentResponse)).replace(/\*\*/g, '*');
-                const personalizedReply = this.maybePersonalizeGreeting(renderedReply, brokerFullName, shouldGreetBrokerByName);
-                await saveToHistory(conversationKey, text, personalizedReply);
-                return personalizedReply;
+                const result = await conversationEngineService.process({
+                    event: {
+                        schemaVersion: '2026-05-15',
+                        eventType: 'conversation.message.received',
+                        channel: 'whatsapp',
+                        tenantId: effectiveTenantId,
+                        conversation: {
+                            key: conversationKey,
+                            externalId: remoteJid,
+                            participantId: remoteJid,
+                            sessionLabel: sessionLabel || null,
+                            isGroup: remoteJid.endsWith('@g.us'),
+                        },
+                        actor: {
+                            phone: conversationKey,
+                        },
+                        content: {
+                            text,
+                        },
+                        metadata: {
+                            sessionLabel: sessionLabel || null,
+                            source: 'AgentExecutor',
+                        },
+                    },
+                    profileLookupTenantId: effectiveTenantId,
+                    greetingName: brokerFullName,
+                    shouldGreetByName: shouldGreetBrokerByName,
+                });
+                return result.reply;
             }
 
             while (iterations < MAX_ITERATIONS) {
@@ -261,17 +245,6 @@ export class AgentExecutor {
         });
     }
 
-    private buildBrokerSystemPrompt(
-        profile: { full_name?: string; email?: string | null; app_role?: string | null } | null,
-        isFirstReply: boolean,
-        identityMd?: string,
-    ) {
-        return [
-            buildPersonalizedSystemPrompt(profile, PULSE_CHAT_SYSTEM_PROMPT, isFirstReply, identityMd),
-            WHATSAPP_BROKER_FORMATTING_PROMPT,
-        ].join('\n\n');
-    }
-
     private isToolFailure(toolResult: any) {
         if (!toolResult) {
             return true;
@@ -310,24 +283,6 @@ export class AgentExecutor {
         }
 
         return false;
-    }
-
-    private maybePersonalizeGreeting(reply: string, fullName?: string, shouldGreet?: boolean) {
-        if (!shouldGreet || !fullName?.trim()) {
-            return reply;
-        }
-
-        const trimmedReply = reply.trim();
-        const firstName = fullName.trim().split(/\s+/)[0];
-        const lowerReply = trimmedReply.toLowerCase();
-        if (
-            lowerReply.includes(firstName.toLowerCase())
-            || /^(hi|hello|hey)\b/i.test(trimmedReply)
-        ) {
-            return trimmedReply;
-        }
-
-        return `Hi ${firstName}, ${trimmedReply}`;
     }
 
     private async getClientAssistantPrompt(): Promise<string> {

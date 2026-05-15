@@ -67,6 +67,8 @@ export type WhatsAppSessionSnapshot = {
     status: string;
     phoneNumber?: string | null;
     ownerName?: string | null;
+    reconnectAttempts?: number;
+    isReconnecting?: boolean;
 };
 
 export type WhatsAppConnectResult = {

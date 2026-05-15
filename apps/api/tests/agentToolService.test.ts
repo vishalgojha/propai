@@ -38,6 +38,7 @@ vi.mock('../src/config/supabase', () => ({
             })),
         })),
     },
+    serverClientOptions: {},
 }));
 
 import { agentToolService } from '../src/services/agentToolService';

@@ -1,15 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SubscriptionService } from '../src/services/subscriptionService';
-import { supabase } from '../config/supabase';
+import { supabase } from '../src/config/supabase';
 
-vi.mock('../config/supabase', () => ({
+vi.mock('../src/config/supabase', () => ({
     supabase: {
         from: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
         single: vi.fn().mockResolvedValue({ data: null, error: null }),
         upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
-        update: vi.fn().mockResolvedValue({ data: null, error: null }),
-    }
+        update: vi.fn().mockReturnThis(),
+    },
+    supabaseAdmin: null,
+}));
+
+vi.mock('../src/services/referralService', () => ({
+    referralService: {
+        qualifyPaidReferral: vi.fn().mockResolvedValue(null),
+    },
 }));
 
 describe('SubscriptionService', () => {
@@ -33,7 +42,7 @@ describe('SubscriptionService', () => {
     });
 
     it('should fetch subscription from Supabase', async () => {
-        (supabase.single as any).mockResolvedValueOnce({ 
+        (supabase.maybeSingle as any).mockResolvedValueOnce({
             data: { plan: 'Pro', status: 'active' },
             error: null 
         });
@@ -52,7 +61,7 @@ describe('SubscriptionService', () => {
     });
 
     it('should cancel subscription in Supabase', async () => {
-        (supabase.update as any).mockResolvedValueOnce({ error: null });
+        (supabase.eq as any).mockResolvedValueOnce({ error: null });
         await service.cancelSubscription('tenant-123');
         expect(supabase.update).toHaveBeenCalledWith(expect.objectContaining({
             status: 'cancelled'

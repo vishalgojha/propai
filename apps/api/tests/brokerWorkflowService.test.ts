@@ -3,6 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 describe('BrokerWorkflowService', () => {
     beforeEach(() => {
         vi.resetModules();
+        vi.doMock('../src/config/supabase', () => ({
+            supabase: {},
+            supabaseAdmin: null,
+            serverClientOptions: {},
+        }));
+        vi.doMock('../src/services/followUpService', () => ({
+            followUpService: {
+                getPendingCallbacks: vi.fn().mockResolvedValue([]),
+            },
+        }));
+        vi.doMock('../src/services/channelService', () => ({
+            channelService: {},
+        }));
         delete process.env.SUPABASE_SERVICE_ROLE_KEY;
         delete process.env.SUPABASE_SERVICE_KEY;
     });

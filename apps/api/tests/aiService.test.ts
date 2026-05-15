@@ -1,8 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AIService } from '../src/services/aiService';
-import axios from 'axios';
+import { keyService } from '../src/services/keyService';
 
-vi.mock('axios');
+vi.mock('../src/services/keyService', () => ({
+    keyService: {
+        getKey: vi.fn().mockResolvedValue(null),
+        getKeys: vi.fn().mockResolvedValue([]),
+    },
+    parseApiKeys: vi.fn((value?: string | null) => String(value || '').split(/[\n,;]+/).map((entry) => entry.trim()).filter(Boolean)),
+}));
+vi.mock('../src/services/workspaceSettingsService', () => ({
+    getWorkspaceDefaultModel: vi.fn().mockResolvedValue(null),
+    getWorkspaceExplicitDefaultModel: vi.fn().mockResolvedValue(null),
+}));
 
 describe('AIService', () => {
     let aiService: AIService;
@@ -12,95 +22,52 @@ describe('AIService', () => {
         aiService = new AIService();
     });
 
-    it('should call Qwen when modelPreference is Local', async () => {
-        const mockResponse = { data: { message: { content: 'Hello from Qwen' } } };
-        (axios.post as any).mockResolvedValueOnce(mockResponse);
+    it('uses the provider order returned by the runtime selector', async () => {
+        vi.spyOn(aiService as any, 'buildProviderOrder').mockResolvedValue(['Google']);
+        vi.spyOn(aiService as any, 'callModel').mockResolvedValue({ text: 'Hello from Google', model: 'Gemini 2.5 Flash' });
 
-        const response = await aiService.chat('Hi', 'Local');
+        const response = await aiService.chat('Hi', 'Auto');
 
-        expect(axios.post).toHaveBeenCalledWith(
-            'http://localhost:11434/api/chat',
-            expect.objectContaining({
-                model: 'qwen3:1.7b',
-                messages: [{ role: 'user', content: 'Hi' }]
-            })
-        );
-        expect(response.text).toBe('Hello from Qwen');
-        expect(response.model).toBe('Qwen3 Local');
+        expect((aiService as any).buildProviderOrder).toHaveBeenCalledWith('Auto', undefined, undefined);
+        expect(response.text).toBe('Hello from Google');
+        expect(response.model).toBe('Gemini 2.5 Flash');
     });
 
-    it('should call Groq when modelPreference is Groq', async () => {
-        const mockResponse = { data: { choices: [{ message: { content: 'Hello from Groq' } }] } };
-        (axios.post as any).mockResolvedValueOnce(mockResponse);
+    it('falls back to the next provider when the first one fails', async () => {
+        vi.spyOn(aiService as any, 'buildProviderOrder').mockResolvedValue(['Google', 'Groq']);
+        vi.spyOn(aiService as any, 'callModel')
+            .mockRejectedValueOnce(new Error('Gemini failed'))
+            .mockResolvedValueOnce({ text: 'Fallback to Groq', model: 'Groq llama3-8b-8192' });
 
-        const response = await aiService.chat('Hi', 'Groq');
+        const response = await aiService.chat('Hi', 'Auto');
 
-        expect(axios.post).toHaveBeenCalledWith(
-            'https://api.groq.com/openai/v1/chat/completions',
-            expect.objectContaining({
-                model: 'llama3-8b-8192'
-            }),
-            expect.objectContaining({
-                headers: expect.objectContaining({ Authorization: expect.any(String) })
-            })
-        );
-        expect(response.text).toBe('Hello from Groq');
-        expect(response.model).toBe('Groq Llama3');
-    });
-
-    it('should call Claude when modelPreference is Claude', async () => {
-        const mockResponse = { data: { content: [{ text: 'Hello from Claude' }] } };
-        (axios.post as any).mockResolvedValueOnce(mockResponse);
-
-        const response = await aiService.chat('Hi', 'Claude');
-
-        expect(axios.post).toHaveBeenCalledWith(
-            'https://api.anthropic.com/v1/messages',
-            expect.objectContaining({
-                model: 'claude-3-5-sonnet-20240620'
-            }),
-            expect.objectContaining({
-                headers: expect.objectContaining({ 'x-api-key': expect.any(String) })
-            })
-        );
-        expect(response.text).toBe('Hello from Claude');
-        expect(response.model).toBe('Claude 3.5');
-    });
-
-    it('should fallback from Local to Groq if Local fails', async () => {
-        // First call (Local) fails, second call (Groq) succeeds
-        (axios.post as any)
-            .mockRejectedValueOnce(new Error('Qwen Failed'))
-            .mockResolvedValueOnce({ data: { choices: [{ message: { content: 'Fallback to Groq' } }] } });
-
-        const response = await aiService.chat('Hi', 'Local');
-
-        expect(axios.post).toHaveBeenCalledTimes(2);
+        expect((aiService as any).callModel).toHaveBeenCalledTimes(2);
         expect(response.text).toBe('Fallback to Groq');
-        expect(response.model).toBe('Groq Llama3');
     });
 
     it('should throw error if all models fail', async () => {
-        (axios.post as any).mockRejectedValue(new Error('API Failure'));
+        vi.spyOn(aiService as any, 'buildProviderOrder').mockResolvedValue(['Google', 'Groq']);
+        vi.spyOn(aiService as any, 'callModel')
+            .mockRejectedValueOnce(new Error('Gemini failed'))
+            .mockRejectedValueOnce(new Error('Groq failed'));
 
-        await expect(aiService.chat('Hi', 'Claude')).rejects.toThrow('All AI models failed');
+        await expect(aiService.chat('Hi', 'Auto')).rejects.toThrow('All AI providers failed');
     });
 
-    it('should check status for models', async () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2026-04-19T12:00:00Z'));
-        
-        (axios.get as any).mockImplementation(async () => {
-            vi.advanceTimersByTime(100);
-            return { status: 200 };
-        });
+    it('returns provider status for the current provider set', async () => {
+        (keyService.getKey as any)
+            .mockResolvedValueOnce('conc-key')
+            .mockResolvedValueOnce('groq-key')
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce(null);
 
-        const status = await aiService.getStatus();
+        const status = await aiService.getStatus('tenant-1');
 
-        expect(status.models.Local.status).toBe('online');
+        expect(status.preferredProvider).toBe('Concentrate');
+        expect(status.providerOrder[0]).toBe('Concentrate');
+        expect(status.models.Concentrate.status).toBe('online');
         expect(status.models.Groq.status).toBe('online');
-        expect(status.models.Claude.status).toBe('online');
-        
-        vi.useRealTimers();
+        expect(status.models.Google.status).toBe('offline');
     });
 });

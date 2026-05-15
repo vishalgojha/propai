@@ -101,12 +101,13 @@ type ActionEntry = {
 export async function pushRecentAction(brokerId: string, action: string): Promise<void> {
     const entry: ActionEntry = { action, timestamp: new Date().toISOString() };
 
-    const { data } = await db
+    const result = await db
         .from('broker_identity')
         .select('recent_actions')
         .eq('broker_id', brokerId)
         .maybeSingle();
 
+    const data = result?.data as { recent_actions?: unknown } | null | undefined;
     const raw = data?.recent_actions;
     const actions: ActionEntry[] = Array.isArray(raw) ? raw : [];
     actions.push(entry);
