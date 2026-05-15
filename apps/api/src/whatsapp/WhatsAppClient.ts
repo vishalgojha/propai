@@ -551,6 +551,9 @@ this.socket.ev.on('messages.upsert', async (payload: any) => {
             try {
                 const groups = await this.getGroups();
                 if (groups && groups.length > 0) {
+                    await whatsappGroupService.syncGroups(this.tenantId, this.label, groups).catch((e) =>
+                        console.error('[WhatsAppClient] Failed to persist groups', e)
+                    );
                     await this.persistStatus('connected');
                     return;
                 }
