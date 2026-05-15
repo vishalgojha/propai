@@ -1,6 +1,9 @@
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
+
+# Install git for pnpm workspace
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
 # Copy workspace configuration FIRST
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -9,8 +12,6 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/pulse-core/package.json ./packages/pulse-core/
 COPY packages/agent/package.json ./packages/agent/
-
-RUN apk add --no-cache git
 
 # Install dependencies.
 # The API package.json changes more frequently than the shared workspace lockfile
@@ -28,9 +29,14 @@ WORKDIR /app/apps/api
 RUN pnpm run build
 
 # Production image
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app/apps/api
+
+# Install runtime dependencies needed for onnxruntime-node (glibc, libstdc++)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Preserve pnpm's symlink layout for runtime dependencies
 COPY --from=builder /app/node_modules /app/node_modules
