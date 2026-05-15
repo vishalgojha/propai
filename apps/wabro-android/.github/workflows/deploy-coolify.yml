@@ -1,0 +1,34 @@
+name: Build & Deploy to Coolify
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Coolify Deploy
+        env:
+          COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          if [ -z "$COOLIFY_WEBHOOK" ] || [ -z "$COOLIFY_TOKEN" ]; then
+            echo "❌ COOLIFY_WEBHOOK and/or COOLIFY_TOKEN not set."
+            echo "   Run: gh secret set COOLIFY_WEBHOOK"
+            echo "   Run: gh secret set COOLIFY_TOKEN"
+            exit 1
+          fi
+          echo "🚀 Triggering Coolify deployment..."
+          HTTP_CODE=$(curl -s -o /tmp/coolify-response.txt -w "%{http_code}" \
+            --request GET "$COOLIFY_WEBHOOK" \
+            --header "Authorization: Bearer $COOLIFY_TOKEN" \
+            --max-time 120)
+          echo "HTTP $HTTP_CODE"
+          cat /tmp/coolify-response.txt
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "202" ]; then
+            echo "❌ Deploy trigger failed"
+            exit 1
+          fi
+          echo "✅ Deploy triggered successfully"

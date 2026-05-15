@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">WaBro</string>
+    <string name="accessibility_description">WaBro uses accessibility to send WhatsApp messages through the app\'s own UI with human-like timing.</string>
+    <string name="notification_broadcast_running">Broadcast campaign running...</string>
+    <string name="notification_broadcast_paused">Broadcast campaign paused</string>
+    <string name="notification_broadcast_complete">Broadcast campaign complete</string>
+    <string name="permission_accessibility_title">Enable Accessibility Service</string>
+    <string name="permission_accessibility_message">WaBro needs Accessibility Service access to send messages through WhatsApp automatically. Your messages and data are never stored or transmitted.</string>
+    <string name="btn_start_broadcast">Start Broadcast</string>
+    <string name="btn_pause">Pause</string>
+    <string name="btn_resume">Resume</string>
+    <string name="btn_stop">Stop</string>
+    <string name="paywall_title">License Required</string>
+    <string name="paywall_description">One-time payment for lifetime access</string>
+    <string name="paywall_pay">Pay ₹%s to unlock</string>
+    <string name="paywall_instructions">1. Pay ₹%s to the UPI ID above\n2. Tap "I\'ve Paid" below to unlock</string>
+    <string name="paywall_unlock_button">I\'ve Paid - Unlock</string>
+    <string name="paywall_help">Need help? Contact us</string>
+
+    <!-- V2 Strings -->
+    <string name="tab_brokers">Brokers</string>
+    <string name="tab_listings">Listings</string>
+    <string name="tab_campaigns">Campaigns</string>
+    <string name="tab_dashboard">Dashboard</string>
+    <string name="tab_settings">Settings</string>
+
+    <!-- Broker -->
+    <string name="add_broker">Add Broker</string>
+    <string name="edit_broker">Edit Broker</string>
+    <string name="broker_name">Full Name</string>
+    <string name="broker_phone">Phone Number</string>
+    <string name="broker_whatsapp">WhatsApp Number</string>
+    <string name="broker_city">City</string>
+    <string name="broker_locality">Locality</string>
+    <string name="broker_pincode">Pincode</string>
+    <string name="broker_specialization">Specialization</string>
+    <string name="broker_commission_rate">Commission Rate (%)</string>
+    <string name="broker_languages">Languages</string>
+    <string name="broker_tags">Tags</string>
+    <string name="broker_notes">Notes</string>
+    <string name="broker_active">Active Broker</string>
+    <string name="broker_score">Score</string>
+    <string name="broker_groups">Broker Groups</string>
+    <string name="geo_tag">Geo-Tag</string>
+
+    <!-- Listing -->
+    <string name="add_listing">Add Listing</string>
+    <string name="listing_name">Listing Name</string>
+    <string name="project_name">Project Name</string>
+    <string name="property_type">Property Type</string>
+    <string name="price">Price (₹)</string>
+    <string name="bhk">BHK</string>
+    <string name="area_sqft">Area (sqft)</string>
+    <string name="possession_date">Possession Date</string>
+    <string name="rera_number">RERA Number</string>
+    <string name="commission_pct">Commission (%)</string>
+
+    <!-- Campaign -->
+    <string name="select_listing">Select Listing</string>
+    <string name="select_broker_groups">Select Broker Groups</string>
+    <string name="personalization">Personalization</string>
+    <string name="schedule_campaign">Schedule Campaign</string>
+
+    <!-- Response -->
+    <string name="hot_leads">Hot Leads</string>
+    <string name="warm_leads">Warm Leads</string>
+    <string name="cold_leads">Cold Leads</string>
+    <string name="total_responses">Total Responses</string>
+    <string name="follow_up">Follow Up</string>
+    <string name="response_time">Response Time</string>
+    <string name="intent_level">Intent Level</string>
+    <string name="lead_score">Lead Score</string>
+
+    <!-- Deal -->
+    <string name="log_deal">Log Deal</string>
+    <string name="deal_value">Deal Value</string>
+    <string name="client_name">Client Name</string>
+    <string name="client_phone">Client Phone</string>
+    <string name="commission_amount">Commission Amount</string>
+    <string name="deal_stage">Deal Stage</string>
+
+    <!-- Common -->
+    <string name="search">Search</string>
+    <string name="filter">Filter</string>
+    <string name="export">Export</string>
+    <string name="delete">Delete</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="confirm_delete">Confirm Delete</string>
+    <string name="are_you_sure">Are you sure you want to delete this item?</string>
+</resources>

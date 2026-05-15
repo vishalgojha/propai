@@ -1,0 +1,54 @@
+# WaBro on Coolify — Hetzner Cloud Deployment
+# This file is used by Coolify to configure the deployment
+
+# App Configuration
+APP_NAME=wabro-landing
+APP_TYPE=docker
+APP_PORT=8000
+APP_DOMAIN=wabro.propai.live
+
+# Server Configuration
+SERVER_PROVIDER=hetzner
+SERVER_REGION=fsn1
+SERVER_TYPE=cx11
+SERVER_OS=ubuntu-22.04
+
+# Docker Configuration
+DOCKER_IMAGE=wabro-landing:latest
+DOCKERFILE_PATH=Dockerfile
+BUILD_CONTEXT=.
+
+# Environment Variables
+ENV_SERVER_PORT=8000
+ENV_TZ=Asia/Kolkata
+ENV_NODE_ENV=production
+
+# SSL/TLS
+SSL_ENABLED=true
+SSL_PROVIDER=letsencrypt
+SSL_EMAIL=vishal@chaoscraftlabs.com
+
+# Domain Configuration
+PRIMARY_DOMAIN=wabro.propai.live
+ALSO_HOST_WWW=true
+
+# Health Check
+HEALTHCHECK_ENABLED=true
+HEALTHCHECK_PATH=/
+HEALTHCHECK_INTERVAL=30
+HEALTHCHECK_TIMEOUT=10
+
+# Deployment
+DEPLOY_STRATEGY=rolling
+ZERO_DOWNTIME=true
+AUTO_RESTART=true
+
+# Monitoring
+LOG_RETENTION_DAYS=14
+LOG_LEVEL=info
+
+# Backup (if database added later)
+BACKUP_ENABLED=false
+# BACKUP_SCHEDULE=0 2 * * *
+# BACKUP_STORAGE=s3
+# BACKUP_BUCKET=wabro-backups

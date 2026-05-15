@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contact Us — WaBro</title>
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📢</text></svg>" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #e9edef;
+            line-height: 1.7;
+        }
+        .container { max-width: 800px; margin: 0 auto; padding: 0 24px; }
+        nav { padding: 20px 0; border-bottom: 1px solid #2a2a2a; }
+        nav a { color: #25D366; text-decoration: none; font-weight: 600; font-size: 1.1rem; }
+        nav a:hover { text-decoration: underline; }
+        .page { padding: 48px 0; }
+        .page h1 { font-size: 2rem; margin-bottom: 8px; color: #25D366; }
+        .page .subtitle { color: #b0b8c1; font-size: 1rem; margin-bottom: 36px; }
+        .page h2 { font-size: 1.2rem; margin: 28px 0 10px; color: #e9edef; }
+        .page p { font-size: .95rem; color: #b0b8c1; margin-bottom: 8px; }
+        .page strong { color: #e9edef; }
+
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 24px 0; }
+        .info-card {
+            background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px;
+            padding: 20px;
+        }
+        .info-card .label { font-size: .78rem; color: #54656f; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+        .info-card .value { font-size: .95rem; color: #e9edef; }
+
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: .9rem; color: #b0b8c1; margin-bottom: 6px; }
+        .form-group input,
+        .form-group textarea {
+            width: 100%; padding: 12px 14px; border-radius: 10px;
+            border: 1px solid #2a2a2a; background: #1a1a1a; color: #e9edef;
+            font-size: .95rem; font-family: inherit; outline: none; transition: .2s;
+        }
+        .form-group input:focus, .form-group textarea:focus { border-color: #25D366; }
+        .form-group textarea { resize: vertical; min-height: 120px; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 14px 32px; border-radius: 12px; font-size: 1rem;
+            font-weight: 600; text-decoration: none; border: none; cursor: pointer;
+            background: #25D366; color: #000; transition: .2s;
+        }
+        .btn:hover { background: #1ebe5a; }
+
+        footer {
+            text-align: center; padding: 32px 0;
+            border-top: 1px solid #2a2a2a; margin-top: 16px;
+            color: #54656f; font-size: .78rem;
+        }
+        footer a { color: #25D366; text-decoration: none; }
+        footer .links { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 12px; }
+        footer .links a { font-size: .85rem; }
+
+        @media (max-width: 600px) {
+            .page { padding: 32px 0; }
+            .page h1 { font-size: 1.5rem; }
+            .info-grid { grid-template-columns: 1fr; }
+            footer { padding: 24px 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav><a href="/">← WaBro</a></nav>
+        <section class="page">
+            <h1>Contact Us</h1>
+            <p class="subtitle">Have questions about WaBro? We're here to help.</p>
+
+            <div class="info-grid">
+                <div class="info-card">
+                    <div class="label">Email</div>
+                    <div class="value"><a href="mailto:support@propai.live" style="color:#25D366;text-decoration:none;">support@propai.live</a></div>
+                </div>
+                <div class="info-card">
+                    <div class="label">Phone</div>
+                    <div class="value"><a href="tel:+919819471310" style="color:#e9edef;text-decoration:none;">+91 98194 71310</a></div>
+                </div>
+                <div class="info-card">
+                    <div class="label">Support Hours</div>
+                    <div class="value">Mon–Sat, 10:00 AM – 7:00 PM IST</div>
+                </div>
+                <div class="info-card">
+                    <div class="label">Response Time</div>
+                    <div class="value">Within 24 hours on business days</div>
+                </div>
+            </div>
+
+            <h2>Send Us a Message</h2>
+            <form action="mailto:support@propai.live" method="post" enctype="text/plain">
+                <div class="form-group">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" required placeholder="Your name" />
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required placeholder="your@email.com" />
+                </div>
+                <div class="form-group">
+                    <label for="message">Message</label>
+                    <textarea id="message" name="message" required placeholder="How can we help you?"></textarea>
+                </div>
+                <button type="submit" class="btn">Send Message</button>
+            </form>
+
+            <h2>Registered Office</h2>
+            <p>
+                <strong>Chaos Craft Labs LLP</strong><br />
+                Flat No 803, Charkop Ashraya CHS Ltd, Sector 3<br />
+                Kandivali West, Mumbai, Maharashtra – 400067<br />
+                India<br />
+                <strong>LLPIN:</strong> ACT-6738
+            </p>
+        </section>
+    </div>
+    <footer>
+        <div class="links">
+            <a href="/privacy.html">Privacy Policy</a>
+            <a href="/terms.html">Terms &amp; Conditions</a>
+            <a href="/refund.html">Refund Policy</a>
+            <a href="/contact.html">Contact Us</a>
+        </div>
+        <p>WaBro — WhatsApp Broadcast for Brokers · <a href="https://app.propai.live" target="_blank">Partner: PropAI</a></p>
+        <p>&copy; 2026 Chaos Craft Labs LLP · LLPIN: ACT-6738</p>
+        <p>Flat No 803, Charkop Ashraya CHS Ltd, Sector 3, Kandivali West, Mumbai – 400067</p>
+        <p>support@propai.live · +91 98194 71310</p>
+    </footer>
+</body>
+</html>

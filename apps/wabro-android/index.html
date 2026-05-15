@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WaBro – WhatsApp Broadcast for Brokers</title>
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📢</text></svg>" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #e9edef;
+            line-height: 1.6;
+        }
+        .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+        /* Hero */
+        .hero {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 80px 0 60px;
+        }
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 800;
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero p {
+            font-size: 1.15rem;
+            color: #b0b8c1;
+            max-width: 600px;
+            margin: 16px 0 32px;
+        }
+        .hero-buttons { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 14px 32px; border-radius: 12px; font-size: 1rem;
+            font-weight: 600; text-decoration: none; transition: .2s;
+        }
+        .btn-primary { background: #25D366; color: #000; }
+        .btn-primary:hover { background: #1ebe5a; transform: translateY(-2px); }
+        .btn-outline { border: 2px solid #25D366; color: #25D366; }
+        .btn-outline:hover { background: #25D36622; }
+
+        /* Features */
+        .features { padding: 40px 0; }
+        .features h2 {
+            text-align: center; font-size: 1.6rem; margin-bottom: 24px;
+        }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+        .card {
+            background: #1a1a1a; border-radius: 12px; padding: 20px;
+            border: 1px solid #2a2a2a; transition: .2s;
+        }
+        .card:hover { border-color: #25D366; transform: translateY(-2px); }
+        .card .icon { font-size: 1.4rem; margin-bottom: 6px; }
+        .card h3 { font-size: .95rem; margin-bottom: 4px; color: #25D366; }
+        .card p { font-size: .82rem; color: #b0b8c1; }
+
+        /* Partnership / PropAI */
+        .partnership {
+            background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 14px;
+            padding: 36px 28px; text-align: center; margin: 32px 0;
+        }
+        .partnership h2 { font-size: 1.5rem; margin-bottom: 10px; }
+        .partnership p { color: #b0b8c1; max-width: 600px; margin: 0 auto 20px; }
+        .partnership .badge {
+            display: inline-block; background: #25D36622; color: #25D366;
+            padding: 5px 14px; border-radius: 20px; font-size: .8rem; font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        /* How it works */
+        .steps { padding: 48px 0; }
+        .steps h2 { text-align: center; font-size: 1.8rem; margin-bottom: 32px; }
+        .step-list { display: flex; flex-direction: column; gap: 16px; max-width: 600px; margin: 0 auto; }
+        .step { display: flex; gap: 14px; align-items: flex-start; }
+        .step .num {
+            min-width: 32px; height: 32px; border-radius: 50%;
+            background: #25D366; color: #000; font-weight: 700; font-size: .9rem;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .step h4 { margin-bottom: 2px; font-size: .95rem; }
+        .step p { font-size: .85rem; color: #b0b8c1; }
+
+        /* Footer */
+        footer {
+            text-align: center; padding: 24px 0;
+            border-top: 1px solid #2a2a2a; margin-top: 32px;
+            color: #54656f; font-size: .78rem;
+        }
+        footer a { color: #25D366; text-decoration: none; }
+        footer .footer-links { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+        footer .footer-links a { font-size: .82rem; }
+        footer p { margin-bottom: 4px; }
+
+        @media (max-width: 600px) {
+            .hero { padding: 60px 0 40px; }
+            .hero-buttons { flex-direction: column; align-items: stretch; }
+            .btn { justify-content: center; }
+            .features { padding: 32px 0; }
+            .features h2 { margin-bottom: 20px; }
+            .steps { padding: 32px 0; }
+            footer { margin-top: 24px; padding: 20px 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <section class="hero">
+            <h1>WaBro</h1>
+            <p>Broadcast WhatsApp messages to hundreds of leads with human-like timing. Built for real estate brokers, agents, and sales teams.</p>
+            <div class="hero-buttons">
+                <a href="https://github.com/vishalgojha/wabro/releases/download/v1.0.0/WaBro_v1.0.0_signed.apk" class="btn btn-primary">&#8595; Download APK</a>
+                <a href="#features" class="btn btn-outline">&#9660; Explore Features</a>
+                <a href="https://wabro.propai.live/app/" class="btn btn-outline">&#9993; Dashboard</a>
+                <a href="https://wabro.propai.live/app/" class="btn btn-outline">&#8599; WaBro Dashboard</a>
+            </div>
+        </section>
+
+        <section class="features" id="features">
+            <h2>Why WaBro?</h2>
+            <div class="grid">
+                <div class="card">
+                    <div class="icon">&#128172;</div>
+                    <h3>Bulk WhatsApp Broadcast</h3>
+                    <p>Send personalised messages to thousands of contacts automatically via WhatsApp.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">&#128200;</div>
+                    <h3>Smart Lists</h3>
+                    <p>Auto-filter phonebook contacts by keywords like broker, agent, ea. No manual entry.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">&#129302;</div>
+                    <h3>AI-Powered Skills</h3>
+                    <p>Translate, rewrite, and smart-caption messages using Gemini AI (optional).</p>
+                </div>
+                <div class="card">
+                    <div class="icon">&#128197;</div>
+                    <h3>Campaign Dashboard</h3>
+                    <p>Track sent, pending, and failed messages in real time. Resume from where you left off.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">&#128101;</div>
+                    <h3>Group Contact Scraper</h3>
+                    <p>Extract participant names and numbers from WhatsApp groups automatically.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">&#128274;</div>
+                    <h3>Broadcast Lists</h3>
+                    <p>Save and reuse contact lists across campaigns. Import from CSV, phonebook, or groups.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="partnership">
+            <div class="badge">&#129309; Referral Partnership</div>
+            <h2>WaBro Dashboard</h2>
+            <p>Manage your campaigns, contacts, and device monitoring from the WaBro dashboard. Track your broadcast statistics in real-time.</p>
+            <a href="https://wabro.propai.live/app/" class="btn btn-primary">&#9993; Access Dashboard</a>
+        </section>
+
+        <section class="steps">
+            <h2>How It Works</h2>
+            <div class="step-list">
+                <div class="step">
+                    <div class="num">1</div>
+                    <div>
+                        <h4>Install WaBro</h4>
+                        <p>Download the APK and enable the Accessibility Service for WhatsApp.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="num">2</div>
+                    <div>
+                        <h4>Import or Build Your List</h4>
+                        <p>Import from phonebook, CSV, or scrape a WhatsApp group. Auto-split into lists of 100.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="num">3</div>
+                    <div>
+                        <h4>Compose Your Campaign</h4>
+                        <p>Write a message, add media, apply AI skills (translate, rewrite, caption).</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="num">4</div>
+                    <div>
+                        <h4>Broadcast &amp; Track</h4>
+                        <p>Send with human-like delays. Monitor progress in the campaign dashboard.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="num">5</div>
+                    <div>
+                        <h4>Get Listed on PropAI</h4>
+                        <p>Subscribe and get free visibility at <a href="https://wabro.propai.live" style="color:#25D366;" target="_blank" rel="noopener">wabro.propai.live</a></p>
+                    </div>
+                </div>
+            </div>
+            <div style="text-align:center; margin-top:24px; padding:16px; background:#1a1a1a; border-radius:12px; border:1px solid #2a2a2a;">
+                <p style="font-size:.9rem; color:#b0b8c1;"><strong>3-Day Free Trial:</strong> No payment needed to try out the full WaBro experience. After 3 days, you'll need to purchase a license.</p>
+                <p style="font-size:.8rem; color:#b0b8c1; margin-top:12px;"><strong>Reassurance:</strong> In real-world use by realtors, temporary restrictions are rare — and when they do happen, a simple message to Meta explaining you're a realtor sending to known contacts typically restores service within 24 hours. No permanent bans. Just business as usual.</p>
+                <div style="margin-top:16px; padding:12px; background:#25D36622; border-radius:8px; border:1px solid #25D36644;">
+                    <p style="font-size:1rem; font-weight:bold; color:#25D366;">Cost Comparison</p>
+                    <p style="font-size:.9rem; margin:8px 0;">
+                        <strong>A broker with 2,000 contacts blasting once a week:</strong>
+                    </p>
+                    <p style="font-size:.9rem; margin:4px 0; color:#b0b8c1;">
+                        <strong>Official WhatsApp API:</strong> ₹0.88 × 2,000 = ₹1,760 per blast × 4 weeks = <strong>₹7,040/month</strong>
+                    </p>
+                    <p style="font-size:.9rem; margin:4px 0; color:#b0b8c1;">
+                        <strong>WaBro:</strong> <strong>₹499 flat. Unlimited blasts.</strong>
+                    </p>
+                    <p style="font-size:.9rem; margin-top:8px; font-weight:bold; color:#25D366;">
+                        That's 14x cheaper!
+                    </p>
+                </div>
+                <p style="font-size:.8rem; color:#b0b8c1; margin-top:12px;">
+                    <strong>Note:</strong> Do not use WaBro for sending unsolicited spam or large chunks of blast messages. Only send to known contacts with whom you have established relationships.
+                </p>
+                <p style="font-size:.8rem; color:#ff6b6b; margin-top:12px; background:#ff6b6b22; padding:8px; border-radius:6px;">
+                    <strong>Google Play Store Warning:</strong> This app is not on Google Play Store. Some devices may block installation due to Play Protect. You'll need to disable "Google Play Protect" or install via "Unknown Sources" to use WaBro.
+                </p>
+            </div>
+        </section>
+
+        <footer>
+            <div class="footer-links">
+                <a href="privacy.html">Privacy Policy</a>
+                <a href="terms.html">Terms of Service</a>
+                <a href="refund.html">Refund Policy</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <p style="font-size:.75rem; max-width:600px; margin:12px auto; line-height:1.4;">
+                <strong>Disclaimer:</strong> WaBro automates WhatsApp using your existing account. While we use human-like timing to minimize risk, account restrictions are governed by WhatsApp's policies and are not in our control. Use responsibly and only message known contacts.
+            </p>
+            <p>© 2026 Chaos Craft Labs LLP (LLPIN: ACT-6738)</p>
+            <p>Registered Address: 123 Business Street, Mumbai, Maharashtra 400001</p>
+            <p>Email: hello@chaoscraftlabs.com | Phone: +91 98200 56180</p>
+        </footer>
+    </div>
+</body>
+</html>

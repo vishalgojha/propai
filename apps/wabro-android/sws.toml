@@ -1,0 +1,19 @@
+[general]
+port = 8000
+root = "/public"
+health = true
+cache-control-headers = true
+
+[advanced]
+
+[[advanced.headers]]
+source = "*.html"
+[advanced.headers.headers]
+Cache-Control = "no-cache, no-store, must-revalidate"
+Pragma = "no-cache"
+Expires = "0"
+
+[[advanced.redirects]]
+source = "/dashboard.html"
+destination = "/app/"
+kind = 302

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+        name="description"
+        content="WaBro is a dedicated broadcast product for broker campaigns. Create campaigns on web, execute delivery from Android, and download the APK from one place."
+    />
+    <title>WaBro</title>
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+    <div class="page-shell">
+        <header class="site-header">
+            <div class="container header-row">
+                <a class="brand-link" href="#top">
+                    <span class="brand-mark">WB</span>
+                    <div>
+                        <strong>WaBro</strong>
+                        <span>Broadcast Campaign Hub</span>
+                    </div>
+                </a>
+
+                <nav class="header-actions">
+                    <a class="ghost-btn" href="#how-it-works">How It Works</a>
+                    <a class="ghost-btn" href="#pricing">Pricing</a>
+                    <a class="ghost-btn" href="https://app.propai.live">PropAI</a>
+                    <a class="primary-btn" href="/WaBro.apk">Download APK</a>
+                    <button class="ghost-btn hidden" id="logout-btn" type="button">Logout</button>
+                </nav>
+            </div>
+        </header>
+
+        <main>
+            <section class="hero-shell" id="top">
+                <div class="container hero-grid">
+                    <div class="hero-copy-block">
+                        <p class="eyebrow">Dedicated paid product</p>
+                        <h1>Broadcast campaigns from web. Execute delivery from Android.</h1>
+                        <p class="hero-copy">
+                            WaBro is a separate broadcast tool for broker outreach. Build contact lists, launch campaigns,
+                            download the Android app, and track execution health without mixing it into chat sync or QR flows.
+                        </p>
+                        <div class="hero-buttons">
+                            <a class="btn btn-primary" href="/WaBro.apk">Download APK</a>
+                            <a class="btn btn-outline" href="#dashboard-access">Open Dashboard</a>
+                        </div>
+                        <div class="hero-pills">
+                            <span class="pill">Rs 499/year</span>
+                            <span class="pill">Android execution</span>
+                            <span class="pill">Broker broadcasts</span>
+                        </div>
+                    </div>
+
+                    <aside class="launch-panel" id="dashboard-access">
+                        <div class="launch-status" id="service-banner" data-state="checking">
+                            <strong id="service-title">Checking service status</strong>
+                            <p id="service-message">Verifying whether the WaBro dashboard backend is available.</p>
+                        </div>
+
+                        <div class="auth-card" id="auth-card">
+                            <p class="eyebrow">WaBro Dashboard</p>
+                            <h2>Sign in with your PropAI account</h2>
+                            <p class="auth-copy">
+                                Use your existing account to load WaBro campaigns, broker lists, and Android execution status.
+                            </p>
+                            <form id="login-form" class="auth-form">
+                                <input type="email" name="email" placeholder="Email" required />
+                                <input type="password" name="password" placeholder="Password" required />
+                                <button type="submit" class="primary-btn" id="login-submit-btn">Sign In</button>
+                                <p class="auth-error" id="login-error"></p>
+                            </form>
+                            <div class="auth-success hidden" id="session-cta">
+                                <p>Signed in as <strong id="session-email"></strong></p>
+                                <button class="primary-btn" id="open-workspace-btn" type="button">Open Workspace</button>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+            </section>
+
+            <section class="section" id="what-wabro-does">
+                <div class="container">
+                    <div class="section-heading">
+                        <p class="eyebrow">What WaBro Does</p>
+                        <h2>Built for outbound campaigns, not general WhatsApp operations</h2>
+                        <p>
+                            WaBro is the broadcast product surface. It does not handle QR pairing, chat parsing, inbox work,
+                            or Baileys-style connection flows. Its job is campaign delivery.
+                        </p>
+                    </div>
+
+                    <div class="feature-grid">
+                        <article class="feature-card">
+                            <div class="feature-tag">Campaigns</div>
+                            <h3>Create and launch outreach campaigns</h3>
+                            <p>Build message templates, organize broker lists, and launch broadcast operations from the web dashboard.</p>
+                        </article>
+                        <article class="feature-card">
+                            <div class="feature-tag">Execution</div>
+                            <h3>Run delivery from Android</h3>
+                            <p>Use the APK as the execution layer while the web surface stays focused on orchestration and visibility.</p>
+                        </article>
+                        <article class="feature-card">
+                            <div class="feature-tag">Tracking</div>
+                            <h3>Monitor sent, failed, and skipped counts</h3>
+                            <p>Track live campaign progress and know when a device is active without mixing in chat inbox features.</p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section section-alt" id="how-it-works">
+                <div class="container">
+                    <div class="section-heading">
+                        <p class="eyebrow">How It Works</p>
+                        <h2>One product hub for setup, download, and campaign execution</h2>
+                    </div>
+
+                    <div class="step-grid">
+                        <article class="step-card">
+                            <span class="step-number">1</span>
+                            <h3>Download the APK</h3>
+                            <p>Install WaBro on Android. This device becomes your execution layer for sending campaign messages.</p>
+                        </article>
+                        <article class="step-card">
+                            <span class="step-number">2</span>
+                            <h3>Sign in on web</h3>
+                            <p>Use your PropAI account to access the dashboard, manage broker lists, and create campaigns.</p>
+                        </article>
+                        <article class="step-card">
+                            <span class="step-number">3</span>
+                            <h3>Import broker lists</h3>
+                            <p>Add contacts one by one or paste bulk broker rows in <code>name, phone, locality</code> format.</p>
+                        </article>
+                        <article class="step-card">
+                            <span class="step-number">4</span>
+                            <h3>Launch campaigns</h3>
+                            <p>Create message templates on the web and push campaigns through your linked Android device.</p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section" id="pricing">
+                <div class="container">
+                    <div class="pricing-card">
+                        <div>
+                            <p class="eyebrow">Plan</p>
+                            <h2>WaBro yearly access</h2>
+                            <p class="pricing-copy">
+                                WaBro is a separate paid service for broker broadcast campaigns. Keep the product boundary explicit.
+                            </p>
+                        </div>
+                        <div class="pricing-panel">
+                            <strong>Rs 499</strong>
+                            <span>per year</span>
+                            <a class="primary-btn" href="/WaBro.apk">Download APK</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="workspace-shell hidden" id="workspace-shell">
+                <div class="container">
+                    <section class="workspace-hero">
+                        <div>
+                            <p class="eyebrow">WaBro Workspace</p>
+                            <h2>Campaign dashboard</h2>
+                            <p class="workspace-copy">
+                                Signed in as <span id="user-email"></span>. Manage broadcast campaigns, broker lists, and Android execution health.
+                            </p>
+                        </div>
+                        <div class="workspace-actions">
+                            <a class="btn btn-outline" href="/WaBro.apk">Download APK</a>
+                            <button class="ghost-btn" id="close-workspace-btn" type="button">Back to Product Page</button>
+                        </div>
+                    </section>
+
+                    <section class="panel-nav">
+                        <button class="nav-link active" data-section="overview">Overview</button>
+                        <button class="nav-link" data-section="brokers">Broker Lists</button>
+                        <button class="nav-link" data-section="campaigns">Campaigns</button>
+                        <button class="nav-link" data-section="devices">Devices</button>
+                    </section>
+
+                    <section class="page active" id="overview">
+                        <div class="stats-grid" id="overview-stats"></div>
+
+                        <div class="dashboard-grid">
+                            <section class="panel">
+                                <div class="panel-head">
+                                    <div>
+                                        <p class="eyebrow">Recent campaigns</p>
+                                        <h3>Latest activity</h3>
+                                    </div>
+                                </div>
+                                <div id="recent-campaigns" class="stack-list"></div>
+                            </section>
+
+                            <section class="panel">
+                                <div class="panel-head">
+                                    <div>
+                                        <p class="eyebrow">Execution devices</p>
+                                        <h3>Android health</h3>
+                                    </div>
+                                </div>
+                                <div id="device-health" class="stack-list"></div>
+                            </section>
+                        </div>
+                    </section>
+
+                    <section class="page" id="brokers">
+                        <div class="section-head">
+                            <div>
+                                <p class="eyebrow">Broadcast lists</p>
+                                <h3>Broker Lists</h3>
+                            </div>
+                            <button class="primary-btn" data-open-form="broker-form">Add or Import List</button>
+                        </div>
+
+                        <form class="inline-form hidden" id="broker-form">
+                            <input type="text" name="list_name" placeholder="List name" required />
+                            <input type="text" name="name" placeholder="Broker name" />
+                            <input type="text" name="phone" placeholder="Phone / WhatsApp" />
+                            <input type="text" name="locality" placeholder="Locality" />
+                            <button type="submit" class="primary-btn">Save broker</button>
+                            <div class="import-block">
+                                <p class="eyebrow">Upload broker list</p>
+                                <input type="file" id="broker-file" accept=".csv,.txt" />
+                                <textarea id="broker-bulk-input" rows="5" placeholder="Paste one broker per line:&#10;Rohan Mehta,+919819000111,Andheri West&#10;Aarti Shah,+919819000222,Thane"></textarea>
+                                <div class="import-actions">
+                                    <button type="button" class="secondary-btn" id="broker-import-btn">Import List</button>
+                                    <span class="import-note">Format: <code>name, phone, locality</code></span>
+                                </div>
+                                <span class="import-status" id="broker-import-status"></span>
+                            </div>
+                        </form>
+
+                        <div id="broker-list" class="entity-grid"></div>
+                    </section>
+
+                    <section class="page" id="campaigns">
+                        <div class="section-head">
+                            <div>
+                                <p class="eyebrow">Operations</p>
+                                <h3>Campaigns</h3>
+                            </div>
+                            <button class="primary-btn" data-open-form="campaign-form">Create Campaign</button>
+                        </div>
+
+                        <form class="inline-form hidden campaign-form" id="campaign-form">
+                            <input type="text" name="name" placeholder="Campaign name" required />
+                            <select name="listName" required id="campaign-contact-list-select"></select>
+                            <textarea name="message_template" placeholder="Campaign message" rows="4" required></textarea>
+                            <button type="submit" class="primary-btn">Create Campaign</button>
+                        </form>
+
+                        <div id="campaign-list" class="entity-grid"></div>
+                    </section>
+
+                    <section class="page" id="devices">
+                        <div class="section-head">
+                            <div>
+                                <p class="eyebrow">Execution layer</p>
+                                <h3>Linked Android devices</h3>
+                            </div>
+                        </div>
+                        <div id="device-list" class="entity-grid"></div>
+                    </section>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <template id="stat-card-template">
+        <article class="stat-card">
+            <p class="stat-label"></p>
+            <strong class="stat-value"></strong>
+            <span class="stat-note"></span>
+        </article>
+    </template>
+
+    <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+---
+version: "3.8"
+
+services:
+  # ==========================================
+  # WaBro Landing Page / Marketing Site
+  # ==========================================
+  wabro-landing:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wabro-landing
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - SERVER_PORT=8000
+      - TZ=Asia/Kolkata
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    networks:
+      - wabro-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wabro-landing.rule=Host(`wabro.propai.live`)"
+      - "traefik.http.routers.wabro-landing.entrypoints=web"
+      - "traefik.http.routers.wabro-landing-secure.rule=Host(`wabro.propai.live`)"
+      - "traefik.http.routers.wabro-landing-secure.entrypoints=websecure"
+      - "traefik.http.routers.wabro-landing-secure.tls=true"
+      - "traefik.http.routers.wabro-landing-secure.tls.certresolver=letsencrypt"
+
+  # ==========================================
+  # Supabase Database (if self-hosting)
+  # ==========================================
+  # Uncomment below if running Supabase locally
+  # Otherwise, use Supabase Cloud (db hosted at supabase.co)
+
+  # postgres:
+  #   image: supabase/postgres:15
+  #   container_name: wabro-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_DB: wabro
+  #     POSTGRES_USER: wabro_admin
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #     POSTGRES_PORT: 5432
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #     - ./db/init:/docker-entrypoint-initdb.d
+  #   networks:
+  #     - wabro-net
+
+networks:
+  wabro-net:
+    driver: bridge
+
+# volumes:
+#   pgdata:

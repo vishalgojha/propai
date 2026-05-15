@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="whatsapp_primary">#FF075E54</color>
+    <color name="whatsapp_dark">#FF054D44</color>
+    <color name="status_sent">#FF4CAF50</color>
+    <color name="status_failed">#FFF44336</color>
+    <color name="status_skipped">#FFFF9800</color>
+    <color name="status_paused">#FF2196F3</color>
+</resources>
