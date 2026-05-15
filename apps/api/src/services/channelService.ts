@@ -1523,9 +1523,11 @@ private backfillInitiated = false;
                 continue;
             }
 
-            await this.upsertPublicListing(tenantId, parsed, message).catch((pe) => {
-                console.error('[ChannelService] Failed to upsert public listing', pe);
-            });
+            if (parsed.recordType !== 'requirement') {
+                await this.upsertPublicListing(tenantId, parsed, message).catch((pe) => {
+                    console.error('[ChannelService] Failed to upsert public listing', pe);
+                });
+            }
 
             this.autoMatch(tenantId, parsed).catch((me) => {
                 console.error('[ChannelService] Auto-match failed', me);
@@ -1841,13 +1843,14 @@ private async ensureStreamBackfilled(tenantId: string) {
 
         for (const r of results) {
             const confidence = r.confidenceScore;
+            const isRequirement = r.recordType === 'requirement';
             if (confidence >= 0.6) continue;
 
             const reasons: string[] = [];
             if (r.locality === 'Location not parsed yet' || !r.locality) reasons.push('missing_locality');
             if (!r.bhk) reasons.push('missing_bhk');
-            if (!r.priceLabel && !r.priceNumeric && r.recordType !== 'requirement') reasons.push('missing_price');
-            if (!r.furnishing) reasons.push('missing_furnishing');
+            if (!r.priceLabel && !r.priceNumeric && !isRequirement) reasons.push('missing_price');
+            if (!r.furnishing && !isRequirement) reasons.push('missing_furnishing');
             if (confidence < 0.3) reasons.push('very_low_confidence');
 
             flags.push({
