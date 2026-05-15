@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { sessionManager } from '../whatsapp/SessionManager';
+import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { subscriptionService } from '../services/subscriptionService';
 import { whatsappHealthService } from '../services/whatsappHealthService';
@@ -12,8 +12,6 @@ import { pushRecentAction } from '../services/identityService';
 import { sessionEventService } from '../services/sessionEventService';
 import { emailNotificationService } from '../services/emailNotificationService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
-import type { WhatsAppClient } from '../whatsapp/WhatsAppClient';
-import type { SessionSnapshot } from '@vishalgojha/whatsapp-baileys-runtime';
 import '../types/express';
 
 function getTenantId(req: Request) {
@@ -115,13 +113,14 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
     const connectMethod = req.body?.connectMethod === 'pairing' ? 'pairing' : 'qr';
     const tenantId = getTenantId(req);
     const sessionLabel = buildSessionLabel(ownerName || label, phoneNumber);
+    const gateway = getWhatsAppGateway(tenantId);
 
     try {
         if (connectMethod === 'pairing' && !phoneNumber) {
             return res.status(400).json({ error: 'Enter the WhatsApp number to request a pairing code.' });
         }
 
-        const existingSession = await sessionManager.getSession(tenantId, sessionLabel);
+        const existingSession = await gateway.getStatus({ workspaceOwnerId: tenantId, sessionLabel });
         const dbClient = getDbClient();
         const { data: existingRow } = await dbClient
             .from('whatsapp_sessions')
@@ -130,7 +129,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             .eq('label', sessionLabel)
             .maybeSingle();
 
-        if (existingSession && existingRow?.status === 'connected') {
+        if (existingSession?.status === 'connected' && existingRow?.status === 'connected') {
             return res.json({
                 message: 'WhatsApp already connected',
                 label: sessionLabel,
@@ -144,7 +143,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
 
         if (connectMethod === 'qr' && existingRow?.status !== 'connected') {
             if (existingSession) {
-                await sessionManager.removeSession(tenantId, sessionLabel);
+                await gateway.disconnect({ workspaceOwnerId: tenantId, sessionLabel });
             } else {
                 await dbClient
                     .from('whatsapp_sessions')
@@ -160,24 +159,18 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             }
         }
 
-        await sessionManager.createSession(
-            tenantId, 
-            () => {}, 
-            () => {},
-            { 
-                phoneNumber,
-                label: sessionLabel, 
-                ownerName,
-                usePairingCode: connectMethod === 'pairing' ? phoneNumber : undefined,
-            }
-        );
+        await gateway.connect({
+            workspaceOwnerId: tenantId,
+            sessionLabel,
+            ownerName,
+            phoneNumber,
+            mode: connectMethod,
+        });
 
-        // QR generation can be async (Baileys emits it after socket init). Poll briefly so the UI
-        // usually gets a QR immediately, especially for the 2nd+ device flow.
         const waitForArtifact = async () => {
             const deadline = Date.now() + 7000;
             while (Date.now() < deadline) {
-                const current = sessionManager.getQR(tenantId, sessionLabel);
+                const current = await gateway.getQRCode({ workspaceOwnerId: tenantId, sessionLabel });
                 if (current) return current;
                 await new Promise((resolve) => setTimeout(resolve, 250));
             }
@@ -212,7 +205,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
                 last_sync: new Date().toISOString(),
             }, { onConflict: 'tenant_id,label' });
 
-        const artifact = sessionManager.getQR(tenantId, sessionLabel) || artifactAfterCreate;
+        const artifact = await gateway.getQRCode({ workspaceOwnerId: tenantId, sessionLabel }) || artifactAfterCreate;
         const connectionArtifact = connectMethod === 'qr'
             ? buildConnectionArtifact('qr', artifact)
             : buildConnectionArtifact('pairing', artifact);
@@ -259,16 +252,13 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
     const { label } = req.body || {};
     const sessionKey = label || undefined;
+    const gateway = getWhatsAppGateway(tenantId);
 
     try {
-        const result = await sessionManager.forceReconnect(tenantId, sessionKey);
+        const result = await gateway.forceReconnect({ workspaceOwnerId: tenantId, sessionLabel: sessionKey });
         
-        // Wait a moment for QR to generate
         setTimeout(() => {
-            const qr = sessionManager.getQR(tenantId as string, result.label);
-            if (qr) {
-                // QR is ready, but we already sent response
-            }
+            void gateway.getQRCode({ workspaceOwnerId: tenantId as string, sessionLabel: result.label });
         }, 2000);
 
         res.json({
@@ -298,8 +288,9 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
 export const getQR = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
     const label = typeof req.query.label === 'string' ? req.query.label : undefined;
+    const gateway = getWhatsAppGateway(tenantId);
 
-    const qr = sessionManager.getQR(tenantId as string, label);
+    const qr = await gateway.getQRCode({ workspaceOwnerId: tenantId as string, sessionLabel: label });
     
     if (qr) {
         return res.json({
@@ -311,7 +302,7 @@ export const getQR = async (req: Request, res: Response) => {
     }
 
     // Check if session exists but QR not ready
-    const sessions = sessionManager.getLiveSessionSnapshots(tenantId);
+    const sessions = await gateway.getSessions(tenantId);
     const targetSession = label 
         ? sessions.find(s => s.label === label)
         : sessions[0];
@@ -353,10 +344,14 @@ export const getQR = async (req: Request, res: Response) => {
 export const getStatus = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
     const user = req.user;
+    const gateway = getWhatsAppGateway(tenantId);
 
     if (tenantId === 'system') {
-        const status = await sessionManager.getSystemStatus();
-        return res.json(status);
+        const status = await gateway.getStatus({ workspaceOwnerId: tenantId });
+        return res.json({
+            status: status?.status || 'disconnected',
+            connected: status?.status === 'connected',
+        });
     }
 
     const { data, error } = await getDbClient()
@@ -376,7 +371,7 @@ export const getStatus = async (req: Request, res: Response) => {
         sessionData: row.session_data || null,
         lastSync: row.last_sync,
     }));
-        const liveSessions: (SessionSnapshot & { reconnectAttempts?: number; isReconnecting?: boolean })[] = sessionManager.getLiveSessionSnapshots(tenantId) as (SessionSnapshot & { reconnectAttempts?: number; isReconnecting?: boolean })[];
+        const liveSessions = await gateway.getSessions(tenantId) as Array<Record<string, unknown>>;
         const sessionMap = new Map<string, Record<string, unknown>>();
 
         for (const session of dbSessions) {
@@ -465,6 +460,7 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
     const user = req.user;
     const fallbackEmail = String(user?.email || '').trim().toLowerCase() || null;
     const fallbackFullName = String(user?.full_name || user?.name || '').trim() || null;
+    const gateway = getWhatsAppGateway(tenantId);
 
     try {
         const dbClient = getDbClient();
@@ -475,7 +471,7 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
             .eq('label', String(targetSessionKey || ''))
             .maybeSingle();
 
-        await sessionManager.removeSession(tenantId, targetSessionKey);
+        await gateway.disconnect({ workspaceOwnerId: tenantId, sessionLabel: targetSessionKey });
 
         await sendWhatsAppLifecycleEmail({
             tenantId,
@@ -520,7 +516,7 @@ export const getIngestionHealth = async (req: Request, res: Response) => {
 
 export const getDetailedHealth = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
-    const user = req.user;
+    const gateway = getWhatsAppGateway(tenantId);
 
     try {
         const [health, sessionsResult, eventsResult] = await Promise.all([
@@ -541,7 +537,7 @@ export const getDetailedHealth = async (req: Request, res: Response) => {
             lastSync: row.last_sync,
         }));
 
-        const liveSessions: (SessionSnapshot & { reconnectAttempts?: number; isReconnecting?: boolean })[] = sessionManager.getLiveSessionSnapshots(tenantId) as (SessionSnapshot & { reconnectAttempts?: number; isReconnecting?: boolean })[];
+        const liveSessions = await gateway.getSessions(tenantId) as Array<Record<string, unknown>>;
         const sessionMap = new Map<string, Record<string, unknown>>();
         
         for (const session of sessions) {
@@ -808,6 +804,7 @@ export const saveProfile = async (req: Request, res: Response) => {
 export const getMessages = async (req: Request, res: Response) => {
     const context = await workspaceAccessService.resolveContext(req.user ?? {});
     const tenantId = context.workspaceOwnerId;
+    const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel.trim() : null;
 
     const { data, error } = await getDbClient()
         .from('messages')
@@ -817,34 +814,58 @@ export const getMessages = async (req: Request, res: Response) => {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    res.json(data);
+    const rows = Array.isArray(data) ? data : [];
+    if (!sessionLabel) {
+        return res.json(rows);
+    }
+
+    const groupsResult = await getDbClient()
+        .from('whatsapp_groups')
+        .select('group_jid')
+        .eq('tenant_id', tenantId)
+        .eq('session_label', sessionLabel)
+        .eq('is_archived', false);
+
+    if (groupsResult.error) {
+        const message = String(groupsResult.error.message || '').toLowerCase();
+        if (
+            !message.includes(`could not find the table 'public.whatsapp_groups'`) &&
+            !message.includes('schema cache') &&
+            !message.includes('does not exist')
+        ) {
+            return res.status(500).json({ error: groupsResult.error.message });
+        }
+
+        return res.json(rows);
+    }
+
+    const groupIds = new Set(
+        (groupsResult.data || []).map((row: any) => String(row.group_jid || '')).filter(Boolean),
+    );
+
+    if (groupIds.size === 0) {
+        return res.json(rows);
+    }
+
+    return res.json(rows.filter((row: any) => {
+        const remoteJid = String(row?.remote_jid || '');
+        return !remoteJid.endsWith('@g.us') || groupIds.has(remoteJid);
+    }));
 };
 
 export const getGroups = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
     const requestedSessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel.trim() : null;
+    const gateway = getWhatsAppGateway(tenantId);
 
     try {
-        const liveClients = requestedSessionLabel
-            ? [await sessionManager.getSession(tenantId as string, requestedSessionLabel)].filter((x): x is WhatsAppClient => x != null)
-            : await sessionManager.getAllSessionsForTenant(tenantId as string);
+        const sessionLabels = requestedSessionLabel
+            ? [requestedSessionLabel]
+            : (await gateway.getSessions(tenantId as string)).map((session) => session.label).filter(Boolean);
 
-        for (const client of liveClients) {
-            const groups = await client.getGroups() as Array<Record<string, unknown>>;
-            const normalizedGroups = Array.isArray(groups)
-                ? groups.map((group, index) => ({
-                    id: String(group.id || group.remoteJid || `group-${index}`),
-                    name: String(group.subject || group.name || group.title || group.id || `Group ${index + 1}`),
-                    participantsCount: Number(group.participantsCount || group.size || (group.participants as Array<unknown>)?.length || 0),
-                }))
-                : [];
-
-            const sessionSnapshot =
-                typeof client.getStatusSnapshot === 'function'
-                    ? client.getStatusSnapshot()
-                    : null;
-            const sessionLabel = String(sessionSnapshot?.label || requestedSessionLabel || 'default');
-            await whatsappGroupService.syncGroups(tenantId as string, sessionLabel, normalizedGroups);
+        for (const sessionLabel of sessionLabels) {
+            const groups = await gateway.listGroups({ workspaceOwnerId: tenantId as string, sessionLabel });
+            await whatsappGroupService.syncGroups(tenantId as string, sessionLabel, groups);
         }
 
         const directoryGroups = await whatsappGroupService.listGroups(tenantId as string);
@@ -982,6 +1003,7 @@ export const sendMessage = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
     const { remoteJid, text } = req.body;
     const user = req.user;
+    const gateway = getWhatsAppGateway(tenantId);
     if (!tenantId || !remoteJid || !text) {
         return res.status(400).json({ error: 'remoteJid and text are required' });
     }
@@ -990,12 +1012,11 @@ export const sendMessage = async (req: Request, res: Response) => {
     console.log(`[sendMessage] ${chatType} send to JID: ${remoteJid} (workspace: ${tenantId})`);
 
     try {
-        const client = await sessionManager.getSession(tenantId);
-        if (!client) {
-            return res.status(404).json({ error: 'No active WhatsApp session found' });
-        }
-
-        await client.sendText(remoteJid, text);
+        await gateway.sendMessage({
+            workspaceOwnerId: tenantId,
+            remoteJid,
+            text,
+        });
         await getDbClient().from('messages').insert({
             tenant_id: tenantId,
             remote_jid: remoteJid,
@@ -1024,17 +1045,13 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
     const { recipients, text, sessionKey } = req.body || {};
     const user = req.user;
+    const gateway = getWhatsAppGateway(tenantId);
 
     if (!tenantId || !Array.isArray(recipients) || recipients.length === 0 || !String(text || '').trim()) {
         return res.status(400).json({ error: 'recipients and text are required' });
     }
 
     try {
-        const client = await sessionManager.getSession(tenantId, sessionKey);
-        if (!client) {
-            return res.status(404).json({ error: 'No active WhatsApp session found' });
-        }
-
         const sent: Array<{ remoteJid: string; label?: string | null }> = [];
         const failed: Array<{ remoteJid: string; label?: string | null; error: string }> = [];
 
@@ -1048,7 +1065,12 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
             }
 
             try {
-                await client.sendText(remoteJid, String(text).trim());
+                await gateway.sendMessage({
+                    workspaceOwnerId: tenantId,
+                    sessionLabel: sessionKey,
+                    remoteJid,
+                    text: String(text).trim(),
+                });
                 await getDbClient().from('messages').insert({
                     tenant_id: tenantId,
                     remote_jid: remoteJid,
@@ -1092,18 +1114,18 @@ export const broadcastToGroups = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
     const { groupJids, text, batchSize, delayBetweenMessages, delayBetweenBatches, sessionKey } = req.body || {};
     const user = req.user;
+    const gateway = getWhatsAppGateway(tenantId);
 
     if (!tenantId || !Array.isArray(groupJids) || groupJids.length === 0 || !text) {
         return res.status(400).json({ error: 'groupJids and text are required' });
     }
 
     try {
-        const client = await sessionManager.getSession(tenantId, sessionKey);
-        if (!client) {
-            return res.status(404).json({ error: 'No active WhatsApp session found' });
-        }
-
-        const result = await client.broadcastToGroups(groupJids, text, {
+        const result = await gateway.broadcastToGroups({
+            workspaceOwnerId: tenantId,
+            sessionLabel: sessionKey,
+            groupJids,
+            text,
             batchSize: Number(batchSize) || undefined,
             delayBetweenMessages: Number(delayBetweenMessages) || undefined,
             delayBetweenBatches: Number(delayBetweenBatches) || undefined,

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { sessionManager } from '../whatsapp/SessionManager';
+import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 import { supabase } from '../config/supabase';
 import crypto from 'crypto';
 import { pushRecentAction } from '../services/identityService';
@@ -25,12 +25,12 @@ export const requestVerification = async (req: Request, res: Response) => {
 
         if (profileError) throw profileError;
 
-        const systemClient = await sessionManager.getSession('system');
-        if (!systemClient) throw new Error('System session not available');
-
-        await (systemClient as any).sendText(phone + '@s.whatsapp.net', 
-            `Welcome to PropAI! Your verification token is: ${token.substring(0, 6)}\n\nReply with YES to activate your account.`
-        );
+        const gateway = getWhatsAppGateway('system');
+        await gateway.sendMessage({
+            workspaceOwnerId: 'system',
+            remoteJid: `${phone}@s.whatsapp.net`,
+            text: `Welcome to PropAI! Your verification token is: ${token.substring(0, 6)}\n\nReply with YES to activate your account.`,
+        });
 
         res.json({ message: 'Verification code sent to your WhatsApp' });
     } catch (error: any) {

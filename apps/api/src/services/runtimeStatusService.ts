@@ -1,7 +1,7 @@
 import { keyService } from './keyService';
 import { getWorkspaceDefaultModel, getWorkspaceExplicitDefaultModel } from './workspaceSettingsService';
 import { browserToolService } from './browserToolService';
-import { sessionManager } from '../whatsapp/SessionManager';
+import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 import { normalizePlanName, subscriptionService } from './subscriptionService';
 
 type RuntimeSnapshot = {
@@ -99,7 +99,7 @@ export class RuntimeStatusService {
             hasConcentrate,
         );
 
-        const liveSessions = sessionManager.getLiveSessionSnapshots(tenantId);
+        const liveSessions = await getWhatsAppGateway(tenantId).getSessions(tenantId);
         const connectedSessions = liveSessions.filter((session) => session.status === 'connected');
         const connectingSessions = liveSessions.filter((session) => session.status === 'connecting');
         const primaryConnectedSession = connectedSessions[0] || null;
