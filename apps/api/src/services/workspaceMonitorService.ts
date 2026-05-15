@@ -87,12 +87,22 @@ export class WorkspaceMonitorService {
             return new Date(right.timestamp || 0).getTime() - new Date(left.timestamp || 0).getTime();
         });
         const sessionGroupIds = new Set<string>(groupsData.map((group: any) => String(group.group_jid || '')).filter(Boolean));
+        const parsingGroupIds = new Set<string>(
+            groupsData.filter((g: any) => g.is_parsing).map((g: any) => String(g.group_jid || '')).filter(Boolean)
+        );
+
         const filteredRows = rows.filter((row) => {
             const remoteJid = String(row.remote_jid || '');
             const isGroup = remoteJid.endsWith('@g.us');
 
             if (inboxOnly && isGroup) {
                 return false;
+            }
+
+            // Monitor view: never show DMs or non-real-estate groups
+            if (!inboxOnly) {
+                if (!isGroup) return false;
+                if (parsingGroupIds.size > 0 && !parsingGroupIds.has(remoteJid)) return false;
             }
 
             // If a session label filter is active, restrict group chats to the
@@ -165,6 +175,7 @@ export class WorkspaceMonitorService {
             });
 
         for (const group of groupsData) {
+            if (!group.is_parsing) continue;
             const jid = String(group.group_jid || '');
             if (!jid || chatsMap.has(jid)) continue;
 
