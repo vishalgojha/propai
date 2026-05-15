@@ -18,6 +18,8 @@ import workspaceRoutes from './routes/workspaceRoutes';
 import fileRoutes from './routes/fileRoutes';
 import wabroRoutes from './routes/wabroRoutes';
 import identityRoutes from './routes/identityRoutes';
+import cron from 'node-cron';
+import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
@@ -182,5 +184,14 @@ app.listen(PORT, () => {
         } catch (error) {
             console.error('Startup initialization failed:', error);
         }
+        cron.schedule('30 15 * * *', () => {
+            console.log('[Cron] Running backfill-public-listings (9PM IST)');
+            try { execSync('npx ts-node scripts/backfill-public-listings.ts', { stdio: 'inherit' }); } catch (e) { console.error('[Cron] Backfill failed:', e); }
+        }, { timezone: 'Asia/Kolkata' });
+        cron.schedule('30 15 * * 0', () => {
+            console.log('[Cron] Running seed-domain-knowledge (weekly, 9PM IST)');
+            try { execSync('npx ts-node scripts/seed-domain-knowledge.ts', { stdio: 'inherit' }); } catch (e) { console.error('[Cron] Pattern discovery failed:', e); }
+        }, { timezone: 'Asia/Kolkata' });
+        console.log('[Cron] Scheduler registered (TZ: Asia/Kolkata)');
     })();
 });
