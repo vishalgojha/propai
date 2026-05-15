@@ -169,6 +169,9 @@ This section reflects the state at the end of the current session on 2026-05-11.
 
 ### Still Pending
 
+- **Untracked files not yet pushed:**
+  - `supabase/migrations/20260514000001_rls_diagnostic.sql`
+  - `supabase/migrations/20260514000003_consolidated.sql`
 - Trigger redeploy of backend API service in Coolify — includes all 3 commits (`bb3fd52`, `9e7303c`, `0b08749`) + 2 migrations.
 - Fresh signup as broker #1 and test full flow after redeploy.
 - Build verification for frontend (`apps/app`) — not yet tested this session.
