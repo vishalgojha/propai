@@ -56,6 +56,8 @@ export type BrokerToolIntent =
     | 'schedule_callback'
     | 'check_callbacks'
     | 'search_listings'
+    | 'semantic_search'
+    | 'market_insights'
     | 'get_my_listings'
     | 'get_my_requirements'
     | 'search_my_crm'
@@ -150,6 +152,10 @@ export class BrokerWorkflowService {
                 return await this.checkCallbacks(tenantId);
             case 'search_listings':
                 return await this.searchListings(tenantId, this.mergeText(plan.args, prompt));
+            case 'semantic_search':
+                return await this.semanticSearchListings(tenantId, this.mergeText(plan.args, prompt));
+            case 'market_insights':
+                return await this.getMarketInsights(tenantId, this.mergeText(plan.args, prompt));
             case 'get_my_listings':
                 return await this.getMyListings(tenantId, this.mergeText(plan.args, prompt));
             case 'get_my_requirements':
@@ -494,6 +500,67 @@ export class BrokerWorkflowService {
                 : 'I did not find any matching listings.',
             data: { type: 'listing_search', items: matches },
         };
+    }
+
+    private async semanticSearchListings(tenantId: string, prompt: string): Promise<WorkflowResult> {
+        try {
+            const { embedText } = await import('../services/embeddingService');
+            const embedding = await embedText(prompt);
+            const { data, error } = await this.admin.rpc('match_listings', {
+                query_embedding: embedding,
+                match_threshold: 0.55,
+                match_count: 10,
+                p_tenant_id: tenantId,
+                p_locality: null,
+                p_bhk: null,
+                p_type: null,
+            });
+            if (error) throw error;
+            return {
+                handled: true,
+                reply: data?.length
+                    ? `I found ${data.length} semantically matching listings for your request.`
+                    : 'I could not find any semantically matching listings.',
+                data: { type: 'semantic_search', items: data || [] },
+            };
+        } catch (e: any) {
+            return {
+                handled: true,
+                reply: `Semantic search failed: ${e.message}`,
+                data: { type: 'semantic_search_failed' },
+            };
+        }
+    }
+
+    private async getMarketInsights(tenantId: string, prompt: string): Promise<WorkflowResult> {
+        try {
+            const { data, error } = await this.admin.rpc('market_stats', {
+                p_locality: null,
+                p_days: 30,
+            });
+            if (error) throw error;
+            if (!data?.length) {
+                return {
+                    handled: true,
+                    reply: 'Not enough market data available yet. The scraper needs more listings to compute meaningful stats.',
+                    data: { type: 'market_insights', items: [] },
+                };
+            }
+            const lines = (data as any[]).slice(0, 10).map((r: any) =>
+                `${r.locality}: ${r.bhk || 'all'}BHK avg ₹${Number(r.avg_price_numeric || 0).toLocaleString('en-IN')} (${r.listing_count} listings)`
+            );
+            return {
+                handled: true,
+                reply: `Market insights (last 30 days):\n${lines.join('\n')}`,
+                data: { type: 'market_insights', items: data },
+            };
+        } catch (e: any) {
+            return {
+                handled: true,
+                reply: `Market insights unavailable: ${e.message}`,
+                data: { type: 'market_insights_failed' },
+            };
+        }
     }
 
     private async getMyListings(tenantId: string, prompt: string): Promise<WorkflowResult> {

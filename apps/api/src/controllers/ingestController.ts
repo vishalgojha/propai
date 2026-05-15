@@ -63,7 +63,7 @@ export const ingestListings = async (req: Request, res: Response) => {
             if (le) listingsErr++;
             else listingsOk++;
 
-            const streamRow = {
+            const streamRow: Record<string, any> = {
                 tenant_id,
                 message_id: item.message_id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                 source_group_id: item.source_group_id || null,
@@ -81,6 +81,9 @@ export const ingestListings = async (req: Request, res: Response) => {
                 area_sqft: item.area_sqft || null,
                 property_category: item.property_category || 'residential',
             };
+            if (item.embedding && Array.isArray(item.embedding)) {
+                streamRow.embedding = item.embedding;
+            }
             const { error: se } = await admin.from('stream_items').insert(streamRow);
             if (se) streamErr++;
             else streamOk++;

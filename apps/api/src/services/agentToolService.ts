@@ -161,6 +161,10 @@ export class AgentToolService {
                 return await brokerWorkflowService.executePlan(tenantId, { intent: 'get_my_listings', args }, promptText);
             case 'get_my_requirements':
                 return await brokerWorkflowService.executePlan(tenantId, { intent: 'get_my_requirements', args }, promptText);
+            case 'semantic_search':
+                return await brokerWorkflowService.executePlan(tenantId, { intent: 'semantic_search', args }, promptText);
+            case 'market_insights':
+                return await brokerWorkflowService.executePlan(tenantId, { intent: 'market_insights', args }, promptText);
             case 'search_my_crm':
                 return await brokerWorkflowService.executePlan(tenantId, { intent: 'search_my_crm', args }, promptText);
             case 'verify_rera': {
