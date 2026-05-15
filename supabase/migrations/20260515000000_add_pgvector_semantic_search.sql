@@ -22,7 +22,7 @@ create or replace function match_listings(
     p_type text default null
 )
 returns table (
-    id bigint,
+    id uuid,
     tenant_id uuid,
     message_id text,
     locality text,
@@ -38,7 +38,7 @@ as $$
 begin
     return query
     select
-        si.id,
+        si.id::uuid,
         si.tenant_id,
         si.message_id,
         si.locality,

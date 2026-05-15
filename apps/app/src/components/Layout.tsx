@@ -79,7 +79,7 @@ export const Layout: React.FC = () => {
       case '/team':
         return 'Team';
       case '/scraper':
-        return 'Scraper';
+        return 'PropAI Scraper';
       case '/admin':
         return 'Admin';
       case '/aiusage':

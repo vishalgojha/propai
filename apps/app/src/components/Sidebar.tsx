@@ -38,7 +38,7 @@ const NAV_ITEMS = [
   { label: 'Inbox', path: '/inbox', icon: MessageSquareTextIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
-  { label: 'Scraper', path: '/scraper', icon: BotIcon },
+  { label: 'PropAI Scraper', path: '/scraper', icon: BotIcon },
   { label: 'History Sync', path: '/history-sync', icon: RefreshIcon },
   { label: 'Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },
@@ -234,7 +234,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   }, [channels, channelSearch]);
 
   const navItems = React.useMemo(
-    () => NAV_ITEMS.filter((item) => (item.label === 'Admin' || item.label === 'AI Usage' ? isSuperAdmin : true)),
+    () => NAV_ITEMS.filter((item) => (item.label === 'Admin' || item.label === 'AI Usage' || item.label === 'PropAI Scraper' ? isSuperAdmin : true)),
     [isSuperAdmin],
   );
 
