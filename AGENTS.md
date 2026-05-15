@@ -306,9 +306,84 @@ This section reflects the state at the end of the current session on 2026-05-15.
   - push
   - redeploy `apps/api`
 
+### Dated Handoff: 2026-05-17
+
+This section reflects the state at the end of the current session on 2026-05-17.
+
+### Pushed This Session
+
+- `18f9d7b` — Fix group sync bug + schema mismatches + backfill mirror & groups
+- `08cf540` — Monitor hides DMs and non-RE groups; classify-groups script
+- `e610a19` — DM contact tagging system (realtor/client) + Broker/Client Contacts pages
+
+### What `18f9d7b` Changes
+
+- **WhatsApp group sync was never saving groups**: `scheduleGroupSync()` in `WhatsAppClient.ts` called `getGroups()` but returned without calling `whatsappGroupService.syncGroups()`. Groups were fetched from WhatsApp on every reconnect but never persisted.
+- **Schema mismatches fixed**: `whatsapp_groups` was missing 11 columns (`workspace_id`, `session_id`, `normalized_name`, `locality`, `city`, `tags`, `broadcast_enabled`, `is_archived`, `participant_count`, `is_parsing`, `last_message_at`). `whatsapp_message_mirror` was missing 6 columns (`session_label`, `message_key`, `message_type`, `chat_type`, `is_revoked`, `raw_payload`). Both fixed via ALTER TABLE + migration `20260517000001_fix_schema_mismatches.sql`.
+- **Backfill scripts**: `scripts/backfill-mirror-and-groups.ts` populated `whatsapp_groups` (62 → 103 groups after sync ran) and `whatsapp_message_mirror` (0 → 1000 rows).
+- **Unique index added**: `whatsapp_groups_workspace_group_uidx` on `(workspace_id, group_jid)`.
+
+### What `08cf540` Changes
+
+- **Monitor now hides DMs and non-RE groups**: `workspaceMonitorService.ts` filter drops non-`@g.us` messages entirely and only shows groups with `is_parsing = true`. Empty non-parsing groups also hidden.
+- **Group classification script**: `scripts/classify-groups.ts` heuristically checks group names + last 50 messages against real-estate keywords. Marked 21 groups as non-RE (`is_parsing = false`, `category = 'other'`). 112 real estate groups remain. Removed: Diabetics, AI training, Socialise, SFG (x3), Smarties, Aashayein, Tree plantation, General, Test, Healing Together, Ok, macs, Ameet wadhwa, Lunair, unnamed JIDs, etc.
+- Constraint note: `whatsapp_groups.category` only allows `'real_estate'`, `'family'`, `'work'`, `'other'`.
+
+### What `e610a19` Changes
+
+- **`dm_contacts` table** (migration `20260517000002_dm_contacts.sql`): stores `tenant_id`, `remote_jid`, `label` (none/realtor/client), `name`, `phone`, `tagged_by`. Unique on `(tenant_id, remote_jid)`.
+- **Tag dropdown in Inbox**: every DM chat gets a tag button in the header. Three options: None / 🏠 Realtor / 👤 Client.
+- **Broker Contacts page** (`/broker-contacts`): lists DMs tagged as realtor. These feed into the AI parse pipeline + `broker_activity` + wabro broadcast lists.
+- **Client Contacts page** (`/client-contacts`): lists DMs tagged as client. **Never parsed** by AI (privacy guaranteed — pipeline explicitly skips them).
+- **Pipeline guard**: `PropAISupabaseAdapter.ts` checks `dm_contacts` before parsing DMs. Only `label = 'realtor'` triggers `ingestMessage()`.
+- **API endpoints**: `GET /api/intelligence/dm-contacts?label=filter`, `POST /api/intelligence/dm-contacts/tag` with body `{ remoteJid, label, name? }`.
+- **Ameet Wadhwa pre-tagged** as realtor in DB for demo.
+
+### Deployed
+
+- Both API and frontend deployed to Coolify.
+- Commit `e610a19` on `propai-intel` branch.
+- Backend deploy UUID: `mqmn93im5yxzj6vw7l4x2124`
+- Frontend deploy UUID: `gsfxqejgztk3dd3yqzslx967`
+
+### Current State
+
+- **Session**: connected (`vishal-ojha-919820056180`)
+- **`whatsapp_groups`**: 133 total (112 RE, 21 non-RE)
+- **`whatsapp_message_mirror`**: 1,000 rows (backfilled from messages table)
+- **`messages` table**: 1,248 rows across 85 unique JIDs (62 groups + 23 DMs)
+- **`broker_activity`**: 0 rows (populates forward-only as new DMs come in tagged as realtor)
+- **`dm_contacts`**: 1 row (Ameet Wadhwa tagged as realtor)
+- **`domain_knowledge`**: 119 entries
+- **`flagged_parses`**: empty
+- **`public_listings`**: 4 rows (test data)
+- **All proxies**: returning 200
+
+### Relevant New Files
+
+- `apps/api/src/controllers/dmContactController.ts` — tag/list endpoints
+- `apps/api/src/routes/dmContactRoutes.ts` — route registration
+- `apps/api/scripts/classify-groups.ts` — heuristic group classification
+- `supabase/migrations/20260517000002_dm_contacts.sql` — table + indexes + RLS
+- `apps/app/src/pages/BrokerContacts.tsx` — broker contacts list view
+- `apps/app/src/pages/ClientContacts.tsx` — client contacts list view with privacy notice
+
+### Modified Files
+
+- `apps/api/src/services/workspaceMonitorService.ts` — DM + non-RE group filter
+- `apps/api/src/whatsapp/PropAISupabaseAdapter.ts` — DM realtor tag check before parsing
+- `apps/api/src/index.ts` — dmContactRoutes registration
+- `apps/app/src/pages/Inbox.tsx` — tag dropdown in chat header
+- `apps/app/src/components/Sidebar.tsx` — Broker Contacts + Client Contacts nav items
+- `apps/app/src/App.tsx` — new route registrations
+- `apps/app/src/services/endpoints.ts` — dmContacts API endpoints
+
+### Wabro Connection
+
+DM contacts tagged as realtor flow through the parse pipeline → `updateBrokerProfile()` populates `broker_activity` with phone, localities, groups → those contacts can be used for area-specific wabro broadcast lists with minimal ban risk (they DM'd first = opt-in signal).
+
 ### Still Pending
 
-- Push local commit `348de71` if it is still not on remote.
-- Commit and push the current uncommitted transport/runtime extraction work.
-- Fresh build/test verification after the latest test stabilizations.
-- Backend API redeploy after the final push for this work.
+- Build real wabro broadcast list from `broker_activity` phone numbers
+- Tune confidence thresholds based on broker feedback
+- More sophisticated group auto-classification (currently heuristic; user may want to correct some)
