@@ -1,11 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL = 'https://mnqkcctegpqxjvgdgakf.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ucWtjY3RlZ3BxeGp2Z2RnYWtmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MzgxMiwiZXhwIjoyMDkzNDQ5ODEyfQ.OrN3VjFNJj7CFxox1nhAlV0a7OzD_poxu5F6KzK4ue4';
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+import { supabase } from './supabaseAdminClient.mjs';
 
 async function deleteAll(table, filterCol = 'id', dummyVal = '00000000-0000-0000-0000-000000000000') {
   const { error, count } = await supabase

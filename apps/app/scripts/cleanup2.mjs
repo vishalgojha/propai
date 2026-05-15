@@ -1,11 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL = 'https://mnqkcctegpqxjvgdgakf.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ucWtjY3RlZ3BxeGp2Z2RnYWtmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MzgxMiwiZXhwIjoyMDkzNDQ5ODEyfQ.OrN3VjFNJj7CFxox1nhAlV0a7OzD_poxu5F6KzK4ue4';
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+import { supabase, supabaseServiceRoleKey, supabaseUrl } from '../../../scripts/supabaseAdminClient.mjs';
 
 // Retry tables that failed due to no 'id' column — try with tenant_id
 async function deleteByCol(table, col) {
@@ -38,12 +31,12 @@ try {
 } catch (err) {
   console.error('  FAILED: broker_identity — retry with direct REST');
   // Direct REST fallback
-  const url = `${SUPABASE_URL}/rest/v1/broker_identity`;
+  const url = `${supabaseUrl}/rest/v1/broker_identity`;
   const resp = await fetch(url, {
     method: 'DELETE',
     headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'apikey': supabaseServiceRoleKey,
+      'Authorization': `Bearer ${supabaseServiceRoleKey}`,
       'Content-Type': 'application/json',
     },
   });

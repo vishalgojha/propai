@@ -11,3 +11,4 @@ build/
 .turbo/
 *.log
 .DS_Store
+supabase/.temp/
