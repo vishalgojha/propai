@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import {
   ActivityIcon,
+  AlertTriangleIcon,
   ShieldIcon,
   BookOpenIcon,
   ChannelIcon,
@@ -43,6 +44,7 @@ const NAV_ITEMS = [
   { label: 'Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },
   { label: 'AI Usage', path: '/aiusage', icon: CreditCardIcon },
+  { label: 'Flagged Parses', path: '/flagged-parses', icon: AlertTriangleIcon },
   { label: 'Pricing', path: '/pricing', icon: CreditCardIcon },
   { label: 'Docs', path: '/docs', icon: BookOpenIcon },
   { label: 'Settings', path: '/settings', icon: SettingsIcon },
@@ -234,7 +236,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   }, [channels, channelSearch]);
 
   const navItems = React.useMemo(
-    () => NAV_ITEMS.filter((item) => (item.label === 'Admin' || item.label === 'AI Usage' || item.label === 'PropAI Scraper' ? isSuperAdmin : true)),
+    () => NAV_ITEMS.filter((item) => (item.label === 'Admin' || item.label === 'AI Usage' || item.label === 'PropAI Scraper' || item.label === 'Flagged Parses' ? isSuperAdmin : true)),
     [isSuperAdmin],
   );
 
