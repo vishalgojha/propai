@@ -29,8 +29,6 @@ returns table (
     price_numeric numeric,
     price_label text,
     type text,
-    furnishing text,
-    area_sqft numeric,
     raw_text text,
     similarity float
 )
@@ -46,8 +44,6 @@ begin
         si.price_numeric,
         si.price_label,
         si.type,
-        si.furnishing,
-        si.area_sqft,
         si.raw_text,
         1 - (si.embedding <=> query_embedding) as similarity
     from stream_items si
