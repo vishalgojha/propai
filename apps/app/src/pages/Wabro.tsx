@@ -63,11 +63,11 @@ type AccessState = {
 const WABRO_PRICE = 'Rs 499/year';
 
 const WABRO_NAV = [
-  { label: 'Overview', path: '/wabro' },
-  { label: 'Campaigns', path: '/wabro/campaigns' },
-  { label: 'Devices', path: '/wabro/devices' },
-  { label: 'Setup', path: '/wabro/setup' },
-  { label: 'Billing', path: '/wabro/billing' },
+  { label: 'Overview', path: '/wabro/app' },
+  { label: 'Campaigns', path: '/wabro/app/campaigns' },
+  { label: 'Devices', path: '/wabro/app/devices' },
+  { label: 'Setup', path: '/wabro/app/setup' },
+  { label: 'Billing', path: '/wabro/app/billing' },
 ] as const;
 
 const EMPTY_STATS: WabroStats = {
@@ -206,7 +206,7 @@ function AccessGate({
           <strong className="mt-2 block text-[24px] font-bold text-[var(--text-primary)]">{WABRO_PRICE}</strong>
           <div className="mt-4 flex flex-col gap-2">
             <Link
-              to="/wabro/billing"
+              to="/wabro/app/billing"
               className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-opacity hover:opacity-90"
             >
               View plan
@@ -528,14 +528,14 @@ export const WabroOverview: React.FC = () => {
       actions={
         <>
           <Link
-            to="/wabro/setup"
+            to="/wabro/app/setup"
             className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[11px] font-semibold text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
           >
             <BookOpenIcon className="h-3.5 w-3.5" />
             Setup
           </Link>
           <Link
-            to="/wabro/campaigns"
+            to="/wabro/app/campaigns"
             className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-opacity hover:opacity-90"
           >
             Open campaigns
@@ -561,7 +561,7 @@ export const WabroOverview: React.FC = () => {
           actions={
             <button
               type="button"
-              onClick={() => navigate('/wabro/campaigns')}
+              onClick={() => navigate('/wabro/app/campaigns')}
               className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
             >
               Manage
@@ -828,7 +828,7 @@ export const WabroDevices: React.FC = () => {
       onRetry={reload}
       actions={
         <Link
-          to="/wabro/setup"
+          to="/wabro/app/setup"
           className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[11px] font-semibold text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
         >
           <SettingsIcon className="h-3.5 w-3.5" />
@@ -1014,7 +1014,7 @@ export const WabroBilling: React.FC = () => {
               Ask for WaBro access
             </a>
             <Link
-              to="/wabro/setup"
+              to="/wabro/app/setup"
               className="inline-flex items-center justify-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[11px] font-semibold text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
             >
               Review setup

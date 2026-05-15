@@ -39,6 +39,7 @@ const WabroCampaigns = React.lazy(async () => ({ default: (await import('./pages
 const WabroDevices = React.lazy(async () => ({ default: (await import('./pages/Wabro')).WabroDevices }));
 const WabroSetup = React.lazy(async () => ({ default: (await import('./pages/Wabro')).WabroSetup }));
 const WabroBilling = React.lazy(async () => ({ default: (await import('./pages/Wabro')).WabroBilling }));
+const WabroLanding = React.lazy(async () => ({ default: (await import('./pages/WabroLanding')).WabroLanding }));
 const PrivacyPolicy = React.lazy(async () => ({ default: (await import('./pages/PrivacyPolicy')).PrivacyPolicy }));
 const Terms = React.lazy(async () => ({ default: (await import('./pages/Terms')).Terms }));
 const RefundPolicy = React.lazy(async () => ({ default: (await import('./pages/RefundPolicy')).RefundPolicy }));
@@ -131,11 +132,12 @@ export default function App() {
               <Route path="/stream" element={<Listings />} />
               <Route path="/listings" element={<Navigate to="/stream" replace />} />
               <Route path="/whatsapp" element={<WhatsApp />} />
-              <Route path="/wabro" element={<WabroOverview />} />
-              <Route path="/wabro/campaigns" element={<WabroCampaigns />} />
-              <Route path="/wabro/devices" element={<WabroDevices />} />
-              <Route path="/wabro/setup" element={<WabroSetup />} />
-              <Route path="/wabro/billing" element={<WabroBilling />} />
+              <Route path="/wabro" element={<WabroLanding />} />
+              <Route path="/wabro/app" element={<WabroOverview />} />
+              <Route path="/wabro/app/campaigns" element={<WabroCampaigns />} />
+              <Route path="/wabro/app/devices" element={<WabroDevices />} />
+              <Route path="/wabro/app/setup" element={<WabroSetup />} />
+              <Route path="/wabro/app/billing" element={<WabroBilling />} />
               <Route path="/history-sync" element={<HistorySync />} />
               <Route path="/aiusage" element={<AiUsage />} />
               <Route path="/ai-usage" element={<Navigate to="/aiusage" replace />} />

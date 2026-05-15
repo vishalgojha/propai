@@ -16,3 +16,4 @@ apps/wabro-android/*.apk
 apps/wabro-android/.jdk/
 apps/wabro-android/.gradle/
 apps/wabro-android/keystore.properties
+apps/app/public/wabro.apk
