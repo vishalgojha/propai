@@ -570,7 +570,9 @@ export const WabroOverview: React.FC = () => {
         >
           <div className="space-y-3">
             {campaigns.length ? campaigns.slice(0, 4).map((campaign) => (
-              <CampaignCard key={campaign.id} campaign={campaign} />
+              <div key={campaign.id}>
+                <CampaignCard campaign={campaign} />
+              </div>
             )) : (
               <div className="rounded-[16px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] p-5 text-[12px] text-[var(--text-secondary)]">
                 No campaigns yet. Import a broker list and create your first WaBro campaign from the campaigns route.
@@ -795,7 +797,9 @@ export const WabroCampaigns: React.FC = () => {
 
             <div className="space-y-3">
               {campaigns.length ? campaigns.map((campaign) => (
-                <CampaignCard key={campaign.id} campaign={campaign} onStatusChange={access.hasAccess ? updateCampaignStatus : undefined} />
+                <div key={campaign.id}>
+                  <CampaignCard campaign={campaign} onStatusChange={access.hasAccess ? updateCampaignStatus : undefined} />
+                </div>
               )) : (
                 <div className="rounded-[14px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] p-4 text-[12px] text-[var(--text-secondary)]">
                   No campaigns created yet.

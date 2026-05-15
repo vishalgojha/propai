@@ -1,7 +1,7 @@
 import { createSupabaseAnonClient, supabase, supabaseAdmin } from '../config/supabase';
 import { aiService } from './aiService';
 import { canonicalizationService } from './canonicalizationService';
-import { extractIndianCity, extractIndianLocality, parseIndianLocation } from '../utils/locationParser';
+import { extractIndianCity, parseIndianLocation } from '../utils/locationParser';
 import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 
 type ChannelType = 'listing' | 'requirement' | 'mixed';
@@ -441,7 +441,7 @@ const formatMoneyLabel = (amount: number, unit: string, isRent: boolean) => {
                 ? `${amount} L`
                 : `${amount} K`;
 
-    return isRent ? `â‚¹${compact}/mo` : `â‚¹${compact}`;
+    return isRent ? `\u20B9${compact}/mo` : `\u20B9${compact}`;
 };
 
 const extractPriceInfo = (text: string, dealTypeHint?: string) => {
@@ -1883,7 +1883,7 @@ private async ensureStreamBackfilled(tenantId: string) {
     }
 
     private async parseMessageWithAI(tenantId: string, message: RawInboundMessage): Promise<ParsedStreamCandidate[]> {
-        const rawText = String(message.text || message.text || '').trim();
+        const rawText = String(message.text || '').trim();
         const senderLabel = String(message.sender || '').trim();
 
         if (!rawText || senderLabel.toUpperCase() === 'AI') {

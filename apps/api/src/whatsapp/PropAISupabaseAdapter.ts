@@ -14,7 +14,6 @@ import type {
 } from '@vishalgojha/whatsapp-baileys-runtime';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { channelService } from '../services/channelService';
-import { aiService } from '../services/aiService';
 import { whatsappHealthService } from '../services/whatsappHealthService';
 import { sessionEventService } from '../services/sessionEventService';
 import { whatsappMirrorService } from '../services/whatsappMirrorService';
@@ -204,9 +203,22 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
             'client wants',
             'buyer wants',
             'tenant wants',
+            'requirement:',
+            'requirements:',
         ];
 
         return cues.some((cue) => normalized.includes(cue));
+    }
+
+    private hasPriceHeuristic(text: string): boolean {
+        const lower = String(text || '').toLowerCase();
+        const pricePatterns = [
+            /(?:rs\.?\s*|inr\s*|₹\s*)?\d{4,}/i,
+            /(?:rent|rental|lease|price|budget|cost|rate|value|worth|amount|paying|monthly|per\s*month|pm\s*[./])/i,
+            /(?:crore?|cr\.?|lakh?|lac\.?|k\b| thousand| lpa| lac per)/i,
+            /[6-9]\d{3,}\s*(?:crore?|cr\.?|lakh?|lac\.?|k\b)/i,
+        ];
+        return pricePatterns.some((p) => p.test(lower));
     }
 
     private async runPriceGate(text: string, tenantId?: string): Promise<PriceGateResult> {
@@ -219,50 +231,13 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
             };
         }
 
-        try {
-            const response = await aiService.chat(
-                `Check this real-estate WhatsApp message and return JSON only.
-
-Return:
-{
-  "has_price": boolean,
-  "is_requirement": boolean,
-  "should_parse": boolean,
-  "reason": "priced_listing" | "requirement_message" | "no_price_detected"
-}
-
-Rules:
-- A buyer requirement can still be parsed even if it does not include a price.
-- A property listing must have an explicit price, rent, budget, or amount to be parsed.
-- If it is a listing and no clear price is present, set should_parse to false.
-
-Message:
-"""
-${text}
-"""`,
-                'Auto',
-                undefined,
-                tenantId,
-                'You are a price gate for real-estate WhatsApp messages. Return ONLY valid JSON.'
-            );
-            const result = JSON.parse(response.text.trim());
-            const hasPrice = Boolean(result?.has_price);
-            const isRequirement = Boolean(result?.is_requirement);
-            return {
-                hasPrice,
-                isRequirement,
-                shouldParse: Boolean(result?.should_parse ?? (hasPrice || isRequirement)),
-                reason: String(result?.reason || (hasPrice ? 'priced_listing' : isRequirement ? 'requirement_message' : 'no_price_detected')),
-            };
-        } catch (error) {
-            console.error('[PropAISupabaseAdapter] Price gate AI call failed, defaulting to open (parse allowed)', error);
-            return {
-                hasPrice: false,
-                isRequirement: false,
-                shouldParse: true,
-                reason: 'gate_failed_open',
-            };
-        }
+        const hasPrice = this.hasPriceHeuristic(text);
+        return {
+            hasPrice,
+            isRequirement: false,
+            shouldParse: true,
+            reason: hasPrice ? 'priced_listing' : 'no_price_detected',
+        };
     }
 
     async loadPersistedSessions(): Promise<SessionRecord[]> {
