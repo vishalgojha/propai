@@ -244,8 +244,8 @@ this.socket.ev.on('messages.upsert', async (payload: any) => {
                          label: this.label,
                          remoteJid,
                          text: messageText,
-                         sender: msg.pushName || null,
-                         timestamp: new Date().toISOString(),
+                         sender: this.resolveStoredSender(msg),
+                         timestamp: this.resolveMessageTimestamp(msg),
                          fromMe: Boolean(msg.key?.fromMe),
                          rawMessage: msg,
                      };
@@ -572,6 +572,39 @@ try {
             message?.videoMessage?.caption ||
             ''
         );
+    }
+
+    private resolveStoredSender(msg: any) {
+        if (msg?.key?.fromMe) {
+            return this.connectedPhoneNumber
+                ? `${this.connectedPhoneNumber}@s.whatsapp.net`
+                : 'workspace@s.whatsapp.net';
+        }
+
+        const participant = String(msg?.key?.participant || msg?.participant || '').trim();
+        const pushName = String(msg?.pushName || '').trim();
+        return pushName || participant || null;
+    }
+
+    private resolveMessageTimestamp(msg: any) {
+        const raw = msg?.messageTimestamp;
+        if (raw == null) {
+            return new Date().toISOString();
+        }
+
+        const numeric = typeof raw === 'number'
+            ? raw
+            : typeof raw === 'string'
+                ? Number(raw)
+                : typeof raw?.toNumber === 'function'
+                    ? raw.toNumber()
+                    : Number(raw);
+
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+            return new Date().toISOString();
+        }
+
+        return new Date(numeric * 1000).toISOString();
     }
 
     private createOutgoingMessageKey(jid: string, text: string) {

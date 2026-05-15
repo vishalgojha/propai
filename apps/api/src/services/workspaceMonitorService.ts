@@ -46,7 +46,7 @@ export class WorkspaceMonitorService {
                 .select('id, remote_jid, sender, text, timestamp')
                 .eq('tenant_id', workspaceOwnerId)
                 .order('timestamp', { ascending: false })
-                .limit(800),
+                .limit(2000),
             db
                 .from('whatsapp_sessions')
                 .select('label, owner_name, status, session_data, last_sync')

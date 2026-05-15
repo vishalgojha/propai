@@ -67,40 +67,6 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
         try {
             const gateResult = await this.runPriceGate(input.text, input.tenantId);
 
-            if (!gateResult.shouldParse) {
-                void sessionEventService.log(input.tenantId, 'parse_failed', {
-                    remoteJid: input.remoteJid,
-                    label: input.label,
-                    reason: gateResult.reason || 'price_gate_rejected',
-                });
-                await whatsappHealthService.recordMessageMetrics({
-                    tenantId: input.tenantId,
-                    sessionLabel: input.label,
-                    remoteJid: input.remoteJid,
-                    parsed: false,
-                    timestamp: input.timestamp,
-                });
-                return { id: rawDumpId };
-            }
-
-            const { error: rawDumpError } = await db
-                .from('raw_dump')
-                .insert({
-                    id: rawDumpId,
-                    workspace_id: input.tenantId,
-                    session_id: input.label,
-                    group_jid: input.remoteJid,
-                    sender_jid: input.sender ?? null,
-                    raw_text: input.text,
-                    received_at: input.timestamp ?? new Date().toISOString(),
-                    gate_status: 'passed',
-                    rejection_reason: null,
-                });
-
-            if (rawDumpError) {
-                console.error('[PropAISupabaseAdapter] Failed to insert into raw_dump', rawDumpError);
-            }
-
             const { data, error } = await db
                 .from('messages')
                 .insert({
@@ -122,7 +88,41 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
             };
 
             if (error) {
-                console.warn('[PropAISupabaseAdapter] Failed to persist inbound message row, falling back to direct stream ingest.', error);
+                console.warn('[PropAISupabaseAdapter] Failed to persist inbound message row, continuing with direct handling.', error);
+            }
+
+            const { error: rawDumpError } = await db
+                .from('raw_dump')
+                .insert({
+                    id: rawDumpId,
+                    workspace_id: input.tenantId,
+                    session_id: input.label,
+                    group_jid: input.remoteJid,
+                    sender_jid: input.sender ?? null,
+                    raw_text: input.text,
+                    received_at: input.timestamp ?? new Date().toISOString(),
+                    gate_status: gateResult.shouldParse ? 'passed' : 'rejected',
+                    rejection_reason: gateResult.shouldParse ? null : gateResult.reason || 'price_gate_rejected',
+                });
+
+            if (rawDumpError) {
+                console.error('[PropAISupabaseAdapter] Failed to insert into raw_dump', rawDumpError);
+            }
+
+            if (!gateResult.shouldParse) {
+                void sessionEventService.log(input.tenantId, 'parse_failed', {
+                    remoteJid: input.remoteJid,
+                    label: input.label,
+                    reason: gateResult.reason || 'price_gate_rejected',
+                });
+                await whatsappHealthService.recordMessageMetrics({
+                    tenantId: input.tenantId,
+                    sessionLabel: input.label,
+                    remoteJid: input.remoteJid,
+                    parsed: false,
+                    timestamp: input.timestamp,
+                });
+                return { id: String(messageRecord.id || rawDumpId) };
             }
 
             const streamItem = await channelService.ingestMessage(input.tenantId, messageRecord);

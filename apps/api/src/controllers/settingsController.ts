@@ -2,10 +2,11 @@ import { Request, Response } from 'express';
 import { keyService } from '../services/keyService';
 import { getWorkspaceSettingsRecord, saveWorkspaceSettingsRecord } from '../services/workspaceSettingsService';
 import { pushRecentAction } from '../services/identityService';
+import { workspaceAccessService } from '../services/workspaceAccessService';
 
 export const getWorkspaceSettings = async (req: Request, res: Response) => {
-    const user = (req as any).user;
-    const tenantId = user.id;
+    const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
+    const tenantId = context.workspaceOwnerId;
 
     const record = await getWorkspaceSettingsRecord(tenantId);
     const [concentrateKeys, geminiKeys, groqKeys, openRouterKeys, doublewordKeys] = await Promise.all([
@@ -29,8 +30,8 @@ export const getWorkspaceSettings = async (req: Request, res: Response) => {
 };
 
 export const saveWorkspaceSettings = async (req: Request, res: Response) => {
-    const user = (req as any).user;
-    const tenantId = user.id;
+    const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
+    const tenantId = context.workspaceOwnerId;
     const { settings = {}, aiKeys = {} } = req.body || {};
 
     await saveWorkspaceSettingsRecord(tenantId, settings, aiKeys);
