@@ -1612,10 +1612,13 @@ private backfillInitiated = false;
         const locality = parsed.locality;
         const budget = parsed.priceNumeric;
 
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+
         let query = this.db
             .from('public_listings')
             .select('source_message_id, location, price, bhk, furnishing, size_sqft, title, primary_contact_wa, message_timestamp')
             .or(`location.ilike.%${locality}%,area.ilike.%${locality}%`)
+            .gte('message_timestamp', thirtyDaysAgo)
             .order('message_timestamp', { ascending: false })
             .limit(5);
 
