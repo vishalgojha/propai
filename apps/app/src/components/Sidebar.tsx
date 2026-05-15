@@ -21,6 +21,7 @@ import {
   StreamIcon,
   XIcon,
   WorkflowIcon,
+  BotIcon,
 } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -37,6 +38,7 @@ const NAV_ITEMS = [
   { label: 'Inbox', path: '/inbox', icon: MessageSquareTextIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
+  { label: 'Scraper', path: '/scraper', icon: BotIcon },
   { label: 'History Sync', path: '/history-sync', icon: RefreshIcon },
   { label: 'Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },

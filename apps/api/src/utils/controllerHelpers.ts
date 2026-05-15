@@ -5,6 +5,7 @@ import '../types/express';
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'vishal@chaoscraftlabs.com',
   'vishal@chaoscraftslabs.com',
+  'chariotrealty@gmail.com',
 ]);
 
 export function isOwnerSuperAdminEmail(email?: string | null) {
@@ -34,7 +35,7 @@ export async function requireSuperAdmin(req: Request) {
 
   if (error) throw error;
 
-  if (data?.app_role !== 'super_admin') {
+  if (data?.app_role !== 'super_admin' && data?.app_role !== 'admin') {
     throw new HttpError('Super admin access required', 403);
   }
 }

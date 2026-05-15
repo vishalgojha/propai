@@ -17,6 +17,8 @@ export const ROUTE_PATHS = {
     propertiesSearch: '/api/properties/search',
     aiPropertySearch: '/api/ai/property-search',
     identity: '/api/identity',
+  ingest: '/api/listings/ingest',
+  scraper: '/api/scraper',
   },
   channels: {
     root: '/',
