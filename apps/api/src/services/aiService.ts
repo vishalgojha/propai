@@ -134,14 +134,15 @@ export class AIService {
     }
 
     private formatFallbackError(errors: ProviderError[]): string {
-        const primary = errors[0]?.message || 'AI provider unavailable';
+        if (errors.length === 0) {
+            return 'AI provider unavailable';
+        }
+
         const providerSummary = errors
             .map((entry) => `${entry.provider}: ${entry.message}`)
             .join(' | ');
 
-        return providerSummary
-            ? `${primary}. Tried ${providerSummary}.`
-            : primary;
+        return `Tried ${providerSummary}. All AI providers failed.`;
     }
 
     private buildMessages(prompt: string, systemPrompt?: string, conversationHistory: ChatMessage[] = []): ChatMessage[] {
