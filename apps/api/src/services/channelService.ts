@@ -1518,6 +1518,10 @@ private backfillInitiated = false;
                 continue;
             }
 
+            await this.upsertPublicListing(tenantId, parsed, message).catch((pe) => {
+                console.error('[ChannelService] Failed to upsert public listing', pe);
+            });
+
             ingestedCount += 1;
             await canonicalizationService.canonicalizeStreamItem(data as any).catch((canonicalError) => {
                 console.error('[ChannelService] Canonicalization failed', canonicalError);
@@ -1528,6 +1532,70 @@ private backfillInitiated = false;
         }
 
         return ingestedCount;
+    }
+
+    private async upsertPublicListing(tenantId: string, parsed: ParsedStreamCandidate, message: RawInboundMessage): Promise<void> {
+        const phone = parsed.sourcePhone || this.extractPhoneFromText(parsed.rawText);
+        const listingType = parsed.streamType === 'Rent' ? 'listing_rent'
+            : parsed.streamType === 'Sale' ? 'listing_sale'
+            : 'requirement';
+
+        const publicRow = {
+            source_message_id: parsed.messageId,
+            source_group_id: parsed.sourceGroupId,
+            source_group_name: parsed.sourceGroupName,
+            listing_type: listingType,
+            area: parsed.locality || null,
+            sub_area: null,
+            location: parsed.locality || 'Unknown',
+            price: parsed.priceNumeric,
+            price_type: parsed.streamType === 'Rent' ? 'monthly' : parsed.streamType === 'Sale' ? 'total' : null,
+            size_sqft: parsed.areaSqft,
+            furnishing: parsed.furnishing,
+            bhk: this.parseBhk(parsed.bhk),
+            property_type: null,
+            title: this.toTitle(parsed),
+            description: parsed.rawText || '',
+            raw_message: parsed.rawText || null,
+            cleaned_message: null,
+            sender_number: phone,
+            primary_contact_name: parsed.sourceLabel || null,
+            primary_contact_number: phone,
+            primary_contact_wa: phone ? `91${phone.replace(/^\+?91/, '')}` : null,
+            contacts: [],
+            confidence: parsed.confidenceScore ?? 0.8,
+            message_timestamp: parsed.createdAt || new Date().toISOString(),
+            search_text: [parsed.rawText, parsed.locality, parsed.bhk, parsed.streamType].filter(Boolean).join(' '),
+        };
+
+        const { error } = await this.db.from('public_listings').upsert(publicRow, {
+            onConflict: 'source_message_id',
+            ignoreDuplicates: true,
+        });
+
+        if (error) {
+            console.error('[ChannelService] public_listings upsert failed:', error.message, 'for', parsed.messageId);
+        }
+    }
+
+    private parseBhk(bhk: string | null | undefined): number | null {
+        if (!bhk) return null;
+        const m = String(bhk).match(/(\d+)/);
+        return m ? parseInt(m[1], 10) : null;
+    }
+
+    private toTitle(parsed: ParsedStreamCandidate): string {
+        const parts: string[] = [];
+        if (parsed.bhk) parts.push(parsed.bhk);
+        if (parsed.locality) parts.push(parsed.locality);
+        if (parsed.streamType === 'Rent') parts.push('for Rent');
+        else if (parsed.streamType === 'Sale') parts.push('for Sale');
+        return parts.join(' ') || 'Property Listing';
+    }
+
+    private extractPhoneFromText(text: string): string | null {
+        const m = text.match(/(?:\+?91)?[6-9]\d{9}/);
+        return m ? m[0] : null;
     }
 
 private async ensureStreamBackfilled(tenantId: string) {
