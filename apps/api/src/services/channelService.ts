@@ -1523,11 +1523,9 @@ private backfillInitiated = false;
                 console.error('[ChannelService] Failed to upsert public listing', pe);
             });
 
-            if (parsed.recordType === 'requirement' || parsed.streamType === 'Requirement') {
-                this.autoMatchRequirement(tenantId, parsed).catch((me) => {
-                    console.error('[ChannelService] Auto-match failed', me);
-                });
-            }
+            this.autoMatch(tenantId, parsed).catch((me) => {
+                console.error('[ChannelService] Auto-match failed', me);
+            });
 
             ingestedCount += 1;
             await canonicalizationService.canonicalizeStreamItem(data as any).catch((canonicalError) => {
@@ -1605,50 +1603,68 @@ private backfillInitiated = false;
         return m ? m[0] : null;
     }
 
-    private async autoMatchRequirement(tenantId: string, parsed: ParsedStreamCandidate): Promise<void> {
+    private async autoMatch(tenantId: string, parsed: ParsedStreamCandidate): Promise<void> {
         if (!parsed.locality || parsed.locality === 'Location not parsed yet') return;
 
+        const isRequirement = parsed.recordType === 'requirement' || parsed.streamType === 'Requirement';
         const bhkNum = this.parseBhk(parsed.bhk);
-        const locality = parsed.locality;
         const budget = parsed.priceNumeric;
-
         const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
 
-        let query = this.db
-            .from('public_listings')
-            .select('source_message_id, location, price, bhk, furnishing, size_sqft, title, primary_contact_wa, message_timestamp')
-            .or(`location.ilike.%${locality}%,area.ilike.%${locality}%`)
-            .gte('message_timestamp', thirtyDaysAgo)
-            .order('message_timestamp', { ascending: false })
-            .limit(5);
+        // Bi-directional: new requirement -> find listings, new listing -> find requirements
+        let matches: any[] = [];
+        if (isRequirement) {
+            let q = this.db
+                .from('public_listings')
+                .select('source_message_id, location, price, bhk, furnishing, size_sqft, title, primary_contact_wa, message_timestamp')
+                .or(`location.ilike.%${parsed.locality}%,area.ilike.%${parsed.locality}%`)
+                .gte('message_timestamp', thirtyDaysAgo)
+                .order('message_timestamp', { ascending: false })
+                .limit(5);
 
-        if (bhkNum != null) {
-            query = query.eq('bhk', bhkNum);
+            if (bhkNum != null) q = q.eq('bhk', bhkNum);
+            if (budget != null) q = q.lte('price', budget * 1.2);
+
+            const { data } = await q;
+            if (data) matches = data as any[];
+        } else {
+            // New listing -> find matching requirements from stream_items
+            let q = this.db
+                .from('stream_items')
+                .select('message_id, locality, bhk, price_numeric, source_group_id, source_group_name, raw_text')
+                .or(`locality.ilike.%${parsed.locality}%,raw_text.ilike.%${parsed.locality}%`)
+                .in('record_type', ['requirement'])
+                .gte('created_at', thirtyDaysAgo)
+                .order('created_at', { ascending: false })
+                .limit(5);
+
+            if (bhkNum != null) q = q.eq('bhk', `${bhkNum}BHK`);
+
+            const { data } = await q;
+            if (data) matches = data as any[];
         }
-        if (budget != null) {
-            query = query.lte('price', budget * 1.2);
-        }
 
-        const { data, error } = await query;
-        if (error || !data || !data.length) return;
+        if (!matches.length) return;
 
-        const matches = data as any[];
         const lines = matches.map((m: any, i: number) => {
-            const price = m.price ? `₹${(m.price / 10000000).toFixed(2)}Cr` : 'price N/A';
+            const price = m.price ? `₹${(m.price / 10000000).toFixed(2)}Cr` : m.price_numeric ? `₹${(m.price_numeric / 10000000).toFixed(2)}Cr` : '';
             const size = m.size_sqft ? ` ${m.size_sqft}sqft` : '';
             const furn = m.furnishing ? ` ${m.furnishing}` : '';
+            const bhk = m.bhk || parsed.bhk || '';
+            const loc = m.location || m.locality || parsed.locality;
             const contact = m.primary_contact_wa ? ` 📞${m.primary_contact_wa}` : '';
-            return `${i + 1}. ${m.bhk}BHK ${m.location}${furn}${size} — ${price}${contact}`;
+            return `${i + 1}. ${bhk} ${loc}${furn}${size}${price ? ` — ${price}` : ''}${contact}`;
         }).join('\n');
 
-        const msg = `🎯 *Match for your requirement*\n${parsed.bhk || ''} ${locality}\n\n${lines}\n\n_Sent by PropAI Auto-Match_`;
+        const label = isRequirement ? 'Listings matching your requirement' : 'Requirements matching your listing';
+        const msg = `🎯 *${label}*\n${parsed.bhk || ''} ${parsed.locality}\n\n${lines}\n\n_Sent by PropAI Auto-Match_`;
 
         const groupJid = parsed.sourceGroupId;
         if (groupJid) {
             try {
                 const gw = getWhatsAppGateway();
                 await gw.sendMessage({ workspaceOwnerId: tenantId, remoteJid: groupJid, text: msg });
-                console.log(`[AutoMatch] Sent ${matches.length} matches to ${groupJid}`);
+                console.log(`[AutoMatch] Sent ${matches.length} ${isRequirement ? 'listings' : 'requirements'} to ${groupJid}`);
             } catch (e: any) {
                 console.error(`[AutoMatch] WhatsApp send failed: ${e.message}`);
             }
