@@ -521,7 +521,7 @@ export const WabroOverview: React.FC = () => {
   return (
     <WabroShell
       title="Dedicated broadcast campaigns for broker outreach"
-      subtitle="WaBro now lives inside PropAI as its own product surface. Use this route for APK access, setup, campaigns, devices, and a separate paid-service boundary."
+      subtitle="WaBro runs inside PropAI as its own product surface. Broker contacts auto-populate from Inbox DM tagging — tag a direct message as Realtor and it feeds your broadcast lists. Use this route for APK access, setup, campaigns, devices, and a separate paid-service boundary."
       serviceState={serviceState}
       error={error}
       onRetry={reload}
@@ -550,7 +550,7 @@ export const WabroOverview: React.FC = () => {
         <StatCard label="Campaigns" value={formatNumber(stats.total_campaigns)} note="Broadcast campaigns created in this workspace." />
         <StatCard label="Sent" value={formatNumber(stats.total_sent)} note="Messages marked sent across synced WaBro logs." />
         <StatCard label="Devices" value={`${formatNumber(stats.active_devices)} / ${formatNumber(stats.total_devices)}`} note="Active Android execution devices in the last 5 minutes." />
-        <StatCard label="Broker Lists" value={formatNumber(lists.length)} note="Reusable contact lists available for campaign launch." />
+        <StatCard label="Broker Lists" value={formatNumber(lists.length)} note="Reusable contact lists for campaign launch. Tag DMs as Realtor from the Inbox to grow them automatically." />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -574,9 +574,9 @@ export const WabroOverview: React.FC = () => {
                 <CampaignCard campaign={campaign} />
               </div>
             )) : (
-              <div className="rounded-[16px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] p-5 text-[12px] text-[var(--text-secondary)]">
-                No campaigns yet. Import a broker list and create your first WaBro campaign from the campaigns route.
-              </div>
+                  <div className="rounded-[16px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] p-5 text-[12px] text-[var(--text-secondary)]">
+                    No campaigns yet. Tag DMs as Realtor in the Inbox to build broker contacts, or import a list from the campaigns route.
+                  </div>
             )}
           </div>
         </SurfaceSection>
@@ -671,7 +671,7 @@ export const WabroCampaigns: React.FC = () => {
   return (
     <WabroShell
       title="Campaign operations"
-      subtitle="Manage reusable broker lists, create campaign payloads on web, and push execution through linked Android devices."
+      subtitle="Manage reusable broker lists, create campaign payloads on web, and push execution through linked Android devices. Broker contacts auto-fill from Inbox DM tagging — no manual import needed."
       serviceState={serviceState}
       error={error}
       onRetry={reload}
@@ -687,10 +687,10 @@ export const WabroCampaigns: React.FC = () => {
         </a>
       }
     >
-      <AccessGate access={access} body="Campaign creation, broker list management, and Android execution are all part of the WaBro paid product surface." />
+      <AccessGate access={access} body="Campaign creation, broker list management (auto-populated from Inbox DM tagging), and Android execution are all part of the WaBro paid product surface." />
 
       <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
-        <SurfaceSection title="Broker lists" subtitle="Import outreach targets" icon={GroupsIcon}>
+        <SurfaceSection title="Broker lists" subtitle="Import outreach targets or auto-populate from Inbox DM tagging" icon={GroupsIcon}>
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">List name</label>
@@ -887,7 +887,7 @@ export const WabroSetup: React.FC = () => {
   return (
     <WabroShell
       title="Android setup"
-      subtitle="Set up WaBro as a broadcast delivery product. Keep the instructions limited to Android execution and campaign launch, not general WhatsApp connection workflows."
+      subtitle="Set up WaBro as a broadcast delivery product. Broker contacts grow automatically when you tag DMs as Realtor from the Inbox. Keep the instructions limited to Android execution and campaign launch, not general WhatsApp connection workflows."
       serviceState="ready"
       error={null}
       actions={
@@ -912,7 +912,7 @@ export const WabroSetup: React.FC = () => {
         {[
           ['1. Install the Android app', 'Download the WaBro APK on the phone that will execute campaign delivery.'],
           ['2. Sign in with the same account', 'Use the same PropAI identity so the Android device registers against the same WaBro workspace.'],
-          ['3. Import broker lists on web', 'Build reusable broker lists in the WaBro campaigns route before you launch a campaign.'],
+          ['3. Build broker contacts', 'Tag incoming DMs as Realtor from the Inbox — they auto-populate as broker contacts with phone and locality. Or import lists manually via CSV in the campaigns route.'],
           ['4. Create the campaign on web', 'Write the message template and choose the target list inside PropAI → WaBro.'],
           ['5. Let Android execute', 'The Android app pulls pending campaigns and handles delivery execution from the linked device.'],
           ['6. Monitor results on web', 'Track sent, failed, skipped, and active-device state from the WaBro pages in PropAI.'],
@@ -958,7 +958,7 @@ export const WabroBilling: React.FC = () => {
   return (
     <WabroShell
       title="WaBro plan and access"
-      subtitle="Treat WaBro as its own paid product even when it lives inside the PropAI shell."
+      subtitle="Treat WaBro as its own paid product even when it lives inside the PropAI shell. Broker contacts auto-populate from Inbox DM tagging — tag a DM as Realtor and it feeds your broadcast lists."
       serviceState="ready"
       error={null}
       actions={
@@ -1000,7 +1000,7 @@ export const WabroBilling: React.FC = () => {
           <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">What is included</p>
           <ul className="mt-4 space-y-3 text-[12px] leading-6 text-[var(--text-secondary)]">
             <li>APK download and Android execution model</li>
-            <li>Campaign creation and broker list management</li>
+            <li>Campaign creation and broker list management (auto-populated from Inbox DM tagging)</li>
             <li>Device status and send outcome visibility</li>
             <li>Separate product boundary from QR, inbox, and chat sync surfaces</li>
           </ul>
