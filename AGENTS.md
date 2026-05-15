@@ -184,3 +184,131 @@ This section reflects the state at the end of the current session on 2026-05-11.
   - `pnpm build`
   - tests
   - redeploys
+
+### Dated Handoff: 2026-05-15
+
+This section reflects the state at the end of the current session on 2026-05-15.
+
+### Pushed This Session
+
+- `33185c6` — Route WhatsApp controllers through gateway abstraction
+
+### What `33185c6` Changes
+
+- Introduces a new WhatsApp transport boundary under:
+  - `apps/api/src/channel-gateways/whatsapp/types.ts`
+  - `apps/api/src/channel-gateways/whatsapp/WhatsAppGateway.ts`
+  - `apps/api/src/channel-gateways/whatsapp/BaileysWhatsAppGateway.ts`
+  - `apps/api/src/channel-gateways/whatsapp/whatsappGatewayRegistry.ts`
+- `whatsappController.ts` no longer talks directly to `SessionManager` for:
+  - connect
+  - QR refresh
+  - QR fetch
+  - status
+  - disconnect
+  - group sync bootstrap
+  - direct send
+  - bulk direct send
+  - group broadcast
+- `authController.ts` verification sends now go through the gateway.
+- `runtimeStatusService.ts` now reads live WhatsApp session state through the gateway.
+
+### Local Commit Not Yet Pushed
+
+- `348de71` — Fix gateway typing and controller test compatibility
+
+### What `348de71` Changes
+
+- Fixes the gateway broadcast result typing in `BaileysWhatsAppGateway.ts`.
+- Fixes `whatsappController.ts` compatibility with existing tests by removing an extra read-after-write expectation and tightening live-session typing.
+- Fixes the new `baileysWhatsAppGateway.test.ts` hoisting issue by switching to `vi.hoisted(...)`.
+
+### Current Uncommitted Worktree
+
+- Transport/runtime decoupling continued beyond `33185c6` and `348de71`.
+- Modified files:
+  - `apps/api/src/controllers/aiController.ts`
+  - `apps/api/src/controllers/settingsController.ts`
+  - `apps/api/src/services/AgentExecutor.ts`
+  - `apps/api/src/services/agentToolService.ts`
+  - `apps/api/src/services/whatsappHealthService.ts`
+  - `apps/api/src/services/workspaceMonitorService.ts`
+  - `apps/api/src/whatsapp/PropAISupabaseAdapter.ts`
+  - `apps/api/src/whatsapp/WhatsAppClient.ts`
+  - `apps/api/src/whatsapp/propaiRuntimeHooks.ts`
+  - `apps/api/tests/agentExecutor.test.ts`
+  - `apps/api/tests/agentRouterService.test.ts`
+  - `apps/api/tests/aiController.test.ts`
+  - `apps/api/tests/whatsappController.test.ts`
+- Untracked files:
+  - `apps/api/src/channel-events/processors/processWhatsAppGroupSyncEvent.ts`
+  - `apps/api/src/channel-events/processors/processWhatsAppInboundMessage.ts`
+  - `apps/api/src/channel-events/processors/processWhatsAppSessionEvent.ts`
+  - `apps/api/tests/agentToolService.test.ts`
+  - `apps/api/tests/propaiSupabaseAdapter.test.ts`
+  - `apps/api/tests/settingsController.test.ts`
+  - `apps/api/tests/whatsappMessagesController.test.ts`
+
+### What The Uncommitted Work Does
+
+- `agentToolService.ts` no longer imports or uses `SessionManager`; WhatsApp group/send operations now go through `getWhatsAppGateway()`.
+- `AgentExecutor.ts` no longer imports `SessionManager`.
+- `whatsappHealthService.ts` no longer reads live session snapshots directly from `SessionManager`; it now uses the gateway.
+- `propaiRuntimeHooks.ts` has been thinned substantially:
+  - `onMessage` now delegates to a shared inbound processor
+  - `onConnectionUpdate` now delegates to shared session/group processors
+  - direct runtime/session logic has been extracted out of the hook file
+- New shared processors were created under `apps/api/src/channel-events/processors/` for:
+  - inbound WhatsApp message handling
+  - session lifecycle handling
+  - group sync handling
+- Test updates in progress are focused on stabilizing the new gateway/processor seams rather than fixing all older unrelated suite failures.
+
+### Architecture Status After This Session
+
+- Direct `SessionManager` usage is now mostly limited to:
+  - `apps/api/src/index.ts` bootstrap / session rehydration
+  - `apps/api/src/channel-gateways/whatsapp/BaileysWhatsAppGateway.ts`
+- That means the transport boundary is largely in place for:
+  - controller-facing operations
+  - outbound tool sends
+  - executor-facing transport usage
+  - runtime hook delegation
+  - health-service live session reads
+
+### Test / Build Status
+
+- The user ran `pnpm --filter backend test:run` and `pnpm --filter backend build` from the normal terminal during this session.
+- Result:
+  - backend test run: failed
+  - backend build: failed at the time of that run
+- Some failures were directly caused by the new gateway seam and were fixed during this session:
+  - gateway broadcast typing mismatch
+  - `baileysWhatsAppGateway.test.ts` hoisting issue
+  - `whatsappController.ts` test compatibility issue
+- Remaining failures still need a fresh rerun after the latest uncommitted fixes.
+- Important: a large portion of the remaining failures are older / unrelated to the gateway refactor:
+  - sanitizer behavior expectations
+  - Supabase config-dependent suites
+  - tests mocking `config/supabase` without `supabaseAdmin` or `serverClientOptions`
+  - older async `pushRecentAction` side effects in tests
+
+### Recommended Next Step
+
+- First, rerun from the normal terminal:
+  - `pnpm --filter backend build`
+  - `pnpm --filter backend test:run`
+- Then separate the results into:
+  - gateway/processor seam regressions
+  - older unrelated suite debt
+- After that:
+  - commit the uncommitted transport/runtime work
+  - push
+  - redeploy `apps/api`
+
+### Still Pending
+
+- Push local commit `348de71` if it is still not on remote.
+- Commit and push the current uncommitted transport/runtime extraction work.
+- Fresh build/test verification after the latest test stabilizations.
+- Backend API redeploy after the final push for this work.

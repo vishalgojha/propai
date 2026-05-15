@@ -1,14 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AgentExecutor } from '../src/services/AgentExecutor';
 import { aiService } from '../src/services/aiService';
-import { sessionManager } from '../src/whatsapp/SessionManager';
 import { supabase } from '../src/config/supabase';
 
+const { getSessions, listGroups } = vi.hoisted(() => ({
+    getSessions: vi.fn(),
+    listGroups: vi.fn(),
+}));
+
 vi.mock('../src/services/aiService');
-vi.mock('../src/whatsapp/SessionManager', () => ({
-    sessionManager: {
-        getSession: vi.fn(),
-    }
+vi.mock('../src/channel-gateways/whatsapp/whatsappGatewayRegistry', () => ({
+    getWhatsAppGateway: vi.fn(() => ({
+        getSessions,
+        listGroups,
+    })),
 }));
 
 vi.mock('../src/config/supabase', () => {
@@ -34,6 +39,8 @@ describe('AgentExecutor', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         executor = new AgentExecutor();
+        getSessions.mockResolvedValue([]);
+        listGroups.mockResolvedValue([]);
     });
 
     it('should return direct response when no tool is called', async () => {
@@ -55,15 +62,18 @@ describe('AgentExecutor', () => {
         (aiService.chat as any).mockResolvedValueOnce({ text: 'I found 2 groups for you.' });
         
         (supabase.limit as any).mockResolvedValueOnce({ data: [] });
-        (sessionManager.getSession as any).mockResolvedValueOnce({
-            getGroups: vi.fn().mockResolvedValue([{ id: 'g1', name: 'Group 1' }, { id: 'g2', name: 'Group 2' }])
-        });
+        getSessions.mockResolvedValueOnce([{ label: 'owner-device', status: 'connected' }]);
+        listGroups.mockResolvedValueOnce([{ id: 'g1', name: 'Group 1' }, { id: 'g2', name: 'Group 2' }]);
 
         const response = await executor.processMessage('tenant-1', 'jid-1', 'What groups do I have?');
 
         expect(response).toBe('I found 2 groups for you.');
         expect(aiService.chat).toHaveBeenCalledTimes(2);
-        expect(sessionManager.getSession).toHaveBeenCalled();
+        expect(getSessions).toHaveBeenCalledWith('tenant-1');
+        expect(listGroups).toHaveBeenCalledWith({
+            workspaceOwnerId: 'tenant-1',
+            sessionLabel: 'owner-device',
+        });
     });
 
     it('should correctly parse tool calls', async () => {

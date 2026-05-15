@@ -27,7 +27,8 @@ describe('AgentRouterService', () => {
             'Auto',
             'agent_router',
             'tenant-1',
-            expect.stringContaining('You are the PropAI agent router.')
+            expect.stringContaining('You are the PropAI agent router.'),
+            []
         );
     });
 });

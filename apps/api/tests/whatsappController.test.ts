@@ -6,6 +6,7 @@ const { mockDb } = vi.hoisted(() => ({
         from: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn(),
         upsert: vi.fn(),
         insert: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -16,19 +17,45 @@ const { sendWhatsAppLifecycleEmail } = vi.hoisted(() => ({
     sendWhatsAppLifecycleEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
+const {
+    connect,
+    disconnect,
+    getQRCode,
+    getSessions,
+    getStatus,
+    forceReconnect,
+    listGroups,
+    broadcastToGroups,
+    sendMessage,
+} = vi.hoisted(() => ({
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    getQRCode: vi.fn(),
+    getSessions: vi.fn().mockResolvedValue([]),
+    getStatus: vi.fn().mockResolvedValue(null),
+    forceReconnect: vi.fn(),
+    listGroups: vi.fn(),
+    broadcastToGroups: vi.fn(),
+    sendMessage: vi.fn(),
+}));
+
 vi.mock('../src/config/supabase', () => ({
     supabase: mockDb,
     supabaseAdmin: mockDb,
 }));
 
-vi.mock('../src/whatsapp/SessionManager', () => ({
-    sessionManager: {
-        getSession: vi.fn(),
-        createSession: vi.fn().mockResolvedValue(undefined),
-        getQR: vi.fn(),
-        getLiveSessionSnapshots: vi.fn().mockReturnValue([]),
-        removeSession: vi.fn().mockResolvedValue(undefined),
-    },
+vi.mock('../src/channel-gateways/whatsapp/whatsappGatewayRegistry', () => ({
+    getWhatsAppGateway: vi.fn(() => ({
+        connect,
+        disconnect,
+        getQRCode,
+        getSessions,
+        getStatus,
+        forceReconnect,
+        listGroups,
+        broadcastToGroups,
+        sendMessage,
+    })),
 }));
 
 vi.mock('../src/services/subscriptionService', () => ({
@@ -55,6 +82,8 @@ function createResponse() {
 describe('whatsappController profile endpoints', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        getSessions.mockResolvedValue([]);
+        getStatus.mockResolvedValue(null);
     });
 
     it('returns a null profile when no broker profile exists yet', async () => {
@@ -135,22 +164,18 @@ describe('whatsappController profile endpoints', () => {
 
         mockDb.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
         mockDb.upsert.mockResolvedValueOnce({ error: null });
-        const sessionManager = await import('../src/whatsapp/SessionManager');
-        (sessionManager.sessionManager.getSession as any).mockResolvedValueOnce(undefined);
-        (sessionManager.sessionManager.getQR as any).mockReturnValueOnce('qr-payload');
+        connect.mockResolvedValueOnce({ artifact: { mode: 'qr', format: 'text', value: 'qr-payload' }, mode: 'qr' });
+        getQRCode.mockResolvedValueOnce('qr-payload').mockResolvedValueOnce('qr-payload');
 
         await connectWhatsApp(req, res as any);
 
-        expect(sessionManager.sessionManager.createSession).toHaveBeenCalledWith(
-            'user-1',
-            expect.any(Function),
-            expect.any(Function),
-            expect.objectContaining({
-                phoneNumber: '919820056180',
-                ownerName: 'Vishal',
-                label: 'vishal-919820056180',
-            })
-        );
+        expect(connect).toHaveBeenCalledWith(expect.objectContaining({
+            workspaceOwnerId: 'user-1',
+            phoneNumber: '919820056180',
+            ownerName: 'Vishal',
+            sessionLabel: 'vishal-919820056180',
+            mode: 'qr',
+        }));
         expect(res.json).toHaveBeenCalledWith({
             message: 'Connection initiated',
             label: 'vishal-919820056180',
@@ -181,23 +206,18 @@ describe('whatsappController profile endpoints', () => {
 
         mockDb.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
         mockDb.upsert.mockResolvedValueOnce({ error: null });
-        const sessionManager = await import('../src/whatsapp/SessionManager');
-        (sessionManager.sessionManager.getSession as any).mockResolvedValueOnce(undefined);
-        (sessionManager.sessionManager.getQR as any).mockReturnValueOnce('PAIR-1234');
+        connect.mockResolvedValueOnce({ artifact: { mode: 'pairing', format: 'text', value: 'PAIR-1234' }, mode: 'pairing' });
+        getQRCode.mockResolvedValueOnce('PAIR-1234').mockResolvedValueOnce('PAIR-1234');
 
         await connectWhatsApp(req, res as any);
 
-        expect(sessionManager.sessionManager.createSession).toHaveBeenCalledWith(
-            'user-1',
-            expect.any(Function),
-            expect.any(Function),
-            expect.objectContaining({
-                phoneNumber: '919820056180',
-                ownerName: 'Vishal',
-                label: 'vishal-919820056180',
-                usePairingCode: '919820056180',
-            })
-        );
+        expect(connect).toHaveBeenCalledWith(expect.objectContaining({
+            workspaceOwnerId: 'user-1',
+            phoneNumber: '919820056180',
+            ownerName: 'Vishal',
+            sessionLabel: 'vishal-919820056180',
+            mode: 'pairing',
+        }));
         expect(res.json).toHaveBeenCalledWith({
             message: 'Connection initiated',
             label: 'vishal-919820056180',
@@ -223,8 +243,7 @@ describe('whatsappController profile endpoints', () => {
         } as any;
         const res = createResponse();
 
-        const sessionManager = await import('../src/whatsapp/SessionManager');
-        (sessionManager.sessionManager.getQR as any).mockReturnValueOnce('qr-payload');
+        getQRCode.mockResolvedValueOnce('qr-payload');
 
         await getQR(req, res as any);
 

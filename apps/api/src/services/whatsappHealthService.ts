@@ -1,4 +1,5 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
+import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
@@ -361,9 +362,7 @@ export class WhatsAppHealthService {
             messagesFailed24h: 0,
         });
 
-        // Get reconnect info from live sessions
-        const { sessionManager } = require('../whatsapp/SessionManager');
-        const liveSessions = sessionManager.getLiveSessionSnapshots(tenantId);
+        const liveSessions = await getWhatsAppGateway(tenantId).getSessions(tenantId);
         const sessionsWithReconnect = sessions.map(session => {
             const liveSession = liveSessions.find((s: any) => s.label === session.sessionLabel);
             return {

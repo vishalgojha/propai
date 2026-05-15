@@ -1,5 +1,4 @@
 import { aiService } from './aiService';
-import { sessionManager } from '../whatsapp/SessionManager';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { parseAgentResponse, toAgentResponse } from '../types/agent';
 import { renderOutput } from '../whatsapp/formatter';

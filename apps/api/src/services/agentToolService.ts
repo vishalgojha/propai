@@ -1,5 +1,5 @@
 import { aiService } from './aiService';
-import { sessionManager } from '../whatsapp/SessionManager';
+import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { safeJSONParse } from '../utils/jsonUtils';
 import { brokerWorkflowService } from './brokerWorkflowService';
@@ -22,38 +22,47 @@ function cleanMessageText(text: unknown) {
 export class AgentToolService {
     async executeTool(name: string, args: any, context: ExecuteAgentToolContext): Promise<any> {
         const { tenantId, remoteJid, promptText } = context;
+        const gateway = getWhatsAppGateway(tenantId);
 
         switch (name) {
             case 'get_groups': {
-                const client = await sessionManager.getSession(tenantId);
-                return await (client as any).getGroups();
+                const sessions = await gateway.getSessions(tenantId);
+                const sessionLabel = sessions[0]?.label;
+                if (!sessionLabel) {
+                    return [];
+                }
+                return await gateway.listGroups({ workspaceOwnerId: tenantId, sessionLabel });
             }
             case 'get_whatsapp_groups': {
-                const client = await sessionManager.getSession(tenantId);
-                if (!client) {
+                const sessions = await gateway.getSessions(tenantId);
+                const sessionLabel = sessions[0]?.label;
+                if (!sessionLabel) {
                     return { success: false, error: 'No active WhatsApp session found' };
                 }
 
-                const groups = await (client as any).getParticipatingGroups?.() || await (client as any).getGroups?.() || [];
+                const groups = await gateway.listGroups({ workspaceOwnerId: tenantId, sessionLabel });
                 return {
                     count: groups.length,
                     groups,
                 };
             }
             case 'send_message': {
-                const client = await sessionManager.getSession(tenantId);
-                return await (client as any).sendText(args.remote_jid, args.text);
+                await gateway.sendMessage({
+                    workspaceOwnerId: tenantId,
+                    remoteJid: args.remote_jid,
+                    text: args.text,
+                });
+                return { success: true };
             }
             case 'send_whatsapp_message': {
-                const client = await sessionManager.getSession(tenantId);
-                if (!client) {
-                    return { success: false, error: 'No active WhatsApp session found' };
-                }
-
                 try {
                     const destinationJid = args.remote_jid || remoteJid;
                     const messageText = cleanMessageText(args.text || args.message || '');
-                    await (client as any).sendMessage(destinationJid, messageText);
+                    await gateway.sendMessage({
+                        workspaceOwnerId: tenantId,
+                        remoteJid: destinationJid,
+                        text: messageText,
+                    });
                     await (supabaseAdmin ?? supabase).from('messages').insert({
                         tenant_id: tenantId,
                         remote_jid: destinationJid,
@@ -216,10 +225,11 @@ export class AgentToolService {
             if (!profile?.phone) return;
 
             const brokerJid = `${profile.phone.startsWith('+') ? profile.phone.slice(1) : profile.phone}@s.whatsapp.net`;
-            const client = await sessionManager.getSession(tenantId);
-            if (!client) return;
-
-            await (client as any).sendText(brokerJid, message);
+            await getWhatsAppGateway(tenantId).sendMessage({
+                workspaceOwnerId: tenantId,
+                remoteJid: brokerJid,
+                text: message,
+            });
         } catch (err) {
             console.error('[notifyBroker] Failed:', err);
         }
