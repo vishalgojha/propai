@@ -1,4 +1,11 @@
 import crypto from 'crypto';
+
+const extractPhoneFromJid = (jid: string | null): string | null => {
+    if (!jid) return null;
+    const digits = jid.split('@')[0].split('').filter(c => c >= '0' && c <= '9').join('');
+    return digits.length >= 10 ? digits.slice(-10) : null;
+};
+
 import type {
     IncomingMessageRecord,
     SessionRecord,
@@ -80,10 +87,13 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                 .select('id, remote_jid, sender, text, timestamp')
                 .single();
 
+            const senderJid = (rawMessage?.key?.participant as string | undefined) || input.sender || null;
             const messageRecord = data || {
                 id: rawDumpId,
                 remote_jid: input.remoteJid,
                 sender: input.sender ?? undefined,
+                sender_jid: senderJid,
+                sender_phone: extractPhoneFromJid(senderJid),
                 text: input.text,
                 timestamp: input.timestamp ?? new Date().toISOString(),
             };

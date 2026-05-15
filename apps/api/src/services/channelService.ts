@@ -1037,6 +1037,8 @@ type RawInboundMessage = {
     id: string;
     remote_jid?: string | null;
     sender?: string | null;
+    sender_jid?: string | null;
+    sender_phone?: string | null;
     text?: string | null;
     timestamp?: string | null;
     created_at?: string | null;
@@ -1893,7 +1895,7 @@ private async ensureStreamBackfilled(tenantId: string) {
             this.fetchDomainKnowledge(),
         ]);
 
-        const sourcePhone = extractContactPhoneFromBody(rawText) || extractPhoneNumber(message.sender) || extractPhoneNumber(message.remote_jid);
+        const sourcePhone = message.sender_phone || extractContactPhoneFromBody(rawText) || extractPhoneNumber(message.sender) || extractPhoneNumber(message.remote_jid);
         const bodyContactName = extractContactNameFromBody(rawText);
         const sourceLabel = bodyContactName || senderLabel || null;
         const sourceGroupId = message.remote_jid?.endsWith('@g.us') ? String(message.remote_jid) : null;
@@ -2073,7 +2075,7 @@ ${rawText}
         const commonResolution = parseIndianLocation(rawText);
         const commonLocation = commonResolution?.locality || '';
         const createdAt = String(message.timestamp || message.created_at || new Date().toISOString());
-        const sourcePhone = extractContactPhoneFromBody(rawText) || extractPhoneNumber(message.sender) || extractPhoneNumber(message.remote_jid);
+        const sourcePhone = message.sender_phone || extractContactPhoneFromBody(rawText) || extractPhoneNumber(message.sender) || extractPhoneNumber(message.remote_jid);
         const bodyContactName = extractContactNameFromBody(rawText);
         const sourceLabel = bodyContactName || String(message.sender || '').trim() || null;
         const sourceGroupId = message.remote_jid?.endsWith('@g.us') ? String(message.remote_jid) : null;
