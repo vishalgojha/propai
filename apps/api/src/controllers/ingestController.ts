@@ -2,6 +2,40 @@ import { Request, Response } from 'express';
 import { supabaseAdmin, createSupabaseServiceClient } from '../config/supabase';
 import { isOwnerSuperAdminEmail, HttpError, getErrorMessage } from '../utils/controllerHelpers';
 
+function parseBhk(bhk: string | null | undefined): number | null {
+    if (!bhk) return null;
+    const m = String(bhk).match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : null;
+}
+
+function toListingType(type: string | null | undefined): string {
+    const t = (type || '').toLowerCase();
+    if (t === 'rent') return 'listing_rent';
+    if (t === 'sale') return 'listing_sale';
+    if (t === 'pre-leased' || t === 'lease') return 'listing_rent';
+    return 'requirement';
+}
+
+function toTitle(item: any): string {
+    const parts: string[] = [];
+    if (item.bhk) parts.push(item.bhk);
+    if (item.locality) parts.push(item.locality);
+    if (item.type) parts.push(item.type === 'Rent' ? 'for Rent' : 'for Sale');
+    return parts.join(' ') || 'Property Listing';
+}
+
+function extractPhone(raw: string | null | undefined): string | null {
+    if (!raw) return null;
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length >= 10) return digits;
+    return null;
+}
+
+function extractPhoneFromText(text: string): string | null {
+    const m = text.match(/(?:\+?91)?[6-9]\d{9}/);
+    return m ? m[0] : null;
+}
+
 export const ingestListings = async (req: Request, res: Response) => {
     try {
         const admin = supabaseAdmin || createSupabaseServiceClient();
@@ -84,6 +118,38 @@ export const ingestListings = async (req: Request, res: Response) => {
             const { error: se } = await admin.from('stream_items').insert(streamRow);
             if (se) streamErr++;
             else streamOk++;
+
+            const listingType = toListingType(item.type);
+            const phone = item.source_phone || extractPhoneFromText(item.raw_text || '');
+            const publicRow = {
+                source_message_id: item.message_id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                source_group_id: item.source_group_id || null,
+                source_group_name: item.source_group_name || null,
+                listing_type: listingType,
+                area: item.locality || null,
+                sub_area: null,
+                location: item.locality || 'Unknown',
+                price: item.price_numeric || null,
+                price_type: item.type === 'Rent' ? 'monthly' : item.type === 'Sale' ? 'total' : null,
+                size_sqft: item.area_sqft || null,
+                furnishing: item.furnishing || null,
+                bhk: parseBhk(item.bhk),
+                property_type: null,
+                title: toTitle(item),
+                description: item.raw_text || '',
+                raw_message: item.raw_text || null,
+                cleaned_message: null,
+                sender_number: phone,
+                primary_contact_name: item.contact_name || null,
+                primary_contact_number: phone,
+                primary_contact_wa: phone ? `91${phone.replace(/^\+?91/, '')}` : null,
+                contacts: item.contacts || [],
+                confidence: item.confidence_score ?? 0.8,
+                message_timestamp: item.message_timestamp || new Date().toISOString(),
+                search_text: [item.raw_text, item.locality, item.bhk, item.type].filter(Boolean).join(' '),
+            };
+            const { error: pe } = await admin.from('public_listings').insert(publicRow);
+            if (pe) console.error('[Ingest] public_listings insert failed:', pe.message, 'for', item.message_id);
         }
 
         res.json({
