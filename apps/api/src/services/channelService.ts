@@ -1403,6 +1403,10 @@ private backfillInitiated = false;
             throw new Error(logError.message);
         }
 
+        this.learnFromCorrection(existing, corrected, input.parseNotes).catch((e) =>
+            console.error('[ChannelService] learnFromCorrection failed:', e.message)
+        );
+
         return this.mapStreamItem(corrected);
     }
 
@@ -1717,6 +1721,117 @@ private async ensureStreamBackfilled(tenantId: string) {
         }
     }
 
+    private async fetchDomainKnowledge(): Promise<{ aliases: string; furnishing: string; types: string; examples: string }> {
+        try {
+            const { data } = await this.db
+                .from('domain_knowledge')
+                .select('knowledge_type, key, value')
+                .limit(200);
+
+            if (!data) return { aliases: '', furnishing: '', types: '', examples: '' };
+
+            const aliases = (data as any[])
+                .filter((r: any) => r.knowledge_type === 'locality_alias')
+                .map((r: any) => `  "${r.key}" → "${r.value}"`)
+                .join('\n');
+
+            const furnishing = (data as any[])
+                .filter((r: any) => r.knowledge_type === 'furnishing_indicator')
+                .map((r: any) => `  "${r.key}" → "${r.value}"`)
+                .join('\n');
+
+            const types = (data as any[])
+                .filter((r: any) => r.knowledge_type === 'type_indicator')
+                .map((r: any) => `  "${r.key}" → "${r.value}"`)
+                .join('\n');
+
+            const examples = (data as any[])
+                .filter((r: any) => r.knowledge_type === 'parsing_example')
+                .slice(0, 3)
+                .map((r: any) => `Message: "${r.key.slice(0, 150)}"\nExtracted: ${r.value}`)
+                .join('\n\n');
+
+            return { aliases, furnishing, types, examples };
+        } catch {
+            return { aliases: '', furnishing: '', types: '', examples: '' };
+        }
+    }
+
+    private async learnFromCorrection(
+        existing: any,
+        corrected: any,
+        parseNotes: string | null | undefined,
+    ): Promise<void> {
+        const learnings: { knowledge_type: string; key: string; value: string }[] = [];
+
+        // If locality was corrected, extract the alias from raw_text
+        if (existing.locality !== corrected.locality && corrected.locality && existing.raw_text) {
+            const textLower = existing.raw_text.toLowerCase();
+            const correctedLower = String(corrected.locality).toLowerCase();
+            // Find short distinctive words in the corrected locality
+            const parts = correctedLower.split(/\s+/).filter((p: string) => p.length > 1);
+            for (const part of parts) {
+                if (textLower.includes(part)) continue; // already known
+            }
+            // Store the correction as a learning
+            learnings.push({
+                knowledge_type: 'locality_alias',
+                key: `_learned_locality_${Date.now()}`,
+                value: corrected.locality,
+            });
+        }
+
+        // If furnishing was corrected
+        if (existing.furnishing !== corrected.furnishing && corrected.furnishing && existing.raw_text) {
+            learnings.push({
+                knowledge_type: 'furnishing_indicator',
+                key: `_learned_furnishing_${Date.now()}`,
+                value: corrected.furnishing,
+            });
+        }
+
+        // If transaction type was corrected
+        if (existing.type !== corrected.type && corrected.type) {
+            learnings.push({
+                knowledge_type: 'type_indicator',
+                key: `_learned_type_${Date.now()}`,
+                value: corrected.type,
+            });
+        }
+
+        // Store as a parsing example (raw text → correct extraction)
+        if (existing.raw_text && corrected.locality && corrected.bhk) {
+            learnings.push({
+                knowledge_type: 'parsing_example',
+                key: existing.raw_text.slice(0, 300),
+                value: JSON.stringify({
+                    bhk: corrected.bhk,
+                    transaction_type: corrected.type || existing.type,
+                    locality: corrected.locality || existing.locality,
+                    furnishing: corrected.furnishing || existing.furnishing,
+                    price_lakhs: corrected.price_numeric ? corrected.price_numeric / 100000 : null,
+                    price_unit: corrected.price_numeric ? 'Lac' : null,
+                    area_sqft: corrected.area_sqft || null,
+                }),
+            });
+        }
+
+        if (!learnings.length) return;
+
+        for (const l of learnings) {
+            const { error } = await this.db.from('domain_knowledge').upsert({
+                knowledge_type: l.knowledge_type,
+                key: l.key,
+                value: l.value,
+                confidence: 0.7,
+                source: 'learned',
+                metadata: { corrected_from: existing.locality || null, parse_notes: parseNotes || null },
+            }, { onConflict: 'knowledge_type,key', ignoreDuplicates: false });
+            if (error) console.warn('[Learn] Failed to store learning:', error.message);
+        }
+        console.log(`[Learn] Stored ${learnings.length} learnings from correction.`);
+    }
+
     private async parseMessageWithAI(tenantId: string, message: RawInboundMessage): Promise<ParsedStreamCandidate[]> {
         const rawText = String(message.text || message.text || '').trim();
         const senderLabel = String(message.sender || '').trim();
@@ -1725,7 +1840,11 @@ private async ensureStreamBackfilled(tenantId: string) {
             return [];
         }
 
-        const createdAt = String(message.timestamp || message.created_at || new Date().toISOString());
+        const [createdAt, knowledge] = await Promise.all([
+            Promise.resolve(String(message.timestamp || message.created_at || new Date().toISOString())),
+            this.fetchDomainKnowledge(),
+        ]);
+
         const sourcePhone = extractContactPhoneFromBody(rawText) || extractPhoneNumber(message.sender) || extractPhoneNumber(message.remote_jid);
         const bodyContactName = extractContactNameFromBody(rawText);
         const sourceLabel = bodyContactName || senderLabel || null;
@@ -1734,8 +1853,15 @@ private async ensureStreamBackfilled(tenantId: string) {
         const commonLocation = commonResolution?.locality || '';
         const commonCity = commonResolution?.city || extractIndianCity(rawText);
 
+        const knowledgeSection = [
+            knowledge.aliases ? `\nKnown locality abbreviations:\n${knowledge.aliases}` : '',
+            knowledge.furnishing ? `\nFurnishing shorthand:\n${knowledge.furnishing}` : '',
+            knowledge.types ? `\nTransaction type indicators:\n${knowledge.types}` : '',
+            knowledge.examples ? `\nRecent correct parsing examples:\n${knowledge.examples}` : '',
+        ].filter(Boolean).join('\n');
+
         const systemPrompt = `You are PropAI's parser for raw Indian real estate WhatsApp broker messages.
-A single message may contain multiple listings or requirements. Return valid JSON only. No markdown.`;
+A single message may contain multiple listings or requirements. Return valid JSON only. No markdown.${knowledgeSection}`;
 
         const userPrompt = `Extract all real-estate records from this WhatsApp message.
 
