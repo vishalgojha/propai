@@ -9,6 +9,7 @@ import { createSupabaseAuthState, type SupabaseAuthState } from './SupabaseAuthS
 import { CircuitBreaker } from './CircuitBreaker';
 import { sessionEventService } from '../services/sessionEventService';
 import { whatsappGroupService } from '../services/whatsappGroupService';
+import { whatsappMirrorService } from '../services/whatsappMirrorService';
 import { supabase } from '../config/supabase';
 import { type RawGroupInput } from '../services/whatsappGroupService';
 import type {
@@ -282,19 +283,25 @@ this.socket.ev.on('messages.upsert', async (payload: any) => {
                           keyId: messageId,
                       });
 
-                      // Mark revoked messages as deleted in the DB
+                      // Mark revoked messages as deleted in the DB and mirror store.
                       if (updateType === 'revoked' && messageId) {
-try {
-                               await supabase
-                                   .from('messages')
-                                   .update({
-                                       text: '[This message was deleted]',
-                                       sender: 'system',
-                                       is_revoked: true,
-                                       updated_at: new Date().toISOString(),
-                                   })
-                                   .eq('id', messageId)
-                                   .eq('tenant_id', this.tenantId);
+                          try {
+                              await supabase
+                                  .from('messages')
+                                  .update({
+                                      text: '[This message was deleted]',
+                                      sender: 'system',
+                                      is_revoked: true,
+                                      updated_at: new Date().toISOString(),
+                                  })
+                                  .eq('id', messageId)
+                                  .eq('tenant_id', this.tenantId);
+
+                              await whatsappMirrorService.markMessageRevoked({
+                                  tenantId: this.tenantId,
+                                  messageKey: messageId,
+                                  remoteJid,
+                              });
                           } catch {
                               // Non-fatal: message may not exist in our DB
                           }
@@ -368,13 +375,28 @@ try {
 
         const sanitizedText = sanitizeForWhatsApp(text);
         this.rememberOutgoingMessage(jid, sanitizedText);
-        await this.socket.sendMessage(jid, { text: sanitizedText });
+        const timestamp = new Date().toISOString();
+        const result = await this.socket.sendMessage(jid, { text: sanitizedText });
+        await whatsappMirrorService.persistMessage({
+            tenantId: this.tenantId,
+            sessionLabel: this.label,
+            remoteJid: jid,
+            senderJid: this.connectedPhoneNumber ? `${this.connectedPhoneNumber}@s.whatsapp.net` : null,
+            senderName: this.ownerName || null,
+            text: sanitizedText,
+            timestamp,
+            direction: 'outbound',
+            messageKey: typeof result?.key?.id === 'string' ? result.key.id : null,
+            rawPayload: result,
+        }).catch((error) => {
+            console.error('[WhatsAppClient] Failed to persist outbound mirror message:', error);
+        });
         await this.hooks?.onOutgoingMessage?.({
             tenantId: this.tenantId,
             label: this.label,
             remoteJid: jid,
             text: sanitizedText,
-            timestamp: new Date().toISOString(),
+            timestamp,
         });
     }
 

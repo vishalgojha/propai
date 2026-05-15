@@ -4,8 +4,10 @@ import { cn } from '../lib/utils';
 import {
   ActivityIcon,
   AlertTriangleIcon,
+  UsersIcon,
   ShieldIcon,
   BookOpenIcon,
+  BroadcastIcon,
   ChannelIcon,
   CreditCardIcon,
   ChevronLeftIcon,
@@ -39,12 +41,14 @@ const NAV_ITEMS = [
   { label: 'Inbox', path: '/inbox', icon: MessageSquareTextIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
+  { label: 'WaBro', path: '/wabro', icon: BroadcastIcon },
   { label: 'PropAI Scraper', path: '/scraper', icon: BotIcon },
   { label: 'History Sync', path: '/history-sync', icon: RefreshIcon },
   { label: 'Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },
   { label: 'AI Usage', path: '/aiusage', icon: CreditCardIcon },
   { label: 'Flagged Parses', path: '/flagged-parses', icon: AlertTriangleIcon },
+  { label: 'Broker Profiles', path: '/broker-profiles', icon: UsersIcon },
   { label: 'Pricing', path: '/pricing', icon: CreditCardIcon },
   { label: 'Docs', path: '/docs', icon: BookOpenIcon },
   { label: 'Settings', path: '/settings', icon: SettingsIcon },
@@ -236,7 +240,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   }, [channels, channelSearch]);
 
   const navItems = React.useMemo(
-    () => NAV_ITEMS.filter((item) => (item.label === 'Admin' || item.label === 'AI Usage' || item.label === 'PropAI Scraper' || item.label === 'Flagged Parses' ? isSuperAdmin : true)),
+    () => NAV_ITEMS.filter((item) => (item.label === 'Admin' || item.label === 'AI Usage' || item.label === 'PropAI Scraper' || item.label === 'Flagged Parses' || item.label === 'Broker Profiles' ? isSuperAdmin : true)),
     [isSuperAdmin],
   );
 

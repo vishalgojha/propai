@@ -10,6 +10,7 @@ import { channelService } from '../services/channelService';
 import { aiService } from '../services/aiService';
 import { whatsappHealthService } from '../services/whatsappHealthService';
 import { sessionEventService } from '../services/sessionEventService';
+import { whatsappMirrorService } from '../services/whatsappMirrorService';
 
 const db = supabaseAdmin ?? supabase;
 
@@ -86,6 +87,21 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                 text: input.text,
                 timestamp: input.timestamp ?? new Date().toISOString(),
             };
+
+            await whatsappMirrorService.persistMessage({
+                tenantId: input.tenantId,
+                sessionLabel: input.label,
+                remoteJid: input.remoteJid,
+                senderJid: (rawMessage?.key?.participant as string | undefined) || input.sender || null,
+                senderName: input.sender ?? null,
+                text: input.text,
+                timestamp: input.timestamp ?? new Date().toISOString(),
+                direction: input.fromMe ? 'outbound' : 'inbound',
+                messageKey: typeof rawMessage?.key?.id === 'string' ? rawMessage.key.id : null,
+                rawPayload: rawMessage,
+            }).catch((mirrorError) => {
+                console.error('[PropAISupabaseAdapter] Failed to persist mirror message', mirrorError);
+            });
 
             if (error) {
                 console.warn('[PropAISupabaseAdapter] Failed to persist inbound message row, continuing with direct handling.', error);

@@ -45,6 +45,7 @@ export const ENDPOINTS = {
     connect: '/whatsapp/connect',
     disconnect: '/whatsapp/disconnect',
     status: '/whatsapp/status',
+    mirror: '/whatsapp/mirror',
     sessions: '/whatsapp/sessions',
     qr: '/whatsapp/qr',
     monitor: '/whatsapp/monitor',
@@ -89,5 +90,12 @@ export const ENDPOINTS = {
   },
   identity: {
     onboarding: '/identity/onboarding',
+  },
+  wabro: {
+    campaigns: '/wabro/campaigns',
+    campaignStatus: (campaignId: string) => `/wabro/campaigns/${encodeURIComponent(campaignId)}/status`,
+    contacts: '/wabro/contacts',
+    contactsByList: (listName: string) => `/wabro/contacts/${encodeURIComponent(listName)}`,
+    dashboardStats: '/wabro/dashboard/stats',
   },
 } as const;

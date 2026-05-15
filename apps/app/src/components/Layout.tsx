@@ -60,6 +60,7 @@ export const Layout: React.FC = () => {
   });
 
   const getPageTitle = (path: string) => {
+    if (path === '/wabro' || path.startsWith('/wabro/')) return 'WaBro';
     switch (path) {
       case '/monitor': return 'Monitor';
       case '/inbox':

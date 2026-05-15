@@ -1540,6 +1540,9 @@ private backfillInitiated = false;
             await this.matchStreamItemToChannels(tenantId, data).catch((matchError) => {
                 console.error('[ChannelService] Channel matching failed', matchError);
             });
+            await this.updateBrokerProfile(parsed, message).catch((be) => {
+                console.error('[ChannelService] Broker profile update failed', be);
+            });
         }
 
         return ingestedCount;
@@ -2475,6 +2478,80 @@ ${rawText}
                 sourcePhone: recoveredPhone,
             };
         });
+    }
+
+    private async updateBrokerProfile(parsed: ParsedStreamCandidate, message: RawInboundMessage) {
+        const phone = parsed.sourcePhone || this.extractPhoneFromText(parsed.rawText);
+        if (!phone) return;
+
+        const name = parsed.parsedPayload?.contactName
+            || parsed.parsedPayload?.sourceLabel
+            || message.sender
+            || null;
+        const groupName = parsed.sourceGroupName || null;
+        const groupId = parsed.sourceGroupId || null;
+        const isRequirement = parsed.recordType === 'requirement';
+        const monthKey = new Date().toISOString().slice(0, 7);
+
+        const { data: existing } = await supabaseAdmin!
+            .from('broker_activity')
+            .select('*')
+            .eq('phone', phone)
+            .single();
+
+        const localities: Array<{ locality: string; count: number; last_seen: string }> = existing?.localities || [];
+        if (parsed.locality) {
+            const idx = localities.findIndex((l: any) => l.locality === parsed.locality);
+            if (idx >= 0) {
+                localities[idx].count += 1;
+                localities[idx].last_seen = new Date().toISOString();
+            } else {
+                localities.push({ locality: parsed.locality, count: 1, last_seen: new Date().toISOString() });
+            }
+        }
+
+        const groups: Array<{ group_name: string; group_id: string; count: number }> = existing?.groups || [];
+        if (groupName || groupId) {
+            const gid = groupId || groupName || '';
+            const idx = groups.findIndex((g: any) => (groupId && g.group_id === groupId) || g.group_name === groupName);
+            if (idx >= 0) {
+                groups[idx].count += 1;
+            } else {
+                groups.push({ group_name: groupName || '', group_id: groupId || '', count: 1 });
+            }
+        }
+
+        const monthly: Record<string, number> = existing?.monthly_activity || {};
+        monthly[monthKey] = (monthly[monthKey] || 0) + 1;
+
+        const payload: any = {
+            name,
+            listing_count: (existing?.listing_count || 0) + (isRequirement ? 0 : 1),
+            requirement_count: (existing?.requirement_count || 0) + (isRequirement ? 1 : 0),
+            total_messages: (existing?.total_messages || 0) + 1,
+            last_active: new Date().toISOString(),
+            localities,
+            groups,
+            monthly_activity: monthly,
+            updated_at: new Date().toISOString(),
+        };
+
+        if (!existing) payload.first_seen = new Date().toISOString();
+
+        if (parsed.priceNumeric) {
+            const field = isRequirement ? 'avg_price_requirement' : 'avg_price_listing';
+            const oldAvg = existing?.[field];
+            const oldCount = isRequirement ? (existing?.requirement_count || 0) : (existing?.listing_count || 0);
+            if (oldAvg && oldCount > 0) {
+                payload[field] = ((oldAvg * oldCount) + parsed.priceNumeric) / (oldCount + 1);
+            } else {
+                payload[field] = parsed.priceNumeric;
+            }
+        }
+
+        await supabaseAdmin!
+            .from('broker_activity')
+            .upsert({ phone, ...payload }, { onConflict: 'phone' });
     }
 }
 

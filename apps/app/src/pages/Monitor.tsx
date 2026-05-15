@@ -250,7 +250,7 @@ export const Monitor: React.FC = () => {
     setError(null);
 
     try {
-      const response = await backendApi.get(ENDPOINTS.whatsapp.monitor, {
+      const response = await backendApi.get(ENDPOINTS.whatsapp.mirror, {
         params: selectedSessionLabel ? { sessionLabel: selectedSessionLabel } : undefined,
       });
       const payload = unwrapMonitorPayload(response.data);
@@ -301,9 +301,9 @@ React.useEffect(() => {
            .on(
              'postgres_changes',
              {
-               event: 'INSERT',
+               event: '*',
                schema: 'public',
-               table: 'messages',
+               table: 'whatsapp_message_mirror',
              },
              () => {
                void loadMonitor();

@@ -12,6 +12,7 @@ import { pushRecentAction } from '../services/identityService';
 import { sessionEventService } from '../services/sessionEventService';
 import { emailNotificationService } from '../services/emailNotificationService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
+import { whatsappMirrorService } from '../services/whatsappMirrorService';
 import '../types/express';
 
 type LiveSessionRecord = {
@@ -431,6 +432,27 @@ export const getMonitor = async (req: Request, res: Response) => {
         });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp monitor') });
+    }
+};
+
+export const getMirror = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
+        const data = await whatsappMirrorService.getMirrorData(context.workspaceOwnerId, false, sessionLabel);
+
+        res.json({
+            success: true,
+            workspace: {
+                ownerId: context.workspaceOwnerId,
+                memberRole: context.memberRole,
+                canManageTeam: context.canManageTeam,
+                canSendOutbound: context.canSendOutbound,
+            },
+            ...data,
+        });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp mirror') });
     }
 };
 

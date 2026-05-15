@@ -28,9 +28,15 @@ const AiUsage = React.lazy(async () => ({ default: (await import('./pages/AiUsag
 const Analytics = React.lazy(() => import('./pages/Analytics'));
 const Scraper = React.lazy(() => import('./pages/Scraper'));
 const FlaggedParses = React.lazy(() => import('./pages/FlaggedParses'));
+const BrokerProfiles = React.lazy(() => import('./pages/BrokerProfiles'));
 const Onboarding = React.lazy(async () => ({ default: (await import('./pages/Onboarding')).Onboarding }));
 const ConnectWhatsApp = React.lazy(async () => ({ default: (await import('./pages/ConnectWhatsApp')).ConnectWhatsApp }));
 const SetupGroups = React.lazy(async () => ({ default: (await import('./pages/SetupGroups')).SetupGroups }));
+const WabroOverview = React.lazy(async () => ({ default: (await import('./pages/Wabro')).WabroOverview }));
+const WabroCampaigns = React.lazy(async () => ({ default: (await import('./pages/Wabro')).WabroCampaigns }));
+const WabroDevices = React.lazy(async () => ({ default: (await import('./pages/Wabro')).WabroDevices }));
+const WabroSetup = React.lazy(async () => ({ default: (await import('./pages/Wabro')).WabroSetup }));
+const WabroBilling = React.lazy(async () => ({ default: (await import('./pages/Wabro')).WabroBilling }));
 const PrivacyPolicy = React.lazy(async () => ({ default: (await import('./pages/PrivacyPolicy')).PrivacyPolicy }));
 const Terms = React.lazy(async () => ({ default: (await import('./pages/Terms')).Terms }));
 const RefundPolicy = React.lazy(async () => ({ default: (await import('./pages/RefundPolicy')).RefundPolicy }));
@@ -123,6 +129,11 @@ export default function App() {
               <Route path="/stream" element={<Listings />} />
               <Route path="/listings" element={<Navigate to="/stream" replace />} />
               <Route path="/whatsapp" element={<WhatsApp />} />
+              <Route path="/wabro" element={<WabroOverview />} />
+              <Route path="/wabro/campaigns" element={<WabroCampaigns />} />
+              <Route path="/wabro/devices" element={<WabroDevices />} />
+              <Route path="/wabro/setup" element={<WabroSetup />} />
+              <Route path="/wabro/billing" element={<WabroBilling />} />
               <Route path="/history-sync" element={<HistorySync />} />
               <Route path="/aiusage" element={<AiUsage />} />
               <Route path="/ai-usage" element={<Navigate to="/aiusage" replace />} />
@@ -137,6 +148,7 @@ export default function App() {
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/scraper" element={<Scraper />} />
 <Route path="/flagged-parses" element={<FlaggedParses />} />
+<Route path="/broker-profiles" element={<BrokerProfiles />} />
               <Route path="/connect-whatsapp" element={<ConnectWhatsApp />} />
               <Route path="/setup-groups" element={<SetupGroups />} />
               <Route path="/intelligence" element={<Navigate to="/agent" replace />} />
