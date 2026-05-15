@@ -3,6 +3,7 @@ import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMirror, getMonito
 import { importHistoryTxt, getHistoryImports, checkDuplicateImports } from '../controllers/historyController';
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
+import { supabase } from '../config/supabase';
 import { validate } from '../middleware/validate';
 import { whatsappGroupService } from '../services/whatsappGroupService';
 import { connectWhatsAppSchema, forceRefreshQRSchema, saveProfileSchema, sendMessageSchema, sendBulkSchema, broadcastSchema, disconnectSchema } from '../schemas/whatsappSchemas';
@@ -40,7 +41,7 @@ router.get(ROUTE_PATHS.whatsapp.recipients, getOutboundRecipients);
 router.post(ROUTE_PATHS.whatsapp.config, async (req: Request, res: Response) => {
     const { group_id, behavior, session_label, parse_direct_messages, self_chat_enabled } = req.body;
     const tenant_id = req.user?.id;
-    const db = require('../config/supabase').supabase;
+    const db = supabase;
 
     if (group_id) {
         const { error } = await db
