@@ -27,6 +27,7 @@ const HistorySync = React.lazy(async () => ({ default: (await import('./pages/Hi
 const AiUsage = React.lazy(async () => ({ default: (await import('./pages/AiUsage')).AiUsage }));
 const Analytics = React.lazy(() => import('./pages/Analytics'));
 const Scraper = React.lazy(() => import('./pages/Scraper'));
+const FlaggedParses = React.lazy(() => import('./pages/FlaggedParses'));
 const Onboarding = React.lazy(async () => ({ default: (await import('./pages/Onboarding')).Onboarding }));
 const ConnectWhatsApp = React.lazy(async () => ({ default: (await import('./pages/ConnectWhatsApp')).ConnectWhatsApp }));
 const SetupGroups = React.lazy(async () => ({ default: (await import('./pages/SetupGroups')).SetupGroups }));
@@ -135,6 +136,7 @@ export default function App() {
               <Route path="/settings" element={<Settings />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/scraper" element={<Scraper />} />
+<Route path="/flagged-parses" element={<FlaggedParses />} />
               <Route path="/connect-whatsapp" element={<ConnectWhatsApp />} />
               <Route path="/setup-groups" element={<SetupGroups />} />
               <Route path="/intelligence" element={<Navigate to="/agent" replace />} />
