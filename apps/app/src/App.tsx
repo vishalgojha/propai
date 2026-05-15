@@ -17,6 +17,8 @@ const Listings = React.lazy(async () => ({ default: (await import('./pages/Listi
 const WhatsApp = React.lazy(async () => ({ default: (await import('./pages/Sources')).Sources }));
 const Monitor = React.lazy(async () => ({ default: (await import('./pages/Monitor')).Monitor }));
 const Inbox = React.lazy(async () => ({ default: (await import('./pages/Inbox')).Inbox }));
+const BrokerContacts = React.lazy(async () => ({ default: (await import('./pages/BrokerContacts')).BrokerContacts }));
+const ClientContacts = React.lazy(async () => ({ default: (await import('./pages/ClientContacts')).ClientContacts }));
 const Agent = React.lazy(async () => ({ default: (await import('./pages/Agent')).Agent }));
 const Docs = React.lazy(async () => ({ default: (await import('./pages/Docs')).Docs }));
 const Admin = React.lazy(async () => ({ default: (await import('./pages/Admin')).Admin }));
@@ -149,6 +151,8 @@ export default function App() {
               <Route path="/scraper" element={<Scraper />} />
 <Route path="/flagged-parses" element={<FlaggedParses />} />
 <Route path="/broker-profiles" element={<BrokerProfiles />} />
+<Route path="/broker-contacts" element={<BrokerContacts />} />
+<Route path="/client-contacts" element={<ClientContacts />} />
               <Route path="/connect-whatsapp" element={<ConnectWhatsApp />} />
               <Route path="/setup-groups" element={<SetupGroups />} />
               <Route path="/intelligence" element={<Navigate to="/agent" replace />} />

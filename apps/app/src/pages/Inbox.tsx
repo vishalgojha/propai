@@ -39,6 +39,12 @@ type InboxResponse = {
   messages: InboxMessage[];
 };
 
+type DmContact = {
+  remote_jid: string;
+  label: 'none' | 'realtor' | 'client';
+  name: string | null;
+};
+
 type RawMessageRow = {
   id?: string;
   remote_jid?: string;
@@ -159,6 +165,60 @@ const sanitizeInboxError = (message: string) => {
   return message;
 };
 
+const LABEL_STYLES: Record<string, string> = {
+  none: 'text-[#8696a0]',
+  realtor: 'text-[#00a884]',
+  client: 'text-[#53bdeb]',
+};
+
+const TagDropdown: React.FC<{
+  currentLabel: string;
+  onSelect: (label: string) => void;
+  disabled?: boolean;
+}> = ({ currentLabel, onSelect, disabled }) => {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        disabled={disabled}
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors hover:bg-[#202c33] disabled:opacity-50 ${LABEL_STYLES[currentLabel] || 'text-[#8696a0]'}`}
+      >
+        {currentLabel === 'none' ? 'Tag' : currentLabel}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-36 overflow-hidden rounded-lg border border-[#202c33] bg-[#1f2c33] shadow-lg">
+          {(['none', 'realtor', 'client'] as const).map((label) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => { onSelect(label); setOpen(false); }}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-[#2a3942] ${
+                label === currentLabel ? 'font-semibold' : ''
+              } ${LABEL_STYLES[label]}`}
+            >
+              {label === 'none' && '— None'}
+              {label === 'realtor' && '🏠 Realtor'}
+              {label === 'client' && '👤 Client'}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const Inbox: React.FC = () => {
   const [data, setData] = React.useState<InboxResponse | null>(null);
   const [selectedSessionLabel, setSelectedSessionLabel] = React.useState<string | null>(() => {
@@ -172,6 +232,8 @@ export const Inbox: React.FC = () => {
   const [search, setSearch] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [dmTags, setDmTags] = React.useState<Map<string, DmContact>>(new Map());
+  const [taggingJid, setTaggingJid] = React.useState<string | null>(null);
 
   const loadInbox = React.useCallback(async () => {
     setIsLoading(true);
@@ -209,9 +271,20 @@ export const Inbox: React.FC = () => {
     setIsLoading(false);
   }, [selectedSessionLabel]);
 
+  const loadDmTags = React.useCallback(async () => {
+    try {
+      const resp = await backendApi.get(ENDPOINTS.dmContacts.list);
+      const contacts = (resp.data as any)?.contacts || [];
+      setDmTags(new Map(contacts.map((c: DmContact) => [c.remote_jid, c])));
+    } catch {
+      // silent
+    }
+  }, []);
+
   React.useEffect(() => {
     void loadInbox();
-  }, [loadInbox]);
+    void loadDmTags();
+  }, [loadInbox, loadDmTags]);
 
   React.useEffect(() => {
     const handleSelectedSession = (event: Event) => {
@@ -332,7 +405,19 @@ export const Inbox: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 text-[#8696a0]">
+                <div className="flex items-center gap-2 text-[#8696a0]">
+                  <TagDropdown
+                    currentLabel={selectedChatId ? dmTags.get(selectedChatId)?.label || 'none' : 'none'}
+                    onSelect={async (label) => {
+                      setTaggingJid(selectedChatId);
+                      try {
+                        await backendApi.post(ENDPOINTS.dmContacts.tag, { remoteJid: selectedChatId, label });
+                        await loadDmTags();
+                      } catch { /* silent */ }
+                      setTaggingJid(null);
+                    }}
+                    disabled={taggingJid === selectedChatId}
+                  />
                   <MailIcon className="h-5 w-5" />
                   <CallbackIcon className="h-5 w-5" />
                 </div>

@@ -98,4 +98,8 @@ export const ENDPOINTS = {
     contactsByList: (listName: string) => `/wabro/contacts/${encodeURIComponent(listName)}`,
     dashboardStats: '/wabro/dashboard/stats',
   },
+  dmContacts: {
+    list: '/api/intelligence/dm-contacts',
+    tag: '/api/intelligence/dm-contacts/tag',
+  },
 } as const;

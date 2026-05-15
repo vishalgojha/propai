@@ -150,6 +150,19 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                 return { id: String(messageRecord.id || rawDumpId) };
             }
 
+            // Skip DMs unless sender is tagged as realtor
+            if (input.remoteJid && !input.remoteJid.endsWith('@g.us') && supabaseAdmin) {
+                const { data: dmTag } = await supabaseAdmin
+                    .from('dm_contacts')
+                    .select('label')
+                    .eq('tenant_id', input.tenantId)
+                    .eq('remote_jid', input.remoteJid)
+                    .maybeSingle();
+                if (!dmTag || dmTag.label !== 'realtor') {
+                    return { id: String(messageRecord.id || rawDumpId) };
+                }
+            }
+
             const streamItem = await channelService.ingestMessage(input.tenantId, messageRecord);
             if (streamItem) {
                 void sessionEventService.log(input.tenantId, 'parse_success', {
