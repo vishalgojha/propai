@@ -98,9 +98,9 @@ app.post(ROUTE_PATHS.api.aiPropertySearch, (req, res) => {
 app.use(ROUTE_PATHS.api.auth, authRoutes);
 app.use(ROUTE_PATHS.api.whatsapp, authMiddleware, whatsappRoutes);
 // Intelligence API (standalone, behind feature flag)
-app.use('/api/intelligence', intelligenceRouter);
+app.use(ROUTE_PATHS.api.intelligence, intelligenceRouter);
 app.use(ROUTE_PATHS.api.channels, authMiddleware, channelRoutes);
-app.use('/api/stream-items', authMiddleware, streamRoutes);
+app.use(ROUTE_PATHS.api.stream, authMiddleware, streamRoutes);
 app.use(ROUTE_PATHS.api.broadcast, authMiddleware, broadcastRoutes);
 app.use(ROUTE_PATHS.api.ingest, ingestRoutes);
 app.use(ROUTE_PATHS.api.scraper, scraperRoutes);

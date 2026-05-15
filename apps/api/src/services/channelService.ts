@@ -946,7 +946,8 @@ const splitMessageIntoSegments = (rawText: string) => {
 };
 
 const calculateConfidence = (text: string, item: { location: string; price: string; bhk: string; buildingName?: string | null; microLocation?: string | null }) => {
-    let score = 48;
+    const BASELINE = parseInt(process.env.CONFIDENCE_BASELINE || '48', 10);
+    let score = BASELINE;
     if (item.location !== 'Location not parsed yet') score += 16;
     if (item.price !== 'Unspecified') score += 14;
     if (item.bhk !== 'N/A') score += 10;
@@ -1173,9 +1174,9 @@ export class ChannelService {
         return this.mapChannelRow(data as ChannelRow, counts.get(channelId));
     }
 
-private backfillInitiated = false;
+    private backfillInitiated = false;
 
-     async listStreamItems(tenantId: string, accessToken?: string | null, channelId?: string | null, sessionLabel?: string | null): Promise<StreamItemRecord[]> {
+    async listStreamItems(tenantId: string, accessToken?: string | null, channelId?: string | null, sessionLabel?: string | null): Promise<StreamItemRecord[]> {
          // Only trigger backfill once and don't block the read on it
          if (!this.backfillInitiated) {
              this.backfillInitiated = true;
@@ -1620,7 +1621,8 @@ private backfillInitiated = false;
         const isRequirement = parsed.recordType === 'requirement' || parsed.streamType === 'Requirement';
         const bhkNum = this.parseBhk(parsed.bhk);
         const budget = parsed.priceNumeric;
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+        const matchWindowDays = parseInt(process.env.MATCH_WINDOW_DAYS || '30', 10);
+        const thirtyDaysAgo = new Date(Date.now() - matchWindowDays * 86400000).toISOString();
 
         // Bi-directional: new requirement -> find listings, new listing -> find requirements
         let matches: any[] = [];

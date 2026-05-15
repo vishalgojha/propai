@@ -325,7 +325,7 @@ export async function syncSendLogs(req: Request, res: Response) {
       error: log.error || null,
     }));
 
-    const { error } = await supabaseAdmin!.from('wabro_send_logs').upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
+    const { error } = await supabaseAdmin!.from('wabro_send_logs').upsert(rows, { onConflict: 'campaign_id,contact_phone', ignoreDuplicates: true });
     if (error) throw error;
 
     // Update campaign counters
