@@ -9,16 +9,9 @@ export interface ModelInfo {
     speed: 'fast' | 'medium' | 'slow';
     cost: 'free' | 'cheap' | 'expensive';
     contextWindow: number;
-    isLocal?: boolean;
 }
 
 const STATIC_FALLBACKS: Record<string, ModelInfo[]> = {
-    'Anthropic': [
-        { id: 'claude-opus-4-5', name: 'Claude Opus 4.5', provider: 'Anthropic', speed: 'slow', cost: 'expensive', contextWindow: 200000 },
-        { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', speed: 'medium', cost: 'cheap', contextWindow: 200000 },
-        { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', provider: 'Anthropic', speed: 'fast', cost: 'free', contextWindow: 200000 },
-        { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', speed: 'medium', cost: 'cheap', contextWindow: 200000 },
-    ],
     'Google': [
         { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', speed: 'fast', cost: 'free', contextWindow: 1000000 },
         { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', speed: 'medium', cost: 'cheap', contextWindow: 2000000 },
@@ -37,9 +30,10 @@ const STATIC_FALLBACKS: Record<string, ModelInfo[]> = {
         { id: 'gemma2-9b-it', name: 'Gemma 2 9B', provider: 'Groq', speed: 'fast', cost: 'free', contextWindow: 8192 },
         { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', provider: 'Groq', speed: 'fast', cost: 'free', contextWindow: 128000 },
     ],
-    'Local': [
-        { id: 'ollama-local', name: 'Ollama Local', provider: 'Local', speed: 'fast', cost: 'free', contextWindow: 32000, isLocal: true },
-    ]
+    'Doubleword': [
+        { id: 'qwen3-235b', name: 'Qwen3 235B', provider: 'Doubleword', speed: 'medium', cost: 'cheap', contextWindow: 32768 },
+        { id: 'kimi-k2', name: 'Kimi K2', provider: 'Doubleword', speed: 'medium', cost: 'cheap', contextWindow: 128000 },
+    ],
 };
 
 export class ModelDiscoveryService {
@@ -59,13 +53,13 @@ export class ModelDiscoveryService {
             return cached.models;
         }
 
-        const providers = ['Google', 'OpenAI', 'Groq', 'OpenRouter', 'Local', 'Anthropic'];
+        const providers = ['Google', 'OpenAI', 'Groq', 'OpenRouter', 'Doubleword'];
         let allModels: ModelInfo[] = [];
 
         for (const provider of providers) {
             const key = await this.getApiKey(tenantId, provider);
             
-            if (!key && provider !== 'Local' && provider !== 'Anthropic') {
+            if (!key) {
                 allModels.push(...STATIC_FALLBACKS[provider] || []);
                 continue;
             }
@@ -144,25 +138,18 @@ export class ModelDiscoveryService {
                     contextWindow: m.context_length || 128000
                 }));
             }
-            case 'Local': {
-                try {
-                    const baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-                    const res = await axios.get(`${baseUrl.replace(/\/$/, '')}/api/tags`);
-                    return res.data.models.map((m: any) => ({
-                        id: m.name,
-                        name: m.name,
-                        provider: 'Local',
-                        speed: 'fast',
-                        cost: 'free',
-                        contextWindow: 32000,
-                        isLocal: true
-                    }));
-                } catch (e) {
-                    return STATIC_FALLBACKS['Local'];
-                }
-            }
-            case 'Anthropic': {
-                return STATIC_FALLBACKS['Anthropic'];
+            case 'Doubleword': {
+                const res = await axios.get('https://api.doubleword.ai/v1/models', {
+                    headers: { Authorization: `Bearer ${key}` }
+                });
+                return res.data.data.map((m: any) => ({
+                    id: m.id,
+                    name: m.id,
+                    provider: 'Doubleword',
+                    speed: 'medium',
+                    cost: 'cheap',
+                    contextWindow: m.context_length || 32768
+                }));
             }
             default:
                 return [];

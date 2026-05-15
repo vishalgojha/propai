@@ -1,16 +1,15 @@
 {
-  "name": "propai-sync",
+  "name": "propai-pulse",
   "private": true,
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=!propai-web",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
   },
   "devDependencies": {
-    "pnpm": "9.0.0",
-    "prettier": "latest",
     "turbo": "latest",
+    "prettier": "latest",
     "typescript": "latest"
   },
   "packageManager": "pnpm@9.0.0"

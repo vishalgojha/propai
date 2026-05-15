@@ -1,119 +1,89 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import path from 'path';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WhatsAppClient } from '../src/whatsapp/WhatsAppClient';
-import { supabase } from '../src/config/supabase';
+
+vi.mock('../src/whatsapp/SupabaseAuthState', () => ({
+    createSupabaseAuthState: vi.fn(),
+}));
+
+vi.mock('../src/services/sessionEventService', () => ({
+    sessionEventService: {
+        log: vi.fn(),
+    },
+}));
+
+vi.mock('../src/services/whatsappGroupService', () => ({
+    whatsappGroupService: {
+        syncGroups: vi.fn(),
+    },
+}));
 
 vi.mock('../src/config/supabase', () => ({
     supabase: {
         from: vi.fn().mockReturnThis(),
-        upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
-        insert: vi.fn().mockResolvedValue({ data: null, error: null }),
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-        single: vi.fn().mockResolvedValue({ data: { id: 'profile-1' }, error: null }),
         update: vi.fn().mockReturnThis(),
-    }
+        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+    },
+    supabaseAdmin: null,
 }));
 
-describe('WhatsAppClient', () => {
-    let client: WhatsAppClient;
-    const options = {
+function createClient() {
+    return new WhatsAppClient({
         tenantId: 'tenant-123',
-        onQR: vi.fn(),
-        onConnectionUpdate: vi.fn(),
-        label: 'Owner'
-    };
+        label: 'Owner',
+        ownerName: 'Owner',
+        storage: {
+            saveInboundMessage: vi.fn(),
+            saveSessionStatus: vi.fn(),
+            deleteSession: vi.fn(),
+        },
+    });
+}
 
+describe('WhatsAppClient', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        client = new WhatsAppClient(options);
     });
 
-    it('should throw error for invalid tenantId', () => {
-        expect(() => new WhatsAppClient({ ...options, tenantId: 'Invalid-ID!' })).toThrow('Invalid tenantId format');
+    it('sanitizes outgoing messages before sending', async () => {
+        const client = createClient();
+        const sendMessage = vi.fn().mockResolvedValue(undefined);
+        (client as any).socket = { sendMessage };
+
+        await client.sendMessage('120@g.us', '**Hello**');
+
+        expect(sendMessage).toHaveBeenCalledWith('120@g.us', { text: '*Hello*' });
     });
 
-    it('should correctly set session path', () => {
-        // Accessing private property for verification
-        expect((client as any).sessionPath).toContain(path.join('sessions', `${options.tenantId}_${options.label}`));
+    it('returns reconnect metadata in the status snapshot', () => {
+        const client = createClient();
+        (client as any).connectionStatus = 'connecting';
+        (client as any).reconnectAttempts = 2;
+
+        expect(client.getStatusSnapshot()).toMatchObject({
+            status: 'connecting',
+            reconnectAttempts: 2,
+            isReconnecting: true,
+        });
     });
 
-    it('should handle verification "YES" response', async () => {
-        const remoteJid = '919876543210@s.whatsapp.net';
-        const text = 'YES';
-        const sendTextSpy = vi.spyOn(client, 'sendText').mockResolvedValue(undefined);
+    it('stores the workspace sender jid for outbound messages from self', () => {
+        const client = createClient();
+        (client as any).connectedPhoneNumber = '919999999999';
 
-        // Mock profile find
-        (supabase.single as any).mockResolvedValueOnce({ data: { id: 'profile-1' }, error: null });
+        const sender = (client as any).resolveStoredSender({
+            key: { fromMe: true },
+        });
 
-        const verified = await (client as any).handleVerificationReply(remoteJid, text);
-
-        expect(verified).toBe(true);
-        expect(supabase.from).toHaveBeenCalledWith('profiles');
-        expect(supabase.update).toHaveBeenCalledWith(expect.objectContaining({ phone_verified: true }));
-        expect(sendTextSpy).toHaveBeenCalledWith(remoteJid, expect.stringContaining('Verified!'));
+        expect(sender).toBe('919999999999@s.whatsapp.net');
     });
 
-    it('should insert new session status by tenant and session id', async () => {
-        (supabase.maybeSingle as any).mockResolvedValueOnce({ data: null, error: null });
+    it('converts unix message timestamps into ISO strings', () => {
+        const client = createClient();
 
-        await (client as any).updateSessionStatus('connected');
+        const timestamp = (client as any).resolveMessageTimestamp({
+            messageTimestamp: 1710000000,
+        });
 
-        expect(supabase.from).toHaveBeenCalledWith('whatsapp_sessions');
-        expect(supabase.insert).toHaveBeenCalledWith(
-            expect.objectContaining({
-                tenant_id: options.tenantId,
-                session_id: options.label,
-                status: 'connected',
-            })
-        );
-        expect(supabase.upsert).not.toHaveBeenCalled();
-    });
-
-    it('should update existing session status by row id', async () => {
-        (supabase.maybeSingle as any).mockResolvedValueOnce({ data: { id: 'session-1' }, error: null });
-
-        await (client as any).updateSessionStatus('connected');
-
-        expect(supabase.update).toHaveBeenCalledWith(
-            expect.objectContaining({
-                tenant_id: options.tenantId,
-                session_id: options.label,
-                status: 'connected',
-            })
-        );
-        expect(supabase.eq).toHaveBeenCalledWith('id', 'session-1');
-        expect(supabase.upsert).not.toHaveBeenCalled();
-    });
-
-    it('should filter out short messages', async () => {
-        const remoteJid = '123@s.whatsapp.net';
-        const text = 'Hi';
-        
-        const triggerAgentSpy = vi.spyOn(client as any, 'triggerAgent');
-        await (client as any).handleIncomingMessage(remoteJid, text);
-        
-        expect(triggerAgentSpy).not.toHaveBeenCalled();
-    });
-
-    it('should filter out emoji-only messages', async () => {
-        const remoteJid = '123@s.whatsapp.net';
-        const text = '🚀🔥😊';
-        
-        const triggerAgentSpy = vi.spyOn(client as any, 'triggerAgent');
-        await (client as any).handleIncomingMessage(remoteJid, text);
-        
-        expect(triggerAgentSpy).not.toHaveBeenCalled();
-    });
-
-    it('should trigger agent for valid messages', async () => {
-        const remoteJid = '123@s.whatsapp.net';
-        const text = 'I am looking for a 3BHK in Mumbai with a budget of 2Cr';
-        
-        const triggerAgentSpy = vi.spyOn(client as any, 'triggerAgent').mockResolvedValue(undefined);
-        await (client as any).handleIncomingMessage(remoteJid, text);
-        
-        expect(triggerAgentSpy).toHaveBeenCalledWith(remoteJid, text);
+        expect(timestamp).toBe(new Date(1710000000 * 1000).toISOString());
     });
 });

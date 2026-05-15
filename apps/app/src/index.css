@@ -1,0 +1,290 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #25d366;
+  --color-primary-foreground: #020f07;
+  --color-background: #090d12;
+  --color-foreground: #f1f5f9;
+  --color-muted: #111820;
+  --color-muted-foreground: #64748b;
+  --color-accent: #25d366;
+  --color-accent-foreground: #020f07;
+  --color-border: rgba(255,255,255,0.06);
+
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+}
+
+@layer base {
+  :root {
+    --bg-base: #090d12;
+    --bg-surface: #0d1117;
+    --bg-elevated: #111820;
+    --bg-hover: #141c26;
+    --border: rgba(255,255,255,0.06);
+    --border-strong: rgba(255,255,255,0.10);
+    --text-primary: #f1f5f9;
+    --text-secondary: #64748b;
+    --text-muted: #334155;
+    --text-ghost: #1e293b;
+    --accent: #25d366;
+    --accent-dim: #0a1a12;
+    --accent-border: #1a4a2a;
+    --accent-glow: rgba(37,211,102,0.07);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.10);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245,158,11,0.10);
+    --blue: #3b82f6;
+    --blue-dim: rgba(59,130,246,0.10);
+    --purple: #a855f7;
+    --purple-dim: rgba(168,85,247,0.10);
+  }
+
+  html {
+    background: var(--bg-base);
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  #root {
+    min-height: 100dvh;
+  }
+
+  body {
+    @apply font-sans antialiased;
+    background:
+      radial-gradient(circle at top left, rgba(37, 211, 102, 0.08), transparent 28%),
+      radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.05), transparent 30%),
+      linear-gradient(180deg, #090d12 0%, #090d12 100%);
+    color: var(--text-primary);
+    overflow-x: hidden;
+  }
+}
+
+.glass-panel {
+  @apply bg-[var(--bg-surface)] border border-[color:var(--border)] shadow-[0_16px_48px_rgba(0,0,0,0.18)];
+}
+
+.pulse-yellow {
+  border-color: var(--border-strong);
+}
+
+@keyframes pulse-border-trace {
+  0% {
+    box-shadow: inset 0 0 0 1px rgba(37, 211, 102, 0), 0 0 0 0 rgba(37, 211, 102, 0);
+  }
+  35% {
+    box-shadow: inset 0 0 0 1px rgba(37, 211, 102, 0.35), 0 0 0 6px rgba(37, 211, 102, 0.06);
+  }
+  100% {
+    box-shadow: inset 0 0 0 1px rgba(37, 211, 102, 0.18), 0 0 0 0 rgba(37, 211, 102, 0);
+  }
+}
+
+@keyframes pulse-shimmer {
+  0% {
+    background-position: -180% 0;
+  }
+  100% {
+    background-position: 180% 0;
+  }
+}
+
+@keyframes pulse-stream-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes pulse-check-draw {
+  0% {
+    stroke-dashoffset: 80;
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+@keyframes pulse-red-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0.09); }
+}
+
+@keyframes pulse-timeline-grow {
+  0% { transform: scaleY(0); transform-origin: top; }
+  100% { transform: scaleY(1); transform-origin: top; }
+}
+
+@keyframes pulse-word-in {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes pulse-agent-rot55 {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pulse-motion-border-trace {
+  animation: pulse-border-trace 1.25s ease-out both;
+}
+
+.pulse-motion-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.pulse-motion-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 20%, rgba(255,255,255,0.08) 38%, rgba(37,211,102,0.18) 50%, rgba(255,255,255,0.08) 62%, transparent 80%);
+  background-size: 200% 100%;
+  animation: pulse-shimmer 1.2s linear both;
+  pointer-events: none;
+}
+
+.pulse-motion-stream {
+  animation: pulse-stream-in 0.8s ease-out both;
+}
+
+.pulse-motion-check {
+  position: relative;
+}
+
+.pulse-motion-check::after {
+  content: "\2713";
+  position: absolute;
+  right: 1rem;
+  top: 1rem;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  color: var(--accent);
+  background: rgba(34, 197, 94, 0.08);
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+  animation: pulse-check-draw 0.9s ease-out both;
+}
+
+.pulse-motion-shake {
+  animation: pulse-shake 0.55s ease-in-out both, pulse-red-pulse 1s ease-out both;
+}
+
+.pulse-motion-timeline-bar {
+  animation: pulse-timeline-grow 1.1s ease-out both;
+}
+
+.pulse-word-in {
+  animation: pulse-word-in 0.42s ease-out both;
+}
+
+.pulse-agent-spinner {
+  width: 0.875rem;
+  height: 0.875rem;
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--accent-border);
+  border-top-color: var(--accent);
+  box-shadow: 0 0 10px rgba(37, 211, 102, 0.14);
+  animation: pulse-agent-rot55 0.8s linear infinite;
+}
+
+.pulse-agent-spinner-inner {
+  width: 0.25rem;
+  height: 0.25rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-agent-spinner {
+    animation-duration: 1.8s;
+  }
+}
+
+html,
+body,
+.pulse-scrollbar,
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(71, 85, 105, 0.46) transparent;
+  scrollbar-gutter: stable;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.pulse-scrollbar::-webkit-scrollbar,
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track,
+.pulse-scrollbar::-webkit-scrollbar-track,
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb,
+.pulse-scrollbar::-webkit-scrollbar-thumb,
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  min-height: 48px;
+  border-radius: 999px;
+  background: rgba(71, 85, 105, 0.28);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover,
+.pulse-scrollbar::-webkit-scrollbar-thumb:hover,
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.42);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+

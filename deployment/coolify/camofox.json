@@ -2,7 +2,7 @@
   "name": "propai-camofox",
   "build": {
     "type": "git",
-    "repository": "https://github.com/vishalgojha/camofox-browser.git",
+    "repository": "https://github.com/vishalgojha/camofox-browser",
     "branch": "main"
   },
   "environment": {

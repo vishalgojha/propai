@@ -1,6 +1,6 @@
 {
   "name": "backend",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -17,21 +17,28 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@hapi/boom": "^9.1.4",
+    "@hapi/boom": "^10.0.1",
     "@supabase/supabase-js": "^2.103.3",
+    "@vishalgojha/whatsapp-baileys-runtime": "https://codeload.github.com/vishalgojha/whatsapp-baileys-runtime/tar.gz/5912f0d",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "@xenova/transformers": "^2.17.2",
     "axios": "^1.15.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "pdf-parse": "^1.1.1",
+    "tesseract.js": "^5.1.1",
+    "ws": "^8.18.3",
+    "zod": "^3.24.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.6.0",
+    "@types/ws": "^8.18.1",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.4"
+    "vitest": "^3.2.4"
   }
 }

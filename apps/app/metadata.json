@@ -1,0 +1,6 @@
+{
+  "name": "PropAI Pulse Studio",
+  "description": "WhatsApp AI agent for Mumbai real estate brokers. Parse listings, manage sources, and chat with AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["AI Chat", "WhatsApp Integration", "Real Estate Analytics"]
+}

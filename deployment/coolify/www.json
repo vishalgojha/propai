@@ -1,0 +1,19 @@
+{
+  "name": "propai-www",
+  "build": {
+    "type": "dockerfile",
+    "dockerfile": "apps/www/Dockerfile",
+    "context": "."
+  },
+  "environment": {
+    "PORT": "3002",
+    "NEXT_PUBLIC_SITE_URL": "https://www.propai.live",
+    "NEXT_PUBLIC_SUPABASE_URL": "variable",
+    "SUPABASE_SERVICE_ROLE_KEY": "variable"
+  },
+  "network": "propai-network",
+  "healthcheck": {
+    "path": "/",
+    "port": 3002
+  }
+}

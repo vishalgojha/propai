@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { supabase } from "./supabase.js";
 import {
   describeSearch,
   getFreshStream,
@@ -143,6 +144,67 @@ export function createMcpServer(context: ToolContext = {}) {
       const lines = rows.map(listingLine);
       return textResponse(`Found ${rows.length} matching listings for ${summary}:\n\n${lines.join("\n")}`, {
         results: rows,
+      });
+    },
+  );
+
+  server.registerTool(
+    "semantic_search",
+    {
+      description:
+        "Semantically search real estate listings using natural language. Use when someone describes what they want in plain English, e.g. 'a quiet 2BHK near the sea in Bandra with good ventilation under 3Cr'. Finds listings by meaning, not just keyword match.",
+      inputSchema: {
+        query: z.string().describe("Natural language description of what the user is looking for"),
+        locality: z.string().optional(),
+        bhk: z.string().optional(),
+        type: z.string().optional(),
+        threshold: z.number().default(0.55).describe("Similarity threshold (0-1, higher = stricter)"),
+        limit: z.number().default(10),
+      },
+    },
+    async (input) => {
+      await logToolCall(brokerId(context), "semantic_search", input);
+
+      // Generate query embedding via the API's embed endpoint
+      const apiUrl = process.env.PROPAI_API_URL || "http://localhost:3001";
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "";
+      let embedding: number[];
+      try {
+        const resp = await fetch(`${apiUrl}/api/scraper/embed`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-service-key": serviceKey },
+          body: JSON.stringify({ text: input.query }),
+        });
+        const data = await resp.json() as any;
+        if (!data.success) throw new Error(data.error || "embed failed");
+        embedding = data.embedding;
+      } catch (e: any) {
+        return textResponse(`Could not generate embedding: ${e.message}. Try the search_listings tool instead.`);
+      }
+
+      const { data: results, error } = await supabase.rpc("match_listings", {
+        query_embedding: embedding,
+        match_threshold: input.threshold ?? 0.55,
+        match_count: input.limit ?? 10,
+        p_tenant_id: null,
+        p_locality: input.locality || null,
+        p_bhk: input.bhk || null,
+        p_type: input.type || null,
+      });
+
+      if (error) {
+        return textResponse(`Search error: ${error.message}`);
+      }
+
+      if (!results || !results.length) {
+        return textResponse(`No semantically matching listings found for "${input.query}". Try lowering the threshold or using the search_listings tool for keyword-based search.`, { results: [] });
+      }
+
+      const lines = (results as any[]).map((r: any) =>
+        `${r.bhk || "?"}BHK ${r.locality || "?"} — ${r.price_label || "?"} (${r.type || "?"}, ${r.furnishing || "?"}) — ${Math.round(r.similarity * 100)}% match`
+      );
+      return textResponse(`Found ${results.length} semantically matching listings for "${input.query}":\n\n${lines.join("\n")}`, {
+        results,
       });
     },
   );

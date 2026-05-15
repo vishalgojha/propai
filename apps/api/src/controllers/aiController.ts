@@ -2,65 +2,163 @@ import { Request, Response } from 'express';
 import { aiService } from '../services/aiService';
 import { modelDiscoveryService } from '../services/modelDiscoveryService';
 import { keyService } from '../services/keyService';
+import { getConversationHistory } from '../memory/conversationMemory';
+import { buildCapabilityHint, getBrokerProfile } from '../services/unifiedAgentService';
+import { searchProperties } from '../services/propertySearchService';
+import { workspaceAccessService } from '../services/workspaceAccessService';
+import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
+import { conversationEngineService } from '../services/conversationEngineService';
+import { toAgentResponse } from '../types/agent';
+import '../types/express';
 
 export const chat = async (req: Request, res: Response) => {
-    const user = (req as any).user;
-    const tenantId = user.id;
-    const { prompt, modelPreference } = req.body;
-    if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    const context = await workspaceAccessService.resolveContext(user);
+    const tenantId = context.workspaceOwnerId;
+    const rawPrompt = req.body.prompt || req.body.message;
+    const modelPreference = req.body.modelPreference || req.body.model;
+    if (!rawPrompt) return res.status(400).json({ error: 'Prompt is required' });
 
     try {
-        const response = await aiService.chat(prompt, modelPreference, undefined, tenantId);
-        res.json(response);
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        const profile = await getBrokerProfile(user.id);
+        const conversationKey = resolveConversationKey(profile?.phone, user.id);
+        const result = await conversationEngineService.process({
+            event: {
+                schemaVersion: '2026-05-15',
+                eventType: 'conversation.message.received',
+                channel: 'web',
+                tenantId,
+                conversation: {
+                    key: conversationKey,
+                    participantId: user.id,
+                    isGroup: false,
+                },
+                actor: {
+                    userId: user.id,
+                    phone: profile?.phone || null,
+                },
+                content: {
+                    text: rawPrompt,
+                    attachments: Array.isArray(req.body?.attachments) ? req.body.attachments : [],
+                },
+            },
+            profileLookupTenantId: user.id,
+            modelPreference,
+        });
+
+        res.json({
+            reply: maybePersonalizeGreeting(result.reply, profile?.full_name, false),
+            text: result.text,
+            agent_response: result.agentResponse,
+            workflow: result.workflowData,
+            route: result.route,
+            capability_hint: result.capabilityHint,
+            data: result.data,
+        });
+    } catch (error: unknown) {
+        const capabilityHint = buildCapabilityHint('general_answer');
+        const fallbackError = getErrorMessage(error, 'AI provider unavailable');
+        const agentResponse = toAgentResponse(`Pulse could not reach the model chain. ${fallbackError}`);
+        res.json({
+            reply: agentResponse.message,
+            text: agentResponse.message,
+            agent_response: agentResponse,
+            route: { intent: 'general_answer' },
+            capability_hint: capabilityHint,
+            fallback_error: fallbackError,
+            provider_errors: error instanceof Error && 'providerErrors' in error ? (error as Record<string, unknown>).providerErrors as Array<unknown> : [],
+        });
     }
 };
 
+function maybePersonalizeGreeting(reply: string, _fullName?: string, _shouldGreet?: boolean) {
+    return reply.trim();
+}
+
+function resolveConversationKey(phone: string | null | undefined, fallbackUserId: string) {
+    return String(phone || '').trim() || fallbackUserId;
+}
+
+export const getHistory = async (req: Request, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const profile = await getBrokerProfile(req.user.id);
+        const rawHistory = await getConversationHistory(resolveConversationKey(profile?.phone, req.user.id));
+        const history = Array.isArray(rawHistory) ? rawHistory : [];
+        const messages = history.map((msg) => ({
+            role: msg.role === 'assistant' ? 'ai' as const : 'user' as const,
+            content: msg.content,
+        }));
+        res.json({ messages });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to fetch history') });
+    }
+};
 
 export const getAIStatus = async (req: Request, res: Response) => {
-    const status = await aiService.getStatus();
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const context = await workspaceAccessService.resolveContext(req.user);
+    const status = await aiService.getStatus(context.workspaceOwnerId);
     res.json(status);
 };
 
 export const getModels = async (req: Request, res: Response) => {
-    const user = (req as any).user;
-    const tenantId = user.id;
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
-        const models = await modelDiscoveryService.discoverModels(tenantId);
+        const context = await workspaceAccessService.resolveContext(req.user);
+        const models = await modelDiscoveryService.discoverModels(context.workspaceOwnerId);
         res.json(models);
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load models') });
     }
 };
 
 export const updateKey = async (req: Request, res: Response) => {
-    const user = (req as any).user;
-    const tenantId = user.id;
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { provider, key } = req.body;
     if (!provider || !key) return res.status(400).json({ error: 'Provider and key are required' });
 
     try {
-        const result = await keyService.saveKey(tenantId, provider, key);
+        const context = await workspaceAccessService.resolveContext(req.user);
+        const result = await keyService.saveKey(context.workspaceOwnerId, provider, key);
         if (!result.success) return res.status(500).json({ error: result.error });
         res.json({ message: 'Key updated successfully' });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to update key') });
+    }
+};
+
+export const propertySearch = async (req: Request, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ error: 'Message is required' });
+
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user);
+        const result = await searchProperties(context.workspaceOwnerId, message);
+        res.json(result);
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({
+            error: getErrorMessage(error, 'Property search is unavailable right now.'),
+            response: 'Property search is unavailable right now.',
+            properties: [],
+        });
     }
 };
 
 export const testKey = async (req: Request, res: Response) => {
-    const user = (req as any).user;
-    const tenantId = user.id;
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { provider } = req.body;
     if (!provider) return res.status(400).json({ error: 'Provider is required' });
 
     try {
-        const result = await keyService.testConnection(tenantId, provider);
+        const context = await workspaceAccessService.resolveContext(req.user);
+        const result = await keyService.testConnection(context.workspaceOwnerId, provider);
         if (!result.success) return res.status(400).json({ error: result.error });
         res.json({ message: 'Connected ✅' });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to test key') });
     }
 };

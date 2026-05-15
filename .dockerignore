@@ -1,6 +1,11 @@
 node_modules
 apps/api/node_modules
 apps/web/node_modules
+apps/www/node_modules
+wabro/node_modules
+wabro/.next
+wabro/.git
+wabro/.env.local
 packages/*/node_modules
 .env
 .env.local

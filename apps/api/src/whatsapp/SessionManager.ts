@@ -1,32 +1,133 @@
-import { WhatsAppClient } from './WhatsAppClient';
+import { PropAISupabaseAdapter } from './PropAISupabaseAdapter';
+import { createPropAIRuntimeHooks } from './propaiRuntimeHooks';
 import { subscriptionService } from '../services/subscriptionService';
-import { supabase } from '../config/supabase';
+import { WhatsAppClient } from './WhatsAppClient';
+import type {
+    SessionCreateOptions,
+    SessionRecord,
+    SessionSnapshot,
+    WhatsAppRuntimeHooks,
+} from '@vishalgojha/whatsapp-baileys-runtime';
+
+type SessionCallbacks = {
+    onQR: (qr: string) => void;
+    onConnectionUpdate: (status: string) => void;
+};
+
+type CreateSessionOptions = {
+    usePairingCode?: string;
+    phoneNumber?: string;
+    label?: string;
+    ownerName?: string;
+    skipLimitCheck?: boolean;
+};
 
 export class SessionManager {
-    private clients: Map<string, WhatsAppClient> = new Map();
-    private qrs: Map<string, string> = new Map();
+    private readonly storage = new PropAISupabaseAdapter();
+    private readonly hooks: WhatsAppRuntimeHooks;
+    private readonly clients = new Map<string, WhatsAppClient>();
+    private readonly callbacks = new Map<string, SessionCallbacks>();
+    private readonly qrs = new Map<string, string>();
     private systemQR: string | null = null;
-    private systemStatus: string = 'initializing';
+    private systemStatus = 'initializing';
+    private rehydrationStarted = false;
+
+    constructor() {
+        const productHooks = createPropAIRuntimeHooks();
+        this.hooks = {
+            ...productHooks,
+            onQR: async (event) => {
+                const fullKey = `${event.tenantId}:${event.label}`;
+                this.qrs.set(fullKey, event.qr);
+                if (event.tenantId === 'system') {
+                    this.systemQR = event.qr;
+                }
+                this.callbacks.get(fullKey)?.onQR(event.qr);
+                await productHooks.onQR?.(event);
+            },
+            onConnectionUpdate: async (event) => {
+                const fullKey = `${event.tenantId}:${event.label}`;
+                if (event.status === 'connected' || event.status === 'disconnected') {
+                    this.qrs.delete(fullKey);
+                    if (event.tenantId === 'system') {
+                        this.systemQR = null;
+                    }
+                }
+
+                if (event.tenantId === 'system') {
+                    this.systemStatus = event.status;
+                }
+
+                this.callbacks.get(fullKey)?.onConnectionUpdate(event.status);
+                await productHooks.onConnectionUpdate?.(event);
+            },
+        };
+    }
 
     async initSystemSession() {
         try {
-            await this.createSession('system', 
-                (qr) => { 
-                    this.systemQR = qr; 
+            await this.createSession(
+                'system',
+                (qr) => {
+                    this.systemQR = qr;
                     console.log('System session QR generated');
-                }, 
-                (status) => { 
+                },
+                (status) => {
                     this.systemStatus = status;
                     console.log('System session status:', status);
-                }, 
-                { 
-                    label: 'System', 
-                    ownerName: 'PropAI System' 
-                }
+                },
+                {
+                    label: 'System',
+                    ownerName: 'PropAI System',
+                },
             );
             console.log('PropAI System session initialized');
-        } catch (e) {
-            console.error('Failed to initialize system session:', e);
+        } catch (error) {
+            console.error('Failed to initialize system session:', error);
+        }
+    }
+
+    async rehydratePersistedSessions() {
+        if (this.rehydrationStarted) {
+            return;
+        }
+
+        this.rehydrationStarted = true;
+        let sessions: SessionRecord[] = [];
+
+        try {
+            sessions = await this.storage.loadPersistedSessions();
+        } catch (error) {
+            await this.hooks.onError?.({
+                tenantId: 'system',
+                label: 'rehydration',
+                error,
+                stage: 'rehydrate.loadPersistedSessions',
+            });
+            return;
+        }
+
+        for (const session of sessions) {
+            const fullKey = `${session.tenantId}:${session.label}`;
+            if (this.clients.has(fullKey)) {
+                continue;
+            }
+
+            try {
+                await this.createSession(session.tenantId, () => {}, () => {}, {
+                    label: session.label,
+                    ownerName: session.ownerName || undefined,
+                    phoneNumber: session.phoneNumber || undefined,
+                    skipLimitCheck: true,
+                });
+            } catch (error) {
+                await this.hooks.onError?.({
+                    tenantId: session.tenantId,
+                    label: session.label,
+                    error,
+                    stage: 'rehydrate.session',
+                });
+            }
         }
     }
 
@@ -35,47 +136,84 @@ export class SessionManager {
     }
 
     async getSystemStatus(): Promise<{ status: string; connected: boolean }> {
-        const client = this.clients.get('system:System');
+        const client = await this.getSession('system', 'System');
         return {
             status: this.systemStatus,
-            connected: !!client
+            connected: Boolean(client),
         };
     }
 
-    async createSession(tenantId: string, onQR: (qr: string) => void, onConnectionUpdate: (status: string) => void, options: { usePairingCode?: string, label?: string, ownerName?: string } = {}) {
-        if (tenantId !== 'system') {
+    async createSession(
+        tenantId: string,
+        onQR: (qr: string) => void,
+        onConnectionUpdate: (status: string) => void,
+        options: CreateSessionOptions = {},
+    ) {
+        const sessionKey = options.label || options.usePairingCode || 'Owner';
+        const fullKey = `${tenantId}:${sessionKey}`;
+
+        const existingClient = this.clients.get(fullKey);
+        if (existingClient) {
+            this.callbacks.set(fullKey, { onQR, onConnectionUpdate });
+
+            const existingQR = this.qrs.get(fullKey);
+            if (existingQR) {
+                onQR(existingQR);
+                return existingClient;
+            }
+
+            const snapshot = existingClient.getStatusSnapshot();
+            if (snapshot.status !== 'connected') {
+                await existingClient.connect({
+                    usePairingCode: options.usePairingCode,
+                    phoneNumber: options.phoneNumber,
+                });
+
+                const refreshedQR = this.qrs.get(fullKey);
+                if (refreshedQR) {
+                    onQR(refreshedQR);
+                }
+            }
+
+            return existingClient;
+        }
+
+        if (!options.skipLimitCheck) {
+            const existingSessions = await this.storage.loadPersistedSessions();
+            const sameTenantSessions = existingSessions.filter((session) => session.tenantId === tenantId);
+            const otherSessions = sameTenantSessions.filter((session) => session.label !== sessionKey);
             const subscription = await subscriptionService.getSubscription(tenantId);
             const limit = subscriptionService.getLimit(subscription.plan, 'sessions');
-            
-            const currentSessions = await this.getTenantSessions(tenantId);
-            if (currentSessions.length >= limit) {
+
+            if (otherSessions.length >= limit) {
                 throw new Error(`Plan limit reached. Your ${subscription.plan} plan allows max ${limit} sessions.`);
             }
         }
 
-        const sessionKey = options.label || 'Owner';
-        const fullKey = `${tenantId}:${sessionKey}`;
-
-        if (this.clients.has(fullKey)) {
-            return this.clients.get(fullKey);
-        }
+        this.callbacks.set(fullKey, { onQR, onConnectionUpdate });
 
         const client = new WhatsAppClient({
             tenantId,
-            onQR: (qr) => {
-                this.qrs.set(fullKey, qr);
-                onQR(qr);
-            },
-            onConnectionUpdate: (status) => {
-                this.qrs.delete(fullKey);
-                onConnectionUpdate(status);
-            },
+            storage: this.storage,
+            hooks: this.hooks,
             label: options.label || 'Owner',
-            ownerName: options.ownerName
+            ownerName: options.ownerName,
+            phoneNumber: options.phoneNumber,
+            usePairingCode: options.usePairingCode,
+            skipLimitCheck: options.skipLimitCheck,
+        } satisfies SessionCreateOptions & { tenantId: string; storage: PropAISupabaseAdapter; hooks: WhatsAppRuntimeHooks });
+
+        await client.connect({
+            usePairingCode: options.usePairingCode,
+            phoneNumber: options.phoneNumber,
         });
 
-        await client.connect(options);
         this.clients.set(fullKey, client);
+        const existingQR = this.qrs.get(fullKey);
+        if (existingQR) {
+            onQR(existingQR);
+        }
+
         return client;
     }
 
@@ -83,54 +221,84 @@ export class SessionManager {
         if (sessionKey) {
             return this.clients.get(`${tenantId}:${sessionKey}`);
         }
-        const ownerSession = this.clients.get(`${tenantId}:Owner`);
-        if (ownerSession) {
-            return ownerSession;
+
+        const snapshots = this.getLiveSessionSnapshots(tenantId);
+        const connectedSession = snapshots.find((snapshot) => snapshot.status === 'connected');
+        if (connectedSession) {
+            return this.clients.get(`${tenantId}:${connectedSession.label}`);
         }
 
-        const assistantSession = this.clients.get(`${tenantId}:Assistant`);
-        if (assistantSession) {
-            return assistantSession;
-        }
-
-        const allKeys = Array.from(this.clients.keys()).filter(k => k.startsWith(`${tenantId}:`));
+        const allKeys = Array.from(this.clients.keys()).filter((key) => key.startsWith(`${tenantId}:`));
         return allKeys.length > 0 ? this.clients.get(allKeys[0]) : undefined;
     }
 
-    async getSessionForRemoteJid(tenantId: string, remoteJid: string) {
-        const normalizedRemoteJid = String(remoteJid || '').trim();
-        if (!normalizedRemoteJid) {
-            return this.getSession(tenantId);
-        }
-
-        const table = normalizedRemoteJid.endsWith('@g.us') ? 'whatsapp_groups' : 'whatsapp_dm_permissions';
-        const idColumn = normalizedRemoteJid.endsWith('@g.us') ? 'group_jid' : 'remote_jid';
-
-        const { data, error } = await supabase
-            .from(table)
-            .select('session_label')
-            .eq('tenant_id', tenantId)
-            .eq(idColumn, normalizedRemoteJid)
-            .maybeSingle();
-
-        if (!error && data?.session_label) {
-            const mappedSession = await this.getSession(tenantId, data.session_label);
-            if (mappedSession) {
-                return mappedSession;
-            }
-        }
-
-        return this.getSession(tenantId);
+    async getAllSessionsForTenant(tenantId: string) {
+        const allKeys = Array.from(this.clients.keys()).filter((key) => key.startsWith(`${tenantId}:`));
+        return allKeys
+            .map((key) => this.clients.get(key))
+            .filter((client): client is WhatsAppClient => Boolean(client));
     }
 
-    async getAllSessionsForTenant(tenantId: string) {
-        const allKeys = Array.from(this.clients.keys()).filter(k => k.startsWith(`${tenantId}:`));
-        return allKeys.map(k => this.clients.get(k));
+    getLiveSessionSnapshots(tenantId: string): SessionSnapshot[] {
+        const allKeys = Array.from(this.clients.keys()).filter((key) => key.startsWith(`${tenantId}:`));
+        return allKeys
+            .map((key) => this.clients.get(key))
+            .filter(Boolean)
+            .map((client) => client!.getStatusSnapshot());
     }
 
     getQR(tenantId: string, sessionKey?: string) {
-        const key = sessionKey ? `${tenantId}:${sessionKey}` : Array.from(this.qrs.keys()).find(k => k.startsWith(`${tenantId}:`));
+        const key = sessionKey
+            ? `${tenantId}:${sessionKey}`
+            : Array.from(this.qrs.keys()).find((entry) => entry.startsWith(`${tenantId}:`));
         return this.qrs.get(key || '');
+    }
+
+    async forceReconnect(tenantId: string, sessionKey?: string) {
+        const fullKey = sessionKey
+            ? `${tenantId}:${sessionKey}`
+            : Array.from(this.clients.keys()).find((key) => key.startsWith(`${tenantId}:`));
+
+        if (!fullKey) {
+            throw new Error('No active session found to refresh');
+        }
+
+        const client = this.clients.get(fullKey);
+        if (!client) {
+            throw new Error('Session client not found');
+        }
+
+        // Force disconnect and cleanup
+        await client.disconnect();
+        this.clients.delete(fullKey);
+        this.callbacks.delete(fullKey);
+        this.qrs.delete(fullKey);
+
+        // Recreate session with same options
+        const sessionParts = fullKey.split(':');
+        const label = sessionParts[1] || 'Owner';
+        
+        // Get session data from DB to preserve options
+        let existingSession: any = undefined;
+        try {
+            const sessions = await this.storage.loadPersistedSessions();
+            existingSession = (sessions || []).find(
+                (s: any) => s.tenantId === tenantId && s.label === label
+            );
+        } catch (error) {
+            console.error('Failed to load sessions for refresh:', error);
+        }
+
+        // Recreate the session
+        const callbacks = this.callbacks.get(fullKey) || { onQR: () => {}, onConnectionUpdate: () => {} };
+        await this.createSession(tenantId, callbacks.onQR, callbacks.onConnectionUpdate, {
+            label,
+            ownerName: existingSession?.ownerName || undefined,
+            phoneNumber: existingSession?.phoneNumber || undefined,
+            skipLimitCheck: true,
+        });
+
+        return { label, message: 'Session recreated, QR regenerating...' };
     }
 
     async removeSession(tenantId: string, sessionKey?: string) {
@@ -143,23 +311,43 @@ export class SessionManager {
         }
 
         const client = this.clients.get(fullKey);
-        if (client) {
+        if (!client) {
+            return;
+        }
+
+        try {
             await client.disconnect();
+        } catch (error) {
+            await this.storage.deleteSession?.({
+                tenantId,
+                label: client.getStatusSnapshot().label,
+            });
+            await this.hooks.onError?.({
+                tenantId,
+                label: client.getStatusSnapshot().label,
+                error,
+                stage: 'removeSession.disconnect',
+            });
+        } finally {
             this.clients.delete(fullKey);
+            this.callbacks.delete(fullKey);
             this.qrs.delete(fullKey);
         }
     }
 
-    private async getTenantSessions(tenantId: string) {
-        const { data } = await supabase
-            .from('whatsapp_sessions')
-            .select('id')
-            .eq('tenant_id', tenantId);
-        return data || [];
-    }
-
-    getAllSessions() {
-        return Array.from(this.clients.keys());
+    getAllSessions(): SessionRecord[] {
+        return Array.from(this.clients.entries()).map(([key, client]) => {
+            const separatorIndex = key.indexOf(':');
+            const tenantId = separatorIndex >= 0 ? key.slice(0, separatorIndex) : key;
+            const snapshot = client.getStatusSnapshot();
+            return {
+                tenantId,
+                label: snapshot.label,
+                ownerName: snapshot.ownerName,
+                phoneNumber: snapshot.phoneNumber,
+                status: snapshot.status,
+            };
+        });
     }
 }
 
