@@ -1832,6 +1832,48 @@ private async ensureStreamBackfilled(tenantId: string) {
         console.log(`[Learn] Stored ${learnings.length} learnings from correction.`);
     }
 
+    private async flagLowConfidenceParses(
+        tenantId: string,
+        rawText: string,
+        results: ParsedStreamCandidate[],
+    ): Promise<void> {
+        const flags: { tenant_id: string; raw_text: string; ai_extracted: any; confidence: number; flag_reason: string }[] = [];
+
+        for (const r of results) {
+            const confidence = r.confidenceScore;
+            if (confidence >= 0.6) continue;
+
+            const reasons: string[] = [];
+            if (r.locality === 'Location not parsed yet' || !r.locality) reasons.push('missing_locality');
+            if (!r.bhk) reasons.push('missing_bhk');
+            if (!r.priceLabel && !r.priceNumeric && r.recordType !== 'requirement') reasons.push('missing_price');
+            if (!r.furnishing) reasons.push('missing_furnishing');
+            if (confidence < 0.3) reasons.push('very_low_confidence');
+
+            flags.push({
+                tenant_id: tenantId,
+                raw_text: r.rawText || rawText,
+                ai_extracted: {
+                    bhk: r.bhk,
+                    locality: r.locality,
+                    type: r.streamType,
+                    price_label: r.priceLabel,
+                    price_numeric: r.priceNumeric,
+                    furnishing: r.furnishing,
+                    area_sqft: r.areaSqft,
+                },
+                confidence,
+                flag_reason: reasons.join(', ') || 'low_confidence',
+            });
+        }
+
+        if (!flags.length) return;
+
+        const { error } = await this.db.from('flagged_parses').insert(flags);
+        if (error) console.warn('[Flag] Failed to insert:', error.message);
+        else console.log(`[Flag] Flagged ${flags.length} low-confidence parses.`);
+    }
+
     private async parseMessageWithAI(tenantId: string, message: RawInboundMessage): Promise<ParsedStreamCandidate[]> {
         const rawText = String(message.text || message.text || '').trim();
         const senderLabel = String(message.sender || '').trim();
@@ -1913,7 +1955,7 @@ ${rawText}
         const parsed = parseJson<{ items?: AIParsedStreamItem[] }>(raw.text, 'Failed to parse AI stream JSON');
         const items = Array.isArray(parsed?.items) ? parsed.items : [];
 
-        return items
+        const results = items
             .map((item, index) => {
                 const candidateText = String(item.rawText || '').trim() || rawText;
                 const resolution =
@@ -2007,6 +2049,10 @@ ${rawText}
                 } satisfies ParsedStreamCandidate;
             })
             .filter((item) => Boolean(item.rawText));
+
+        this.flagLowConfidenceParses(tenantId, rawText, results).catch(() => {});
+
+        return results;
     }
 
     private parseMessageFallback(message: RawInboundMessage): ParsedStreamCandidate[] {
