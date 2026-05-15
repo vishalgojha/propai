@@ -14,6 +14,15 @@ import { emailNotificationService } from '../services/emailNotificationService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import '../types/express';
 
+type LiveSessionRecord = {
+    label: string;
+    status: string;
+    phoneNumber?: string | null;
+    ownerName?: string | null;
+    reconnectAttempts?: number;
+    isReconnecting?: boolean;
+};
+
 function getTenantId(req: Request) {
     const user = req.user;
     return user?.id || 'system';
@@ -178,15 +187,8 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
         };
         const artifactAfterCreate = await waitForArtifact();
 
-        const { data: existingRowForMerge } = await dbClient
-            .from('whatsapp_sessions')
-            .select('session_data')
-            .eq('tenant_id', tenantId)
-            .eq('label', sessionLabel)
-            .maybeSingle();
-
-        const existingData = (existingRowForMerge?.session_data && typeof existingRowForMerge.session_data === 'object')
-            ? existingRowForMerge.session_data as Record<string, unknown>
+        const existingData = (existingRow?.session_data && typeof existingRow.session_data === 'object')
+            ? existingRow.session_data as Record<string, unknown>
             : {};
 
         await dbClient
@@ -371,7 +373,7 @@ export const getStatus = async (req: Request, res: Response) => {
         sessionData: row.session_data || null,
         lastSync: row.last_sync,
     }));
-        const liveSessions = await gateway.getSessions(tenantId) as Array<Record<string, unknown>>;
+        const liveSessions = await gateway.getSessions(tenantId) as LiveSessionRecord[];
         const sessionMap = new Map<string, Record<string, unknown>>();
 
         for (const session of dbSessions) {
@@ -537,7 +539,7 @@ export const getDetailedHealth = async (req: Request, res: Response) => {
             lastSync: row.last_sync,
         }));
 
-        const liveSessions = await gateway.getSessions(tenantId) as Array<Record<string, unknown>>;
+        const liveSessions = await gateway.getSessions(tenantId) as LiveSessionRecord[];
         const sessionMap = new Map<string, Record<string, unknown>>();
         
         for (const session of sessions) {

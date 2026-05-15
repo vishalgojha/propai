@@ -1,12 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BaileysWhatsAppGateway } from '../src/channel-gateways/whatsapp/BaileysWhatsAppGateway';
 
-const createSession = vi.fn();
-const removeSession = vi.fn();
-const getSession = vi.fn();
-const getQR = vi.fn();
-const forceReconnect = vi.fn();
-const getLiveSessionSnapshots = vi.fn();
+const {
+    createSession,
+    removeSession,
+    getSession,
+    getQR,
+    forceReconnect,
+    getLiveSessionSnapshots,
+} = vi.hoisted(() => ({
+    createSession: vi.fn(),
+    removeSession: vi.fn(),
+    getSession: vi.fn(),
+    getQR: vi.fn(),
+    forceReconnect: vi.fn(),
+    getLiveSessionSnapshots: vi.fn(),
+}));
 
 vi.mock('../src/whatsapp/SessionManager', () => ({
     sessionManager: {

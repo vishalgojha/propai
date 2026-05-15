@@ -89,7 +89,19 @@ export class BaileysWhatsAppGateway implements WhatsAppGateway {
 
         return {
             sent: Array.isArray(result?.sent) ? result.sent : [],
-            failed: Array.isArray(result?.failed) ? result.failed : [],
+            failed: Array.isArray(result?.failed)
+                ? result.failed.map((entry: unknown) => {
+                    if (typeof entry === 'string') {
+                        return { groupId: entry, error: 'Failed to send message' };
+                    }
+
+                    const row = (entry || {}) as { groupId?: string; error?: string };
+                    return {
+                        groupId: String(row.groupId || ''),
+                        error: String(row.error || 'Failed to send message'),
+                    };
+                })
+                : [],
         };
     }
 
