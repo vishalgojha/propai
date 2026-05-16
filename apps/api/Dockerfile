@@ -10,7 +10,6 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Copy package.json from workspace packages (required for pnpm workspace resolution)
 COPY apps/api/package.json ./apps/api/
-COPY packages/pulse-core/package.json ./packages/pulse-core/
 COPY packages/agent/package.json ./packages/agent/
 
 # Install dependencies.
