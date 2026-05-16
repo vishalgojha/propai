@@ -143,9 +143,8 @@ export class WorkspaceMonitorService {
             return false;
         }
 
-        if (!inboxOnly) {
-            if (!isGroup) return false;
-            if (context.parsingGroupIds.size > 0 && !context.parsingGroupIds.has(remoteJid)) return false;
+        if (!inboxOnly && !isGroup) {
+            return false;
         }
 
         if (sessionLabel && isGroup && context.sessionGroupIds.size > 0 && !context.sessionGroupIds.has(remoteJid)) {
@@ -237,7 +236,7 @@ export class WorkspaceMonitorService {
         }
 
         for (const group of context.groupsData) {
-            if (!group.is_parsing || inboxOnly) continue;
+            if (inboxOnly) continue;
 
             const jid = String(group.group_jid || '');
             if (!jid || chatsMap.has(jid)) continue;

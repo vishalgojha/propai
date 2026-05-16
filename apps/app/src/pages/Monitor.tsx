@@ -73,6 +73,21 @@ type MonitorThreadResponse = {
   };
 };
 
+type MonitorGroupDirectoryItem = {
+  id: string;
+  groupJid?: string;
+  name?: string;
+  locality?: string | null;
+  city?: string | null;
+  category?: string | null;
+  tags?: string[];
+  participantsCount?: number;
+  broadcastEnabled?: boolean;
+  isParsing?: boolean;
+  lastActiveAt?: string | null;
+  sessionLabel?: string | null;
+};
+
 type RawMessageRow = {
   id?: string;
   remote_jid?: string;
@@ -263,6 +278,75 @@ const sanitizeMonitorError = (message: string) => {
   return message;
 };
 
+const mergeMonitorChatsWithGroups = (
+  monitor: MonitorResponse,
+  groups: MonitorGroupDirectoryItem[],
+): MonitorResponse => {
+  if (!Array.isArray(groups) || groups.length === 0) {
+    return monitor;
+  }
+
+  const chatsMap = new Map<string, MonitorChat>();
+  for (const chat of monitor.chats || []) {
+    chatsMap.set(chat.id, chat);
+  }
+
+  for (const group of groups) {
+    const groupJid = String(group.groupJid || group.id || '').trim();
+    if (!groupJid) continue;
+
+    const existing = chatsMap.get(groupJid);
+    if (existing) {
+      chatsMap.set(groupJid, {
+        ...existing,
+        title: group.name || existing.title,
+        locality: group.locality ?? existing.locality,
+        city: group.city ?? existing.city,
+        category: group.category ?? existing.category,
+        tags: Array.isArray(group.tags) && group.tags.length > 0 ? group.tags : existing.tags,
+        participantsCount: typeof group.participantsCount === 'number' ? group.participantsCount : existing.participantsCount,
+        broadcastEnabled: typeof group.broadcastEnabled === 'boolean' ? group.broadcastEnabled : existing.broadcastEnabled,
+        isParsing: typeof group.isParsing === 'boolean' ? group.isParsing : existing.isParsing,
+        lastMessageAt: existing.lastMessageAt || group.lastActiveAt || new Date(0).toISOString(),
+      });
+      continue;
+    }
+
+    chatsMap.set(groupJid, {
+      id: groupJid,
+      remoteJid: groupJid,
+      type: 'group',
+      title: group.name || 'WhatsApp group',
+      preview: 'No mirrored messages yet',
+      lastMessageAt: group.lastActiveAt || new Date(0).toISOString(),
+      sender: null,
+      locality: group.locality || null,
+      city: group.city || null,
+      category: group.category || null,
+      tags: Array.isArray(group.tags) ? group.tags : [],
+      participantsCount: Number(group.participantsCount || 0),
+      broadcastEnabled: Boolean(group.broadcastEnabled),
+      isParsing: typeof group.isParsing === 'boolean' ? group.isParsing : undefined,
+      messageCount: 0,
+    });
+  }
+
+  const chats = Array.from(chatsMap.values()).sort(
+    (left, right) => new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime(),
+  );
+
+  return {
+    ...monitor,
+    summary: {
+      ...monitor.summary,
+      totalChats: chats.length,
+      directChats: chats.filter((chat) => chat.type === 'direct').length,
+      groupChats: chats.filter((chat) => chat.type === 'group').length,
+    },
+    chats,
+  };
+};
+
 const mergeMessages = (existing: MonitorMessage[], incoming: MonitorMessage[]) => {
   const seen = new Map<string, MonitorMessage>();
 
@@ -284,6 +368,8 @@ const monitorPrimaryButton =
 
 export const Monitor: React.FC = () => {
   const [data, setData] = React.useState<MonitorResponse | null>(null);
+  const [groupDirectory, setGroupDirectory] = React.useState<MonitorGroupDirectoryItem[]>([]);
+  const [syncedGroupCount, setSyncedGroupCount] = React.useState(0);
   const [selectedSessionLabel, setSelectedSessionLabel] = React.useState<string | null>(() => {
     try {
       return window.localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
@@ -327,7 +413,7 @@ export const Monitor: React.FC = () => {
       const response = await backendApi.get(ENDPOINTS.whatsapp.monitor, {
         params: selectedSessionLabel ? { sessionLabel: selectedSessionLabel } : undefined,
       });
-      const payload = unwrapMonitorPayload(response.data);
+      const payload = mergeMonitorChatsWithGroups(unwrapMonitorPayload(response.data), groupDirectory);
       setData(payload);
       setSelectedChatId((current) => current || payload.chats?.[0]?.id || '');
       return;
@@ -355,6 +441,25 @@ export const Monitor: React.FC = () => {
       return;
     } finally {
       setIsLoading(false);
+    }
+  }, [groupDirectory, selectedSessionLabel]);
+
+  const syncGroupDirectory = React.useCallback(async () => {
+    try {
+      const response = await backendApi.get(ENDPOINTS.whatsapp.groups, {
+        params: selectedSessionLabel ? { sessionLabel: selectedSessionLabel } : undefined,
+      });
+      const groups = Array.isArray(response.data) ? response.data as MonitorGroupDirectoryItem[] : [];
+      setGroupDirectory(groups);
+      setSyncedGroupCount(groups.length);
+      setData((current) => {
+        if (!current) {
+          return current;
+        }
+        return mergeMonitorChatsWithGroups(current, groups);
+      });
+    } catch (err) {
+      console.warn('[Monitor] Failed to sync group directory', handleApiError(err));
     }
   }, [selectedSessionLabel]);
 
@@ -437,12 +542,17 @@ export const Monitor: React.FC = () => {
 
   React.useEffect(() => {
     void loadMonitor();
+    void syncGroupDirectory();
     const interval = setInterval(() => {
       void loadMonitor();
       if (selectedChatId) {
         void loadThread(selectedChatId, { preserveExisting: true });
       }
     }, 4000);
+
+    const groupDirectoryInterval = setInterval(() => {
+      void syncGroupDirectory();
+    }, 60000);
 
     let supabaseCleanup: (() => void) | undefined;
 
@@ -483,9 +593,10 @@ export const Monitor: React.FC = () => {
 
     return () => {
       clearInterval(interval);
+      clearInterval(groupDirectoryInterval);
       supabaseCleanup?.();
     };
-  }, [loadMonitor, loadThread, selectedChatId]);
+  }, [loadMonitor, loadThread, selectedChatId, syncGroupDirectory]);
 
   React.useEffect(() => {
     const handleSelectedSession = (event: Event) => {
@@ -651,13 +762,14 @@ export const Monitor: React.FC = () => {
               <p className="text-sm font-semibold text-white">Monitor</p>
               <p className="text-[11px] text-[#8696a0]">
                 <span className="relative mr-1.5 inline-block h-2 w-2 rounded-full bg-[#00a884] shadow-[0_0_6px_#00a884]" />
-                Live workspace history · {data?.summary.totalChats || 0} chats · {data?.summary.groupChats || 0} groups
+                Live workspace history · {data?.summary.totalChats || 0} chats · {data?.summary.groupChats || 0} visible groups · {syncedGroupCount || 0} synced groups
               </p>
             </div>
             <button
               type="button"
               onClick={() => {
                 void loadMonitor();
+                void syncGroupDirectory();
                 if (selectedChatId) {
                   void loadThread(selectedChatId, { preserveExisting: true });
                 }
@@ -764,7 +876,7 @@ export const Monitor: React.FC = () => {
 
             {!isLoading && chats.length === 0 ? (
               <div className="px-4 py-10 text-sm text-[#8696a0]">
-                No WhatsApp chats have landed in the monitor yet.
+                No mirrored chats yet. Group inventory will still appear here after the next sync.
               </div>
             ) : null}
           </div>
@@ -794,7 +906,7 @@ export const Monitor: React.FC = () => {
                   </span>
                   <span className={monitorPill}>
                     <ActivityIcon className="h-3.5 w-3.5" />
-                    Full history
+                    {selectedChat.type === 'group' ? 'Group mirror + send' : 'Direct mirror + reply'}
                   </span>
                   {selectedChat.type === 'group' ? (
                     <button
@@ -917,7 +1029,7 @@ export const Monitor: React.FC = () => {
                   </div>
                   <h3 className="mt-4 text-xl font-semibold text-white">WhatsApp workspace monitor</h3>
                   <p className="mt-2 text-sm leading-6 text-[#8696a0]">
-                    Pick a chat from the left and this panel will lazy-load its saved history from the workspace message log.
+                    Pick a chat from the left and this panel will load mirrored WhatsApp history. Group threads can also be used as direct send surfaces from here.
                   </p>
                 </div>
               </div>
