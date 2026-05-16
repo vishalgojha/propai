@@ -11,6 +11,9 @@ import {
   ShieldCheck,
   Sparkles,
   X,
+  Download,
+  Phone,
+  Activity,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { cn } from '../lib/utils';
@@ -24,6 +27,8 @@ import {
 import { handleApiError } from '../services/api';
 import { fetchStreamItems, fetchStreamStats, correctStreamItem, type StreamItem } from '../services/streamAPI';
 import { rebuildStreamFromSavedMessages } from '../services/streamService';
+import { ListingCard } from '../components/stream/ListingCard';
+import { fetchWaClickStats, getWaClickExportUrl, type WaClickStats } from '../services/waClickAPI';
 
 const formatChannelTitle = (name: string) => `#${name}`;
 const PAGE_SIZE = 20;
@@ -36,10 +41,6 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'vishal@chaoscraftslabs.com',
 ]);
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
-const buildWhatsAppLink = (source: string) => {
-  const digits = source.split('').filter(c => c >= '0' && c <= '9').join('');
-  return digits.length >= 10 ? `https://wa.me/${digits}` : null;
-};
 
 const stripSnippetNoise = (raw: string) => {
   const lines = raw
@@ -287,14 +288,12 @@ const isBrokerTagged = (item: StreamItem) =>
   BROKER_TAG_PATTERN.test([item.source, item.description].filter(Boolean).join(' '));
 
 type StreamCorrectionDraft = {
-  type: StreamItem['type'];
+  type: string;
   location: string;
   city: string;
   price: string;
-  priceNumeric: string;
   bhk: string;
   source: string;
-  sourcePhone: string;
   recordType: string;
   dealType: string;
   assetClass: string;
@@ -307,10 +306,8 @@ const buildCorrectionDraft = (item: StreamItem): StreamCorrectionDraft => ({
   location: item.location,
   city: item.city || '',
   price: item.price,
-  priceNumeric: '',
   bhk: item.bhk,
   source: item.source,
-  sourcePhone: item.sourcePhone || '',
   recordType: item.recordType || '',
   dealType: item.dealType || '',
   assetClass: item.assetClass || '',
@@ -352,6 +349,8 @@ export const Listings: React.FC = () => {
   const [savingChannelItemId, setSavingChannelItemId] = React.useState<string | null>(null);
   const [isSavingCorrection, setIsSavingCorrection] = React.useState(false);
   const [correctionDraft, setCorrectionDraft] = React.useState<StreamCorrectionDraft | null>(null);
+  const [waClickStats, setWaClickStats] = React.useState<WaClickStats | null>(null);
+  const [quickTimeBands, setQuickTimeBands] = React.useState<Array<'1h' | '8h'>>([]);
   const sentinelRef = React.useRef<HTMLDivElement>(null);
 
   const loadData = React.useCallback(async () => {
@@ -600,6 +599,21 @@ React.useEffect(() => {
       });
     }
 
+    if (quickTimeBands.length > 0) {
+      filtered = filtered.filter((item) => {
+        const createdAt = item.createdAt ? new Date(item.createdAt) : null;
+        const minutes = createdAt && !Number.isNaN(createdAt.getTime())
+          ? Math.max(0, Math.round((Date.now() - createdAt.getTime()) / 60000))
+          : parseRecencyMinutes(item.posted);
+
+        if (minutes == null) return false;
+        return quickTimeBands.some((band) => {
+          if (band === '1h') return minutes < 60;
+          return minutes < 480;
+        });
+      });
+    }
+
     if (filterSource !== 'all') {
       filtered = filtered.filter((item) => item.source === filterSource);
     }
@@ -618,6 +632,7 @@ if (brokerOnly) {
   const activeFilterCount = React.useMemo(() => {
     let count = 0;
     if (quickTypes.length > 0) count++;
+    if (quickTimeBands.length > 0) count++;
     if (filterBhk !== 'all') count++;
     if (quickConfidenceBands.length > 0) count++;
     if (quickFreshnessBands.length > 0) count++;
@@ -625,7 +640,7 @@ if (brokerOnly) {
     if (brokerOnly) count++;
     if (filterPropertyCategory !== 'all') count++;
     return count;
-  }, [quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, filterSource, brokerOnly, filterPropertyCategory]);
+  }, [quickTypes, quickTimeBands, filterBhk, quickConfidenceBands, quickFreshnessBands, filterSource, brokerOnly, filterPropertyCategory]);
 
   const clearAllFilters = () => {
     setQuickTypes([]);
@@ -640,6 +655,16 @@ if (brokerOnly) {
   React.useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [activeChannel?.id, search, quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, filterSource, brokerOnly]);
+
+  React.useEffect(() => {
+    const fetch = async () => {
+      const stats = await fetchWaClickStats();
+      setWaClickStats(stats);
+    };
+    void fetch();
+    const interval = setInterval(fetch, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   React.useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -725,6 +750,34 @@ if (brokerOnly) {
         </div>
       ) : null}
 
+      <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-surface)]/50 px-4 py-3">
+        <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-2 text-neutral-400">
+            <Activity className="h-3.5 w-3.5 text-[--propai-green]" />
+            <span className="font-medium text-white">WA clicks today</span>
+          </div>
+          <span className="text-white font-bold">{waClickStats?.total_clicks ?? 0}</span>
+          <span className="text-neutral-600">|</span>
+          <span className="text-neutral-400">Unique tapped</span>
+          <span className="text-white font-bold">{waClickStats?.unique_listings ?? 0}</span>
+          <span className="text-neutral-600">|</span>
+          <span className="text-neutral-400">Last</span>
+          <span className="text-white text-[10px]">
+            {waClickStats?.last_click_at
+              ? new Date(waClickStats.last_click_at).toLocaleTimeString()
+              : '—'}
+          </span>
+          <div className="flex-1" />
+          <a
+            href={getWaClickExportUrl()}
+            className="flex items-center gap-1 rounded-lg border border-neutral-700 px-2.5 py-1 text-[10px] text-neutral-400 hover:text-white"
+          >
+            <Download className="h-3 w-3" />
+            Export CSV
+          </a>
+        </div>
+      </div>
+
       <div className="flex flex-col items-stretch justify-between gap-4 rounded-2xl border border-[color:var(--border)] bg-[var(--bg-surface)]/30 p-4 md:flex-row md:items-center">
         <div className="relative w-full md:w-96 group">
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)] transition-colors group-focus-within:text-primary" />
@@ -766,6 +819,37 @@ if (brokerOnly) {
 
       <div className="rounded-2xl border border-[color:var(--border-strong)] bg-[var(--bg-base)] p-4">
         <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Time</p>
+            <button
+              type="button"
+              onClick={() => setQuickTimeBands([])}
+              className={cn(
+                'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                quickTimeBands.length === 0
+                  ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                  : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
+              )}
+            >
+              All
+            </button>
+            {(['1h', '8h'] as const).map((band) => (
+              <button
+                key={band}
+                type="button"
+                onClick={() => setQuickTimeBands((current) => toggleSelection(current, band))}
+                className={cn(
+                  'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                  quickTimeBands.includes(band)
+                    ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                    : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
+                )}
+              >
+                {band === '1h' ? '<1hr' : '<8hr'}
+              </button>
+            ))}
+          </div>
+
           <div className="flex flex-wrap items-center gap-2">
             <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Type</p>
             <button
@@ -951,7 +1035,7 @@ if (brokerOnly) {
       ) : null}
 
       <div className="glass-panel overflow-hidden rounded-2xl border-[color:var(--border)]">
-        <div className="divide-y divide-[color:var(--border)] lg:hidden">
+        <div className="space-y-3 lg:hidden">
           {isLoading ? (
             <div className="flex items-center justify-center gap-3 px-5 py-12 text-sm text-[var(--text-secondary)]">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -968,629 +1052,63 @@ if (brokerOnly) {
           ) : (
             renderedStream.map((listing) => {
               const isExpanded = expandedListingId === listing.id;
-              const isEditing = isExpanded && editingListingId === listing.id;
-              const whatsappLink = buildWhatsAppLink(listing.sourcePhone || '');
-              const snippet = buildSnippet(listing);
-              const priceDisplay = normalizePriceDisplay(listing);
-              const freshness = getFreshnessMeta(listing);
-              const layoutValue = formatLayoutValue(listing.bhk);
-              const confidenceBand = getConfidenceBand(listing.confidence);
-
+              const waCount = waClickStats?.by_listing[listing.id]?.count || 0;
               return (
-                <div key={listing.id} className="border-b border-[color:var(--border)]">
-                  <button
-                    type="button"
-                    onClick={() => {
+                <ListingCard
+                  key={listing.id}
+                  listing={listing}
+                  isExpanded={isExpanded}
+                  onToggle={() => {
+                    setExpandedListingId(isExpanded ? null : listing.id);
+                    if (!isExpanded && editingListingId && editingListingId !== listing.id) {
+                      setEditingListingId(null);
+                      setCorrectionDraft(null);
+                    }
+                  }}
+                  waClickCount={waCount}
+                />
+              );
+            })
+          )}
+        </div>
+
+        <div className="hidden lg:block">
+          <div className="space-y-3">
+            {isLoading ? (
+              <div className="flex items-center justify-center gap-3 px-5 py-12 text-sm text-[var(--text-secondary)]">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading live stream...
+              </div>
+            ) : error ? (
+              <div className="px-5 py-12 text-center text-sm text-red-400">
+                {error}
+              </div>
+            ) : renderedStream.length === 0 ? (
+              <div className="px-5 py-12 text-center text-sm text-[var(--text-secondary)]">
+                No live WhatsApp items have landed here yet.
+              </div>
+            ) : (
+              renderedStream.map((listing) => {
+                const isExpanded = expandedListingId === listing.id;
+                const waCount = waClickStats?.by_listing[listing.id]?.count || 0;
+                return (
+                  <ListingCard
+                    key={listing.id}
+                    listing={listing}
+                    isExpanded={isExpanded}
+                    onToggle={() => {
                       setExpandedListingId(isExpanded ? null : listing.id);
                       if (!isExpanded && editingListingId && editingListingId !== listing.id) {
                         setEditingListingId(null);
                         setCorrectionDraft(null);
                       }
                     }}
-                    className="w-full px-5 py-4 text-left transition-colors hover:bg-neutral-900/40"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <span
-                          className={cn(
-                            'inline-flex w-fit rounded px-2 py-0.5 text-[10px] font-black uppercase tracking-widest',
-                            listing.type === 'Rent'
-                              ? 'border border-blue-500/20 bg-blue-500/10 text-blue-500'
-                              : listing.type === 'Sale'
-                                ? 'border border-green-500/20 bg-green-500/10 text-green-500'
-                                : listing.type === 'Pre-leased'
-                                  ? 'border border-cyan-500/20 bg-cyan-500/10 text-cyan-400'
-                                  : 'border border-primary/20 bg-primary/10 text-primary',
-                          )}
-                        >
-                          {listing.type}
-                        </span>
-                        <p className="mt-3 text-base font-bold text-white">{listing.title || listing.location}</p>
-                        <p className="mt-1 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                          <span className={cn('h-2 w-2 rounded-full', freshness.tone)} />
-                          <span>{listing.location}</span>
-                        </p>
-                        <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-                          {snippet.isLowSignal ? (
-                            <span className="uppercase tracking-[0.08em] text-[var(--text-secondary)]">Low signal</span>
-                          ) : (
-                            snippet.label
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isExpanded ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const nextEditingId = editingListingId === listing.id ? null : listing.id;
-                              setEditingListingId(nextEditingId);
-                              setCorrectionDraft(nextEditingId ? buildCorrectionDraft(listing) : null);
-                            }}
-                            className="rounded-lg p-1.5 text-[var(--text-secondary)] transition-colors hover:bg-neutral-800 hover:text-white"
-                          >
-                            ✏️
-                          </button>
-                        ) : null}
-                        <div
-                          className={cn(
-                            'shrink-0 rounded-full px-2 py-1 text-[10px] font-bold',
-                            confidenceBand === 'high'
-                              ? 'bg-green-500/10 text-green-500'
-                              : confidenceBand === 'medium'
-                                ? 'bg-amber-500/10 text-amber-400'
-                                : 'bg-red-500/10 text-red-400',
-                          )}
-                        >
-                          {Math.round(listing.confidence)}%
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[var(--text-secondary)]">
-                      <span>{priceDisplay.label}</span>
-                      {layoutValue ? <span>{layoutValue}</span> : null}
-                      <span>{listing.source}</span>
-                      <span>{listing.posted}</span>
-                    </div>
-                  </button>
-
-                  {isExpanded ? (
-                    <div className="border-t border-[color:var(--border)] bg-[var(--bg-surface)]/20 px-5 py-4">
-                      {isEditing ? (
-                        <div className="space-y-4">
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <label className="block">
-                              <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Type</span>
-                              <select
-                                value={correctionDraft?.type || listing.type}
-                                onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, type: event.target.value as StreamItem['type']})}
-                                className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                              >
-                                {ALL_TYPES.map((type) => (
-                                  <option key={type} value={type}>{type}</option>
-                                ))}
-                              </select>
-                            </label>
-                            <label className="block">
-                              <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Confidence</span>
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                value={correctionDraft?.confidence ?? listing.confidence}
-                                onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, confidence: Math.max(0, Math.min(100, Number(event.target.value) || 0))})}
-                                className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                              />
-                            </label>
-                          </div>
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <label className="block">
-                              <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Locality</span>
-                              <input
-                                value={correctionDraft?.location || listing.location}
-                                onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, location: event.target.value})}
-                                className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                              />
-                            </label>
-                            <label className="block">
-                              <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">City</span>
-                              <input
-                                value={correctionDraft?.city || listing.city || ''}
-                                onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, city: event.target.value})}
-                                className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                              />
-                            </label>
-                          </div>
-                          <div className="grid gap-4 sm:grid-cols-3">
-                            <label className="block">
-                              <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Price label</span>
-                              <input
-                                value={correctionDraft?.price || listing.price}
-                                onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, price: event.target.value})}
-                                className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                              />
-                            </label>
-                            <label className="block">
-                              <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Layout</span>
-                              <input
-                                value={correctionDraft?.bhk || listing.bhk}
-                                onChange={(event) => correctionDraft && setCorrectionDraft({...correctionDraft, bhk: event.target.value})}
-                                className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                              />
-                            </label>
-                          </div>
-                          <div className="flex gap-3">
-                            <button
-                              type="button"
-                              onClick={() => { setEditingListingId(null); setCorrectionDraft(null); }}
-                              className="rounded-xl border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-[var(--text-primary)] transition-colors hover:border-neutral-500 hover:text-white"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!correctionDraft) return;
-                                void (async () => {
-                                  setIsSavingCorrection(true);
-                                  try {
-                                    const result = await correctStreamItem(listing.id, {
-                                      type: correctionDraft.type,
-                                      location: correctionDraft.location,
-                                      city: correctionDraft.city,
-                                      price: correctionDraft.price,
-                                      bhk: correctionDraft.bhk,
-                                      source: correctionDraft.source,
-                                      sourcePhone: correctionDraft.sourcePhone,
-                                      confidence: correctionDraft.confidence,
-                                    });
-                                    if (!result?.item) {
-                                      throw new Error('Failed to save stream correction');
-                                    }
-                                    setStreamItems((current) => current.map((item) => (item.id === result.item.id ? result.item : item)));
-                                    setInfoMessage('Stream correction saved. Pulse can now use this as a supervised correction example.');
-                                    setEditingListingId(null);
-                                    setCorrectionDraft(null);
-                                  } catch (err) {
-                                    setError(handleApiError(err));
-                                  } finally {
-                                    setIsSavingCorrection(false);
-                                  }
-                                })();
-                              }}
-                              disabled={isSavingCorrection}
-                              className="rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-black transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {isSavingCorrection ? 'Saving...' : 'Save'}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          <div>
-                            <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-neutral-600">Raw Message</p>
-                            <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-primary)]">{listing.description}</p>
-                          </div>
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <div>
-                              <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-neutral-600">Source</p>
-                              <p className="text-sm font-bold text-white">{listing.source}</p>
-                            </div>
-                            <div>
-                              <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-neutral-600">Confidence</p>
-                              <p className="text-sm font-bold text-primary">{listing.confidence}%</p>
-                            </div>
-                          </div>
-                          {listing.parseNotes ? (
-                            <div>
-                              <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-amber-300">Parse Notes</p>
-                              <p className="text-sm leading-6 text-[var(--text-primary)]">{listing.parseNotes}</p>
-                            </div>
-                          ) : null}
-                          {whatsappLink ? (
-                            <a
-                              href={whatsappLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-black transition-all hover:bg-yellow-500"
-                            >
-                              <MessageSquare className="h-4 w-4" />
-                              Open WhatsApp
-                            </a>
-                          ) : null}
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        <div className="hidden overflow-x-auto lg:block">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-[color:var(--border)] bg-neutral-950/50">
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">ID / Type</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Location</th>
-                <th className="px-6 py-4 text-right text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Price</th>
-                <th className="px-6 py-4 text-center text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Layout</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Broker / Posted</th>
-                <th className="px-6 py-4 text-center text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Confidence</th>
-                <th className="px-6 py-4 text-right text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Actions</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-[color:var(--border)]">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-[var(--text-secondary)]">
-                    <span className="inline-flex items-center gap-3">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading live stream...
-                    </span>
-                  </td>
-                </tr>
-              ) : error ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-red-400">
-                    {error}
-                  </td>
-                </tr>
-              ) : renderedStream.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-[var(--text-secondary)]">
-                    No live WhatsApp items have landed here yet.
-                  </td>
-                </tr>
-              ) : (
-                renderedStream.map((listing) => {
-                  const isExpanded = expandedListingId === listing.id;
-                  const isEditing = isExpanded && editingListingId === listing.id;
-                  const whatsappLink = buildWhatsAppLink(listing.sourcePhone || '');
-                  const snippet = buildSnippet(listing);
-                  const priceDisplay = normalizePriceDisplay(listing);
-                  const freshness = getFreshnessMeta(listing);
-                  const layoutValue = formatLayoutValue(listing.bhk);
-                  const confidenceBand = getConfidenceBand(listing.confidence);
-                  const actionsOpen = openActionMenuId === listing.id;
-                  const isSavingChannelItem = savingChannelItemId === listing.id;
-
-                  return (
-                    <React.Fragment key={listing.id}>
-                      <tr
-                        onClick={() => {
-                          setExpandedListingId(isExpanded ? null : listing.id);
-                          if (!isExpanded && editingListingId && editingListingId !== listing.id) {
-                            setEditingListingId(null);
-                            setCorrectionDraft(null);
-                          }
-                        }}
-                        className="group cursor-pointer transition-colors hover:bg-neutral-900/50"
-                      >
-                        <td className="px-6 py-5">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-[10px] font-mono font-bold text-neutral-600">{listing.id}</span>
-                            <span
-                              className={cn(
-                                'w-fit rounded px-2 py-0.5 text-[10px] font-black uppercase tracking-widest',
-                                listing.type === 'Rent'
-                                  ? 'border border-blue-500/20 bg-blue-500/10 text-blue-500'
-                                  : listing.type === 'Sale'
-                                    ? 'border border-green-500/20 bg-green-500/10 text-green-500'
-                                    : listing.type === 'Pre-leased'
-                                      ? 'border border-cyan-500/20 bg-cyan-500/10 text-cyan-400'
-                                      : 'border border-primary/20 bg-primary/10 text-primary',
-                              )}
-                            >
-                              {listing.type}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-bold text-white transition-colors group-hover:text-primary">{listing.title || listing.location}</p>
-                              {isExpanded ? (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const nextEditingId = editingListingId === listing.id ? null : listing.id;
-                                    setEditingListingId(nextEditingId);
-                                    setCorrectionDraft(nextEditingId ? buildCorrectionDraft(listing) : null);
-                                  }}
-                                  className="rounded-lg p-1 text-[var(--text-secondary)] transition-colors hover:bg-neutral-800 hover:text-white"
-                                >
-                                  ✏️
-                                </button>
-                              ) : null}
-                            </div>
-                            <div className="flex items-center gap-1 opacity-50">
-                              <MapPin className="h-3 w-3" />
-                              <span className="max-w-[180px] truncate text-[10px] font-medium uppercase">{listing.location}</span>
-                            </div>
-                            <p className="max-w-[240px] text-[11px] leading-5 text-[var(--text-secondary)]">
-                              {snippet.isLowSignal ? (
-                                <span className="uppercase tracking-[0.08em] text-[var(--text-secondary)]">Low signal</span>
-                              ) : (
-                                snippet.label
-                              )}
-                            </p>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5 text-right">
-                          <p className="text-sm font-black text-white">{priceDisplay.label}</p>
-                          {priceDisplay.negotiable ? (
-                            <p className="mt-1 text-[10px] uppercase tracking-[0.08em] text-amber-400">Negotiable</p>
-                          ) : null}
-                        </td>
-                        <td className="px-6 py-5 text-center">
-                          {layoutValue ? (
-                            <span className="rounded-full bg-[var(--bg-elevated)] px-3 py-1 text-xs font-bold text-white">{layoutValue}</span>
-                          ) : null}
-                        </td>
-                        <td className="px-6 py-5">
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">{listing.source}</p>
-                          <p className="mt-1 flex items-center gap-1 text-[10px] italic text-neutral-600">
-                            <span className={cn('h-2 w-2 rounded-full', freshness.tone)} />
-                            <span>{listing.posted}</span>
-                          </p>
-                        </td>
-                        <td className="px-6 py-5 text-center">
-                          <div
-                            className={cn(
-                              'inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold',
-                              confidenceBand === 'high'
-                                ? 'bg-green-500/10 text-green-500'
-                                : confidenceBand === 'medium'
-                                  ? 'bg-amber-500/10 text-amber-400'
-                                  : 'bg-red-500/10 text-red-400',
-                            )}
-                          >
-                            <ShieldCheck className="h-3 w-3" />
-                            {Math.round(listing.confidence)}%
-                          </div>
-                        </td>
-                        <td className="px-6 py-5 text-right align-top">
-                          <div className="relative flex items-center justify-end gap-2">
-                            {whatsappLink ? (
-                              <a
-                                href={whatsappLink}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className={cn(
-                                  'inline-flex items-center gap-1 rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-all',
-                                  'opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0',
-                                )}
-                              >
-                                <MessageSquare className="h-3.5 w-3.5" />
-                                WhatsApp
-                              </a>
-                            ) : null}
-                            <div className="relative">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOpenActionMenuId((current) => (current === listing.id ? null : listing.id));
-                                }}
-                                className={cn(
-                                  'inline-flex items-center gap-1 rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-all',
-                                  'opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0',
-                                  actionsOpen && 'opacity-100 translate-x-0',
-                                )}
-                              >
-                                <Layers className="h-3.5 w-3.5" />
-                                Save to Channel
-                              </button>
-
-                              {actionsOpen ? (
-                                <div
-                                  className="absolute right-0 top-full z-20 mt-2 w-64 rounded-xl border border-[color:var(--border-strong)] bg-neutral-950 p-2 shadow-2xl shadow-black/40"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <div className="mb-2 flex items-center justify-between px-2 py-1">
-                                    <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Save to channel</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => setOpenActionMenuId(null)}
-                                      className="rounded px-1 py-0.5 text-[var(--text-secondary)] transition-colors hover:text-white"
-                                    >
-                                      ✕
-                                    </button>
-                                  </div>
-                                  <div className="max-h-60 overflow-auto">
-                                    {channels.length === 0 ? (
-                                      <p className="px-2 py-3 text-left text-[11px] text-[var(--text-secondary)]">No channels yet.</p>
-                                    ) : (
-                                      channels.map((channel) => (
-                                        <button
-                                          key={channel.id}
-                                          type="button"
-                                          disabled={isSavingChannelItem}
-                                          onClick={() => void handleAttachStreamItemToChannel(channel.id, listing.id)}
-                                          className={cn(
-                                            'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-60',
-                                            channel.id === channelId ? 'text-primary' : 'text-white',
-                                          )}
-                                        >
-                                          <span className="truncate">{formatChannelTitle(channel.name)}</span>
-                                          {isSavingChannelItem ? (
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--text-secondary)]" />
-                                          ) : (
-                                            <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">{channel.channelType}</span>
-                                          )}
-                                        </button>
-                                      ))
-                                    )}
-                                  </div>
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                      {isExpanded ? (
-                        <tr key={`${listing.id}-expanded`}>
-                          <td colSpan={7} className="border-t border-[color:var(--border)] bg-[var(--bg-surface)]/20 px-6 py-4">
-                            {isEditing ? (
-                              <div className="space-y-4">
-                                <div className="grid gap-4 sm:grid-cols-2">
-                                  <label className="block">
-                                    <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Type</span>
-                                    <select
-                                      value={correctionDraft?.type || listing.type}
-                                      onChange={(event) => correctionDraft && setCorrectionDraft({ ...correctionDraft, type: event.target.value as StreamItem['type'] })}
-                                      className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                                    >
-                                      {ALL_TYPES.map((type) => (
-                                        <option key={type} value={type}>{type}</option>
-                                      ))}
-                                    </select>
-                                  </label>
-                                  <label className="block">
-                                    <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Confidence</span>
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      max={100}
-                                      value={correctionDraft?.confidence ?? listing.confidence}
-                                      onChange={(event) => correctionDraft && setCorrectionDraft({ ...correctionDraft, confidence: Math.max(0, Math.min(100, Number(event.target.value) || 0)) })}
-                                      className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                                    />
-                                  </label>
-                                </div>
-                                <div className="grid gap-4 sm:grid-cols-2">
-                                  <label className="block">
-                                    <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Locality</span>
-                                    <input
-                                      value={correctionDraft?.location || listing.location}
-                                      onChange={(event) => correctionDraft && setCorrectionDraft({ ...correctionDraft, location: event.target.value })}
-                                      className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                                    />
-                                  </label>
-                                  <label className="block">
-                                    <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">City</span>
-                                    <input
-                                      value={correctionDraft?.city || listing.city || ''}
-                                      onChange={(event) => correctionDraft && setCorrectionDraft({ ...correctionDraft, city: event.target.value })}
-                                      className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                                    />
-                                  </label>
-                                </div>
-                                <div className="grid gap-4 sm:grid-cols-2">
-                                  <label className="block">
-                                    <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Price label</span>
-                                    <input
-                                      value={correctionDraft?.price || listing.price}
-                                      onChange={(event) => correctionDraft && setCorrectionDraft({ ...correctionDraft, price: event.target.value })}
-                                      className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                                    />
-                                  </label>
-                                  <label className="block">
-                                    <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Layout</span>
-                                    <input
-                                      value={correctionDraft?.bhk || listing.bhk}
-                                      onChange={(event) => correctionDraft && setCorrectionDraft({ ...correctionDraft, bhk: event.target.value })}
-                                      className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                                    />
-                                  </label>
-                                </div>
-                                <div className="flex gap-3">
-                                  <button
-                                    type="button"
-                                    onClick={() => { setEditingListingId(null); setCorrectionDraft(null); }}
-                                    className="rounded-xl border border-[color:var(--border-strong)] bg-[var(--bg-surface)] px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-[var(--text-primary)] transition-colors hover:border-neutral-500 hover:text-white"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (!correctionDraft) return;
-                                      void (async () => {
-                                        setIsSavingCorrection(true);
-                                        try {
-                                          const result = await correctStreamItem(listing.id, {
-                                            type: correctionDraft.type,
-                                            location: correctionDraft.location,
-                                            city: correctionDraft.city,
-                                            price: correctionDraft.price,
-                                            bhk: correctionDraft.bhk,
-                                            source: correctionDraft.source,
-                                            sourcePhone: correctionDraft.sourcePhone,
-                                            confidence: correctionDraft.confidence,
-                                          });
-                                          if (!result?.item) {
-                                            throw new Error('Failed to save stream correction');
-                                          }
-                                          setStreamItems((current) => current.map((item) => (item.id === result.item.id ? result.item : item)));
-                                          setInfoMessage('Stream correction saved. Pulse can now use this as a supervised correction example.');
-                                          setEditingListingId(null);
-                                          setCorrectionDraft(null);
-                                        } catch (err) {
-                                          setError(handleApiError(err));
-                                        } finally {
-                                          setIsSavingCorrection(false);
-                                        }
-                                      })();
-                                    }}
-                                    disabled={isSavingCorrection}
-                                    className="rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-black transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    {isSavingCorrection ? 'Saving...' : 'Save'}
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="space-y-4">
-                                <div>
-                                  <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-neutral-600">Raw Message</p>
-                                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-primary)]">{listing.description}</p>
-                                </div>
-                                <div className="grid gap-4 sm:grid-cols-2">
-                                  <div>
-                                    <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-neutral-600">Source</p>
-                                    <p className="text-sm font-bold text-white">{listing.source}</p>
-                                  </div>
-                                  <div>
-                                    <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-neutral-600">Confidence</p>
-                                    <p className="text-sm font-bold text-primary">{Math.round(listing.confidence)}%</p>
-                                  </div>
-                                </div>
-                                {listing.parseNotes ? (
-                                  <div>
-                                    <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-amber-300">Parse Notes</p>
-                                    <p className="text-sm leading-6 text-[var(--text-primary)]">{listing.parseNotes}</p>
-                                  </div>
-                                ) : null}
-                                {whatsappLink ? (
-                                  <a
-                                    href={whatsappLink}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-black transition-all hover:bg-yellow-500"
-                                  >
-                                    <MessageSquare className="h-4 w-4" />
-                                    Open WhatsApp
-                                  </a>
-                                ) : null}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ) : null}
-                    </React.Fragment>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                    waClickCount={waCount}
+                  />
+                );
+              })
+            )}
+          </div>
         </div>
 
         <div ref={sentinelRef} className="px-6 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">

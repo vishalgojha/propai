@@ -21,7 +21,7 @@ export interface StreamItem {
   areaSqft?: number | null;
   confidence: number;
   source: string;
-  sourcePhone?: string | null;
+  brokerPhoneMasked?: string | null;
   isRead?: boolean;
   createdAt: string;
 }
@@ -68,7 +68,7 @@ export async function markStreamItemRead(itemId: string): Promise<boolean> {
 
 export async function correctStreamItem(
   itemId: string,
-  updates: Partial<StreamItem>
+  updates: Record<string, unknown>
 ): Promise<{ success: boolean; item: StreamItem } | null> {
   try {
     const response = await backendApi.post(ENDPOINTS.channels.correct(itemId), updates);

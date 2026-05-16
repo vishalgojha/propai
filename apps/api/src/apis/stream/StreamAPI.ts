@@ -50,6 +50,8 @@ export class StreamAPI {
   }
 
   private mapToStreamItem(data: any): StreamItem {
+    const phone = data.source_phone || '';
+    const masked = phone ? `${phone.slice(0, 5)} •••••` : null;
     return {
       id: data.id,
       type: data.type,
@@ -63,7 +65,7 @@ export class StreamAPI {
       areaSqft: data.area_sqft || undefined,
       confidence: data.confidence_score || 0,
       source: data.source_phone || '',
-      sourcePhone: data.source_phone || undefined,
+      brokerPhoneMasked: masked,
       isRead: data.is_read || false,
       createdAt: data.created_at,
     };

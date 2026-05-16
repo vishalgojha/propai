@@ -89,6 +89,12 @@ export const ENDPOINTS = {
     correct: (streamItemId: string) => `/stream-items/${streamItemId}/correct`,
     stats: '/stream-items/stats',
   },
+  waClick: {
+    log: '/wa-click',
+    stats: '/wa-click/stats',
+    listing: (id: string) => `/wa-click/listing/${encodeURIComponent(id)}`,
+    export: '/wa-click/export',
+  },
   properties: {
     search: (query: string) => `/properties/search?q=${encodeURIComponent(query)}`,
   },
