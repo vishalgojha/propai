@@ -23,7 +23,6 @@ const Admin = React.lazy(async () => ({ default: (await import('./pages/Admin'))
 const Settings = React.lazy(async () => ({ default: (await import('./pages/Settings')).Settings }));
 const ImpersonatePage = React.lazy(async () => ({ default: (await import('./pages/ImpersonatePage')).ImpersonatePage }));
 const Team = React.lazy(async () => ({ default: (await import('./pages/Team')).Team }));
-const HistorySync = React.lazy(async () => ({ default: (await import('./pages/HistorySync')).HistorySync }));
 const AiUsage = React.lazy(async () => ({ default: (await import('./pages/AiUsage')).AiUsage }));
 const Analytics = React.lazy(() => import('./pages/Analytics'));
 const Onboarding = React.lazy(async () => ({ default: (await import('./pages/Onboarding')).Onboarding }));
@@ -121,7 +120,6 @@ export default function App() {
               <Route path="/stream" element={<Listings />} />
               <Route path="/listings" element={<Navigate to="/stream" replace />} />
               <Route path="/whatsapp" element={<WhatsApp />} />
-              <Route path="/history-sync" element={<HistorySync />} />
               <Route path="/aiusage" element={<AiUsage />} />
               <Route path="/ai-usage" element={<Navigate to="/aiusage" replace />} />
               <Route path="/pricing" element={<WhatsApp />} />
