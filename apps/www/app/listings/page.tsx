@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ListingCard } from "@/components/listing-card";
+import { ListingsClient } from "@/components/listings-client";
 import { canonicalUrl, slugifyLocality } from "@/lib/site";
 import { getListingsPageData } from "@/lib/listings";
 
@@ -103,9 +103,7 @@ export default async function ListingsPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      <div className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6">
-        {data.results.map((listing) => <ListingCard key={listing.id} listing={listing} />)}
-      </div>
+      <ListingsClient listings={data.results} />
 
       <div className="mt-10 flex items-center justify-between text-sm text-[#b7c3d4]">
         <div>Page {data.page} of {data.totalPages}</div>
