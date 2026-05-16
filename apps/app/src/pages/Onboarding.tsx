@@ -35,6 +35,18 @@ type OnboardingData = {
     onboarding_completed?: boolean;
 };
 
+type LinkedBrokerActivity = {
+    phone: string;
+    user_id?: string | null;
+    name?: string | null;
+    agency?: string | null;
+    localities?: Array<{ locality: string; count: number; last_seen: string }>;
+    listing_count?: number;
+    requirement_count?: number;
+    total_messages?: number;
+    last_active?: string | null;
+};
+
 const emptyData: OnboardingData = {
     full_name: '', agency_name: '', city: '',
     localities: [], team_members: [],
@@ -54,12 +66,14 @@ export const Onboarding: React.FC = () => {
     const [teamName, setTeamName] = useState('');
     const [teamPhone, setTeamPhone] = useState('');
     const [otherCityInput, setOtherCityInput] = useState('');
+    const [linkedBrokerActivity, setLinkedBrokerActivity] = useState<LinkedBrokerActivity | null>(null);
 
     useEffect(() => {
         (async () => {
             try {
                 const resp = await backendApi.get(ENDPOINTS.identity.onboarding);
                 const existing = resp.data?.data;
+                setLinkedBrokerActivity(resp.data?.brokerActivity || null);
                 if (existing) {
                     setData({ ...emptyData, ...existing });
                     const s = Math.min(existing.onboarding_step || 0, 5);
@@ -96,6 +110,7 @@ export const Onboarding: React.FC = () => {
             if (resp.status !== 200 && resp.status !== 201) {
                 throw new Error(`Server returned ${resp.status}`);
             }
+            setLinkedBrokerActivity(resp.data?.brokerActivity || null);
             setData((prev) => ({ ...prev, ...patch, onboarding_step: nextStep }));
             setStep(nextStep);
             if (nextStep < 5) { setFieldValue(''); setOtherCityInput(''); }
@@ -130,6 +145,7 @@ export const Onboarding: React.FC = () => {
                 if (resp.status !== 200 && resp.status !== 201) {
                     throw new Error(`Server returned ${resp.status}`);
                 }
+                setLinkedBrokerActivity(resp.data?.brokerActivity || null);
                 setSuccess(true);
             } catch (err) {
                 console.error('[Onboarding] Finish step POST failed:', err);
@@ -182,6 +198,18 @@ export const Onboarding: React.FC = () => {
                 </div>
                 <h2 className="mb-2 text-3xl font-bold text-white">You're all set!</h2>
                 <p className="mb-10 text-[17px] text-gray-400">Your profile is ready. Let's find you some deals.</p>
+                {linkedBrokerActivity && (
+                    <div className="mb-8 w-full max-w-lg rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-left">
+                        <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-emerald-300">Broker profile linked</p>
+                        <p className="mt-2 text-[16px] font-semibold text-white">
+                            {linkedBrokerActivity.name || data.full_name || linkedBrokerActivity.phone}
+                            {linkedBrokerActivity.agency ? ` · ${linkedBrokerActivity.agency}` : ''}
+                        </p>
+                        <p className="mt-1 text-[14px] text-emerald-100/80">
+                            {linkedBrokerActivity.total_messages || 0} parsed messages · {linkedBrokerActivity.listing_count || 0} listings · {linkedBrokerActivity.requirement_count || 0} requirements
+                        </p>
+                    </div>
+                )}
                 <button onClick={() => navigate('/connect-whatsapp')} className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-8 py-4 text-[16px] font-semibold text-black transition hover:opacity-90">
                     Go to Dashboard <ArrowRightIcon className="h-5 w-5" />
                 </button>
@@ -403,6 +431,18 @@ export const Onboarding: React.FC = () => {
                             <p className="text-[14px] text-gray-500">
                                 {(data.localities || []).length} localities · {(data.team_members || []).length} team members
                             </p>
+                            {linkedBrokerActivity && (
+                                <div className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-5 py-4 text-left">
+                                    <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-emerald-300">Matched parsed broker profile</p>
+                                    <p className="mt-2 text-[16px] font-semibold text-white">
+                                        {linkedBrokerActivity.name || linkedBrokerActivity.phone}
+                                        {linkedBrokerActivity.agency ? ` · ${linkedBrokerActivity.agency}` : ''}
+                                    </p>
+                                    <p className="mt-1 text-[14px] text-emerald-100/80">
+                                        {linkedBrokerActivity.total_messages || 0} parsed messages from WhatsApp history
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     )}
 
