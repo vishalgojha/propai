@@ -651,18 +651,51 @@ export const Monitor: React.FC = () => {
     return filtered;
   }, [data?.chats, search, chatFilter]);
 
+  const groupDirectoryByJid = React.useMemo(() => {
+    return new Map(
+      groupDirectory
+        .map((group) => [String(group.groupJid || group.id || '').trim(), group] as const)
+        .filter(([jid]) => Boolean(jid)),
+    );
+  }, [groupDirectory]);
+
+  const displayChats = React.useMemo(() => {
+    return chats.map((chat) => {
+      if (chat.type !== 'group') {
+        return chat;
+      }
+
+      const groupMeta = groupDirectoryByJid.get(chat.remoteJid);
+      if (!groupMeta) {
+        return chat;
+      }
+
+      return {
+        ...chat,
+        title: groupMeta.name || chat.title,
+        locality: groupMeta.locality ?? chat.locality,
+        city: groupMeta.city ?? chat.city,
+        category: groupMeta.category ?? chat.category,
+        tags: Array.isArray(groupMeta.tags) && groupMeta.tags.length > 0 ? groupMeta.tags : chat.tags,
+        participantsCount: typeof groupMeta.participantsCount === 'number' ? groupMeta.participantsCount : chat.participantsCount,
+        broadcastEnabled: typeof groupMeta.broadcastEnabled === 'boolean' ? groupMeta.broadcastEnabled : chat.broadcastEnabled,
+        isParsing: typeof groupMeta.isParsing === 'boolean' ? groupMeta.isParsing : chat.isParsing,
+      };
+    });
+  }, [chats, groupDirectoryByJid]);
+
   React.useEffect(() => {
-    if (chats.length === 0) {
+    if (displayChats.length === 0) {
       setSelectedChatId('');
       return;
     }
 
     setSelectedChatId((current) => (
-      current && chats.some((chat) => chat.id === current)
+      current && displayChats.some((chat) => chat.id === current)
         ? current
-        : chats[0]?.id || ''
+        : displayChats[0]?.id || ''
     ));
-  }, [chats]);
+  }, [displayChats]);
 
   React.useEffect(() => {
     if (!selectedChatId) {
@@ -674,7 +707,7 @@ export const Monitor: React.FC = () => {
     void loadThread(selectedChatId);
   }, [selectedChatId, loadThread]);
 
-  const selectedChat = chats.find((chat) => chat.id === selectedChatId) || chats[0] || null;
+  const selectedChat = displayChats.find((chat) => chat.id === selectedChatId) || displayChats[0] || null;
   const visibleMessages = React.useMemo(
     () => threadMessages.filter((message) => message.chatId === selectedChat?.id && !clearedChatIds.has(message.chatId)),
     [threadMessages, selectedChat?.id, clearedChatIds],
@@ -763,8 +796,8 @@ export const Monitor: React.FC = () => {
 
   return (
     <div className="h-[calc(100svh-10rem)] min-h-0 overflow-hidden rounded-[30px] border border-[#202c33] bg-[#111b21] shadow-[0_28px_90px_rgba(0,0,0,0.38)] lg:h-[calc(100svh-9rem)]">
-      <div className="grid h-full min-h-0 grid-cols-[380px_minmax(0,1fr)]">
-        <aside className="flex h-full flex-col border-r border-[#202c33] bg-[#111b21]">
+      <div className="grid h-full min-h-0 grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)]">
+        <aside className="grid h-full min-h-0 grid-rows-[auto_auto_auto_auto_minmax(0,1fr)] border-r border-[#202c33] bg-[#111b21]">
           <div className="flex items-center justify-between border-b border-[#202c33] bg-[#202c33] px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-white">Monitor</p>
@@ -801,10 +834,10 @@ export const Monitor: React.FC = () => {
             </div>
           </div>
 
-          {data?.chats ? (() => {
-            const total = data.chats.length;
-            const groupCount = data.chats.filter((c: MonitorChat) => c.type === 'group').length;
-            const directCount = data.chats.filter((c: MonitorChat) => c.type === 'direct').length;
+          {displayChats.length > 0 ? (() => {
+            const total = displayChats.length;
+            const groupCount = displayChats.filter((c: MonitorChat) => c.type === 'group').length;
+            const directCount = displayChats.filter((c: MonitorChat) => c.type === 'direct').length;
             const filters: { key: typeof chatFilter; label: string; count: number }[] = [
               { key: 'all', label: 'All', count: total },
               { key: 'groups', label: 'Groups', count: groupCount },
@@ -856,39 +889,39 @@ export const Monitor: React.FC = () => {
             </div>
           ) : null}
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {chats.map((chat) => (
+          <div className="pulse-scrollbar min-h-0 overflow-y-auto">
+            {displayChats.map((chat) => (
               <button
                 key={chat.id}
                 type="button"
                 onClick={() => setSelectedChatId(chat.id)}
                 className={cn(
-                  'flex w-full items-start gap-3 border-b border-[#202c33] px-3 py-3 text-left transition-colors hover:bg-[#202c33]',
+                  'flex w-full items-start gap-3 border-b border-[#202c33] px-4 py-3 text-left transition-colors hover:bg-[#202c33]',
                   selectedChat?.id === chat.id && 'bg-[#2a3942] shadow-[inset_3px_0_0_0_#00a884]',
                 )}
               >
-                <div className="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#233138] text-[#d1d7db]">
+                <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#233138] text-[#d1d7db]">
                   {chat.type === 'group' ? <GroupsIcon className="h-5 w-5" /> : <SmartphoneIcon className="h-5 w-5" />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
-                    <p className="truncate text-sm font-medium text-white">{chat.title}</p>
+                    <p className="truncate text-[14px] font-medium text-white">{chat.title}</p>
                     <span className="shrink-0 pt-0.5 text-[11px] text-[#8696a0]">{formatTime(chat.lastMessageAt)}</span>
                   </div>
-                  <p className="mt-1 line-clamp-1 text-[13px] text-[#8696a0]">
+                  <p className="mt-1 line-clamp-1 text-[12px] text-[#8696a0]">
                     {chat.sender ? `${chat.sender}: ` : ''}
                     {chat.preview || 'No message text'}
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className={monitorPill}>{chat.type === 'group' ? 'Group' : 'Direct'}</span>
                     {chat.locality ? <span className={monitorPill}>{chat.locality}</span> : null}
-                    <span className={monitorPill}>{chat.messageCount} msgs</span>
+                    <span className={cn(monitorPill, 'bg-[#0b3328] text-[#d8fdd2]')}>{chat.messageCount} msgs</span>
                   </div>
                 </div>
               </button>
             ))}
 
-            {!isLoading && chats.length === 0 ? (
+            {!isLoading && displayChats.length === 0 ? (
               <div className="px-4 py-10 text-sm text-[#8696a0]">
                 No mirrored chats yet. Group inventory will still appear here after the next sync.
               </div>
@@ -896,7 +929,7 @@ export const Monitor: React.FC = () => {
           </div>
         </aside>
 
-        <section className="flex h-full min-w-0 flex-col bg-[#0b141a]">
+        <section className="grid h-full min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] bg-[#0b141a]">
           <div className="flex items-center justify-between border-b border-[#202c33] bg-[#202c33] px-4 py-3">
             {selectedChat ? (
               <>
@@ -913,7 +946,7 @@ export const Monitor: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 overflow-x-auto">
                   <span className={monitorPill}>
                     <MessageSquareIcon className="h-3.5 w-3.5" />
                     {selectedChat.type === 'group' ? 'Group thread' : 'Direct thread'}
@@ -974,7 +1007,7 @@ export const Monitor: React.FC = () => {
           </div>
 
           <div
-            className="min-h-0 flex-1 overflow-y-auto px-6 py-6"
+            className="pulse-scrollbar min-h-0 overflow-y-auto px-4 py-5 sm:px-6"
             style={{
               backgroundImage:
                 'radial-gradient(circle at 25px 25px, rgba(255,255,255,0.02) 2px, transparent 0), radial-gradient(circle at 75px 75px, rgba(255,255,255,0.015) 2px, transparent 0)',
@@ -982,7 +1015,7 @@ export const Monitor: React.FC = () => {
             }}
           >
             {selectedChat ? (
-              <div className="space-y-3">
+              <div className="mx-auto max-w-[880px] space-y-3">
                 {threadPagination.hasMore ? (
                   <div className="flex justify-center">
                     <button
@@ -1008,7 +1041,7 @@ export const Monitor: React.FC = () => {
                   <div
                     key={message.id}
                     className={cn(
-                      'max-w-[78%] rounded-[14px] px-3.5 py-2.5 shadow-[0_1px_0_rgba(0,0,0,0.25)]',
+                      'max-w-[78%] rounded-[8px] px-3 py-2 shadow-[0_1px_0_rgba(0,0,0,0.25)]',
                       message.direction === 'outbound'
                         ? 'ml-auto bg-[#005c4b] text-white'
                         : 'bg-[#202c33] text-[#e9edef]',
@@ -1017,7 +1050,7 @@ export const Monitor: React.FC = () => {
                     {message.direction === 'inbound' && message.sender ? (
                       <p className="mb-1 text-[11px] font-semibold text-[#53bdeb]">{message.sender}</p>
                     ) : null}
-                    <p className="whitespace-pre-wrap text-[13px] leading-6">{message.text || 'No message text'}</p>
+                    <p className="whitespace-pre-wrap text-[13px] leading-5">{message.text || 'No message text'}</p>
                     <div className="mt-1 flex items-center justify-end gap-1.5 text-[10px] text-[#8696a0]">
                       {message.id.startsWith('optimistic-') ? (
                         <span className="text-[10px] text-[#8696a0]">&#9679;&#9679;&#9679;</span>
@@ -1081,7 +1114,7 @@ export const Monitor: React.FC = () => {
                   <span className={monitorPill}>Enter to send</span>
                 </div>
               </div>
-              <div className="flex items-end gap-3">
+              <div className="mx-auto flex max-w-[880px] items-end gap-3">
                 <textarea
                   value={replyText}
                   onChange={(event) => setReplyText(event.target.value)}
@@ -1093,7 +1126,7 @@ export const Monitor: React.FC = () => {
                   }}
                   placeholder={`Message ${selectedChat.title}...`}
                   rows={1}
-                  className="min-h-[46px] flex-1 resize-none rounded-[16px] border border-transparent bg-[#111b21] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-[#8696a0] focus:border-[#00a884]"
+                  className="min-h-[46px] max-h-[160px] flex-1 resize-y rounded-[10px] border border-transparent bg-[#111b21] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-[#8696a0] focus:border-[#00a884]"
                 />
                 <button
                   type="button"
