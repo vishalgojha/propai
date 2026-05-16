@@ -123,8 +123,9 @@ export class ConversationEngineService {
         const { event } = input;
         const profile = await getBrokerProfile(input.profileLookupTenantId);
         const identityMd = await generateIdentityMd(event.tenantId);
-        const history = await getConversationHistory(event.conversation.key);
-        const isFirstReply = (await getConversationMessageCount(event.conversation.key)) === 0;
+        const sessionId = event.conversation.sessionId || undefined;
+        const history = await getConversationHistory(event.conversation.key, sessionId);
+        const isFirstReply = (await getConversationMessageCount(event.conversation.key, sessionId)) === 0;
 
         await recordInboundEvent(input).catch((error) => {
             console.warn('[conversationEngineService] Failed to record inbound event', error);
@@ -147,7 +148,7 @@ export class ConversationEngineService {
             const personalizedReply = event.channel === 'whatsapp'
                 ? maybePersonalizeWhatsAppGreeting(renderedReply, input.greetingName, input.shouldGreetByName)
                 : renderedReply;
-            await saveToHistory(event.conversation.key, prompt, personalizedReply);
+            await saveToHistory(event.conversation.key, prompt, personalizedReply, sessionId);
 
             return {
                 reply: personalizedReply,
@@ -185,7 +186,7 @@ export class ConversationEngineService {
             if (structuredToolCall) {
                 const toolReply = await executeStructuredToolCall(event.tenantId, structuredToolCall);
                 const agentResponse = toAgentResponse(toolReply);
-                await saveToHistory(event.conversation.key, prompt, toolReply);
+                await saveToHistory(event.conversation.key, prompt, toolReply, sessionId);
                 return {
                     reply: toolReply,
                     text: toolReply,
@@ -201,7 +202,7 @@ export class ConversationEngineService {
         const personalizedReply = event.channel === 'whatsapp'
             ? maybePersonalizeWhatsAppGreeting(renderedReply, input.greetingName, input.shouldGreetByName)
             : renderedReply;
-        await saveToHistory(event.conversation.key, prompt, personalizedReply);
+        await saveToHistory(event.conversation.key, prompt, personalizedReply, sessionId);
 
         return {
             reply: personalizedReply,

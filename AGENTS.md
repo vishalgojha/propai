@@ -382,8 +382,41 @@ This section reflects the state at the end of the current session on 2026-05-17.
 
 DM contacts tagged as realtor flow through the parse pipeline → `updateBrokerProfile()` populates `broker_activity` with phone, localities, groups → those contacts can be used for area-specific wabro broadcast lists with minimal ban risk (they DM'd first = opt-in signal).
 
+### Dated Handoff: 2026-05-17 (Session 3)
+
+This section reflects the state at the end of the current session on 2026-05-17.
+
+### Changes This Session
+
+1. **Inbox reply** — text input bar at bottom of every selected chat in `Inbox.tsx`. Enter to send, Shift+Enter for newline. Optimistic UI. Uses existing `POST /whatsapp/send` endpoint.
+
+2. **Notification hook** — new `src/hooks/useInboxNotifications.ts`. Polls inbox every 15s, tracks seen message IDs, plays two-tone Web Audio beep + browser Notification API popup on new inbound DMs. Mounted in `Layout.tsx` so it works globally.
+
+3. **AI chat sessions** — full multi-session support like ChatGPT:
+   - **Migration `20260517000003_ai_sessions.sql`**: new `ai_sessions` table + `session_id` column on `conversations`. Backfills existing conversations into a "Default" session.
+   - **`conversationMemory.ts`**: all 3 functions accept optional `sessionId` param. When set, scopes queries by `session_id`. Bumps limit from 15→50 for session-scoped history.
+   - **`conversationEvent.ts`**: added `sessionId` field to `conversation` type.
+   - **`conversationEngineService.ts`**: passes `sessionId` through every `getConversationHistory`/`saveToHistory`/`getConversationMessageCount` call.
+   - **`aiController.ts`**: added `listSessions`, `createSession`, `deleteSession`, `renameSession`, `clearSessionHistory`. `chat` and `getHistory` now accept/use `sessionId`. Ownership verified (user can only CRUD own sessions).
+   - **Route endpoints**: `GET/POST /api/ai/sessions`, `DELETE/PUT /api/ai/sessions/:id`, `POST /api/ai/sessions/:id/clear`.
+   - **Frontend `Agent.tsx`**: session sidebar (240px, hidden on mobile) with New Chat button, session list with auto-titles, delete buttons, clear chat button in header. Session created on first visit automatically. Title auto-generated from first message.
+
+4. **Pre-built wabro broadcast lists** — seeded from 48k gold data entries:
+   - Python script `scripts/build-broadcast-lists.py` mines `listings.db` → clusters by locality → upserts into `wabro_contacts`
+   - 7 locality clusters: Bandra-Santacruz (1,117), Andheri-Lokhandwala (784), South Mumbai (214), Western Suburbs (131), Thane-Navi Mumbai (79), BKC (71), Central Suburbs (36)
+   - **2,432 total contacts** (1,728 unique phone numbers)
+
+5. **Live broadcast list auto-population** — `updateBrokerProfile()` in `channelService.ts` now upserts every freshly-parsed broker into the matching locality cluster's `wabro_contacts` list at parse time. Zero maintenance, runs 24/7 from the WhatsApp session.
+
+### Deployed
+
+- Migration `20260517000003_ai_sessions.sql` ran via docker postgres.
+- Python seed script executed — all 7 broadcast lists populated.
+- API deployed with live pipeline hook.
+- Backend UUID: `k12r72fxjn4dz0p5vo3uwrkq`
+- Frontend UUID: `lburg4buwnc94z9hpx0walg5`
+
 ### Still Pending
 
-- Build real wabro broadcast list from `broker_activity` phone numbers
 - Tune confidence thresholds based on broker feedback
 - More sophisticated group auto-classification (currently heuristic; user may want to correct some)

@@ -2,14 +2,27 @@ import { Request, Response } from 'express';
 import { aiService } from '../services/aiService';
 import { modelDiscoveryService } from '../services/modelDiscoveryService';
 import { keyService } from '../services/keyService';
-import { getConversationHistory } from '../memory/conversationMemory';
+import { getConversationHistory, saveToHistory } from '../memory/conversationMemory';
 import { buildCapabilityHint, getBrokerProfile } from '../services/unifiedAgentService';
 import { searchProperties } from '../services/propertySearchService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { conversationEngineService } from '../services/conversationEngineService';
 import { toAgentResponse } from '../types/agent';
+import { supabase, supabaseAdmin } from '../config/supabase';
 import '../types/express';
+
+function getDb() {
+    return supabaseAdmin ?? supabase;
+}
+
+function resolveConversationKey(phone: string | null | undefined, fallbackUserId: string) {
+    return String(phone || '').trim() || fallbackUserId;
+}
+
+function maybePersonalizeGreeting(reply: string, _fullName?: string, _shouldGreet?: boolean) {
+    return reply.trim();
+}
 
 export const chat = async (req: Request, res: Response) => {
     const user = req.user;
@@ -18,6 +31,7 @@ export const chat = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
     const rawPrompt = req.body.prompt || req.body.message;
     const modelPreference = req.body.modelPreference || req.body.model;
+    const sessionId = req.body.sessionId || null;
     if (!rawPrompt) return res.status(400).json({ error: 'Prompt is required' });
 
     try {
@@ -33,6 +47,7 @@ export const chat = async (req: Request, res: Response) => {
                     key: conversationKey,
                     participantId: user.id,
                     isGroup: false,
+                    sessionId,
                 },
                 actor: {
                     userId: user.id,
@@ -72,19 +87,15 @@ export const chat = async (req: Request, res: Response) => {
     }
 };
 
-function maybePersonalizeGreeting(reply: string, _fullName?: string, _shouldGreet?: boolean) {
-    return reply.trim();
-}
-
-function resolveConversationKey(phone: string | null | undefined, fallbackUserId: string) {
-    return String(phone || '').trim() || fallbackUserId;
-}
-
 export const getHistory = async (req: Request, res: Response) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     try {
         const profile = await getBrokerProfile(req.user.id);
-        const rawHistory = await getConversationHistory(resolveConversationKey(profile?.phone, req.user.id));
+        const sessionId = req.query.sessionId as string | undefined;
+        const rawHistory = await getConversationHistory(
+            resolveConversationKey(profile?.phone, req.user.id),
+            sessionId || undefined,
+        );
         const history = Array.isArray(rawHistory) ? rawHistory : [];
         const messages = history.map((msg) => ({
             role: msg.role === 'assistant' ? 'ai' as const : 'user' as const,
@@ -93,6 +104,132 @@ export const getHistory = async (req: Request, res: Response) => {
         res.json({ messages });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to fetch history') });
+    }
+};
+
+export const listSessions = async (req: Request, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const profile = await getBrokerProfile(req.user.id);
+        const userId = resolveConversationKey(profile?.phone, req.user.id);
+        const { data, error } = await getDb()
+            .from('ai_sessions')
+            .select('id, title, created_at, updated_at')
+            .eq('user_id', userId)
+            .order('updated_at', { ascending: false });
+
+        if (error) throw error;
+        res.json({ sessions: data || [] });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to list sessions') });
+    }
+};
+
+export const createSession = async (req: Request, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const profile = await getBrokerProfile(req.user.id);
+        const userId = resolveConversationKey(profile?.phone, req.user.id);
+        const { data, error } = await getDb()
+            .from('ai_sessions')
+            .insert({ user_id: userId, title: 'New Chat' })
+            .select('id, title, created_at, updated_at')
+            .single();
+
+        if (error) throw error;
+        res.status(201).json({ session: data });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to create session') });
+    }
+};
+
+export const deleteSession = async (req: Request, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const sessionId = req.params.id;
+    if (!sessionId) return res.status(400).json({ error: 'Session ID is required' });
+
+    try {
+        const profile = await getBrokerProfile(req.user.id);
+        const userId = resolveConversationKey(profile?.phone, req.user.id);
+
+        const { data: session } = await getDb()
+            .from('ai_sessions')
+            .select('user_id')
+            .eq('id', sessionId)
+            .single();
+
+        if (!session) return res.status(404).json({ error: 'Session not found' });
+        if (session.user_id !== userId) return res.status(403).json({ error: 'Forbidden' });
+
+        await getDb().from('conversations').delete().eq('session_id', sessionId);
+        await getDb().from('ai_sessions').delete().eq('id', sessionId);
+
+        res.json({ message: 'Session deleted' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to delete session') });
+    }
+};
+
+export const renameSession = async (req: Request, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const sessionId = req.params.id;
+    const { title } = req.body;
+    if (!sessionId || !title?.trim()) return res.status(400).json({ error: 'Session ID and title are required' });
+
+    try {
+        const profile = await getBrokerProfile(req.user.id);
+        const userId = resolveConversationKey(profile?.phone, req.user.id);
+
+        const { data: session } = await getDb()
+            .from('ai_sessions')
+            .select('user_id')
+            .eq('id', sessionId)
+            .single();
+
+        if (!session) return res.status(404).json({ error: 'Session not found' });
+        if (session.user_id !== userId) return res.status(403).json({ error: 'Forbidden' });
+
+        const { data, error } = await getDb()
+            .from('ai_sessions')
+            .update({ title: title.trim(), updated_at: new Date().toISOString() })
+            .eq('id', sessionId)
+            .select('id, title, created_at, updated_at')
+            .single();
+
+        if (error) throw error;
+        res.json({ session: data });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to rename session') });
+    }
+};
+
+export const clearSessionHistory = async (req: Request, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const sessionId = req.params.id;
+    if (!sessionId) return res.status(400).json({ error: 'Session ID is required' });
+
+    try {
+        const profile = await getBrokerProfile(req.user.id);
+        const userId = resolveConversationKey(profile?.phone, req.user.id);
+
+        const { data: session } = await getDb()
+            .from('ai_sessions')
+            .select('user_id')
+            .eq('id', sessionId)
+            .single();
+
+        if (!session) return res.status(404).json({ error: 'Session not found' });
+        if (session.user_id !== userId) return res.status(403).json({ error: 'Forbidden' });
+
+        await getDb().from('conversations').delete().eq('session_id', sessionId);
+        await getDb()
+            .from('ai_sessions')
+            .update({ updated_at: new Date().toISOString() })
+            .eq('id', sessionId);
+
+        res.json({ message: 'Session history cleared' });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to clear session history') });
     }
 };
 

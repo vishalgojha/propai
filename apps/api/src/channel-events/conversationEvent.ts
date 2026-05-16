@@ -10,6 +10,7 @@ export type ConversationEvent = {
         externalId?: string | null;
         participantId?: string | null;
         sessionLabel?: string | null;
+        sessionId?: string | null;
         isGroup: boolean;
     };
     actor?: {

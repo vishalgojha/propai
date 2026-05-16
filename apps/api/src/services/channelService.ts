@@ -1278,6 +1278,8 @@ export class ChannelService {
     }
 
     async rebuildStreamFromMessages(tenantId: string, limit = 500) {
+        await this.clearSeededStreamData(tenantId);
+
         const { data: messages, error } = await this.db
             .from('messages')
             .select('id, remote_jid, sender, text, timestamp')
@@ -1308,6 +1310,29 @@ export class ChannelService {
             ingested: ingestedCount,
             totalStreamItems: count || 0,
         };
+    }
+
+    private async clearSeededStreamData(tenantId: string) {
+        const { error: streamDeleteError } = await this.db
+            .from('stream_items')
+            .delete()
+            .eq('tenant_id', tenantId)
+            .eq('source_group_name', 'test')
+            .or('message_id.like.test-%,source_message_id.like.test-%');
+
+        if (streamDeleteError) {
+            throw new Error(streamDeleteError.message);
+        }
+
+        const { error: listingDeleteError } = await this.db
+            .from('public_listings')
+            .delete()
+            .eq('source_group_name', 'test')
+            .like('source_message_id', 'test-%');
+
+        if (listingDeleteError) {
+            throw new Error(listingDeleteError.message);
+        }
     }
 
     async correctStreamItem(tenantId: string, correctedBy: string, streamItemId: string, input: StreamCorrectionInput) {
@@ -1543,7 +1568,7 @@ export class ChannelService {
             await this.matchStreamItemToChannels(tenantId, data).catch((matchError) => {
                 console.error('[ChannelService] Channel matching failed', matchError);
             });
-            await this.updateBrokerProfile(parsed, message).catch((be) => {
+            await this.updateBrokerProfile(tenantId, parsed, message).catch((be) => {
                 console.error('[ChannelService] Broker profile update failed', be);
             });
         }
@@ -1701,12 +1726,24 @@ private async ensureStreamBackfilled(tenantId: string) {
              .select('id', { count: 'exact', head: true })
              .eq('tenant_id', tenantId);
 
-         if ((count || 0) > 0) {
+         const { count: seededCount } = await this.db
+             .from('stream_items')
+             .select('id', { count: 'exact', head: true })
+             .eq('tenant_id', tenantId)
+             .eq('source_group_name', 'test')
+             .or('message_id.like.test-%,source_message_id.like.test-%');
+
+         const streamCount = count || 0;
+         const testCount = seededCount || 0;
+         const minimumHealthyCount = Math.min(Math.max(Math.ceil((messageCount || 0) * 0.05), 25), 200);
+         const needsRecovery = streamCount === 0 || streamCount === testCount || streamCount < minimumHealthyCount;
+
+         if (!needsRecovery) {
              return;
          }
 
          try {
-             await this.rebuildStreamFromMessages(tenantId, 200);
+             await this.rebuildStreamFromMessages(tenantId, Math.min(messageCount || 200, 2000));
          } catch (error) {
              console.error('[ChannelService] Failed to backfill stream items from messages', error);
          }
@@ -2484,7 +2521,28 @@ ${rawText}
         });
     }
 
-    private async updateBrokerProfile(parsed: ParsedStreamCandidate, message: RawInboundMessage) {
+    private readonly CLUSTERS: Record<string, string[]> = {
+        'Bandra-Santacruz': ['bandra', 'bandra east', 'bandra west', 'khar', 'khar west', 'santacruz', 'santacruz west', 'santacruz east', 'vile parle', 'vile parle west', 'pali hill', 'carter road'],
+        'Andheri-Lokhandwala': ['andheri', 'andheri west', 'andheri east', 'lokhandwala', 'oshiwara', 'versova', 'jvpd scheme', 'juhu'],
+        'BKC': ['bkc', 'bandra kurla complex'],
+        'South Mumbai': ['lower parel', 'worli', 'mahalaxmi', 'prabhadevi', 'parel', 'fort', 'marine lines', 'churchgate', 'colaba', 'nariman point', 'tardeo', 'byculla', 'mahim'],
+        'Western Suburbs': ['goregaon west', 'goregaon east', 'malad west', 'malad east', 'kandivali west', 'kandivali east', 'borivali west', 'borivali east', 'dahisar', 'poisar'],
+        'Thane-Navi Mumbai': ['thane', 'navi mumbai', 'vashi', 'panvel', 'belapur', 'airoli', 'ghansoli', 'kharghar', 'kalyan', 'dombivli'],
+        'Central Suburbs': ['dadar', 'matunga', 'sion', 'chembur', 'kurla', 'ghatkopar', 'vikhroli', 'kanjurmarg', 'bhandup', 'mulund', 'powai', 'nerul'],
+    };
+
+    private findBroadcastCluster(locality: string): string | null {
+        const normalized = locality.trim().toLowerCase().replace(/\s+/g, ' ');
+        for (const [cluster, keywords] of Object.entries(this.CLUSTERS)) {
+            for (const keyword of keywords) {
+                const kn = keyword.trim().toLowerCase().replace(/\s+/g, ' ');
+                if (normalized === kn || normalized.includes(kn) || kn.includes(normalized)) return cluster;
+            }
+        }
+        return null;
+    }
+
+    private async updateBrokerProfile(tenantId: string, parsed: ParsedStreamCandidate, message: RawInboundMessage) {
         const phone = parsed.sourcePhone || this.extractPhoneFromText(parsed.rawText);
         if (!phone) return;
 
@@ -2529,7 +2587,6 @@ ${rawText}
         monthly[monthKey] = (monthly[monthKey] || 0) + 1;
 
         const payload: any = {
-            name,
             listing_count: (existing?.listing_count || 0) + (isRequirement ? 0 : 1),
             requirement_count: (existing?.requirement_count || 0) + (isRequirement ? 1 : 0),
             total_messages: (existing?.total_messages || 0) + 1,
@@ -2556,6 +2613,26 @@ ${rawText}
         await supabaseAdmin!
             .from('broker_activity')
             .upsert({ phone, ...payload }, { onConflict: 'phone' });
+
+        if (parsed.locality && phone && tenantId) {
+            const cluster = this.findBroadcastCluster(parsed.locality);
+            if (cluster) {
+                const displayName = name ? String(name).trim() : phone;
+                try {
+                    await supabaseAdmin!
+                        .from('wabro_contacts')
+                        .upsert({
+                            tenant_id: tenantId,
+                            list_name: `${cluster} Broadcast`,
+                            phone: phone.slice(-10),
+                            name: '',
+                            locality: parsed.locality,
+                        }, { onConflict: 'tenant_id, list_name, phone' });
+                } catch (we) {
+                    console.error('[BrokerProfile] Wabro contacts upsert failed', we);
+                }
+            }
+        }
     }
 }
 

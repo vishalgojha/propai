@@ -22,18 +22,25 @@ function getConversationClient() {
     return supabaseAdmin ?? supabase;
 }
 
-export async function getConversationHistory(phoneNumber: string): Promise<ConversationMessage[]> {
+export async function getConversationHistory(phoneNumber: string, sessionId?: string): Promise<ConversationMessage[]> {
     const conversationKey = normalizeConversationKey(phoneNumber);
     if (!conversationKey) {
         return [];
     }
 
-    const { data, error } = await getConversationClient()
+    const limit = sessionId ? 50 : 15;
+    let query = getConversationClient()
         .from('conversations')
         .select('role, content, created_at')
-        .eq('phone_number', conversationKey)
+        .eq('phone_number', conversationKey);
+
+    if (sessionId) {
+        query = query.eq('session_id', sessionId);
+    }
+
+    const { data, error } = await query
         .order('created_at', { ascending: false })
-        .limit(15);
+        .limit(limit);
 
     if (error) {
         console.error('[ConversationMemory] Failed to fetch history', error);
@@ -49,15 +56,15 @@ export async function getConversationHistory(phoneNumber: string): Promise<Conve
         }));
 }
 
-export async function saveToHistory(phoneNumber: string, userMessage: string, assistantReply: string) {
+export async function saveToHistory(phoneNumber: string, userMessage: string, assistantReply: string, sessionId?: string) {
     const conversationKey = normalizeConversationKey(phoneNumber);
     if (!conversationKey) {
         return;
     }
 
     const rows = [
-        { phone_number: conversationKey, role: 'user' as const, content: userMessage },
-        { phone_number: conversationKey, role: 'assistant' as const, content: assistantReply },
+        { phone_number: conversationKey, role: 'user' as const, content: userMessage, session_id: sessionId || null },
+        { phone_number: conversationKey, role: 'assistant' as const, content: assistantReply, session_id: sessionId || null },
     ];
 
     const { error } = await getConversationClient()
@@ -69,16 +76,22 @@ export async function saveToHistory(phoneNumber: string, userMessage: string, as
     }
 }
 
-export async function getConversationMessageCount(phoneNumber: string) {
+export async function getConversationMessageCount(phoneNumber: string, sessionId?: string) {
     const conversationKey = normalizeConversationKey(phoneNumber);
     if (!conversationKey) {
         return 0;
     }
 
-    const { count, error } = await getConversationClient()
+    let query = getConversationClient()
         .from('conversations')
         .select('id', { count: 'exact', head: true })
         .eq('phone_number', conversationKey);
+
+    if (sessionId) {
+        query = query.eq('session_id', sessionId);
+    }
+
+    const { count, error } = await query;
 
     if (error) {
         console.error('[ConversationMemory] Failed to count history', error);
