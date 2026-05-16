@@ -12,7 +12,9 @@ import {
   ChevronRightIcon,
   GlobeIcon,
   PaperclipIcon,
+  PlusIcon,
   RefreshIcon,
+  TrashIcon,
   WorkflowIcon,
   XIcon,
   CheckCircleIcon,
@@ -26,6 +28,13 @@ type ChatMessage = {
   content: string;
   timestamp: string;
   route?: string;
+};
+
+type AiSession = {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
 };
 
 type RuntimeModel = {
@@ -346,6 +355,10 @@ export const Agent: React.FC = () => {
   const [activeModelName, setActiveModelName] = useState<string | null>(null);
   const [runtimeNote, setRuntimeNote] = useState<string | null>(null);
   const [chatHydrated, setChatHydrated] = useState(false);
+  const [sessions, setSessions] = useState<AiSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [isClearing, setIsClearing] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -488,80 +501,72 @@ export const Agent: React.FC = () => {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    let mounted = true;
 
+    const init = async () => {
+      try {
+        const resp = await backendApi.get<{ sessions: AiSession[] }>(ENDPOINTS.ai.sessions);
+        const sessionList = resp.data?.sessions || [];
+        if (!mounted) return;
+        setSessions(sessionList);
+
+        if (sessionList.length > 0) {
+          setActiveSessionId(sessionList[0].id);
+        } else {
+          const createResp = await backendApi.post<{ session: AiSession }>(ENDPOINTS.ai.sessions);
+          const newSession = createResp.data?.session;
+          if (newSession && mounted) {
+            setSessions([newSession]);
+            setActiveSessionId(newSession.id);
+          }
+        }
+      } catch {
+        if (mounted) setSessions([]);
+      }
+      if (mounted) setLoadingSessions(false);
+    };
+
+    init();
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!activeSessionId || typeof window === 'undefined') return;
     let mounted = true;
 
     const loadHistory = async () => {
       try {
-        const resp = await backendApi.get<{ messages: { role: 'user' | 'ai'; content: string }[] }>(ENDPOINTS.ai.history);
+        const resp = await backendApi.get<{ messages: { role: 'user' | 'ai'; content: string }[] }>(ENDPOINTS.ai.history, {
+          params: { sessionId: activeSessionId },
+        });
         const serverMessages = resp.data?.messages;
-        if (mounted && Array.isArray(serverMessages) && serverMessages.length > 0) {
+        if (mounted && Array.isArray(serverMessages)) {
           const withTimestamps = serverMessages.map((msg) => ({
             role: msg.role as 'user' | 'ai',
             content: msg.content,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           }));
-          setMessages(withTimestamps);
+          setMessages(withTimestamps.length > 0 ? withTimestamps : starterMessages);
           setChatHydrated(true);
-          return;
         }
       } catch {
-        // server history unavailable, fall through to localStorage
-      }
-
-      try {
-        const savedMessages = window.localStorage.getItem(chatStorageKey);
         if (mounted) {
-          if (savedMessages) {
-            const parsedMessages = JSON.parse(savedMessages) as ChatMessage[];
-            if (Array.isArray(parsedMessages) && parsedMessages.length) {
-              const validMessages = parsedMessages.filter(
-                (message) =>
-                  (message.role === 'user' || message.role === 'ai') &&
-                  typeof message.content === 'string' &&
-                  typeof message.timestamp === 'string',
-              );
-              setMessages(validMessages.length ? validMessages : starterMessages);
-            } else {
-              setMessages(starterMessages);
-            }
-          } else {
-            setMessages(starterMessages);
-          }
+          setMessages(starterMessages);
+          setChatHydrated(true);
         }
-      } catch {
-        if (mounted) setMessages(starterMessages);
       }
-
-      try {
-        const savedDraft = window.localStorage.getItem(draftStorageKey);
-        if (mounted) setInput(savedDraft || '');
-      } catch {
-        if (mounted) setInput('');
-      }
-
-      if (mounted) setChatHydrated(true);
     };
 
     loadHistory();
-
     return () => { mounted = false; };
-  }, [chatStorageKey, draftStorageKey]);
+  }, [activeSessionId]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !chatHydrated) return;
-
-    window.localStorage.setItem(chatStorageKey, JSON.stringify(messages));
-  }, [chatHydrated, chatStorageKey, messages]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !chatHydrated) return;
-
     if (input.trim()) {
       window.localStorage.setItem(draftStorageKey, input);
       return;
     }
-
     window.localStorage.removeItem(draftStorageKey);
   }, [chatHydrated, draftStorageKey, input]);
 
@@ -643,12 +648,23 @@ export const Agent: React.FC = () => {
 	    setInput('');
 	    setIsTyping(true);
 
+	    const isNewSession = activeSessionId && sessions.find((s) => s.id === activeSessionId)?.title === 'New Chat';
+
 	    try {
 	      const response = await backendApi.post(ENDPOINTS.ai.chat, {
 	        message: prompt,
 	        model: selectedModel,
+	        sessionId: activeSessionId,
 	        attachments: attachedFiles.map((file) => file.id),
 	      });
+
+	      if (isNewSession && activeSessionId) {
+	        const title = prompt.slice(0, 42).trim().replace(/\s+/g, ' ') + (prompt.length > 42 ? '...' : '');
+	        try {
+	          await backendApi.put(ENDPOINTS.ai.sessionById(activeSessionId), { title });
+	          setSessions((prev) => prev.map((s) => s.id === activeSessionId ? { ...s, title } : s));
+	        } catch { /* silent */ }
+	      }
       const reply = [
         response.data.reply,
         response.data.capability_hint,
@@ -796,13 +812,117 @@ export const Agent: React.FC = () => {
     }
   };
 
+  const handleNewChat = async () => {
+    try {
+      const resp = await backendApi.post<{ session: AiSession }>(ENDPOINTS.ai.sessions);
+      const session = resp.data?.session;
+      if (session) {
+        setSessions((prev) => [session, ...prev]);
+        setActiveSessionId(session.id);
+        setMessages(starterMessages);
+      }
+    } catch { /* silent */ }
+  };
+
+  const handleSwitchSession = (sessionId: string) => {
+    setActiveSessionId(sessionId);
+    setMessages(starterMessages);
+    setChatHydrated(false);
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      await backendApi.delete(ENDPOINTS.ai.sessionById(sessionId));
+      const remaining = sessions.filter((s) => s.id !== sessionId);
+      setSessions(remaining);
+      if (activeSessionId === sessionId) {
+        if (remaining.length > 0) {
+          setActiveSessionId(remaining[0].id);
+        } else {
+          const createResp = await backendApi.post<{ session: AiSession }>(ENDPOINTS.ai.sessions);
+          const newSession = createResp.data?.session;
+          if (newSession) {
+            setSessions([newSession]);
+            setActiveSessionId(newSession.id);
+          }
+        }
+      }
+    } catch { /* silent */ }
+  };
+
+  const handleClearChat = async () => {
+    if (!activeSessionId || isClearing) return;
+    setIsClearing(true);
+    try {
+      await backendApi.post(ENDPOINTS.ai.sessionClear(activeSessionId));
+      setMessages(starterMessages);
+    } catch { /* silent */ }
+    setIsClearing(false);
+  };
+
   const openAssistantPanel = (tab: AssistantPanelTab = 'runtime') => {
     setAssistantPanelTab(tab);
     setIsAssistantPanelOpen(true);
   };
 
+  const activeSession = sessions.find((s) => s.id === activeSessionId);
+
   return (
-    <div className={cn('grid gap-4 sm:gap-6', showAssistantRail && 'lg:grid-cols-[minmax(0,1fr)_360px]')}>
+    <div className="flex gap-4 sm:gap-6">
+      <aside className="hidden w-[240px] shrink-0 flex-col overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.22)] md:flex md:min-h-[calc(100vh-160px)]">
+        <div className="flex items-center justify-between border-b border-[color:var(--border)] px-4 py-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-secondary)]">Chats</p>
+          <button
+            type="button"
+            onClick={() => void handleNewChat()}
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
+            title="New chat"
+          >
+            <PlusIcon className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          {loadingSessions ? (
+            <p className="px-2 py-4 text-[11px] text-[var(--text-secondary)]">Loading...</p>
+          ) : sessions.length === 0 ? (
+            <p className="px-2 py-4 text-[11px] text-[var(--text-secondary)]">No chats yet</p>
+          ) : (
+            <div className="space-y-1">
+              {sessions.map((session) => (
+                <div
+                  key={session.id}
+                  className={cn(
+                    'group flex cursor-pointer items-center gap-2 rounded-[12px] px-3 py-2.5 text-left transition-colors',
+                    activeSessionId === session.id
+                      ? 'bg-[var(--accent-dim)]'
+                      : 'hover:bg-[var(--bg-elevated)]',
+                  )}
+                  onClick={() => handleSwitchSession(session.id)}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[12px] font-medium text-[var(--text-primary)]">
+                      {session.title}
+                    </p>
+                    <p className="text-[10px] text-[var(--text-ghost)]">
+                      {new Date(session.updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); void handleDeleteSession(session.id); }}
+                    className="shrink-0 rounded-full p-1 text-[var(--text-ghost)] opacity-0 transition-all hover:text-[var(--red)] group-hover:opacity-100"
+                    title="Delete chat"
+                  >
+                    <TrashIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <div className={cn('min-w-0 flex-1 grid gap-4 sm:gap-6', showAssistantRail && 'lg:grid-cols-[minmax(0,1fr)_360px]')}>
       <section className="flex min-h-[calc(100dvh-11rem)] flex-col overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.22)] md:min-h-[calc(100vh-160px)]">
         <div className="border-b border-[color:var(--border)] px-4 py-4 sm:px-6 sm:py-5">
           {identityData && (
@@ -856,6 +976,17 @@ export const Agent: React.FC = () => {
               </div>
             </div>
             <div className="flex w-full flex-col gap-2 text-[11px] text-[var(--text-secondary)] sm:w-auto sm:items-end">
+              {activeSession && hasConversation ? (
+                <button
+                  type="button"
+                  onClick={() => void handleClearChat()}
+                  disabled={isClearing}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--red)] hover:text-[var(--red)] disabled:opacity-50"
+                >
+                  <TrashIcon className="h-3 w-3" />
+                  {isClearing ? 'Clearing...' : 'Clear chat'}
+                </button>
+              ) : null}
               <div className="flex items-center gap-2">
                 <WorkflowIcon className="h-3.5 w-3.5 text-[var(--accent)]" />
                 <span>
@@ -1375,6 +1506,7 @@ export const Agent: React.FC = () => {
             </div>
           </aside>
         ) : null}
+      </div>
     </div>
   );
 };

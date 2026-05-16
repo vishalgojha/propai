@@ -7,6 +7,7 @@ import { ENDPOINTS } from '../services/endpoints';
 import { MenuIcon, PowerIcon, LogoutIcon } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
 import { PROPAI_ASSISTANT_WA_LINK } from '../lib/propai';
+import { useInboxNotifications } from '../hooks/useInboxNotifications';
 
 type WhatsAppSessionSummary = {
   label: string;
@@ -41,6 +42,7 @@ export const Layout: React.FC = () => {
       return false;
     }
   });
+  useInboxNotifications();
   const [isDisconnectingSession, setIsDisconnectingSession] = React.useState(false);
   const [selectedSessionLabel, setSelectedSessionLabel] = React.useState<string | null>(() => {
     try {

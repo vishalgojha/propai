@@ -12,6 +12,9 @@ export const ENDPOINTS = {
     models: '/ai/models',
     status: '/ai/status',
     history: '/ai/history',
+    sessions: '/ai/sessions',
+    sessionById: (id: string) => `/ai/sessions/${encodeURIComponent(id)}`,
+    sessionClear: (id: string) => `/ai/sessions/${encodeURIComponent(id)}/clear`,
   },
   settings: {
     get: '/settings',
@@ -49,6 +52,7 @@ export const ENDPOINTS = {
     sessions: '/whatsapp/sessions',
     qr: '/whatsapp/qr',
     monitor: '/whatsapp/monitor',
+    monitorMessages: '/whatsapp/monitor/messages',
     inbox: '/whatsapp/inbox',
     health: '/whatsapp/health',
     healthLogs: '/whatsapp/health/logs',

@@ -3,6 +3,7 @@ import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
 import {
+  ArrowUpIcon,
   CallbackIcon,
   LoaderIcon,
   MailIcon,
@@ -234,6 +235,36 @@ export const Inbox: React.FC = () => {
   const [error, setError] = React.useState<string | null>(null);
   const [dmTags, setDmTags] = React.useState<Map<string, DmContact>>(new Map());
   const [taggingJid, setTaggingJid] = React.useState<string | null>(null);
+  const [replyText, setReplyText] = React.useState('');
+  const [isSending, setIsSending] = React.useState(false);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+  const sendReply = React.useCallback(async () => {
+    const text = replyText.trim();
+    if (!text || !selectedChatId || isSending) return;
+    setIsSending(true);
+    const optimistic: InboxMessage = {
+      id: `optimistic-${Date.now()}`,
+      chatId: selectedChatId,
+      text,
+      direction: 'outbound',
+      timestamp: new Date().toISOString(),
+    };
+    setData((prev) => prev ? { ...prev, messages: [...prev.messages, optimistic] } : prev);
+    setReplyText('');
+    try {
+      await backendApi.post(ENDPOINTS.whatsapp.send, { remoteJid: selectedChatId, text });
+      void loadInbox();
+    } catch {
+      setData((prev) => prev ? { ...prev, messages: prev.messages.filter((m) => m.id !== optimistic.id) } : prev);
+    } finally {
+      setIsSending(false);
+    }
+  }, [replyText, selectedChatId, isSending, loadInbox]);
+
+  React.useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const loadInbox = React.useCallback(async () => {
     setIsLoading(true);
@@ -456,6 +487,7 @@ export const Inbox: React.FC = () => {
                     </div>
                   </div>
                 ))}
+                <div ref={messagesEndRef} />
               </div>
             ) : (
               <div className="flex h-full items-center justify-center">
@@ -471,6 +503,35 @@ export const Inbox: React.FC = () => {
               </div>
             )}
           </div>
+
+          {selectedChat ? (
+            <div className="border-t border-[#202c33] bg-[#202c33] px-4 py-3">
+              <div className="flex items-end gap-3">
+                <textarea
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      void sendReply();
+                    }
+                  }}
+                  rows={1}
+                  placeholder="Type a message..."
+                  className="max-h-24 min-h-[44px] flex-1 resize-none rounded-lg border border-[#2a3942] bg-[#2a3942] px-4 py-3 text-[14px] text-white outline-none placeholder:text-[#8696a0] transition-colors focus:border-[#00a884]"
+                  disabled={isSending}
+                />
+                <button
+                  type="button"
+                  onClick={() => void sendReply()}
+                  disabled={!replyText.trim() || isSending}
+                  className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white transition-colors hover:bg-[#06cf9c] disabled:opacity-40"
+                >
+                  {isSending ? <LoaderIcon className="h-5 w-5 animate-spin" /> : <ArrowUpIcon className="h-5 w-5" />}
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
       </div>
     </div>

@@ -53,6 +53,7 @@ export const ROUTE_PATHS = {
         status: '/status',
         mirror: '/mirror',
         monitor: '/monitor',
+        monitorMessages: '/monitor/messages',
         inbox: '/inbox',
         health: '/health',
         healthDetailed: '/health/detailed',
@@ -78,6 +79,9 @@ export const ROUTE_PATHS = {
     keysTest: '/keys/test',
     propertySearch: '/property-search',
     history: '/history',
+    sessions: '/sessions',
+    sessionById: '/sessions/:id',
+    sessionClear: '/sessions/:id/clear',
   },
   agent: {
     webFetch: '/tool/web_fetch',

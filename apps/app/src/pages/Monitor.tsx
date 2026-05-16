@@ -35,6 +35,7 @@ type MonitorChat = {
 type MonitorMessage = {
   id: string;
   chatId: string;
+  remoteJid?: string;
   type: 'group' | 'direct';
   title: string;
   text: string;
@@ -59,7 +60,17 @@ type MonitorResponse = {
     lastSync?: string | null;
   }>;
   chats: MonitorChat[];
+  messages?: MonitorMessage[];
+};
+
+type MonitorThreadResponse = {
+  chatId: string;
   messages: MonitorMessage[];
+  pagination?: {
+    limit: number;
+    hasMore: boolean;
+    nextBefore: string | null;
+  };
 };
 
 type RawMessageRow = {
@@ -71,6 +82,9 @@ type RawMessageRow = {
   timestamp?: string | null;
   created_at?: string | null;
 };
+
+const THREAD_PAGE_SIZE = 100;
+const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
 
 const formatTime = (value?: string | null) =>
   value
@@ -91,7 +105,7 @@ const formatDateTime = (value?: string | null) =>
     : '--';
 
 const normalizePhone = (value?: string | null) => {
-  const digits = String(value || '').split('').filter(c => c >= '0' && c <= '9').join('');
+  const digits = String(value || '').split('').filter((c) => c >= '0' && c <= '9').join('');
   return digits.length >= 10 ? digits : null;
 };
 
@@ -112,7 +126,6 @@ const buildDirectTitle = (row: RawMessageRow) => {
 
 const fallbackFromMessages = (rows: RawMessageRow[]): MonitorResponse => {
   const chatsMap = new Map<string, MonitorChat>();
-  const messages: MonitorMessage[] = [];
 
   for (const row of rows) {
     const remoteJid = String(row.remote_jid || '');
@@ -124,7 +137,6 @@ const fallbackFromMessages = (rows: RawMessageRow[]): MonitorResponse => {
     const title = isGroup
       ? String(row.sender || '').trim() || 'WhatsApp group'
       : buildDirectTitle(row);
-    const direction = isOutboundSender(row.sender) ? 'outbound' : 'inbound';
 
     const existing = chatsMap.get(remoteJid) || {
       id: remoteJid,
@@ -148,16 +160,6 @@ const fallbackFromMessages = (rows: RawMessageRow[]): MonitorResponse => {
     }
 
     chatsMap.set(remoteJid, existing);
-    messages.push({
-      id: String(row.id || `${remoteJid}-${timestamp}`),
-      chatId: remoteJid,
-      type: isGroup ? 'group' : 'direct',
-      title,
-      text,
-      sender: row.sender || null,
-      direction,
-      timestamp,
-    });
   }
 
   const chats = Array.from(chatsMap.values()).sort(
@@ -169,14 +171,58 @@ const fallbackFromMessages = (rows: RawMessageRow[]): MonitorResponse => {
       totalChats: chats.length,
       directChats: chats.filter((chat) => chat.type === 'direct').length,
       groupChats: chats.filter((chat) => chat.type === 'group').length,
-      totalMessages: messages.length,
+      totalMessages: rows.length,
       connectedSessions: 0,
     },
     sessions: [],
     chats,
-    messages: messages.sort(
-      (left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime(),
-    ),
+    messages: [],
+  };
+};
+
+const fallbackThreadFromMessages = (
+  rows: RawMessageRow[],
+  chatId: string,
+  before?: string | null,
+): MonitorThreadResponse => {
+  const filtered = rows
+    .filter((row) => String(row.remote_jid || '') === chatId)
+    .sort((left, right) => new Date(right.timestamp || right.created_at || 0).getTime() - new Date(left.timestamp || left.created_at || 0).getTime());
+
+  const beforeTime = before ? new Date(before).getTime() : null;
+  const scoped = beforeTime
+    ? filtered.filter((row) => new Date(row.timestamp || row.created_at || 0).getTime() < beforeTime)
+    : filtered;
+  const slice = scoped.slice(0, THREAD_PAGE_SIZE + 1);
+  const hasMore = slice.length > THREAD_PAGE_SIZE;
+  const pageRows = hasMore ? slice.slice(0, THREAD_PAGE_SIZE) : slice;
+  const messages = pageRows
+    .slice()
+    .reverse()
+    .map((row) => {
+      const isGroup = String(row.remote_jid || '').endsWith('@g.us');
+      const timestamp = row.timestamp || row.created_at || new Date().toISOString();
+      return {
+        id: String(row.id || `${chatId}-${timestamp}`),
+        chatId,
+        remoteJid: chatId,
+        type: isGroup ? 'group' as const : 'direct' as const,
+        title: isGroup ? 'WhatsApp group' : buildDirectTitle(row),
+        text: String(row.message_text || row.text || '').trim(),
+        sender: row.sender || null,
+        direction: isOutboundSender(row.sender) ? 'outbound' as const : 'inbound' as const,
+        timestamp,
+      };
+    });
+
+  return {
+    chatId,
+    messages,
+    pagination: {
+      limit: THREAD_PAGE_SIZE,
+      hasMore,
+      nextBefore: pageRows[pageRows.length - 1]?.timestamp || pageRows[pageRows.length - 1]?.created_at || null,
+    },
   };
 };
 
@@ -192,7 +238,16 @@ const unwrapMonitorPayload = (data: any): MonitorResponse => ({
   chats: Array.isArray(data?.chats) ? data.chats : [],
   messages: Array.isArray(data?.messages) ? data.messages : [],
 });
-const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
+
+const unwrapMonitorThreadPayload = (data: any): MonitorThreadResponse => ({
+  chatId: String(data?.chatId || ''),
+  messages: Array.isArray(data?.messages) ? data.messages : [],
+  pagination: {
+    limit: Number(data?.pagination?.limit || THREAD_PAGE_SIZE),
+    hasMore: Boolean(data?.pagination?.hasMore),
+    nextBefore: data?.pagination?.nextBefore || null,
+  },
+});
 
 const sanitizeMonitorError = (message: string) => {
   const normalized = message.toLowerCase();
@@ -202,10 +257,22 @@ const sanitizeMonitorError = (message: string) => {
     normalized.includes('created_at does not exist') ||
     normalized.includes('message_text does not exist')
   ) {
-    return 'this workspace is still on an older database shape, so group tags and richer mirror metadata are temporarily limited';
+    return 'this workspace is still on an older database shape, so some monitor metadata is temporarily limited';
   }
 
   return message;
+};
+
+const mergeMessages = (existing: MonitorMessage[], incoming: MonitorMessage[]) => {
+  const seen = new Map<string, MonitorMessage>();
+
+  for (const message of [...existing, ...incoming]) {
+    seen.set(message.id, message);
+  }
+
+  return Array.from(seen.values()).sort(
+    (left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime(),
+  );
 };
 
 const monitorPill =
@@ -228,12 +295,19 @@ export const Monitor: React.FC = () => {
   const [search, setSearch] = React.useState('');
   const [chatFilter, setChatFilter] = React.useState<'all' | 'groups' | 'direct'>('all');
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isThreadLoading, setIsThreadLoading] = React.useState(false);
+  const [isLoadingOlder, setIsLoadingOlder] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [toast, setToast] = React.useState<string | null>(null);
   const [replyText, setReplyText] = React.useState('');
   const [isSending, setIsSending] = React.useState(false);
   const [sendStatus, setSendStatus] = React.useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
   const [clearedChatIds, setClearedChatIds] = React.useState<Set<string>>(new Set());
+  const [threadMessages, setThreadMessages] = React.useState<MonitorMessage[]>([]);
+  const [threadPagination, setThreadPagination] = React.useState<{ hasMore: boolean; nextBefore: string | null }>({
+    hasMore: false,
+    nextBefore: null,
+  });
 
   const handleClearChat = React.useCallback((chatId: string) => {
     setClearedChatIds((prev) => {
@@ -250,7 +324,7 @@ export const Monitor: React.FC = () => {
     setError(null);
 
     try {
-      const response = await backendApi.get(ENDPOINTS.whatsapp.mirror, {
+      const response = await backendApi.get(ENDPOINTS.whatsapp.monitor, {
         params: selectedSessionLabel ? { sessionLabel: selectedSessionLabel } : undefined,
       });
       const payload = unwrapMonitorPayload(response.data);
@@ -269,8 +343,8 @@ export const Monitor: React.FC = () => {
         setSelectedChatId((current) => current || payload.chats?.[0]?.id || '');
         setError(
           err?.response?.status === 404
-            ? 'Mirror endpoint is not live on this API build yet, so Monitor is using the saved message log for now.'
-            : `Monitor mirror is unavailable right now, so this view is using the saved message log instead. (${sanitizeMonitorError(primaryError)})`,
+            ? 'Monitor endpoint is not live on this API build yet, so this view is using the saved message log for now.'
+            : `Monitor overview is unavailable right now, so this view is using the saved message log instead. (${sanitizeMonitorError(primaryError)})`,
         );
       } catch (fallbackErr) {
         setError(handleApiError(fallbackErr));
@@ -284,57 +358,141 @@ export const Monitor: React.FC = () => {
     }
   }, [selectedSessionLabel]);
 
-React.useEffect(() => {
-     void loadMonitor();
-     const interval = setInterval(() => {
-       void loadMonitor();
-     }, 4000);
+  const loadThread = React.useCallback(async (
+    chatId: string,
+    options?: { before?: string | null; appendOlder?: boolean; preserveExisting?: boolean },
+  ) => {
+    if (!chatId) {
+      setThreadMessages([]);
+      setThreadPagination({ hasMore: false, nextBefore: null });
+      return;
+    }
 
-     // Real-time subscription for instant message updates via Supabase Realtime
-     let supabaseCleanup: (() => void) | undefined;
+    const before = options?.before || null;
+    const appendOlder = Boolean(options?.appendOlder);
+    const preserveExisting = Boolean(options?.preserveExisting);
 
-     const setupRealtime = async () => {
-       try {
-         const client = createSupabaseBrowserClient();
-         const channel = client
-           .channel('monitor:messages')
-           .on(
-             'postgres_changes',
-             {
-               event: '*',
-               schema: 'public',
-               table: 'whatsapp_message_mirror',
-             },
-             () => {
-               void loadMonitor();
-             }
-           )
-           .subscribe((status) => {
-             if (status === 'CHANNEL_ERROR') {
-               console.warn('[Monitor] Realtime subscription error, falling back to polling only');
-             }
-           });
+    if (appendOlder) {
+      setIsLoadingOlder(true);
+    } else {
+      setIsThreadLoading(true);
+    }
 
-         supabaseCleanup = () => {
-           void client.removeChannel(channel);
-         };
-       } catch {
-         // Realtime setup failure is non-fatal; polling continues
-       }
-     };
+    try {
+      const response = await backendApi.get(ENDPOINTS.whatsapp.monitorMessages, {
+        params: {
+          chatId,
+          limit: THREAD_PAGE_SIZE,
+          ...(selectedSessionLabel ? { sessionLabel: selectedSessionLabel } : {}),
+          ...(before ? { before } : {}),
+        },
+      });
+      const payload = unwrapMonitorThreadPayload(response.data);
 
-     void setupRealtime();
+      setThreadMessages((current) => {
+        if (appendOlder || preserveExisting) {
+          return mergeMessages(current, payload.messages);
+        }
+        return payload.messages;
+      });
+      setThreadPagination({
+        hasMore: Boolean(payload.pagination?.hasMore),
+        nextBefore: payload.pagination?.nextBefore || null,
+      });
+    } catch (err: any) {
+      try {
+        const fallback = await backendApi.get(ENDPOINTS.whatsapp.messages, {
+          params: selectedSessionLabel ? { sessionLabel: selectedSessionLabel } : undefined,
+        });
+        const payload = fallbackThreadFromMessages(
+          Array.isArray(fallback.data) ? fallback.data : [],
+          chatId,
+          before,
+        );
+        setThreadMessages((current) => {
+          if (appendOlder || preserveExisting) {
+            return mergeMessages(current, payload.messages);
+          }
+          return payload.messages;
+        });
+        setThreadPagination({
+          hasMore: Boolean(payload.pagination?.hasMore),
+          nextBefore: payload.pagination?.nextBefore || null,
+        });
+        if (!appendOlder) {
+          setError((current) => current || `Monitor history fallback is active. (${sanitizeMonitorError(handleApiError(err))})`);
+        }
+      } catch (fallbackErr) {
+        if (!appendOlder) {
+          setThreadMessages([]);
+          setThreadPagination({ hasMore: false, nextBefore: null });
+          setError(handleApiError(fallbackErr));
+        }
+      }
+    } finally {
+      setIsThreadLoading(false);
+      setIsLoadingOlder(false);
+    }
+  }, [selectedSessionLabel]);
 
-     return () => {
-       clearInterval(interval);
-       supabaseCleanup?.();
-     };
-   }, [loadMonitor]);
+  React.useEffect(() => {
+    void loadMonitor();
+    const interval = setInterval(() => {
+      void loadMonitor();
+      if (selectedChatId) {
+        void loadThread(selectedChatId, { preserveExisting: true });
+      }
+    }, 4000);
+
+    let supabaseCleanup: (() => void) | undefined;
+
+    const setupRealtime = async () => {
+      try {
+        const client = createSupabaseBrowserClient();
+        const channel = client
+          .channel('monitor:messages')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'messages',
+            },
+            () => {
+              void loadMonitor();
+              if (selectedChatId) {
+                void loadThread(selectedChatId, { preserveExisting: true });
+              }
+            },
+          )
+          .subscribe((status) => {
+            if (status === 'CHANNEL_ERROR') {
+              console.warn('[Monitor] Realtime subscription error, falling back to polling only');
+            }
+          });
+
+        supabaseCleanup = () => {
+          void client.removeChannel(channel);
+        };
+      } catch {
+        // Realtime setup failure is non-fatal; polling continues
+      }
+    };
+
+    void setupRealtime();
+
+    return () => {
+      clearInterval(interval);
+      supabaseCleanup?.();
+    };
+  }, [loadMonitor, loadThread, selectedChatId]);
 
   React.useEffect(() => {
     const handleSelectedSession = (event: Event) => {
       const detail = (event as CustomEvent<{ label?: string | null }>).detail;
       setSelectedSessionLabel(detail?.label || null);
+      setThreadMessages([]);
+      setThreadPagination({ hasMore: false, nextBefore: null });
     };
 
     window.addEventListener('whatsapp:selected-session', handleSelectedSession as EventListener);
@@ -387,17 +545,36 @@ React.useEffect(() => {
     ));
   }, [chats]);
 
+  React.useEffect(() => {
+    if (!selectedChatId) {
+      setThreadMessages([]);
+      setThreadPagination({ hasMore: false, nextBefore: null });
+      return;
+    }
+
+    void loadThread(selectedChatId);
+  }, [selectedChatId, loadThread]);
+
   const selectedChat = chats.find((chat) => chat.id === selectedChatId) || chats[0] || null;
   const visibleMessages = React.useMemo(
-    () => (data?.messages || []).filter(
-      (message) => message.chatId === selectedChat?.id && !clearedChatIds.has(message.chatId),
-    ),
-    [data?.messages, selectedChat?.id, clearedChatIds],
+    () => threadMessages.filter((message) => message.chatId === selectedChat?.id && !clearedChatIds.has(message.chatId)),
+    [threadMessages, selectedChat?.id, clearedChatIds],
   );
 
   React.useEffect(() => {
     setReplyText('');
   }, [selectedChat?.id]);
+
+  const handleLoadOlder = React.useCallback(async () => {
+    if (!selectedChat?.id || !threadPagination.nextBefore || isLoadingOlder) {
+      return;
+    }
+
+    await loadThread(selectedChat.id, {
+      before: threadPagination.nextBefore,
+      appendOlder: true,
+    });
+  }, [isLoadingOlder, loadThread, selectedChat?.id, threadPagination.nextBefore]);
 
   const handleSendReply = async () => {
     const text = replyText.trim();
@@ -413,11 +590,10 @@ React.useEffect(() => {
     const isGroup = selectedChat.type === 'group';
     const targetLabel = isGroup ? `${selectedChat.title} group` : selectedChat.title;
 
-    console.log(`[Monitor] Sending to ${isGroup ? 'GROUP' : 'DIRECT'} JID: ${jid} (${targetLabel})`);
-
     const optimisticMessage: MonitorMessage = {
       id: `optimistic-${Date.now()}`,
       chatId: jid,
+      remoteJid: jid,
       type: selectedChat.type,
       title: selectedChat.title,
       text,
@@ -426,14 +602,19 @@ React.useEffect(() => {
       timestamp: new Date().toISOString(),
     };
 
+    setThreadMessages((current) => mergeMessages(current, [optimisticMessage]));
     setData((current) => {
       if (!current) return current;
       return {
         ...current,
-        messages: [...current.messages, optimisticMessage],
         chats: current.chats.map((chat) =>
           chat.id === jid
-            ? { ...chat, preview: text, lastMessageAt: optimisticMessage.timestamp }
+            ? {
+                ...chat,
+                preview: text,
+                lastMessageAt: optimisticMessage.timestamp,
+                messageCount: chat.messageCount + 1,
+              }
             : chat,
         ),
       };
@@ -448,8 +629,11 @@ React.useEffect(() => {
       setSendStatus('sent');
       setToast(`Sent to ${targetLabel} \u2713`);
       setTimeout(() => { setSendStatus('idle'); setToast(null); }, 3000);
+      await loadThread(jid, { preserveExisting: true });
+      await loadMonitor();
     } catch (err) {
       setSendStatus('failed');
+      setThreadMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
       setError(handleApiError(err));
       setTimeout(() => { setSendStatus('idle'); setError(null); }, 4000);
     } finally {
@@ -466,12 +650,17 @@ React.useEffect(() => {
               <p className="text-sm font-semibold text-white">Monitor</p>
               <p className="text-[11px] text-[#8696a0]">
                 <span className="relative mr-1.5 inline-block h-2 w-2 rounded-full bg-[#00a884] shadow-[0_0_6px_#00a884]" />
-                Live · {data?.summary.totalChats || 0} chats · {data?.summary.groupChats || 0} groups
+                Live workspace history · {data?.summary.totalChats || 0} chats · {data?.summary.groupChats || 0} groups
               </p>
             </div>
             <button
               type="button"
-              onClick={() => void loadMonitor()}
+              onClick={() => {
+                void loadMonitor();
+                if (selectedChatId) {
+                  void loadThread(selectedChatId, { preserveExisting: true });
+                }
+              }}
               className={monitorSecondaryButton}
             >
               {isLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <RefreshIcon className="h-4 w-4" />}
@@ -532,7 +721,7 @@ React.useEffect(() => {
           {error ? (
             <div className={cn(
               'mx-3 mt-3 rounded-lg px-3 py-2 text-xs',
-              error.includes('not live')
+              error.includes('using the saved message log') || error.includes('fallback is active')
                 ? 'bg-[#103529] text-[#d8fdd2]'
                 : 'bg-[#32161a] text-[#ffd5d8]',
             )}>
@@ -566,6 +755,7 @@ React.useEffect(() => {
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className={monitorPill}>{chat.type === 'group' ? 'Group' : 'Direct'}</span>
                     {chat.locality ? <span className={monitorPill}>{chat.locality}</span> : null}
+                    <span className={monitorPill}>{chat.messageCount} msgs</span>
                   </div>
                 </div>
               </button>
@@ -603,7 +793,7 @@ React.useEffect(() => {
                   </span>
                   <span className={monitorPill}>
                     <ActivityIcon className="h-3.5 w-3.5" />
-                    Live mirror
+                    Full history
                   </span>
                   {selectedChat.type === 'group' ? (
                     <button
@@ -612,7 +802,7 @@ React.useEffect(() => {
                         const jid = selectedChat.remoteJid;
                         const current = selectedChat.isParsing ?? true;
                         try {
-                          await backendApi.patch(ENDPOINTS.toggleGroupParsing(jid), { isParsing: !current });
+                          await backendApi.patch(ENDPOINTS.whatsapp.toggleGroupParsing(jid), { isParsing: !current });
                           setData((prev) => {
                             if (!prev) return prev;
                             return {
@@ -666,6 +856,27 @@ React.useEffect(() => {
           >
             {selectedChat ? (
               <div className="space-y-3">
+                {threadPagination.hasMore ? (
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => void handleLoadOlder()}
+                      disabled={isLoadingOlder}
+                      className={monitorSecondaryButton}
+                    >
+                      {isLoadingOlder ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <RefreshIcon className="h-4 w-4" />}
+                      Load older messages
+                    </button>
+                  </div>
+                ) : null}
+
+                {isThreadLoading && visibleMessages.length === 0 ? (
+                  <div className="flex justify-center py-8 text-sm text-[#8696a0]">
+                    <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
+                    Loading thread history...
+                  </div>
+                ) : null}
+
                 {visibleMessages.map((message) => (
                   <div
                     key={message.id}
@@ -690,6 +901,12 @@ React.useEffect(() => {
                     </div>
                   </div>
                 ))}
+
+                {!isThreadLoading && visibleMessages.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-[#8696a0]">
+                    No saved messages yet for this chat.
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="flex h-full items-center justify-center">
@@ -697,9 +914,9 @@ React.useEffect(() => {
                   <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#202c33] text-[#8696a0]">
                     <MessageSquareIcon className="h-8 w-8" />
                   </div>
-                  <h3 className="mt-4 text-xl font-semibold text-white">WhatsApp Web style monitor</h3>
+                  <h3 className="mt-4 text-xl font-semibold text-white">WhatsApp workspace monitor</h3>
                   <p className="mt-2 text-sm leading-6 text-[#8696a0]">
-                    Pick a group or direct conversation from the left and we’ll mirror the thread here using the workspace message log.
+                    Pick a chat from the left and this panel will lazy-load its saved history from the workspace message log.
                   </p>
                 </div>
               </div>
@@ -747,9 +964,7 @@ React.useEffect(() => {
                       void handleSendReply();
                     }
                   }}
-                  placeholder={selectedChat.type === 'group'
-                    ? `Message ${selectedChat.title}...`
-                    : `Message ${selectedChat.title}...`}
+                  placeholder={`Message ${selectedChat.title}...`}
                   rows={1}
                   className="min-h-[46px] flex-1 resize-none rounded-[16px] border border-transparent bg-[#111b21] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-[#8696a0] focus:border-[#00a884]"
                 />
