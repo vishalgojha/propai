@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { PublicListing } from "@/lib/listings";
-import { extractAvailability, detectDisplayType, generateSimilarChips } from "@/lib/parse-listing";
+import { extractAvailability, detectDisplayType, generateSimilarChips, stripPhoneNumbers } from "@/lib/parse-listing";
 
 function formatTimeAgo(value: string) {
   const diff = Date.now() - new Date(value).getTime();
@@ -23,6 +23,7 @@ function badgeColors(displayType: "Rent" | "Sale" | "Commercial") {
 export function ListingCard({ listing, view = "grid" }: { listing: PublicListing; view?: "grid" | "list" }) {
   const [expanded, setExpanded] = useState(false);
   const rawText = listing.rawText || listing.description || "";
+  const safeRaw = stripPhoneNumbers(rawText);
 
   const displayType = detectDisplayType(listing.type, rawText);
   const availability = extractAvailability(rawText);
@@ -32,8 +33,8 @@ export function ListingCard({ listing, view = "grid" }: { listing: PublicListing
   if (listing.furnishing) titleParts.push(listing.furnishing);
   const displayTitle = titleParts.join(" · ");
 
-  const rawExcerpt = rawText
-    ? `"${rawText.slice(0, 120)}${rawText.length > 120 ? "..." : ""}"`
+  const rawExcerpt = safeRaw
+    ? `"${safeRaw.slice(0, 120)}${safeRaw.length > 120 ? "..." : ""}"`
     : null;
 
   const pills = [
@@ -74,7 +75,7 @@ export function ListingCard({ listing, view = "grid" }: { listing: PublicListing
               </span>
               <span className="whitespace-nowrap text-[11px] text-[#64748b]">{formatTimeAgo(listing.createdAt)}</span>
             </div>
-            <div className="mt-1 text-[15px] font-medium text-white leading-snug">{displayTitle}</div>
+            <Link href={`/listings/${listing.id}`} className="mt-1 text-[15px] font-medium text-white leading-snug hover:text-[#3EE88A]">{displayTitle}</Link>
             <div className="mt-0.5 flex items-center gap-1 text-xs text-[#94a3b8]">📍 {listing.locality}</div>
             <div className="mt-1 text-lg font-medium text-white">{listing.priceLabel}</div>
           </div>
@@ -114,11 +115,11 @@ export function ListingCard({ listing, view = "grid" }: { listing: PublicListing
                 </div>
               ))}
             </div>
-            {rawText && (
+            {safeRaw && (
               <div>
                 <div className="mb-1 flex items-center gap-1 text-[11px] text-[#64748b]">Original broker message</div>
                 <div className="rounded-lg border border-[#243040] bg-[#0d1117] p-3 text-xs leading-relaxed text-[#94a3b8]">
-                  &ldquo;{rawText}&rdquo;
+                  &ldquo;{safeRaw}&rdquo;
                 </div>
               </div>
             )}
@@ -153,7 +154,7 @@ export function ListingCard({ listing, view = "grid" }: { listing: PublicListing
         </div>
 
         <div>
-          <div className="text-[15px] font-medium leading-snug text-white">{displayTitle}</div>
+          <Link href={`/listings/${listing.id}`} className="text-[15px] font-medium leading-snug text-white hover:text-[#3EE88A]">{displayTitle}</Link>
           <div className="mt-1 flex items-center gap-1 text-xs text-[#94a3b8]">📍 {listing.locality}</div>
         </div>
 
@@ -210,11 +211,11 @@ export function ListingCard({ listing, view = "grid" }: { listing: PublicListing
               </div>
             ))}
           </div>
-          {rawText && (
+          {safeRaw && (
             <div>
               <div className="mb-1 flex items-center gap-1 text-[11px] text-[#64748b]">Original broker message</div>
               <div className="rounded-lg border border-[#243040] bg-[#121a24] p-3 text-xs leading-relaxed text-[#94a3b8]">
-                &ldquo;{rawText}&rdquo;
+                &ldquo;{safeRaw}&rdquo;
               </div>
             </div>
           )}

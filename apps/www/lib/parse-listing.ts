@@ -26,6 +26,10 @@ export function extractPhoneFromRaw(text: string): string | null {
   return match ? match[1] : null;
 }
 
+export function stripPhoneNumbers(text: string): string {
+  return text.replace(/(?:\+91[-\s]?)?[6-9]\d{9}/g, "[number redacted]");
+}
+
 export function generateSimilarChips(listing: { bhk: string; locality: string; type: string }) {
   return [
     { label: `${listing.bhk} · ${listing.locality}`, href: `/listings?bhk=${encodeURIComponent(listing.bhk)}&locality=${encodeURIComponent(listing.locality)}` },

@@ -279,6 +279,11 @@ function inferTitle(rawText: string) {
 }
 
 function inferLocation(rawText: string) {
+  const match = rawText.match(/\b(?:in\s+|at\s+)?(bandra|powai|andheri|worli|thane|juhu|goregaon|malad|chembur|dadar)/i);
+  if (match) {
+    const name = match[1];
+    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  }
   const line = rawText.split("\n").map((entry) => entry.trim()).find((entry) => /bandra|powai|andheri|worli|thane|juhu|goregaon|malad|chembur|dadar/i.test(entry));
   return line || null;
 }
@@ -323,16 +328,37 @@ function parsePriceAmount(value: unknown, priceLabel: unknown, rawText: string, 
     return Math.round(rate * areaSqft);
   }
 
-  const moneyMatch = merged.match(/₹?\s*(\d+(?:\.\d+)?)\s*(cr|crore|l|lac|lakh|k|thousand)?/i);
-  if (!moneyMatch) return null;
-  let amount = Number(moneyMatch[1]);
-  if (!Number.isFinite(amount)) return null;
-  const unit = String(moneyMatch[2] || "").toLowerCase();
-  if (unit === "cr" || unit === "crore") amount *= 10000000;
-  else if (unit === "l" || unit === "lac" || unit === "lakh") amount *= 100000;
-  else if (unit === "k" || unit === "thousand") amount *= 1000;
-  else if (type === "sale" && amount < 1000) amount *= 100000;
-  return Math.round(amount);
+  const candidates = [...merged.matchAll(/₹?\s*(\d+(?:\.\d+)?)\s*(cr|crore|l|lac|lakh|k|thousand)?/gi)]
+    .filter((m) => Number.isFinite(Number(m[1])))
+    .map((m) => {
+      let amount = Number(m[1]);
+      const unit = String(m[2] || "").toLowerCase();
+      if (unit === "cr" || unit === "crore") amount *= 10000000;
+      else if (unit === "l" || unit === "lac" || unit === "lakh") amount *= 100000;
+      else if (unit === "k" || unit === "thousand") amount *= 1000;
+      else if (type === "sale" && amount < 1000) amount *= 100000;
+
+      const idx = m.index || 0;
+      const before = merged.slice(Math.max(0, idx - 25), idx).toLowerCase();
+      const after = merged.slice(idx + m[0].length, idx + m[0].length + 15).toLowerCase();
+
+      let score = 0;
+      if (unit) score += 8;
+      if (/₹/.test(before)) score += 7;
+      if (/rent|price|lease|sale|deposit|advance|cost/i.test(before)) score += 6;
+      if (amount > 500) score += 2;
+      if (amount >= 5000 && amount <= 100000000) score += 3;
+      if (/sq\s*ft|sqft|sq|acres?|hectare/i.test(after)) score -= 10;
+      if (/bhk|room|bed/i.test(after)) score -= 8;
+      if (/contact|call|whatsapp|phone|mobile/i.test(after)) score -= 10;
+
+      return { amount: Math.round(amount), score };
+    });
+
+  if (candidates.length === 0) return null;
+  const best = candidates.reduce((a, b) => (b.score > a.score ? b : a));
+  if (best.score < 0) return null;
+  return best.amount;
 }
 
 function inferBuilding(rawText: string) {
