@@ -5,7 +5,7 @@
   --color-primary: #3EE88A;
   --color-primary-foreground: #020f07;
   --color-background: #090d12;
-  --color-foreground: #f1f5f9;
+  --color-foreground: #e2e8f0;
   --color-muted: #111820;
   --color-muted-foreground: #64748b;
   --color-accent: #3EE88A;
@@ -29,10 +29,10 @@
     --bg-hover: #141c26;
     --border: rgba(255,255,255,0.06);
     --border-strong: rgba(255,255,255,0.10);
-    --text-primary: #f1f5f9;
+    --text-primary: #e2e8f0;
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
-    --text-ghost: #334155;
+    --text-ghost: #6b7280;
     --accent: #3EE88A;
     --accent-dim: #0a1a12;
     --accent-border: #1a4a2a;
