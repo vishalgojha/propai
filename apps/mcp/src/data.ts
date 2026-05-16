@@ -1,6 +1,6 @@
 import { supabase } from "./supabase.js";
 import { formatBudgetRange, igrSummary, toNumber } from "./format.js";
-import type { IgrTransaction, LocalityStats, PublicListing } from "./types.js";
+import type { IgrTransaction, LocalityStats, PublicListing, RequirementRecord, SavedListingRecord } from "./types.js";
 
 const PUBLIC_LISTING_COLUMNS =
   "source_message_id, source_group_name, listing_type, area, sub_area, location, price, price_type, size_sqft, furnishing, bhk, property_type, title, description, raw_message, cleaned_message, primary_contact_name, primary_contact_number, primary_contact_wa, message_timestamp, created_at";
@@ -16,6 +16,42 @@ function applyLocality(query: any, locality?: string, city?: string) {
     query = query.or(`area.ilike.%${term}%,sub_area.ilike.%${term}%,location.ilike.%${term}%,search_text.ilike.%${term}%`);
   }
   return query;
+}
+
+function normalizePhone(value: unknown) {
+  const digits = String(value || "").replace(/\D/g, "").slice(-10);
+  return digits.length === 10 ? digits : null;
+}
+
+function inferListingType(rawMessage: string, price: number) {
+  const text = rawMessage.toLowerCase();
+  if (/\brent|lease|leave.?and.?license|ll\b/.test(text)) return "rent";
+  if (price > 15) return "sale";
+  return "sale";
+}
+
+function inferBuildingName(rawMessage: string) {
+  const patterns = [
+    /(?:in|at)\s+([a-z0-9][a-z0-9 .&/-]{2,60})/i,
+    /building\s*[:-]?\s*([a-z0-9][a-z0-9 .&/-]{2,60})/i,
+  ];
+  for (const pattern of patterns) {
+    const match = rawMessage.match(pattern);
+    const value = match?.[1]?.trim();
+    if (value) return value;
+  }
+  return null;
+}
+
+function localityTokens(locality?: string, city?: string) {
+  return [locality, city]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
+}
+
+function average(values: number[]) {
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function applyBudget(query: any, maxBudgetCr?: number) {
@@ -45,6 +81,37 @@ export async function logToolCall(brokerId: string | undefined, toolName: string
   } catch (error) {
     console.warn("Failed to write MCP analytics event:", error instanceof Error ? error.message : error);
   }
+}
+
+export async function ensurePaidWorkspace(tenantId?: string) {
+  if (!tenantId) {
+    return {
+      allowed: false,
+      message: "This tool requires an authenticated paid workspace.",
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .select("plan, status")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const plan = String(data?.plan || "").toLowerCase();
+  const status = String(data?.status || "").toLowerCase();
+  const isPaid = status === "active" && plan !== "free";
+
+  return {
+    allowed: isPaid,
+    message: isPaid
+      ? null
+      : "This PropAI MCP tool is available on paid workspaces only. Upgrade your subscription in PropAI to unlock broker workflows and intelligence tools.",
+    subscription: data || null,
+  };
 }
 
 export async function searchPublicListings(input: {
@@ -177,6 +244,215 @@ export async function getIgrPrice(input: { building_name?: string; locality?: st
     transaction,
     locality_stats: stats,
     summary: igrSummary(transaction, stats, input.building_name, input.locality),
+  };
+}
+
+export async function createRequirementRecord(tenantId: string, input: {
+  locality: string;
+  bhk: number;
+  budget_min_cr: number;
+  budget_max_cr: number;
+  property_type: string;
+  notes?: string;
+  broker_phone: string;
+}) {
+  const row = {
+    tenant_id: tenantId,
+    raw_text: input.notes || null,
+    bhk_preference: [`${input.bhk}BHK`],
+    property_type: input.property_type,
+    listing_type: null,
+    preferred_localities: [input.locality],
+    budget_min_cr: input.budget_min_cr,
+    budget_max_cr: input.budget_max_cr,
+    notes: input.notes || null,
+    broker_phone: normalizePhone(input.broker_phone),
+    source: "mcp_requirement",
+  };
+
+  const { data, error } = await supabase
+    .from("requirements")
+    .insert(row)
+    .select("id, tenant_id, raw_text, bhk_preference, property_type, listing_type, preferred_localities, budget_min_cr, budget_max_cr, notes, broker_phone, created_at")
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data as RequirementRecord;
+}
+
+export async function saveListingRecord(tenantId: string, input: {
+  raw_message: string;
+  locality: string;
+  bhk: number;
+  price: number;
+  property_type: string;
+  broker_phone: string;
+}) {
+  const row = {
+    tenant_id: tenantId,
+    raw_text: input.raw_message,
+    bhk: `${input.bhk}BHK`,
+    property_type: input.property_type,
+    listing_type: inferListingType(input.raw_message, input.price),
+    locality: input.locality,
+    building_name: inferBuildingName(input.raw_message),
+    price_cr: input.price,
+    broker_phone: normalizePhone(input.broker_phone),
+    source: "mcp_listing",
+  };
+
+  const { data, error } = await supabase
+    .from("listings")
+    .insert(row)
+    .select("id, tenant_id, raw_text, bhk, property_type, listing_type, locality, building_name, price_cr, broker_phone, created_at")
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data as SavedListingRecord;
+}
+
+export async function setFollowUpTask(tenantId: string, input: {
+  contact_name: string;
+  contact_phone?: string;
+  note?: string;
+  follow_up_date: string;
+}) {
+  const row = {
+    tenant_id: tenantId,
+    lead_id: null,
+    lead_name: input.contact_name,
+    lead_phone: normalizePhone(input.contact_phone || null),
+    action_type: "call",
+    due_at: new Date(input.follow_up_date).toISOString(),
+    status: "pending",
+    notes: input.note || null,
+    priority_bucket: null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from("follow_up_tasks")
+    .upsert(row, { onConflict: "tenant_id,lead_id,action_type,due_at" })
+    .select("id, lead_name, lead_phone, due_at, status, notes, created_at")
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function getMarketSummary(input: { locality: string; city?: string }) {
+  let listingQuery = supabase
+    .from("public_listings")
+    .select("listing_type, bhk, price", { count: "exact" });
+
+  listingQuery = applyLocality(listingQuery, input.locality, input.city);
+  const { data, error, count } = await listingQuery;
+  if (error) throw new Error(error.message);
+
+  const rows = (data || []).map((row) => ({
+    listing_type: String(row.listing_type || ""),
+    bhk: toNumber(row.bhk),
+    price: toNumber(row.price),
+  }));
+
+  const listings = rows.filter((row) => !row.listing_type.toLowerCase().includes("requirement"));
+  const requirements = rows.filter((row) => row.listing_type.toLowerCase().includes("requirement"));
+  const bhkCounts = new Map<string, number>();
+  for (const row of rows) {
+    const key = row.bhk != null ? `${row.bhk}BHK` : "Unknown";
+    bhkCounts.set(key, (bhkCounts.get(key) || 0) + 1);
+  }
+  const mostActiveBhk = [...bhkCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  const igr = await getLocalityStats(input.locality, 6);
+
+  return {
+    locality: input.locality,
+    city: input.city || null,
+    total_results: count || 0,
+    total_listings: listings.length,
+    total_requirements: requirements.length,
+    avg_igr_price_per_sqft: igr?.avg_price_per_sqft || null,
+    igr_transaction_count: igr?.transaction_count || 0,
+    most_active_bhk: mostActiveBhk,
+    supply_demand_ratio: requirements.length > 0 ? Number((listings.length / requirements.length).toFixed(2)) : null,
+  };
+}
+
+export async function getBrokerActivityGaps(input: { city: string }) {
+  let query = supabase
+    .from("public_listings")
+    .select("listing_type, bhk, area, sub_area, location, search_text");
+
+  query = applyLocality(query, undefined, input.city);
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  const localityMap = new Map<string, { locality: string; listings: number; requirements: number }>();
+  for (const row of data || []) {
+    const locality =
+      String(row.sub_area || row.area || row.location || "").trim() ||
+      String((row as { search_text?: string | null }).search_text || "").split(",")[0]?.trim() ||
+      "Unknown";
+    const entry = localityMap.get(locality) || { locality, listings: 0, requirements: 0 };
+    if (String(row.listing_type || "").toLowerCase().includes("requirement")) {
+      entry.requirements += 1;
+    } else {
+      entry.listings += 1;
+    }
+    localityMap.set(locality, entry);
+  }
+
+  return [...localityMap.values()]
+    .map((entry) => ({
+      ...entry,
+      demand_gap: entry.requirements - entry.listings,
+      supply_demand_ratio: entry.requirements > 0 ? Number((entry.listings / entry.requirements).toFixed(2)) : null,
+    }))
+    .sort((a, b) => (b.demand_gap - a.demand_gap) || (b.requirements - a.requirements))
+    .slice(0, 5);
+}
+
+export async function estimatePriceRange(input: { building_name?: string; locality: string; bhk?: number }) {
+  const igr = await getIgrPrice({ building_name: input.building_name, locality: input.locality });
+  let query = supabase
+    .from("public_listings")
+    .select("price, size_sqft, title, area, sub_area, location, bhk, listing_type")
+    .order("message_timestamp", { ascending: false })
+    .limit(50);
+
+  query = applyLocality(query, input.locality, undefined);
+  query = query.not("price", "is", null);
+  query = query.or("listing_type.ilike.%sale%,property_type.ilike.%sale%");
+  if (input.building_name?.trim()) {
+    const building = input.building_name.trim();
+    query = query.or(`title.ilike.%${building}%,location.ilike.%${building}%,sub_area.ilike.%${building}%`);
+  }
+  if (input.bhk != null) {
+    query = query.eq("bhk", input.bhk);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  const streamPrices = (data || [])
+    .map((row) => toNumber(row.price))
+    .filter((value): value is number => value != null);
+  const igrValues = [igr.transaction?.consideration, igr.locality_stats?.median_consideration]
+    .map((value) => toNumber(value))
+    .filter((value): value is number => value != null);
+  const combined = [...streamPrices, ...igrValues];
+
+  return {
+    building_name: input.building_name || null,
+    locality: input.locality,
+    bhk: input.bhk || null,
+    stream_listing_count: streamPrices.length,
+    igr_transaction: igr.transaction,
+    locality_stats: igr.locality_stats,
+    estimated_min_cr: combined.length ? Math.min(...combined) : null,
+    estimated_max_cr: combined.length ? Math.max(...combined) : null,
+    estimated_avg_cr: combined.length ? Number((average(combined) || 0).toFixed(2)) : null,
   };
 }
 

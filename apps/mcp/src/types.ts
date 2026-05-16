@@ -52,3 +52,32 @@ export type LocalityStats = {
   max_consideration: number | null;
   transaction_count: number;
 };
+
+export type RequirementRecord = {
+  id: string;
+  tenant_id: string;
+  raw_text: string | null;
+  bhk_preference: string[] | null;
+  property_type: string | null;
+  listing_type: string | null;
+  preferred_localities: string[] | null;
+  budget_min_cr: number | null;
+  budget_max_cr: number | null;
+  notes: string | null;
+  broker_phone: string | null;
+  created_at: string | null;
+};
+
+export type SavedListingRecord = {
+  id: string;
+  tenant_id: string;
+  raw_text: string | null;
+  bhk: string | null;
+  property_type: string | null;
+  listing_type: string | null;
+  locality: string | null;
+  building_name: string | null;
+  price_cr: number | null;
+  broker_phone: string | null;
+  created_at: string | null;
+};

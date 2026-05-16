@@ -93,11 +93,20 @@ app.get("/.well-known/mcp-server.json", (_req, res) => {
     },
     capabilities: {
       tools: [
+        "create_requirement",
+        "save_listing",
+        "set_follow_up",
         "search_listings",
         "search_requirements",
+        "market_summary",
+        "broker_activity",
+        "price_estimate",
         "get_igr_price",
         "match_listing_to_requirement",
         "get_fresh_stream",
+        "draft_broadcast",
+        "qualify_lead",
+        "summarise_thread",
       ],
     },
   });
