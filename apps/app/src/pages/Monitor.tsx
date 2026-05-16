@@ -754,8 +754,8 @@ export const Monitor: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-10rem)] overflow-hidden rounded-[30px] border border-[#202c33] bg-[#111b21] shadow-[0_28px_90px_rgba(0,0,0,0.38)]">
-      <div className="grid h-full grid-cols-[380px_minmax(0,1fr)]">
+    <div className="h-[calc(100svh-10rem)] min-h-0 overflow-hidden rounded-[30px] border border-[#202c33] bg-[#111b21] shadow-[0_28px_90px_rgba(0,0,0,0.38)] lg:h-[calc(100svh-9rem)]">
+      <div className="grid h-full min-h-0 grid-cols-[380px_minmax(0,1fr)]">
         <aside className="flex h-full flex-col border-r border-[#202c33] bg-[#111b21]">
           <div className="flex items-center justify-between border-b border-[#202c33] bg-[#202c33] px-4 py-3">
             <div>

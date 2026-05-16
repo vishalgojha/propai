@@ -95,10 +95,6 @@ export class WorkspaceMonitorService {
             .eq('tenant_id', workspaceOwnerId)
             .order('timestamp', { ascending: false });
 
-        if (sessionLabel) {
-            mirrorQuery = mirrorQuery.eq('session_label', sessionLabel);
-        }
-
         const mirrorResult = await mirrorQuery;
         if (!mirrorResult.error && Array.isArray(mirrorResult.data)) {
             return (mirrorResult.data as MirrorRow[]).map((row) => ({
@@ -132,10 +128,6 @@ export class WorkspaceMonitorService {
             .eq('tenant_id', workspaceOwnerId)
             .eq('remote_jid', chatId)
             .order('timestamp', { ascending: false });
-
-        if (sessionLabel) {
-            mirrorQuery = mirrorQuery.eq('session_label', sessionLabel);
-        }
 
         if (before) {
             mirrorQuery = mirrorQuery.lt('timestamp', before);

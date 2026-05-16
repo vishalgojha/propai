@@ -91,6 +91,7 @@ export const Layout: React.FC = () => {
   const channelName = searchParams.get('channelName');
   const title = channelParam ? channelName || `#${channelParam}` : getPageTitle(location.pathname);
   const searchKey = searchParams.toString();
+  const hideFooter = location.pathname === '/monitor' || location.pathname === '/inbox' || location.pathname === '/messages';
 
   React.useEffect(() => {
     setIsSidebarOpen(false);
@@ -354,7 +355,7 @@ export const Layout: React.FC = () => {
           </div>
         </div>
 
-        <LegalFooter compact />
+        {!hideFooter ? <LegalFooter compact /> : null}
       </main>
     </div>
   );
