@@ -34,7 +34,7 @@ export class AIService {
     private concentrateModel = process.env.CONCENTRATE_MODEL || 'auto';
     private googleModel = process.env.GOOGLE_MODEL || 'gemini-2.5-flash';
     private groqBaseURL = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
-    private groqModel = process.env.GROQ_MODEL || 'llama3-8b-8192';
+    private groqModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
     private openRouterBaseURL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
     private openRouterModel = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
     private doublewordBaseURL = process.env.DOUBLEWORD_BASE_URL || 'https://api.doubleword.ai/v1';
@@ -60,10 +60,14 @@ export class AIService {
                     ...response,
                     latency: Date.now() - start
                 };
-            } catch (error) {
+            } catch (error: any) {
+                const responseBody = error?.response?.data ? JSON.stringify(error.response.data).slice(0, 500) : '';
                 const message = error instanceof Error ? error.message : 'AI provider unavailable';
                 errors.push({ provider, message });
                 console.error(`AI Error with ${provider}, falling back...`, error);
+                if (responseBody) {
+                    console.error(`[${provider}] Response body:`, responseBody);
+                }
             }
         }
 
