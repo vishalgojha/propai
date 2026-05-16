@@ -19,7 +19,6 @@ export const ROUTE_PATHS = {
     identity: '/api/identity',
     stream: '/api/stream-items',
     ingest: '/api/listings/ingest',
-    scraper: '/api/scraper',
     intelligence: '/api/intelligence',
   },
   channels: {
