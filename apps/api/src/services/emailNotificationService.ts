@@ -1,4 +1,5 @@
 type EmailPayload = {
+    from?: string;
     to: string;
     subject: string;
     text: string;
@@ -43,35 +44,83 @@ class EmailNotificationService {
 
     async sendWelcomeEmail(input: WelcomeEmailInput): Promise<EmailSendResult> {
         const name = this.getFirstName(input.fullName);
-        const phoneLine = input.phone ? `WhatsApp number on file: ${input.phone}` : 'You can add your WhatsApp number from the WhatsApp setup page anytime.';
-        const whatsappUrl = `${this.appUrl}/whatsapp`;
+        const dashboardUrl = `${this.appUrl}/whatsapp`;
+
+        const text = [
+            `Hi ${name},`,
+            '',
+            'Thanks for signing up. I wanted to send you a quick personal note about what you just joined and what happens next.',
+            '',
+            'PropAI connects you directly with buyers and renters looking for exactly what you have listed. Your WhatsApp listings get surfaced across Mumbai\'s busiest property search channels — not in days, but within minutes of you posting.',
+            '',
+            'Here\'s what\'s ready for you:',
+            '  - Your listings are already being indexed and searchable on PropAI\'s public site',
+            '  - When a buyer wants to connect, they reach you directly on WhatsApp — no lead forms, no delays',
+            '  - You can manage everything from the dashboard: ' + dashboardUrl,
+            '',
+            'Next step: Set up your WhatsApp connection so we can start pulling your listings automatically. It takes about a minute.',
+            '',
+            '→ ' + dashboardUrl,
+            '',
+            'If you have questions or want to understand how the matching works, just reply to this email. I read every response.',
+            '',
+            '- Vishal',
+            'Founder, PropAI',
+        ].join('\n');
+
+        const html = `
+            <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;line-height:1.6;color:#1a1a2e;max-width:560px;margin:0 auto">
+                <div style="background:#0d1117;border-radius:16px;padding:32px;border:1px solid #243040">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px">
+                        <div style="width:8px;height:8px;border-radius:50%;background:#25d366"></div>
+                        <span style="font-weight:600;font-size:15px;color:#e2e8f0">PropAI</span>
+                    </div>
+
+                    <p style="font-size:15px;margin:0 0 16px;color:#e2e8f0">Hi ${this.escapeHtml(name)},</p>
+
+                    <p style="font-size:14px;margin:0 0 16px;color:#94a3b8;line-height:1.65">
+                        Thanks for signing up. I wanted to send you a quick personal note about what you just joined and what happens next.
+                    </p>
+
+                    <p style="font-size:14px;margin:0 0 16px;color:#94a3b8;line-height:1.65">
+                        PropAI connects you directly with buyers and renters looking for exactly what you have listed. Your WhatsApp listings get surfaced across Mumbai's busiest property search channels — not in days, but within minutes of you posting.
+                    </p>
+
+                    <div style="background:#121a24;border-radius:12px;border:1px solid #243040;padding:16px;margin:20px 0">
+                        <p style="font-size:13px;font-weight:600;margin:0 0 12px;color:#e2e8f0">Here's what's ready for you:</p>
+                        <ul style="font-size:13px;color:#94a3b8;line-height:1.6;margin:0;padding-left:16px">
+                            <li>Your listings are already being indexed and searchable on PropAI's public site</li>
+                            <li>When a buyer wants to connect, they reach you directly on WhatsApp — no lead forms, no delays</li>
+                            <li>You can manage everything from the dashboard</li>
+                        </ul>
+                    </div>
+
+                    <p style="font-size:14px;margin:0 0 16px;color:#94a3b8;line-height:1.65">
+                        <strong style="color:#e2e8f0">Next step:</strong> Set up your WhatsApp connection so we can start pulling your listings automatically. It takes about a minute.
+                    </p>
+
+                    <a href="${dashboardUrl}" style="display:inline-block;background:#25d366;color:#000;text-decoration:none;font-weight:600;font-size:14px;padding:12px 24px;border-radius:12px;margin:8px 0 20px">
+                        Set up WhatsApp →
+                    </a>
+
+                    <p style="font-size:14px;margin:0 0 16px;color:#94a3b8;line-height:1.65">
+                        If you have questions or want to understand how the matching works, just reply to this email. I read every response.
+                    </p>
+
+                    <div style="border-top:1px solid #243040;padding-top:16px;margin-top:20px">
+                        <p style="font-size:14px;margin:0;color:#e2e8f0">- Vishal</p>
+                        <p style="font-size:12px;margin:4px 0 0;color:#64748b">Founder, PropAI</p>
+                    </div>
+                </div>
+            </div>
+        `;
 
         return this.sendEmail({
+            from: 'Vishal from PropAI <vishal@propai.live>',
             to: input.to,
-            subject: 'Welcome to PropAI Pulse',
-            text: [
-                `Hi ${name},`,
-                '',
-                'Welcome to PropAI Pulse.',
-                'Your workspace is ready for saving listings, capturing requirements, and connecting WhatsApp.',
-                phoneLine,
-                `Set up WhatsApp here: ${whatsappUrl}`,
-                '',
-                'If anything feels off, reply to this email or write to hello@propai.live.',
-                '',
-                'Team PropAI',
-            ].join('\n'),
-            html: `
-                <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827">
-                    <p>Hi ${this.escapeHtml(name)},</p>
-                    <p>Welcome to <strong>PropAI Pulse</strong>.</p>
-                    <p>Your workspace is ready for saving listings, capturing requirements, and connecting WhatsApp.</p>
-                    <p>${this.escapeHtml(phoneLine)}</p>
-                    <p><a href="${whatsappUrl}">Set up WhatsApp</a></p>
-                    <p>If anything feels off, reply to this email or write to <a href="mailto:hello@propai.live">hello@propai.live</a>.</p>
-                    <p>Team PropAI</p>
-                </div>
-            `,
+            subject: 'Welcome to PropAI — here\'s what you just joined',
+            text,
+            html,
         });
     }
 
@@ -156,7 +205,7 @@ class EmailNotificationService {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    from: this.from,
+                    from: payload.from || this.from,
                     to: [payload.to],
                     subject: payload.subject,
                     text: payload.text,
