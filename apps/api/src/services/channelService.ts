@@ -1521,6 +1521,9 @@ private backfillInitiated = false;
             await this.upsertPublicListing(tenantId, parsed, message).catch((pe) => {
                 console.error('[ChannelService] Failed to upsert public listing', pe);
             });
+            await this.upsertWebsiteListing(tenantId, parsed).catch((le) => {
+                console.error('[ChannelService] Failed to upsert website listing', le);
+            });
 
             ingestedCount += 1;
             await canonicalizationService.canonicalizeStreamItem(data as any).catch((canonicalError) => {
@@ -1575,6 +1578,41 @@ private backfillInitiated = false;
 
         if (error) {
             console.error('[ChannelService] public_listings upsert failed:', error.message, 'for', parsed.messageId);
+        }
+    }
+
+    private async upsertWebsiteListing(tenantId: string, parsed: ParsedStreamCandidate): Promise<void> {
+        const structuredData: Record<string, unknown> = {
+            bhk: parsed.bhk || null,
+            locality: parsed.locality || null,
+            city: parsed.city || null,
+            type: parsed.streamType?.toLowerCase?.() || null,
+            deal_type: parsed.dealType || null,
+            price_numeric: parsed.priceNumeric || null,
+            price: parsed.priceLabel || null,
+            area_sqft: parsed.areaSqft || null,
+            furnishing: parsed.furnishing || null,
+            floor_number: parsed.floorNumber || null,
+            total_floors: parsed.totalFloors || null,
+            property_use: parsed.propertyUse || null,
+            asset_class: parsed.assetClass || null,
+            property_category: parsed.propertyCategory || null,
+            confidence: parsed.confidenceScore || null,
+            title: this.toTitle(parsed),
+            building: (parsed.parsedPayload as any)?.buildingName || null,
+            micro_location: (parsed.parsedPayload as any)?.microLocation || null,
+        };
+
+        const { error } = await this.db.from('listings').insert({
+            tenant_id: tenantId,
+            source_group_id: parsed.sourceGroupId || null,
+            structured_data: structuredData,
+            raw_text: parsed.rawText || '',
+            status: 'Active',
+        });
+
+        if (error) {
+            console.error('[ChannelService] website listings insert failed:', error.message, 'for', parsed.messageId);
         }
     }
 
