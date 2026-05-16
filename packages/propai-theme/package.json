@@ -6,6 +6,13 @@
   "style": "./theme.css",
   "exports": {
     ".": "./index.ts",
-    "./theme.css": "./theme.css"
+    "./theme.css": "./theme.css",
+    "./components/*": "./components/*"
+  },
+  "dependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0"
   }
 }

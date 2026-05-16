@@ -15,3 +15,5 @@ export const colors = {
 } as const;
 
 export type PropaiColor = keyof typeof colors.propai;
+
+export { Footer } from "./components/Footer";

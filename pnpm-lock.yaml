@@ -209,6 +209,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@propai/theme':
+        specifier: workspace:*
+        version: link:../../packages/propai-theme
       '@supabase/supabase-js':
         specifier: ^2.103.3
         version: 2.105.3
@@ -240,6 +243,9 @@ importers:
       '@google/genai':
         specifier: ^1.29.0
         version: 1.52.0(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))
+      '@propai/theme':
+        specifier: workspace:*
+        version: link:../../packages/propai-theme
       '@supabase/supabase-js':
         specifier: ^2.103.3
         version: 2.105.3
@@ -294,7 +300,15 @@ importers:
         specifier: latest
         version: 6.0.3
 
-  packages/pulse-core: {}
+  packages/propai-theme:
+    dependencies:
+      react:
+        specifier: ^19.0.0
+        version: 19.2.4
+    devDependencies:
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.14
 
 packages:
 
