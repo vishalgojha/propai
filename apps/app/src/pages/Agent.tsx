@@ -36,8 +36,8 @@ type RuntimeModel = {
 };
 
 type RuntimeStatusPayload = {
-  preferredProvider?: 'Concentrate' | 'Google' | 'Groq' | 'OpenRouter' | 'Doubleword';
-  providerOrder?: Array<'Concentrate' | 'Google' | 'Groq' | 'OpenRouter' | 'Doubleword'>;
+  preferredProvider?: 'Google' | 'Groq' | 'OpenRouter' | 'Doubleword';
+  providerOrder?: Array<'Google' | 'Groq' | 'OpenRouter' | 'Doubleword'>;
   defaultModel?: string;
   models?: Record<string, RuntimeModel>;
 };
@@ -72,7 +72,7 @@ const quickActions = [
     prompt: 'Extract the structured details from this property URL: ',
   },
 ] as const;
-const runtimeProviderOrder = ['Concentrate', 'Google', 'Groq', 'OpenRouter', 'Doubleword'] as const;
+const runtimeProviderOrder = ['Google', 'Groq', 'OpenRouter', 'Doubleword'] as const;
 const assistantPanelTabs = [
   { id: 'runtime' as const, label: 'Runtime', icon: ActivityIcon },
   { id: 'activity' as const, label: 'Activity', icon: WorkflowIcon },
@@ -1411,7 +1411,7 @@ export const Agent: React.FC = () => {
                   <div className="space-y-3">
                     {runtimeModels.map((item) => {
                       const status = item?.status || 'offline';
-                      const providerKey = (item.provider === 'Google' ? 'gemini' : item.provider.toLowerCase()) as 'concentrate' | 'gemini' | 'groq' | 'openrouter' | 'doubleword';
+                      const providerKey = (item.provider === 'Google' ? 'gemini' : item.provider.toLowerCase()) as 'gemini' | 'groq' | 'openrouter' | 'doubleword';
                       return (
                         <div key={item.provider} className="flex items-start gap-3 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-3">
                           <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]">
@@ -1434,9 +1434,7 @@ export const Agent: React.FC = () => {
                             <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
                               {status === 'online'
                                 ? `Latency ${item.latency >= 0 ? `${item.latency}ms` : 'ready'}`
-                                : item.provider === 'Concentrate'
-                                  ? 'Platform credit unavailable'
-                                  : 'Add key in Settings'}
+                                : 'Add key in Settings'}
                             </p>
                           </div>
                         </div>

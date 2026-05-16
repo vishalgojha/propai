@@ -31,7 +31,7 @@ const STATIC_FALLBACKS: Record<string, ModelInfo[]> = {
         { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', provider: 'Groq', speed: 'fast', cost: 'free', contextWindow: 128000 },
     ],
     'Doubleword': [
-        { id: 'qwen3-235b', name: 'Qwen3 235B', provider: 'Doubleword', speed: 'medium', cost: 'cheap', contextWindow: 32768 },
+        { id: 'Qwen/Qwen3.6-35B-A3B-FP8', name: 'Qwen3.6 35B', provider: 'Doubleword', speed: 'fast', cost: 'cheap', contextWindow: 131072 },
         { id: 'kimi-k2', name: 'Kimi K2', provider: 'Doubleword', speed: 'medium', cost: 'cheap', contextWindow: 128000 },
     ],
 };

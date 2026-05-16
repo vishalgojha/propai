@@ -7,7 +7,7 @@ const openRouterBaseUrl = Deno.env.get('OPENROUTER_BASE_URL') || 'https://openro
 const openRouterModel = Deno.env.get('OPENROUTER_MODEL') || 'openai/gpt-4o-mini';
 const doublewordApiKey = Deno.env.get('DOUBLEWORD_API_KEY') || '';
 const doublewordBaseUrl = Deno.env.get('DOUBLEWORD_BASE_URL') || 'https://api.doubleword.ai/v1';
-const doublewordModel = Deno.env.get('DOUBLEWORD_MODEL') || 'qwen3-235b';
+const doublewordModel = Deno.env.get('DOUBLEWORD_MODEL') || 'Qwen/Qwen3.6-35B-A3B-FP8';
 
 if (!supabaseUrl || !serviceRoleKey) {
   console.error('[Worker] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');

@@ -3,7 +3,6 @@ import path from 'path';
 import { supabase, supabaseAdmin } from '../config/supabase';
 
 export type AIConfig = {
-    concentrate?: string;
     gemini?: string;
     groq?: string;
     openrouter?: string;
@@ -56,9 +55,6 @@ export function normalizeDefaultModel(value?: string | null) {
     const normalized = (value || '').trim().toLowerCase();
 
     switch (normalized) {
-        case 'concentrate':
-        case 'concentrate-auto':
-            return 'concentrate';
         case '':
         case 'auto':
         case 'google':
@@ -79,6 +75,7 @@ export function normalizeDefaultModel(value?: string | null) {
         case 'doubleword':
         case 'qwen3-235b':
         case 'kimi-k2':
+        case 'qwen/qwen3.6-35b-a3b-fp8':
             return 'doubleword';
         default:
             return GEMINI_DEFAULT_MODEL;
@@ -140,7 +137,6 @@ export async function getWorkspaceSettingsRecord(tenantId: string) {
             return {
                 settings: sanitizeSettings((data as any).settings || {}),
                 aiKeys: {
-                    concentrate: typeof storedKeys.concentrate === 'string' ? storedKeys.concentrate : '',
                     gemini: typeof storedKeys.gemini === 'string' ? storedKeys.gemini : '',
                     groq: typeof storedKeys.groq === 'string' ? storedKeys.groq : '',
                     openrouter: typeof storedKeys.openrouter === 'string' ? storedKeys.openrouter : '',
@@ -159,7 +155,6 @@ export async function getWorkspaceSettingsRecord(tenantId: string) {
     return {
         settings: sanitizeSettings(record?.settings || {}),
             aiKeys: {
-                concentrate: record?.aiKeys?.concentrate || '',
                 gemini: record?.aiKeys?.gemini || '',
                 groq: record?.aiKeys?.groq || '',
                 openrouter: record?.aiKeys?.openrouter || '',
@@ -176,7 +171,6 @@ export async function saveWorkspaceSettingsRecord(tenantId: string, settings: Pa
     store[tenantId] = {
         settings: sanitizedSettings,
         aiKeys: {
-            concentrate: typeof aiKeys.concentrate === 'string' ? aiKeys.concentrate : '',
             gemini: typeof aiKeys.gemini === 'string' ? aiKeys.gemini : '',
             groq: typeof aiKeys.groq === 'string' ? aiKeys.groq : '',
             openrouter: typeof aiKeys.openrouter === 'string' ? aiKeys.openrouter : '',

@@ -6,7 +6,7 @@ import { normalizePlanName, subscriptionService } from './subscriptionService';
 
 type RuntimeSnapshot = {
     ai: {
-        provider: 'Concentrate' | 'Google' | 'Groq' | 'OpenRouter' | 'Doubleword';
+        provider: 'Google' | 'Groq' | 'OpenRouter' | 'Doubleword';
         model: string;
         configured: boolean;
     };
@@ -28,17 +28,10 @@ type RuntimeSnapshot = {
     };
 };
 
-function mapDefaultModelToProvider(defaultModel?: string | null, hasConcentrate = false) {
+function mapDefaultModelToProvider(defaultModel?: string | null) {
     const normalized = (defaultModel || '').trim().toLowerCase();
 
     switch (normalized) {
-        case 'concentrate':
-        case 'auto':
-        case 'concentrate-auto':
-            return {
-                provider: 'Concentrate' as const,
-                model: process.env.CONCENTRATE_MODEL || 'auto',
-            };
         case 'groq':
         case 'llama3-8b-8192':
         case 'groq llama3-8b-8192':
@@ -56,17 +49,12 @@ function mapDefaultModelToProvider(defaultModel?: string | null, hasConcentrate 
         case 'doubleword':
         case 'qwen3-235b':
         case 'kimi-k2':
+        case 'qwen/qwen3.6-35b-a3b-fp8':
             return {
                 provider: 'Doubleword' as const,
-                model: process.env.DOUBLEWORD_MODEL || 'qwen3-235b',
+                model: process.env.DOUBLEWORD_MODEL || 'Qwen/Qwen3.6-35B-A3B-FP8',
             };
         default:
-            if (hasConcentrate || process.env.CONCENTRATE_API_KEY) {
-                return {
-                    provider: 'Concentrate' as const,
-                    model: process.env.CONCENTRATE_MODEL || 'auto',
-                };
-            }
             return {
                 provider: 'Google' as const,
                 model: process.env.GOOGLE_MODEL || 'gemini-2.5-flash',
@@ -77,8 +65,7 @@ function mapDefaultModelToProvider(defaultModel?: string | null, hasConcentrate 
 export class RuntimeStatusService {
     async getSnapshot(tenantId: string): Promise<RuntimeSnapshot> {
         const defaultModel = await getWorkspaceDefaultModel(tenantId).catch(() => null);
-        const [concentrateKey, googleKey, groqKey, openRouterKey, doublewordKey, subscription] = await Promise.all([
-            keyService.getKey(tenantId, 'Concentrate').catch(() => null),
+        const [googleKey, groqKey, openRouterKey, doublewordKey, subscription] = await Promise.all([
             keyService.getKey(tenantId, 'Google').catch(() => null),
             keyService.getKey(tenantId, 'Groq').catch(() => null),
             keyService.getKey(tenantId, 'OpenRouter').catch(() => null),
@@ -92,11 +79,9 @@ export class RuntimeStatusService {
             })),
         ]);
         const explicitDefaultModel = await getWorkspaceExplicitDefaultModel(tenantId).catch(() => null);
-        const hasConcentrate = Boolean(concentrateKey || process.env.CONCENTRATE_API_KEY);
 
         const aiSelection = mapDefaultModelToProvider(
-            explicitDefaultModel || (hasConcentrate ? 'concentrate' : defaultModel),
-            hasConcentrate,
+            explicitDefaultModel || defaultModel,
         );
 
         const liveSessions = await getWhatsAppGateway(tenantId).getSessions(tenantId);
@@ -107,8 +92,6 @@ export class RuntimeStatusService {
 
         const configured = aiSelection.provider === 'Google'
             ? Boolean(googleKey || process.env.GOOGLE_API_KEY)
-            : aiSelection.provider === 'Concentrate'
-                ? hasConcentrate
             : aiSelection.provider === 'Groq'
                 ? Boolean(groqKey || process.env.GROQ_API_KEY)
                 : aiSelection.provider === 'OpenRouter'

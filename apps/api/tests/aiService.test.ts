@@ -56,7 +56,6 @@ describe('AIService', () => {
 
     it('returns provider status for the current provider set', async () => {
         (keyService.getKey as any)
-            .mockResolvedValueOnce('conc-key')
             .mockResolvedValueOnce('groq-key')
             .mockResolvedValueOnce(null)
             .mockResolvedValueOnce(null)
@@ -64,9 +63,8 @@ describe('AIService', () => {
 
         const status = await aiService.getStatus('tenant-1');
 
-        expect(status.preferredProvider).toBe('Concentrate');
-        expect(status.providerOrder[0]).toBe('Concentrate');
-        expect(status.models.Concentrate.status).toBe('online');
+        expect(status.preferredProvider).toBe('Google');
+        expect(status.providerOrder[0]).toBe('Google');
         expect(status.models.Groq.status).toBe('online');
         expect(status.models.Google.status).toBe('offline');
     });

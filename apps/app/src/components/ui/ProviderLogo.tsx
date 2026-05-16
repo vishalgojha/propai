@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
 
-type ProviderKind = 'concentrate' | 'gemini' | 'groq' | 'openrouter' | 'doubleword';
+type ProviderKind = 'gemini' | 'groq' | 'openrouter' | 'doubleword';
 
 type ProviderLogoProps = {
   provider: ProviderKind;
@@ -21,26 +21,6 @@ function GeminiLogo({ className }: { className?: string }) {
         d="M12 7.2l1.4 3 3.1 1.8-3.1 1.8-1.4 3-1.4-3-3.1-1.8 3.1-1.8 1.4-3Z"
         fill="currentColor"
         opacity="0.75"
-      />
-    </svg>
-  );
-}
-
-function ConcentrateLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={cn('h-5 w-5', className)} aria-hidden="true">
-      <path
-        d="M16.8 7.6A7 7 0 1 0 16.8 16.4"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <path
-        d="M14.2 9.3h4.3v5.4h-4.3"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
       />
     </svg>
   );
@@ -93,8 +73,6 @@ function DoublewordLogo({ className }: { className?: string }) {
 
 export function ProviderLogo({ provider, className }: ProviderLogoProps) {
   switch (provider) {
-    case 'concentrate':
-      return <ConcentrateLogo className={className} />;
     case 'gemini':
       return <GeminiLogo className={className} />;
     case 'groq':

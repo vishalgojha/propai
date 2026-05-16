@@ -9,8 +9,7 @@ export const getWorkspaceSettings = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
 
     const record = await getWorkspaceSettingsRecord(tenantId);
-    const [concentrateKeys, geminiKeys, groqKeys, openRouterKeys, doublewordKeys] = await Promise.all([
-        keyService.getKeys(tenantId, 'Concentrate'),
+    const [geminiKeys, groqKeys, openRouterKeys, doublewordKeys] = await Promise.all([
         keyService.getKeys(tenantId, 'Google'),
         keyService.getKeys(tenantId, 'Groq'),
         keyService.getKeys(tenantId, 'OpenRouter'),
@@ -20,7 +19,6 @@ export const getWorkspaceSettings = async (req: Request, res: Response) => {
     res.json({
         settings: record.settings,
         aiKeys: {
-            concentrate: concentrateKeys.length ? concentrateKeys.join('\n') : record.aiKeys.concentrate || '',
             gemini: geminiKeys.length ? geminiKeys.join('\n') : record.aiKeys.gemini || '',
             groq: groqKeys.length ? groqKeys.join('\n') : record.aiKeys.groq || '',
             openrouter: openRouterKeys.length ? openRouterKeys.join('\n') : record.aiKeys.openrouter || '',
@@ -37,7 +35,6 @@ export const saveWorkspaceSettings = async (req: Request, res: Response) => {
     await saveWorkspaceSettingsRecord(tenantId, settings, aiKeys);
 
     const keyResults: Array<{ success: boolean; error?: string }> = await Promise.all([
-        aiKeys.concentrate ? keyService.saveKey(tenantId, 'Concentrate', aiKeys.concentrate) : Promise.resolve({ success: true }),
         aiKeys.gemini ? keyService.saveKey(tenantId, 'Google', aiKeys.gemini) : Promise.resolve({ success: true }),
         aiKeys.groq ? keyService.saveKey(tenantId, 'Groq', aiKeys.groq) : Promise.resolve({ success: true }),
         aiKeys.openrouter ? keyService.saveKey(tenantId, 'OpenRouter', aiKeys.openrouter) : Promise.resolve({ success: true }),

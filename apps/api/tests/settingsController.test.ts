@@ -51,7 +51,6 @@ describe('settingsController workspace scoping', () => {
             aiKeys: { gemini: 'fallback-key' },
         });
         (keyService.getKeys as any)
-            .mockResolvedValueOnce([])
             .mockResolvedValueOnce(['google-live-key'])
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce([])
@@ -64,7 +63,6 @@ describe('settingsController workspace scoping', () => {
         expect(res.json).toHaveBeenCalledWith({
             settings: { defaultModel: 'gemini-2.5-flash' },
             aiKeys: {
-                concentrate: '',
                 gemini: 'google-live-key',
                 groq: '',
                 openrouter: '',

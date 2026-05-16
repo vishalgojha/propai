@@ -26,43 +26,7 @@ export async function POST(request: Request) {
 }
 
 async function parseQuery(q: string): Promise<ParsedQuery> {
-  const apiKey = process.env.CONCENTRATE_API_KEY;
-  const model = process.env.CONCENTRATE_MODEL || "auto";
-  const baseUrl = (process.env.CONCENTRATE_BASE_URL || "https://api.concentrate.ai/v1").replace(/\/$/, "");
-
-  if (!apiKey) {
-    return heuristicParse(q);
-  }
-
-  try {
-    const response = await fetch(`${baseUrl}/responses`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        input: `Extract real estate search filters from this query and return JSON only with keys: type, bhk, locality, max_price, keywords.\n\nQuery: ${q}`,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Concentrate request failed with ${response.status}`);
-    }
-
-    const result = await response.json();
-    const text = String(
-      (Array.isArray(result?.output) ? result.output : [])
-        .flatMap((entry: any) => Array.isArray(entry?.content) ? entry.content : [])
-        .filter((part: any) => part?.type === "output_text" && typeof part?.text === "string")
-        .map((part: any) => part.text)
-        .join("\n") || ""
-    ).trim().replace(/^```json|```$/g, "").trim();
-    return JSON.parse(text) as ParsedQuery;
-  } catch {
-    return heuristicParse(q);
-  }
+  return heuristicParse(q);
 }
 
 function heuristicParse(q: string): ParsedQuery {

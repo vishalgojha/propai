@@ -31,11 +31,11 @@ const AI_MODEL_PRICING = {
     note: 'Uses the OpenRouter GPT-4o Mini rate card by default.',
   },
   doubleword: {
-    label: 'Qwen3 235B',
+    label: 'Qwen3.6 35B',
     provider: 'Doubleword',
     inputRate: 0.1,
     outputRate: 0.4,
-    note: 'Uses the current Doubleword realtime Qwen3 235B estimate.',
+    note: 'Uses the current Doubleword realtime Qwen3.6 35B estimate.',
   },
 } as const;
 
