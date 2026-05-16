@@ -347,6 +347,9 @@ export const Agent: React.FC = () => {
   const [activeModelName, setActiveModelName] = useState<string | null>(null);
   const [runtimeNote, setRuntimeNote] = useState<string | null>(null);
   const [chatHydrated, setChatHydrated] = useState(false);
+  const [sessions, setSessions] = useState<Array<{ id: string; title: string; created_at: string; updated_at: string }>>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -492,9 +495,35 @@ export const Agent: React.FC = () => {
 
     let mounted = true;
 
+    const loadSessions = async () => {
+      try {
+        const resp = await backendApi.get<{ sessions: Array<{ id: string; title: string; created_at: string; updated_at: string }> }>(ENDPOINTS.ai.sessions);
+        const sessionList = resp.data?.sessions;
+        if (mounted && Array.isArray(sessionList) && sessionList.length > 0) {
+          setSessions(sessionList);
+          if (!activeSessionId) {
+            setActiveSessionId(sessionList[0].id);
+          }
+        }
+      } catch { /* sessions unavailable */ }
+      if (mounted) setSessionsLoaded(true);
+    };
+
+    loadSessions();
+
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !activeSessionId) return;
+
+    let mounted = true;
+
     const loadHistory = async () => {
       try {
-        const resp = await backendApi.get<{ messages: { role: 'user' | 'ai'; content: string }[] }>(ENDPOINTS.ai.history);
+        const resp = await backendApi.get<{ messages: { role: 'user' | 'ai'; content: string }[] }>(
+          `${ENDPOINTS.ai.history}?session_id=${encodeURIComponent(activeSessionId)}`,
+        );
         const serverMessages = resp.data?.messages;
         if (mounted && Array.isArray(serverMessages) && serverMessages.length > 0) {
           const withTimestamps = serverMessages.map((msg) => ({
@@ -507,31 +536,7 @@ export const Agent: React.FC = () => {
           return;
         }
       } catch {
-        // server history unavailable, fall through to localStorage
-      }
-
-      try {
-        const savedMessages = window.localStorage.getItem(chatStorageKey);
-        if (mounted) {
-          if (savedMessages) {
-            const parsedMessages = JSON.parse(savedMessages) as ChatMessage[];
-            if (Array.isArray(parsedMessages) && parsedMessages.length) {
-              const validMessages = parsedMessages.filter(
-                (message) =>
-                  (message.role === 'user' || message.role === 'ai') &&
-                  typeof message.content === 'string' &&
-                  typeof message.timestamp === 'string',
-              );
-              setMessages(validMessages.length ? validMessages : starterMessages);
-            } else {
-              setMessages(starterMessages);
-            }
-          } else {
-            setMessages(starterMessages);
-          }
-        }
-      } catch {
-        if (mounted) setMessages(starterMessages);
+        // server history unavailable
       }
 
       try {
@@ -547,16 +552,43 @@ export const Agent: React.FC = () => {
     loadHistory();
 
     return () => { mounted = false; };
-  }, [chatStorageKey, draftStorageKey]);
+  }, [activeSessionId, draftStorageKey]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !chatHydrated) return;
+    if (typeof window === 'undefined' || !chatHydrated || activeSessionId) return;
+
+    try {
+      const savedMessages = window.localStorage.getItem(chatStorageKey);
+      if (savedMessages) {
+        const parsedMessages = JSON.parse(savedMessages) as ChatMessage[];
+        if (Array.isArray(parsedMessages) && parsedMessages.length) {
+          const validMessages = parsedMessages.filter(
+            (message) =>
+              (message.role === 'user' || message.role === 'ai') &&
+              typeof message.content === 'string' &&
+              typeof message.timestamp === 'string',
+          );
+          setMessages(validMessages.length ? validMessages : starterMessages);
+        }
+      }
+    } catch { /* ignore */ }
+
+    try {
+      const savedDraft = window.localStorage.getItem(draftStorageKey);
+      setInput(savedDraft || '');
+    } catch { /* ignore */ }
+
+    setChatHydrated(true);
+  }, [chatHydrated, chatStorageKey, draftStorageKey, activeSessionId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !chatHydrated || activeSessionId) return;
 
     window.localStorage.setItem(chatStorageKey, JSON.stringify(messages));
-  }, [chatHydrated, chatStorageKey, messages]);
+  }, [chatHydrated, chatStorageKey, messages, activeSessionId]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !chatHydrated) return;
+    if (typeof window === 'undefined' || !chatHydrated || activeSessionId) return;
 
     if (input.trim()) {
       window.localStorage.setItem(draftStorageKey, input);
@@ -564,7 +596,7 @@ export const Agent: React.FC = () => {
     }
 
     window.localStorage.removeItem(draftStorageKey);
-  }, [chatHydrated, draftStorageKey, input]);
+  }, [chatHydrated, draftStorageKey, input, activeSessionId]);
 
   useEffect(() => {
     const el = threadRef.current;
@@ -628,7 +660,21 @@ export const Agent: React.FC = () => {
     el.style.height = `${Math.min(el.scrollHeight, 72)}px`;
   }, [input]);
 
-	  const handleSend = async (text = input) => {
+	  const ensureSession = async () => {
+    if (activeSessionId) return activeSessionId;
+    try {
+      const resp = await backendApi.post(ENDPOINTS.ai.sessions, { title: 'New Chat' });
+      const session = resp.data?.session;
+      if (session?.id) {
+        setSessions((prev) => [session, ...prev]);
+        setActiveSessionId(session.id);
+        return session.id;
+      }
+    } catch { /* ignore */ }
+    return null;
+  };
+
+  const handleSend = async (text = input) => {
 	    const prompt = text.trim();
 	    if (!prompt) return;
 
@@ -636,6 +682,8 @@ export const Agent: React.FC = () => {
       words: wordCount(prompt),
       quick_action: text !== input,
     });
+
+    const sessionId = await ensureSession();
 
     setMessages((prev) => [
       ...prev,
@@ -648,6 +696,7 @@ export const Agent: React.FC = () => {
 	      const response = await backendApi.post(ENDPOINTS.ai.chat, {
 	        message: prompt,
 	        model: selectedModel,
+	        session_id: sessionId,
 	        attachments: attachedFiles.map((file) => file.id),
 	      });
       const reply = [
@@ -797,9 +846,69 @@ export const Agent: React.FC = () => {
     }
   };
 
-  const handleClearChat = () => {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const handleClearChat = async () => {
+    if (!activeSessionId) {
+      setMessages(starterMessages);
+      window.localStorage.removeItem(chatStorageKey);
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await backendApi.post(ENDPOINTS.ai.sessionClear(activeSessionId));
+    } catch { /* ignore */ }
     setMessages(starterMessages);
-    window.localStorage.removeItem(chatStorageKey);
+    setIsDeleting(false);
+    setShowClearConfirm(false);
+  };
+
+  const handleNewChat = async () => {
+    try {
+      const resp = await backendApi.post(ENDPOINTS.ai.sessions, { title: 'New Chat' });
+      const session = resp.data?.session;
+      if (session?.id) {
+        setSessions((prev) => [session, ...prev]);
+        setActiveSessionId(session.id);
+        setMessages(starterMessages);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const switchSession = async (sessionId: string) => {
+    setActiveSessionId(sessionId);
+    setMessages(starterMessages);
+    try {
+      const resp = await backendApi.get<{ messages: { role: 'user' | 'ai'; content: string }[] }>(
+        `${ENDPOINTS.ai.history}?session_id=${encodeURIComponent(sessionId)}`,
+      );
+      const serverMessages = resp.data?.messages;
+      if (Array.isArray(serverMessages) && serverMessages.length > 0) {
+        const withTimestamps = serverMessages.map((msg) => ({
+          role: msg.role as 'user' | 'ai',
+          content: msg.content,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }));
+        setMessages(withTimestamps);
+      }
+    } catch { /* history unavailable */ }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      await backendApi.delete(ENDPOINTS.ai.sessionById(sessionId));
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      if (activeSessionId === sessionId) {
+        const remaining = sessions.filter((s) => s.id !== sessionId);
+        if (remaining.length > 0) {
+          switchSession(remaining[0].id);
+        } else {
+          setActiveSessionId(null);
+          setMessages(starterMessages);
+        }
+      }
+    } catch { /* ignore */ }
   };
 
   const openAssistantPanel = (tab: AssistantPanelTab = 'runtime') => {
@@ -807,9 +916,59 @@ export const Agent: React.FC = () => {
     setIsAssistantPanelOpen(true);
   };
 
+  const showSessionSidebar = sessionsLoaded;
+  const sessionSidebarWidth = 260;
+
   return (
-    <div className={cn('grid gap-4 sm:gap-6', showAssistantRail && 'lg:grid-cols-[minmax(0,1fr)_360px]')}>
-      <section className="flex min-h-[calc(100dvh-11rem)] flex-col overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.22)] md:min-h-[calc(100vh-160px)]">
+    <div className="flex gap-4 sm:gap-6">
+      {showSessionSidebar ? (
+        <aside className="hidden w-[260px] shrink-0 flex-col overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.22)] sm:flex">
+          <div className="flex items-center justify-between border-b border-[color:var(--border)] px-3 py-3">
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Chats</span>
+            <button
+              type="button"
+              onClick={handleNewChat}
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[#020f07]"
+              title="New chat"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </button>
+          </div>
+          <div className="pulse-scrollbar flex-1 space-y-1 overflow-y-auto px-2 py-3">
+            {sessions.length === 0 ? (
+              <p className="px-2 text-[11px] text-[var(--text-ghost)]">No chats yet</p>
+            ) : (
+              sessions.map((session) => (
+                <div
+                  key={session.id}
+                  className={cn(
+                    'group flex cursor-pointer items-center gap-2 rounded-[12px] px-3 py-2 text-[12px] transition-colors',
+                    activeSessionId === session.id
+                      ? 'bg-[var(--accent-dim)] text-[var(--accent)]'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]',
+                  )}
+                  onClick={() => switchSession(session.id)}
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                  <span className="min-w-0 flex-1 truncate">{session.title}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
+                    className="hidden h-5 w-5 shrink-0 items-center justify-center rounded-full text-[var(--text-ghost)] hover:bg-[rgba(239,68,68,0.15)] hover:text-[var(--red)] group-hover:flex"
+                    title="Delete chat"
+                  >
+                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </aside>
+      ) : null}
+      <section className={cn(
+        'flex min-h-[calc(100dvh-11rem)] flex-col overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.22)] md:min-h-[calc(100vh-160px)]',
+        showAssistantRail ? 'flex-1' : 'flex-1',
+      )}>
         <div className="border-b border-[color:var(--border)] px-4 py-4 sm:px-6 sm:py-5">
           {identityData && (
             <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2.5 text-[13px]">
@@ -855,10 +1014,14 @@ export const Agent: React.FC = () => {
                 <span className={cn('h-2.5 w-2.5 rounded-full', panelHasAttention ? 'bg-[var(--amber)]' : 'bg-[var(--accent)]')} />
                 <ChevronRightIcon className={cn('h-4 w-4 transition-transform', isAssistantPanelOpen && 'rotate-90')} />
               </button>
-              <div>
+              <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">PropAI Pulse</p>
-                <h2 className="text-[15px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Agent Chat</h2>
-                <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Click Pulse to open runtime, activity, and browser tools in the third panel.</p>
+                <h2 className="truncate text-[15px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
+                  {activeSessionId
+                    ? (sessions.find((s) => s.id === activeSessionId)?.title || 'Chat')
+                    : 'Agent Chat'}
+                </h2>
+                <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Ask Pulse anything about your workspace.</p>
               </div>
             </div>
             <div className="flex w-full flex-col gap-2 text-[11px] text-[var(--text-secondary)] sm:w-auto sm:items-end">
@@ -868,21 +1031,55 @@ export const Agent: React.FC = () => {
                   {effectiveRuntimeOrder.join(' -> ')}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={handleClearChat}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-ghost)] transition-colors',
-                  hasConversation
-                    ? 'cursor-pointer hover:border-[color:rgba(239,68,68,0.35)] hover:bg-[rgba(239,68,68,0.1)] hover:text-[var(--red)]'
-                    : 'cursor-not-allowed opacity-40',
+              <div className="flex items-center gap-2">
+                {showClearConfirm ? (
+                  <div className="flex items-center gap-1.5 rounded-full border border-[color:rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.1)] px-3 py-1">
+                    <span className="text-[10px] font-semibold text-[var(--red)]">Clear all messages?</span>
+                    <button
+                      type="button"
+                      onClick={handleClearChat}
+                      disabled={isDeleting}
+                      className="text-[10px] font-bold text-[var(--red)] hover:underline"
+                    >
+                      {isDeleting ? '...' : 'Yes'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowClearConfirm(false)}
+                      className="text-[10px] text-[var(--text-secondary)] hover:underline"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleNewChat}
+                      className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-ghost)] transition-colors hover:border-[color:var(--accent-border)] hover:bg-[var(--accent-dim)] hover:text-[var(--accent)]"
+                      title="Start a new chat session"
+                    >
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                      New
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowClearConfirm(true)}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-ghost)] transition-colors',
+                        hasConversation
+                          ? 'cursor-pointer hover:border-[color:rgba(239,68,68,0.35)] hover:bg-[rgba(239,68,68,0.1)] hover:text-[var(--red)]'
+                          : 'cursor-not-allowed opacity-40',
+                      )}
+                      title={hasConversation ? 'Clear this conversation and start fresh' : 'No conversation to clear'}
+                      disabled={!hasConversation}
+                    >
+                      <TrashIcon className="h-3 w-3" />
+                      Clear
+                    </button>
+                  </>
                 )}
-                title={hasConversation ? 'Clear this conversation and start fresh' : 'No conversation to clear'}
-                disabled={!hasConversation}
-              >
-                <TrashIcon className="h-3 w-3" />
-                Clear
-              </button>
+              </div>
               <div
                 className={cn(
                   'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]',
@@ -1089,7 +1286,7 @@ export const Agent: React.FC = () => {
       {showAssistantRail ? (
           <aside
             id="agent-side-panel"
-            className="overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.22)] lg:sticky lg:top-6 lg:self-start"
+            className="w-[360px] shrink-0 overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.22)] lg:sticky lg:top-6 lg:self-start"
           >
             <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-4 py-4">
               <div className="flex min-w-0 items-center gap-3">
