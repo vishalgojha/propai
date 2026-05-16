@@ -13,6 +13,7 @@ import {
   GlobeIcon,
   PaperclipIcon,
   RefreshIcon,
+  TrashIcon,
   WorkflowIcon,
   XIcon,
   CheckCircleIcon,
@@ -796,6 +797,11 @@ export const Agent: React.FC = () => {
     }
   };
 
+  const handleClearChat = () => {
+    setMessages(starterMessages);
+    window.localStorage.removeItem(chatStorageKey);
+  };
+
   const openAssistantPanel = (tab: AssistantPanelTab = 'runtime') => {
     setAssistantPanelTab(tab);
     setIsAssistantPanelOpen(true);
@@ -861,6 +867,20 @@ export const Agent: React.FC = () => {
                 <span>
                   {effectiveRuntimeOrder.join(' -> ')}
                 </span>
+              </div>
+              <div
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-ghost)] transition-colors hover:border-[color:rgba(239,68,68,0.35)] hover:bg-[rgba(239,68,68,0.1)] hover:text-[var(--red)]',
+                  hasConversation ? 'cursor-pointer' : 'pointer-events-none opacity-30',
+                )}
+                title={hasConversation ? 'Clear this conversation and start fresh' : 'No conversation to clear'}
+                onClick={hasConversation ? handleClearChat : undefined}
+                role="button"
+                tabIndex={hasConversation ? 0 : undefined}
+                onKeyDown={hasConversation ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleClearChat(); } : undefined}
+              >
+                <TrashIcon className="h-3 w-3" />
+                Clear
               </div>
               <div
                 className={cn(
