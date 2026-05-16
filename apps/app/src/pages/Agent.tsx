@@ -1020,7 +1020,7 @@ export const Agent: React.FC = () => {
                 }}
 	                placeholder="Ask Pulse anything..."
 	                rows={1}
-	                className="w-full resize-none border-b border-[color:var(--border)] bg-transparent py-2 pr-20 text-[13px] font-normal text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-muted)] focus:border-[color:var(--accent)]"
+	                className="w-full resize-none border-b border-[color:var(--border-strong)] bg-transparent py-2 pr-20 text-[13px] font-normal text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-muted)] focus:border-[color:var(--accent)]"
 	              />
 
 	              <button
