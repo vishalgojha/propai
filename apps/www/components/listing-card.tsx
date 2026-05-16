@@ -15,7 +15,7 @@ function formatTimeAgo(value: string) {
 }
 
 function badgeColors(displayType: "Rent" | "Sale" | "Commercial") {
-  if (displayType === "Rent") return "bg-[#E1F5EE] text-[#085041]";
+  if (displayType === "Rent") return "bg-propai-green-dim text-propai-on-green";
   if (displayType === "Sale") return "bg-[#E6F1FB] text-[#0C447C]";
   return "bg-[#EEEDFE] text-[#3C3489]";
 }
@@ -81,7 +81,7 @@ export function ListingCard({ listing, view = "grid" }: { listing: PublicListing
           <button
             type="button"
             onClick={handleConnect}
-            className="shrink-0 rounded-lg bg-[#25d366] px-3.5 py-2 text-xs font-semibold text-black hover:brightness-110"
+            className="shrink-0 rounded-lg bg-[#3EE88A] px-3.5 py-2 text-xs font-semibold text-black hover:brightness-110"
           >
             Connect
           </button>
@@ -129,7 +129,7 @@ export function ListingCard({ listing, view = "grid" }: { listing: PublicListing
                   <Link
                     key={chip.label}
                     href={chip.href}
-                    className="rounded-lg border border-[#243040] bg-[#0d1117] px-2.5 py-1 text-xs text-[#94a3b8] hover:border-[#25d36666] hover:text-white"
+                    className="rounded-lg border border-[#243040] bg-[#0d1117] px-2.5 py-1 text-xs text-[#94a3b8] hover:border-[#3EE88A66] hover:text-white"
                   >
                     {chip.label}
                   </Link>
@@ -189,7 +189,7 @@ export function ListingCard({ listing, view = "grid" }: { listing: PublicListing
             <button
               type="button"
               onClick={handleConnect}
-              className="rounded-lg bg-[#25d366] px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110"
+              className="rounded-lg bg-[#3EE88A] px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110"
             >
               Connect
             </button>
@@ -225,7 +225,7 @@ export function ListingCard({ listing, view = "grid" }: { listing: PublicListing
                 <Link
                   key={chip.label}
                   href={chip.href}
-                  className="rounded-lg border border-[#243040] bg-[#121a24] px-2.5 py-1 text-xs text-[#94a3b8] hover:border-[#25d36666] hover:text-white"
+                  className="rounded-lg border border-[#243040] bg-[#121a24] px-2.5 py-1 text-xs text-[#94a3b8] hover:border-[#3EE88A66] hover:text-white"
                 >
                   {chip.label}
                 </Link>

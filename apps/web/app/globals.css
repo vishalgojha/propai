@@ -7,8 +7,8 @@
   --text: #1c1b18;
   --muted: #6e6557;
   --line: #ddd3c3;
-  --brand: #0f7a4f;
-  --brand-dark: #0a5d3c;
+  --brand: #2DC96E;
+  --brand-dark: #0D1A12;
   --accent: #b46a2d;
 }
 
@@ -243,7 +243,7 @@ a { color: inherit; }
   border-radius: 999px;
 }
 
-.listing-type.rent { background: #e1f3ea; color: #126140; }
+.listing-type.rent { background: rgba(62, 232, 138, 0.12); color: #126140; }
 .listing-type.sale { background: #e8eefc; color: #234ea5; }
 .listing-type.requirement { background: #f9ead7; color: #9a4f13; }
 

@@ -321,7 +321,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
       <div className="border-b-[0.5px] border-[color:var(--border)] px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-[10px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent-dim)] shadow-[0_0_0_1px_rgba(37,211,102,0.04)]">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[10px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent-dim)] shadow-[0_0_0_1px_rgba(62,232,138,0.04)]">
               <WorkflowIcon className="h-5 w-5 text-[var(--accent)]" />
             </div>
             <div className={cn('min-w-0', isCollapsed && 'lg:hidden')}>

@@ -106,7 +106,7 @@ const browserTools = [
 ] as const;
 const activityToneStyles: Record<PanelActivityTone, string> = {
   neutral: 'border-[color:var(--border)] bg-[var(--bg-elevated)]',
-  success: 'border-[color:rgba(34,197,94,0.22)] bg-[rgba(37,211,102,0.08)]',
+  success: 'border-[color:rgba(34,197,94,0.22)] bg-[rgba(62,232,138,0.08)]',
   warning: 'border-[color:rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)]',
 };
 
@@ -1058,7 +1058,7 @@ export const Agent: React.FC = () => {
 		                    className={cn(
 		                      'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold transition',
 		                      file.hasText
-		                        ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] text-[var(--accent)]'
+		                        ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
 		                        : 'border-[color:rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.08)] text-[var(--amber)]',
 		                    )}
 		                    title="Click to remove"
@@ -1192,7 +1192,7 @@ export const Agent: React.FC = () => {
                       {availableProviderCount} provider{availableProviderCount === 1 ? '' : 's'} ready
                     </div>
                     {activeRuntimeProvider && (
-                      <div className="rounded-full border border-[color:rgba(37,211,102,0.28)] bg-[rgba(37,211,102,0.08)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+                      <div className="rounded-full border border-[color:rgba(62,232,138,0.28)] bg-[rgba(62,232,138,0.08)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
                         Active: {activeRuntimeProvider}
                       </div>
                     )}
@@ -1368,7 +1368,7 @@ export const Agent: React.FC = () => {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <p className="text-[12px] font-semibold text-[var(--text-primary)]">{tool.label}</p>
-                              <span className="rounded-full border border-[color:rgba(37,211,102,0.28)] bg-[rgba(37,211,102,0.08)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+                              <span className="rounded-full border border-[color:rgba(62,232,138,0.28)] bg-[rgba(62,232,138,0.08)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
                                 Ready
                               </span>
                             </div>

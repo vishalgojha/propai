@@ -247,7 +247,7 @@ const getHealthTone = (state: WhatsappHealthSummary['healthState'] | WhatsappHea
   switch (state) {
     case 'healthy':
     case 'active':
-      return 'bg-[rgba(37,211,102,0.12)] text-[var(--accent)]';
+      return 'bg-[rgba(62,232,138,0.12)] text-[var(--accent)]';
     case 'critical':
     case 'error':
       return 'bg-[rgba(239,68,68,0.1)] text-[var(--red)]';
@@ -257,7 +257,7 @@ const getHealthTone = (state: WhatsappHealthSummary['healthState'] | WhatsappHea
 };
 
 const sourcePrimaryButton =
-  'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] shadow-[0_10px_28px_rgba(37,211,102,0.18)] transition-all duration-150 hover:-translate-y-[1px] hover:brightness-95 disabled:opacity-50 disabled:hover:translate-y-0';
+  'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] shadow-[0_10px_28px_rgba(62,232,138,0.18)] transition-all duration-150 hover:-translate-y-[1px] hover:brightness-95 disabled:opacity-50 disabled:hover:translate-y-0';
 const sourceSecondaryButton =
   'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-all duration-150 hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)]';
 const sourcePill =
@@ -1400,7 +1400,7 @@ export const Sources: React.FC = () => {
               <div className={cn(
                 'mt-4 rounded-[10px] border px-4 py-3 text-[12px]',
                 outboundFeedback.tone === 'success'
-                  ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] text-[var(--accent)]'
+                  ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
                   : 'border-[color:rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
               )}>
                 {outboundFeedback.message}
@@ -1468,7 +1468,7 @@ export const Sources: React.FC = () => {
                           <span className={cn(
                             'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
                             isGroupParsingEnabled(group.behavior)
-                              ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] text-[var(--accent)]'
+                              ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
                               : 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
                           )}>
                             {isGroupParsingEnabled(group.behavior) ? 'Parsing on' : 'Paused'}
@@ -1651,7 +1651,7 @@ export const Sources: React.FC = () => {
             </p>
           </div>
 
-          <div className="mt-5 rounded-[12px] border border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] p-4">
+          <div className="mt-5 rounded-[12px] border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">Referral program</p>
             <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
               Refer 3 brokers who complete trial and payment and your workspace gets 1 free month added to the subscription. Share the PropAI Assistant contact too: {PROPAI_ASSISTANT_NUMBER}.
@@ -1765,7 +1765,7 @@ export const Sources: React.FC = () => {
             <div className={cn(
               'mt-5 rounded-[12px] border px-4 py-3 text-[12px]',
               supportLogsFeedback.tone === 'success'
-                ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)] text-[var(--accent)]'
+                ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
                 : 'border-[color:rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
             )}>
               {supportLogsFeedback.message}
@@ -1991,7 +1991,7 @@ export const Sources: React.FC = () => {
                       <span className={cn(
                         sourcePill,
                         session.status === 'connected'
-                          ? 'bg-[rgba(37,211,102,0.12)] text-[var(--accent)]'
+                          ? 'bg-[rgba(62,232,138,0.12)] text-[var(--accent)]'
                           : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
                       )}>
                         {session.status}

@@ -76,7 +76,7 @@ function renderAuthorizePage(params: Record<string, string>, error?: string) {
     p { color: #9eb0c1; line-height: 1.5; }
     label { display: block; margin-top: 16px; font-size: 14px; color: #d7e1ea; }
     input { width: 100%; margin-top: 8px; padding: 12px 14px; border-radius: 10px; border: 1px solid #314558; background: #0c141d; color: #fff; box-sizing: border-box; }
-    button { width: 100%; margin-top: 20px; padding: 12px 14px; border: 0; border-radius: 10px; background: #25d366; color: #04120a; font-weight: 700; cursor: pointer; }
+    button { width: 100%; margin-top: 20px; padding: 12px 14px; border: 0; border-radius: 10px; background: #3EE88A; color: #04120a; font-weight: 700; cursor: pointer; }
     .error { margin-top: 12px; color: #ff9b9b; }
     .hint { font-size: 12px; color: #7f93a6; margin-top: 12px; }
   </style>

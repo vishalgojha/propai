@@ -69,7 +69,7 @@ export default async function ListingsPage({ searchParams }: PageProps) {
             <option value="price_desc">Price ↓</option>
             <option value="match">Match</option>
           </select>
-          <button type="submit" className="h-12 rounded-2xl bg-[#25d366] px-4 font-semibold text-black">Search</button>
+          <button type="submit" className="h-12 rounded-2xl bg-[#3EE88A] px-4 font-semibold text-black">Search</button>
         </form>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -79,7 +79,7 @@ export default async function ListingsPage({ searchParams }: PageProps) {
             const next = new URLSearchParams(baseParams.toString());
             next.delete(key);
             return (
-              <Link key={key} href={`/listings${next.toString() ? `?${next.toString()}` : ""}`} className="rounded-full border border-[#25d36666] bg-[#0f2a1e] px-3 py-1 text-sm text-[#9ef0ba]">
+              <Link key={key} href={`/listings${next.toString() ? `?${next.toString()}` : ""}`} className="rounded-full border border-[#3EE88A66] bg-[#0f2a1e] px-3 py-1 text-sm text-[#9ef0ba]">
                 {value} ×
               </Link>
             );

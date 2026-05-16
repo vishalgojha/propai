@@ -6,7 +6,7 @@ export default function BrokerSignupPage() {
         <p className="mt-4 text-base leading-7 text-[#c8d3df]">
           PropAI Pro exposes your contact details on public listing pages, keeps your listings indexable, and routes verified leads back into your workflow.
         </p>
-        <a href="https://app.propai.live/pricing" className="mt-8 inline-flex rounded-full bg-[#25d366] px-5 py-3 font-semibold text-black">
+        <a href="https://app.propai.live/pricing" className="mt-8 inline-flex rounded-full bg-[#3EE88A] px-5 py-3 font-semibold text-black">
           View plans
         </a>
       </div>

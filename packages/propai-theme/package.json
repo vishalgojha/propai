@@ -1,0 +1,11 @@
+{
+  "name": "@propai/theme",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "style": "./theme.css",
+  "exports": {
+    ".": "./index.ts",
+    "./theme.css": "./theme.css"
+  }
+}

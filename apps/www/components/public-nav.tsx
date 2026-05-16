@@ -14,7 +14,7 @@ export function PublicNav() {
           </Link>
           <a
             href="https://app.propai.live"
-            className="rounded-full bg-[#E1F5EE] px-3.5 py-1.5 text-xs font-medium text-[#0F6E56]"
+            className="rounded-full bg-[rgba(62, 232, 138, 0.12)] px-3.5 py-1.5 text-xs font-medium text-[#0D1A12]"
           >
             Sign in
           </a>

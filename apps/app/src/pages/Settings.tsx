@@ -429,7 +429,7 @@ export const Settings: React.FC = () => {
                     className={cn(
                       'flex flex-col items-start gap-4 rounded-[18px] border px-4 py-4 text-left transition-colors sm:flex-row sm:items-center sm:justify-between',
                       settings.defaultModel === model.value
-                        ? 'border-[color:var(--accent-border)] bg-[rgba(37,211,102,0.08)]'
+                        ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)]'
                         : 'border-[color:var(--border)] bg-[var(--bg-surface)] hover:border-[color:var(--border-strong)]'
                     )}
                   >

@@ -72,7 +72,7 @@ class EmailNotificationService {
             <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;line-height:1.6;color:#1a1a2e;max-width:560px;margin:0 auto">
                 <div style="background:#0d1117;border-radius:16px;padding:32px;border:1px solid #243040">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px">
-                        <div style="width:8px;height:8px;border-radius:50%;background:#25d366"></div>
+                        <div style="width:8px;height:8px;border-radius:50%;background:#3EE88A"></div>
                         <span style="font-weight:600;font-size:15px;color:#e2e8f0">PropAI</span>
                     </div>
 
@@ -99,7 +99,7 @@ class EmailNotificationService {
                         <strong style="color:#e2e8f0">Next step:</strong> Set up your WhatsApp connection so we can start pulling your listings automatically. It takes about a minute.
                     </p>
 
-                    <a href="${dashboardUrl}" style="display:inline-block;background:#25d366;color:#000;text-decoration:none;font-weight:600;font-size:14px;padding:12px 24px;border-radius:12px;margin:8px 0 20px">
+                    <a href="${dashboardUrl}" style="display:inline-block;background:#3EE88A;color:#000;text-decoration:none;font-weight:600;font-size:14px;padding:12px 24px;border-radius:12px;margin:8px 0 20px">
                         Set up WhatsApp →
                     </a>
 

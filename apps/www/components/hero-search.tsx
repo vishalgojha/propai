@@ -39,7 +39,7 @@ export function HeroSearch() {
           />
           <button
             type="submit"
-            className="h-12 bg-[#25d366] px-5 text-sm font-semibold text-black hover:brightness-110"
+            className="h-12 bg-[#3EE88A] px-5 text-sm font-semibold text-black hover:brightness-110"
           >
             Search
           </button>
@@ -51,7 +51,7 @@ export function HeroSearch() {
             key={chip}
             type="button"
             onClick={() => void submitSearch(chip)}
-            className="rounded-full border border-[#2b3a4e] bg-[#0d1117] px-3 py-1 text-xs text-[#94a3b8] transition hover:border-[#25d36666] hover:text-white"
+            className="rounded-full border border-[#2b3a4e] bg-[#0d1117] px-3 py-1 text-xs text-[#94a3b8] transition hover:border-[#3EE88A66] hover:text-white"
           >
             {chip}
           </button>

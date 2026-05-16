@@ -115,7 +115,7 @@ export const Docs: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[10px] border-[0.5px] border-[color:var(--accent-border)] bg-[linear-gradient(180deg,rgba(13,17,23,0.98),rgba(9,13,18,0.98))] p-6 shadow-[0_0_0_1px_rgba(37,211,102,0.08),0_24px_80px_rgba(0,0,0,0.35)]">
+      <div className="rounded-[10px] border-[0.5px] border-[color:var(--accent-border)] bg-[linear-gradient(180deg,rgba(13,17,23,0.98),rgba(9,13,18,0.98))] p-6 shadow-[0_0_0_1px_rgba(62,232,138,0.08),0_24px_80px_rgba(0,0,0,0.35)]">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">

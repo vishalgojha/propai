@@ -113,7 +113,7 @@ export default async function ListingDetailPage({
                   <div className="text-lg text-white">{listing.brokerName || "Verified broker"}</div>
                   <div className="font-mono text-[#d2dbe7]">+91 {listing.brokerPhone}</div>
                   <div className="flex gap-3">
-                    <a href={`https://wa.me/91${listing.brokerPhone}`} className="rounded-full bg-[#25d366] px-4 py-2 text-sm font-semibold text-black">WhatsApp</a>
+                    <a href={`https://wa.me/91${listing.brokerPhone}`} className="rounded-full bg-[#3EE88A] px-4 py-2 text-sm font-semibold text-black">WhatsApp</a>
                     <a href={`tel:+91${listing.brokerPhone}`} className="rounded-full border border-[#243040] px-4 py-2 text-sm text-[#d2dbe7]">Call</a>
                   </div>
                 </div>
@@ -130,7 +130,7 @@ export default async function ListingDetailPage({
               <input type="hidden" name="listingId" value={listing.id} />
               <input name="name" placeholder="Your name" className="h-12 w-full rounded-2xl border border-[#243040] bg-[#0d1117] px-4 text-white" />
               <input name="phone" placeholder="Your phone" className="h-12 w-full rounded-2xl border border-[#243040] bg-[#0d1117] px-4 text-white" />
-              <button type="submit" className="h-12 w-full rounded-2xl bg-[#25d366] font-semibold text-black">Request details</button>
+              <button type="submit" className="h-12 w-full rounded-2xl bg-[#3EE88A] font-semibold text-black">Request details</button>
             </form>
           </div>
         </aside>
@@ -139,7 +139,7 @@ export default async function ListingDetailPage({
       <section className="mt-14">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="font-display text-3xl text-white">Related listings</h2>
-          <Link href={`/locality/${listing.localitySlug}`} className="text-sm text-[#25d366]">More in {listing.locality} →</Link>
+          <Link href={`/locality/${listing.localitySlug}`} className="text-sm text-[#3EE88A]">More in {listing.locality} →</Link>
         </div>
         <div className="flex gap-6 overflow-x-auto pb-4">
           {related.map((item) => (
