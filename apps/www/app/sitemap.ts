@@ -19,7 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return [
       ...fallbackEntries,
       ...listings.map((listing) => ({
-        url: `${siteUrl}/listings/${listing.id}`,
+        url: `${siteUrl}/listings/${listing.slug}`,
         priority: 0.7,
         lastModified: listing.updatedAt || listing.createdAt
       })),

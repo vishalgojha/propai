@@ -75,7 +75,7 @@ export function ListingCard({ listing, view = "grid" }: { listing: PublicListing
               </span>
               <span className="whitespace-nowrap text-[11px] text-[#64748b]">{formatTimeAgo(listing.createdAt)}</span>
             </div>
-            <Link href={`/listings/${listing.id}`} className="mt-1 text-[15px] font-medium text-white leading-snug hover:text-[#3EE88A]">{displayTitle}</Link>
+            <Link href={`/listings/${listing.slug}`} className="mt-1 text-[15px] font-medium text-white leading-snug hover:text-[#3EE88A]">{displayTitle}</Link>
             <div className="mt-0.5 flex items-center gap-1 text-xs text-[#94a3b8]">📍 {listing.locality}</div>
             <div className="mt-1 text-lg font-medium text-white">{listing.priceLabel}</div>
           </div>
@@ -154,7 +154,7 @@ export function ListingCard({ listing, view = "grid" }: { listing: PublicListing
         </div>
 
         <div>
-          <Link href={`/listings/${listing.id}`} className="text-[15px] font-medium leading-snug text-white hover:text-[#3EE88A]">{displayTitle}</Link>
+          <Link href={`/listings/${listing.slug}`} className="text-[15px] font-medium leading-snug text-white hover:text-[#3EE88A]">{displayTitle}</Link>
           <div className="mt-1 flex items-center gap-1 text-xs text-[#94a3b8]">📍 {listing.locality}</div>
         </div>
 

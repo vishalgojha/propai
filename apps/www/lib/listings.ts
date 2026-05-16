@@ -4,8 +4,19 @@ import { formatCurrencyShort, slugifyLocality, topLocalities } from "@/lib/site"
 
 export type ListingType = "rent" | "sale" | "requirement";
 
+export function generateListingSlug(listing: { bhk: string; localitySlug: string; type: ListingType; id: string }) {
+  const shortId = listing.id.replace(/-/g, "").slice(-8);
+  return `${slugifyBhk(listing.bhk)}-in-${listing.localitySlug}-${listing.type}-${shortId}`;
+}
+
+function slugifyBhk(bhk: string) {
+  const match = bhk.match(/^(\d+(?:\.\d+)?)/);
+  return match ? `${match[1]}-bhk` : bhk.toLowerCase().replace(/\s+/g, "-");
+}
+
 export type PublicListing = {
   id: string;
+  slug: string;
   title: string;
   locality: string;
   localitySlug: string;
@@ -119,9 +130,11 @@ function normalizeListing(row: LegacyListingRow, paidBrokerMap: Map<string, ProB
   const brokerPhone = proBroker?.phone || null;
   const amenities = inferAmenities(data, rawText);
   const tags = amenities.slice(0, 3);
+  const slug = generateListingSlug({ bhk, localitySlug: slugifyLocality(locality), type, id: row.id });
 
   return {
     id: row.id,
+    slug,
     title,
     locality,
     localitySlug: slugifyLocality(locality),
@@ -223,6 +236,11 @@ export async function getListingsPageData(filters: Filters) {
 export async function getListingById(id: string) {
   const listings = await getAllListings();
   return listings.find((listing) => listing.id === id) || null;
+}
+
+export async function getListingBySlug(slug: string) {
+  const listings = await getAllListings();
+  return listings.find((listing) => listing.slug === slug || listing.id === slug) || null;
 }
 
 export async function getRelatedListings(listing: PublicListing) {

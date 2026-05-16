@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ListingCard } from "@/components/listing-card";
-import { getListingById, getRelatedListings } from "@/lib/listings";
+import { getListingBySlug, getRelatedListings } from "@/lib/listings";
 import { canonicalUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const listing = await getListingById(params.id);
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const listing = await getListingBySlug(params.slug);
   if (!listing) return {};
   const title = `${listing.bhk} for ${listing.type === "rent" ? "Rent" : listing.type === "sale" ? "Sale" : "Requirement"} in ${listing.locality}, ${listing.city} — ${listing.priceLabel} | PropAI`;
   const description = `${listing.bhk} in ${listing.area}, ${listing.locality}. ${listing.areaSqft ? `${listing.areaSqft} sqft, ` : ""}${listing.furnishing || "unfurnished"}. ${listing.priceLabel}.`;
@@ -16,12 +16,12 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
     title,
     description,
     alternates: {
-      canonical: canonicalUrl(`/listings/${listing.id}`)
+      canonical: canonicalUrl(`/listings/${listing.slug}`)
     },
     openGraph: {
       title,
       description,
-      url: canonicalUrl(`/listings/${listing.id}`),
+      url: canonicalUrl(`/listings/${listing.slug}`),
       type: "article"
     }
   };
@@ -31,10 +31,10 @@ export default async function ListingDetailPage({
   params,
   searchParams
 }: {
-  params: { id: string };
+  params: { slug: string };
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-  const listing = await getListingById(params.id);
+  const listing = await getListingBySlug(params.slug);
   if (!listing) notFound();
   const related = await getRelatedListings(listing);
   const leadStatus = typeof searchParams.lead === "string" ? searchParams.lead : "";
@@ -44,7 +44,7 @@ export default async function ListingDetailPage({
     "@type": "RealEstateListing",
     name: `${listing.bhk} for ${listing.type === "rent" ? "Rent" : listing.type === "sale" ? "Sale" : "Requirement"} in ${listing.locality}, ${listing.city}`,
     description: listing.description,
-    url: canonicalUrl(`/listings/${listing.id}`),
+    url: canonicalUrl(`/listings/${listing.slug}`),
     datePosted: listing.createdAt,
     price: listing.priceAmount || undefined,
     priceCurrency: "INR",
