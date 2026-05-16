@@ -1,0 +1,16 @@
+*.apk
+*.ap_
+*.aab
+*.keystore
+keystore.properties
+local.properties
+.env
+build/
+.gradle/
+.gradle-local/
+.android/
+.android-sdk/
+.jdk/
+.idea/
+*.iml
+.DS_Store

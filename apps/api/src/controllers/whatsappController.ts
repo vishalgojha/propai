@@ -12,6 +12,7 @@ import { pushRecentAction } from '../services/identityService';
 import { sessionEventService } from '../services/sessionEventService';
 import { emailNotificationService } from '../services/emailNotificationService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
+import { whatsappMirrorService } from '../services/whatsappMirrorService';
 import '../types/express';
 
 type LiveSessionRecord = {
@@ -431,6 +432,62 @@ export const getMonitor = async (req: Request, res: Response) => {
         });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp monitor') });
+    }
+};
+
+export const getMonitorMessages = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
+        const chatId = typeof req.query.chatId === 'string' ? req.query.chatId.trim() : '';
+        const before = typeof req.query.before === 'string' ? req.query.before : null;
+        const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined;
+
+        if (!chatId) {
+            return res.status(400).json({ error: 'chatId is required' });
+        }
+
+        const data = await workspaceMonitorService.getChatMessages(context.workspaceOwnerId, {
+            inboxOnly: false,
+            sessionLabel,
+            chatId,
+            before,
+            limit,
+        });
+
+        res.json({
+            success: true,
+            workspace: {
+                ownerId: context.workspaceOwnerId,
+                memberRole: context.memberRole,
+                canManageTeam: context.canManageTeam,
+                canSendOutbound: context.canSendOutbound,
+            },
+            ...data,
+        });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp monitor messages') });
+    }
+};
+
+export const getMirror = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
+        const data = await whatsappMirrorService.getMirrorData(context.workspaceOwnerId, false, sessionLabel);
+
+        res.json({
+            success: true,
+            workspace: {
+                ownerId: context.workspaceOwnerId,
+                memberRole: context.memberRole,
+                canManageTeam: context.canManageTeam,
+                canSendOutbound: context.canSendOutbound,
+            },
+            ...data,
+        });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp mirror') });
     }
 };
 

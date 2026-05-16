@@ -1,6 +1,7 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
 
 const db = supabaseAdmin || supabase;
+const DEFAULT_THREAD_PAGE_SIZE = 100;
 
 type MessageRow = {
     id: string;
@@ -8,6 +9,44 @@ type MessageRow = {
     sender?: string | null;
     text?: string | null;
     timestamp?: string | null;
+};
+
+type GroupRow = {
+    group_jid?: string | null;
+    group_name?: string | null;
+    locality?: string | null;
+    city?: string | null;
+    category?: string | null;
+    tags?: string[] | null;
+    member_count?: number | null;
+    broadcast_enabled?: boolean | null;
+    is_parsing?: boolean | null;
+    last_active_at?: string | null;
+    session_label?: string | null;
+};
+
+type SessionRow = {
+    label: string;
+    owner_name?: string | null;
+    status: string;
+    session_data?: { phoneNumber?: string | null } | null;
+    last_sync?: string | null;
+};
+
+type MonitorQueryContext = {
+    groupsData: GroupRow[];
+    groupsByJid: Map<string, GroupRow>;
+    sessionGroupIds: Set<string>;
+    parsingGroupIds: Set<string>;
+    sessions: SessionRow[];
+};
+
+type ThreadPageOptions = {
+    inboxOnly?: boolean;
+    sessionLabel?: string | null;
+    chatId: string;
+    before?: string | null;
+    limit?: number;
 };
 
 function isMissingSchemaEntityError(message?: string | null) {
@@ -39,132 +78,167 @@ function buildDirectLabel(row: MessageRow) {
 }
 
 export class WorkspaceMonitorService {
-    async getMonitorData(workspaceOwnerId: string, inboxOnly = false, sessionLabel?: string | null) {
-        const [messagesResult, sessionsResult] = await Promise.all([
-            db
-                .from('messages')
-                .select('id, remote_jid, sender, text, timestamp')
-                .eq('tenant_id', workspaceOwnerId)
-                .order('timestamp', { ascending: false })
-                .limit(2000),
+    private async buildContext(workspaceOwnerId: string, sessionLabel?: string | null): Promise<MonitorQueryContext> {
+        const [sessionsResult, groupsResult] = await Promise.all([
             db
                 .from('whatsapp_sessions')
                 .select('label, owner_name, status, session_data, last_sync')
                 .eq('tenant_id', workspaceOwnerId)
                 .order('last_sync', { ascending: false }),
+            (() => {
+                let query = db
+                    .from('whatsapp_groups')
+                    .select('group_jid, group_name, locality, city, category, tags, member_count, broadcast_enabled, is_parsing, last_active_at, session_label')
+                    .eq('tenant_id', workspaceOwnerId)
+                    .eq('is_archived', false);
+
+                if (sessionLabel) {
+                    query = query.eq('session_label', sessionLabel);
+                }
+
+                return query;
+            })(),
         ]);
 
-        if (messagesResult.error) throw messagesResult.error;
         if (sessionsResult.error) throw sessionsResult.error;
 
-        let groupsData: any[] = [];
-        let groupsQuery = db
-            .from('whatsapp_groups')
-            .select('group_jid, group_name, locality, city, category, tags, member_count, broadcast_enabled, is_parsing, last_active_at, session_label')
-            .eq('tenant_id', workspaceOwnerId)
-            .eq('is_archived', false);
-
-        if (sessionLabel) {
-            groupsQuery = groupsQuery.eq('session_label', sessionLabel);
-        }
-
-        const groupsResult = await groupsQuery;
-
+        let groupsData: GroupRow[] = [];
         if (groupsResult.error) {
             const message = String(groupsResult.error.message || '');
             if (!isMissingSchemaEntityError(message)) {
                 throw groupsResult.error;
             }
         } else {
-            groupsData = groupsResult.data || [];
+            groupsData = (groupsResult.data || []) as GroupRow[];
         }
 
-        const groupsByJid = new Map<string, any>(
-            groupsData.map((group: any) => [group.group_jid, group]),
-        );
+        return {
+            groupsData,
+            groupsByJid: new Map<string, GroupRow>(
+                groupsData.map((group) => [String(group.group_jid || ''), group]),
+            ),
+            sessionGroupIds: new Set<string>(
+                groupsData.map((group) => String(group.group_jid || '')).filter(Boolean),
+            ),
+            parsingGroupIds: new Set<string>(
+                groupsData
+                    .filter((group) => group.is_parsing)
+                    .map((group) => String(group.group_jid || ''))
+                    .filter(Boolean),
+            ),
+            sessions: (sessionsResult.data || []) as SessionRow[],
+        };
+    }
 
-        const rows = ((messagesResult.data || []) as MessageRow[]).sort((left, right) => {
-            return new Date(right.timestamp || 0).getTime() - new Date(left.timestamp || 0).getTime();
-        });
-        const sessionGroupIds = new Set<string>(groupsData.map((group: any) => String(group.group_jid || '')).filter(Boolean));
-        const filteredRows = rows.filter((row) => {
-            const remoteJid = String(row.remote_jid || '');
-            const isGroup = remoteJid.endsWith('@g.us');
+    private shouldIncludeRow(
+        row: MessageRow,
+        inboxOnly: boolean,
+        sessionLabel: string | null | undefined,
+        context: MonitorQueryContext,
+    ) {
+        const remoteJid = String(row.remote_jid || '');
+        const isGroup = remoteJid.endsWith('@g.us');
 
-            if (inboxOnly && isGroup) {
-                return false;
-            }
+        if (inboxOnly && isGroup) {
+            return false;
+        }
 
-            // If a session label filter is active, restrict group chats to the
-            // groups that are known to belong to that session. If group sync
-            // has not completed yet, fall back to raw group messages rather than
-            // collapsing the monitor to zero groups.
-            if (sessionLabel && isGroup) {
-                if (sessionGroupIds.size > 0 && !sessionGroupIds.has(remoteJid)) {
-                    return false;
-                }
-            }
+        if (!inboxOnly) {
+            if (!isGroup) return false;
+            if (context.parsingGroupIds.size > 0 && !context.parsingGroupIds.has(remoteJid)) return false;
+        }
 
-            return true;
-        });
+        if (sessionLabel && isGroup && context.sessionGroupIds.size > 0 && !context.sessionGroupIds.has(remoteJid)) {
+            return false;
+        }
 
+        return true;
+    }
+
+    private buildChatRecord(row: MessageRow, groupMeta?: GroupRow) {
+        const remoteJid = String(row.remote_jid || '');
+        const isGroup = remoteJid.endsWith('@g.us');
+        const title = isGroup ? groupMeta?.group_name || 'WhatsApp group' : buildDirectLabel(row);
+        const messageText = String(row.text || '').trim();
+        const timestamp = row.timestamp || new Date().toISOString();
+
+        return {
+            id: remoteJid,
+            remoteJid,
+            type: isGroup ? 'group' : 'direct',
+            title,
+            preview: messageText,
+            lastMessageAt: timestamp,
+            sender: row.sender || null,
+            locality: groupMeta?.locality || null,
+            city: groupMeta?.city || null,
+            category: groupMeta?.category || null,
+            tags: Array.isArray(groupMeta?.tags) ? groupMeta.tags : [],
+            participantsCount: Number(groupMeta?.member_count || 0),
+            broadcastEnabled: Boolean(groupMeta?.broadcast_enabled),
+            isParsing: groupMeta ? Boolean(groupMeta?.is_parsing) : undefined,
+            messageCount: 0,
+        };
+    }
+
+    private buildSummaryPayload(chats: any[], sessions: SessionRow[], totalMessages: number) {
+        const activeSessions = sessions.filter((session) => session.status === 'connected');
+
+        return {
+            summary: {
+                totalChats: chats.length,
+                directChats: chats.filter((chat) => chat.type === 'direct').length,
+                groupChats: chats.filter((chat) => chat.type === 'group').length,
+                totalMessages,
+                connectedSessions: activeSessions.length,
+            },
+            sessions: sessions.map((session) => ({
+                label: session.label,
+                ownerName: session.owner_name || null,
+                status: session.status,
+                phoneNumber: session.session_data?.phoneNumber || null,
+                lastSync: session.last_sync || null,
+            })),
+            chats,
+        };
+    }
+
+    async getMonitorOverview(workspaceOwnerId: string, inboxOnly = false, sessionLabel?: string | null) {
+        const context = await this.buildContext(workspaceOwnerId, sessionLabel);
+        const messagesResult = await db
+            .from('messages')
+            .select('id, remote_jid, sender, text, timestamp')
+            .eq('tenant_id', workspaceOwnerId)
+            .order('timestamp', { ascending: false });
+
+        if (messagesResult.error) throw messagesResult.error;
+
+        const rows = (messagesResult.data || []) as MessageRow[];
         const chatsMap = new Map<string, any>();
-        const messages = filteredRows
-            .slice()
-            .reverse()
-            .map((row) => {
-                const remoteJid = String(row.remote_jid || '');
-                const isGroup = remoteJid.endsWith('@g.us');
-                const groupMeta = groupsByJid.get(remoteJid);
-                const title = isGroup
-                    ? groupMeta?.group_name || 'WhatsApp group'
-                    : buildDirectLabel(row);
-                const messageText = String(row.text || '').trim();
-                const timestamp = row.timestamp || new Date().toISOString();
-                const direction = isOutboundSender(row.sender) ? 'outbound' : 'inbound';
+        let totalMessages = 0;
 
-                const existing = chatsMap.get(remoteJid);
-                const chatRecord = existing || {
-                    id: remoteJid,
-                    remoteJid,
-                    type: isGroup ? 'group' : 'direct',
-                    title,
-                    preview: messageText,
-                    lastMessageAt: timestamp,
-                    sender: row.sender || null,
-                    locality: groupMeta?.locality || null,
-                    city: groupMeta?.city || null,
-                    category: groupMeta?.category || null,
-                    tags: Array.isArray(groupMeta?.tags) ? groupMeta.tags : [],
-                    participantsCount: Number(groupMeta?.member_count || 0),
-                    broadcastEnabled: Boolean(groupMeta?.broadcast_enabled),
-                    isParsing: groupMeta ? Boolean(groupMeta?.is_parsing) : undefined,
-                    messageCount: 0,
-                };
+        for (const row of rows) {
+            if (!this.shouldIncludeRow(row, inboxOnly, sessionLabel, context)) {
+                continue;
+            }
 
-                chatRecord.messageCount += 1;
-                if (new Date(timestamp).getTime() >= new Date(chatRecord.lastMessageAt).getTime()) {
-                    chatRecord.preview = messageText;
-                    chatRecord.lastMessageAt = timestamp;
-                    chatRecord.sender = row.sender || null;
-                }
+            totalMessages += 1;
+            const remoteJid = String(row.remote_jid || '');
+            const chatRecord = chatsMap.get(remoteJid) || this.buildChatRecord(row, context.groupsByJid.get(remoteJid));
 
-                chatsMap.set(remoteJid, chatRecord);
+            chatRecord.messageCount += 1;
+            if (new Date(row.timestamp || 0).getTime() >= new Date(chatRecord.lastMessageAt).getTime()) {
+                chatRecord.preview = String(row.text || '').trim();
+                chatRecord.lastMessageAt = row.timestamp || new Date().toISOString();
+                chatRecord.sender = row.sender || null;
+            }
 
-                return {
-                    id: row.id,
-                    chatId: remoteJid,
-                    remoteJid,
-                    type: isGroup ? 'group' : 'direct',
-                    title,
-                    text: messageText,
-                    sender: row.sender || null,
-                    direction,
-                    timestamp,
-                };
-            });
+            chatsMap.set(remoteJid, chatRecord);
+        }
 
-        for (const group of groupsData) {
+        for (const group of context.groupsData) {
+            if (!group.is_parsing || inboxOnly) continue;
+
             const jid = String(group.group_jid || '');
             if (!jid || chatsMap.has(jid)) continue;
 
@@ -191,25 +265,90 @@ export class WorkspaceMonitorService {
             return new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime();
         });
 
-        const activeSessions = (sessionsResult.data || []).filter((session: any) => session.status === 'connected');
+        return this.buildSummaryPayload(chats, context.sessions, totalMessages);
+    }
+
+    async getChatMessages(workspaceOwnerId: string, options: ThreadPageOptions) {
+        const { inboxOnly = false, sessionLabel, chatId } = options;
+        const before = typeof options.before === 'string' && options.before.trim() ? options.before.trim() : null;
+        const requestedLimit = Number(options.limit || DEFAULT_THREAD_PAGE_SIZE);
+        const limit = Number.isFinite(requestedLimit)
+            ? Math.max(1, Math.min(requestedLimit, 500))
+            : DEFAULT_THREAD_PAGE_SIZE;
+
+        const context = await this.buildContext(workspaceOwnerId, sessionLabel);
+        const targetRow: MessageRow = {
+            id: '',
+            remote_jid: chatId,
+            sender: null,
+            text: null,
+            timestamp: null,
+        };
+
+        if (!this.shouldIncludeRow(targetRow, inboxOnly, sessionLabel, context)) {
+            return {
+                chatId,
+                messages: [],
+                pagination: {
+                    limit,
+                    hasMore: false,
+                    nextBefore: null,
+                },
+            };
+        }
+
+        let query = db
+            .from('messages')
+            .select('id, remote_jid, sender, text, timestamp')
+            .eq('tenant_id', workspaceOwnerId)
+            .eq('remote_jid', chatId)
+            .order('timestamp', { ascending: false })
+            .limit(limit + 1);
+
+        if (before) {
+            query = query.lt('timestamp', before);
+        }
+
+        const messagesResult = await query;
+        if (messagesResult.error) throw messagesResult.error;
+
+        const rows = (messagesResult.data || []) as MessageRow[];
+        const hasMore = rows.length > limit;
+        const pageRows = hasMore ? rows.slice(0, limit) : rows;
+        const groupMeta = context.groupsByJid.get(chatId);
+        const isGroup = chatId.endsWith('@g.us');
+        const title = isGroup ? groupMeta?.group_name || 'WhatsApp group' : null;
+        const messages = pageRows
+            .slice()
+            .reverse()
+            .map((row) => ({
+                id: row.id,
+                chatId,
+                remoteJid: chatId,
+                type: isGroup ? 'group' : 'direct',
+                title: title || buildDirectLabel(row),
+                text: String(row.text || '').trim(),
+                sender: row.sender || null,
+                direction: isOutboundSender(row.sender) ? 'outbound' : 'inbound',
+                timestamp: row.timestamp || new Date().toISOString(),
+            }));
 
         return {
-            summary: {
-                totalChats: chats.length,
-                directChats: chats.filter((chat) => chat.type === 'direct').length,
-                groupChats: chats.filter((chat) => chat.type === 'group').length,
-                totalMessages: messages.length,
-                connectedSessions: activeSessions.length,
-            },
-            sessions: (sessionsResult.data || []).map((session: any) => ({
-                label: session.label,
-                ownerName: session.owner_name || null,
-                status: session.status,
-                phoneNumber: session.session_data?.phoneNumber || null,
-                lastSync: session.last_sync || null,
-            })),
-            chats,
+            chatId,
             messages,
+            pagination: {
+                limit,
+                hasMore,
+                nextBefore: pageRows[pageRows.length - 1]?.timestamp || null,
+            },
+        };
+    }
+
+    async getMonitorData(workspaceOwnerId: string, inboxOnly = false, sessionLabel?: string | null) {
+        const overview = await this.getMonitorOverview(workspaceOwnerId, inboxOnly, sessionLabel);
+        return {
+            ...overview,
+            messages: [],
         };
     }
 }

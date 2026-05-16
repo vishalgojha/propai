@@ -12,6 +12,9 @@ export const ENDPOINTS = {
     models: '/ai/models',
     status: '/ai/status',
     history: '/ai/history',
+    sessions: '/ai/sessions',
+    sessionById: (id: string) => `/ai/sessions/${encodeURIComponent(id)}`,
+    sessionClear: (id: string) => `/ai/sessions/${encodeURIComponent(id)}/clear`,
   },
   settings: {
     get: '/settings',
@@ -45,9 +48,11 @@ export const ENDPOINTS = {
     connect: '/whatsapp/connect',
     disconnect: '/whatsapp/disconnect',
     status: '/whatsapp/status',
+    mirror: '/whatsapp/mirror',
     sessions: '/whatsapp/sessions',
     qr: '/whatsapp/qr',
     monitor: '/whatsapp/monitor',
+    monitorMessages: '/whatsapp/monitor/messages',
     inbox: '/whatsapp/inbox',
     health: '/whatsapp/health',
     healthLogs: '/whatsapp/health/logs',
@@ -89,5 +94,16 @@ export const ENDPOINTS = {
   },
   identity: {
     onboarding: '/identity/onboarding',
+  },
+  wabro: {
+    campaigns: '/wabro/campaigns',
+    campaignStatus: (campaignId: string) => `/wabro/campaigns/${encodeURIComponent(campaignId)}/status`,
+    contacts: '/wabro/contacts',
+    contactsByList: (listName: string) => `/wabro/contacts/${encodeURIComponent(listName)}`,
+    dashboardStats: '/wabro/dashboard/stats',
+  },
+  dmContacts: {
+    list: '/api/intelligence/dm-contacts',
+    tag: '/api/intelligence/dm-contacts/tag',
   },
 } as const;

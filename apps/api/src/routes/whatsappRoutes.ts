@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getInbox, disconnectWhatsApp, getMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getGroupHealth, getEvents, getHealthLogs, submitSupportLogs, getGroups, getOutboundRecipients } from '../controllers/whatsappController';
+import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMirror, getMonitor, getMonitorMessages, getInbox, disconnectWhatsApp, getMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getGroupHealth, getEvents, getHealthLogs, submitSupportLogs, getGroups, getOutboundRecipients } from '../controllers/whatsappController';
 import { importHistoryTxt, getHistoryImports, checkDuplicateImports } from '../controllers/historyController';
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
+import { supabase } from '../config/supabase';
 import { validate } from '../middleware/validate';
 import { whatsappGroupService } from '../services/whatsappGroupService';
 import { connectWhatsAppSchema, forceRefreshQRSchema, saveProfileSchema, sendMessageSchema, sendBulkSchema, broadcastSchema, disconnectSchema } from '../schemas/whatsappSchemas';
@@ -18,7 +19,9 @@ router.post(ROUTE_PATHS.whatsapp.historyImport, importHistoryTxt);
 router.get(ROUTE_PATHS.whatsapp.historyImports, getHistoryImports);
 router.post(ROUTE_PATHS.whatsapp.historyCheckDuplicates, checkDuplicateImports);
 router.get(ROUTE_PATHS.whatsapp.status, getStatus);
+router.get(ROUTE_PATHS.whatsapp.mirror, getMirror);
 router.get(ROUTE_PATHS.whatsapp.monitor, getMonitor);
+router.get(ROUTE_PATHS.whatsapp.monitorMessages, getMonitorMessages);
 router.get(ROUTE_PATHS.whatsapp.inbox, getInbox);
 router.get(ROUTE_PATHS.whatsapp.health, getIngestionHealth);
 router.get(ROUTE_PATHS.whatsapp.healthDetailed, getDetailedHealth);
@@ -39,7 +42,7 @@ router.get(ROUTE_PATHS.whatsapp.recipients, getOutboundRecipients);
 router.post(ROUTE_PATHS.whatsapp.config, async (req: Request, res: Response) => {
     const { group_id, behavior, session_label, parse_direct_messages, self_chat_enabled } = req.body;
     const tenant_id = req.user?.id;
-    const db = require('../config/supabase').supabase;
+    const db = supabase;
 
     if (group_id) {
         const { error } = await db
