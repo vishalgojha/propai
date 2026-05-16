@@ -8,6 +8,7 @@ import makeWASocket, {
 import { createSupabaseAuthState, type SupabaseAuthState } from './SupabaseAuthState';
 import { CircuitBreaker } from './CircuitBreaker';
 import { sessionEventService } from '../services/sessionEventService';
+import { whatsappMessageMirrorService } from '../services/whatsappMessageMirrorService';
 import { whatsappGroupService } from '../services/whatsappGroupService';
 import { supabase } from '../config/supabase';
 import { type RawGroupInput } from '../services/whatsappGroupService';
@@ -295,6 +296,7 @@ try {
                                    })
                                    .eq('id', messageId)
                                    .eq('tenant_id', this.tenantId);
+                               await whatsappMessageMirrorService.markRevoked(this.tenantId, messageId);
                           } catch {
                               // Non-fatal: message may not exist in our DB
                           }

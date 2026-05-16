@@ -1,4 +1,5 @@
 import { aiService } from './aiService';
+import { whatsappMessageMirrorService } from './whatsappMessageMirrorService';
 import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { safeJSONParse } from '../utils/jsonUtils';
@@ -47,10 +48,28 @@ export class AgentToolService {
                 };
             }
             case 'send_message': {
+                const destinationJid = args.remote_jid;
+                const messageText = cleanMessageText(args.text);
                 await gateway.sendMessage({
                     workspaceOwnerId: tenantId,
-                    remoteJid: args.remote_jid,
-                    text: args.text,
+                    remoteJid: destinationJid,
+                    text: messageText,
+                });
+                await (supabaseAdmin ?? supabase).from('messages').insert({
+                    tenant_id: tenantId,
+                    remote_jid: destinationJid,
+                    text: messageText,
+                    sender: 'AI',
+                    timestamp: new Date().toISOString(),
+                });
+                await whatsappMessageMirrorService.append({
+                    tenantId,
+                    remoteJid: destinationJid,
+                    text: messageText,
+                    direction: 'outbound',
+                    senderName: 'AI',
+                    timestamp: new Date().toISOString(),
+                    messageKey: `agent-tool:${tenantId}:${destinationJid}:${Date.now()}`,
                 });
                 return { success: true };
             }
@@ -69,6 +88,15 @@ export class AgentToolService {
                         text: messageText,
                         sender: 'AI',
                         timestamp: new Date().toISOString(),
+                    });
+                    await whatsappMessageMirrorService.append({
+                        tenantId,
+                        remoteJid: destinationJid,
+                        text: messageText,
+                        direction: 'outbound',
+                        senderName: 'AI',
+                        timestamp: new Date().toISOString(),
+                        messageKey: `agent-tool:${tenantId}:${destinationJid}:${Date.now()}`,
                     });
                     return { success: true };
                 } catch (error: any) {

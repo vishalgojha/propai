@@ -13,6 +13,7 @@ import { sessionEventService } from '../services/sessionEventService';
 import { emailNotificationService } from '../services/emailNotificationService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { whatsappMirrorService } from '../services/whatsappMirrorService';
+import { whatsappMessageMirrorService } from '../services/whatsappMessageMirrorService';
 import '../types/express';
 
 type LiveSessionRecord = {
@@ -1105,6 +1106,17 @@ export const sendMessage = async (req: Request, res: Response) => {
             sender: 'Broker',
             timestamp: new Date().toISOString(),
         });
+        await whatsappMessageMirrorService.append({
+            tenantId,
+            sessionLabel: resolvedSessionLabel,
+            remoteJid,
+            text: String(text).trim(),
+            direction: 'outbound',
+            senderJid: context.currentUserId,
+            senderName: user?.full_name || user?.name || user?.email || 'Broker',
+            timestamp: new Date().toISOString(),
+            messageKey: `manual:${tenantId}:${resolvedSessionLabel || 'default'}:${remoteJid}:${Date.now()}`,
+        });
         void workspaceActivityService.track({
             actor: user,
             workspaceOwnerId: tenantId,
@@ -1164,6 +1176,17 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
                     text: String(text).trim(),
                     sender: 'Broker',
                     timestamp: new Date().toISOString(),
+                });
+                await whatsappMessageMirrorService.append({
+                    tenantId,
+                    sessionLabel: resolvedSessionLabel,
+                    remoteJid,
+                    text: String(text).trim(),
+                    direction: 'outbound',
+                    senderJid: context.currentUserId,
+                    senderName: user?.full_name || user?.name || user?.email || 'Broker',
+                    timestamp: new Date().toISOString(),
+                    messageKey: `bulk:${tenantId}:${resolvedSessionLabel || 'default'}:${remoteJid}:${Date.now()}`,
                 });
                 sent.push({ remoteJid, label });
             } catch (error: unknown) {
@@ -1235,6 +1258,19 @@ export const broadcastToGroups = async (req: Request, res: Response) => {
             }));
 
             await getDbClient().from('messages').insert(rows);
+            for (const groupJid of result.sent) {
+                await whatsappMessageMirrorService.append({
+                    tenantId,
+                    sessionLabel: resolvedSessionLabel,
+                    remoteJid: groupJid,
+                    text: String(text).trim(),
+                    direction: 'outbound',
+                    senderJid: context.currentUserId,
+                    senderName: user?.full_name || user?.name || user?.email || 'Broker',
+                    timestamp,
+                    messageKey: `broadcast:${tenantId}:${resolvedSessionLabel || 'default'}:${groupJid}:${timestamp}`,
+                });
+            }
         }
 
         void workspaceActivityService.track({

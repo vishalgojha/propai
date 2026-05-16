@@ -4,6 +4,7 @@ import { emailNotificationService } from '../../services/emailNotificationServic
 import type { GroupMentionListingMatch } from '../../services/brokerWorkflowService';
 import { sessionEventService } from '../../services/sessionEventService';
 import { whatsappHealthService } from '../../services/whatsappHealthService';
+import { whatsappMessageMirrorService } from '../../services/whatsappMessageMirrorService';
 import { getWhatsAppGateway } from '../../channel-gateways/whatsapp/whatsappGatewayRegistry';
 
 const db = supabaseAdmin || supabase;
@@ -70,6 +71,17 @@ async function triggerAgent(tenantId: string, remoteJid: string, text: string, s
             sender: AI_SENDER,
             timestamp: new Date().toISOString(),
         });
+        await whatsappMessageMirrorService.append({
+            tenantId,
+            sessionLabel,
+            remoteJid,
+            text: response,
+            direction: 'outbound',
+            senderJid: null,
+            senderName: AI_SENDER,
+            timestamp: new Date().toISOString(),
+            messageKey: `agent:${tenantId}:${sessionLabel || 'default'}:${remoteJid}:${Date.now()}`,
+        });
 
         await whatsappHealthService.appendEvent(
             tenantId,
@@ -119,6 +131,17 @@ async function sendAutomatedReply(tenantId: string, remoteJid: string, text: str
         text,
         sender: AI_SENDER,
         timestamp: new Date().toISOString(),
+    });
+    await whatsappMessageMirrorService.append({
+        tenantId,
+        sessionLabel,
+        remoteJid,
+        text,
+        direction: 'outbound',
+        senderJid: null,
+        senderName: AI_SENDER,
+        timestamp: new Date().toISOString(),
+        messageKey: `auto:${tenantId}:${sessionLabel || 'default'}:${remoteJid}:${Date.now()}`,
     });
 }
 
@@ -452,18 +475,6 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
 
     if (!effectiveIsSelfChat && !isAssistantDM && !isRealEstateMessage(text)) {
         return;
-    }
-
-    try {
-        await db.from('messages').insert({
-            tenant_id: tenantId,
-            remote_jid: remoteJid,
-            text,
-            sender: remoteJid.split('@')[0],
-            timestamp: new Date().toISOString(),
-        });
-    } catch (error) {
-        console.error('[propaiRuntimeHooks] Failed to persist inbound message', { tenantId, remoteJid, error });
     }
 
     await whatsappHealthService.appendEvent(

@@ -10,6 +10,7 @@ import { channelService } from '../services/channelService';
 import { aiService } from '../services/aiService';
 import { whatsappHealthService } from '../services/whatsappHealthService';
 import { sessionEventService } from '../services/sessionEventService';
+import { whatsappMessageMirrorService } from '../services/whatsappMessageMirrorService';
 
 const db = supabaseAdmin ?? supabase;
 
@@ -63,6 +64,7 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
     async saveInboundMessage(input: IncomingMessageRecord): Promise<{ id?: string } | void> {
         const rawMessage = (input.rawMessage || {}) as any;
         const rawDumpId = crypto.randomUUID();
+        const messageKey = String(rawMessage?.key?.id || '').trim() || rawDumpId;
 
         try {
             const gateResult = await this.runPriceGate(input.text, input.tenantId);
@@ -89,6 +91,24 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
 
             if (error) {
                 console.warn('[PropAISupabaseAdapter] Failed to persist inbound message row, continuing with direct handling.', error);
+            }
+
+            try {
+                await whatsappMessageMirrorService.append({
+                    tenantId: input.tenantId,
+                    sessionLabel: input.label,
+                    remoteJid: input.remoteJid,
+                    text: input.text,
+                    direction: input.fromMe ? 'outbound' : 'inbound',
+                    senderJid: String(rawMessage?.key?.participant || input.sender || '').trim() || input.remoteJid,
+                    senderName: input.sender ?? null,
+                    messageKey,
+                    messageType: 'text',
+                    timestamp: input.timestamp ?? new Date().toISOString(),
+                    rawPayload: rawMessage,
+                });
+            } catch (mirrorError) {
+                console.warn('[PropAISupabaseAdapter] Failed to mirror inbound WhatsApp message, continuing.', mirrorError);
             }
 
             const { error: rawDumpError } = await db

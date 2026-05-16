@@ -11,6 +11,17 @@ type MessageRow = {
     timestamp?: string | null;
 };
 
+type MirrorRow = {
+    id: string;
+    remote_jid: string;
+    sender_name?: string | null;
+    sender_jid?: string | null;
+    text?: string | null;
+    timestamp?: string | null;
+    direction?: 'inbound' | 'outbound' | null;
+    session_label?: string | null;
+};
+
 type GroupRow = {
     group_jid?: string | null;
     group_name?: string | null;
@@ -37,7 +48,6 @@ type MonitorQueryContext = {
     groupsData: GroupRow[];
     groupsByJid: Map<string, GroupRow>;
     sessionGroupIds: Set<string>;
-    parsingGroupIds: Set<string>;
     sessions: SessionRow[];
 };
 
@@ -78,6 +88,99 @@ function buildDirectLabel(row: MessageRow) {
 }
 
 export class WorkspaceMonitorService {
+    private async loadMessageRows(workspaceOwnerId: string, sessionLabel?: string | null) {
+        let mirrorQuery = db
+            .from('whatsapp_message_mirror')
+            .select('id, remote_jid, sender_name, sender_jid, text, timestamp, direction, session_label')
+            .eq('tenant_id', workspaceOwnerId)
+            .order('timestamp', { ascending: false });
+
+        if (sessionLabel) {
+            mirrorQuery = mirrorQuery.eq('session_label', sessionLabel);
+        }
+
+        const mirrorResult = await mirrorQuery;
+        if (!mirrorResult.error && Array.isArray(mirrorResult.data)) {
+            return (mirrorResult.data as MirrorRow[]).map((row) => ({
+                id: row.id,
+                remote_jid: row.remote_jid,
+                sender: row.direction === 'outbound'
+                    ? (row.sender_name || 'Broker')
+                    : (row.sender_name || row.sender_jid || null),
+                text: row.text || '',
+                timestamp: row.timestamp || new Date().toISOString(),
+            }));
+        }
+
+        const messagesResult = await db
+            .from('messages')
+            .select('id, remote_jid, sender, text, timestamp')
+            .eq('tenant_id', workspaceOwnerId)
+            .order('timestamp', { ascending: false });
+
+        if (messagesResult.error) {
+            throw messagesResult.error;
+        }
+
+        return (messagesResult.data || []) as MessageRow[];
+    }
+
+    private async loadChatMessageRows(workspaceOwnerId: string, chatId: string, sessionLabel?: string | null, before?: string | null, limit?: number) {
+        let mirrorQuery = db
+            .from('whatsapp_message_mirror')
+            .select('id, remote_jid, sender_name, sender_jid, text, timestamp, direction, session_label')
+            .eq('tenant_id', workspaceOwnerId)
+            .eq('remote_jid', chatId)
+            .order('timestamp', { ascending: false });
+
+        if (sessionLabel) {
+            mirrorQuery = mirrorQuery.eq('session_label', sessionLabel);
+        }
+
+        if (before) {
+            mirrorQuery = mirrorQuery.lt('timestamp', before);
+        }
+
+        if (typeof limit === 'number') {
+            mirrorQuery = mirrorQuery.limit(limit);
+        }
+
+        const mirrorResult = await mirrorQuery;
+        if (!mirrorResult.error && Array.isArray(mirrorResult.data)) {
+            return (mirrorResult.data as MirrorRow[]).map((row) => ({
+                id: row.id,
+                remote_jid: row.remote_jid,
+                sender: row.direction === 'outbound'
+                    ? (row.sender_name || 'Broker')
+                    : (row.sender_name || row.sender_jid || null),
+                text: row.text || '',
+                timestamp: row.timestamp || new Date().toISOString(),
+            }));
+        }
+
+        let messagesQuery = db
+            .from('messages')
+            .select('id, remote_jid, sender, text, timestamp')
+            .eq('tenant_id', workspaceOwnerId)
+            .eq('remote_jid', chatId)
+            .order('timestamp', { ascending: false });
+
+        if (before) {
+            messagesQuery = messagesQuery.lt('timestamp', before);
+        }
+
+        if (typeof limit === 'number') {
+            messagesQuery = messagesQuery.limit(limit);
+        }
+
+        const messagesResult = await messagesQuery;
+        if (messagesResult.error) {
+            throw messagesResult.error;
+        }
+
+        return (messagesResult.data || []) as MessageRow[];
+    }
+
     private async buildContext(workspaceOwnerId: string, sessionLabel?: string | null): Promise<MonitorQueryContext> {
         const [sessionsResult, groupsResult] = await Promise.all([
             db
@@ -119,12 +222,6 @@ export class WorkspaceMonitorService {
             ),
             sessionGroupIds: new Set<string>(
                 groupsData.map((group) => String(group.group_jid || '')).filter(Boolean),
-            ),
-            parsingGroupIds: new Set<string>(
-                groupsData
-                    .filter((group) => group.is_parsing)
-                    .map((group) => String(group.group_jid || ''))
-                    .filter(Boolean),
             ),
             sessions: (sessionsResult.data || []) as SessionRow[],
         };
@@ -204,15 +301,7 @@ export class WorkspaceMonitorService {
 
     async getMonitorOverview(workspaceOwnerId: string, inboxOnly = false, sessionLabel?: string | null) {
         const context = await this.buildContext(workspaceOwnerId, sessionLabel);
-        const messagesResult = await db
-            .from('messages')
-            .select('id, remote_jid, sender, text, timestamp')
-            .eq('tenant_id', workspaceOwnerId)
-            .order('timestamp', { ascending: false });
-
-        if (messagesResult.error) throw messagesResult.error;
-
-        const rows = (messagesResult.data || []) as MessageRow[];
+        const rows = await this.loadMessageRows(workspaceOwnerId, sessionLabel);
         const chatsMap = new Map<string, any>();
         let totalMessages = 0;
 
@@ -296,22 +385,7 @@ export class WorkspaceMonitorService {
             };
         }
 
-        let query = db
-            .from('messages')
-            .select('id, remote_jid, sender, text, timestamp')
-            .eq('tenant_id', workspaceOwnerId)
-            .eq('remote_jid', chatId)
-            .order('timestamp', { ascending: false })
-            .limit(limit + 1);
-
-        if (before) {
-            query = query.lt('timestamp', before);
-        }
-
-        const messagesResult = await query;
-        if (messagesResult.error) throw messagesResult.error;
-
-        const rows = (messagesResult.data || []) as MessageRow[];
+        const rows = await this.loadChatMessageRows(workspaceOwnerId, chatId, sessionLabel, before, limit + 1);
         const hasMore = rows.length > limit;
         const pageRows = hasMore ? rows.slice(0, limit) : rows;
         const groupMeta = context.groupsByJid.get(chatId);
