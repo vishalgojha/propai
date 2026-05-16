@@ -7,7 +7,6 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Copy package.json from workspace packages
 COPY apps/app/package.json ./apps/app/
-COPY packages/pulse-core/package.json ./packages/pulse-core/
 
 # Install dependencies
 RUN corepack enable && \
