@@ -9,18 +9,13 @@ import {
   AlertTriangleIcon,
   ActivityIcon,
   ArrowUpIcon,
-  ChevronRightIcon,
-  GlobeIcon,
   PaperclipIcon,
-  RefreshIcon,
   TrashIcon,
   WorkflowIcon,
-  XIcon,
   CheckCircleIcon,
   SmartphoneIcon,
   ShieldCheckIcon,
 } from '../lib/icons';
-import { ProviderLogo } from '../components/ui/ProviderLogo';
 
 type ChatMessage = {
   role: 'user' | 'ai';
@@ -42,18 +37,6 @@ type RuntimeStatusPayload = {
   models?: Record<string, RuntimeModel>;
 };
 
-type AssistantPanelTab = 'runtime' | 'activity' | 'browser';
-
-type PanelActivityTone = 'neutral' | 'success' | 'warning';
-
-type PanelActivityItem = {
-  id: string;
-  title: string;
-  detail: string;
-  timestamp: string;
-  tone: PanelActivityTone;
-};
-
 const quickActions = [
   {
     label: 'Show callbacks',
@@ -73,47 +56,6 @@ const quickActions = [
   },
 ] as const;
 const runtimeProviderOrder = ['Google', 'Groq', 'OpenRouter', 'Doubleword'] as const;
-const assistantPanelTabs = [
-  { id: 'runtime' as const, label: 'Runtime', icon: ActivityIcon },
-  { id: 'activity' as const, label: 'Activity', icon: WorkflowIcon },
-  { id: 'browser' as const, label: 'Browser', icon: GlobeIcon },
-];
-const browserTools = [
-  {
-    id: 'web_fetch',
-    label: 'Web fetch',
-    description: 'Read the contents of a listing or project URL when you paste a page into Pulse.',
-    prompt: 'Fetch the key details from this listing URL: ',
-  },
-  {
-    id: 'search_web',
-    label: 'Web search',
-    description: 'Search the web for local market context, project details, or builder information.',
-    prompt: 'Search the web for current real estate updates in ',
-  },
-  {
-    id: 'verify_rera',
-    label: 'RERA verify',
-    description: 'Check a project registration before sharing it with a buyer or landlord.',
-    prompt: 'Verify the RERA registration for ',
-  },
-  {
-    id: 'fetch_property_listing',
-    label: 'Listing extract',
-    description: 'Convert a property portal URL into structured listing details for saving or matching.',
-    prompt: 'Extract the structured details from this property URL: ',
-  },
-] as const;
-const activityToneStyles: Record<PanelActivityTone, string> = {
-  neutral: 'border-[color:var(--border)] bg-[var(--bg-elevated)]',
-  success: 'border-[color:rgba(34,197,94,0.22)] bg-[rgba(62,232,138,0.08)]',
-  warning: 'border-[color:rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)]',
-};
-
-const formatPlanDate = (value?: string | null) => {
-  if (!value) return 'Not set';
-  return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value));
-};
 
 const starterMessages: ChatMessage[] = [
   {
@@ -126,20 +68,6 @@ const starterMessages: ChatMessage[] = [
 
 function wordCount(text: string) {
   return text.trim().split(' ').filter(Boolean).length;
-}
-
-function truncateCopy(value: string, limit = 112) {
-  const compact = value.split(' ').filter(Boolean).join(' ').trim();
-  if (compact.length <= limit) return compact;
-  return `${compact.slice(0, Math.max(limit - 3, 0)).trimEnd()}...`;
-}
-
-function formatIntentLabel(intent?: string) {
-  if (!intent) return 'General answer';
-  return intent
-    .split('_')
-    .map((part) => part[0]?.toUpperCase() + part.slice(1))
-    .join(' ');
 }
 
 function buildAgentStorageKey(email?: string | null) {
@@ -338,8 +266,6 @@ export const Agent: React.FC = () => {
   const [showNewMessagePill, setShowNewMessagePill] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [identityData, setIdentityData] = useState<Record<string, unknown> | null>(null);
-  const [isAssistantPanelOpen, setIsAssistantPanelOpen] = useState(false);
-  const [assistantPanelTab, setAssistantPanelTab] = useState<AssistantPanelTab>('runtime');
   const [selectedModel] = useState('auto');
   const [aiStatus, setAiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatusPayload | null>(null);
@@ -382,100 +308,7 @@ export const Agent: React.FC = () => {
   const subscription = user?.subscription;
   const isTrial = subscription?.status === 'trial' || subscription?.status === 'trialing' || subscription?.plan === 'Free' || subscription?.plan === 'Trial';
   const conversationCount = useMemo(() => messages.filter((message) => message.role === 'user').length, [messages]);
-  const aiReplyCount = useMemo(() => Math.max(messages.filter((message) => message.role === 'ai').length - 1, 0), [messages]);
   const hasConversation = conversationCount > 0;
-  const latestUserMessage = useMemo(
-    () => [...messages].reverse().find((message) => message.role === 'user') || null,
-    [messages],
-  );
-  const latestAiMessage = useMemo(
-    () =>
-      [...messages]
-        .reverse()
-        .find((message, index) => message.role === 'ai' && (conversationCount > 0 || index < messages.length - 1)) || null,
-    [conversationCount, messages],
-  );
-  const showPlanPanel = Boolean(subscription) && !hasConversation;
-  const showAssistantRail = isAssistantPanelOpen;
-  const panelHasAttention = aiStatus !== 'online' || Boolean(runtimeNote);
-  const latestIntentLabel = latestAiMessage?.route ? formatIntentLabel(latestAiMessage.route) : 'General answer';
-  const activityItems = useMemo<PanelActivityItem[]>(() => {
-    const items: PanelActivityItem[] = [];
-
-    if (isTyping) {
-      items.push({
-        id: 'typing',
-        title: 'Pulse is working',
-        detail: 'Thinking through runtime and tool routing for the current request.',
-        timestamp: 'Live',
-        tone: 'neutral',
-      });
-    }
-
-    if (latestUserMessage) {
-      items.push({
-        id: `user-${latestUserMessage.timestamp}`,
-        title: 'Latest request',
-        detail: truncateCopy(latestUserMessage.content, 104),
-        timestamp: latestUserMessage.timestamp,
-        tone: 'neutral',
-      });
-    }
-
-    if (latestAiMessage && (conversationCount > 0 || latestAiMessage !== starterMessages[0])) {
-      items.push({
-        id: `ai-${latestAiMessage.timestamp}`,
-        title: latestAiMessage.route ? formatIntentLabel(latestAiMessage.route) : 'Latest reply',
-        detail: truncateCopy(latestAiMessage.content, 116),
-        timestamp: latestAiMessage.timestamp,
-        tone: latestAiMessage.route && latestAiMessage.route !== 'general_answer' ? 'success' : 'neutral',
-      });
-    }
-
-    if (runtimeNote) {
-      items.push({
-        id: 'runtime-note',
-        title: 'Runtime note',
-        detail: runtimeNote,
-        timestamp: runtimeCheckedAt || 'Now',
-        tone: 'warning',
-      });
-    }
-
-    if (runtimeCheckedAt) {
-      items.push({
-        id: 'runtime-check',
-        title: aiStatus === 'online' ? 'Providers ready' : aiStatus === 'checking' ? 'Checking providers' : 'Fallback mode active',
-        detail: activeRuntimeProvider
-          ? `${activeRuntimeProvider}${activeModelName ? ` is leading with ${activeModelName}.` : ' is leading the model chain.'}`
-          : 'Pulse is waiting for the first available provider in the chain.',
-        timestamp: runtimeCheckedAt,
-        tone: aiStatus === 'offline' ? 'warning' : aiStatus === 'online' ? 'success' : 'neutral',
-      });
-    }
-
-    if (!items.length) {
-      items.push({
-        id: 'starter',
-        title: 'Pulse ready',
-        detail: 'Open the contextual panel to inspect runtime, recent activity, and browser tools.',
-        timestamp: 'Now',
-        tone: 'neutral',
-      });
-    }
-
-    return items.slice(0, 5);
-  }, [
-    activeModelName,
-    activeRuntimeProvider,
-    aiStatus,
-    conversationCount,
-    isTyping,
-    latestAiMessage,
-    latestUserMessage,
-    runtimeCheckedAt,
-    runtimeNote,
-  ]);
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
@@ -911,13 +744,7 @@ export const Agent: React.FC = () => {
     } catch { /* ignore */ }
   };
 
-  const openAssistantPanel = (tab: AssistantPanelTab = 'runtime') => {
-    setAssistantPanelTab(tab);
-    setIsAssistantPanelOpen(true);
-  };
-
   const showSessionSidebar = sessionsLoaded;
-  const sessionSidebarWidth = 260;
 
   return (
     <div className="flex gap-4 sm:gap-6">
@@ -965,10 +792,7 @@ export const Agent: React.FC = () => {
           </div>
         </aside>
       ) : null}
-      <section className={cn(
-        'flex min-h-[calc(100dvh-11rem)] flex-col overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.22)] md:min-h-[calc(100vh-160px)]',
-        showAssistantRail ? 'flex-1' : 'flex-1',
-      )}>
+      <section className="flex min-h-[calc(100dvh-11rem)] flex-1 flex-col overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.22)] md:min-h-[calc(100vh-160px)]">
         <div className="border-b border-[color:var(--border)] px-4 py-4 sm:px-6 sm:py-5">
           {identityData && (
             <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2.5 text-[13px]">
@@ -989,31 +813,6 @@ export const Agent: React.FC = () => {
           )}
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => openAssistantPanel('runtime')}
-                onDoubleClick={() => openAssistantPanel('runtime')}
-                aria-controls="agent-side-panel"
-                aria-expanded={isAssistantPanelOpen}
-                className={cn(
-                  'inline-flex items-center gap-3 rounded-[18px] border px-3 py-2 text-left transition-all',
-                  isAssistantPanelOpen
-                    ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)] shadow-[0_16px_36px_rgba(0,0,0,0.18)]'
-                    : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-primary)] hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)]',
-                )}
-              >
-                <span className="flex h-9 w-9 items-center justify-center rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
-                  <ActivityIcon className="h-4 w-4 text-[var(--accent)]" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-                    {isAssistantPanelOpen ? 'Context open' : 'Open context'}
-                  </span>
-                  <span className="mt-1 block text-[14px] font-semibold tracking-[-0.02em]">Pulse</span>
-                </span>
-                <span className={cn('h-2.5 w-2.5 rounded-full', panelHasAttention ? 'bg-[var(--amber)]' : 'bg-[var(--accent)]')} />
-                <ChevronRightIcon className={cn('h-4 w-4 transition-transform', isAssistantPanelOpen && 'rotate-90')} />
-              </button>
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">PropAI Pulse</p>
                 <h2 className="truncate text-[15px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
@@ -1022,6 +821,38 @@ export const Agent: React.FC = () => {
                     : 'Agent Chat'}
                 </h2>
                 <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Ask Pulse anything about your workspace.</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <div
+                    className={cn(
+                      'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]',
+                      aiStatus === 'online'
+                        ? 'border-[color:rgba(34,197,94,0.35)] bg-[rgba(34,197,94,0.1)] text-[var(--accent)]'
+                        : aiStatus === 'checking'
+                          ? 'border-[color:rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.1)] text-[var(--amber)]'
+                          : 'border-[color:rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.1)] text-[var(--red)]',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'h-2 w-2 rounded-full',
+                        aiStatus === 'online'
+                          ? 'bg-[var(--accent)]'
+                          : aiStatus === 'checking'
+                            ? 'bg-[var(--amber)]'
+                            : 'bg-[var(--red)]',
+                      )}
+                    />
+                    {aiStatus === 'online' ? 'AI ready' : aiStatus === 'checking' ? 'Checking AI' : 'Fallback mode'}
+                  </div>
+                  <div className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                    {availableProviderCount} provider{availableProviderCount === 1 ? '' : 's'} ready
+                  </div>
+                  {activeRuntimeProvider ? (
+                    <div className="rounded-full border border-[color:rgba(62,232,138,0.28)] bg-[rgba(62,232,138,0.08)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+                      Active {activeRuntimeProvider}{activeModelName ? ` · ${activeModelName}` : ''}
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
             <div className="flex w-full flex-col gap-2 text-[11px] text-[var(--text-secondary)] sm:w-auto sm:items-end">
@@ -1080,28 +911,7 @@ export const Agent: React.FC = () => {
                   </>
                 )}
               </div>
-              <div
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]',
-                  aiStatus === 'online'
-                    ? 'border-[color:rgba(34,197,94,0.35)] bg-[rgba(34,197,94,0.1)] text-[var(--accent)]'
-                    : aiStatus === 'checking'
-                      ? 'border-[color:rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.1)] text-[var(--amber)]'
-                      : 'border-[color:rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.1)] text-[var(--red)]',
-                )}
-              >
-                <span
-                  className={cn(
-                    'h-2 w-2 rounded-full',
-                    aiStatus === 'online'
-                      ? 'bg-[var(--accent)]'
-                      : aiStatus === 'checking'
-                        ? 'bg-[var(--amber)]'
-                        : 'bg-[var(--red)]',
-                  )}
-                />
-                {aiStatus === 'online' ? 'AI online' : aiStatus === 'checking' ? 'Checking AI' : 'AI offline'}
-              </div>
+              {runtimeCheckedAt ? <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">Updated {runtimeCheckedAt}</div> : null}
             </div>
           </div>
         </div>
@@ -1281,315 +1091,6 @@ export const Agent: React.FC = () => {
           </div>
         </div>
       </section>
-
-      {showAssistantRail ? (
-          <aside
-            id="agent-side-panel"
-            className="w-[360px] shrink-0 overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.22)] lg:sticky lg:top-6 lg:self-start"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-4 py-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[14px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
-                  <ActivityIcon className="h-4.5 w-4.5 text-[var(--accent)]" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Pulse</p>
-                  <h3 className="mt-1 truncate text-[14px] font-semibold text-[var(--text-primary)]">Context Panel</h3>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAssistantPanelOpen(false)}
-                className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] p-2 text-[var(--text-secondary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--text-primary)]"
-                aria-label="Close context panel"
-              >
-                <XIcon className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="border-b border-[color:var(--border)] px-3 py-3">
-              <div className="grid grid-cols-3 gap-2">
-                {assistantPanelTabs.map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setAssistantPanelTab(id)}
-                    className={cn(
-                      'inline-flex items-center justify-center gap-2 rounded-[14px] border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                      assistantPanelTab === id
-                        ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
-                        : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:border-[color:var(--accent-border)] hover:text-[var(--text-primary)]',
-                    )}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    <span>{label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="pulse-scrollbar max-h-[calc(100dvh-14rem)] overflow-y-auto p-4 sm:p-5">
-              {assistantPanelTab === 'runtime' ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Runtime</p>
-                      <h4 className="mt-1 text-[14px] font-semibold text-[var(--text-primary)]">Live model chain</h4>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void backendApi
-                          .get(ENDPOINTS.ai.status)
-                          .then((response) => {
-                            const models = response.data?.models || {};
-                            const available = Object.values(models).some((model: any) => model?.status === 'online');
-                            setRuntimeStatus(response.data || null);
-                            setRuntimeCheckedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-                            setAiStatus(available ? 'online' : 'offline');
-                            setRuntimeNote(null);
-                          })
-                          .catch(() => {
-                            setAiStatus('offline');
-                            setRuntimeNote('Pulse could not refresh runtime status just now.');
-                          });
-                      }}
-                      className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] p-2 text-[var(--text-secondary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
-                      aria-label="Refresh runtime"
-                    >
-                      <RefreshIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div
-                      className={cn(
-                        'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]',
-                        aiStatus === 'online'
-                          ? 'border-[color:rgba(34,197,94,0.35)] bg-[rgba(34,197,94,0.08)] text-[var(--accent)]'
-                          : aiStatus === 'checking'
-                            ? 'border-[color:rgba(245,158,11,0.35)] bg-[rgba(245,158,11,0.08)] text-[var(--amber)]'
-                            : 'border-[color:rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'h-2 w-2 rounded-full',
-                          aiStatus === 'online'
-                            ? 'bg-[var(--accent)]'
-                            : aiStatus === 'checking'
-                              ? 'bg-[var(--amber)]'
-                              : 'bg-[var(--red)]',
-                        )}
-                      />
-                      {aiStatus === 'online' ? 'Ready' : aiStatus === 'checking' ? 'Checking' : 'Fallback mode'}
-                    </div>
-                    <div className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                      {availableProviderCount} provider{availableProviderCount === 1 ? '' : 's'} ready
-                    </div>
-                    {activeRuntimeProvider && (
-                      <div className="rounded-full border border-[color:rgba(62,232,138,0.28)] bg-[rgba(62,232,138,0.08)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
-                        Active: {activeRuntimeProvider}
-                      </div>
-                    )}
-                  </div>
-
-                  {runtimeCheckedAt && (
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-                      Checked {runtimeCheckedAt}
-                      {activeModelName ? ` | Last model ${activeModelName}` : ''}
-                    </p>
-                  )}
-
-                  {runtimeNote && (
-                    <div className="rounded-[14px] border border-[color:rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] px-4 py-3 text-[12px] leading-6 text-[var(--text-primary)]">
-                      {runtimeNote}
-                    </div>
-                  )}
-
-                  <div className="space-y-3">
-                    {runtimeModels.map((item) => {
-                      const status = item?.status || 'offline';
-                      const providerKey = (item.provider === 'Google' ? 'gemini' : item.provider.toLowerCase()) as 'gemini' | 'groq' | 'openrouter' | 'doubleword';
-                      return (
-                        <div key={item.provider} className="flex items-start gap-3 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-3">
-                          <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]">
-                            <ProviderLogo provider={providerKey} className="h-3.5 w-3.5" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{item.name || item.provider}</p>
-                              <span
-                                className={cn(
-                                  'shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em]',
-                                  status === 'online'
-                                    ? 'border-[color:rgba(34,197,94,0.35)] bg-[rgba(34,197,94,0.08)] text-[var(--accent)]'
-                                    : 'border-[color:rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
-                                )}
-                              >
-                                {status === 'online' ? 'online' : 'offline'}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
-                              {status === 'online'
-                                ? `Latency ${item.latency >= 0 ? `${item.latency}ms` : 'ready'}`
-                                : 'Add key in Settings'}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Chain order</p>
-                    <div className="mt-3 space-y-3">
-                      {effectiveRuntimeOrder.map((provider, index) => {
-                        const model = runtimeStatus?.models?.[provider];
-                        const desc = index === 0
-                          ? `Primary path${runtimeStatus?.defaultModel ? ` from workspace default ${runtimeStatus.defaultModel}` : ''}`
-                          : `Fallback ${index} if the earlier provider is unavailable`;
-                        return (
-                          <div key={provider} className="flex items-start gap-3 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-3">
-                            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[10px] font-bold text-[var(--accent)]">
-                              {index + 1}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-[12px] font-semibold text-[var(--text-primary)]">{provider}</p>
-                              <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
-                                {model?.name ? `${model.name}. ` : ''}{desc}
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {showPlanPanel && subscription ? (
-                    <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Workspace plan</p>
-                          <h4 className="mt-1 text-[14px] font-semibold text-[var(--text-primary)]">
-                            {isTrial ? '3-day free trial' : subscription.plan}
-                          </h4>
-                        </div>
-                        <ActivityIcon className="h-4 w-4 text-[var(--accent)]" />
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-3">
-                          <p className="text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">Activated</p>
-                          <p className="mt-1 text-[12px] font-semibold text-[var(--text-primary)]">{formatPlanDate(subscription.created_at)}</p>
-                        </div>
-                        <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-3">
-                          <p className="text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">Expires</p>
-                          <p className="mt-1 text-[12px] font-semibold text-[var(--text-primary)]">{formatPlanDate(subscription.renewal_date)}</p>
-                        </div>
-                      </div>
-                      {typeof subscription.trial_days_remaining === 'number' ? (
-                        <p className="mt-3 text-[12px] leading-6 text-[var(--text-secondary)]">
-                          {subscription.trial_days_remaining} day{subscription.trial_days_remaining === 1 ? '' : 's'} left on this workspace.
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ) : assistantPanelTab === 'activity' ? (
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Activity</p>
-                    <h4 className="mt-1 text-[14px] font-semibold text-[var(--text-primary)]">Recent Pulse actions</h4>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
-                      <p className="text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">Requests</p>
-                      <p className="mt-1 text-[18px] font-semibold text-[var(--text-primary)]">{conversationCount}</p>
-                    </div>
-                    <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
-                      <p className="text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">Replies</p>
-                      <p className="mt-1 text-[18px] font-semibold text-[var(--text-primary)]">{aiReplyCount}</p>
-                    </div>
-                    <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
-                      <p className="text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">Latest route</p>
-                      <p className="mt-1 text-[12px] font-semibold text-[var(--text-primary)]">{latestIntentLabel}</p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Timeline</p>
-                        <h4 className="mt-1 text-[14px] font-semibold text-[var(--text-primary)]">Contextual activity</h4>
-                      </div>
-                      {runtimeCheckedAt ? <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">Updated {runtimeCheckedAt}</span> : null}
-                    </div>
-
-                    <div className="mt-4 space-y-3">
-                      {activityItems.map((item) => (
-                        <div key={item.id} className={cn('rounded-[14px] border px-4 py-3', activityToneStyles[item.tone])}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="text-[12px] font-semibold text-[var(--text-primary)]">{item.title}</p>
-                              <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">{item.detail}</p>
-                            </div>
-                            <span className="shrink-0 text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">{item.timestamp}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4 text-[12px] leading-6 text-[var(--text-secondary)]">
-                    Pulse routes requests to tools automatically. Ask naturally and the latest intent, provider status, and response flow will show up here.
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Browser</p>
-                    <h4 className="mt-1 text-[14px] font-semibold text-[var(--text-primary)]">Contextual web tools</h4>
-                    <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
-                      Use Pulse to fetch listing pages, search the web, verify RERA, or extract structured property data without leaving the chat thread.
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    {browserTools.map((tool) => (
-                      <div key={tool.id} className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-[12px] font-semibold text-[var(--text-primary)]">{tool.label}</p>
-                              <span className="rounded-full border border-[color:rgba(62,232,138,0.28)] bg-[rgba(62,232,138,0.08)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
-                                Ready
-                              </span>
-                            </div>
-                            <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">{tool.description}</p>
-                          </div>
-                          <span className="rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
-                            {tool.id}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleQuickAction(tool.prompt);
-                            openAssistantPanel('browser');
-                          }}
-                          className="mt-3 rounded-full border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
-                        >
-                          Use prompt
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </aside>
-        ) : null}
     </div>
   );
 };

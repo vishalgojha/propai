@@ -35,6 +35,12 @@ const CancellationPolicy = React.lazy(async () => ({ default: (await import('./p
 const ContactUs = React.lazy(async () => ({ default: (await import('./pages/ContactUs')).ContactUs }));
 const AuthCallback = React.lazy(async () => ({ default: (await import('./pages/AuthCallback')).AuthCallback }));
 const ReferralCapture = React.lazy(async () => ({ default: (await import('./pages/ReferralCapture')).ReferralCapture }));
+const WabroOverview = React.lazy(async () => ({ default: (await import('./pages/Wabro')).WabroOverview }));
+const WabroCampaigns = React.lazy(async () => ({ default: (await import('./pages/Wabro')).WabroCampaigns }));
+const WabroDevices = React.lazy(async () => ({ default: (await import('./pages/Wabro')).WabroDevices }));
+const WabroSetup = React.lazy(async () => ({ default: (await import('./pages/Wabro')).WabroSetup }));
+const WabroBilling = React.lazy(async () => ({ default: (await import('./pages/Wabro')).WabroBilling }));
+const WabroLanding = React.lazy(async () => ({ default: (await import('./pages/WabroLanding')).WabroLanding }));
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
@@ -133,6 +139,12 @@ export default function App() {
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/connect-whatsapp" element={<ConnectWhatsApp />} />
               <Route path="/setup-groups" element={<SetupGroups />} />
+              <Route path="/wabro" element={<WabroLanding />} />
+              <Route path="/wabro/app" element={<WabroOverview />} />
+              <Route path="/wabro/app/campaigns" element={<WabroCampaigns />} />
+              <Route path="/wabro/app/devices" element={<WabroDevices />} />
+              <Route path="/wabro/app/setup" element={<WabroSetup />} />
+              <Route path="/wabro/app/billing" element={<WabroBilling />} />
               <Route path="/intelligence" element={<Navigate to="/agent" replace />} />
             </Route>
             <Route path="*" element={<Navigate to={landingRoute} replace />} />

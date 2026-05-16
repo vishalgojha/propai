@@ -7,7 +7,6 @@ PropAI Pulse is a high-performance workspace for real estate brokers to automate
 - `apps/app`: React + Vite + Framer Motion (the inbox workspace)
 - `apps/www`: Next.js 14 public marketing + listings site
 - `packages/agent`: Extension and agent UI/tooling
-- `packages/pulse-core`: Pulse listener, review, summary, and studio core
 - `supabase/`: SQL schema and RLS policies
 
 ## Deployment (Coolify)
