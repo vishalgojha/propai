@@ -19,6 +19,9 @@ export type WorkspaceContext = {
     memberRole: WorkspaceMemberRole;
     canManageTeam: boolean;
     canSendOutbound: boolean;
+    assignedSessionLabels: string[];
+    preferredSessionLabel: string | null;
+    hasSessionRestriction: boolean;
 };
 
 type AuthUserLike = {
@@ -28,6 +31,16 @@ type AuthUserLike = {
 
 function normalizeEmail(value?: string | null) {
     return String(value || '').trim().toLowerCase();
+}
+
+function normalizeSessionLabels(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return value
+        .map((entry) => String(entry || '').trim())
+        .filter(Boolean);
 }
 
 export class WorkspaceAccessService {
@@ -50,12 +63,15 @@ export class WorkspaceAccessService {
                 memberRole: 'owner',
                 canManageTeam: true,
                 canSendOutbound: true,
+                assignedSessionLabels: [],
+                preferredSessionLabel: null,
+                hasSessionRestriction: false,
             };
         }
 
         const byUserId = await db
             .from('workspace_members')
-            .select('workspace_owner_id, member_user_id, member_email, role, status')
+            .select('workspace_owner_id, member_user_id, member_email, role, status, assigned_session_labels, preferred_session_label')
             .eq('member_user_id', currentUserId)
             .in('status', ['invited', 'active'])
             .order('updated_at', { ascending: false })
@@ -88,7 +104,9 @@ export class WorkspaceAccessService {
                     .eq('workspace_owner_id', byUserId.data.workspace_owner_id)
                     .eq('member_user_id', currentUserId);
             }
-
+            const assignedSessionLabels = normalizeSessionLabels(byUserId.data.assigned_session_labels);
+            const preferredSessionLabel = String(byUserId.data.preferred_session_label || '').trim() || null;
+            const hasSessionRestriction = assignedSessionLabels.length > 0;
             return {
                 workspaceOwnerId: String(byUserId.data.workspace_owner_id),
                 workspaceOwnerEmail: null,
@@ -99,13 +117,16 @@ export class WorkspaceAccessService {
                 memberRole: (byUserId.data.role || 'realtor') as WorkspaceMemberRole,
                 canManageTeam: byUserId.data.role === 'admin',
                 canSendOutbound: byUserId.data.role !== 'viewer',
+                assignedSessionLabels,
+                preferredSessionLabel,
+                hasSessionRestriction,
             };
         }
 
         if (currentUserEmail) {
             const byEmail = await db
                 .from('workspace_members')
-                .select('workspace_owner_id, member_email, role, status')
+                .select('workspace_owner_id, member_email, role, status, assigned_session_labels, preferred_session_label')
                 .eq('member_email', currentUserEmail)
                 .in('status', ['invited', 'active'])
                 .order('updated_at', { ascending: false })
@@ -128,7 +149,9 @@ export class WorkspaceAccessService {
                     })
                     .eq('workspace_owner_id', byEmail.data.workspace_owner_id)
                     .eq('member_email', currentUserEmail);
-
+                const assignedSessionLabels = normalizeSessionLabels(byEmail.data.assigned_session_labels);
+                const preferredSessionLabel = String(byEmail.data.preferred_session_label || '').trim() || null;
+                const hasSessionRestriction = assignedSessionLabels.length > 0;
                 return {
                     workspaceOwnerId: String(byEmail.data.workspace_owner_id),
                     workspaceOwnerEmail: null,
@@ -139,6 +162,9 @@ export class WorkspaceAccessService {
                     memberRole: (byEmail.data.role || 'realtor') as WorkspaceMemberRole,
                     canManageTeam: byEmail.data.role === 'admin',
                     canSendOutbound: byEmail.data.role !== 'viewer',
+                    assignedSessionLabels,
+                    preferredSessionLabel,
+                    hasSessionRestriction,
                 };
             }
         }
@@ -153,6 +179,9 @@ export class WorkspaceAccessService {
             memberRole: 'owner',
             canManageTeam: true,
             canSendOutbound: true,
+            assignedSessionLabels: [],
+            preferredSessionLabel: null,
+            hasSessionRestriction: false,
         };
     }
 
@@ -176,6 +205,65 @@ export class WorkspaceAccessService {
         }
 
         return context;
+    }
+
+    resolvePermittedSessionLabel(
+        context: WorkspaceContext,
+        requestedSessionLabel?: string | null,
+        availableSessionLabels: string[] = [],
+    ) {
+        const requested = String(requestedSessionLabel || '').trim() || null;
+        const available = availableSessionLabels.map((label) => String(label || '').trim()).filter(Boolean);
+        const assigned = context.assignedSessionLabels;
+
+        if (!context.hasSessionRestriction) {
+            if (requested) {
+                return requested;
+            }
+
+            if (context.preferredSessionLabel) {
+                return context.preferredSessionLabel;
+            }
+
+            return available[0] || null;
+        }
+
+        if (requested) {
+            if (!assigned.includes(requested)) {
+                const error = new Error(`Your workspace role can only send from assigned WhatsApp lanes: ${assigned.join(', ')}`);
+                (error as any).statusCode = 403;
+                throw error;
+            }
+
+            if (available.length > 0 && !available.includes(requested)) {
+                const error = new Error(`The assigned WhatsApp lane ${requested} is not connected right now.`);
+                (error as any).statusCode = 409;
+                throw error;
+            }
+
+            return requested;
+        }
+
+        const preferredAssigned = context.preferredSessionLabel && assigned.includes(context.preferredSessionLabel)
+            ? context.preferredSessionLabel
+            : null;
+        if (preferredAssigned && (available.length === 0 || available.includes(preferredAssigned))) {
+            return preferredAssigned;
+        }
+
+        const firstConnectedAssigned = assigned.find((label) => available.includes(label));
+        if (firstConnectedAssigned) {
+            return firstConnectedAssigned;
+        }
+
+        const fallbackAssigned = assigned[0] || null;
+        if (fallbackAssigned) {
+            const error = new Error(`None of your assigned WhatsApp lanes are connected right now. Allowed lanes: ${assigned.join(', ')}`);
+            (error as any).statusCode = 409;
+            throw error;
+        }
+
+        return null;
     }
 }
 

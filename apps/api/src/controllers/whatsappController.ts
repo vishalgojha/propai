@@ -24,6 +24,13 @@ type LiveSessionRecord = {
     isReconnecting?: boolean;
 };
 
+function getConnectedSessionLabels(sessions: LiveSessionRecord[]) {
+    return sessions
+        .filter((session) => session.status === 'connected')
+        .map((session) => String(session.label || '').trim())
+        .filter(Boolean);
+}
+
 function getTenantId(req: Request) {
     const user = req.user;
     return user?.id || 'system';
@@ -357,10 +364,14 @@ export const getStatus = async (req: Request, res: Response) => {
         });
     }
 
+    const context = await workspaceAccessService.resolveContext(req.user ?? {});
+    const workspaceOwnerId = context.workspaceOwnerId;
+    const workspaceGateway = getWhatsAppGateway(workspaceOwnerId);
+
     const { data, error } = await getDbClient()
         .from('whatsapp_sessions')
         .select('label, owner_name, status, session_data, last_sync')
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', workspaceOwnerId)
         .in('status', ['connecting', 'connected'])
         .order('last_sync', { ascending: false });
 
@@ -374,7 +385,7 @@ export const getStatus = async (req: Request, res: Response) => {
         sessionData: row.session_data || null,
         lastSync: row.last_sync,
     }));
-        const liveSessions = await gateway.getSessions(tenantId) as LiveSessionRecord[];
+        const liveSessions = await workspaceGateway.getSessions(workspaceOwnerId) as LiveSessionRecord[];
         const sessionMap = new Map<string, Record<string, unknown>>();
 
         for (const session of dbSessions) {
@@ -395,7 +406,7 @@ export const getStatus = async (req: Request, res: Response) => {
         });
         const connectedSessions = sessions.filter((session) => (session as Record<string, string>).status === 'connected');
         const connectingSessions = sessions.filter((session) => (session as Record<string, string>).status === 'connecting');
-        const plan = await subscriptionService.getSubscription(tenantId, user?.email).catch(() => ({ plan: 'Trial' as const, status: 'active', renewal_date: null }));
+        const plan = await subscriptionService.getSubscription(workspaceOwnerId, user?.email).catch(() => ({ plan: 'Trial' as const, status: 'active', renewal_date: null }));
         const limit = subscriptionService.getLimit(plan.plan, 'sessions');
         const primaryConnectedSession = connectedSessions[0] || null;
 
@@ -406,6 +417,9 @@ export const getStatus = async (req: Request, res: Response) => {
             plan: plan.plan,
             connectedPhoneNumber: primaryConnectedSession?.phoneNumber || null,
             connectedOwnerName: primaryConnectedSession?.ownerName || null,
+            allowedOutboundSessionLabels: context.assignedSessionLabels,
+            preferredOutboundSessionLabel: context.preferredSessionLabel,
+            hasOutboundLaneRestriction: context.hasSessionRestriction,
             sessions: sessions.map(s => ({
                 ...s,
                 reconnectAttempts: (s as Record<string, number | undefined>).reconnectAttempts || 0,
@@ -1060,7 +1074,7 @@ export const getOutboundRecipients = async (req: Request, res: Response) => {
 export const sendMessage = async (req: Request, res: Response) => {
     const context = await workspaceAccessService.requireOutboundAccess(req.user ?? {});
     const tenantId = context.workspaceOwnerId;
-    const { remoteJid, text } = req.body;
+    const { remoteJid, text, sessionKey } = req.body;
     const user = req.user;
     const gateway = getWhatsAppGateway(tenantId);
     if (!tenantId || !remoteJid || !text) {
@@ -1071,8 +1085,16 @@ export const sendMessage = async (req: Request, res: Response) => {
     console.log(`[sendMessage] ${chatType} send to JID: ${remoteJid} (workspace: ${tenantId})`);
 
     try {
+        const liveSessions = await gateway.getSessions(tenantId) as LiveSessionRecord[];
+        const resolvedSessionLabel = workspaceAccessService.resolvePermittedSessionLabel(
+            context,
+            sessionKey,
+            getConnectedSessionLabels(liveSessions),
+        );
+
         await gateway.sendMessage({
             workspaceOwnerId: tenantId,
+            sessionLabel: resolvedSessionLabel || undefined,
             remoteJid,
             text,
         });
@@ -1090,7 +1112,7 @@ export const sendMessage = async (req: Request, res: Response) => {
             entityType: 'conversation',
             entityId: remoteJid,
             summary: `Sent a direct WhatsApp message to ${remoteJid}.`,
-            metadata: { remoteJid },
+            metadata: { remoteJid, sessionLabel: resolvedSessionLabel },
         });
         
         res.json({ message: 'Message sent successfully' });
@@ -1111,6 +1133,12 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
     }
 
     try {
+        const liveSessions = await gateway.getSessions(tenantId) as LiveSessionRecord[];
+        const resolvedSessionLabel = workspaceAccessService.resolvePermittedSessionLabel(
+            context,
+            sessionKey,
+            getConnectedSessionLabels(liveSessions),
+        );
         const sent: Array<{ remoteJid: string; label?: string | null }> = [];
         const failed: Array<{ remoteJid: string; label?: string | null; error: string }> = [];
 
@@ -1126,7 +1154,7 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
             try {
                 await gateway.sendMessage({
                     workspaceOwnerId: tenantId,
-                    sessionLabel: sessionKey,
+                    sessionLabel: resolvedSessionLabel || undefined,
                     remoteJid,
                     text: String(text).trim(),
                 });
@@ -1148,10 +1176,10 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
             workspaceOwnerId: tenantId,
             eventType: 'whatsapp.direct.bulk_sent',
             entityType: 'conversation_batch',
-            entityId: sessionKey || null,
+            entityId: resolvedSessionLabel || null,
             summary: `Sent ${sent.length} direct WhatsApp messages${failed.length ? ` with ${failed.length} failures` : ''}.`,
             metadata: {
-                sessionKey: sessionKey || null,
+                sessionKey: resolvedSessionLabel || null,
                 sentCount: sent.length,
                 failedCount: failed.length,
             },
@@ -1180,9 +1208,15 @@ export const broadcastToGroups = async (req: Request, res: Response) => {
     }
 
     try {
+        const liveSessions = await gateway.getSessions(tenantId) as LiveSessionRecord[];
+        const resolvedSessionLabel = workspaceAccessService.resolvePermittedSessionLabel(
+            context,
+            sessionKey,
+            getConnectedSessionLabels(liveSessions),
+        );
         const result = await gateway.broadcastToGroups({
             workspaceOwnerId: tenantId,
-            sessionLabel: sessionKey,
+            sessionLabel: resolvedSessionLabel || undefined,
             groupJids,
             text,
             batchSize: Number(batchSize) || undefined,
@@ -1208,10 +1242,10 @@ export const broadcastToGroups = async (req: Request, res: Response) => {
             workspaceOwnerId: tenantId,
             eventType: 'whatsapp.group.broadcast',
             entityType: 'group_batch',
-            entityId: sessionKey || null,
+            entityId: resolvedSessionLabel || null,
             summary: `Broadcasted to ${Array.isArray(result.sent) ? result.sent.length : 0} WhatsApp groups${Array.isArray(result.failed) && result.failed.length ? ` with ${result.failed.length} failures` : ''}.`,
             metadata: {
-                sessionKey: sessionKey || null,
+                sessionKey: resolvedSessionLabel || null,
                 sentCount: Array.isArray(result.sent) ? result.sent.length : 0,
                 failedCount: Array.isArray(result.failed) ? result.failed.length : 0,
             },

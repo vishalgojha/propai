@@ -45,6 +45,9 @@ type WhatsappStatus = {
   plan: string;
   connectedPhoneNumber?: string | null;
   connectedOwnerName?: string | null;
+  allowedOutboundSessionLabels?: string[];
+  preferredOutboundSessionLabel?: string | null;
+  hasOutboundLaneRestriction?: boolean;
   sessions: WhatsappSession[];
 };
 
@@ -204,7 +207,7 @@ const whatsappCapabilities = [
   },
   {
     title: 'Stay inside the PropAI workspace',
-    copy: 'Use the same account, same session, and same billing state as the rest of app.propai.live.',
+    copy: 'Keep brokers, operators, sessions, and AI context in one shared workspace while still limiting each operator to approved numbers.',
   },
 ];
 
@@ -320,6 +323,9 @@ export const Sources: React.FC = () => {
     activeCount: 0,
     limit: 2,
     plan: 'Trial',
+    allowedOutboundSessionLabels: [],
+    preferredOutboundSessionLabel: null,
+    hasOutboundLaneRestriction: false,
     sessions: [],
   });
   const [healthLogs, setHealthLogs] = useState<HealthLogsResponse | null>(null);
@@ -378,6 +384,13 @@ export const Sources: React.FC = () => {
     () => connectedSenderSessions.find((session) => normalizePhoneNumber(session.phoneNumber || '') === MARKETING_AGENT_PHONE) || null,
     [connectedSenderSessions],
   );
+  const allowedConnectedSenderSessions = useMemo(() => {
+    if (!status.hasOutboundLaneRestriction || !Array.isArray(status.allowedOutboundSessionLabels) || status.allowedOutboundSessionLabels.length === 0) {
+      return connectedSenderSessions;
+    }
+
+    return connectedSenderSessions.filter((session) => status.allowedOutboundSessionLabels?.includes(session.label));
+  }, [connectedSenderSessions, status.allowedOutboundSessionLabels, status.hasOutboundLaneRestriction]);
 
   const demoMode = (import.meta as any).env.VITE_WHATSAPP_DEMO_MODE === 'true';
 
@@ -422,6 +435,9 @@ export const Sources: React.FC = () => {
           plan: response.data.plan || 'Trial',
           connectedPhoneNumber: response.data.connectedPhoneNumber || null,
           connectedOwnerName: response.data.connectedOwnerName || null,
+          allowedOutboundSessionLabels: Array.isArray(response.data.allowedOutboundSessionLabels) ? response.data.allowedOutboundSessionLabels : [],
+          preferredOutboundSessionLabel: response.data.preferredOutboundSessionLabel || null,
+          hasOutboundLaneRestriction: Boolean(response.data.hasOutboundLaneRestriction),
           sessions: response.data.sessions || response.data.sessions || [],
         });
       }
@@ -545,17 +561,24 @@ export const Sources: React.FC = () => {
         }
       })();
 
-      if (storedLabel && connectedSenderSessions.some((session) => session.label === storedLabel)) {
+      if (storedLabel && allowedConnectedSenderSessions.some((session) => session.label === storedLabel)) {
         return storedLabel;
       }
 
-      if (current && connectedSenderSessions.some((session) => session.label === current)) {
+      if (current && allowedConnectedSenderSessions.some((session) => session.label === current)) {
         return current;
       }
 
-      return marketingSession?.label || primaryConnectedSession?.label || connectedSenderSessions[0]?.label || '';
+      if (status.preferredOutboundSessionLabel && allowedConnectedSenderSessions.some((session) => session.label === status.preferredOutboundSessionLabel)) {
+        return status.preferredOutboundSessionLabel;
+      }
+
+      const allowedMarketingSession = marketingSession && allowedConnectedSenderSessions.some((session) => session.label === marketingSession.label)
+        ? marketingSession
+        : null;
+      return allowedMarketingSession?.label || allowedConnectedSenderSessions[0]?.label || '';
     });
-  }, [connectedSenderSessions, marketingSession, primaryConnectedSession]);
+  }, [allowedConnectedSenderSessions, marketingSession, primaryConnectedSession, status.preferredOutboundSessionLabel]);
 
   useEffect(() => {
     const handleSelectedSession = (event: Event) => {
@@ -1133,12 +1156,14 @@ export const Sources: React.FC = () => {
   const isCurrentSessionConnecting = currentSessionStatus === 'connecting';
   const displayCurrentConnectionNumber = isCurrentSessionConnected ? displayConnectedNumber : displaySelectedDeviceNumber;
   const displayCurrentConnectionName = isCurrentSessionConnected ? displayConnectedName : displaySelectedDeviceName;
-  const selectedOutboundSession = connectedSenderSessions.find((session) => session.label === outboundSessionKey) || null;
+  const selectedOutboundSession = allowedConnectedSenderSessions.find((session) => session.label === outboundSessionKey) || null;
   const outboundSenderDescription = selectedOutboundSession
     ? normalizePhoneNumber(selectedOutboundSession.phoneNumber || '') === MARKETING_AGENT_PHONE
       ? 'Marketing agent lane'
       : 'Broker-connected lane'
-    : 'No sender selected';
+    : status.hasOutboundLaneRestriction
+      ? 'No assigned sender lane is connected right now'
+      : 'No sender selected';
   const filteredOutboundGroups = useMemo(() => {
     const query = groupSearchTerm.trim().toLowerCase();
     if (!query) return outboundGroups;
@@ -1370,7 +1395,7 @@ export const Sources: React.FC = () => {
                     <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Sender lane</p>
                     <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">Choose the WhatsApp number that sends outbound</h4>
                     <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
-                      Use the broker-connected lane for operational sends, or switch to the dedicated marketing lane when you want outreach from <span className="text-[var(--text-primary)]">{MARKETING_AGENT_PHONE}</span>.
+                      This broker workspace can hold multiple numbers. Assign operators to specific lanes in Team when you want to stop two teammates from sending from the same number.
                     </p>
                   </div>
                   <div className="w-full md:max-w-[360px]">
@@ -1380,7 +1405,7 @@ export const Sources: React.FC = () => {
                       className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[12px] text-[var(--text-primary)]"
                     >
                       <option value="">Select sender</option>
-                      {connectedSenderSessions.map((session) => {
+                      {allowedConnectedSenderSessions.map((session) => {
                         const normalized = normalizePhoneNumber(session.phoneNumber || '');
                         const isMarketingLane = normalized === MARKETING_AGENT_PHONE;
                         return (
@@ -1391,6 +1416,11 @@ export const Sources: React.FC = () => {
                       })}
                     </select>
                     <p className="mt-2 text-[11px] text-[var(--text-secondary)]">{outboundSenderDescription}</p>
+                    {status.hasOutboundLaneRestriction ? (
+                      <p className="mt-2 text-[11px] text-[var(--amber)]">
+                        Your role can send only from assigned lanes{status.preferredOutboundSessionLabel ? `, defaulting to ${status.preferredOutboundSessionLabel}` : ''}.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </div>

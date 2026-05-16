@@ -296,7 +296,7 @@ export const listWorkspaceTeam = async (req: Request, res: Response) => {
     try {
         const context = await workspaceAccessService.resolveContext(req.user ?? {});
 
-        const [ownerResult, membersResult] = await Promise.all([
+        const [ownerResult, membersResult, sessionsResult] = await Promise.all([
             db
                 .from('profiles')
                 .select('id, email, full_name, phone')
@@ -304,15 +304,21 @@ export const listWorkspaceTeam = async (req: Request, res: Response) => {
                 .maybeSingle(),
             db
                 .from('workspace_members')
-                .select('id, member_user_id, member_email, member_name, member_phone, role, status, invited_at, joined_at, last_active_at, updated_at')
+                .select('id, member_user_id, member_email, member_name, member_phone, role, status, invited_at, joined_at, last_active_at, updated_at, assigned_session_labels, preferred_session_label')
                 .eq('workspace_owner_id', context.workspaceOwnerId)
                 .order('invited_at', { ascending: false }),
+            db
+                .from('whatsapp_sessions')
+                .select('label, owner_name, status, session_data, last_sync')
+                .eq('tenant_id', context.workspaceOwnerId)
+                .order('last_sync', { ascending: false }),
         ]);
 
         if (ownerResult.error) throw ownerResult.error;
         if (membersResult.error) throw membersResult.error;
+        if (sessionsResult.error) throw sessionsResult.error;
 
-        const members = (membersResult.data || []).map((member: { id: string; member_user_id: string | null; member_email: string; member_name: string | null; member_phone: string | null; role: string; status: string; invited_at: string | null; joined_at: string | null; last_active_at: string | null; updated_at: string | null }) => ({
+        const members = (membersResult.data || []).map((member: { id: string; member_user_id: string | null; member_email: string; member_name: string | null; member_phone: string | null; role: string; status: string; invited_at: string | null; joined_at: string | null; last_active_at: string | null; updated_at: string | null; assigned_session_labels?: string[] | null; preferred_session_label?: string | null }) => ({
             id: member.id,
             userId: member.member_user_id || null,
             email: member.member_email,
@@ -324,6 +330,16 @@ export const listWorkspaceTeam = async (req: Request, res: Response) => {
             joinedAt: member.joined_at || null,
             lastActiveAt: member.last_active_at || null,
             updatedAt: member.updated_at || null,
+            assignedSessionLabels: Array.isArray(member.assigned_session_labels) ? member.assigned_session_labels.filter(Boolean) : [],
+            preferredSessionLabel: String(member.preferred_session_label || '').trim() || null,
+        }));
+
+        const sessions = (sessionsResult.data || []).map((session: { label: string; owner_name: string | null; status: string; session_data?: { phoneNumber?: string | null } | null; last_sync?: string | null }) => ({
+            label: session.label,
+            ownerName: session.owner_name || null,
+            phoneNumber: session.session_data?.phoneNumber || null,
+            status: session.status,
+            lastSync: session.last_sync || null,
         }));
 
         res.json({
@@ -336,8 +352,12 @@ export const listWorkspaceTeam = async (req: Request, res: Response) => {
                 isWorkspaceOwner: context.isWorkspaceOwner,
                 canManageTeam: context.canManageTeam,
                 canSendOutbound: context.canSendOutbound,
+                assignedSessionLabels: context.assignedSessionLabels,
+                preferredSessionLabel: context.preferredSessionLabel,
+                hasSessionRestriction: context.hasSessionRestriction,
             },
             members,
+            sessions,
         });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load workspace team') });
@@ -384,12 +404,14 @@ export const addWorkspaceMember = async (req: Request, res: Response) => {
             joined_at: profileLookup.data?.id ? now : null,
             last_active_at: profileLookup.data?.id ? now : null,
             updated_at: now,
+            assigned_session_labels: [],
+            preferred_session_label: null,
         };
 
         const { data, error } = await db
             .from('workspace_members')
             .upsert(payload, { onConflict: 'workspace_owner_id,member_email' })
-            .select('id, member_user_id, member_email, member_name, member_phone, role, status, invited_at, joined_at, last_active_at, updated_at')
+            .select('id, member_user_id, member_email, member_name, member_phone, role, status, invited_at, joined_at, last_active_at, updated_at, assigned_session_labels, preferred_session_label')
             .single();
 
         if (error || !data) {
@@ -427,6 +449,8 @@ export const addWorkspaceMember = async (req: Request, res: Response) => {
                 joinedAt: data.joined_at || null,
                 lastActiveAt: data.last_active_at || null,
                 updatedAt: data.updated_at || null,
+                assignedSessionLabels: Array.isArray(data.assigned_session_labels) ? data.assigned_session_labels.filter(Boolean) : [],
+                preferredSessionLabel: String(data.preferred_session_label || '').trim() || null,
             },
         });
     } catch (error: unknown) {
@@ -440,6 +464,21 @@ export const updateWorkspaceMember = async (req: Request, res: Response) => {
         const memberId = String(req.params.memberId || '').trim();
         if (!memberId) {
             return res.status(400).json({ error: 'Workspace member ID is required' });
+        }
+
+        const existingMemberResult = await db
+            .from('workspace_members')
+            .select('id, assigned_session_labels')
+            .eq('workspace_owner_id', context.workspaceOwnerId)
+            .eq('id', memberId)
+            .maybeSingle();
+
+        if (existingMemberResult.error) {
+            throw existingMemberResult.error;
+        }
+
+        if (!existingMemberResult.data?.id) {
+            return res.status(404).json({ error: 'Workspace member not found' });
         }
 
         const patch: Record<string, unknown> = {
@@ -462,13 +501,33 @@ export const updateWorkspaceMember = async (req: Request, res: Response) => {
             }
             patch.status = status;
         }
+        if (req.body?.assignedSessionLabels !== undefined) {
+            const assignedSessionLabels = Array.isArray(req.body.assignedSessionLabels)
+                ? req.body.assignedSessionLabels.map((value: unknown) => String(value || '').trim()).filter(Boolean)
+                : [];
+            patch.assigned_session_labels = Array.from(new Set(assignedSessionLabels));
+        }
+        if (req.body?.preferredSessionLabel !== undefined) {
+            const preferredSessionLabel = String(req.body.preferredSessionLabel || '').trim() || null;
+            const assignedSessionLabels = Array.isArray((patch as { assigned_session_labels?: string[] }).assigned_session_labels)
+                ? (patch as { assigned_session_labels?: string[] }).assigned_session_labels || []
+                : Array.isArray(existingMemberResult.data.assigned_session_labels)
+                    ? existingMemberResult.data.assigned_session_labels.filter(Boolean)
+                    : null;
+
+            if (preferredSessionLabel && assignedSessionLabels && assignedSessionLabels.length > 0 && !assignedSessionLabels.includes(preferredSessionLabel)) {
+                return res.status(400).json({ error: 'Preferred lane must be one of the assigned WhatsApp lanes' });
+            }
+
+            patch.preferred_session_label = preferredSessionLabel;
+        }
 
         const { data, error } = await db
             .from('workspace_members')
             .update(patch)
             .eq('workspace_owner_id', context.workspaceOwnerId)
             .eq('id', memberId)
-            .select('id, member_user_id, member_email, member_name, member_phone, role, status, invited_at, joined_at, last_active_at, updated_at')
+            .select('id, member_user_id, member_email, member_name, member_phone, role, status, invited_at, joined_at, last_active_at, updated_at, assigned_session_labels, preferred_session_label')
             .single();
 
         if (error || !data) {
@@ -487,6 +546,8 @@ export const updateWorkspaceMember = async (req: Request, res: Response) => {
                 memberEmail: data.member_email,
                 role: data.role,
                 status: data.status,
+                assignedSessionLabels: Array.isArray(data.assigned_session_labels) ? data.assigned_session_labels.filter(Boolean) : [],
+                preferredSessionLabel: String(data.preferred_session_label || '').trim() || null,
             },
         });
 
@@ -506,6 +567,8 @@ export const updateWorkspaceMember = async (req: Request, res: Response) => {
                 joinedAt: data.joined_at || null,
                 lastActiveAt: data.last_active_at || null,
                 updatedAt: data.updated_at || null,
+                assignedSessionLabels: Array.isArray(data.assigned_session_labels) ? data.assigned_session_labels.filter(Boolean) : [],
+                preferredSessionLabel: String(data.preferred_session_label || '').trim() || null,
             },
         });
     } catch (error: unknown) {

@@ -20,6 +20,7 @@ export const saveProfileSchema = z.object({
 export const sendMessageSchema = z.object({
     remoteJid: jidSchema,
     text: z.string().min(1, 'Message text is required'),
+    sessionKey: z.string().optional(),
 });
 
 const recipientSchema = z.object({

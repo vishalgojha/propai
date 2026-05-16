@@ -24,4 +24,6 @@ export const updateMemberSchema = z.object({
     phone: z.string().optional().nullable(),
     role: z.enum(['admin', 'realtor', 'ops', 'viewer']).optional(),
     status: z.enum(['invited', 'active', 'inactive']).optional(),
+    assignedSessionLabels: z.array(z.string().min(1)).max(12).optional(),
+    preferredSessionLabel: z.string().optional().nullable(),
 });

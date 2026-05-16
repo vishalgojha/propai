@@ -2,7 +2,7 @@ import React from 'react';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
-import { AlertTriangleIcon, CheckCircleIcon, GroupsIcon, PlusIcon, RefreshIcon, ShieldIcon } from '../lib/icons';
+import { AlertTriangleIcon, GroupsIcon, PlusIcon, RefreshIcon, ShieldIcon } from '../lib/icons';
 
 type WorkspaceSummary = {
   ownerId: string;
@@ -12,6 +12,9 @@ type WorkspaceSummary = {
   isWorkspaceOwner: boolean;
   canManageTeam: boolean;
   canSendOutbound?: boolean;
+  assignedSessionLabels?: string[];
+  preferredSessionLabel?: string | null;
+  hasSessionRestriction?: boolean;
 };
 
 type WorkspaceMember = {
@@ -25,6 +28,17 @@ type WorkspaceMember = {
   invitedAt?: string | null;
   joinedAt?: string | null;
   lastActiveAt?: string | null;
+  updatedAt?: string | null;
+  assignedSessionLabels?: string[];
+  preferredSessionLabel?: string | null;
+};
+
+type WorkspaceSessionOption = {
+  label: string;
+  ownerName?: string | null;
+  phoneNumber?: string | null;
+  status: string;
+  lastSync?: string | null;
 };
 
 type WorkspaceActivity = {
@@ -50,6 +64,7 @@ const formatDate = (value?: string | null) =>
 export const Team: React.FC = () => {
   const [workspace, setWorkspace] = React.useState<WorkspaceSummary | null>(null);
   const [members, setMembers] = React.useState<WorkspaceMember[]>([]);
+  const [sessions, setSessions] = React.useState<WorkspaceSessionOption[]>([]);
   const [activity, setActivity] = React.useState<WorkspaceActivity[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -72,11 +87,13 @@ export const Team: React.FC = () => {
 
       setWorkspace(teamResponse.data?.workspace || null);
       setMembers(teamResponse.data?.members || []);
+      setSessions(teamResponse.data?.sessions || []);
       setActivity(activityResponse.data?.activity || []);
     } catch (err) {
       setError(handleApiError(err));
       setWorkspace(null);
       setMembers([]);
+      setSessions([]);
       setActivity([]);
     } finally {
       setIsLoading(false);
@@ -124,6 +141,30 @@ export const Team: React.FC = () => {
     }
   };
 
+  const connectedSessions = React.useMemo(
+    () => sessions.filter((session) => session.status === 'connected'),
+    [sessions],
+  );
+
+  const toggleAssignedSession = async (member: WorkspaceMember, sessionLabel: string) => {
+    const assigned = new Set(member.assignedSessionLabels || []);
+    if (assigned.has(sessionLabel)) {
+      assigned.delete(sessionLabel);
+    } else {
+      assigned.add(sessionLabel);
+    }
+
+    const nextAssigned = Array.from(assigned);
+    const nextPreferred = nextAssigned.includes(member.preferredSessionLabel || '')
+      ? member.preferredSessionLabel || null
+      : nextAssigned[0] || null;
+
+    await updateMember(member.id, {
+      assignedSessionLabels: nextAssigned,
+      preferredSessionLabel: nextPreferred,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-[24px] border border-[color:var(--border)] bg-[linear-gradient(180deg,rgba(17,24,32,0.98),rgba(13,17,23,0.98))] p-6 md:p-8">
@@ -134,10 +175,10 @@ export const Team: React.FC = () => {
               Team workspace
             </div>
             <h2 className="mt-4 text-[28px] font-bold tracking-[-0.03em] text-[var(--text-primary)] md:text-[34px]">
-              Add teammates and monitor their activity
+              Run one broker workspace with clear operator lanes
             </h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              Use this workspace to build your internal team, assign roles, and keep an eye on WhatsApp, broadcast, and workspace actions from one place.
+              Add operators, assign which WhatsApp numbers they can send from, and keep broker activity inside one shared PropAI Pulse workspace instead of splitting the business into separate accounts.
             </p>
           </div>
           <button
@@ -170,14 +211,16 @@ export const Team: React.FC = () => {
             {workspace?.canManageTeam
               ? 'Can add and manage team members'
               : workspace?.canSendOutbound
-                ? 'Can work the inbox, monitor, and outbound flows'
+                ? workspace?.hasSessionRestriction
+                  ? `Can work only assigned lanes${workspace.preferredSessionLabel ? `, defaulting to ${workspace.preferredSessionLabel}` : ''}`
+                  : 'Can work the inbox, monitor, and outbound flows'
                 : 'Read-only team access'}
           </p>
         </div>
         <div className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Team size</p>
-          <p className="mt-3 text-lg font-bold text-[var(--text-primary)]">{members.length + 1}</p>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">Owner plus invited and active members</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Connected lanes</p>
+          <p className="mt-3 text-lg font-bold text-[var(--text-primary)]">{connectedSessions.length}</p>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">Numbers currently live inside this broker workspace</p>
         </div>
       </div>
 
@@ -190,7 +233,7 @@ export const Team: React.FC = () => {
                 <h3 className="text-lg font-bold text-[var(--text-primary)]">Add team member</h3>
               </div>
               <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                Invite a realtor, ops teammate, or internal team member by email. If they already have an account, the membership becomes active immediately. Otherwise it stays invited until they sign in.
+                Invite a realtor, ops teammate, or internal operator by email. If they already have an account, the membership becomes active immediately. Otherwise it stays invited until they sign in.
               </p>
 
               <div className="mt-5 space-y-3">
@@ -240,10 +283,33 @@ export const Team: React.FC = () => {
                 <h3 className="text-lg font-bold text-[var(--text-primary)]">Read-only workspace access</h3>
               </div>
               <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                Your current role doesn’t allow member management. You can still see the team roster and recent workspace activity from here.
+                Your current role doesn’t allow member management. You can still review the roster, lane ownership, and recent workspace activity from here.
               </p>
             </div>
           )}
+
+          <div className="rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+            <h3 className="text-lg font-bold text-[var(--text-primary)]">Connected WhatsApp lanes</h3>
+            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+              Each connected number stays inside the same broker workspace. Assign lanes to operators when you want to prevent two teammates from sending from the same number.
+            </p>
+            <div className="mt-4 space-y-3">
+              {connectedSessions.map((session) => (
+                <div key={session.label} className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">{session.ownerName || session.label}</p>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">{session.phoneNumber || 'No number captured'}</p>
+                  <p className="mt-1 text-[11px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                    {session.label} · {session.status} · last sync {formatDate(session.lastSync)}
+                  </p>
+                </div>
+              ))}
+              {!isLoading && connectedSessions.length === 0 ? (
+                <div className="rounded-[18px] border border-dashed border-[color:var(--border)] px-4 py-8 text-sm text-[var(--text-secondary)]">
+                  No live WhatsApp numbers yet. Connect devices in WhatsApp setup first, then assign them here.
+                </div>
+              ) : null}
+            </div>
+          </div>
 
           <div className="rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
             <h3 className="text-lg font-bold text-[var(--text-primary)]">Team roster</h3>
@@ -292,6 +358,72 @@ export const Team: React.FC = () => {
                     <span>Joined {formatDate(member.joinedAt)}</span>
                     <span>Last active {formatDate(member.lastActiveAt)}</span>
                   </div>
+                  <div className="mt-4 rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">Outbound lane assignment</p>
+                        <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+                          Leave this empty for shared access, or assign specific numbers when this operator should only send from selected lanes.
+                        </p>
+                      </div>
+                      {member.assignedSessionLabels && member.assignedSessionLabels.length > 0 ? (
+                        <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+                          Restricted to {member.assignedSessionLabels.length} lane{member.assignedSessionLabels.length > 1 ? 's' : ''}
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                          Shared lane access
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {connectedSessions.map((session) => {
+                        const isAssigned = (member.assignedSessionLabels || []).includes(session.label);
+                        return (
+                          <button
+                            key={session.label}
+                            type="button"
+                            disabled={!workspace?.canManageTeam}
+                            onClick={() => void toggleAssignedSession(member, session.label)}
+                            className={cn(
+                              'rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors',
+                              isAssigned
+                                ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                                : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                            )}
+                          >
+                            {session.ownerName || session.label}
+                            {session.phoneNumber ? ` · ${session.phoneNumber}` : ''}
+                          </button>
+                        );
+                      })}
+                      {connectedSessions.length === 0 ? (
+                        <div className="text-[12px] text-[var(--text-secondary)]">
+                          Connect a WhatsApp number before assigning lanes.
+                        </div>
+                      ) : null}
+                    </div>
+                    {workspace?.canManageTeam ? (
+                      <div className="mt-3">
+                        <select
+                          value={member.preferredSessionLabel || ''}
+                          onChange={(event) => void updateMember(member.id, { preferredSessionLabel: event.target.value || null })}
+                          disabled={(member.assignedSessionLabels || []).length === 0}
+                          className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-xs font-semibold text-[var(--text-primary)] outline-none disabled:opacity-60"
+                        >
+                          <option value="">Preferred lane for this operator</option>
+                          {(member.assignedSessionLabels || []).map((label) => {
+                            const session = connectedSessions.find((entry) => entry.label === label) || sessions.find((entry) => entry.label === label);
+                            return (
+                              <option key={label} value={label}>
+                                {session?.ownerName || label}{session?.phoneNumber ? ` • ${session.phoneNumber}` : ''}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               ))}
               {!isLoading && members.length === 0 ? (
@@ -306,7 +438,7 @@ export const Team: React.FC = () => {
         <div className="rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
           <h3 className="text-lg font-bold text-[var(--text-primary)]">Recent workspace activity</h3>
           <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-            This feed captures the actions we already log for the workspace: session connects, disconnects, direct sends, broadcasts, and team changes.
+            This feed captures the actions already logged for the broker workspace: session connects, disconnects, direct sends, broadcasts, and team changes.
           </p>
 
           <div className="mt-5 space-y-3">
@@ -337,7 +469,7 @@ export const Team: React.FC = () => {
               <span className="font-semibold">Current scope</span>
             </div>
             <p className="mt-2">
-              This first production slice gives you team membership, status control, and a live activity feed. It doesn’t yet do granular permission matrices or team-by-team DM approvals, but the data layer is now ready for that next step.
+              This production slice now covers team membership, lane assignment, and outbound guardrails by WhatsApp number. It still does not do thread ownership, approval chains, or team-by-team DM review queues yet.
             </p>
           </div>
         </div>

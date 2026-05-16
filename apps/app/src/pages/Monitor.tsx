@@ -625,6 +625,7 @@ export const Monitor: React.FC = () => {
       await backendApi.post(ENDPOINTS.whatsapp.send, {
         remoteJid: jid,
         text,
+        sessionKey: selectedSessionLabel || undefined,
       });
       setSendStatus('sent');
       setToast(`Sent to ${targetLabel} \u2713`);
