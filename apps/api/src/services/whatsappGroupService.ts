@@ -14,21 +14,65 @@ type GroupListFilters = {
     includeArchived?: boolean;
 };
 
+type GroupClassification = 'business' | 'personal' | 'unknown';
+type GroupVisibilityStatus = 'visible' | 'hidden';
+
 const db = supabaseAdmin || supabase;
 
-const NON_REAL_ESTATE_KEYWORDS = [
+const PERSONAL_GROUP_KEYWORDS = [
     'family', 'sfg', 'friends', 'crypto', 'school',
     'college', 'personal', 'fun', 'news', 'politics',
     'gaming', 'memes', 'music', 'movie', 'travel',
     'food', 'cooking', 'sports', 'fitness', 'health',
+    'birthday', 'trip', 'vacation', 'wedding', 'cousins',
+    'alumni', 'batch', 'class', 'parents', 'kitty',
 ];
 
-function isLikelyRealEstate(name: string): boolean {
-    const normalized = String(name || '').toLowerCase();
-    return !NON_REAL_ESTATE_KEYWORDS.some((kw) => {
-        const pattern = new RegExp(`\\b${kw}\\b`, 'i');
-        return pattern.test(normalized);
-    });
+const BUSINESS_GROUP_KEYWORDS = [
+    'broker', 'brokers', 'realtor', 'realtors', 'estate', 'realty',
+    'inventory', 'requirement', 'requirements', 'client', 'buyers',
+    'seller', 'sellers', 'rent', 'rental', 'lease', 'sale', 'resale',
+    'commercial', 'office', 'shop', 'warehouse', 'flat', 'flats',
+    'apartment', 'apartments', 'villa', 'plot', 'plots', 'bhk',
+    'property', 'properties', 'channel partner', 'cp', 'deals',
+];
+
+function scoreKeywordHits(normalized: string, keywords: string[]) {
+    return keywords.reduce((score, keyword) => {
+        const pattern = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        return pattern.test(normalized) ? score + 1 : score;
+    }, 0);
+}
+
+function classifyGroup(name: string, locality?: string | null, category?: string | null) {
+    const normalized = normalizeName(name);
+    const businessHits = scoreKeywordHits(normalized, BUSINESS_GROUP_KEYWORDS);
+    const personalHits = scoreKeywordHits(normalized, PERSONAL_GROUP_KEYWORDS);
+    const localityBonus = locality ? 1 : 0;
+    const categoryBonus = category && category !== 'other' ? 1 : 0;
+    const businessScore = businessHits + localityBonus + categoryBonus;
+
+    if (personalHits >= 1 && businessHits === 0) {
+        return {
+            classification: 'personal' as GroupClassification,
+            confidence: Math.min(100, 70 + personalHits * 10),
+            visibilityStatus: 'hidden' as GroupVisibilityStatus,
+        };
+    }
+
+    if (businessScore >= 2) {
+        return {
+            classification: 'business' as GroupClassification,
+            confidence: Math.min(100, 60 + businessScore * 10),
+            visibilityStatus: 'visible' as GroupVisibilityStatus,
+        };
+    }
+
+    return {
+        classification: 'unknown' as GroupClassification,
+        confidence: Math.max(35, businessHits > 0 ? 45 + businessHits * 5 : 40),
+        visibilityStatus: 'hidden' as GroupVisibilityStatus,
+    };
 }
 
 function normalizeName(value: string) {
@@ -92,10 +136,11 @@ export class WhatsAppGroupService {
                 const inferredCity = parsedLocation?.city && parsedLocation.city !== 'Unknown' ? parsedLocation.city : null;
                 const inferredCategory = inferCategory(group.name || '');
                 const inferredTags = inferTags(group.name || '', inferredLocality, inferredCategory);
+                const autoClassification = classifyGroup(group.name || '', inferredLocality, inferredCategory);
 
                 const { data: existing, error: existingError } = await db
                     .from('whatsapp_groups')
-                    .select('locality, city, category, tags, broadcast_enabled, is_archived, is_parsing')
+                    .select('locality, city, category, tags, broadcast_enabled, is_archived, is_parsing, classification, visibility_status, business_confidence')
                     .eq('workspace_id', tenantId)
                     .eq('group_jid', group.id)
                     .maybeSingle();
@@ -106,7 +151,6 @@ export class WhatsAppGroupService {
                     continue;
                 }
 
-                const isRealEstate = isLikelyRealEstate(group.name || '');
                 const payload = {
                     workspace_id: tenantId,
                     session_id: sessionId,
@@ -121,7 +165,12 @@ export class WhatsAppGroupService {
                     tags: uniqueStrings([...(existing?.tags || []), ...inferredTags]),
                     participant_count: Number(group.participantsCount || 0),
                     member_count: Number(group.participantsCount || 0),
-                    is_parsing: typeof existing?.is_parsing === 'boolean' ? existing.is_parsing : isRealEstate,
+                    is_parsing: typeof existing?.is_parsing === 'boolean' ? existing.is_parsing : autoClassification.classification === 'business',
+                    classification: String(existing?.classification || '').trim() || autoClassification.classification,
+                    visibility_status: String(existing?.visibility_status || '').trim() || autoClassification.visibilityStatus,
+                    business_confidence: typeof existing?.business_confidence === 'number'
+                        ? existing.business_confidence
+                        : autoClassification.confidence,
                     last_message_at: now,
                     last_active_at: now,
                     broadcast_enabled: typeof existing?.broadcast_enabled === 'boolean' ? existing.broadcast_enabled : true,
@@ -183,6 +232,9 @@ export class WhatsAppGroupService {
             broadcastEnabled: Boolean(row.broadcast_enabled),
             isArchived: Boolean(row.is_archived),
             isParsing: Boolean(row.is_parsing),
+            classification: row.classification || 'unknown',
+            visibilityStatus: row.visibility_status || 'visible',
+            businessConfidence: Number(row.business_confidence || 0),
             lastActiveAt: row.last_active_at || null,
             sessionLabel: row.session_label || null,
         }));
@@ -197,6 +249,8 @@ export class WhatsAppGroupService {
         broadcastEnabled?: boolean;
         isArchived?: boolean;
         isParsing?: boolean;
+        classification?: GroupClassification | null;
+        visibilityStatus?: GroupVisibilityStatus | null;
     }) {
         const payload: Record<string, unknown> = {
             updated_at: new Date().toISOString(),
@@ -213,6 +267,8 @@ export class WhatsAppGroupService {
         if (updates.broadcastEnabled !== undefined) payload.broadcast_enabled = updates.broadcastEnabled;
         if (updates.isArchived !== undefined) payload.is_archived = updates.isArchived;
         if (updates.isParsing !== undefined) payload.is_parsing = updates.isParsing;
+        if (updates.classification !== undefined) payload.classification = updates.classification;
+        if (updates.visibilityStatus !== undefined) payload.visibility_status = updates.visibilityStatus;
 
         const { data, error } = await db
             .from('whatsapp_groups')

@@ -84,6 +84,9 @@ type MonitorGroupDirectoryItem = {
   participantsCount?: number;
   broadcastEnabled?: boolean;
   isParsing?: boolean;
+  classification?: 'business' | 'personal' | 'unknown' | string;
+  visibilityStatus?: 'visible' | 'hidden' | string;
+  businessConfidence?: number;
   lastActiveAt?: string | null;
   sessionLabel?: string | null;
 };
@@ -292,6 +295,9 @@ const mergeMonitorChatsWithGroups = (
   }
 
   for (const group of groups) {
+    if (String(group.visibilityStatus || 'visible') !== 'visible') {
+      continue;
+    }
     const groupJid = String(group.groupJid || group.id || '').trim();
     if (!groupJid) continue;
 
@@ -370,6 +376,7 @@ export const Monitor: React.FC = () => {
   const [data, setData] = React.useState<MonitorResponse | null>(null);
   const [groupDirectory, setGroupDirectory] = React.useState<MonitorGroupDirectoryItem[]>([]);
   const [syncedGroupCount, setSyncedGroupCount] = React.useState(0);
+  const [hiddenGroupCount, setHiddenGroupCount] = React.useState(0);
   const [selectedSessionLabel, setSelectedSessionLabel] = React.useState<string | null>(() => {
     try {
       return window.localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
@@ -452,6 +459,7 @@ export const Monitor: React.FC = () => {
       const groups = Array.isArray(response.data) ? response.data as MonitorGroupDirectoryItem[] : [];
       setGroupDirectory(groups);
       setSyncedGroupCount(groups.length);
+      setHiddenGroupCount(groups.filter((group) => String(group.visibilityStatus || 'visible') !== 'visible').length);
       setData((current) => {
         if (!current) {
           return current;
@@ -839,6 +847,12 @@ export const Monitor: React.FC = () => {
                 : 'bg-[#32161a] text-[#ffd5d8]',
             )}>
               {error}
+            </div>
+          ) : null}
+
+          {hiddenGroupCount > 0 ? (
+            <div className="mx-3 mt-3 rounded-lg border border-[#1f4b3d] bg-[#0f2b23] px-3 py-2 text-xs text-[#d8fdd2]">
+              Monitor is showing business groups only. {hiddenGroupCount} personal or low-confidence groups are hidden to keep the broker workspace clean. Nothing is deleted from WhatsApp.
             </div>
           ) : null}
 

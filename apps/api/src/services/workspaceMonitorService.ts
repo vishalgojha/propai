@@ -32,6 +32,9 @@ type GroupRow = {
     member_count?: number | null;
     broadcast_enabled?: boolean | null;
     is_parsing?: boolean | null;
+    classification?: string | null;
+    visibility_status?: string | null;
+    business_confidence?: number | null;
     last_active_at?: string | null;
     session_label?: string | null;
 };
@@ -183,7 +186,7 @@ export class WorkspaceMonitorService {
             (() => {
                 let query = db
                     .from('whatsapp_groups')
-                    .select('group_jid, group_name, locality, city, category, tags, member_count, broadcast_enabled, is_parsing, last_active_at, session_label')
+                    .select('group_jid, group_name, locality, city, category, tags, member_count, broadcast_enabled, is_parsing, classification, visibility_status, business_confidence, last_active_at, session_label')
                     .eq('tenant_id', workspaceOwnerId)
                     .eq('is_archived', false);
 
@@ -204,7 +207,7 @@ export class WorkspaceMonitorService {
                 throw groupsResult.error;
             }
         } else {
-            groupsData = (groupsResult.data || []) as GroupRow[];
+            groupsData = ((groupsResult.data || []) as GroupRow[]).filter((group) => String(group.visibility_status || 'visible') === 'visible');
         }
 
         return {
