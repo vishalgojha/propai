@@ -1189,57 +1189,56 @@ export const Agent: React.FC = () => {
           )}
         </div>
 
-	        <div className="border-t border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-4 sm:px-6">
-	          <div className="space-y-3">
-	            <div className="relative">
-		              <input
-		                ref={fileInputRef}
-		                type="file"
-		                accept=".txt,.csv,.md,.json,.pdf,text/plain,text/csv,application/json,application/pdf"
-		                className="hidden"
-		                onChange={(e) => {
-		                  const file = e.target.files?.[0] || null;
-		                  if (file) {
-	                    void handleAttachFile(file);
-	                  }
-	                  e.currentTarget.value = '';
-	                }}
-	              />
-	              <textarea
-	                ref={inputRef}
-	                value={input}
-	                onChange={(e) => handleInputChange(e.target.value)}
+ 	        <div className="border-t border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-4 sm:px-6">
+ 	          <div className="space-y-3">
+ 	            <div className="flex items-end gap-2">
+ 		              <input
+ 		                ref={fileInputRef}
+ 		                type="file"
+ 		                accept=".txt,.csv,.md,.json,.pdf,text/plain,text/csv,application/json,application/pdf"
+ 		                className="hidden"
+ 		                onChange={(e) => {
+ 		                  const file = e.target.files?.[0] || null;
+ 		                  if (file) {
+ 	                    void handleAttachFile(file);
+ 	                  }
+ 	                  e.currentTarget.value = '';
+ 	                }}
+ 	              />
+ 	              <button
+ 	                type="button"
+ 	                onClick={() => fileInputRef.current?.click()}
+ 	                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[#020f07]"
+ 	                aria-label="Attach file"
+ 	              >
+ 	                <PaperclipIcon className="h-4 w-4" />
+ 	              </button>
+ 	              <textarea
+ 	                ref={inputRef}
+ 	                value={input}
+ 	                onChange={(e) => handleInputChange(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     handleSend();
                   }
                 }}
-	                placeholder="Ask Pulse anything..."
-	                rows={1}
-	                className="w-full resize-none border-b border-[color:var(--border-strong)] bg-transparent py-2 pr-20 text-[13px] font-normal text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-muted)] focus:border-[color:var(--accent)]"
-	              />
+ 	                placeholder="Ask Pulse anything..."
+ 	                rows={1}
+ 	                className="min-h-[36px] flex-1 resize-none border-b border-[color:var(--border-strong)] bg-transparent py-2 text-[13px] font-normal text-[var(--text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--text-muted)] focus:border-[color:var(--accent)]"
+ 	              />
 
-	              <button
-	                type="button"
-	                onClick={() => fileInputRef.current?.click()}
-	                className="absolute right-10 top-2 flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
-	                aria-label="Attach file"
-	              >
-	                <PaperclipIcon className="h-3.5 w-3.5" />
-	              </button>
-
-	              <button
-	                onClick={() => handleSend()}
-	                className={cn(
-	                  'absolute right-0 top-2 flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07] transition-all duration-150',
-	                  input.trim() ? 'scale-100 opacity-100' : 'pointer-events-none scale-90 opacity-0',
-	                )}
-	                aria-label="Send"
-	              >
-	                <ArrowUpIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
-	              </button>
-	            </div>
+ 	              <button
+ 	                onClick={() => handleSend()}
+ 	                className={cn(
+ 	                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07] transition-all duration-150',
+ 	                  (input.trim() || attachedFiles.length > 0) ? 'scale-100 opacity-100' : 'pointer-events-none scale-90 opacity-0',
+ 	                )}
+ 	                aria-label="Send"
+ 	              >
+ 	                <ArrowUpIcon className="h-4 w-4" strokeWidth={2.5} />
+ 	              </button>
+ 	            </div>
 
 		            {attachmentNote ? (
 		              <div className="text-[11px] text-[var(--text-secondary)]">{attachmentNote}</div>
