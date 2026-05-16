@@ -5,6 +5,7 @@ WORKDIR /app
 # Copy workspace configuration first for dependency resolution.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/www/package.json ./apps/www/
+COPY packages/propai-theme/package.json ./packages/propai-theme/
 
 # Install only the public-site workspace and its dependencies.
 RUN corepack enable && \
@@ -21,6 +22,7 @@ COPY apps/www/postcss.config.js ./apps/www/
 COPY apps/www/public ./apps/www/public
 COPY apps/www/tailwind.config.ts ./apps/www/
 COPY apps/www/tsconfig.json ./apps/www/
+COPY packages/propai-theme ./packages/propai-theme
 
 WORKDIR /app/apps/www
 RUN pnpm run build
