@@ -91,6 +91,8 @@ export const ROUTE_PATHS = {
     updateSubscription: '/workspaces/:tenantId/subscription',
     workspaceGroups: '/workspaces/:tenantId/groups',
     updateWorkspaceGroup: '/workspaces/:tenantId/groups/:groupJid',
+    backfillListings: '/backfill/listings',
+    backfillPublicListings: '/backfill/public-listings',
   },
   workspace: {
     overview: '/overview',
