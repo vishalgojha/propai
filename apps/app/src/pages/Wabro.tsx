@@ -670,9 +670,8 @@ export const WabroCampaigns: React.FC = () => {
       onRetry={reload}
       actions={
         <a
-          href="https://wabro.propai.live/WaBro.apk"
-          target="_blank"
-          rel="noreferrer"
+          href="/wabro.apk"
+          download
           className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-opacity hover:opacity-90"
         >
           <SmartphoneIcon className="h-3.5 w-3.5" />
@@ -885,9 +884,8 @@ export const WabroSetup: React.FC = () => {
       error={null}
       actions={
         <a
-          href="https://wabro.propai.live/WaBro.apk"
-          target="_blank"
-          rel="noreferrer"
+          href="/wabro.apk"
+          download
           className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-opacity hover:opacity-90"
         >
           <SmartphoneIcon className="h-3.5 w-3.5" />
