@@ -52,7 +52,7 @@ COPY --from=builder /app/apps/app/server.js ./server.js
 COPY --from=builder /app/apps/app/package.json ./package.json
 COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
 RUN corepack enable && \
-    NODE_ENV=production pnpm install --ignore-scripts --no-frozen-lockfile && \
+    NODE_ENV=production pnpm install --ignore-scripts --no-frozen-lockfile --config.minimumReleaseAge=0 && \
     echo "pnpm install completed"
 
 EXPOSE 3002
