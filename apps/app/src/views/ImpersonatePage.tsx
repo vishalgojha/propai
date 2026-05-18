@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import backendApi from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { useAuth } from '../context/AuthContext';
+import { splitFullName } from '../lib/names';
 
 /**
  * Landing page for /impersonate?token=imp_xxx
@@ -29,12 +30,15 @@ export const ImpersonatePage: React.FC = () => {
         const res = await backendApi.get(ENDPOINTS.admin.resolveImpersonation(token));
         const data = res.data;
         if (!data.success) throw new Error('Token resolution failed');
+        const names = splitFullName(data.partnerFullName || '');
 
         // Store impersonation session in the auth context using the token directly as bearer
         login(data.partnerEmail, {
           token: token,
           email: data.partnerEmail,
-          fullName: data.partnerFullName || '',
+          first_name: names.firstName || null,
+          last_name: names.lastName || null,
+          full_name: data.partnerFullName || '',
           appRole: data.partnerRole,
           isImpersonation: true,
           impersonatedBy: data.adminEmail,
