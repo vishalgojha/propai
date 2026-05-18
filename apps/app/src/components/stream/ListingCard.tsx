@@ -210,10 +210,15 @@ export const ListingCard: React.FC<ListingCardProps> = ({
     const chips = buildChips(listing);
     const visibleRaw = sanitizeVisibleText(listing.rawText || listing.description || '');
     const excerpt = visibleRaw.length > 180 ? `${visibleRaw.slice(0, 177)}...` : visibleRaw;
-    const sourceLabel = networkMode && listing.isNetworkItem ? 'Network feed' : 'WhatsApp stream';
+    const sourceLabel = networkMode && listing.isNetworkItem ? 'Shared network feed' : 'Private workspace feed';
 
     return (
-        <div className={cn('rounded-[16px] border transition-colors', isExpanded ? 'border-[rgba(62,232,138,0.28)] bg-[#18211c]' : 'border-white/[0.07] bg-[#131a16]')}>
+        <div className={cn(
+            'rounded-[16px] border transition-colors',
+            isExpanded
+                ? 'border-[color:var(--accent-border)] bg-[var(--bg-surface)]'
+                : 'border-[color:var(--border)] bg-[var(--bg-surface)]'
+        )}>
             <button type="button" onClick={onToggle} className="w-full p-4 text-left">
                 <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -221,32 +226,32 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                             <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]', getTypeBadgeClass(listing.type))}>
                                 {listing.type}
                             </span>
-                            <span className="inline-flex items-center gap-1 text-[11px] text-neutral-500">
+                            <span className="inline-flex items-center gap-1 text-[11px] text-[var(--text-secondary)]">
                                 <Clock className="h-3 w-3" />
                                 {timeAgo}
                             </span>
                             {localClickCount > 0 ? (
-                                <span className="rounded-full border border-[rgba(62,232,138,0.28)] bg-[rgba(62,232,138,0.10)] px-2 py-0.5 text-[10px] font-medium text-[--propai-green]">
+                                <span className="rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-0.5 text-[10px] font-medium text-[var(--accent)]">
                                     {localClickCount} WA clicks
                                 </span>
                             ) : null}
-                            <span className="rounded-full bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] text-neutral-500">
+                            <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 font-mono text-[10px] text-[var(--text-secondary)]">
                                 {shortId}
                             </span>
                         </div>
 
                         <div className="mt-2 flex items-start gap-2">
-                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#5d7f6f]" />
+                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent)]" />
                             <div className="min-w-0">
-                                <div className="text-[17px] font-semibold leading-snug text-white">{displayTitle}</div>
-                                <div className="mt-1 text-[12px] text-neutral-400">{listing.location || 'Mumbai market'} · {sourceLabel}</div>
+                                <div className="text-[17px] font-semibold leading-snug text-[var(--text-primary)]">{displayTitle}</div>
+                                <div className="mt-1 text-[12px] text-[var(--text-secondary)]">{listing.location || 'Mumbai market'} · {sourceLabel}</div>
                             </div>
                         </div>
 
                         {chips.length > 0 ? (
                             <div className="mt-3 flex flex-wrap gap-2">
                                 {chips.map((chip) => (
-                                    <span key={chip} className="rounded-full border border-white/[0.07] bg-[#1b241f] px-2.5 py-1 text-[11px] text-neutral-300">
+                                    <span key={chip} className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)]">
                                         {chip}
                                     </span>
                                 ))}
@@ -254,15 +259,15 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                         ) : null}
 
                         {excerpt ? (
-                            <div className="mt-3 line-clamp-2 text-[12px] leading-5 text-neutral-500">
+                            <div className="mt-3 line-clamp-2 text-[12px] leading-5 text-[var(--text-secondary)]">
                                 {excerpt}
                             </div>
                         ) : null}
                     </div>
 
                     <div className="shrink-0 text-right">
-                        <div className="text-[20px] font-bold leading-none text-white">{priceLabel}</div>
-                        <div className="mt-2 text-[11px] text-neutral-500">{rateLabel || `${Math.round(listing.confidence)}% confidence`}</div>
+                        <div className="text-[20px] font-bold leading-none text-[var(--text-primary)]">{priceLabel}</div>
+                        <div className="mt-2 text-[11px] text-[var(--text-secondary)]">{rateLabel || `${Math.round(listing.confidence)}% confidence`}</div>
                         <div className="mt-4 flex items-center justify-end gap-2">
                             <button
                                 type="button"
@@ -273,7 +278,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                 <MessageSquare className="h-3.5 w-3.5" />
                                 {isOpening ? 'Opening...' : 'Contact on WhatsApp'}
                             </button>
-                            <button type="button" onClick={onToggle} className="rounded-xl border border-white/[0.08] p-2 text-neutral-400 hover:text-white">
+                            <button type="button" onClick={onToggle} className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] p-2 text-[var(--text-secondary)] hover:text-white">
                                 {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </button>
                         </div>
@@ -282,7 +287,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
             </button>
 
             {isExpanded ? (
-                <div className="border-t border-white/[0.07] px-4 pb-4 pt-3">
+                <div className="border-t border-[color:var(--border)] px-4 pb-4 pt-3">
                     <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_280px]">
                         <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -292,17 +297,17 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                     { label: 'Category', value: listing.propertyCategory ? toTitleCase(String(listing.propertyCategory)) : 'Not parsed' },
                                     { label: 'Source', value: sourceLabel },
                                 ].map((item) => (
-                                    <div key={item.label} className="rounded-xl border border-white/[0.06] bg-[#101612] p-3">
-                                        <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">{item.label}</div>
-                                        <div className="mt-1 text-[13px] text-white">{item.value}</div>
+                                    <div key={item.label} className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
+                                        <div className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">{item.label}</div>
+                                        <div className="mt-1 text-[13px] text-[var(--text-primary)]">{item.value}</div>
                                     </div>
                                 ))}
                             </div>
 
                             {visibleRaw ? (
                                 <div>
-                                    <div className="mb-1 text-[10px] uppercase tracking-[0.08em] text-neutral-500">Broker message</div>
-                                    <div className="rounded-xl border border-white/[0.06] bg-[#101612] p-3 text-[12px] leading-6 text-neutral-300">
+                                    <div className="mb-1 text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Source message</div>
+                                    <div className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3 text-[12px] leading-6 text-[var(--text-primary)]">
                                         {visibleRaw}
                                     </div>
                                 </div>
@@ -310,15 +315,15 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                         </div>
 
                         <div className="space-y-3">
-                            <div className="rounded-xl border border-white/[0.06] bg-[#101612] p-3">
+                            <div className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Post analytics</div>
-                                        <div className="mt-1 text-[18px] font-semibold text-white">{localClickCount}</div>
-                                        <div className="text-[11px] text-neutral-500">WhatsApp opens recorded</div>
+                                        <div className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Post analytics</div>
+                                        <div className="mt-1 text-[18px] font-semibold text-[var(--text-primary)]">{localClickCount}</div>
+                                        <div className="text-[11px] text-[var(--text-secondary)]">WhatsApp opens recorded</div>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                        <div className="h-[4px] w-14 overflow-hidden rounded-full bg-neutral-800">
+                                        <div className="h-[4px] w-14 overflow-hidden rounded-full bg-[var(--bg-base)]">
                                             <div className={cn('h-full rounded-full transition-all', confidenceColor)} style={{ width: `${Math.round(listing.confidence)}%` }} />
                                         </div>
                                         <span className={cn('text-[11px] font-medium', listing.confidence >= 70 ? 'text-[--propai-green]' : listing.confidence >= 40 ? 'text-amber-400' : 'text-red-400')}>
@@ -328,18 +333,18 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                 </div>
                             </div>
 
-                            <div className="rounded-xl border border-white/[0.06] bg-[#101612] p-3">
-                                <div className="mb-2 text-[10px] uppercase tracking-[0.08em] text-neutral-500">Recent click log</div>
+                            <div className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
+                                <div className="mb-2 text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Recent click log</div>
                                 <div className="max-h-28 space-y-1 overflow-y-auto">
                                     {clickLog === null ? (
-                                        <div className="text-[11px] text-neutral-600">Loading...</div>
+                                        <div className="text-[11px] text-[var(--text-secondary)]">Loading...</div>
                                     ) : clickLog.events.length === 0 ? (
-                                        <div className="text-[11px] text-neutral-600">No WhatsApp clicks yet</div>
+                                        <div className="text-[11px] text-[var(--text-secondary)]">No WhatsApp clicks yet</div>
                                     ) : (
                                         clickLog.events.map((ev, index) => (
-                                            <div key={`${ev.clicked_at}-${index}`} className="flex items-center justify-between gap-2 text-[11px] text-neutral-400">
+                                            <div key={`${ev.clicked_at}-${index}`} className="flex items-center justify-between gap-2 text-[11px] text-[var(--text-secondary)]">
                                                 <span>{new Date(ev.clicked_at).toLocaleString('en-IN')}</span>
-                                                <span className="rounded-full border border-white/[0.06] px-2 py-0.5 text-[10px] text-neutral-500">{ev.source}</span>
+                                                <span className="rounded-full border border-[color:var(--border)] px-2 py-0.5 text-[10px] text-[var(--text-secondary)]">{ev.source}</span>
                                             </div>
                                         ))
                                     )}
@@ -360,16 +365,16 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                     <button
                                         type="button"
                                         onClick={() => setShowChannelPicker((v) => !v)}
-                                        className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:text-white"
+                                        className="flex items-center gap-1.5 rounded-lg border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:text-white"
                                     >
                                         <Save className="h-3.5 w-3.5" />
                                         Save to Channel
                                     </button>
                                     {showChannelPicker ? (
-                                        <div className="absolute bottom-full left-0 z-50 mb-2 min-w-[200px] rounded-xl border border-neutral-700 bg-[#1a1a1a] p-2 shadow-2xl">
-                                            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Pick a channel</p>
+                                        <div className="absolute bottom-full left-0 z-50 mb-2 min-w-[200px] rounded-xl border border-[color:var(--border)] bg-[var(--bg-surface)] p-2 shadow-2xl">
+                                            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Pick a channel</p>
                                             {channels.length === 0 ? (
-                                                <p className="px-2 py-2 text-[11px] text-neutral-500">No channels yet. Create one from the sidebar.</p>
+                                                <p className="px-2 py-2 text-[11px] text-[var(--text-secondary)]">No channels yet. Create one from the sidebar.</p>
                                             ) : (
                                                 <div className="mt-1 max-h-48 space-y-1 overflow-y-auto">
                                                     {channels.map((channel) => (
@@ -382,7 +387,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                                                 onSaveToChannel?.(channel.id, listing.id);
                                                                 setShowChannelPicker(false);
                                                             }}
-                                                            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-neutral-300 hover:bg-neutral-800 hover:text-white disabled:opacity-50"
+                                                            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-white disabled:opacity-50"
                                                         >
                                                             <span className="truncate">{channel.name}</span>
                                                         </button>
@@ -401,7 +406,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                             window.setTimeout(() => setCopied(false), 1600);
                                         }).catch(() => {});
                                     }}
-                                    className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:text-white"
+                                    className="flex items-center gap-1.5 rounded-lg border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:text-white"
                                 >
                                     {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                                     {copied ? 'Copied' : 'Copy clean text'}
@@ -413,7 +418,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
             ) : null}
 
             {toast ? (
-                <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-xs text-white shadow-2xl">
+                <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-xs text-[var(--text-primary)] shadow-2xl">
                     {toast}
                 </div>
             ) : null}

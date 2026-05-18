@@ -650,6 +650,7 @@ if (brokerOnly) {
 
   const clearAllFilters = () => {
     setQuickTypes([]);
+    setQuickTimeBands([]);
     setQuickConfidenceBands([]);
     setQuickFreshnessBands([]);
     setFilterBhk('all');
@@ -697,21 +698,41 @@ if (brokerOnly) {
     [visibleStream, visibleCount],
   );
   const hasMore = visibleCount < visibleStream.length;
+  const summaryCards = React.useMemo(() => {
+    const total = activeChannel ? visibleStream.length : streamTotal || visibleStream.length;
+    const fresh = visibleStream.filter((item) => {
+      const createdAt = item.createdAt ? new Date(item.createdAt) : null;
+      const minutes = createdAt && !Number.isNaN(createdAt.getTime())
+        ? Math.max(0, Math.round((Date.now() - createdAt.getTime()) / 60000))
+        : parseRecencyMinutes(item.posted);
+      return minutes != null && minutes < 60;
+    }).length;
+    const requirements = visibleStream.filter((item) => item.type === 'Requirement').length;
+    const highConfidence = visibleStream.filter((item) => item.confidence >= 70).length;
+
+    return [
+      { label: activeChannel ? 'Routed items' : 'Visible items', value: total, hint: activeChannel ? formatChannelTitle(activeChannel.name) : 'Current workspace feed' },
+      { label: 'Fresh under 1 hour', value: fresh, hint: 'Highest-priority follow-up lane' },
+      { label: 'Buyer requirements', value: requirements, hint: 'Demand-side opportunities in view' },
+      { label: 'High confidence', value: highConfidence, hint: 'Strong parse quality and cleaner records' },
+    ];
+  }, [activeChannel, streamTotal, visibleStream]);
 
   return (
     <>
-      <div className="rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+      <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-3xl">
-            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Stream</p>
+            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Inventory workspace</p>
             <h2 className="mt-1 text-[20px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
-              Every property from your groups, scored in real time
+              Private feed for listings, requirements, and follow-up signals
             </h2>
             <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-              Pulse reads every message from your connected WhatsApp groups, extracts listings and requirements, scores them by signal quality and freshness, and routes the best ones to your personal channels.
+              This view is your internal working surface for parsed inventory and buyer demand. Review fresh items,
+              filter by quality and type, route the right records into channels, and act on high-signal entries first.
             </p>
             <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
-              Green dot = last hour. Amber = last 6hrs. Red = older. Act on green first.
+              Freshness: green under 1 hour, amber under 6 hours, red older. Handle green first.
             </p>
 
             {activeChannel ? (
@@ -741,7 +762,7 @@ if (brokerOnly) {
               Rebuild Stream
             </button>
             <div className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">
-              {activeChannel ? formatChannelTitle(activeChannel.name) : 'All stream'}
+              {activeChannel ? formatChannelTitle(activeChannel.name) : 'All inventory'}
             </div>
             <div className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
               {activeChannel ? visibleStream.length : streamTotal || visibleStream.length} items
@@ -750,17 +771,27 @@ if (brokerOnly) {
         </div>
       </div>
 
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {summaryCards.map((card) => (
+          <div key={card.label} className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">{card.label}</p>
+            <p className="mt-2 text-[24px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">{card.value}</p>
+            <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">{card.hint}</p>
+          </div>
+        ))}
+      </div>
+
       {infoMessage ? (
-        <div className="rounded-[10px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 text-[12px] text-[var(--text-primary)]">
+        <div className="rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 text-[12px] text-[var(--text-primary)]">
           {infoMessage}
         </div>
       ) : null}
 
-      <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-surface)]/50 px-4 py-3">
-        <div className="flex items-center gap-4 text-xs">
+      <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-3">
+        <div className="flex flex-wrap items-center gap-4 text-xs">
           <div className="flex items-center gap-2 text-neutral-400">
             <Activity className="h-3.5 w-3.5 text-[--propai-green]" />
-            <span className="font-medium text-white">WA clicks today</span>
+            <span className="font-medium text-white">WhatsApp opens today</span>
           </div>
           <span className="text-white font-bold">{waClickStats?.total_clicks ?? 0}</span>
           <span className="text-neutral-600">|</span>
@@ -776,7 +807,7 @@ if (brokerOnly) {
           <div className="flex-1" />
           <a
             href={getWaClickExportUrl()}
-            className="flex items-center gap-1 rounded-lg border border-neutral-700 px-2.5 py-1 text-[10px] text-neutral-400 hover:text-white"
+            className="flex items-center gap-1 rounded-lg border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] text-[var(--text-secondary)] hover:text-white"
           >
             <Download className="h-3 w-3" />
             Export CSV
@@ -791,8 +822,8 @@ if (brokerOnly) {
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder={activeChannel ? `Search ${activeChannel.name}...` : 'Search stream...'}
-            className="w-full rounded-xl border border-[color:var(--border-strong)] bg-black py-2 pl-12 pr-4 text-sm transition-all focus:border-primary focus:outline-none"
+            placeholder={activeChannel ? `Search ${activeChannel.name}...` : 'Search inventory and requirements...'}
+            className="w-full rounded-xl border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-2 pl-12 pr-4 text-sm text-[var(--text-primary)] transition-all focus:border-primary focus:outline-none"
           />
         </div>
 
@@ -818,7 +849,7 @@ if (brokerOnly) {
           </button>
           <div className="hidden h-6 w-px bg-[var(--bg-elevated)] md:block" />
           <p className="px-2 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
-            {activeChannel ? visibleStream.length : streamTotal || visibleStream.length} Stream Items
+            {activeChannel ? visibleStream.length : streamTotal || visibleStream.length} feed items
           </p>
         </div>
       </div>
@@ -1045,7 +1076,7 @@ if (brokerOnly) {
           {isLoading ? (
             <div className="flex items-center justify-center gap-3 px-5 py-12 text-sm text-[var(--text-secondary)]">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading live stream...
+              Loading inventory feed...
             </div>
           ) : error ? (
             <div className="px-5 py-12 text-center text-sm text-red-400">
@@ -1053,7 +1084,7 @@ if (brokerOnly) {
             </div>
           ) : renderedStream.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-[var(--text-secondary)]">
-              No live WhatsApp items have landed here yet.
+              No parsed inventory or buyer records are available yet.
             </div>
           ) : (
             renderedStream.map((listing) => {
@@ -1073,6 +1104,8 @@ if (brokerOnly) {
                     }
                   }}
                   waClickCount={waCount}
+                  channels={channels}
+                  onSaveToChannel={handleAttachStreamItemToChannel}
                 />
               );
             })
@@ -1084,7 +1117,7 @@ if (brokerOnly) {
             {isLoading ? (
               <div className="flex items-center justify-center gap-3 px-5 py-12 text-sm text-[var(--text-secondary)]">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading live stream...
+                Loading inventory feed...
               </div>
             ) : error ? (
               <div className="px-5 py-12 text-center text-sm text-red-400">
@@ -1092,7 +1125,7 @@ if (brokerOnly) {
               </div>
             ) : renderedStream.length === 0 ? (
               <div className="px-5 py-12 text-center text-sm text-[var(--text-secondary)]">
-                No live WhatsApp items have landed here yet.
+                No parsed inventory or buyer records are available yet.
               </div>
             ) : (
               renderedStream.map((listing) => {
@@ -1109,18 +1142,20 @@ if (brokerOnly) {
                       if (!isExpanded && editingListingId && editingListingId !== listing.id) {
                         setEditingListingId(null);
                         setCorrectionDraft(null);
-                      }
-                    }}
-                    waClickCount={waCount}
-                  />
-                );
-              })
+                    }
+                  }}
+                  waClickCount={waCount}
+                  channels={channels}
+                  onSaveToChannel={handleAttachStreamItemToChannel}
+                />
+              );
+            })
             )}
           </div>
         </div>
 
         <div ref={sentinelRef} className="px-6 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-          {hasMore ? `${renderedStream.length} of ${visibleStream.length} loaded. More items appear as you scroll.` : 'End of stream'}
+          {hasMore ? `${renderedStream.length} of ${visibleStream.length} loaded. More items appear as you scroll.` : 'End of feed'}
         </div>
     </div>
     </>
