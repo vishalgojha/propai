@@ -17,9 +17,6 @@ export default function PublicNav() {
           <Link href="/mcp" className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors">
             MCP
           </Link>
-          <a href="https://github.com/vishalgojha/wabro/releases/latest/download/wabro-release.apk" className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--accent)] hover:text-white transition-colors">
-            Download WaBro
-          </a>
           <Link href="/broker/signup" className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors">
             For brokers
           </Link>
