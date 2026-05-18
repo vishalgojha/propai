@@ -74,6 +74,8 @@ export const ROUTE_PATHS = {
     chat: '/chat',
     status: '/status',
     models: '/models',
+    usage: '/usage',
+    usageReset: '/usage/reset',
     keys: '/keys',
     keysTest: '/keys/test',
     propertySearch: '/property-search',

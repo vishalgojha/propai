@@ -6,8 +6,9 @@ import { clearConversationHistory, getConversationHistory } from '../memory/conv
 import { buildCapabilityHint, getBrokerProfile } from '../services/unifiedAgentService';
 import { searchProperties } from '../services/propertySearchService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
-import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
+import { getErrorMessage, getErrorStatus, requireSuperAdmin } from '../utils/controllerHelpers';
 import { conversationEngineService } from '../services/conversationEngineService';
+import { aiUsageService } from '../services/aiUsageService';
 import { toAgentResponse } from '../types/agent';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import '../types/express';
@@ -131,11 +132,42 @@ export const updateKey = async (req: Request, res: Response) => {
 
     try {
         const context = await workspaceAccessService.resolveContext(req.user);
+        const existingKey = await keyService.getKey(context.workspaceOwnerId, provider);
         const result = await keyService.saveKey(context.workspaceOwnerId, provider, key);
         if (!result.success) return res.status(500).json({ error: result.error });
-        res.json({ message: 'Key updated successfully' });
+        let usageReset: { deletedCount: number } | null = null;
+        if (String(existingKey || '').trim() !== String(key || '').trim()) {
+            usageReset = await aiUsageService.resetUsage(context.workspaceOwnerId);
+        }
+        res.json({ message: 'Key updated successfully', usageReset });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to update key') });
+    }
+};
+
+export const getUsageSummary = async (req: Request, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+        await requireSuperAdmin(req);
+        const context = await workspaceAccessService.resolveContext(req.user);
+        const summary = await aiUsageService.getUsageSummary(context.workspaceOwnerId);
+        res.json(summary);
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load AI usage summary') });
+    }
+};
+
+export const resetUsage = async (req: Request, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+        await requireSuperAdmin(req);
+        const context = await workspaceAccessService.resolveContext(req.user);
+        const result = await aiUsageService.resetUsage(context.workspaceOwnerId);
+        res.json({ success: true, ...result });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to reset AI usage') });
     }
 };
 

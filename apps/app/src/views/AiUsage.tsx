@@ -2,56 +2,42 @@ import React from 'react';
 import backendApi from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { useAuth } from '../context/AuthContext';
+import { handleApiError } from '../utils/handleApiError';
 
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'vishal@chaoscraftlabs.com',
   'vishal@chaoscraftslabs.com',
 ]);
 
-const AI_MODEL_PRICING = {
-  'gemini-2.5-flash': {
-    label: 'Gemini 2.5 Flash',
-    provider: 'Google',
-    inputRate: 0.3,
-    outputRate: 2.5,
-    note: 'Based on paid-tier text pricing per 1M tokens.',
-  },
-  groq: {
-    label: 'Groq',
-    provider: 'Groq',
-    inputRate: 0.05,
-    outputRate: 0.08,
-    note: 'Uses the low-latency 8B Groq baseline as the default estimate.',
-  },
-  openrouter: {
-    label: 'GPT-4o Mini',
-    provider: 'OpenRouter',
-    inputRate: 0.15,
-    outputRate: 0.6,
-    note: 'Uses the OpenRouter GPT-4o Mini rate card by default.',
-  },
-  doubleword: {
-    label: 'Qwen3.6 35B',
-    provider: 'Doubleword',
-    inputRate: 0.1,
-    outputRate: 0.4,
-    note: 'Uses the current Doubleword realtime Qwen3.6 35B estimate.',
-  },
-} as const;
+type UsageBucket = {
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+};
 
-const DEFAULT_AI_MODEL_KEY = 'gemini-2.5-flash';
+type UsageBreakdown = UsageBucket & {
+  provider: string;
+};
 
-function normalizeAiModelKey(value?: string | null) {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (!normalized) return DEFAULT_AI_MODEL_KEY;
-  if (normalized === 'gemini' || normalized === 'google' || normalized === 'models/gemini-2.5-flash') {
-    return DEFAULT_AI_MODEL_KEY;
-  }
-  if (normalized in AI_MODEL_PRICING) {
-    return normalized as keyof typeof AI_MODEL_PRICING;
-  }
-  return DEFAULT_AI_MODEL_KEY;
-}
+type ModelBreakdown = UsageBucket & {
+  provider: string;
+  model: string;
+};
+
+type DailyUsage = UsageBucket & {
+  date: string;
+};
+
+type UsageSummary = {
+  totals: UsageBucket;
+  last30Days: UsageBucket;
+  byProvider: UsageBreakdown[];
+  byModel: ModelBreakdown[];
+  daily: DailyUsage[];
+  latestRequestAt: string | null;
+};
 
 function formatUsd(value: number) {
   return new Intl.NumberFormat('en-US', {
@@ -69,55 +55,80 @@ function formatCompactNumber(value: number) {
   }).format(value);
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) return 'No usage recorded yet';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'No usage recorded yet';
+  return parsed.toLocaleString();
+}
+
+const EMPTY_SUMMARY: UsageSummary = {
+  totals: {
+    requests: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    estimatedCostUsd: 0,
+  },
+  last30Days: {
+    requests: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    estimatedCostUsd: 0,
+  },
+  byProvider: [],
+  byModel: [],
+  daily: [],
+  latestRequestAt: null,
+};
+
 export const AiUsage: React.FC = () => {
   const { user } = useAuth();
-  const [usageModelKey, setUsageModelKey] = React.useState<keyof typeof AI_MODEL_PRICING>(DEFAULT_AI_MODEL_KEY);
-  const [usageCalculator, setUsageCalculator] = React.useState({
-    inputTokens: '1500',
-    outputTokens: '600',
-    requestsPerDay: '40',
-    inputRate: String(AI_MODEL_PRICING[DEFAULT_AI_MODEL_KEY].inputRate),
-    outputRate: String(AI_MODEL_PRICING[DEFAULT_AI_MODEL_KEY].outputRate),
-  });
+  const [summary, setSummary] = React.useState<UsageSummary>(EMPTY_SUMMARY);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isResetting, setIsResetting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [info, setInfo] = React.useState<string | null>(null);
 
   const isSuperAdmin =
     user?.appRole === 'super_admin' ||
     OWNER_SUPER_ADMIN_EMAILS.has(String(user?.email || '').trim().toLowerCase());
 
+  const loadUsage = React.useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await backendApi.get<UsageSummary>(ENDPOINTS.ai.usage);
+      setSummary(response.data || EMPTY_SUMMARY);
+    } catch (err) {
+      setSummary(EMPTY_SUMMARY);
+      setError(handleApiError(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     if (!isSuperAdmin) return;
-    let cancelled = false;
+    void loadUsage();
+  }, [isSuperAdmin, loadUsage]);
 
-    const loadUsageModel = async () => {
-      try {
-        const response = await backendApi.get(ENDPOINTS.settings.get);
-        if (cancelled) return;
-        const nextKey = normalizeAiModelKey(response.data?.settings?.defaultModel);
-        const nextPricing = AI_MODEL_PRICING[nextKey];
-        setUsageModelKey(nextKey);
-        setUsageCalculator((current) => ({
-          ...current,
-          inputRate: String(nextPricing.inputRate),
-          outputRate: String(nextPricing.outputRate),
-        }));
-      } catch {
-        if (cancelled) return;
-        const fallbackPricing = AI_MODEL_PRICING[DEFAULT_AI_MODEL_KEY];
-        setUsageModelKey(DEFAULT_AI_MODEL_KEY);
-        setUsageCalculator((current) => ({
-          ...current,
-          inputRate: String(fallbackPricing.inputRate),
-          outputRate: String(fallbackPricing.outputRate),
-        }));
-      }
-    };
-
-    void loadUsageModel();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isSuperAdmin]);
+  const handleReset = async () => {
+    setIsResetting(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const response = await backendApi.post<{ deletedCount?: number }>(ENDPOINTS.ai.usageReset);
+      const deletedCount = Number(response.data?.deletedCount || 0);
+      setInfo(`Usage counters reset. Cleared ${deletedCount} usage rows.`);
+      await loadUsage();
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   if (!isSuperAdmin) {
     return (
@@ -128,111 +139,125 @@ export const AiUsage: React.FC = () => {
     );
   }
 
-  const usagePricing = AI_MODEL_PRICING[usageModelKey];
-  const inputTokens = Math.max(0, Number(usageCalculator.inputTokens) || 0);
-  const outputTokens = Math.max(0, Number(usageCalculator.outputTokens) || 0);
-  const requestsPerDay = Math.max(0, Number(usageCalculator.requestsPerDay) || 0);
-  const inputRate = Math.max(0, Number(usageCalculator.inputRate) || 0);
-  const outputRate = Math.max(0, Number(usageCalculator.outputRate) || 0);
-  const usageCostPerRequest = ((inputTokens / 1_000_000) * inputRate) + ((outputTokens / 1_000_000) * outputRate);
-  const usageDailyCost = usageCostPerRequest * requestsPerDay;
-  const usageMonthlyCost = usageDailyCost * 30;
-  const usageMonthlyInputTokens = inputTokens * requestsPerDay * 30;
-  const usageMonthlyOutputTokens = outputTokens * requestsPerDay * 30;
-
   return (
     <div className="space-y-6">
       <div className="rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">Admin only</p>
-            <h1 className="mt-2 text-[26px] font-semibold text-[var(--text-primary)]">AI usage calculator</h1>
+            <h1 className="mt-2 text-[26px] font-semibold text-[var(--text-primary)]">AI usage</h1>
             <p className="mt-2 max-w-2xl text-[14px] leading-6 text-[var(--text-secondary)]">
-              Estimate request, daily, and monthly AI spend using the current workspace default model as the starting rate card.
+              Real token usage is now pulled from recorded `ai_usage` rows. Totals reset automatically when API keys change, and you can also flush them manually here.
             </p>
           </div>
-          <div className="rounded-[16px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--accent)]">{usagePricing.provider}</p>
-            <p className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">{usagePricing.label}</p>
-            <p className="text-[12px] text-[var(--text-secondary)]">Loaded from workspace settings</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">Latest request</p>
+              <p className="mt-1 text-[14px] font-semibold text-[var(--text-primary)]">{formatDateTime(summary.latestRequestAt)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleReset()}
+              disabled={isResetting || isLoading}
+              className="rounded-[14px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 text-[13px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[#04110a] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isResetting ? 'Resetting…' : 'Reset usage'}
+            </button>
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-          <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-            <div className="grid gap-4 md:grid-cols-3">
-              <label className="block">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">In tokens</span>
-                <input
-                  value={usageCalculator.inputTokens}
-                  onChange={(event) => setUsageCalculator((current) => ({ ...current, inputTokens: event.target.value }))}
-                  inputMode="numeric"
-                  className="mt-2 w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-3 text-[14px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                />
-              </label>
-              <label className="block">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Out tokens</span>
-                <input
-                  value={usageCalculator.outputTokens}
-                  onChange={(event) => setUsageCalculator((current) => ({ ...current, outputTokens: event.target.value }))}
-                  inputMode="numeric"
-                  className="mt-2 w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-3 text-[14px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                />
-              </label>
-              <label className="block">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Req/day</span>
-                <input
-                  value={usageCalculator.requestsPerDay}
-                  onChange={(event) => setUsageCalculator((current) => ({ ...current, requestsPerDay: event.target.value }))}
-                  inputMode="numeric"
-                  className="mt-2 w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-3 text-[14px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                />
-              </label>
-            </div>
+        {error ? (
+          <div className="mt-4 rounded-[16px] border border-[rgba(255,120,120,0.25)] bg-[rgba(120,18,18,0.14)] px-4 py-3 text-[13px] text-[#ffb4b4]">
+            {error}
+          </div>
+        ) : null}
 
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">$ / 1M in</span>
-                <input
-                  value={usageCalculator.inputRate}
-                  onChange={(event) => setUsageCalculator((current) => ({ ...current, inputRate: event.target.value }))}
-                  inputMode="decimal"
-                  className="mt-2 w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-3 text-[14px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                />
-              </label>
-              <label className="block">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">$ / 1M out</span>
-                <input
-                  value={usageCalculator.outputRate}
-                  onChange={(event) => setUsageCalculator((current) => ({ ...current, outputRate: event.target.value }))}
-                  inputMode="decimal"
-                  className="mt-2 w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-3 text-[14px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                />
-              </label>
+        {info ? (
+          <div className="mt-4 rounded-[16px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 text-[13px] text-[var(--accent)]">
+            {info}
+          </div>
+        ) : null}
+
+        <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="All requests" value={isLoading ? '…' : formatCompactNumber(summary.totals.requests)} />
+          <MetricCard label="30 day cost" value={isLoading ? '…' : formatUsd(summary.last30Days.estimatedCostUsd)} />
+          <MetricCard label="30 day input" value={isLoading ? '…' : formatCompactNumber(summary.last30Days.inputTokens)} />
+          <MetricCard label="30 day output" value={isLoading ? '…' : formatCompactNumber(summary.last30Days.outputTokens)} />
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+          <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Provider breakdown</p>
+            <div className="mt-4 space-y-3">
+              {summary.byProvider.length === 0 ? (
+                <p className="text-[13px] text-[var(--text-secondary)]">No usage has been recorded yet.</p>
+              ) : (
+                summary.byProvider.map((provider) => (
+                  <div key={provider.provider} className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[13px] font-semibold text-[var(--text-primary)]">{provider.provider}</p>
+                        <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
+                          {formatCompactNumber(provider.requests)} req • {formatCompactNumber(provider.totalTokens)} total tokens
+                        </p>
+                      </div>
+                      <p className="text-[14px] font-semibold text-[var(--text-primary)]">{formatUsd(provider.estimatedCostUsd)}</p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
-          <div className="grid gap-3">
-            <MetricCard label="Per req" value={formatUsd(usageCostPerRequest)} />
-            <MetricCard label="Daily" value={formatUsd(usageDailyCost)} />
-            <MetricCard label="30 days" value={formatUsd(usageMonthlyCost)} />
+          <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Top models</p>
+            <div className="mt-4 space-y-3">
+              {summary.byModel.length === 0 ? (
+                <p className="text-[13px] text-[var(--text-secondary)]">No model usage recorded yet.</p>
+              ) : (
+                summary.byModel.slice(0, 6).map((model) => (
+                  <div key={`${model.provider}-${model.model}`} className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[13px] font-semibold text-[var(--text-primary)]">{model.model}</p>
+                        <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{model.provider}</p>
+                      </div>
+                      <p className="text-[13px] font-semibold text-[var(--text-primary)]">{formatUsd(model.estimatedCostUsd)}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Monthly volume</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Lifetime since last reset</p>
             <p className="mt-2 text-[18px] font-semibold text-[var(--text-primary)]">
-              {formatCompactNumber(usageMonthlyInputTokens)} input + {formatCompactNumber(usageMonthlyOutputTokens)} output
+              {formatCompactNumber(summary.totals.inputTokens)} input + {formatCompactNumber(summary.totals.outputTokens)} output
             </p>
-            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{usagePricing.note}</p>
+            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+              Total estimated spend from recorded token usage: {formatUsd(summary.totals.estimatedCostUsd)}.
+            </p>
           </div>
 
           <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Why separate page</p>
-            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-              This keeps the sidebar compact for everyday use while preserving the full calculator for admin review when you actually need it.
-            </p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Last 7 days</p>
+            <div className="mt-3 space-y-2">
+              {summary.daily.length === 0 ? (
+                <p className="text-[13px] text-[var(--text-secondary)]">No recent activity.</p>
+              ) : (
+                summary.daily.map((day) => (
+                  <div key={day.date} className="flex items-center justify-between text-[13px]">
+                    <span className="text-[var(--text-secondary)]">{day.date}</span>
+                    <span className="font-medium text-[var(--text-primary)]">
+                      {formatCompactNumber(day.requests)} req • {formatUsd(day.estimatedCostUsd)}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { streamAPI } from '../apis';
-import type { StreamItem } from '../apis';
+import { channelService } from '../services/channelService';
+import { workspaceAccessService } from '../services/workspaceAccessService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { subscriptionService } from '../services/subscriptionService';
 
@@ -12,24 +13,21 @@ router.use(authMiddleware);
 // Get stream items with filters
 router.get('/', async (req, res) => {
   try {
-    const tenantId = (req as any).user?.id;
-    if (!tenantId) return res.status(401).json({ error: 'Unauthorized' });
+    const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
+    const tenantId = context.workspaceOwnerId;
+    const authHeader = String(req.headers.authorization || '');
+    const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : null;
+    const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
 
-    const filters = {
-      type: req.query.type ? String(req.query.type).split(',') : undefined,
-      category: req.query.category as 'residential' | 'commercial' | undefined,
-      locality: req.query.locality as string | undefined,
-      minConfidence: req.query.minConfidence ? Number(req.query.minConfidence) : undefined,
-      source: req.query.source as string | undefined,
-      channelId: req.query.channelId as string | undefined,
-      isRead: req.query.isRead ? req.query.isRead === 'true' : undefined,
-      search: req.query.search as string | undefined,
-    };
-
-    const subscription = await subscriptionService.getSubscription(tenantId, (req as any).user?.email);
+    const subscription = await subscriptionService.getSubscription(tenantId, context.currentUserEmail);
     const networkMode = ['Layer2', 'Team'].includes(String(subscription.plan));
-    const result = await streamAPI.getStreamItems(tenantId, networkMode, filters);
-    res.json(result);
+    const items = await channelService.listStreamItems(tenantId, accessToken, channelId, sessionLabel, networkMode);
+    res.json({
+      items,
+      network_mode: networkMode,
+      total: items.length,
+    });
   } catch (error: unknown) {
     res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load stream items') });
   }
@@ -38,9 +36,8 @@ router.get('/', async (req, res) => {
 // Get stream stats
 router.get('/stats', async (req, res) => {
   try {
-    const tenantId = (req as any).user?.id;
-    if (!tenantId) return res.status(401).json({ error: 'Unauthorized' });
-
+    const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
+    const tenantId = context.workspaceOwnerId;
     const stats = await streamAPI.getStats(tenantId);
     res.json(stats);
   } catch (error: unknown) {
@@ -51,9 +48,8 @@ router.get('/stats', async (req, res) => {
 // Mark stream item as read
 router.post('/:id/read', async (req, res) => {
   try {
-    const tenantId = (req as any).user?.id;
-    if (!tenantId) return res.status(401).json({ error: 'Unauthorized' });
-
+    const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
+    const tenantId = context.workspaceOwnerId;
     const itemId = req.params.id;
     await streamAPI.markAsRead(tenantId, itemId);
     res.json({ success: true });
@@ -65,9 +61,8 @@ router.post('/:id/read', async (req, res) => {
 // Correct stream item
 router.post('/:id/correct', async (req, res) => {
   try {
-    const tenantId = (req as any).user?.id;
-    if (!tenantId) return res.status(401).json({ error: 'Unauthorized' });
-
+    const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
+    const tenantId = context.workspaceOwnerId;
     const itemId = req.params.id;
     const updates = req.body;
     await streamAPI.correctItem(tenantId, itemId, updates);

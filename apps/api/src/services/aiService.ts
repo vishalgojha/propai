@@ -1,11 +1,19 @@
 import axios from 'axios';
 import { keyService, parseApiKeys } from './keyService';
+import { aiUsageService } from './aiUsageService';
 import { getWorkspaceDefaultModel, getWorkspaceExplicitDefaultModel } from './workspaceSettingsService';
 
 interface AIResponse {
     text: string;
     model: string;
     latency: number;
+    provider?: ProviderId;
+    modelId?: string;
+    usage?: {
+        promptTokens: number;
+        completionTokens: number;
+        totalTokens: number;
+    };
 }
 
 type ChatMessage = {
@@ -28,6 +36,32 @@ type OpenAICompatibleConfig = {
         type: 'json_object';
     };
 };
+
+function normalizeTokenCount(value: unknown) {
+    return Math.max(0, Math.round(Number(value) || 0));
+}
+
+function extractOpenAIUsage(payload: any) {
+    const promptTokens = normalizeTokenCount(payload?.usage?.prompt_tokens);
+    const completionTokens = normalizeTokenCount(payload?.usage?.completion_tokens);
+    const totalTokens = normalizeTokenCount(payload?.usage?.total_tokens || (promptTokens + completionTokens));
+    return {
+        promptTokens,
+        completionTokens,
+        totalTokens,
+    };
+}
+
+function extractGeminiUsage(payload: any) {
+    const promptTokens = normalizeTokenCount(payload?.usageMetadata?.promptTokenCount);
+    const completionTokens = normalizeTokenCount(payload?.usageMetadata?.candidatesTokenCount);
+    const totalTokens = normalizeTokenCount(payload?.usageMetadata?.totalTokenCount || (promptTokens + completionTokens));
+    return {
+        promptTokens,
+        completionTokens,
+        totalTokens,
+    };
+}
 
 export class AIService {
     private googleModel = process.env.GOOGLE_MODEL || 'gemini-2.5-flash';
@@ -54,6 +88,23 @@ export class AIService {
         for (const provider of providers) {
             try {
                 const response = await this.callModel(prompt, provider, tenantId, systemPrompt, conversationHistory);
+                if (tenantId && response.usage) {
+                    void aiUsageService.recordUsage({
+                        tenantId,
+                        provider: response.provider || provider,
+                        model: response.modelId || response.model,
+                        promptTokens: response.usage.promptTokens,
+                        completionTokens: response.usage.completionTokens,
+                        totalTokens: response.usage.totalTokens,
+                        estimatedCostUsd: aiUsageService.estimateCost(
+                            response.provider || provider,
+                            response.usage.promptTokens,
+                            response.usage.completionTokens,
+                        ),
+                    }).catch((usageError) => {
+                        console.error('[AIService] Failed to record AI usage', usageError);
+                    });
+                }
                 return {
                     ...response,
                     latency: Date.now() - start
@@ -261,7 +312,10 @@ export class AIService {
         return { 
             text: res.data.choices[0].message.content, 
             model: `Groq ${this.groqModel}`, 
-            latency: 0 
+            latency: 0,
+            provider: 'Groq',
+            modelId: this.groqModel,
+            usage: extractOpenAIUsage(res.data),
         };
     }
 
@@ -288,7 +342,10 @@ export class AIService {
         return { 
             text: res.data.candidates[0].content.parts[0].text, 
             model: 'Gemini 2.5 Flash', 
-            latency: 0 
+            latency: 0,
+            provider: 'Google',
+            modelId: this.googleModel,
+            usage: extractGeminiUsage(res.data),
         };
     }
 
@@ -311,7 +368,10 @@ export class AIService {
         return { 
             text: res.data.choices?.[0]?.message?.content || res.data.message?.content || res.data.response, 
             model: `OpenRouter ${this.openRouterModel}`, 
-            latency: 0 
+            latency: 0,
+            provider: 'OpenRouter',
+            modelId: this.openRouterModel,
+            usage: extractOpenAIUsage(res.data),
         };
     }
 
@@ -327,7 +387,10 @@ export class AIService {
         return { 
             text: res.data.choices[0].message.content, 
             model: `Doubleword ${this.doublewordModel}`, 
-            latency: 0 
+            latency: 0,
+            provider: 'Doubleword',
+            modelId: this.doublewordModel,
+            usage: extractOpenAIUsage(res.data),
         };
     }
 

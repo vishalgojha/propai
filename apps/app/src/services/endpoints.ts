@@ -11,6 +11,8 @@ export const ENDPOINTS = {
     chat: '/ai/chat',
     models: '/ai/models',
     status: '/ai/status',
+    usage: '/ai/usage',
+    usageReset: '/ai/usage/reset',
     history: '/ai/history',
     sessions: '/ai/sessions',
     sessionById: (id: string) => `/ai/sessions/${encodeURIComponent(id)}`,

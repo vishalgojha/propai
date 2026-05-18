@@ -4,6 +4,8 @@ import {
     getHistory,
     getAIStatus,
     getModels,
+    getUsageSummary,
+    resetUsage,
     updateKey,
     testKey,
     propertySearch,
@@ -21,6 +23,8 @@ router.post(ROUTE_PATHS.ai.chat, chat);
 router.get(ROUTE_PATHS.ai.history, getHistory);
 router.get(ROUTE_PATHS.ai.status, getAIStatus);
 router.get(ROUTE_PATHS.ai.models, getModels);
+router.get(ROUTE_PATHS.ai.usage, getUsageSummary);
+router.post(ROUTE_PATHS.ai.usageReset, resetUsage);
 router.post(ROUTE_PATHS.ai.keys, updateKey);
 router.post(ROUTE_PATHS.ai.keysTest, testKey);
 router.post(ROUTE_PATHS.ai.propertySearch, propertySearch);

@@ -1,8 +1,13 @@
 import { Request, Response } from 'express';
-import { keyService } from '../services/keyService';
+import { keyService, parseApiKeys } from '../services/keyService';
+import { aiUsageService } from '../services/aiUsageService';
 import { getWorkspaceSettingsRecord, saveWorkspaceSettingsRecord } from '../services/workspaceSettingsService';
 import { pushRecentAction } from '../services/identityService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
+
+function normalizeKeyPayload(value: unknown) {
+    return parseApiKeys(typeof value === 'string' ? value : '').join('\n');
+}
 
 export const getWorkspaceSettings = async (req: Request, res: Response) => {
     const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
@@ -32,6 +37,18 @@ export const saveWorkspaceSettings = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
     const { settings = {}, aiKeys = {} } = req.body || {};
 
+    const existingKeys = await Promise.all([
+        keyService.getKeys(tenantId, 'Google'),
+        keyService.getKeys(tenantId, 'Groq'),
+        keyService.getKeys(tenantId, 'OpenRouter'),
+        keyService.getKeys(tenantId, 'Doubleword'),
+    ]);
+    const shouldResetUsage =
+        (typeof aiKeys.gemini === 'string' && normalizeKeyPayload(aiKeys.gemini) !== existingKeys[0].join('\n')) ||
+        (typeof aiKeys.groq === 'string' && normalizeKeyPayload(aiKeys.groq) !== existingKeys[1].join('\n')) ||
+        (typeof aiKeys.openrouter === 'string' && normalizeKeyPayload(aiKeys.openrouter) !== existingKeys[2].join('\n')) ||
+        (typeof aiKeys.doubleword === 'string' && normalizeKeyPayload(aiKeys.doubleword) !== existingKeys[3].join('\n'));
+
     await saveWorkspaceSettingsRecord(tenantId, settings, aiKeys);
 
     const keyResults: Array<{ success: boolean; error?: string }> = await Promise.all([
@@ -49,7 +66,12 @@ export const saveWorkspaceSettings = async (req: Request, res: Response) => {
         });
     }
 
+    let usageReset: { deletedCount: number } | null = null;
+    if (shouldResetUsage) {
+        usageReset = await aiUsageService.resetUsage(tenantId);
+    }
+
     void pushRecentAction(tenantId, `Updated workspace settings / AI keys`);
 
-    res.json({ success: true });
+    res.json({ success: true, usageReset });
 };
