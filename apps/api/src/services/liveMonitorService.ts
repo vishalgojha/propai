@@ -155,7 +155,16 @@ class LiveMonitorService {
         const rows = this.getSessionMaps(tenantId, sessionLabel)
             .map((chats) => chats.get(chatId))
             .filter((state): state is LiveMonitorChatState => Boolean(state))
-            .flatMap((state) => state.messages)
+            .flatMap((state) => state.messages.map((message) => ({
+                id: message.id,
+                remote_jid: chatId,
+                sender: message.sender || null,
+                text: message.text,
+                timestamp: message.timestamp,
+                direction: message.direction,
+                title: state.title || null,
+                participantsCount: state.participantsCount,
+            })))
             .filter((message) => beforeTime === null || new Date(message.timestamp || 0).getTime() < beforeTime)
             .sort((left, right) => new Date(right.timestamp || 0).getTime() - new Date(left.timestamp || 0).getTime());
 
