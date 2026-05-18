@@ -63,7 +63,6 @@ export type StreamItemRecord = {
     rawText?: string;
     source: string;
     sourcePhone?: string | null;
-    brokerPhone?: string | null;
     brokerName?: string | null;
     brokerCompany?: string | null;
     waLink?: string | null;
@@ -161,12 +160,20 @@ const generateWaLink = (item: any, brokerName: string | null, brokerPhone: strin
         item.parsed_payload?.projectName ||
         ''
     ).trim();
+    const assetType = String(
+        item.parsed_payload?.propertyUse ||
+        item.property_use ||
+        item.asset_class ||
+        item.property_category ||
+        item.bhk ||
+        'property'
+    ).trim();
     const price = String(item.price_label || item.parsed_payload?.price || item.parsed_payload?.budget || '').trim() || 'the discussed budget';
-    const greeting = `Hi ${brokerName || 'there'}, `;
+    const greeting = `Hi ${brokerName || 'there'}, found you on propai live. `;
     const isRequirement = String(item.record_type || item.type || '').trim().toLowerCase() === 'requirement';
     const text = isRequirement
-        ? `${greeting}you're looking for ${bhk} in ${locality} under ₹${price}. I have something that matches.`
-        : `${greeting}saw your listing for ${bhk} at ${building || locality}, ${locality} at ₹${price}. Is it still available?`;
+        ? `${greeting}Regarding your requirement for ${assetType} in ${locality}${price ? ` around ₹${price}` : ''}, I may have something relevant.`
+        : `${greeting}Regarding your listing for ${bhk || assetType}${building ? ` at ${building}` : ''} in ${locality}${price ? ` at ₹${price}` : ''}, is it still available?`;
 
     return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 };
@@ -2277,10 +2284,9 @@ ${rawText}
         const source =
             item.parsed_payload?.contactName ||
             item.parsed_payload?.sourceLabel ||
-            item.source_group_name ||
             brokerName ||
-            sourcePhone ||
-            'Unknown source';
+            brokerCompany ||
+            'Broker contact';
 
         return {
             id: String(item.id),
@@ -2295,7 +2301,6 @@ ${rawText}
             createdAt: item.created_at,
             source,
             sourcePhone,
-            brokerPhone: sourcePhone,
             brokerName,
             brokerCompany,
             waLink: generateWaLink(item, brokerName, sourcePhone),
@@ -2318,13 +2323,14 @@ ${rawText}
         const sourcePhoneMap = new Map<string, string>();
 
         for (const item of items) {
-            if (!item.sourcePhone) {
+            const sourcePhone = (item as StreamItemRecord & { sourcePhone?: string | null }).sourcePhone;
+            if (!sourcePhone) {
                 continue;
             }
 
             const key = normalizeSourceKey(item.source);
             if (key && !sourcePhoneMap.has(key)) {
-                sourcePhoneMap.set(key, item.sourcePhone);
+                sourcePhoneMap.set(key, sourcePhone);
             }
         }
 
@@ -2344,7 +2350,6 @@ ${rawText}
             return {
                 ...item,
                 sourcePhone: recoveredPhone,
-                brokerPhone: item.brokerPhone || recoveredPhone,
                 waLink: item.waLink || generateWaLink({
                     bhk: item.bhk,
                     locality: item.location,

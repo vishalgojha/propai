@@ -563,7 +563,6 @@ React.useEffect(() => {
           listing.source,
           listing.brokerName || '',
           listing.brokerCompany || '',
-          listing.brokerPhone || '',
           listing.description,
           listing.rawText || '',
         ].join(' ').toLowerCase();

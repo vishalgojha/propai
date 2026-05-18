@@ -21,7 +21,6 @@ export interface StreamItem {
   areaSqft?: number | null;
   confidence: number;
   source: string;
-  brokerPhone?: string | null;
   brokerName?: string | null;
   brokerCompany?: string | null;
   waLink?: string | null;

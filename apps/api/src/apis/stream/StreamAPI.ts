@@ -88,12 +88,20 @@ export class StreamAPI {
       data.parsed_payload?.projectName ||
       '',
     ).trim();
+    const assetType = String(
+      data.parsed_payload?.propertyUse ||
+      data.property_use ||
+      data.asset_class ||
+      data.property_category ||
+      data.bhk ||
+      'property'
+    ).trim();
     const price = String(data.price_label || data.parsed_payload?.price || data.parsed_payload?.budget || '').trim() || 'the discussed budget';
-    const greeting = `Hi ${brokerName || 'there'}, `;
+    const greeting = `Hi ${brokerName || 'there'}, found you on propai live. `;
     const isRequirement = String(data.record_type || data.type || '').trim().toLowerCase() === 'requirement';
     const text = isRequirement
-      ? `${greeting}you're looking for ${bhk} in ${locality} under ₹${price}. I have something that matches.`
-      : `${greeting}saw your listing for ${bhk} at ${building || locality}, ${locality} at ₹${price}. Is it still available?`;
+      ? `${greeting}Regarding your requirement for ${assetType} in ${locality}${price ? ` around ₹${price}` : ''}, I may have something relevant.`
+      : `${greeting}Regarding your listing for ${bhk || assetType}${building ? ` at ${building}` : ''} in ${locality}${price ? ` at ₹${price}` : ''}, is it still available?`;
 
     return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
   }
@@ -109,6 +117,12 @@ export class StreamAPI {
       data.parsed_payload?.brokerCompany ||
       data.parsed_payload?.company ||
       null;
+    const source =
+      data.parsed_payload?.contactName ||
+      data.parsed_payload?.sourceLabel ||
+      brokerName ||
+      brokerCompany ||
+      'Broker contact';
 
     return {
       id: data.id,
@@ -122,8 +136,7 @@ export class StreamAPI {
       propertyCategory: data.property_category || 'residential',
       areaSqft: data.area_sqft || undefined,
       confidence: data.confidence_score || 0,
-      source: data.source_phone || '',
-      brokerPhone,
+      source,
       brokerName,
       brokerCompany,
       waLink: this.generateWaLink(data, brokerName, brokerPhone),

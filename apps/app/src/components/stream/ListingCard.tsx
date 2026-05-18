@@ -130,7 +130,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
     const timeAgo = formatTimeAgo(listing.createdAt);
     const priceLabel = formatPriceDisplay(listing);
     const brokerLabel = [listing.brokerName, listing.brokerCompany].filter(Boolean).join(' • ');
-    const whatsappLabel = listing.brokerName ? `WhatsApp ${listing.brokerName.split(' ')[0]}` : 'WhatsApp Broker';
+    const whatsappLabel = listing.brokerName ? `WhatsApp ${listing.brokerName.split(' ')[0]}` : 'WhatsApp';
 
     return (
         <div className={cn('border border-white/[0.07] rounded-[10px] transition-colors', isExpanded ? 'border-[rgba(62,232,138,0.30)] bg-[#1C2620]' : 'bg-[#161D18]')}>
@@ -167,7 +167,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                 </div>
 
                 <div className="mt-3 flex items-center gap-2 text-[10px] text-neutral-500">
-                    <span className="text-neutral-400 font-medium">{listing.source}</span>
+                    <span className="text-neutral-400 font-medium">{brokerLabel || listing.source}</span>
                     <span>·</span>
                     <Clock className="h-3 w-3" />
                     <span>{timeAgo}</span>
@@ -225,7 +225,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                         </div>
                         <div>
                             <div className="text-[10px] text-neutral-500 uppercase tracking-wider">Source</div>
-                            <div className="mt-0.5 text-white truncate">{listing.source}</div>
+                            <div className="mt-0.5 text-white truncate">{brokerLabel || listing.source}</div>
                         </div>
                     </div>
 
