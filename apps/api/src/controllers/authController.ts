@@ -71,12 +71,13 @@ export const verifyPhone = async (req: Request, res: Response) => {
     }
 
     const verificationResult = await markPhoneVerifiedForUser(targetProfileId, normalizedPhone);
-    const updated = verificationResult?.profile || null;
-    const updateError = updated ? null : new Error('Profile verification failed');
+    const updated = verificationResult?.profile;
 
-    if (updateError) return res.status(500).json({ error: updateError.message });
+    if (!updated) {
+        return res.status(500).json({ error: 'Profile verification failed' });
+    }
 
-    void pushRecentAction(updated.id, `Verified phone number`);
+    void pushRecentAction(updated.id, 'Verified phone number');
 
     res.json({ success: true, user: updated });
 };
