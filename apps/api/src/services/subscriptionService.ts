@@ -16,7 +16,7 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
     'vishal@chaoscraftslabs.com',
 ]);
 
-const DEFAULT_TRIAL_DAYS = 3;
+const DEFAULT_TRIAL_DAYS = 7;
 
 export function normalizePlanName(plan?: string | null): Plan {
     const normalized = String(plan || '').trim().toLowerCase();

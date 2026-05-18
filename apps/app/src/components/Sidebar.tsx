@@ -496,7 +496,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               <SidebarCard variant="accent" className="mt-3 px-3 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">
-                    {isTrial ? '3-day trial' : planLabel}
+                    {isTrial ? '7-day trial' : planLabel}
                   </span>
                   {typeof trialDays === 'number' ? (
                     <span className="text-[10px] font-semibold text-[var(--text-primary)]">{trialDays}d left</span>

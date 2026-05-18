@@ -86,8 +86,8 @@ async function writeStore(store: ReferralStore) {
 
 function buildShareMessage(summary: ReferralSummary) {
     return [
-        `Use my PropAI referral link to start your 3-day free trial: ${summary.link}`,
-        'Plans: Trial 3 days free, Solo ₹999/mo (2 WhatsApp devices), Team ₹2999/mo (5 devices).',
+        `Use my PropAI referral link to start your 7-day free trial: ${summary.link}`,
+        'Plans: Trial 7 days free, Solo ₹999/mo (2 WhatsApp devices), Team ₹2999/mo (5 devices).',
         `When 3 referred brokers complete payment, I get 1 free month on PropAI.`,
         `Need help? Message the PropAI Assistant on WhatsApp: ${ASSISTANT_DISPLAY_NUMBER} (${ASSISTANT_WA_LINK})`,
     ].join(' ');

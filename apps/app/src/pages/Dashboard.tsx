@@ -374,7 +374,7 @@ export const Dashboard: React.FC = () => {
               <h2 className="mt-1 text-[20px] font-bold text-[var(--text-primary)]">{planLabel}</h2>
               <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
                 {planLabel === 'Trial'
-                  ? `Your 3-day free trial is live${typeof trialDaysLeft === 'number' ? ` with ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left.` : '.'}`
+                  ? `Your 7-day free trial is live${typeof trialDaysLeft === 'number' ? ` with ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left.` : '.'}`
                   : `Your workspace is on the ${planLabel} plan.`}
               </p>
             </div>

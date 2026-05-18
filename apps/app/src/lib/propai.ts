@@ -4,7 +4,7 @@ export const PROPAI_ASSISTANT_WA_LINK = 'https://wa.me/917021045254';
 export const PROPAI_PLAN_CARDS = [
   {
     name: 'Trial',
-    price: '3 days free',
+    price: '7 days free',
     devices: 'No credit card required',
     blurb: 'Start PropAI instantly, connect WhatsApp, and test Stream, Monitor, and the assistant before paying.',
   },
