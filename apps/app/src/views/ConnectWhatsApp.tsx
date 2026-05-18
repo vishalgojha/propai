@@ -7,6 +7,7 @@ import { cn } from '../lib/utils';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { useAuth } from '../context/AuthContext';
+import { buildFullName, getPreferredName, splitFullName } from '../lib/names';
 
 type Session = {
     label: string;
@@ -33,11 +34,18 @@ type ConnectionArtifact = {
 
 export const ConnectWhatsApp: React.FC = () => {
     const { user } = useAuth();
+    const initialNames = splitFullName(getPreferredName({
+        firstName: user?.first_name,
+        lastName: user?.last_name,
+        fullName: user?.full_name,
+        email: user?.email,
+    }));
     const [status, setStatus] = useState<StatusData | null>(null);
     const [loading, setLoading] = useState(true);
     const [connecting, setConnecting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [name, setName] = useState(user?.full_name || user?.email?.split('@')[0] || '');
+    const [firstName, setFirstName] = useState(initialNames.firstName);
+    const [lastName, setLastName] = useState(initialNames.lastName);
     const [phone, setPhone] = useState('');
     const [artifact, setArtifact] = useState<ConnectionArtifact | null>(null);
     const [qrSvg, setQrSvg] = useState<string | null>(null);
@@ -60,13 +68,15 @@ export const ConnectWhatsApp: React.FC = () => {
                 const prof = await backendApi.get(ENDPOINTS.whatsapp.profile);
                 const p = prof.data?.profile;
                 if (p) {
-                    setName(p.fullName || name);
+                    const nextNames = splitFullName(p.fullName);
+                    setFirstName((current) => current || nextNames.firstName);
+                    setLastName((current) => current || nextNames.lastName);
                     setPhone(p.phone || phone);
                 }
             } catch { }
             setLoading(false);
         })();
-    }, [fetchStatus, name, phone]);
+    }, [fetchStatus, phone]);
 
     useEffect(() => {
         if (!artifact || artifact.mode !== 'qr' || !artifact.value) {
@@ -106,8 +116,9 @@ export const ConnectWhatsApp: React.FC = () => {
     const handleConnect = async (e: React.FormEvent) => {
         e.preventDefault();
         const normPhone = phone.replace(/\D/g, '');
-        if (!name.trim() || normPhone.length < 10 || normPhone.length > 15) {
-            setError('Enter your name and WhatsApp number (country code + digits).');
+        const fullName = buildFullName(firstName, lastName);
+        if (!firstName.trim() || !lastName.trim() || normPhone.length < 10 || normPhone.length > 15) {
+            setError('Enter your first name, last name, and WhatsApp number (country code + digits).');
             return;
         }
 
@@ -118,9 +129,9 @@ export const ConnectWhatsApp: React.FC = () => {
         setQrGeneratedAt(null);
 
         try {
-            await backendApi.post(ENDPOINTS.whatsapp.profile, { fullName: name.trim(), phone: normPhone });
+            await backendApi.post(ENDPOINTS.whatsapp.profile, { fullName, phone: normPhone });
             const resp = await backendApi.post(ENDPOINTS.whatsapp.connect, {
-                phoneNumber: normPhone, ownerName: name.trim(), label: `device-${normPhone}`, connectMethod: mode,
+                phoneNumber: normPhone, ownerName: fullName, label: `device-${normPhone}`, connectMethod: mode,
             });
             if (resp.data?.connected) {
                 setArtifact(null);
@@ -219,10 +230,16 @@ export const ConnectWhatsApp: React.FC = () => {
                     <form onSubmit={handleConnect} className="space-y-4">
                         <div>
                             <label className="mb-2 block text-[13px] font-semibold text-[var(--text-secondary)]">Your Name</label>
-                            <input
-                                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[15px] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
-                                placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)}
-                            />
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <input
+                                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[15px] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
+                                    placeholder="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)}
+                                />
+                                <input
+                                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[15px] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
+                                    placeholder="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)}
+                                />
+                            </div>
                         </div>
                         <div>
                             <label className="mb-2 block text-[13px] font-semibold text-[var(--text-secondary)]">WhatsApp Number</label>

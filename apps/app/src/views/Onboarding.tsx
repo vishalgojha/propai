@@ -6,6 +6,7 @@ import {
 } from '../lib/icons';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
+import { buildFullName, splitFullName } from '../lib/names';
 
 const STEPS = ['Name', 'Agency', 'City', 'Localities', 'Team', 'Done'];
 const CITIES = [
@@ -26,6 +27,8 @@ const LOCALITY_PRESETS = [
 
 type TeamMember = { name?: string; mobile?: string };
 type OnboardingData = {
+    first_name?: string;
+    last_name?: string;
     full_name?: string;
     agency_name?: string;
     city?: string;
@@ -38,6 +41,7 @@ type OnboardingData = {
 const normalizePhone = (value?: string) => String(value || '').replace(/\D/g, '');
 
 const emptyData: OnboardingData = {
+    first_name: '', last_name: '',
     full_name: '', agency_name: '', city: '',
     localities: [], team_members: [],
     onboarding_step: 0, onboarding_completed: false,
@@ -52,6 +56,8 @@ export const Onboarding: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
     const [fieldValue, setFieldValue] = useState('');
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [localityInput, setLocalityInput] = useState('');
     const [teamName, setTeamName] = useState('');
     const [teamPhone, setTeamPhone] = useState('');
@@ -66,7 +72,13 @@ export const Onboarding: React.FC = () => {
                     setData({ ...emptyData, ...existing });
                     const s = Math.min(existing.onboarding_step || 0, 5);
                     setStep(s);
-                    if (s === 0) setFieldValue(existing.full_name || '');
+                    if (s === 0) {
+                        const names = existing.first_name || existing.last_name
+                            ? { firstName: existing.first_name || '', lastName: existing.last_name || '' }
+                            : splitFullName(existing.full_name || '');
+                        setFirstName(names.firstName);
+                        setLastName(names.lastName);
+                    }
                     else if (s === 1) setFieldValue(existing.agency_name || '');
                     else if (s === 2) {
                         const city = existing.city || '';
@@ -110,8 +122,14 @@ export const Onboarding: React.FC = () => {
 
     const handleNext = async () => {
         if (step === 0) {
-            if (!fieldValue.trim()) { setError('Enter your full name'); return; }
-            await saveStep({ full_name: fieldValue.trim() });
+            const normalizedFirstName = firstName.trim();
+            const normalizedLastName = lastName.trim();
+            if (!normalizedFirstName || !normalizedLastName) { setError('Enter your first name and last name'); return; }
+            await saveStep({
+                first_name: normalizedFirstName,
+                last_name: normalizedLastName,
+                full_name: buildFullName(normalizedFirstName, normalizedLastName),
+            });
         } else if (step === 1) {
             await saveStep({ agency_name: fieldValue.trim() || null });
         } else if (step === 2) {
@@ -227,15 +245,24 @@ export const Onboarding: React.FC = () => {
                     {step === 0 && (
                         <div>
                             <p className="mb-2 text-[13px] font-medium uppercase tracking-[0.1em] text-gray-500">Step 1</p>
-                            <h2 className="mb-8 text-[28px] font-bold leading-tight text-white">What's your full name?</h2>
-                            <input
-                                value={fieldValue}
-                                onChange={(e) => setFieldValue(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleNext())}
-                                placeholder="Type your name"
-                                className="w-full border-0 border-b-2 border-gray-700 bg-transparent pb-3 text-[28px] font-semibold text-white outline-none transition placeholder:text-gray-600 focus:border-[var(--accent)]"
-                                autoFocus
-                            />
+                            <h2 className="mb-8 text-[28px] font-bold leading-tight text-white">What's your name?</h2>
+                            <div className="grid gap-5 sm:grid-cols-2">
+                                <input
+                                    value={firstName}
+                                    onChange={(e) => setFirstName(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleNext())}
+                                    placeholder="First name"
+                                    className="w-full border-0 border-b-2 border-gray-700 bg-transparent pb-3 text-[28px] font-semibold text-white outline-none transition placeholder:text-gray-600 focus:border-[var(--accent)]"
+                                    autoFocus
+                                />
+                                <input
+                                    value={lastName}
+                                    onChange={(e) => setLastName(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleNext())}
+                                    placeholder="Last name"
+                                    className="w-full border-0 border-b-2 border-gray-700 bg-transparent pb-3 text-[28px] font-semibold text-white outline-none transition placeholder:text-gray-600 focus:border-[var(--accent)]"
+                                />
+                            </div>
                         </div>
                     )}
 
@@ -409,7 +436,7 @@ export const Onboarding: React.FC = () => {
                             </div>
                             <h2 className="mb-2 text-[28px] font-bold text-white">Ready to go</h2>
                             <p className="mb-2 text-[16px] text-gray-400">
-                                {data.full_name}{data.agency_name ? ` · ${data.agency_name}` : ''}{data.city ? ` · ${data.city}` : ''}
+                                {buildFullName(data.first_name, data.last_name) || data.full_name}{data.agency_name ? ` · ${data.agency_name}` : ''}{data.city ? ` · ${data.city}` : ''}
                             </p>
                             <p className="text-[14px] text-gray-500">
                                 {(data.localities || []).length} localities · {(data.team_members || []).length} team members

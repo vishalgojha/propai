@@ -21,6 +21,7 @@ import { useAuth } from '../context/AuthContext';
 import { track } from '../services/analytics';
 import { SurfaceSection } from '../components/ui/SurfaceSection';
 import { ProviderLogo } from '../components/ui/ProviderLogo';
+import { buildFullName, splitFullName } from '../lib/names';
 
 interface AIConfig {
   gemini?: string;
@@ -48,7 +49,8 @@ interface WorkspaceMetadataState {
 }
 
 interface ProfileEditorState {
-  fullName: string;
+  firstName: string;
+  lastName: string;
   agencyName: string;
   primaryCity: string;
   areasText: string;
@@ -193,7 +195,8 @@ export const Settings: React.FC = () => {
   const [showKeys, setShowKeys] = useState<{ [key: string]: boolean }>({});
   const [error, setError] = useState<string | null>(null);
   const [profileEditor, setProfileEditor] = useState<ProfileEditorState>({
-    fullName: '',
+    firstName: '',
+    lastName: '',
     agencyName: '',
     primaryCity: 'Mumbai',
     areasText: '',
@@ -223,8 +226,10 @@ export const Settings: React.FC = () => {
   const roleLabel = user?.appRole === 'super_admin' ? 'PropAI Owner' : 'Broker Partner';
 
   const syncProfileEditor = React.useCallback((profile?: { fullName?: string | null } | null, metadata?: WorkspaceMetadataState | null) => {
+    const names = splitFullName(profile?.fullName);
     setProfileEditor({
-      fullName: profile?.fullName || '',
+      firstName: names.firstName,
+      lastName: names.lastName,
       agencyName: metadata?.agencyName || '',
       primaryCity: metadata?.primaryCity || 'Mumbai',
       areasText: (metadata?.serviceAreas || []).map((area) => area.locality).join(', '),
@@ -299,13 +304,15 @@ export const Settings: React.FC = () => {
   };
 
   const saveProfile = async () => {
-    const fullName = profileEditor.fullName.trim();
+    const firstName = profileEditor.firstName.trim();
+    const lastName = profileEditor.lastName.trim();
+    const fullName = buildFullName(firstName, lastName);
     const agencyName = profileEditor.agencyName.trim();
     const primaryCity = profileEditor.primaryCity.trim();
     const serviceAreas = parseServiceAreas(profileEditor.areasText, primaryCity || 'Mumbai');
 
-    if (fullName.length < 2) {
-      setError('Full name must be at least 2 characters.');
+    if (!firstName || !lastName) {
+      setError('First name and last name are required.');
       return;
     }
 
@@ -330,6 +337,8 @@ export const Settings: React.FC = () => {
       await Promise.all([
         backendApi.post(ENDPOINTS.auth.me, { fullName }),
         backendApi.post(ENDPOINTS.identity.onboarding, {
+          first_name: firstName,
+          last_name: lastName,
           full_name: fullName,
           agency_name: agencyName,
           city: primaryCity,
@@ -424,11 +433,20 @@ export const Settings: React.FC = () => {
           <SurfaceSection title="Workspace Profile" subtitle="Update the broker name, agency, city, and localities after onboarding." icon={ShieldIcon}>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block">
-                <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Full name</span>
+                <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">First name</span>
                 <input
-                  value={profileEditor.fullName}
-                  onChange={(e) => updateProfileField('fullName', e.target.value)}
-                  placeholder="Your full name"
+                  value={profileEditor.firstName}
+                  onChange={(e) => updateProfileField('firstName', e.target.value)}
+                  placeholder="Your first name"
+                  className="mt-2 w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Last name</span>
+                <input
+                  value={profileEditor.lastName}
+                  onChange={(e) => updateProfileField('lastName', e.target.value)}
+                  placeholder="Your last name"
                   className="mt-2 w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                 />
               </label>

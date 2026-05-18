@@ -9,9 +9,13 @@ import {
   refreshSupabaseSession,
   saveStoredSession,
 } from '../services/authSession';
+import { buildFullName, splitFullName } from '../lib/names';
 
 interface User {
   email: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
   token?: string;
   refreshToken?: string;
   expiresAt?: number;
@@ -68,6 +72,26 @@ const resolveAppRole = (email?: string | null, appRole?: string) => {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STORAGE_KEY = 'propai_user';
 
+function resolveNameParts(userLike?: { first_name?: string | null; last_name?: string | null; full_name?: string | null } | null) {
+  const firstName = String(userLike?.first_name || '').trim();
+  const lastName = String(userLike?.last_name || '').trim();
+
+  if (firstName || lastName) {
+    return {
+      first_name: firstName || null,
+      last_name: lastName || null,
+      full_name: buildFullName(firstName, lastName) || null,
+    };
+  }
+
+  const split = splitFullName(userLike?.full_name);
+  return {
+    first_name: split.firstName || null,
+    last_name: split.lastName || null,
+    full_name: userLike?.full_name || buildFullName(split.firstName, split.lastName) || null,
+  };
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -104,9 +128,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (cancelled || authMutationRef.current !== restoreVersion) return;
 
         if (response.data?.success && serverUser?.email) {
+          const resolvedNames = resolveNameParts({
+            first_name: serverUser.first_name || response.data?.profile?.first_name,
+            last_name: serverUser.last_name || response.data?.profile?.last_name,
+            full_name: serverUser.full_name || response.data?.profile?.full_name,
+          });
           setBackendApiAuthToken(activeSession.token);
             setUser({
               email: serverUser.email,
+              ...resolvedNames,
               token: activeSession.token,
               refreshToken: activeSession.refreshToken,
               expiresAt: activeSession.expiresAt,
@@ -130,9 +160,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.warn('Session restore hit a backend error, preserving local session state.', error);
 
           if (!cancelled && authMutationRef.current === restoreVersion) {
+            const resolvedNames = resolveNameParts(activeSession);
             setBackendApiAuthToken(activeSession.token);
             setUser({
               email: activeSession.email,
+              ...resolvedNames,
               token: activeSession.token,
               refreshToken: activeSession.refreshToken,
               expiresAt: activeSession.expiresAt,
@@ -180,8 +212,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = (email: string, session: User, remember = true) => {
     authMutationRef.current += 1;
+    const resolvedNames = resolveNameParts(session);
     const userData = {
       email,
+      ...resolvedNames,
       token: session.token || '',
       refreshToken: session.refreshToken,
       expiresAt: session.expiresAt,

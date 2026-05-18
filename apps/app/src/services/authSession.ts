@@ -2,6 +2,9 @@ import { backendApiUrl } from './apiBase';
 
 type StoredSession = {
   email: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
   token: string;
   refreshToken?: string;
   expiresAt?: number;
@@ -91,6 +94,9 @@ export async function refreshSupabaseSession(session: StoredSession): Promise<St
 
     return {
       email: session.email,
+      first_name: session.first_name || null,
+      last_name: session.last_name || null,
+      full_name: session.full_name || null,
       token: accessToken,
       refreshToken,
       expiresAt,
@@ -112,6 +118,9 @@ export function buildSessionFromSupabase(
 ) {
   return {
     email,
+    first_name: null,
+    last_name: null,
+    full_name: null,
     token: session.access_token,
     refreshToken: session.refresh_token,
     expiresAt: session.expires_at ? session.expires_at * 1000 : session.expires_in ? Date.now() + session.expires_in * 1000 : undefined,

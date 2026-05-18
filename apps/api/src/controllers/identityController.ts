@@ -9,6 +9,23 @@ function normalizePhone(value?: string | null) {
     return String(value || '').replace(/\D/g, '');
 }
 
+function splitFullName(fullName?: string | null) {
+    const normalized = String(fullName || '').replace(/\s+/g, ' ').trim();
+    if (!normalized) {
+        return { first_name: '', last_name: '' };
+    }
+
+    const [first_name = '', ...rest] = normalized.split(' ');
+    return {
+        first_name,
+        last_name: rest.join(' ').trim(),
+    };
+}
+
+function buildFullName(firstName?: string | null, lastName?: string | null) {
+    return [String(firstName || '').trim(), String(lastName || '').trim()].filter(Boolean).join(' ');
+}
+
 export const getOnboarding = async (req: Request, res: Response) => {
     const tenantId = req.user?.id;
     if (!tenantId) return res.status(401).json({ error: 'Unauthorized' });
@@ -21,7 +38,18 @@ export const getOnboarding = async (req: Request, res: Response) => {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    res.json({ data: data || null });
+    if (!data) {
+        return res.json({ data: null });
+    }
+
+    const derivedNames = splitFullName((data as Record<string, unknown>).full_name as string | null | undefined);
+    res.json({
+        data: {
+            ...data,
+            first_name: derivedNames.first_name,
+            last_name: derivedNames.last_name,
+        },
+    });
 };
 
 export const saveOnboarding = async (req: Request, res: Response) => {
@@ -52,9 +80,15 @@ export const saveOnboarding = async (req: Request, res: Response) => {
         .maybeSingle();
 
     const now = new Date().toISOString();
+    const normalizedFirstName = String(req.body?.first_name || '').trim();
+    const normalizedLastName = String(req.body?.last_name || '').trim();
+    const normalizedFullName = buildFullName(normalizedFirstName, normalizedLastName) || String(req.body?.full_name || '').trim() || null;
+    const { first_name: _ignoredFirstName, last_name: _ignoredLastName, ...body } = req.body || {};
+
     const payload: Record<string, unknown> = {
         broker_id: tenantId,
-        ...req.body,
+        ...body,
+        full_name: normalizedFullName,
         updated_at: now,
     };
 
