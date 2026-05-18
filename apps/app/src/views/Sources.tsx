@@ -167,6 +167,56 @@ type WhatsappEventRecord = {
   createdAt: string;
 };
 
+const normalizeWhatsappSession = (session: unknown): WhatsappSession | null => {
+  if (!session || typeof session !== 'object') {
+    return null;
+  }
+
+  const row = session as Record<string, unknown>;
+  const label = String(row.label || '').trim();
+  if (!label) {
+    return null;
+  }
+
+  const rawStatus = String(row.status || 'disconnected');
+  const status: WhatsappSession['status'] =
+    rawStatus === 'connected' || rawStatus === 'connecting' ? rawStatus : 'disconnected';
+  const sessionData = row.sessionData && typeof row.sessionData === 'object'
+    ? row.sessionData as WhatsappSession['sessionData']
+    : null;
+
+  return {
+    label,
+    ownerName: typeof row.ownerName === 'string' ? row.ownerName : null,
+    phoneNumber: typeof row.phoneNumber === 'string' ? row.phoneNumber : null,
+    status,
+    sessionData,
+    lastSync: typeof row.lastSync === 'string' ? row.lastSync : undefined,
+  };
+};
+
+const normalizeWhatsappStatus = (payload: any): WhatsappStatus => {
+  const sessions = Array.isArray(payload?.sessions)
+    ? payload.sessions.map(normalizeWhatsappSession).filter((session): session is WhatsappSession => Boolean(session))
+    : [];
+  const rawStatus = String(payload?.status || 'disconnected');
+  const status: WhatsappStatus['status'] =
+    rawStatus === 'connected' || rawStatus === 'connecting' ? rawStatus : 'disconnected';
+
+  return {
+    status,
+    activeCount: Number(payload?.activeCount || 0),
+    limit: Number(payload?.limit || 2),
+    plan: String(payload?.plan || 'Trial'),
+    connectedPhoneNumber: typeof payload?.connectedPhoneNumber === 'string' ? payload.connectedPhoneNumber : null,
+    connectedOwnerName: typeof payload?.connectedOwnerName === 'string' ? payload.connectedOwnerName : null,
+    allowedOutboundSessionLabels: Array.isArray(payload?.allowedOutboundSessionLabels) ? payload.allowedOutboundSessionLabels : [],
+    preferredOutboundSessionLabel: typeof payload?.preferredOutboundSessionLabel === 'string' ? payload.preferredOutboundSessionLabel : null,
+    hasOutboundLaneRestriction: Boolean(payload?.hasOutboundLaneRestriction),
+    sessions,
+  };
+};
+
 const mapWhatsappGroupHealth = (row: any, index: number): WhatsappGroupHealth => ({
   id: String(row?.id || `group-health-${index}`),
   sessionLabel: String(row?.sessionLabel || row?.session_label || ''),
@@ -450,18 +500,7 @@ export const Sources: React.FC = () => {
     try {
       const response = await backendApi.get(ENDPOINTS.whatsapp.status);
       if (response.data) {
-        setStatus({
-          status: response.data.status || 'disconnected',
-          activeCount: response.data.activeCount || 0,
-          limit: response.data.limit || 2,
-          plan: response.data.plan || 'Trial',
-          connectedPhoneNumber: response.data.connectedPhoneNumber || null,
-          connectedOwnerName: response.data.connectedOwnerName || null,
-          allowedOutboundSessionLabels: Array.isArray(response.data.allowedOutboundSessionLabels) ? response.data.allowedOutboundSessionLabels : [],
-          preferredOutboundSessionLabel: response.data.preferredOutboundSessionLabel || null,
-          hasOutboundLaneRestriction: Boolean(response.data.hasOutboundLaneRestriction),
-          sessions: response.data.sessions || response.data.sessions || [],
-        });
+        setStatus(normalizeWhatsappStatus(response.data));
       }
     } catch (err) {
       console.error(handleApiError(err));
@@ -508,13 +547,17 @@ export const Sources: React.FC = () => {
       const nextEventLogs = Array.isArray(eventResponse.data)
         ? eventResponse.data.map((row: any, index: number) => mapWhatsappEvent(row, index))
         : [];
+      const rawSummary = healthResponse.data?.summary && typeof healthResponse.data.summary === 'object'
+        ? healthResponse.data.summary
+        : null;
 
       setHealth({
         sessions: Array.isArray(healthResponse.data?.sessions) ? healthResponse.data.sessions : [],
         summary: {
-          ...(healthResponse.data?.summary || defaultHealthSummary),
-          groupCount: Math.max(Number(healthResponse.data?.summary?.groupCount || 0), derivedGroupCount),
-          activeGroups24h: Math.max(Number(healthResponse.data?.summary?.activeGroups24h || 0), derivedActiveGroups24h),
+          ...defaultHealthSummary,
+          ...(rawSummary || {}),
+          groupCount: Math.max(Number(rawSummary?.groupCount || 0), derivedGroupCount),
+          activeGroups24h: Math.max(Number(rawSummary?.activeGroups24h || 0), derivedActiveGroups24h),
         },
       });
       setGroupHealth(nextGroupHealth);

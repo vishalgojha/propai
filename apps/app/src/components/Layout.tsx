@@ -26,6 +26,30 @@ type WhatsAppStatusSummary = {
   selectedSessionLabel?: string | null;
 };
 
+const normalizeWhatsAppSession = (session: unknown): WhatsAppSessionSummary | null => {
+  if (!session || typeof session !== 'object') {
+    return null;
+  }
+
+  const row = session as Record<string, unknown>;
+  const label = String(row.label || '').trim();
+  if (!label) {
+    return null;
+  }
+
+  const rawStatus = String(row.status || 'disconnected');
+  const status: WhatsAppSessionSummary['status'] =
+    rawStatus === 'connected' || rawStatus === 'connecting' ? rawStatus : 'disconnected';
+
+  return {
+    label,
+    ownerName: typeof row.ownerName === 'string' ? row.ownerName : null,
+    phoneNumber: typeof row.phoneNumber === 'string' ? row.phoneNumber : null,
+    status,
+    lastSync: typeof row.lastSync === 'string' ? row.lastSync : null,
+  };
+};
+
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'propai.sidebar_collapsed';
 export const Layout: React.FC = () => {
@@ -134,13 +158,15 @@ export const Layout: React.FC = () => {
       try {
         const response = await backendApi.get(ENDPOINTS.whatsapp.status);
         if (!cancelled && response.data) {
-          const sessions = Array.isArray(response.data.sessions) ? response.data.sessions : [];
-          const connectedSessions = sessions.filter((session: WhatsAppSessionSummary) => session.status === 'connected');
-          const preferredLabel = selectedSessionLabel && sessions.some((session: WhatsAppSessionSummary) => session.label === selectedSessionLabel)
+          const sessions = Array.isArray(response.data.sessions)
+            ? response.data.sessions.map(normalizeWhatsAppSession).filter((session): session is WhatsAppSessionSummary => Boolean(session))
+            : [];
+          const connectedSessions = sessions.filter((session) => session.status === 'connected');
+          const preferredLabel = selectedSessionLabel && sessions.some((session) => session.label === selectedSessionLabel)
             ? selectedSessionLabel
             : connectedSessions[0]?.label || sessions[0]?.label || null;
           const selectedSession = preferredLabel
-            ? sessions.find((session: WhatsAppSessionSummary) => session.label === preferredLabel) || null
+            ? sessions.find((session) => session.label === preferredLabel) || null
             : null;
 
           if (!selectedSessionLabel && preferredLabel) {
