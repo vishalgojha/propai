@@ -1,5 +1,6 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { liveMonitorService } from './liveMonitorService';
+import { whatsappPresenceService } from './whatsappPresenceService';
 
 const db = supabaseAdmin || supabase;
 const DEFAULT_THREAD_PAGE_SIZE = 100;
@@ -429,9 +430,24 @@ export class WorkspaceMonitorService {
     }
 
     async getMonitorData(workspaceOwnerId: string, inboxOnly = false, sessionLabel?: string | null) {
-        const overview = await this.getMonitorOverview(workspaceOwnerId, inboxOnly, sessionLabel);
+        const [overview, presence] = await Promise.all([
+            this.getMonitorOverview(workspaceOwnerId, inboxOnly, sessionLabel),
+            whatsappPresenceService.getPresenceStatus(workspaceOwnerId, sessionLabel).catch(() => ({
+                summary: {
+                    recentEvents: 0,
+                    sessionsTracked: 0,
+                    connectedSessions: 0,
+                    qrRequiredSessions: 0,
+                    disconnectedSessions: 0,
+                    stalledSessions: 0,
+                },
+                sessions: [],
+                recentEvents: [],
+            })),
+        ]);
         return {
             ...overview,
+            presence,
             messages: [],
         };
     }

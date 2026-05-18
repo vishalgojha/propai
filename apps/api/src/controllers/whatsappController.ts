@@ -14,6 +14,7 @@ import { emailNotificationService } from '../services/emailNotificationService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { whatsappMirrorService } from '../services/whatsappMirrorService';
 import { whatsappMessageMirrorService } from '../services/whatsappMessageMirrorService';
+import { whatsappPresenceService } from '../services/whatsappPresenceService';
 import '../types/express';
 
 type LiveSessionRecord = {
@@ -482,6 +483,59 @@ export const getMonitorMessages = async (req: Request, res: Response) => {
         });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp monitor messages') });
+    }
+};
+
+export const getPresenceStatus = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
+        const data = await whatsappPresenceService.getPresenceStatus(context.workspaceOwnerId, sessionLabel);
+
+        res.json({
+            success: true,
+            workspace: {
+                ownerId: context.workspaceOwnerId,
+                memberRole: context.memberRole,
+                canManageTeam: context.canManageTeam,
+                canSendOutbound: context.canSendOutbound,
+            },
+            ...data,
+        });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp presence status') });
+    }
+};
+
+export const postPresenceEvent = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const eventType = String(req.body?.eventType || '').trim();
+        const status = String(req.body?.status || '').trim();
+
+        if (!eventType || !status) {
+            return res.status(400).json({ error: 'eventType and status are required' });
+        }
+
+        const event = await whatsappPresenceService.recordEvent({
+            workspaceOwnerId: context.workspaceOwnerId,
+            actorUserId: context.currentUserId,
+            sessionLabel: typeof req.body?.sessionLabel === 'string' ? req.body.sessionLabel : null,
+            source: typeof req.body?.source === 'string' ? req.body.source : 'extension',
+            eventType,
+            status,
+            remoteJid: typeof req.body?.remoteJid === 'string' ? req.body.remoteJid : null,
+            tabId: typeof req.body?.tabId === 'string' ? req.body.tabId : null,
+            url: typeof req.body?.url === 'string' ? req.body.url : null,
+            observedAt: typeof req.body?.observedAt === 'string' ? req.body.observedAt : null,
+            metadata: req.body?.metadata && typeof req.body.metadata === 'object'
+                ? req.body.metadata as Record<string, unknown>
+                : {},
+        });
+
+        res.status(201).json({ success: true, event });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to record WhatsApp presence event') });
     }
 };
 

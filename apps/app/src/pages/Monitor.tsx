@@ -58,6 +58,31 @@ type MonitorResponse = {
     lastSync?: string | null;
   }>;
   chats: MonitorChat[];
+  presence?: {
+    summary: {
+      recentEvents: number;
+      sessionsTracked: number;
+      connectedSessions: number;
+      qrRequiredSessions: number;
+      disconnectedSessions: number;
+      stalledSessions: number;
+    };
+    sessions: Array<{
+      sessionLabel: string;
+      status: string;
+      stale: boolean;
+      source?: string | null;
+      lastEventType?: string | null;
+      lastObservedAt?: string | null;
+    }>;
+    recentEvents: Array<{
+      sessionLabel: string;
+      eventType: string;
+      status: string;
+      observedAt?: string | null;
+      source?: string | null;
+    }>;
+  };
   messages?: MonitorMessage[];
 };
 
@@ -234,6 +259,18 @@ const unwrapMonitorPayload = (data: any): MonitorResponse => ({
   },
   sessions: Array.isArray(data?.sessions) ? data.sessions : [],
   chats: Array.isArray(data?.chats) ? data.chats : [],
+  presence: data?.presence || {
+    summary: {
+      recentEvents: 0,
+      sessionsTracked: 0,
+      connectedSessions: 0,
+      qrRequiredSessions: 0,
+      disconnectedSessions: 0,
+      stalledSessions: 0,
+    },
+    sessions: [],
+    recentEvents: [],
+  },
   messages: Array.isArray(data?.messages) ? data.messages : [],
 });
 
@@ -716,6 +753,56 @@ export const Monitor: React.FC = () => {
                 : 'bg-[#32161a] text-[#ffd5d8]',
             )}>
               {error}
+            </div>
+          ) : null}
+
+          {data?.presence ? (
+            <div className="border-b border-[#202c33] bg-[#111b21] px-3 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8696a0]">Presence watchdog</p>
+                  <p className="mt-0.5 text-[11px] text-[#8696a0]">
+                    {data.presence.summary.connectedSessions} connected · {data.presence.summary.qrRequiredSessions} QR · {data.presence.summary.stalledSessions} stalled
+                  </p>
+                </div>
+                <span className={cn(
+                  monitorPill,
+                  data.presence.summary.stalledSessions > 0 || data.presence.summary.disconnectedSessions > 0
+                    ? 'bg-[#32161a] text-[#ffd5d8]'
+                    : 'bg-[#0b3328] text-[#d8fdd2]',
+                )}>
+                  {data.presence.summary.recentEvents} events
+                </span>
+              </div>
+
+              <div className="mt-3 space-y-2">
+                {(data.presence.sessions || []).slice(0, 3).map((session) => (
+                  <div key={session.sessionLabel} className="flex items-center justify-between gap-3 rounded-[12px] bg-[#202c33] px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-[12px] font-medium text-white">{session.sessionLabel}</p>
+                      <p className="truncate text-[11px] text-[#8696a0]">
+                        {session.lastEventType || 'presence_signal_seen'} · {formatDateTime(session.lastObservedAt)}
+                      </p>
+                    </div>
+                    <span className={cn(
+                      monitorPill,
+                      session.status === 'connected'
+                        ? 'bg-[#0b3328] text-[#d8fdd2]'
+                        : session.status === 'qr_required'
+                          ? 'bg-[#3a2a11] text-[#ffe4b8]'
+                          : 'bg-[#32161a] text-[#ffd5d8]',
+                    )}>
+                      {session.status}
+                    </span>
+                  </div>
+                ))}
+
+                {(data.presence.sessions || []).length === 0 ? (
+                  <div className="rounded-[12px] bg-[#202c33] px-3 py-2 text-[11px] text-[#8696a0]">
+                    No extension-side presence events yet. Once the WhatsApp Web watchdog is connected, session health will appear here.
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
 

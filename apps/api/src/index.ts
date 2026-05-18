@@ -17,6 +17,7 @@ import fileRoutes from './routes/fileRoutes';
 import wabroRoutes from './routes/wabroRoutes';
 import identityRoutes from './routes/identityRoutes';
 import waClickRoutes from './routes/waClickRoutes';
+import whatsappPresenceRoutes from './routes/whatsappPresenceRoutes';
 import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
@@ -93,6 +94,7 @@ app.post(ROUTE_PATHS.api.aiPropertySearch, (req, res) => {
 
 app.use(ROUTE_PATHS.api.auth, authRoutes);
 app.use(ROUTE_PATHS.api.whatsapp, authMiddleware, whatsappRoutes);
+app.use('/api/whatsapp/presence', authMiddleware, whatsappPresenceRoutes);
 // Intelligence API (standalone, behind feature flag)
 app.use('/api/intelligence', intelligenceRouter);
 app.use(ROUTE_PATHS.api.channels, authMiddleware, channelRoutes);

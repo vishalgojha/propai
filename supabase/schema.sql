@@ -29,6 +29,24 @@ create table whatsapp_sessions (
 );
 create unique index whatsapp_sessions_tenant_label_uidx on whatsapp_sessions (tenant_id, label);
 
+create table whatsapp_presence_events (
+  id uuid default gen_random_uuid() primary key,
+  workspace_owner_id uuid references profiles(id) on delete cascade not null,
+  actor_user_id uuid references profiles(id) on delete set null,
+  session_label text,
+  source text not null default 'extension',
+  event_type text not null,
+  status text not null,
+  remote_jid text,
+  tab_id text,
+  url text,
+  metadata jsonb not null default '{}'::jsonb,
+  observed_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+create index whatsapp_presence_events_workspace_observed_at_idx on whatsapp_presence_events (workspace_owner_id, observed_at desc);
+create index whatsapp_presence_events_workspace_session_idx on whatsapp_presence_events (workspace_owner_id, session_label, observed_at desc);
+
 -- Contacts & Classification
 create table contacts (
   id uuid default gen_random_uuid() primary key,
