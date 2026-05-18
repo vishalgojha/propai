@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Clock, ExternalLink, ChevronUp, ChevronDown, Copy, Save, MapPin, Check } from 'lucide-react';
+import { MessageSquare, Clock, ExternalLink, ChevronUp, ChevronDown, Copy, Save, MapPin, Check, Zap, ArrowRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { logWaClick, fetchWaClickListingLog, type WaClickListingLog } from '../../services/waClickAPI';
 import type { StreamItem } from '../../services/streamAPI';
@@ -21,37 +21,23 @@ function formatPriceDisplay(item: StreamItem): string {
         return item.price || 'Unspecified';
     }
 
-    const isRent = item.type === 'Rent';
-    const isSale = item.type === 'Sale';
-
-    if (isRent) {
-        if (numeric >= 100000) {
-            return `Rs ${(numeric / 100000).toFixed(1).replace(/\.0$/, '')}L/mo`;
-        }
-        return `Rs ${Math.round(numeric / 1000)}K/mo`;
+    if (item.type === 'Rent') {
+        if (numeric >= 100000) return `₹${(numeric / 100000).toFixed(1).replace(/\.0$/, '')}L/mo`;
+        if (numeric >= 1000) return `₹${Math.round(numeric / 1000)}K/mo`;
+        return `₹${Math.round(numeric)}/mo`;
     }
 
-    if (isSale) {
-        if (numeric >= 10000000) {
-            return `Rs ${(numeric / 10000000).toFixed(2).replace(/\.00$/, '')}Cr`;
-        }
-        if (numeric >= 100000) {
-            return `Rs ${(numeric / 100000).toFixed(1).replace(/\.0$/, '')}L`;
-        }
-        return `Rs ${Math.round(numeric / 1000)}K`;
-    }
-
-    return item.price || 'Unspecified';
+    if (numeric >= 10000000) return `₹${(numeric / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+    if (numeric >= 100000) return `₹${(numeric / 100000).toFixed(1).replace(/\.0$/, '')} L`;
+    if (numeric >= 1000) return `₹${Math.round(numeric / 1000)}K`;
+    return `₹${Math.round(numeric).toLocaleString('en-IN')}`;
 }
 
 function formatPricePerSqft(item: StreamItem): string | null {
-    if (item.type !== 'Sale' || !item.priceNumeric || !item.areaSqft || item.areaSqft <= 0) {
-        return null;
-    }
-
+    if (item.type !== 'Sale' || !item.priceNumeric || !item.areaSqft || item.areaSqft <= 0) return null;
     const rate = Math.round(item.priceNumeric / item.areaSqft);
     if (!Number.isFinite(rate) || rate <= 0) return null;
-    return `Rs ${rate.toLocaleString('en-IN')}/sqft`;
+    return `₹${rate.toLocaleString('en-IN')}/sqft`;
 }
 
 function formatTimeAgo(createdAt: string): string {
@@ -63,16 +49,10 @@ function formatTimeAgo(createdAt: string): string {
     return `${Math.round(hours / 24)}d ago`;
 }
 
-function getConfidenceColor(confidence: number) {
-    if (confidence >= 70) return 'bg-[--propai-green]';
-    if (confidence >= 40) return 'bg-amber-400';
-    return 'bg-red-400';
-}
-
 function getTypeBadgeClass(type: string) {
-    if (type === 'Rent') return 'bg-[rgba(62,232,138,0.10)] text-[--propai-green] border-[rgba(62,232,138,0.30)]';
-    if (type === 'Sale') return 'bg-amber-500/10 text-amber-400 border-amber-400/30';
-    if (type === 'Requirement') return 'bg-blue-500/10 text-blue-300 border-blue-400/30';
+    if (type === 'Rent') return 'bg-[var(--propai-green)]/10 text-[var(--propai-green)] border-[rgba(62,232,138,0.30)]';
+    if (type === 'Sale') return 'bg-amber-500/10 text-amber-500 border-amber-400/30';
+    if (type === 'Requirement') return 'bg-blue-500/10 text-blue-400 border-blue-400/30';
     return 'bg-blue-500/10 text-blue-400 border-blue-400/30';
 }
 
@@ -103,29 +83,25 @@ function inferFurnishing(text: string): string | null {
 function inferFeatureChips(text: string): string[] {
     const lower = text.toLowerCase();
     const chips: string[] = [];
-
     if (lower.includes('balcony')) chips.push('Balcony');
     if (lower.includes('terrace')) chips.push('Terrace');
     if (lower.includes('brand new')) chips.push('Brand new');
     if (lower.includes('direct')) chips.push('Direct');
     if (lower.includes('parking')) chips.push('Parking');
-    if (lower.includes('all amenities') || lower.includes('amenities')) chips.push('Amenities');
+    if (lower.includes('amenities')) chips.push('Amenities');
     if (lower.includes('pet') && lower.includes('not allowed')) chips.push('No pets');
     if (lower.includes('family only')) chips.push('Family only');
-
     return chips;
 }
 
 function buildDisplayTitle(listing: StreamItem): string {
     const explicit = String(listing.title || '').trim();
     if (explicit) return explicit;
-
     const parts = [
         listing.bhk || null,
         listing.propertyCategory ? toTitleCase(String(listing.propertyCategory)) : null,
         listing.location ? `in ${listing.location}` : null,
     ].filter(Boolean);
-
     return parts.join(' ') || listing.location || 'Broker-sourced property';
 }
 
@@ -138,7 +114,6 @@ function buildChips(listing: StreamItem): string[] {
         inferFurnishing(raw),
         ...inferFeatureChips(raw),
     ].filter(Boolean) as string[];
-
     return Array.from(new Set(chips)).slice(0, 6);
 }
 
@@ -158,23 +133,27 @@ export const ListingCard: React.FC<ListingCardProps> = ({
     const [showChannelPicker, setShowChannelPicker] = React.useState(false);
     const [savingChannelId, setSavingChannelId] = React.useState<string | null>(null);
     const [copied, setCopied] = React.useState(false);
-    const shortId = listing.id.replace(/-/g, '').slice(-8);
+
+    const timeAgo = formatTimeAgo(listing.createdAt);
+    const priceLabel = formatPriceDisplay(listing);
+    const rateLabel = formatPricePerSqft(listing);
+    const displayTitle = buildDisplayTitle(listing);
+    const chips = buildChips(listing);
+    const visibleRaw = sanitizeVisibleText(listing.rawText || listing.description || '');
+    const sourceLabel = networkMode && listing.isNetworkItem ? 'Shared network feed' : 'Private workspace feed';
 
     const handleOpenWa = async (e: React.MouseEvent) => {
         e.stopPropagation();
         if (isOpening) return;
         setIsOpening(true);
-
         const result = await logWaClick(listing.id, 'stream', 'web');
         if (!result) {
             setToast('Failed to open WhatsApp');
             setIsOpening(false);
             return;
         }
-
         setLocalClickCount((c) => c + 1);
         setToast('Opening WhatsApp');
-
         if (clickLog) {
             setClickLog({
                 ...clickLog,
@@ -182,7 +161,6 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                 events: [{ clicked_at: new Date().toISOString(), source: 'stream', device: 'web' }, ...clickLog.events],
             });
         }
-
         window.open(result.redirect_url, '_blank', 'noopener');
         setIsOpening(false);
         window.setTimeout(() => setToast(null), 1800);
@@ -202,94 +180,113 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         }
     }, [isExpanded, clickLog, loadClickLog]);
 
-    const confidenceColor = getConfidenceColor(listing.confidence);
-    const timeAgo = formatTimeAgo(listing.createdAt);
-    const priceLabel = formatPriceDisplay(listing);
-    const rateLabel = formatPricePerSqft(listing);
-    const displayTitle = buildDisplayTitle(listing);
-    const chips = buildChips(listing);
-    const visibleRaw = sanitizeVisibleText(listing.rawText || listing.description || '');
-    const excerpt = visibleRaw.length > 180 ? `${visibleRaw.slice(0, 177)}...` : visibleRaw;
-    const sourceLabel = networkMode && listing.isNetworkItem ? 'Shared network feed' : 'Private workspace feed';
-
     return (
         <div className={cn(
-            'rounded-[16px] border transition-colors',
+            'group rounded-[28px] bg-[var(--bg-surface)] p-7 transition-all duration-500',
             isExpanded
-                ? 'border-[color:var(--accent-border)] bg-[var(--bg-surface)]'
-                : 'border-[color:var(--border)] bg-[var(--bg-surface)]'
+                ? 'border border-[color:var(--accent-border)] shadow-[0_32px_64px_rgba(0,0,0,0.3)]'
+                : 'border border-white/[0.02] shadow-[0_8px_40px_rgba(0,0,0,0.15)] hover:-translate-y-2 hover:shadow-[0_32px_64px_rgba(0,0,0,0.3)] hover:bg-[var(--bg-hover)]'
         )}>
-            <button type="button" onClick={onToggle} className="w-full p-4 text-left">
-                <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]', getTypeBadgeClass(listing.type))}>
-                                {listing.type}
-                            </span>
-                            <span className="inline-flex items-center gap-1 text-[11px] text-[var(--text-secondary)]">
-                                <Clock className="h-3 w-3" />
-                                {timeAgo}
-                            </span>
-                            {localClickCount > 0 ? (
-                                <span className="rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-0.5 text-[10px] font-medium text-[var(--accent)]">
-                                    {localClickCount} WA clicks
-                                </span>
-                            ) : null}
-                            <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 font-mono text-[10px] text-[var(--text-secondary)]">
-                                {shortId}
-                            </span>
-                        </div>
+            {/* Background glow on hover */}
+            <div className="absolute -top-32 -right-32 h-64 w-64 bg-[var(--accent)]/3 blur-[100px] rounded-full group-hover:bg-[var(--accent)]/8 transition-all duration-700 pointer-events-none" />
 
-                        <div className="mt-2 flex items-start gap-2">
-                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent)]" />
-                            <div className="min-w-0">
-                                <div className="text-[17px] font-semibold leading-snug text-[var(--text-primary)]">{displayTitle}</div>
-                                <div className="mt-1 text-[12px] text-[var(--text-secondary)]">{listing.location || 'Mumbai market'} · {sourceLabel}</div>
-                            </div>
-                        </div>
-
-                        {chips.length > 0 ? (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                                {chips.map((chip) => (
-                                    <span key={chip} className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)]">
-                                        {chip}
-                                    </span>
-                                ))}
-                            </div>
-                        ) : null}
-
-                        {excerpt ? (
-                            <div className="mt-3 line-clamp-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-                                {excerpt}
-                            </div>
-                        ) : null}
+            <div className="relative z-10">
+                {/* Top row: Type badge + time */}
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <span className={cn(
+                            'inline-flex rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.1em] backdrop-blur-md',
+                            getTypeBadgeClass(listing.type)
+                        )}>
+                            {listing.type}
+                        </span>
+                        <span className="flex items-center gap-1 text-[11px] text-[var(--text-secondary)]">
+                            <Clock className="h-3 w-3" />
+                            {timeAgo}
+                        </span>
                     </div>
+                    {listing.confidence >= 0 ? (
+                        <span className="text-[10px] font-mono text-[var(--text-muted)]">
+                            {Math.round(listing.confidence)}% match
+                        </span>
+                    ) : null}
+                </div>
 
-                    <div className="shrink-0 text-right">
-                        <div className="text-[20px] font-bold leading-none text-[var(--text-primary)]">{priceLabel}</div>
-                        <div className="mt-2 text-[11px] text-[var(--text-secondary)]">{rateLabel || `${Math.round(listing.confidence)}% confidence`}</div>
-                        <div className="mt-4 flex items-center justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={handleOpenWa}
-                                disabled={isOpening}
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-[--propai-green] px-3 py-2 text-[11px] font-semibold text-[#0D1A12] hover:brightness-110 disabled:opacity-60"
-                            >
-                                <MessageSquare className="h-3.5 w-3.5" />
-                                {isOpening ? 'Opening...' : 'Contact on WhatsApp'}
-                            </button>
-                            <button type="button" onClick={onToggle} className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] p-2 text-[var(--text-secondary)] hover:text-white">
-                                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                            </button>
-                        </div>
+                {/* Title + Location */}
+                <div className="flex items-start gap-2 mb-3">
+                    <MapPin className="mt-1 h-4 w-4 shrink-0 text-[var(--accent)]" />
+                    <div className="min-w-0">
+                        <h3 className="text-[20px] font-bold text-[var(--text-primary)] leading-[1.3] group-hover:text-[var(--accent)] transition-colors duration-300">
+                            {displayTitle}
+                        </h3>
+                        <p className="text-[13px] text-[var(--text-secondary)] font-medium mt-0.5">
+                            {listing.location || 'Mumbai market'} · {sourceLabel}
+                        </p>
                     </div>
                 </div>
-            </button>
 
+                {/* Chips */}
+                {chips.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 mb-4">
+                        {chips.map((chip) => (
+                            <span key={chip} className="px-3 py-1.5 rounded-xl bg-[var(--bg-elevated)] text-[11px] font-bold text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-base)]">
+                                {chip}
+                            </span>
+                        ))}
+                    </div>
+                ) : null}
+
+                {/* Intelligence Quote */}
+                <div className="space-y-2 mb-4">
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex items-center justify-center">
+                            <Zap className="h-3 w-3 text-[var(--accent)] fill-[var(--accent)]" />
+                        </div>
+                        <span className="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[var(--accent)]">Live Intelligence Fragment</span>
+                    </div>
+                    <p className="text-[14px] leading-relaxed text-[var(--text-secondary)] line-clamp-4 font-medium italic opacity-75 group-hover:opacity-100 transition-opacity">
+                        "{visibleRaw}"
+                    </p>
+                </div>
+
+                {/* Footer */}
+                <div className="mt-6 pt-5 border-t border-white/[0.03] flex items-center justify-between">
+                    <div className="space-y-1">
+                        <div className="text-[26px] font-bold text-[var(--text-primary)] tracking-tight">
+                            {priceLabel}
+                            {listing.type === 'Rent' && <span className="text-[14px] ml-1 text-[var(--text-muted)] font-medium">/mo</span>}
+                        </div>
+                        {rateLabel ? (
+                            <div className="text-[11px] text-[var(--text-muted)]">{rateLabel}</div>
+                        ) : localClickCount > 0 ? (
+                            <div className="text-[11px] text-[var(--text-muted)]">{localClickCount} WA click{localClickCount !== 1 ? 's' : ''}</div>
+                        ) : null}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleOpenWa}
+                            disabled={isOpening}
+                            className="flex items-center gap-2 h-11 px-5 rounded-2xl bg-[var(--accent)] text-[var(--on-propai-green)] text-[12px] font-bold uppercase tracking-[0.1em] hover:scale-[1.05] active:scale-[0.98] transition-all shadow-[0_12px_24px_rgba(62,232,138,0.2)] disabled:opacity-60"
+                        >
+                            <MessageSquare className="h-4 w-4" />
+                            {isOpening ? 'Opening...' : 'Contact on WhatsApp'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onToggle}
+                            className="flex items-center justify-center h-11 w-11 rounded-2xl border border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-white transition-all"
+                        >
+                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Expanded Section */}
             {isExpanded ? (
-                <div className="border-t border-[color:var(--border)] px-4 pb-4 pt-3">
-                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_280px]">
-                        <div className="space-y-3">
+                <div className="mt-6 pt-5 border-t border-white/[0.03] relative z-10">
+                    <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
+                        <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                                 {[
                                     { label: 'Deal', value: listing.type },
@@ -297,17 +294,17 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                     { label: 'Category', value: listing.propertyCategory ? toTitleCase(String(listing.propertyCategory)) : 'Not parsed' },
                                     { label: 'Source', value: sourceLabel },
                                 ].map((item) => (
-                                    <div key={item.label} className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
-                                        <div className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">{item.label}</div>
-                                        <div className="mt-1 text-[13px] text-[var(--text-primary)]">{item.value}</div>
+                                    <div key={item.label} className="rounded-[18px] bg-[var(--bg-elevated)] p-4 border border-white/[0.02]">
+                                        <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-1">{item.label}</div>
+                                        <div className="text-[14px] font-semibold text-[var(--text-primary)]">{item.value}</div>
                                     </div>
                                 ))}
                             </div>
 
                             {visibleRaw ? (
                                 <div>
-                                    <div className="mb-1 text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Source message</div>
-                                    <div className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3 text-[12px] leading-6 text-[var(--text-primary)]">
+                                    <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-2">Source message</div>
+                                    <div className="rounded-[18px] bg-[var(--bg-elevated)] p-4 border border-white/[0.02] text-[13px] leading-6 text-[var(--text-primary)]">
                                         {visibleRaw}
                                     </div>
                                 </div>
@@ -315,26 +312,14 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                         </div>
 
                         <div className="space-y-3">
-                            <div className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <div className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Post analytics</div>
-                                        <div className="mt-1 text-[18px] font-semibold text-[var(--text-primary)]">{localClickCount}</div>
-                                        <div className="text-[11px] text-[var(--text-secondary)]">WhatsApp opens recorded</div>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="h-[4px] w-14 overflow-hidden rounded-full bg-[var(--bg-base)]">
-                                            <div className={cn('h-full rounded-full transition-all', confidenceColor)} style={{ width: `${Math.round(listing.confidence)}%` }} />
-                                        </div>
-                                        <span className={cn('text-[11px] font-medium', listing.confidence >= 70 ? 'text-[--propai-green]' : listing.confidence >= 40 ? 'text-amber-400' : 'text-red-400')}>
-                                            {Math.round(listing.confidence)}%
-                                        </span>
-                                    </div>
-                                </div>
+                            <div className="rounded-[18px] bg-[var(--bg-elevated)] p-4 border border-white/[0.02]">
+                                <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-3">Post analytics</div>
+                                <div className="text-[24px] font-bold text-[var(--text-primary)]">{localClickCount}</div>
+                                <div className="text-[11px] text-[var(--text-secondary)]">WhatsApp opens</div>
                             </div>
 
-                            <div className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
-                                <div className="mb-2 text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Recent click log</div>
+                            <div className="rounded-[18px] bg-[var(--bg-elevated)] p-4 border border-white/[0.02]">
+                                <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-3">Recent click log</div>
                                 <div className="max-h-28 space-y-1 overflow-y-auto">
                                     {clickLog === null ? (
                                         <div className="text-[11px] text-[var(--text-secondary)]">Loading...</div>
@@ -344,7 +329,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                         clickLog.events.map((ev, index) => (
                                             <div key={`${ev.clicked_at}-${index}`} className="flex items-center justify-between gap-2 text-[11px] text-[var(--text-secondary)]">
                                                 <span>{new Date(ev.clicked_at).toLocaleString('en-IN')}</span>
-                                                <span className="rounded-full border border-[color:var(--border)] px-2 py-0.5 text-[10px] text-[var(--text-secondary)]">{ev.source}</span>
+                                                <span className="rounded-full border border-[color:var(--border)] px-2 py-0.5 text-[10px]">{ev.source}</span>
                                             </div>
                                         ))
                                     )}
@@ -353,10 +338,9 @@ export const ListingCard: React.FC<ListingCardProps> = ({
 
                             <div className="flex flex-wrap items-center gap-2">
                                 <button
-                                    type="button"
                                     onClick={handleOpenWa}
                                     disabled={isOpening}
-                                    className="flex items-center gap-1.5 rounded-lg bg-[--propai-green] px-3 py-1.5 text-xs font-semibold text-[#0D1A12] hover:brightness-110 disabled:opacity-60"
+                                    className="flex items-center gap-1.5 rounded-xl bg-[--propai-green] px-4 py-2 text-[11px] font-semibold text-[#0D1A12] hover:brightness-110 disabled:opacity-60"
                                 >
                                     <ExternalLink className="h-3.5 w-3.5" />
                                     {isOpening ? 'Opening...' : 'Open WhatsApp'}
@@ -365,7 +349,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                     <button
                                         type="button"
                                         onClick={() => setShowChannelPicker((v) => !v)}
-                                        className="flex items-center gap-1.5 rounded-lg border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:text-white"
+                                        className="flex items-center gap-1.5 rounded-xl border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-[11px] text-[var(--text-secondary)] hover:text-white"
                                     >
                                         <Save className="h-3.5 w-3.5" />
                                         Save to Channel
@@ -406,7 +390,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                             window.setTimeout(() => setCopied(false), 1600);
                                         }).catch(() => {});
                                     }}
-                                    className="flex items-center gap-1.5 rounded-lg border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:text-white"
+                                    className="flex items-center gap-1.5 rounded-xl border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-[11px] text-[var(--text-secondary)] hover:text-white"
                                 >
                                     {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                                     {copied ? 'Copied' : 'Copy clean text'}
