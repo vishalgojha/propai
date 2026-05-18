@@ -2,6 +2,7 @@ import { aiService } from './aiService';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { parseAgentResponse, toAgentResponse } from '../types/agent';
 import { renderOutput } from '../whatsapp/formatter';
+import { getPhoneOwnership, normalizePhone as normalizePhoneValue } from './phoneOwnershipService';
 import {
     getBrokerProfile as getUnifiedBrokerProfile,
 } from './unifiedAgentService';
@@ -397,20 +398,22 @@ Always wrap responses in the AgentResponse JSON schema.`;
         role?: string | null;
     }> {
         const strippedPhone = remoteJid.replace('@s.whatsapp.net', '');
-        const phone = strippedPhone.startsWith('+') ? strippedPhone.slice(1) : strippedPhone;
+        const phone = normalizePhoneValue(strippedPhone.startsWith('+') ? strippedPhone.slice(1) : strippedPhone);
         const client = supabaseAdmin ?? supabase;
 
         // 1) Direct profile match (owner)
-        const { data: ownerProfile } = await client
-            .from('profiles')
-            .select('id, phone_verified')
-            .or(`phone.eq.${phone},phone.eq.+${phone}`)
-            .maybeSingle();
+        const ownership = await getPhoneOwnership(phone);
+        const ownerProfile = ownership?.canonicalOwnerId
+            ? {
+                id: ownership.canonicalOwnerId,
+                phone_verified: ownership.canonicalOwnerVerified,
+            }
+            : null;
 
         if (ownerProfile?.id) {
             return {
                 isBroker: true,
-                verified: true,
+                verified: Boolean(ownerProfile.phone_verified),
                 tenantId: ownerProfile.id,
                 role: 'owner',
             };

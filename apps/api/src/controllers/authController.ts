@@ -3,10 +3,11 @@ import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGateway
 import { supabase } from '../config/supabase';
 import crypto from 'crypto';
 import { pushRecentAction } from '../services/identityService';
+import { getPhoneOwnership, markPhoneVerifiedForUser, normalizePhone as normalizePhoneValue } from '../services/phoneOwnershipService';
 
 export const requestVerification = async (req: Request, res: Response) => {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ error: 'Phone number is required' });
+    const normalizedPhone = normalizePhoneValue(req.body?.phone);
+    if (!normalizedPhone) return res.status(400).json({ error: 'Phone number is required' });
 
     if (process.env.ENABLE_SYSTEM_WHATSAPP_SESSION !== 'true') {
         return res.status(503).json({
@@ -17,9 +18,17 @@ export const requestVerification = async (req: Request, res: Response) => {
     try {
         const token = crypto.randomBytes(32).toString('hex');
         
+        const ownership = await getPhoneOwnership(normalizedPhone);
+        const targetProfileId = ownership?.canonicalOwnerId || null;
+
+        if (!targetProfileId) {
+            return res.status(404).json({ error: 'No account found for this phone number' });
+        }
+
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
-            .upsert({ phone, verification_token: token, phone_verified: false })
+            .update({ verification_token: token })
+            .eq('id', targetProfileId)
             .select()
             .single();
 
@@ -28,7 +37,7 @@ export const requestVerification = async (req: Request, res: Response) => {
         const gateway = getWhatsAppGateway('system');
         await gateway.sendMessage({
             workspaceOwnerId: 'system',
-            remoteJid: `${phone}@s.whatsapp.net`,
+            remoteJid: `${normalizedPhone}@s.whatsapp.net`,
             text: `Welcome to PropAI! Your verification token is: ${token.substring(0, 6)}\n\nReply with YES to activate your account.`,
         });
 
@@ -40,13 +49,18 @@ export const requestVerification = async (req: Request, res: Response) => {
 };
 
 export const verifyPhone = async (req: Request, res: Response) => {
-    const { phone, otp } = req.body;
-    if (!phone || !otp) return res.status(400).json({ error: 'Phone and OTP are required' });
+    const normalizedPhone = normalizePhoneValue(req.body?.phone);
+    const otp = String(req.body?.otp || '');
+    if (!normalizedPhone || !otp) return res.status(400).json({ error: 'Phone and OTP are required' });
+
+    const ownership = await getPhoneOwnership(normalizedPhone);
+    const targetProfileId = ownership?.canonicalOwnerId || null;
+    if (!targetProfileId) return res.status(400).json({ error: 'Profile not found' });
 
     const { data: profile, error } = await supabase
         .from('profiles')
-        .select('verification_token')
-        .eq('phone', phone)
+        .select('id, verification_token')
+        .eq('id', targetProfileId)
         .single();
 
     if (error || !profile) return res.status(400).json({ error: 'Profile not found' });
@@ -56,12 +70,9 @@ export const verifyPhone = async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'Invalid verification token' });
     }
 
-    const { data: updated, error: updateError } = await supabase
-        .from('profiles')
-        .update({ phone_verified: true, verification_token: null })
-        .eq('phone', phone)
-        .select()
-        .single();
+    const verificationResult = await markPhoneVerifiedForUser(targetProfileId, normalizedPhone);
+    const updated = verificationResult?.profile || null;
+    const updateError = updated ? null : new Error('Profile verification failed');
 
     if (updateError) return res.status(500).json({ error: updateError.message });
 

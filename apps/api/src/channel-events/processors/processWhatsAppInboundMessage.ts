@@ -6,6 +6,7 @@ import { sessionEventService } from '../../services/sessionEventService';
 import { whatsappHealthService } from '../../services/whatsappHealthService';
 import { whatsappMessageMirrorService } from '../../services/whatsappMessageMirrorService';
 import { getWhatsAppGateway } from '../../channel-gateways/whatsapp/whatsappGatewayRegistry';
+import { getPhoneOwnership, markPhoneVerifiedForUser, normalizePhone as normalizePhoneValue } from '../../services/phoneOwnershipService';
 
 const db = supabaseAdmin || supabase;
 const AI_SENDER = 'AI';
@@ -184,21 +185,15 @@ async function isSelfChatEnabled(tenantId: string, sessionLabel?: string) {
 }
 
 async function handleVerificationReply(remoteJid: string) {
-    const phone = remoteJid.split('@')[0];
-    const { data: profile } = await db
-        .from('profiles')
-        .select('id')
-        .eq('phone', phone)
-        .single();
+    const phone = normalizePhoneValue(remoteJid.split('@')[0]);
+    const ownership = await getPhoneOwnership(phone);
+    const ownerId = ownership?.canonicalOwnerId || null;
 
-    if (!profile) {
+    if (!ownerId) {
         return false;
     }
 
-    await db
-        .from('profiles')
-        .update({ phone_verified: true })
-        .eq('id', profile.id);
+    await markPhoneVerifiedForUser(ownerId, phone);
 
     return true;
 }

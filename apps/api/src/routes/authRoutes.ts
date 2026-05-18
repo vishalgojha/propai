@@ -6,6 +6,7 @@ import { ROUTE_PATHS } from './routePaths';
 import { referralService } from '../services/referralService';
 import { subscriptionService } from '../services/subscriptionService';
 import { emailNotificationService } from '../services/emailNotificationService';
+import { getPhoneOwnership, normalizePhone as normalizePhoneValue } from '../services/phoneOwnershipService';
 import {
     requestVerificationBodySchema,
     passwordAuthBodySchema,
@@ -21,7 +22,7 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
 ]);
 const PROFILE_BASE_SELECT = 'id, full_name, phone, email, phone_verified';
 
-const normalizePhone = (value?: string) => (value || '').split('').filter(c => c >= '0' && c <= '9').join('');
+const normalizePhone = (value?: string) => normalizePhoneValue(value);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function extractAuthErrorMessage(error: any, fallback = 'Authentication failed'): string {
@@ -70,31 +71,26 @@ function getProfileClient(accessToken?: string) {
     throw new Error('Supabase profile access is not configured on this deployment');
 }
 
-async function assertPhoneAvailable(userId: string, phone?: string, accessToken?: string) {
+async function getPhoneOwnershipState(userId: string, phone?: string) {
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) {
-        return;
+        return null;
     }
 
-    const client = getProfileClient(accessToken);
-    const { data, error } = await client
-        .from('profiles')
-        .select('id, phone')
-        .eq('phone', normalizedPhone)
-        .maybeSingle();
-
-    if (error) {
-        throw error;
-    }
-
-    if (data && String(data.id || '') !== userId) {
-        const duplicateError = new Error('This WhatsApp number is already linked to another account');
-        (duplicateError as Error & { status?: number }).status = 409;
-        throw duplicateError;
-    }
+    const ownership = await getPhoneOwnership(normalizedPhone);
+    return ownership
+        ? {
+            ...ownership,
+            isCanonicalOwner: ownership.canonicalOwnerId === userId,
+        }
+        : null;
 }
 
 async function upsertProfile(userId: string, email: string | null | undefined, fullName?: string, phone?: string, accessToken?: string) {
+    const normalizedPhone = normalizePhone(phone);
+    const phoneOwnership = await getPhoneOwnershipState(userId, normalizedPhone);
+    const isCanonicalPhoneOwner = !normalizedPhone || !phoneOwnership || phoneOwnership.isCanonicalOwner || !phoneOwnership.canonicalOwnerId;
+
     const payload: Record<string, unknown> = {
         id: userId,
         email: email || null,
@@ -102,10 +98,14 @@ async function upsertProfile(userId: string, email: string | null | undefined, f
     };
 
     if (fullName?.trim()) payload.full_name = fullName.trim();
-    if (phone?.trim()) payload.phone = normalizePhone(phone);
+    if (normalizedPhone) {
+        payload.phone = normalizedPhone;
+        if (!isCanonicalPhoneOwner) {
+            payload.phone_verified = false;
+        }
+    }
 
     const client = getProfileClient(accessToken);
-    await assertPhoneAvailable(userId, phone, accessToken);
     const { error } = await client
         .from('profiles')
         .upsert(payload, { onConflict: 'id' });
@@ -114,13 +114,25 @@ async function upsertProfile(userId: string, email: string | null | undefined, f
 
     const profile = await getProfileById(userId, accessToken);
 
-    return profile || {
+    const fallbackProfile = profile || {
         id: userId,
         full_name: fullName?.trim() || null,
-        phone: phone?.trim() ? normalizePhone(phone) : null,
+        phone: normalizedPhone || null,
         email: email || null,
         phone_verified: false,
         app_role: 'broker',
+    };
+
+    return {
+        ...fallbackProfile,
+        phone_ownership: normalizedPhone
+            ? {
+                phone: normalizedPhone,
+                canonicalOwnerId: phoneOwnership?.canonicalOwnerId || userId,
+                isCanonicalOwner: isCanonicalPhoneOwner,
+                hasConflict: Boolean(phoneOwnership?.hasConflict),
+            }
+            : null,
     };
 }
 
@@ -133,7 +145,26 @@ async function getProfileById(userId: string, accessToken?: string) {
         .maybeSingle();
 
     if (fallback.error) throw fallback.error;
-    return fallback.data ? { ...fallback.data, app_role: 'broker' } : null;
+    if (!fallback.data) {
+        return null;
+    }
+
+    const phoneOwnership = fallback.data.phone
+        ? await getPhoneOwnershipState(String(fallback.data.id || ''), String(fallback.data.phone || ''))
+        : null;
+
+    return {
+        ...fallback.data,
+        app_role: 'broker',
+        phone_ownership: fallback.data.phone
+            ? {
+                phone: normalizePhone(String(fallback.data.phone || '')),
+                canonicalOwnerId: phoneOwnership?.canonicalOwnerId || fallback.data.id,
+                isCanonicalOwner: phoneOwnership?.isCanonicalOwner ?? true,
+                hasConflict: Boolean(phoneOwnership?.hasConflict),
+            }
+            : null,
+    };
 }
 
 async function getLegacyUserSeed(userId: string) {
@@ -189,13 +220,6 @@ router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (
             const normalizedPhone = normalizePhone(phone);
             if (!fullName || !normalizedPhone) {
                 return res.status(400).json({ error: 'Full name and WhatsApp number are required for sign up' });
-            }
-
-            try {
-                await assertPhoneAvailable('__signup__', normalizedPhone);
-            } catch (phoneError: any) {
-                const status = Number(phoneError?.status || 500);
-                return res.status(status).json({ error: phoneError?.message || 'This WhatsApp number is already linked to another account' });
             }
 
             const existingUser = await findAuthUserByEmail(email);
@@ -333,6 +357,7 @@ router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (
                     email: profile.email,
                     phoneVerified: profile.phone_verified,
                     appRole: profile.app_role || (isOwnerSuperAdminEmail(authData.user.email) ? 'super_admin' : 'broker'),
+                    phoneOwnership: (profile as any).phone_ownership || null,
                 }
                 : null,
             subscription,
@@ -478,6 +503,7 @@ router.get('/me', authMiddleware, async (req, res) => {
                 email: profile.email,
                 phoneVerified: profile.phone_verified,
                 appRole: profile.app_role || (isOwnerSuperAdminEmail(user.email) ? 'super_admin' : 'broker'),
+                phoneOwnership: (profile as any).phone_ownership || null,
             }
             : null,
         subscription,
