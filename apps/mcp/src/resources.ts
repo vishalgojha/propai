@@ -1,4 +1,5 @@
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { extractThreadActionsWithLlm } from "./ai.js";
 import {
   getBrokerActivity,
   getHotLeadTriage,
@@ -166,6 +167,56 @@ export function registerMcpResources(server: McpServer, context: ToolContext = {
           text: item.text,
           timestamp: item.timestamp || item.created_at,
         })),
+      });
+    },
+  );
+
+  server.registerResource(
+    "broker-thread-actions-template",
+    new ResourceTemplate("propai://thread/{remote_jid}/actions", {
+      list: async () => {
+        const id = requireBrokerId(context);
+        const items = await getStoredThreadMessages({ brokerId: id, limit: 10 });
+        return {
+          resources: [...new Set(items.map((item) => item.remote_jid))].map((remoteJid) => ({
+            uri: `propai://thread/${encodeURIComponent(remoteJid)}/actions`,
+            name: `${remoteJid} actions`,
+            mimeType: "application/json",
+            description: `Extracted broker workflow actions for ${remoteJid}`,
+          })),
+        };
+      },
+      complete: {
+        remote_jid: async (value) => {
+          const id = requireBrokerId(context);
+          const items = await getStoredThreadMessages({ brokerId: id, limit: 25 });
+          return [...new Set(items
+            .map((item) => item.remote_jid)
+            .filter((item) => item.toLowerCase().includes(value.toLowerCase()))
+            .slice(0, 20))];
+        },
+      },
+    }),
+    {
+      title: "Thread Action Extraction",
+      description: "Likely CRM actions extracted from stored thread history.",
+      mimeType: "application/json",
+    },
+    async (uri, variables) => {
+      const id = requireBrokerId(context);
+      const remoteJid = String(variables.remote_jid || "").trim();
+      const items = await getStoredThreadMessages({ brokerId: id, remoteJid, limit: 80 });
+      const actions = await extractThreadActionsWithLlm({
+        remoteJid,
+        lines: items
+          .filter((item) => String(item.text || "").trim())
+          .slice(-12)
+          .map((item) => `${item.sender || "Unknown"}: ${String(item.text || "").slice(0, 240)}`),
+      });
+      return jsonResource(uri.toString(), {
+        remote_jid: remoteJid,
+        message_count: items.length,
+        ...actions,
       });
     },
   );

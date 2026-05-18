@@ -9,6 +9,31 @@ type ThreadSummary = {
   key_points: string[];
 };
 
+export type ThreadActionExtraction = {
+  requirements: Array<{
+    title: string;
+    raw_text: string;
+    location_pref?: string;
+    budget?: string;
+    timeline?: string;
+  }>;
+  listings: Array<{
+    title: string;
+    raw_text: string;
+    location?: string;
+    price?: string;
+    bhk?: string;
+  }>;
+  follow_ups: Array<{
+    lead_name: string;
+    lead_phone?: string;
+    notes: string;
+    priority_bucket?: "P1" | "P2" | "P3";
+  }>;
+  unresolved_questions: string[];
+  recommended_actions: string[];
+};
+
 const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
 const GROQ_BASE_URL = process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";
@@ -83,6 +108,96 @@ function parseSummary(raw: string, fallback: ThreadSummary) {
   }
 }
 
+function fallbackThreadActions(lines: string[]): ThreadActionExtraction {
+  const last = lines.slice(-6);
+  return {
+    requirements: [],
+    listings: [],
+    follow_ups: last.length
+      ? [{
+          lead_name: "Thread follow-up",
+          notes: "Review the latest thread manually and confirm what should be saved into CRM.",
+          priority_bucket: "P2",
+        }]
+      : [],
+    unresolved_questions: last.length
+      ? ["The thread needs manual review to confirm whether it contains a buyer requirement, listing, or callback ask."]
+      : ["No usable thread history found."],
+    recommended_actions: last.length
+      ? ["Review the latest messages and save any clear requirement or listing manually."]
+      : ["Sync or load more thread history before extracting actions."],
+  };
+}
+
+function parseThreadActions(raw: string, fallback: ThreadActionExtraction) {
+  try {
+    const parsed = JSON.parse(raw) as Partial<ThreadActionExtraction>;
+    const requirements = Array.isArray(parsed.requirements)
+      ? parsed.requirements
+        .map((item) => ({
+          title: String(item?.title || "").trim(),
+          raw_text: String(item?.raw_text || "").trim(),
+          location_pref: item?.location_pref ? String(item.location_pref).trim() : undefined,
+          budget: item?.budget ? String(item.budget).trim() : undefined,
+          timeline: item?.timeline ? String(item.timeline).trim() : undefined,
+        }))
+        .filter((item) => item.title && item.raw_text)
+        .slice(0, 3)
+      : [];
+    const listings = Array.isArray(parsed.listings)
+      ? parsed.listings
+        .map((item) => ({
+          title: String(item?.title || "").trim(),
+          raw_text: String(item?.raw_text || "").trim(),
+          location: item?.location ? String(item.location).trim() : undefined,
+          price: item?.price ? String(item.price).trim() : undefined,
+          bhk: item?.bhk ? String(item.bhk).trim() : undefined,
+        }))
+        .filter((item) => item.title && item.raw_text)
+        .slice(0, 3)
+      : [];
+    const followUps = Array.isArray(parsed.follow_ups)
+      ? parsed.follow_ups
+        .map((item) => ({
+          lead_name: String(item?.lead_name || "").trim(),
+          lead_phone: item?.lead_phone ? String(item.lead_phone).trim() : undefined,
+          notes: String(item?.notes || "").trim(),
+          priority_bucket: item?.priority_bucket === "P1" || item?.priority_bucket === "P2" || item?.priority_bucket === "P3"
+            ? item.priority_bucket
+            : undefined,
+        }))
+        .filter((item) => item.lead_name && item.notes)
+        .slice(0, 5)
+      : [];
+    const unresolvedQuestions = Array.isArray(parsed.unresolved_questions)
+      ? parsed.unresolved_questions.map((item) => String(item).trim()).filter(Boolean).slice(0, 5)
+      : [];
+    const recommendedActions = Array.isArray(parsed.recommended_actions)
+      ? parsed.recommended_actions.map((item) => String(item).trim()).filter(Boolean).slice(0, 5)
+      : [];
+
+    if (
+      !requirements.length
+      && !listings.length
+      && !followUps.length
+      && !unresolvedQuestions.length
+      && !recommendedActions.length
+    ) {
+      return fallback;
+    }
+
+    return {
+      requirements,
+      listings,
+      follow_ups: followUps,
+      unresolved_questions: unresolvedQuestions,
+      recommended_actions: recommendedActions,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export async function summarizeBrokerThreadWithLlm(input: {
   remoteJid: string;
   lines: string[];
@@ -139,6 +254,69 @@ export async function summarizeBrokerThreadWithLlm(input: {
       return parseSummary(raw, fallback);
     } catch {
       // Fall through to the heuristic fallback.
+    }
+  }
+
+  return fallback;
+}
+
+export async function extractThreadActionsWithLlm(input: {
+  remoteJid: string;
+  lines: string[];
+}) {
+  const fallback = fallbackThreadActions(input.lines);
+  if (!input.lines.length) return fallback;
+
+  const systemPrompt = [
+    "You extract real-estate CRM actions from Indian broker WhatsApp threads.",
+    "Return strict JSON with keys: requirements, listings, follow_ups, unresolved_questions, recommended_actions.",
+    "Only include items strongly supported by the thread.",
+    "Each requirement or listing must preserve a concise raw_text field from the thread in paraphrased form.",
+    "follow_ups should capture who needs a callback and why.",
+  ].join(" ");
+
+  const userPrompt = [
+    `Chat JID: ${input.remoteJid}`,
+    "Extract broker workflow actions from this thread:",
+    input.lines.join("\n"),
+  ].join("\n\n");
+
+  const messages: ChatMessage[] = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt },
+  ];
+
+  const openRouterKey = process.env.OPENROUTER_API_KEY || "";
+  if (openRouterKey) {
+    try {
+      const raw = await callOpenAICompatible(
+        OPENROUTER_BASE_URL,
+        openRouterKey,
+        OPENROUTER_MODEL,
+        messages,
+        {
+          "HTTP-Referer": "https://mcp.propai.live",
+          "X-Title": "PropAI MCP",
+        },
+      );
+      return parseThreadActions(raw, fallback);
+    } catch {
+      // Fall through.
+    }
+  }
+
+  const groqKey = process.env.GROQ_API_KEY || "";
+  if (groqKey) {
+    try {
+      const raw = await callOpenAICompatible(
+        GROQ_BASE_URL,
+        groqKey,
+        GROQ_MODEL,
+        messages,
+      );
+      return parseThreadActions(raw, fallback);
+    } catch {
+      // Fall through.
     }
   }
 

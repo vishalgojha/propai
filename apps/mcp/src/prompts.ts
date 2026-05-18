@@ -3,6 +3,28 @@ import { z } from "zod";
 
 export function registerMcpPrompts(server: McpServer) {
   server.registerPrompt(
+    "extract_thread_actions",
+    {
+      title: "Extract Thread Actions",
+      description: "Read a stored broker thread and extract likely CRM actions before saving anything.",
+      argsSchema: {
+        remote_jid: z.string().describe("Thread JID, for example 9198...@s.whatsapp.net"),
+      },
+    },
+    async ({ remote_jid }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Inspect thread ${remote_jid}, extract any requirement candidates, listing candidates, follow-up asks, unresolved questions, and tell me what should be saved into CRM.`,
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
     "hot_lead_triage",
     {
       title: "Hot Lead Triage",

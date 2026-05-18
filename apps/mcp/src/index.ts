@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { supabase } from "./supabase.js";
-import { summarizeBrokerThreadWithLlm } from "./ai.js";
+import { extractThreadActionsWithLlm, summarizeBrokerThreadWithLlm } from "./ai.js";
 import {
   buildBroadcastDraft,
   createRequirementRecord,
@@ -33,6 +33,7 @@ export const MCP_TOOL_NAMES = [
   "get_fresh_stream",
   "broker_activity",
   "triage_hot_leads",
+  "extract_thread_actions",
   "create_requirement",
   "draft_broadcast",
   "market_summary",
@@ -85,6 +86,63 @@ export function createMcpServer(context: ToolContext = {}) {
 
   registerMcpResources(server, context);
   registerMcpPrompts(server);
+
+  server.registerTool(
+    "extract_thread_actions",
+    {
+      description:
+        "Extract likely CRM actions from a stored WhatsApp thread: buyer requirements, listings, follow-ups, and unresolved questions.",
+      inputSchema: {
+        remote_jid: z.string().describe("Chat JID to inspect"),
+        limit: z.number().default(50).describe("How many recent messages to scan"),
+      },
+    },
+    async (input) => {
+      const id = requireBrokerId(context);
+      await logToolCall(id, "extract_thread_actions", input);
+      const thread = await summarizeThread({
+        brokerId: id,
+        remote_jid: input.remote_jid,
+        limit: input.limit,
+      });
+
+      if (!thread.message_count) {
+        return textResponse("No stored thread history found for that chat.", {
+          ...thread,
+          requirements: [],
+          listings: [],
+          follow_ups: [],
+          unresolved_questions: ["No stored thread history found for that chat."],
+          recommended_actions: [],
+        });
+      }
+
+      const actions = await extractThreadActionsWithLlm({
+        remoteJid: input.remote_jid,
+        lines: thread.key_points.map((item) => `${item.sender || "Unknown"}: ${item.text}`),
+      });
+
+      const lines = [
+        `Extracted ${actions.requirements.length} requirement candidate(s), ${actions.listings.length} listing candidate(s), and ${actions.follow_ups.length} follow-up candidate(s).`,
+        actions.recommended_actions.length
+          ? `Recommended actions: ${actions.recommended_actions.join(" | ")}`
+          : "Recommended actions: none yet.",
+        actions.unresolved_questions.length
+          ? `Open questions: ${actions.unresolved_questions.join(" | ")}`
+          : "Open questions: none.",
+      ];
+
+      return textResponse(lines.join("\n\n"), {
+        remote_jid: input.remote_jid,
+        message_count: thread.message_count,
+        requirements: actions.requirements,
+        listings: actions.listings,
+        follow_ups: actions.follow_ups,
+        unresolved_questions: actions.unresolved_questions,
+        recommended_actions: actions.recommended_actions,
+      });
+    },
+  );
 
   server.registerTool(
     "triage_hot_leads",
