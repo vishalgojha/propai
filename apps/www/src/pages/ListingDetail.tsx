@@ -9,7 +9,7 @@ import ListingCard from '@/components/ListingCard';
 
 function buildDescription(listing: PublicListing): string {
   const parts: string[] = [];
-  const dealType = listing.type === 'Rent' ? 'Available for rent' : 'Available for sale';
+  const dealType = listing.type === 'Requirement' ? 'Wanted' : listing.type === 'Rent' ? 'Available for rent' : 'Available for sale';
   parts.push(dealType);
   if (listing.bhk) parts.push(`${listing.bhk}`);
   if (listing.locality) parts.push(`in ${listing.locality}`);
