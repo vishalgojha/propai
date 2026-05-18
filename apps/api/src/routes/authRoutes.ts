@@ -13,6 +13,7 @@ import {
     verifyOtpBodySchema,
     refreshTokenBodySchema,
     resetPasswordBodySchema,
+    updateProfileBodySchema,
 } from '../schemas/authSchemas';
 
 const router = Router();
@@ -509,6 +510,55 @@ router.get('/me', authMiddleware, async (req, res) => {
         subscription,
         referral,
     });
+});
+
+router.post('/me', authMiddleware, validate(updateProfileBodySchema), async (req, res) => {
+    try {
+        const user = (req as any).user;
+        const userId = String(user?.id || '').trim();
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim() : '';
+        if (!fullName) {
+            return res.status(400).json({ error: 'Full name is required' });
+        }
+
+        const authHeader = String(req.headers.authorization || '');
+        const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+        const client = getProfileClient(accessToken);
+        const { error: profileError } = await client
+            .from('profiles')
+            .upsert({
+                id: userId,
+                email: user?.email || null,
+                full_name: fullName,
+                updated_at: new Date().toISOString(),
+            }, { onConflict: 'id' });
+
+        if (profileError) {
+            throw profileError;
+        }
+
+        const profile = await getProfileById(userId);
+        return res.json({
+            success: true,
+            profile: profile
+                ? {
+                    id: profile.id,
+                    fullName: profile.full_name,
+                    phone: profile.phone,
+                    email: profile.email,
+                    phoneVerified: profile.phone_verified,
+                    appRole: profile.app_role || (isOwnerSuperAdminEmail(user.email) ? 'super_admin' : 'broker'),
+                    phoneOwnership: (profile as any).phone_ownership || null,
+                }
+                : null,
+        });
+    } catch (error: any) {
+        return res.status(Number(error?.status || 500)).json({ error: error?.message || 'Failed to update profile' });
+    }
 });
 
 export default router;

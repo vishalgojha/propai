@@ -25,3 +25,14 @@ export const refreshTokenBodySchema = z.object({
 export const resetPasswordBodySchema = z.object({
     email: z.string().email('A valid email is required'),
 });
+
+export const updateProfileBodySchema = z.object({
+    fullName: z.preprocess(
+        (value) => {
+            if (typeof value !== 'string') return undefined;
+            const trimmed = value.trim();
+            return trimmed.length > 0 ? trimmed : undefined;
+        },
+        z.string().min(2, 'Full name must be at least 2 characters').max(80, 'Full name is too long').optional(),
+    ),
+});

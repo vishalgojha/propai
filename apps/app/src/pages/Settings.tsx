@@ -46,6 +46,37 @@ interface SettingsState {
   performanceAnalytics: boolean;
 }
 
+interface WorkspaceMetadataState {
+  agencyName: string;
+  primaryCity: string;
+  serviceAreas: Array<{ city: string; locality: string; priority: number }>;
+}
+
+interface ProfileEditorState {
+  fullName: string;
+  agencyName: string;
+  primaryCity: string;
+  areasText: string;
+}
+
+const parseServiceAreas = (text: string, primaryCity: string) => {
+  const city = primaryCity.trim();
+  const areas = new Map<string, { city: string; locality: string; priority: number }>();
+  const tokens = text
+    .split(',')
+    .map((token) => token.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  for (const token of tokens) {
+    const key = `${city.toLowerCase()}::${token.toLowerCase()}`;
+    if (!areas.has(key)) {
+      areas.set(key, { city, locality: token, priority: 0 });
+    }
+  }
+
+  return Array.from(areas.values()).slice(0, 30);
+};
+
 const aiProviders = [
   {
     id: 'gemini',
@@ -166,6 +197,14 @@ export const Settings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showKeys, setShowKeys] = useState<{ [key: string]: boolean }>({});
   const [error, setError] = useState<string | null>(null);
+  const [profileEditor, setProfileEditor] = useState<ProfileEditorState>({
+    fullName: '',
+    agencyName: '',
+    primaryCity: 'Mumbai',
+    areasText: '',
+  });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
 
   const [settings, setSettings] = useState<SettingsState>({
     autoSyncPeriod: 'Auto',
@@ -192,15 +231,29 @@ export const Settings: React.FC = () => {
 
   const roleLabel = user?.appRole === 'super_admin' ? 'PropAI Owner' : 'Broker Partner';
 
+  const syncProfileEditor = React.useCallback((profile?: { fullName?: string | null } | null, metadata?: WorkspaceMetadataState | null) => {
+    setProfileEditor({
+      fullName: profile?.fullName || '',
+      agencyName: metadata?.agencyName || '',
+      primaryCity: metadata?.primaryCity || 'Mumbai',
+      areasText: (metadata?.serviceAreas || []).map((area) => area.locality).join(', '),
+    });
+  }, []);
+
   const fetchSettings = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const resp = await backendApi.get(ENDPOINTS.settings.get);
-      if (resp.data) {
-        setSettings((prev) => ({ ...prev, ...(resp.data.settings || {}) }));
-        setAiKeys(resp.data.aiKeys || {});
+      const [settingsResp, profileResp, metadataResp] = await Promise.all([
+        backendApi.get(ENDPOINTS.settings.get),
+        backendApi.get(ENDPOINTS.auth.me),
+        backendApi.get<{ metadata: WorkspaceMetadataState }>(ENDPOINTS.workspace.metadata),
+      ]);
+      if (settingsResp.data) {
+        setSettings((prev) => ({ ...prev, ...(settingsResp.data.settings || {}) }));
+        setAiKeys(settingsResp.data.aiKeys || {});
       }
+      syncProfileEditor(profileResp.data?.profile || null, metadataResp.data?.metadata || null);
     } catch (err) {
       const message = handleApiError(err);
       const schemaDrift = /workspace_settings|api_keys|schema cache|does not exist/i.test(message);
@@ -248,6 +301,62 @@ export const Settings: React.FC = () => {
 
   const toggleKeyVisibility = (key: string) => {
     setShowKeys((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const updateProfileField = <K extends keyof ProfileEditorState>(key: K, value: ProfileEditorState[K]) => {
+    setProfileEditor((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const saveProfile = async () => {
+    const fullName = profileEditor.fullName.trim();
+    const agencyName = profileEditor.agencyName.trim();
+    const primaryCity = profileEditor.primaryCity.trim();
+    const serviceAreas = parseServiceAreas(profileEditor.areasText, primaryCity || 'Mumbai');
+
+    if (fullName.length < 2) {
+      setError('Full name must be at least 2 characters.');
+      return;
+    }
+
+    if (agencyName.length < 2) {
+      setError('Agency name must be at least 2 characters.');
+      return;
+    }
+
+    if (primaryCity.length < 2) {
+      setError('Primary city must be at least 2 characters.');
+      return;
+    }
+
+    if (serviceAreas.length === 0) {
+      setError('Add at least one locality or service area.');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    setError(null);
+    try {
+      await Promise.all([
+        backendApi.post(ENDPOINTS.auth.me, { fullName }),
+        backendApi.post(ENDPOINTS.identity.onboarding, {
+          full_name: fullName,
+          agency_name: agencyName,
+          city: primaryCity,
+          localities: serviceAreas.map((area) => area.locality),
+        }),
+        backendApi.post(ENDPOINTS.workspace.metadata, {
+          agencyName,
+          primaryCity,
+          serviceAreas,
+        }),
+      ]);
+      setProfileSaved(true);
+      window.setTimeout(() => setProfileSaved(false), 1800);
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   return (
@@ -321,6 +430,65 @@ export const Settings: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-6">
+          <SurfaceSection title="Workspace Profile" subtitle="Update the broker name, agency, city, and localities after onboarding." icon={ShieldIcon}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Full name</span>
+                <input
+                  value={profileEditor.fullName}
+                  onChange={(e) => updateProfileField('fullName', e.target.value)}
+                  placeholder="Your full name"
+                  className="mt-2 w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Agency name</span>
+                <input
+                  value={profileEditor.agencyName}
+                  onChange={(e) => updateProfileField('agencyName', e.target.value)}
+                  placeholder="e.g. Shah Realty"
+                  className="mt-2 w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Primary city</span>
+                <input
+                  value={profileEditor.primaryCity}
+                  onChange={(e) => updateProfileField('primaryCity', e.target.value)}
+                  placeholder="e.g. Mumbai"
+                  className="mt-2 w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                />
+              </label>
+              <label className="block md:col-span-2">
+                <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Service areas</span>
+                <textarea
+                  value={profileEditor.areasText}
+                  onChange={(e) => updateProfileField('areasText', e.target.value)}
+                  placeholder="Bandra West, Khar West, Santacruz West"
+                  className="mt-2 min-h-[96px] w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                />
+                <p className="mt-2 text-[11px] text-[var(--text-secondary)]">Use comma-separated localities. This updates the same workspace metadata used by onboarding and dashboard.</p>
+              </label>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[11px] text-[var(--text-secondary)]">
+                {parseServiceAreas(profileEditor.areasText, profileEditor.primaryCity || 'Mumbai').length} service areas ready
+              </p>
+              <button
+                type="button"
+                onClick={saveProfile}
+                disabled={isSavingProfile}
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] transition-all',
+                  profileSaved ? 'bg-green-500 text-black' : 'bg-[var(--accent)] text-[#020f07] hover:brightness-95'
+                )}
+              >
+                {isSavingProfile ? <LoaderIcon className="h-4 w-4 animate-spin" /> : profileSaved ? <CheckIcon className="h-4 w-4" /> : <SaveIcon className="h-4 w-4" />}
+                {profileSaved ? 'Saved' : 'Save profile'}
+              </button>
+            </div>
+          </SurfaceSection>
+
           <SurfaceSection title="AI API Keys" subtitle="Add one or more keys per provider. When one key is exhausted, Pulse tries the next key before falling back to another provider." icon={ShieldIcon}>
             <div className="grid gap-4 md:grid-cols-2">
               {aiProviders.map((provider) => {
