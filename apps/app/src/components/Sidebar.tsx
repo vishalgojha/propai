@@ -39,6 +39,7 @@ const NAV_ITEMS = [
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
   { label: 'WaBro', path: '/wabro/app', icon: BroadcastIcon },
+  { label: 'Download WaBro', path: 'https://github.com/vishalgojha/wabro/releases/latest/download/wabro-release.apk', icon: Smartphone },
   { label: 'Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },
   { label: 'AI Usage', path: '/aiusage', icon: CreditCardIcon },
@@ -367,7 +368,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
                 return (
                   <button
                     key={item.path}
-                    onClick={() => goTo(item.path)}
+                    onClick={() => {
+                        if (item.path.startsWith('http')) {
+                            window.open(item.path, '_blank');
+                        } else {
+                            goTo(item.path);
+                        }
+                    }}
                     className={cn(
                       'flex w-full items-center gap-3 rounded-[8px] border-l-[3px] px-3 py-2.5 text-left transition-colors',
                       isCollapsed && 'lg:justify-center lg:px-2',
