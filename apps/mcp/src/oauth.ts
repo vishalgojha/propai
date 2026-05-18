@@ -1,31 +1,14 @@
 import crypto from "node:crypto";
 import type { Request, Response } from "express";
+import {
+  createOAuthClient,
+  deleteAuthorizationCode,
+  getAuthorizationCode,
+  getOAuthClient,
+  pruneAuthorizationCodes,
+  saveAuthorizationCode,
+} from "./oauthStore.js";
 import { supabaseAuth } from "./supabase.js";
-
-type RegisteredClient = {
-  clientId: string;
-  clientName: string;
-  redirectUris: string[];
-  grantTypes: string[];
-  responseTypes: string[];
-  tokenEndpointAuthMethod: "none";
-  createdAt: number;
-};
-
-type AuthorizationCodeRecord = {
-  clientId: string;
-  redirectUri: string;
-  codeChallenge: string;
-  codeChallengeMethod: string;
-  accessToken: string;
-  refreshToken: string | null;
-  expiresIn: number;
-  createdAt: number;
-};
-
-const registeredClients = new Map<string, RegisteredClient>();
-const authorizationCodes = new Map<string, AuthorizationCodeRecord>();
-const AUTH_CODE_TTL_MS = 5 * 60 * 1000;
 
 function publicUrl(req: Request) {
   return process.env.MCP_SERVER_URL || `${req.protocol}://${req.get("host")}`;
@@ -44,14 +27,10 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#39;");
 }
 
-function getRegisteredClient(clientId?: string | null) {
-  return clientId ? registeredClients.get(String(clientId)) || null : null;
-}
-
-function validateRedirectUri(clientId: string, redirectUri: string) {
-  const client = getRegisteredClient(clientId);
+async function validateRedirectUri(clientId: string, redirectUri: string) {
+  const client = await getOAuthClient(clientId);
   if (!client) return true;
-  return client.redirectUris.includes(redirectUri);
+  return client.redirect_uris.includes(redirectUri);
 }
 
 function sha256Base64Url(value: string) {
@@ -102,15 +81,6 @@ function renderAuthorizePage(params: Record<string, string>, error?: string) {
 </html>`;
 }
 
-function pruneAuthorizationCodes() {
-  const now = Date.now();
-  for (const [code, record] of authorizationCodes.entries()) {
-    if (now - record.createdAt > AUTH_CODE_TTL_MS) {
-      authorizationCodes.delete(code);
-    }
-  }
-}
-
 export function oauthAuthorizationServerMetadata(req: Request, res: Response) {
   const issuer = publicUrl(req);
   return res.json({
@@ -135,7 +105,7 @@ export function oauthProtectedResourceMetadata(req: Request, res: Response) {
   });
 }
 
-export function oauthAuthorizeGetHandler(req: Request, res: Response) {
+export async function oauthAuthorizeGetHandler(req: Request, res: Response) {
   const responseType = String(req.query.response_type || "code");
   const clientId = String(req.query.client_id || "");
   const redirectUri = String(req.query.redirect_uri || "");
@@ -147,7 +117,7 @@ export function oauthAuthorizeGetHandler(req: Request, res: Response) {
     return res.status(400).send("Invalid OAuth authorization request");
   }
 
-  if (!validateRedirectUri(clientId, redirectUri)) {
+  if (!(await validateRedirectUri(clientId, redirectUri))) {
     return res.status(400).send("Redirect URI is not allowed for this client");
   }
 
@@ -179,7 +149,7 @@ export async function oauthAuthorizePostHandler(req: Request, res: Response) {
     return res.status(400).send("Missing required OAuth authorization fields");
   }
 
-  if (!validateRedirectUri(String(clientId), String(redirectUri))) {
+  if (!(await validateRedirectUri(String(clientId), String(redirectUri)))) {
     return res.status(400).send("Redirect URI is not allowed for this client");
   }
 
@@ -202,17 +172,18 @@ export async function oauthAuthorizePostHandler(req: Request, res: Response) {
       }, error?.message || "Invalid credentials"));
   }
 
-  pruneAuthorizationCodes();
+  await pruneAuthorizationCodes();
   const code = crypto.randomBytes(32).toString("base64url");
-  authorizationCodes.set(code, {
-    clientId: String(clientId),
-    redirectUri: String(redirectUri),
-    codeChallenge: String(codeChallenge),
-    codeChallengeMethod: String(codeChallengeMethod || "S256"),
-    accessToken: data.session.access_token,
-    refreshToken: data.session.refresh_token || null,
-    expiresIn: data.session.expires_in || 86400,
-    createdAt: Date.now(),
+  await saveAuthorizationCode({
+    code,
+    client_id: String(clientId),
+    redirect_uri: String(redirectUri),
+    code_challenge: String(codeChallenge),
+    code_challenge_method: String(codeChallengeMethod || "S256"),
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token || null,
+    expires_in: data.session.expires_in || 86400,
+    created_at: new Date().toISOString(),
   });
 
   const target = new URL(String(redirectUri));
@@ -237,25 +208,25 @@ export async function oauthRegisterHandler(req: Request, res: Response) {
   }
 
   const clientId = crypto.randomUUID();
-  const client: RegisteredClient = {
-    clientId,
-    clientName: String(req.body?.client_name || "PropAI MCP Client"),
-    redirectUris,
-    grantTypes: ["authorization_code", "refresh_token"],
-    responseTypes: ["code"],
-    tokenEndpointAuthMethod: "none",
-    createdAt: Date.now(),
+  const client = {
+    client_id: clientId,
+    client_name: String(req.body?.client_name || "PropAI MCP Client"),
+    redirect_uris: redirectUris,
+    grant_types: ["authorization_code", "refresh_token"],
+    response_types: ["code"],
+    token_endpoint_auth_method: "none" as const,
+    created_at: new Date().toISOString(),
   };
-  registeredClients.set(clientId, client);
+  await createOAuthClient(client);
 
   return res.status(201).json({
-    client_id: client.clientId,
-    client_id_issued_at: Math.floor(client.createdAt / 1000),
-    client_name: client.clientName,
-    redirect_uris: client.redirectUris,
-    grant_types: client.grantTypes,
-    response_types: client.responseTypes,
-    token_endpoint_auth_method: client.tokenEndpointAuthMethod,
+    client_id: client.client_id,
+    client_id_issued_at: Math.floor(new Date(client.created_at).getTime() / 1000),
+    client_name: client.client_name,
+    redirect_uris: client.redirect_uris,
+    grant_types: client.grant_types,
+    response_types: client.response_types,
+    token_endpoint_auth_method: client.token_endpoint_auth_method,
   });
 }
 
@@ -294,13 +265,13 @@ export async function oauthTokenHandler(req: Request, res: Response) {
   }
 
   if (grantType === "authorization_code") {
-    pruneAuthorizationCodes();
+    await pruneAuthorizationCodes();
     const code = String(req.body?.code || "");
     const clientId = String(req.body?.client_id || "");
     const redirectUri = String(req.body?.redirect_uri || "");
     const codeVerifier = String(req.body?.code_verifier || "");
 
-    const record = authorizationCodes.get(code);
+    const record = await getAuthorizationCode(code);
     if (!record) {
       return res.status(400).json({
         error: "invalid_grant",
@@ -308,26 +279,26 @@ export async function oauthTokenHandler(req: Request, res: Response) {
       });
     }
 
-    if (record.clientId !== clientId || record.redirectUri !== redirectUri) {
+    if (record.client_id !== clientId || record.redirect_uri !== redirectUri) {
       return res.status(400).json({
         error: "invalid_grant",
         error_description: "Authorization code does not match client or redirect URI",
       });
     }
 
-    if (record.codeChallengeMethod !== "S256" || sha256Base64Url(codeVerifier) !== record.codeChallenge) {
+    if (record.code_challenge_method !== "S256" || sha256Base64Url(codeVerifier) !== record.code_challenge) {
       return res.status(400).json({
         error: "invalid_grant",
         error_description: "PKCE verification failed",
       });
     }
 
-    authorizationCodes.delete(code);
+    await deleteAuthorizationCode(code);
     return res.json({
-      access_token: record.accessToken,
-      refresh_token: record.refreshToken,
+      access_token: record.access_token,
+      refresh_token: record.refresh_token,
       token_type: "bearer",
-      expires_in: record.expiresIn,
+      expires_in: record.expires_in,
     });
   }
 

@@ -520,6 +520,87 @@ export async function getBrokerActivity(input: { brokerId: string; days?: number
   };
 }
 
+export async function getPendingFollowUps(input: { brokerId: string; limit?: number }) {
+  const { data, error } = await supabase
+    .from("follow_up_tasks")
+    .select("lead_id, lead_name, lead_phone, action_type, due_at, status, notes, priority_bucket, created_at")
+    .eq("tenant_id", input.brokerId)
+    .eq("status", "pending")
+    .order("due_at", { ascending: true })
+    .limit(clampLimit(input.limit, 25, 100));
+
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+export async function getRecentSavedListings(input: { brokerId: string; limit?: number }) {
+  const { data, error } = await supabase
+    .from("listings")
+    .select("id, structured_data, raw_text, created_at")
+    .eq("tenant_id", input.brokerId)
+    .order("created_at", { ascending: false })
+    .limit(clampLimit(input.limit, 20, 100));
+
+  if (error) throw new Error(error.message);
+  return (data || []) as Array<{
+    id: string;
+    structured_data: Record<string, unknown> | null;
+    raw_text: string | null;
+    created_at: string | null;
+  }>;
+}
+
+export async function getRecentRequirements(input: { brokerId: string; limit?: number }) {
+  const { data, error } = await supabase
+    .from("lead_records")
+    .select("lead_id, name, phone, location_hint, locality_canonical, budget, raw_text, created_at")
+    .eq("tenant_id", input.brokerId)
+    .eq("record_type", "buyer_requirement")
+    .order("created_at", { ascending: false })
+    .limit(clampLimit(input.limit, 20, 100));
+
+  if (error) throw new Error(error.message);
+  return (data || []) as Array<{
+    lead_id: string;
+    name: string;
+    phone: string | null;
+    location_hint: string | null;
+    locality_canonical: string | null;
+    budget: number | null;
+    raw_text: string | null;
+    created_at: string | null;
+  }>;
+}
+
+export async function getStoredThreadMessages(input: {
+  brokerId: string;
+  remoteJid?: string;
+  limit?: number;
+}) {
+  let query = supabase
+    .from("messages")
+    .select("remote_jid, text, sender, timestamp, created_at")
+    .eq("tenant_id", input.brokerId)
+    .order("timestamp", { ascending: false, nullsFirst: false })
+    .limit(clampLimit(input.limit, 40, 200));
+
+  if (input.remoteJid) {
+    query = query.eq("remote_jid", input.remoteJid);
+  } else {
+    query = query.not("remote_jid", "is", null);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return (data || []) as Array<{
+    remote_jid: string;
+    text: string | null;
+    sender: string | null;
+    timestamp: string | null;
+    created_at: string | null;
+  }>;
+}
+
 export async function getMarketSummary(input: {
   locality?: string;
   city?: string;
@@ -690,17 +771,11 @@ export async function summarizeThread(input: {
   remote_jid: string;
   limit?: number;
 }) {
-  const { data, error } = await supabase
-    .from("messages")
-    .select("text, sender, timestamp, created_at, remote_jid")
-    .eq("tenant_id", input.brokerId)
-    .eq("remote_jid", input.remote_jid)
-    .order("timestamp", { ascending: false, nullsFirst: false })
-    .limit(clampLimit(input.limit, 40, 200));
-
-  if (error) throw new Error(error.message);
-
-  const rows = (data || []).filter((row) => String(row.text || "").trim());
+  const rows = (await getStoredThreadMessages({
+    brokerId: input.brokerId,
+    remoteJid: input.remote_jid,
+    limit: input.limit,
+  })).filter((row) => String(row.text || "").trim());
   const ordered = [...rows].reverse();
   const inboundCount = rows.filter((row) => !String(row.sender || "").toLowerCase().includes("ai")).length;
   const outboundCount = rows.length - inboundCount;

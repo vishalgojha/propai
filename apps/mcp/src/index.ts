@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { supabase } from "./supabase.js";
+import { summarizeBrokerThreadWithLlm } from "./ai.js";
 import {
   buildBroadcastDraft,
   createRequirementRecord,
@@ -18,6 +19,8 @@ import {
   summarizeThread,
 } from "./data.js";
 import { listingLine } from "./format.js";
+import { registerMcpPrompts } from "./prompts.js";
+import { registerMcpResources } from "./resources.js";
 import type { ToolContext } from "./types.js";
 
 export const MCP_TOOL_NAMES = [
@@ -77,6 +80,9 @@ export function createMcpServer(context: ToolContext = {}) {
         "PropAI MCP Server exposes broker workflow tools for searching listings, creating CRM records, scheduling follow-ups, summarizing threads, drafting broadcasts, and checking Maharashtra IGR market intelligence from PropAI's WhatsApp broker network.",
     },
   );
+
+  registerMcpResources(server, context);
+  registerMcpPrompts(server);
 
   server.registerTool(
     "broker_activity",
@@ -304,24 +310,29 @@ export function createMcpServer(context: ToolContext = {}) {
     async (input) => {
       const id = requireBrokerId(context);
       await logToolCall(id, "summarise_thread", input);
-      const result = await summarizeThread({
+      const thread = await summarizeThread({
         brokerId: id,
         remote_jid: input.remote_jid,
         limit: input.limit,
       });
 
-      if (!result.message_count) {
-        return textResponse("No stored thread history found for that chat.", result);
+      if (!thread.message_count) {
+        return textResponse("No stored thread history found for that chat.", thread);
       }
 
-      const participants = result.participants.length ? result.participants.join(", ") : "unknown participants";
-      const highlights = result.key_points
-        .map((item, index) => `${index + 1}. ${item.sender || "Unknown"}: ${item.text}`)
-        .join("\n");
+      const llmSummary = await summarizeBrokerThreadWithLlm({
+        remoteJid: input.remote_jid,
+        lines: thread.key_points.map((item) => `${item.sender || "Unknown"}: ${item.text}`),
+      });
 
       return textResponse(
-        `Thread summary: ${result.message_count} messages (${result.inbound_count} inbound, ${result.outbound_count} outbound) involving ${participants}. Last message at ${result.last_message_at || "unknown time"}.\n\nRecent highlights:\n${highlights}`,
-        result,
+        `Thread summary: ${llmSummary.summary}\n\nNext action: ${llmSummary.next_action}\n\nRecent highlights:\n${llmSummary.key_points.map((item, index) => `${index + 1}. ${item}`).join("\n")}`,
+        {
+          ...thread,
+          ai_summary: llmSummary.summary,
+          next_action: llmSummary.next_action,
+          key_points: llmSummary.key_points,
+        },
       );
     },
   );

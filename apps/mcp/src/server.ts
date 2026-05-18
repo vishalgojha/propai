@@ -11,6 +11,7 @@ import {
   oauthTokenHandler,
   setMcpUnauthorizedHeaders,
 } from "./oauth.js";
+import { closeSessionRecord, createSessionRecord, touchSessionRecord } from "./sessionStore.js";
 import { verifyPropAIToken } from "./supabase.js";
 import type { AuthenticatedUser } from "./types.js";
 
@@ -111,24 +112,34 @@ app.all("/mcp", authMiddleware, async (req: Request, res: Response) => {
 
   const sessionId = req.headers["mcp-session-id"];
   let session = typeof sessionId === "string" ? sessions.get(sessionId) : undefined;
+  if (typeof sessionId === "string") {
+    await touchSessionRecord(sessionId).catch(() => {});
+  }
 
   if (!session) {
     const server = createMcpServer({ user: req.user });
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => crypto.randomUUID(),
-      onsessioninitialized: (newSessionId) => {
+      onsessioninitialized: async (newSessionId) => {
         sessions.set(newSessionId, { server, transport });
+        await createSessionRecord({
+          sessionId: newSessionId,
+          userId: req.user?.id,
+          userAgent: String(req.headers["user-agent"] || ""),
+        }).catch(() => {});
       },
       onsessionclosed: async (closedSessionId) => {
         const closedSession = sessions.get(closedSessionId);
         sessions.delete(closedSessionId);
+        await closeSessionRecord(closedSessionId).catch(() => {});
         await closedSession?.server.close();
       },
     });
 
-    transport.onclose = () => {
+    transport.onclose = async () => {
       if (transport.sessionId) {
         sessions.delete(transport.sessionId);
+        await closeSessionRecord(transport.sessionId).catch(() => {});
       }
     };
 
