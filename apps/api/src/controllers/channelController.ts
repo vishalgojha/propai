@@ -34,9 +34,17 @@ export const listStreamItems = async (req: Request, res: Response) => {
         const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
         const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : null;
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
+        const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : null;
         const subscription = await subscriptionService.getSubscription(tenantId, req.user?.email);
         const networkMode = ['Layer2', 'Team'].includes(String(subscription.plan));
-        const items = await channelService.listStreamItems(tenantId, accessToken, channelId, sessionLabel, networkMode);
+        const items = await channelService.listStreamItems(
+            tenantId,
+            accessToken,
+            channelId,
+            sessionLabel,
+            networkMode,
+            Number.isFinite(limit) ? Number(limit) : undefined,
+        );
         res.json({
             items,
             network_mode: networkMode,
@@ -44,6 +52,23 @@ export const listStreamItems = async (req: Request, res: Response) => {
         });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load stream items') });
+    }
+};
+
+export const listStreamSummary = async (req: Request, res: Response) => {
+    try {
+        const tenantId = getTenantId(req);
+        const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : null;
+        const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
+        const subscription = await subscriptionService.getSubscription(tenantId, req.user?.email);
+        const networkMode = ['Layer2', 'Team'].includes(String(subscription.plan));
+        const summary = await channelService.getStreamSummary(tenantId, channelId, sessionLabel, networkMode);
+        res.json({
+            ...summary,
+            network_mode: networkMode,
+        });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load stream summary') });
     }
 };
 

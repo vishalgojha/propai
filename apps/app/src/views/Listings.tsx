@@ -28,13 +28,14 @@ import {
 } from '../services/channelApi';
 import { handleApiError, default as backendApi } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
-import { fetchStreamItems, fetchStreamStats, correctStreamItem, type StreamItem } from '../services/streamAPI';
+import { fetchStreamItems, fetchStreamStats, fetchStreamSummary, correctStreamItem, type StreamItem, type StreamSummaryResponse } from '../services/streamAPI';
 import { rebuildStreamFromSavedMessages } from '../services/streamService';
 import { ListingCard } from '../components/stream/ListingCard';
 import { fetchWaClickStats, getWaClickExportUrl, type WaClickStats } from '../services/waClickAPI';
 
 const formatChannelTitle = (name: string) => `#${name}`;
 const PAGE_SIZE = 20;
+const STREAM_FETCH_LIMIT = 100;
 const ALL_TYPES = ['Rent', 'Sale', 'Requirement', 'Pre-leased', 'Lease'] as const;
 const ALL_BHK = ['1 BHK', '2 BHK', '3 BHK', '4+ BHK'] as const;
 const ALL_PROPERTY_CATEGORIES = ['residential', 'commercial'] as const;
@@ -338,6 +339,7 @@ export const Listings: React.FC = () => {
   const [streamItems, setStreamItems] = React.useState<StreamItem[]>([]);
   const [streamTotal, setStreamTotal] = React.useState(0);
   const [streamNetworkMode, setStreamNetworkMode] = React.useState(false);
+  const [streamSummary, setStreamSummary] = React.useState<StreamSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [infoMessage, setInfoMessage] = React.useState<string | null>(null);
@@ -354,7 +356,7 @@ export const Listings: React.FC = () => {
   const [isSavingCorrection, setIsSavingCorrection] = React.useState(false);
   const [correctionDraft, setCorrectionDraft] = React.useState<StreamCorrectionDraft | null>(null);
   const [waClickStats, setWaClickStats] = React.useState<WaClickStats | null>(null);
-  const [quickTimeBands, setQuickTimeBands] = React.useState<Array<'1h' | '8h'>>([]);
+  const [quickTimeBands, setQuickTimeBands] = React.useState<Array<'1h' | '4h' | '1d' | '7d'>>([]);
   const sentinelRef = React.useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = React.useState(false);
   const [waStatus, setWaStatus] = React.useState<string>('loading');
@@ -368,6 +370,7 @@ export const Listings: React.FC = () => {
         fetchStreamItems({
           channelId: channelId || undefined,
           sessionLabel: selectedSessionLabel && selectedSessionLabel !== 'all' ? selectedSessionLabel : undefined,
+          limit: STREAM_FETCH_LIMIT,
         }),
       ]);
 
@@ -377,12 +380,24 @@ export const Listings: React.FC = () => {
       setStreamNetworkMode(Boolean(streamResponse.network_mode));
       setStreamTotal(streamResponse.total || items.length);
 
-      void fetchStreamStats()
-        .then((stats) => {
-          setStreamTotal(streamResponse.total || stats.total || items.length);
+      void Promise.allSettled([
+        fetchStreamStats(),
+        fetchStreamSummary({
+          channelId: channelId || undefined,
+          sessionLabel: selectedSessionLabel && selectedSessionLabel !== 'all' ? selectedSessionLabel : undefined,
+        }),
+      ])
+        .then(([statsResult, summaryResult]) => {
+          const stats = statsResult.status === 'fulfilled' ? statsResult.value : null;
+          const summary = summaryResult.status === 'fulfilled' ? summaryResult.value : null;
+          const nextTotal = summary?.allTime ?? stats?.total ?? streamResponse.total ?? items.length;
+          setStreamTotal(nextTotal);
+          setStreamSummary(summary);
+          setStreamNetworkMode(Boolean(summary?.network_mode ?? streamResponse.network_mode));
         })
         .catch(() => {
           setStreamTotal(streamResponse.total || items.length);
+          setStreamSummary(null);
         });
 
       if (channelId) {
@@ -394,6 +409,7 @@ export const Listings: React.FC = () => {
       setStreamItems([]);
       setStreamTotal(0);
       setStreamNetworkMode(false);
+      setStreamSummary(null);
       setChannels([]);
     } finally {
       setIsLoading(false);
@@ -620,7 +636,9 @@ React.useEffect(() => {
         if (minutes == null) return false;
         return quickTimeBands.some((band) => {
           if (band === '1h') return minutes < 60;
-          return minutes < 480;
+          if (band === '4h') return minutes < 240;
+          if (band === '1d') return minutes < 1440;
+          return minutes < 10080;
         });
       });
     }
@@ -638,7 +656,7 @@ if (brokerOnly) {
       }
 
       return filtered;
-    }, [streamItems, search, quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, filterSource, brokerOnly, filterPropertyCategory]);
+    }, [streamItems, search, quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory]);
 
   const activeFilterCount = React.useMemo(() => {
     let count = 0;
@@ -666,7 +684,7 @@ if (brokerOnly) {
 
   React.useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [activeChannel?.id, search, quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, filterSource, brokerOnly]);
+  }, [activeChannel?.id, search, quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly]);
 
   React.useEffect(() => {
     const fetch = async () => {
@@ -724,24 +742,52 @@ if (brokerOnly) {
   );
   const hasMore = visibleCount < visibleStream.length;
   const summaryCards = React.useMemo(() => {
-    const total = activeChannel ? visibleStream.length : streamTotal || visibleStream.length;
-    const fresh = visibleStream.filter((item) => {
-      const createdAt = item.createdAt ? new Date(item.createdAt) : null;
-      const minutes = createdAt && !Number.isNaN(createdAt.getTime())
-        ? Math.max(0, Math.round((Date.now() - createdAt.getTime()) / 60000))
-        : parseRecencyMinutes(item.posted);
-      return minutes != null && minutes < 60;
-    }).length;
-    const requirements = visibleStream.filter((item) => item.type === 'Requirement').length;
-    const highConfidence = visibleStream.filter((item) => item.confidence >= 70).length;
+    const summary = streamSummary || {
+      oneHour: visibleStream.filter((item) => {
+        const createdAt = item.createdAt ? new Date(item.createdAt) : null;
+        const minutes = createdAt && !Number.isNaN(createdAt.getTime())
+          ? Math.max(0, Math.round((Date.now() - createdAt.getTime()) / 60000))
+          : parseRecencyMinutes(item.posted);
+        return minutes != null && minutes < 60;
+      }).length,
+      fourHours: visibleStream.filter((item) => {
+        const createdAt = item.createdAt ? new Date(item.createdAt) : null;
+        const minutes = createdAt && !Number.isNaN(createdAt.getTime())
+          ? Math.max(0, Math.round((Date.now() - createdAt.getTime()) / 60000))
+          : parseRecencyMinutes(item.posted);
+        return minutes != null && minutes < 240;
+      }).length,
+      oneDay: visibleStream.filter((item) => {
+        const createdAt = item.createdAt ? new Date(item.createdAt) : null;
+        const minutes = createdAt && !Number.isNaN(createdAt.getTime())
+          ? Math.max(0, Math.round((Date.now() - createdAt.getTime()) / 60000))
+          : parseRecencyMinutes(item.posted);
+        return minutes != null && minutes < 1440;
+      }).length,
+      sevenDays: visibleStream.filter((item) => {
+        const createdAt = item.createdAt ? new Date(item.createdAt) : null;
+        const minutes = createdAt && !Number.isNaN(createdAt.getTime())
+          ? Math.max(0, Math.round((Date.now() - createdAt.getTime()) / 60000))
+          : parseRecencyMinutes(item.posted);
+        return minutes != null && minutes < 10080;
+      }).length,
+      allTime: streamTotal || visibleStream.length,
+      network_mode: streamNetworkMode,
+    };
+    const scopeLabel = activeChannel
+      ? `${formatChannelTitle(activeChannel.name)} parsed feed`
+      : streamNetworkMode
+        ? 'Global parsed feed'
+        : 'Private parsed feed';
 
     return [
-      { label: activeChannel ? 'Routed items' : 'Visible items', value: total, hint: activeChannel ? formatChannelTitle(activeChannel.name) : 'Current workspace feed' },
-      { label: 'Fresh under 1 hour', value: fresh, hint: 'Highest-priority follow-up lane' },
-      { label: 'Buyer requirements', value: requirements, hint: 'Demand-side opportunities in view' },
-      { label: 'High confidence', value: highConfidence, hint: 'Strong parse quality and cleaner records' },
+      { label: 'Parsed last 1 hour', value: summary.oneHour, hint: scopeLabel },
+      { label: 'Parsed last 4 hours', value: summary.fourHours, hint: scopeLabel },
+      { label: 'Parsed last 1 day', value: summary.oneDay, hint: scopeLabel },
+      { label: 'Parsed last 7 days', value: summary.sevenDays, hint: scopeLabel },
+      { label: 'Parsed all time', value: summary.allTime, hint: scopeLabel },
     ];
-  }, [activeChannel, streamTotal, visibleStream]);
+  }, [activeChannel, streamNetworkMode, streamSummary, streamTotal, visibleStream]);
 
   return (
     <>
@@ -812,7 +858,7 @@ if (brokerOnly) {
         </span>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         {summaryCards.map((card) => (
           <div key={card.label} className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">{card.label}</p>
@@ -911,7 +957,7 @@ if (brokerOnly) {
             >
               All
             </button>
-            {(['1h', '8h'] as const).map((band) => (
+            {(['1h', '4h', '1d', '7d'] as const).map((band) => (
               <button
                 key={band}
                 type="button"
@@ -923,7 +969,7 @@ if (brokerOnly) {
                     : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
                 )}
               >
-                {band === '1h' ? '<1hr' : '<8hr'}
+                {band === '1h' ? '<1hr' : band === '4h' ? '<4hr' : band === '1d' ? '<1d' : '<7d'}
               </button>
             ))}
           </div>

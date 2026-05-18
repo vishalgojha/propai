@@ -35,6 +35,15 @@ export interface StreamResponse {
   total: number;
 }
 
+export interface StreamSummaryResponse {
+  oneHour: number;
+  fourHours: number;
+  oneDay: number;
+  sevenDays: number;
+  allTime: number;
+  network_mode: boolean;
+}
+
 export interface StreamFilters {
   type?: string[];
   category?: 'residential' | 'commercial';
@@ -45,6 +54,7 @@ export interface StreamFilters {
   channelId?: string;
   isRead?: boolean;
   search?: string;
+  limit?: number;
 }
 
 export async function fetchStreamItems(filters?: StreamFilters): Promise<StreamResponse> {
@@ -61,12 +71,29 @@ export async function fetchStreamItems(filters?: StreamFilters): Promise<StreamR
   if (filters?.channelId) params.channelId = filters.channelId;
   if (filters?.isRead !== undefined) params.isRead = filters.isRead;
   if (filters?.search) params.search = filters.search;
+  if (filters?.limit) params.limit = filters.limit;
 
-  const response = await backendApi.get(ENDPOINTS.channels.stream, { params });
+  const response = await backendApi.get(ENDPOINTS.channels.stream, { params, timeout: 60000 });
   return {
     items: Array.isArray(response.data?.items) ? response.data.items as StreamItem[] : [],
     network_mode: Boolean(response.data?.network_mode),
     total: Number(response.data?.total || 0),
+  };
+}
+
+export async function fetchStreamSummary(filters?: Pick<StreamFilters, 'sessionLabel' | 'channelId'>): Promise<StreamSummaryResponse> {
+  const params: Record<string, any> = {};
+  if (filters?.sessionLabel && filters.sessionLabel !== 'all') params.sessionLabel = filters.sessionLabel;
+  if (filters?.channelId) params.channelId = filters.channelId;
+
+  const response = await backendApi.get(ENDPOINTS.channels.streamSummary, { params, timeout: 60000 });
+  return {
+    oneHour: Number(response.data?.oneHour || 0),
+    fourHours: Number(response.data?.fourHours || 0),
+    oneDay: Number(response.data?.oneDay || 0),
+    sevenDays: Number(response.data?.sevenDays || 0),
+    allTime: Number(response.data?.allTime || 0),
+    network_mode: Boolean(response.data?.network_mode),
   };
 }
 

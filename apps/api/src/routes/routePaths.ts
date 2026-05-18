@@ -24,6 +24,7 @@ export const ROUTE_PATHS = {
   channels: {
     root: '/',
     stream: '/stream',
+    streamSummary: '/stream/summary',
     rebuild: '/stream/rebuild',
     correct: '/stream/:streamItemId/correct',
     markRead: '/:channelId/read',
@@ -123,5 +124,10 @@ export const ROUTE_PATHS = {
     deviceHeartbeat: '/devices/:deviceId/heartbeat',
     dashboardStats: '/dashboard/stats',
     crashLog: '/crash',
+    brokerContacts: '/broker-contacts',
+    brokerContactsSync: '/broker-contacts/sync',
+    broadcastLists: '/broadcast-lists',
+    broadcastListSend: '/broadcast-lists/:id/send',
+    areas: '/areas',
   },
 } as const;
