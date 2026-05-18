@@ -125,6 +125,10 @@ export class WorkspaceMonitorService {
             .eq('tenant_id', workspaceOwnerId)
             .order('timestamp', { ascending: false });
 
+        if (sessionLabel) {
+            mirrorQuery = mirrorQuery.eq('session_label', sessionLabel);
+        }
+
         const mirrorResult = await mirrorQuery;
         if (!mirrorResult.error && Array.isArray(mirrorResult.data)) {
             return (mirrorResult.data as MirrorRow[]).map((row) => this.mapMirrorRow(row));
@@ -161,6 +165,10 @@ export class WorkspaceMonitorService {
             .eq('tenant_id', workspaceOwnerId)
             .eq('remote_jid', chatId)
             .order('timestamp', { ascending: false });
+
+        if (sessionLabel) {
+            mirrorQuery = mirrorQuery.eq('session_label', sessionLabel);
+        }
 
         if (before) {
             mirrorQuery = mirrorQuery.lt('timestamp', before);
@@ -229,7 +237,7 @@ export class WorkspaceMonitorService {
                 throw groupsResult.error;
             }
         } else {
-            groupsData = ((groupsResult.data || []) as GroupRow[]).filter((group) => String(group.visibility_status || 'visible') === 'visible');
+            groupsData = (groupsResult.data || []) as GroupRow[];
         }
 
         return {
@@ -254,10 +262,6 @@ export class WorkspaceMonitorService {
         const isGroup = remoteJid.endsWith('@g.us');
 
         if (inboxOnly && isGroup) {
-            return false;
-        }
-
-        if (!inboxOnly && !isGroup) {
             return false;
         }
 
@@ -353,31 +357,6 @@ export class WorkspaceMonitorService {
             }
 
             chatsMap.set(remoteJid, chatRecord);
-        }
-
-        for (const group of context.groupsData) {
-            if (inboxOnly) continue;
-
-            const jid = String(group.group_jid || '');
-            if (!jid || chatsMap.has(jid)) continue;
-
-            chatsMap.set(jid, {
-                id: jid,
-                remoteJid: jid,
-                type: 'group',
-                title: group.group_name || 'WhatsApp group',
-                preview: 'No messages yet',
-                lastMessageAt: group.last_active_at || new Date(0).toISOString(),
-                sender: null,
-                locality: group.locality || null,
-                city: group.city || null,
-                category: group.category || null,
-                tags: Array.isArray(group.tags) ? group.tags : [],
-                participantsCount: Number(group.member_count || 0),
-                broadcastEnabled: Boolean(group.broadcast_enabled),
-                isParsing: Boolean(group.is_parsing),
-                messageCount: 0,
-            });
         }
 
         const chats = Array.from(chatsMap.values()).sort((left, right) => {
