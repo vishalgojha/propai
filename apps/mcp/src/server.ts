@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { createMcpServer } from "./index.js";
+import { createMcpServer, MCP_TOOL_NAMES } from "./index.js";
 import {
   oauthAuthorizationServerMetadata,
   oauthAuthorizeGetHandler,
@@ -50,7 +50,7 @@ app.get("/", (_req, res) => {
   res.json({
     name: "PropAI MCP Server",
     version: "1.0.0",
-    description: "Real estate listings and intelligence from India WhatsApp broker network",
+    description: "Broker workflow, listings, CRM, thread summaries, and market intelligence from PropAI",
     transport: "streamable-http",
     endpoint: `${PUBLIC_URL}/mcp`,
   });
@@ -64,7 +64,7 @@ app.get("/.well-known/mcp-server.json", (_req, res) => {
   res.json({
     name: "PropAI MCP Server",
     version: "1.0.0",
-    description: "Real estate listings and intelligence from India WhatsApp broker network",
+    description: "Broker workflow, listings, CRM, thread summaries, and market intelligence from PropAI",
     endpoints: {
       streamableHttp: `${PUBLIC_URL}/mcp`,
       oauthToken: `${PUBLIC_URL}/oauth/token`,
@@ -74,13 +74,7 @@ app.get("/.well-known/mcp-server.json", (_req, res) => {
       token_endpoint: `${PUBLIC_URL}/oauth/token`,
     },
     capabilities: {
-      tools: [
-        "search_listings",
-        "search_requirements",
-        "get_igr_price",
-        "match_listing_to_requirement",
-        "get_fresh_stream",
-      ],
+      tools: MCP_TOOL_NAMES,
     },
   });
 });
