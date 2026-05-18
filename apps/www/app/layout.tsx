@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Syne } from "next/font/google";
 import "@/app/globals.css";
-import { PublicNav } from "@/components/public-nav";
-import { Footer } from "@propai/theme";
 import { canonicalUrl, siteUrl } from "@/lib/site";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -49,11 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${jakarta.variable} ${syne.variable}`}>
       <body className="font-sans">
-        <div className="site-shell">
-          <PublicNav />
-          {children}
-          <Footer />
-        </div>
+        {children}
       </body>
     </html>
   );
