@@ -25,6 +25,10 @@ type MirrorRow = {
     session_label?: string | null;
 };
 
+type MonitorRow = MessageRow & {
+    direction?: 'inbound' | 'outbound' | null;
+};
+
 type GroupRow = {
     group_jid?: string | null;
     group_name?: string | null;
@@ -94,10 +98,25 @@ function buildDirectLabel(row: MessageRow) {
 }
 
 export class WorkspaceMonitorService {
-    private async loadMessageRows(workspaceOwnerId: string, sessionLabel?: string | null) {
+    private mapMirrorRow(row: MirrorRow): MonitorRow {
+        return {
+            id: row.id,
+            remote_jid: row.remote_jid,
+            sender: row.direction === 'outbound'
+                ? (row.sender_name || 'Broker')
+                : (row.sender_name || row.sender_jid || null),
+            text: row.text || '',
+            timestamp: row.timestamp || new Date().toISOString(),
+            title: null,
+            participantsCount: null,
+            direction: row.direction || null,
+        };
+    }
+
+    private async loadMessageRows(workspaceOwnerId: string, sessionLabel?: string | null): Promise<MonitorRow[]> {
         const liveRows = liveMonitorService.getSessionRows(workspaceOwnerId, sessionLabel);
         if (liveRows.length > 0) {
-            return liveRows as MessageRow[];
+            return liveRows as MonitorRow[];
         }
 
         let mirrorQuery = db
@@ -108,15 +127,7 @@ export class WorkspaceMonitorService {
 
         const mirrorResult = await mirrorQuery;
         if (!mirrorResult.error && Array.isArray(mirrorResult.data)) {
-            return (mirrorResult.data as MirrorRow[]).map((row) => ({
-                id: row.id,
-                remote_jid: row.remote_jid,
-                sender: row.direction === 'outbound'
-                    ? (row.sender_name || 'Broker')
-                    : (row.sender_name || row.sender_jid || null),
-                text: row.text || '',
-                timestamp: row.timestamp || new Date().toISOString(),
-            }));
+            return (mirrorResult.data as MirrorRow[]).map((row) => this.mapMirrorRow(row));
         }
 
         const messagesResult = await db
@@ -129,13 +140,19 @@ export class WorkspaceMonitorService {
             throw messagesResult.error;
         }
 
-        return (messagesResult.data || []) as MessageRow[];
+        return (messagesResult.data || []) as MonitorRow[];
     }
 
-    private async loadChatMessageRows(workspaceOwnerId: string, chatId: string, sessionLabel?: string | null, before?: string | null, limit?: number) {
+    private async loadChatMessageRows(
+        workspaceOwnerId: string,
+        chatId: string,
+        sessionLabel?: string | null,
+        before?: string | null,
+        limit?: number,
+    ): Promise<MonitorRow[]> {
         const liveRows = liveMonitorService.getChatRows(workspaceOwnerId, chatId, sessionLabel, before, limit);
         if (liveRows.length > 0) {
-            return liveRows as MessageRow[];
+            return liveRows as MonitorRow[];
         }
 
         let mirrorQuery = db
@@ -155,15 +172,7 @@ export class WorkspaceMonitorService {
 
         const mirrorResult = await mirrorQuery;
         if (!mirrorResult.error && Array.isArray(mirrorResult.data)) {
-            return (mirrorResult.data as MirrorRow[]).map((row) => ({
-                id: row.id,
-                remote_jid: row.remote_jid,
-                sender: row.direction === 'outbound'
-                    ? (row.sender_name || 'Broker')
-                    : (row.sender_name || row.sender_jid || null),
-                text: row.text || '',
-                timestamp: row.timestamp || new Date().toISOString(),
-            }));
+            return (mirrorResult.data as MirrorRow[]).map((row) => this.mapMirrorRow(row));
         }
 
         let messagesQuery = db
@@ -186,7 +195,7 @@ export class WorkspaceMonitorService {
             throw messagesResult.error;
         }
 
-        return (messagesResult.data || []) as MessageRow[];
+        return (messagesResult.data || []) as MonitorRow[];
     }
 
     private async buildContext(workspaceOwnerId: string, sessionLabel?: string | null): Promise<MonitorQueryContext> {

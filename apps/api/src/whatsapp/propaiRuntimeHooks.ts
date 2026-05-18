@@ -5,6 +5,7 @@ import { processWhatsAppInboundMessage } from '../channel-events/processors/proc
 import { processWhatsAppSessionEvent } from '../channel-events/processors/processWhatsAppSessionEvent';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { emailNotificationService } from '../services/emailNotificationService';
+import { liveMonitorService } from '../services/liveMonitorService';
 
 const db = supabaseAdmin || supabase;
 type LifecycleEmailInput = {
@@ -57,8 +58,11 @@ export async function sendWhatsAppLifecycleEmail(input: LifecycleEmailInput) {
     const lastNotifiedStatus = typeof sessionData.lastNotifiedStatus === 'string'
         ? sessionData.lastNotifiedStatus
         : null;
+    const lastStatusEmailDelivery = typeof sessionData.lastStatusEmailDelivery === 'string'
+        ? sessionData.lastStatusEmailDelivery
+        : null;
 
-    if (lastNotifiedStatus === status) {
+    if (lastNotifiedStatus === status && lastStatusEmailDelivery === 'sent') {
         return;
     }
 
@@ -71,12 +75,27 @@ export async function sendWhatsAppLifecycleEmail(input: LifecycleEmailInput) {
     });
 
     if ('success' in delivery && delivery.success === false) {
+        console.error('[WhatsAppEmail] Lifecycle email send failed; notification marker will not be updated.', {
+            tenantId,
+            label,
+            status,
+        });
+        return;
+    }
+
+    if ('skipped' in delivery && delivery.skipped) {
+        console.warn('[WhatsAppEmail] Lifecycle email skipped because email delivery is not configured; notification marker will not be updated.', {
+            tenantId,
+            label,
+            status,
+        });
         return;
     }
 
     const nextSessionData = {
         ...sessionData,
         lastNotifiedStatus: status,
+        lastStatusEmailDelivery: 'sent',
         lastStatusEmailAt: new Date().toISOString(),
     };
 
@@ -95,10 +114,30 @@ export function createPropAIRuntimeHooks(): WhatsAppRuntimeHooks {
     return {
         onMessage: async (event) => {
             try {
+                liveMonitorService.recordMessage({
+                    tenantId: event.tenantId,
+                    sessionLabel: event.label,
+                    remoteJid: event.remoteJid,
+                    sender: event.sender || null,
+                    text: event.text,
+                    timestamp: event.timestamp,
+                    direction: event.fromMe ? 'outbound' : 'inbound',
+                });
                 await processWhatsAppInboundMessage(event);
             } catch (error) {
                 console.error('Agent Execution Loop Error:', error);
             }
+        },
+        onOutgoingMessage: async (event) => {
+            liveMonitorService.recordMessage({
+                tenantId: event.tenantId,
+                sessionLabel: event.label,
+                remoteJid: event.remoteJid,
+                sender: 'Broker',
+                text: event.text,
+                timestamp: event.timestamp,
+                direction: 'outbound',
+            });
         },
         onConnectionUpdate: async (event) => {
             try {

@@ -1,6 +1,7 @@
 import { whatsappGroupService } from '../../services/whatsappGroupService';
 import { whatsappHealthService } from '../../services/whatsappHealthService';
 import { sessionEventService } from '../../services/sessionEventService';
+import { liveMonitorService } from '../../services/liveMonitorService';
 
 type GroupRecord = {
     id: string;
@@ -13,6 +14,12 @@ export async function processWhatsAppGroupSyncEvent(input: {
     sessionLabel: string;
     groups: GroupRecord[];
 }) {
+    liveMonitorService.syncGroups({
+        tenantId: input.tenantId,
+        sessionLabel: input.sessionLabel,
+        groups: input.groups,
+    });
+
     await whatsappHealthService.syncGroups(input.tenantId, input.sessionLabel, input.groups);
     await whatsappGroupService.syncGroups(input.tenantId, input.sessionLabel, input.groups);
     void sessionEventService.log(input.tenantId, 'groups_synced', {

@@ -10,6 +10,7 @@ import { CircuitBreaker } from './CircuitBreaker';
 import { sessionEventService } from '../services/sessionEventService';
 import { whatsappMessageMirrorService } from '../services/whatsappMessageMirrorService';
 import { whatsappGroupService } from '../services/whatsappGroupService';
+import { liveMonitorService } from '../services/liveMonitorService';
 import { supabase } from '../config/supabase';
 import { type RawGroupInput } from '../services/whatsappGroupService';
 import type {
@@ -54,6 +55,7 @@ export class WhatsAppClient {
     private reconnectTimer: NodeJS.Timeout | null = null;
     private circuitBreaker = new CircuitBreaker();
     private healthCheckInterval: NodeJS.Timeout | null = null;
+    private autoSyncInterval: NodeJS.Timeout | null = null;
 
     constructor(options: WhatsAppClientOptions) {
         this.tenantId = options.tenantId;
@@ -182,6 +184,7 @@ export class WhatsAppClient {
                         await this.persistStatus('connected');
 
                         this.scheduleGroupSync();
+                        void this.autoSyncBrokerContacts();
                     }
                 } catch (error) {
                     await this.hooks?.onError?.({
@@ -202,6 +205,62 @@ export class WhatsAppClient {
                         label: this.label,
                         error,
                         stage: 'creds.update',
+                    });
+                }
+            });
+
+            this.socket.ev.on('messaging-history.set', async (payload: any) => {
+                try {
+                    const chats = Array.isArray(payload?.chats) ? payload.chats : [];
+                    const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+
+                    const liveGroups = chats
+                        .filter((chat: any) => String(chat?.id || '').endsWith('@g.us'))
+                        .map((chat: any) => ({
+                            id: String(chat?.id || ''),
+                            name: String(chat?.name || chat?.conversationName || chat?.subject || chat?.id || 'WhatsApp group'),
+                            participantsCount: typeof chat?.participantsCount === 'number' ? chat.participantsCount : undefined,
+                        }))
+                        .filter((group: { id: string }) => Boolean(group.id));
+
+                    if (liveGroups.length > 0) {
+                        liveMonitorService.syncGroups({
+                            tenantId: this.tenantId,
+                            sessionLabel: this.label,
+                            groups: liveGroups,
+                        });
+                    }
+
+                    for (const msg of messages) {
+                        const remoteJid = String(msg?.key?.remoteJid || '').trim();
+                        if (!remoteJid) continue;
+
+                        const text = this.extractMessageText(msg?.message);
+                        if (!text) continue;
+
+                        const title = String(
+                            chats.find((chat: any) => String(chat?.id || '') === remoteJid)?.name
+                            || chats.find((chat: any) => String(chat?.id || '') === remoteJid)?.conversationName
+                            || '',
+                        ).trim() || null;
+
+                        liveMonitorService.recordMessage({
+                            tenantId: this.tenantId,
+                            sessionLabel: this.label,
+                            remoteJid,
+                            sender: this.resolveStoredSender(msg),
+                            text,
+                            timestamp: this.resolveMessageTimestamp(msg),
+                            direction: msg?.key?.fromMe ? 'outbound' : 'inbound',
+                            title,
+                        });
+                    }
+                } catch (error) {
+                    await this.hooks?.onError?.({
+                        tenantId: this.tenantId,
+                        label: this.label,
+                        error,
+                        stage: 'messaging-history.set',
                     });
                 }
             });
@@ -501,6 +560,10 @@ try {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
         }
+        if (this.autoSyncInterval) {
+            clearInterval(this.autoSyncInterval);
+            this.autoSyncInterval = null;
+        }
         this.reconnectAttempts = 0;
 
         await this.socket.logout();
@@ -511,6 +574,36 @@ try {
             tenantId: this.tenantId,
             label: this.label,
         });
+    }
+
+    private async autoSyncBrokerContacts() {
+        if (this.tenantId === 'system') return;
+
+        try {
+            const { supabaseAdmin } = require('../config/supabase');
+            const { count } = await supabaseAdmin!
+                .from('broker_contacts')
+                .select('*', { count: 'exact', head: true })
+                .eq('tenant_id', this.tenantId);
+
+            if (count === 0) {
+                console.log(`[WhatsAppClient] No broker contacts for ${this.tenantId}, auto-syncing from groups...`);
+                const { parseGroupsForContacts } = require('../services/groupContactParser');
+                const result = await parseGroupsForContacts(this.tenantId);
+                console.log(`[WhatsAppClient] Auto-sync complete: ${result.contacts_upserted} contacts from ${result.groups_parsed} groups`);
+            }
+
+            this.autoSyncInterval = setInterval(async () => {
+                try {
+                    const { parseGroupsForContacts } = require('../services/groupContactParser');
+                    await parseGroupsForContacts(this.tenantId);
+                } catch (e) {
+                    console.error('[WhatsAppClient] Scheduled broker contact sync failed:', e);
+                }
+            }, 24 * 60 * 60 * 1000);
+        } catch (e) {
+            console.error('[WhatsAppClient] Auto-sync broker contacts failed:', e);
+        }
     }
 
     private async emitQR(qr: string) {
