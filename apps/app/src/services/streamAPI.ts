@@ -21,9 +21,19 @@ export interface StreamItem {
   areaSqft?: number | null;
   confidence: number;
   source: string;
-  brokerPhoneMasked?: string | null;
+  brokerPhone?: string | null;
+  brokerName?: string | null;
+  brokerCompany?: string | null;
+  waLink?: string | null;
+  isNetworkItem?: boolean;
   isRead?: boolean;
   createdAt: string;
+}
+
+export interface StreamResponse {
+  items: StreamItem[];
+  network_mode: boolean;
+  total: number;
 }
 
 export interface StreamFilters {
@@ -38,7 +48,7 @@ export interface StreamFilters {
   search?: string;
 }
 
-export async function fetchStreamItems(filters?: StreamFilters): Promise<StreamItem[]> {
+export async function fetchStreamItems(filters?: StreamFilters): Promise<StreamResponse> {
   const params: Record<string, any> = {};
   
   if (filters?.type && filters.type.length > 0) {
@@ -54,7 +64,11 @@ export async function fetchStreamItems(filters?: StreamFilters): Promise<StreamI
   if (filters?.search) params.search = filters.search;
 
   const response = await backendApi.get(ENDPOINTS.channels.stream, { params });
-  return (Array.isArray(response.data) ? response.data : []) as StreamItem[];
+  return {
+    items: Array.isArray(response.data?.items) ? response.data.items as StreamItem[] : [],
+    network_mode: Boolean(response.data?.network_mode),
+    total: Number(response.data?.total || 0),
+  };
 }
 
 export async function markStreamItemRead(itemId: string): Promise<boolean> {

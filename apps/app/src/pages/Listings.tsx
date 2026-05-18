@@ -334,6 +334,7 @@ export const Listings: React.FC = () => {
   const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
   const [streamItems, setStreamItems] = React.useState<StreamItem[]>([]);
   const [streamTotal, setStreamTotal] = React.useState(0);
+  const [streamNetworkMode, setStreamNetworkMode] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [infoMessage, setInfoMessage] = React.useState<string | null>(null);
@@ -357,7 +358,7 @@ export const Listings: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [channelRecords, items] = await Promise.all([
+      const [channelRecords, streamResponse] = await Promise.all([
         fetchChannels(),
         fetchStreamItems({
           channelId: channelId || undefined,
@@ -365,16 +366,18 @@ export const Listings: React.FC = () => {
         }),
       ]);
 
+      const items = streamResponse.items || [];
       setChannels(channelRecords);
       setStreamItems(items);
-      setStreamTotal(items.length);
+      setStreamNetworkMode(Boolean(streamResponse.network_mode));
+      setStreamTotal(streamResponse.total || items.length);
 
       void fetchStreamStats()
         .then((stats) => {
-          setStreamTotal(stats.total || items.length);
+          setStreamTotal(streamResponse.total || stats.total || items.length);
         })
         .catch(() => {
-          setStreamTotal(items.length);
+          setStreamTotal(streamResponse.total || items.length);
         });
 
       if (channelId) {
@@ -385,6 +388,7 @@ export const Listings: React.FC = () => {
       setError(handleApiError(err));
       setStreamItems([]);
       setStreamTotal(0);
+      setStreamNetworkMode(false);
       setChannels([]);
     } finally {
       setIsLoading(false);
@@ -557,6 +561,9 @@ React.useEffect(() => {
           listing.bhk,
           listing.posted,
           listing.source,
+          listing.brokerName || '',
+          listing.brokerCompany || '',
+          listing.brokerPhone || '',
           listing.description,
           listing.rawText || '',
         ].join(' ').toLowerCase();
@@ -1057,6 +1064,7 @@ if (brokerOnly) {
                 <ListingCard
                   key={listing.id}
                   listing={listing}
+                  networkMode={streamNetworkMode}
                   isExpanded={isExpanded}
                   onToggle={() => {
                     setExpandedListingId(isExpanded ? null : listing.id);
@@ -1095,6 +1103,7 @@ if (brokerOnly) {
                   <ListingCard
                     key={listing.id}
                     listing={listing}
+                    networkMode={streamNetworkMode}
                     isExpanded={isExpanded}
                     onToggle={() => {
                       setExpandedListingId(isExpanded ? null : listing.id);

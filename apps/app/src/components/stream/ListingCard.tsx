@@ -1,14 +1,18 @@
 import React from 'react';
-import { MessageSquare, MapPin, Clock, ExternalLink, ChevronDown, ChevronUp, Copy, Save } from 'lucide-react';
+import { MessageSquare, MapPin, Clock, ExternalLink, ChevronDown, ChevronUp, Copy, Save, Check } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { logWaClick, fetchWaClickListingLog, type WaClickListingLog } from '../../services/waClickAPI';
 import type { StreamItem } from '../../services/streamAPI';
+import type { PersonalChannel } from '../../services/channelApi';
 
 type ListingCardProps = {
     listing: StreamItem;
+    networkMode?: boolean;
     isExpanded: boolean;
     onToggle: () => void;
     waClickCount?: number;
+    channels?: PersonalChannel[];
+    onSaveToChannel?: (channelId: string, streamItemId: string) => void;
 };
 
 function formatPriceDisplay(item: StreamItem): string {
@@ -61,11 +65,21 @@ function getTypeBadgeClass(type: string) {
     return 'bg-blue-500/10 text-blue-400 border-blue-400/30';
 }
 
-export const ListingCard: React.FC<ListingCardProps> = ({ listing, isExpanded, onToggle, waClickCount = 0 }) => {
+export const ListingCard: React.FC<ListingCardProps> = ({
+    listing,
+    networkMode = false,
+    isExpanded,
+    onToggle,
+    waClickCount = 0,
+    channels = [],
+    onSaveToChannel,
+}) => {
     const [clickLog, setClickLog] = React.useState<WaClickListingLog | null>(null);
     const [localClickCount, setLocalClickCount] = React.useState(waClickCount);
     const [isOpening, setIsOpening] = React.useState(false);
     const [toast, setToast] = React.useState<string | null>(null);
+    const [showChannelPicker, setShowChannelPicker] = React.useState(false);
+    const [savingChannelId, setSavingChannelId] = React.useState<string | null>(null);
     const shortId = listing.id.replace(/-/g, '').slice(-8);
 
     const handleOpenWa = async (e: React.MouseEvent) => {
@@ -91,7 +105,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, isExpanded, o
             });
         }
 
-        window.open(result.redirect_url, '_blank', 'noopener');
+        window.open(listing.waLink || result.redirect_url, '_blank', 'noopener');
         setIsOpening(false);
         setTimeout(() => setToast(null), 2000);
     };
@@ -115,6 +129,8 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, isExpanded, o
     const confidenceColor = getConfidenceColor(listing.confidence);
     const timeAgo = formatTimeAgo(listing.createdAt);
     const priceLabel = formatPriceDisplay(listing);
+    const brokerLabel = [listing.brokerName, listing.brokerCompany].filter(Boolean).join(' • ');
+    const whatsappLabel = listing.brokerName ? `WhatsApp ${listing.brokerName.split(' ')[0]}` : 'WhatsApp Broker';
 
     return (
         <div className={cn('border border-white/[0.07] rounded-[10px] transition-colors', isExpanded ? 'border-[rgba(62,232,138,0.30)] bg-[#1C2620]' : 'bg-[#161D18]')}>
@@ -128,7 +144,14 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, isExpanded, o
                     </div>
 
                     <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-white text-sm leading-snug">{listing.location}</div>
+                        <div className="flex items-center gap-2">
+                            <div className="font-semibold text-white text-sm leading-snug">{listing.location}</div>
+                            {networkMode && listing.isNetworkItem ? (
+                                <span className="rounded-full border border-[#1f6f57] bg-[rgba(0,168,132,0.12)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#7be0b8]">
+                                    Network
+                                </span>
+                            ) : null}
+                        </div>
                         {attributes.length > 0 && (
                             <div className="mt-0.5 text-[11px] text-neutral-400">{attributes.join(' · ')}</div>
                         )}
@@ -173,13 +196,29 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, isExpanded, o
                 </div>
             </button>
 
+            {(brokerLabel || listing.waLink) ? (
+                <div className="border-t border-white/[0.06] px-4 py-3">
+                    {brokerLabel ? (
+                        <div className="mb-2 text-[12px] text-neutral-300">
+                            {brokerLabel}
+                        </div>
+                    ) : null}
+                    {listing.waLink ? (
+                        <button
+                            type="button"
+                            onClick={() => window.open(listing.waLink!, '_blank', 'noopener')}
+                            className="inline-flex items-center gap-2 rounded-lg bg-[#1faa61] px-3 py-1.5 text-[11px] font-semibold text-white hover:brightness-110"
+                        >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            {whatsappLabel}
+                        </button>
+                    ) : null}
+                </div>
+            ) : null}
+
             {isExpanded && (
                 <div className="border-t border-white/[0.07] px-4 pb-4 pt-3 space-y-4">
                     <div className="grid grid-cols-3 gap-3 text-xs">
-                        <div>
-                            <div className="text-[10px] text-neutral-500 uppercase tracking-wider">Contact</div>
-                            <div className="mt-0.5 text-white">{listing.brokerPhoneMasked || '••••• •••••'}</div>
-                        </div>
                         <div>
                             <div className="text-[10px] text-neutral-500 uppercase tracking-wider">Added</div>
                             <div className="mt-0.5 text-white">{timeAgo}</div>
@@ -232,11 +271,60 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, isExpanded, o
                             <ExternalLink className="h-3.5 w-3.5" />
                             {isOpening ? 'Opening...' : 'Open WhatsApp'}
                         </button>
-                        <button type="button" className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:text-white">
-                            <Save className="h-3.5 w-3.5" />
-                            Save to Channel
-                        </button>
-                        <button type="button" className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:text-white">
+                        {listing.waLink ? (
+                            <button
+                                type="button"
+                                onClick={() => window.open(listing.waLink!, '_blank', 'noopener')}
+                                className="flex items-center gap-1.5 rounded-lg bg-[#1faa61] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
+                            >
+                                <MessageSquare className="h-3.5 w-3.5" />
+                                {whatsappLabel}
+                            </button>
+                        ) : null}
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setShowChannelPicker((v) => !v)}
+                                className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:text-white"
+                            >
+                                <Save className="h-3.5 w-3.5" />
+                                Save to Channel
+                            </button>
+                            {showChannelPicker && (
+                                <div className="absolute bottom-full left-0 mb-2 z-50 min-w-[200px] rounded-xl border border-neutral-700 bg-[#1a1a1a] p-2 shadow-2xl">
+                                    <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Pick a channel</p>
+                                    {channels.length === 0 ? (
+                                        <p className="px-2 py-2 text-[11px] text-neutral-500">No channels yet. Create one from the sidebar.</p>
+                                    ) : (
+                                        <div className="mt-1 max-h-48 overflow-y-auto space-y-1">
+                                            {channels.map((ch) => (
+                                                <button
+                                                    key={ch.id}
+                                                    type="button"
+                                                    disabled={savingChannelId === ch.id}
+                                                    onClick={() => {
+                                                        setSavingChannelId(ch.id);
+                                                        onSaveToChannel?.(ch.id, listing.id);
+                                                        setShowChannelPicker(false);
+                                                    }}
+                                                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-neutral-300 hover:bg-neutral-800 hover:text-white disabled:opacity-50"
+                                                >
+                                                    <span className="truncate">{ch.name}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const text = listing.description || listing.rawText || '';
+                                navigator.clipboard.writeText(text).catch(() => {});
+                            }}
+                            className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:text-white"
+                        >
                             <Copy className="h-3.5 w-3.5" />
                             Copy
                         </button>

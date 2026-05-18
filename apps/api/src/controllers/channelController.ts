@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { channelService } from '../services/channelService';
 import { getAnalytics as getAnalyticsData } from '../services/analyticsService';
 import { getTenantId, requireSuperAdmin, getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
+import { subscriptionService } from '../services/subscriptionService';
 import '../types/express';
 
 export const listChannels = async (req: Request, res: Response) => {
@@ -33,8 +34,14 @@ export const listStreamItems = async (req: Request, res: Response) => {
         const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
         const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : null;
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
-        const items = await channelService.listStreamItems(tenantId, accessToken, channelId, sessionLabel);
-        res.json(items);
+        const subscription = await subscriptionService.getSubscription(tenantId, req.user?.email);
+        const networkMode = ['Layer2', 'Team'].includes(String(subscription.plan));
+        const items = await channelService.listStreamItems(tenantId, accessToken, channelId, sessionLabel, networkMode);
+        res.json({
+            items,
+            network_mode: networkMode,
+            total: items.length,
+        });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load stream items') });
     }

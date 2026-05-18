@@ -63,6 +63,11 @@ export type StreamItemRecord = {
     rawText?: string;
     source: string;
     sourcePhone?: string | null;
+    brokerPhone?: string | null;
+    brokerName?: string | null;
+    brokerCompany?: string | null;
+    waLink?: string | null;
+    isNetworkItem?: boolean;
     confidence: number;
     description: string;
     createdAt: string;
@@ -136,6 +141,35 @@ const coerceJsonArray = (value: unknown) =>
     Array.isArray(value)
         ? value.map((entry) => String(entry || '').trim()).filter(Boolean)
         : [];
+
+const normalizePhoneForWa = (value?: string | null) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    return digits || null;
+};
+
+const generateWaLink = (item: any, brokerName: string | null, brokerPhone: string | null): string | null => {
+    const phone = normalizePhoneForWa(brokerPhone);
+    if (!phone) {
+        return null;
+    }
+
+    const bhk = String(item.bhk || '').trim() || 'a property';
+    const locality = String(item.locality || item.parsed_payload?.locality || '').trim() || 'the target locality';
+    const building = String(
+        item.parsed_payload?.building ||
+        item.parsed_payload?.buildingName ||
+        item.parsed_payload?.projectName ||
+        ''
+    ).trim();
+    const price = String(item.price_label || item.parsed_payload?.price || item.parsed_payload?.budget || '').trim() || 'the discussed budget';
+    const greeting = `Hi ${brokerName || 'there'}, `;
+    const isRequirement = String(item.record_type || item.type || '').trim().toLowerCase() === 'requirement';
+    const text = isRequirement
+        ? `${greeting}you're looking for ${bhk} in ${locality} under ₹${price}. I have something that matches.`
+        : `${greeting}saw your listing for ${bhk} at ${building || locality}, ${locality} at ₹${price}. Is it still available?`;
+
+    return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+};
 
 function isMissingSchemaEntityError(message?: string | null) {
     const normalized = String(message || '').toLowerCase();
@@ -1172,7 +1206,34 @@ export class ChannelService {
 
 private backfillInitiated = false;
 
-     async listStreamItems(tenantId: string, accessToken?: string | null, channelId?: string | null, sessionLabel?: string | null): Promise<StreamItemRecord[]> {
+    private async getNetworkTenantIds(tenantId: string, networkMode: boolean) {
+        if (!networkMode) {
+            return [tenantId];
+        }
+
+        const { data, error } = await this.db
+            .from('subscriptions')
+            .select('tenant_id')
+            .in('plan', ['Layer2', 'Team'])
+            .eq('status', 'active');
+
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        return Array.from(new Set([
+            tenantId,
+            ...((data || []).map((row: any) => String(row.tenant_id || '')).filter(Boolean)),
+        ]));
+    }
+
+     async listStreamItems(
+        tenantId: string,
+        accessToken?: string | null,
+        channelId?: string | null,
+        sessionLabel?: string | null,
+        networkMode = false,
+    ): Promise<StreamItemRecord[]> {
          // Only trigger backfill once and don't block the read on it
          if (!this.backfillInitiated) {
              this.backfillInitiated = true;
@@ -1181,6 +1242,7 @@ private backfillInitiated = false;
          }
 
          const readClient = accessToken ? createSupabaseAnonClient(accessToken) : this.db;
+         const accessibleTenantIds = await this.getNetworkTenantIds(tenantId, networkMode);
 
         if (channelId) {
             const { data: links, error: linksError } = await this.db
@@ -1204,7 +1266,7 @@ private backfillInitiated = false;
             const { data: items, error: itemsError } = await readClient
                 .from('stream_items')
                 .select('*')
-                .eq('tenant_id', tenantId)
+                .in('tenant_id', accessibleTenantIds)
                 .in('id', streamIds);
 
             if (itemsError) {
@@ -1212,10 +1274,10 @@ private backfillInitiated = false;
             }
 
             const linkMap = new Map<string, any>(links.map((link: any) => [link.stream_item_id, link]));
-            const filteredItems = await this.filterItemsBySession(tenantId, (items || []), sessionLabel);
+            const filteredItems = await this.filterItemsBySession(tenantId, (items || []), sessionLabel, networkMode);
             return this.enrichSourcePhones(
                 Array.isArray(filteredItems) ? filteredItems
-                    .map((item: any) => this.mapStreamItem(item, linkMap.get(item.id)?.is_read))
+                    .map((item: any) => this.mapStreamItem(item, tenantId, linkMap.get(item.id)?.is_read))
                     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
                 : []
             );
@@ -1224,7 +1286,7 @@ private backfillInitiated = false;
         const { data, error } = await readClient
             .from('stream_items')
             .select('*')
-            .eq('tenant_id', tenantId)
+            .in('tenant_id', accessibleTenantIds)
             .order('created_at', { ascending: false })
             .limit(200);
 
@@ -1232,13 +1294,16 @@ private backfillInitiated = false;
             throw new Error(error.message);
         }
 
-        const filteredItems = await this.filterItemsBySession(tenantId, data || [], sessionLabel);
+        const filteredItems = await this.filterItemsBySession(tenantId, data || [], sessionLabel, networkMode);
         return this.enrichSourcePhones(
-            Array.isArray(filteredItems) ? filteredItems.map((item: any) => this.mapStreamItem(item)) : []
+            Array.isArray(filteredItems) ? filteredItems.map((item: any) => this.mapStreamItem(item, tenantId)) : []
         );
     }
 
-    private async filterItemsBySession(tenantId: string, items: any[], sessionLabel?: string | null) {
+    private async filterItemsBySession(tenantId: string, items: any[], sessionLabel?: string | null, networkMode = false) {
+        if (networkMode) {
+            return items;
+        }
         if (!sessionLabel || !Array.isArray(items) || items.length === 0) {
             return items;
         }
@@ -2191,7 +2256,7 @@ ${rawText}
         };
     }
 
-    private mapStreamItem(item: any, isRead?: boolean): StreamItemRecord {
+    private mapStreamItem(item: any, currentTenantId: string, isRead?: boolean): StreamItemRecord {
         const rawText = String(item.raw_text || '');
         const sourcePhone =
             item.source_phone ||
@@ -2199,10 +2264,21 @@ ${rawText}
             item.parsed_payload?.contactPhone ||
             extractContactPhoneFromBody(rawText) ||
             null;
+        const brokerName =
+            item.broker_name ||
+            item.parsed_payload?.brokerName ||
+            item.parsed_payload?.sender_name ||
+            item.parsed_payload?.contactName ||
+            null;
+        const brokerCompany =
+            item.parsed_payload?.brokerCompany ||
+            item.parsed_payload?.company ||
+            null;
         const source =
             item.parsed_payload?.contactName ||
             item.parsed_payload?.sourceLabel ||
             item.source_group_name ||
+            brokerName ||
             sourcePhone ||
             'Unknown source';
 
@@ -2219,6 +2295,11 @@ ${rawText}
             createdAt: item.created_at,
             source,
             sourcePhone,
+            brokerPhone: sourcePhone,
+            brokerName,
+            brokerCompany,
+            waLink: generateWaLink(item, brokerName, sourcePhone),
+            isNetworkItem: String(item.tenant_id || '') !== currentTenantId,
             confidence: Number(item.confidence_score || 0),
             description: item.raw_text || '',
             rawText: item.raw_text || '',
@@ -2263,6 +2344,14 @@ ${rawText}
             return {
                 ...item,
                 sourcePhone: recoveredPhone,
+                brokerPhone: item.brokerPhone || recoveredPhone,
+                waLink: item.waLink || generateWaLink({
+                    bhk: item.bhk,
+                    locality: item.location,
+                    price_label: item.price,
+                    record_type: item.recordType,
+                    parsed_payload: {},
+                }, item.brokerName || null, recoveredPhone),
             };
         });
     }

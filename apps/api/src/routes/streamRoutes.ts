@@ -3,6 +3,7 @@ import { authMiddleware } from '../middleware/authMiddleware';
 import { streamAPI } from '../apis';
 import type { StreamItem } from '../apis';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
+import { subscriptionService } from '../services/subscriptionService';
 
 const router = Router();
 
@@ -25,8 +26,10 @@ router.get('/', async (req, res) => {
       search: req.query.search as string | undefined,
     };
 
-    const items = await streamAPI.getStreamItems(tenantId, filters);
-    res.json(items);
+    const subscription = await subscriptionService.getSubscription(tenantId, (req as any).user?.email);
+    const networkMode = ['Layer2', 'Team'].includes(String(subscription.plan));
+    const result = await streamAPI.getStreamItems(tenantId, networkMode, filters);
+    res.json(result);
   } catch (error: unknown) {
     res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load stream items') });
   }

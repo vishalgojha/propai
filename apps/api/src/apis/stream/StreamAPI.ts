@@ -2,11 +2,29 @@ import { supabase } from '../../config/supabase';
 import type { StreamItem, StreamFilters, StreamStats, StreamChannel } from './types';
 
 export class StreamAPI {
-  async getStreamItems(tenantId: string, filters?: StreamFilters): Promise<StreamItem[]> {
+  async getStreamItems(
+    tenantId: string,
+    networkMode = false,
+    filters?: StreamFilters,
+  ): Promise<{ items: StreamItem[]; network_mode: boolean; total: number }> {
+    let tenantIds = [tenantId];
+    if (networkMode) {
+      const { data: layer2Tenants } = await supabase
+        .from('subscriptions')
+        .select('tenant_id')
+        .in('plan', ['Layer2', 'Team'])
+        .eq('status', 'active');
+
+      tenantIds = Array.from(new Set([
+        tenantId,
+        ...((layer2Tenants || []).map((row: any) => String(row.tenant_id || '')).filter(Boolean)),
+      ]));
+    }
+
     let query = supabase
       .from('stream_items')
       .select('*')
-      .eq('tenant_id', tenantId);
+      .in('tenant_id', tenantIds);
 
     if (filters?.type && filters.type.length > 0) {
       // 'type' column might not exist in stream_items table on some deployments.
@@ -44,14 +62,54 @@ export class StreamAPI {
 
     const { data, error } = await query.order('created_at', { ascending: false });
 
-    if (error || !data) return [];
-    if (!Array.isArray(data)) return [];
-    return data.map(this.mapToStreamItem);
+    if (error || !data || !Array.isArray(data)) {
+      return { items: [], network_mode: networkMode, total: 0 };
+    }
+
+    const items = data.map((item) => this.mapToStreamItem(item, tenantId));
+    return {
+      items,
+      network_mode: networkMode,
+      total: items.length,
+    };
   }
 
-  private mapToStreamItem(data: any): StreamItem {
-    const phone = data.source_phone || '';
-    const masked = phone ? `${phone.slice(0, 5)} •••••` : null;
+  private generateWaLink(data: any, brokerName: string | null, brokerPhone: string | null): string | null {
+    const phone = String(brokerPhone || '').replace(/\D/g, '');
+    if (!phone) {
+      return null;
+    }
+
+    const bhk = String(data.bhk || '').trim() || 'a property';
+    const locality = String(data.locality || data.parsed_payload?.locality || '').trim() || 'the target locality';
+    const building = String(
+      data.parsed_payload?.building ||
+      data.parsed_payload?.buildingName ||
+      data.parsed_payload?.projectName ||
+      '',
+    ).trim();
+    const price = String(data.price_label || data.parsed_payload?.price || data.parsed_payload?.budget || '').trim() || 'the discussed budget';
+    const greeting = `Hi ${brokerName || 'there'}, `;
+    const isRequirement = String(data.record_type || data.type || '').trim().toLowerCase() === 'requirement';
+    const text = isRequirement
+      ? `${greeting}you're looking for ${bhk} in ${locality} under ₹${price}. I have something that matches.`
+      : `${greeting}saw your listing for ${bhk} at ${building || locality}, ${locality} at ₹${price}. Is it still available?`;
+
+    return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+  }
+
+  private mapToStreamItem(data: any, currentTenantId: string): StreamItem {
+    const brokerPhone = data.source_phone || null;
+    const brokerName =
+      data.broker_name ||
+      data.parsed_payload?.brokerName ||
+      data.parsed_payload?.sender_name ||
+      null;
+    const brokerCompany =
+      data.parsed_payload?.brokerCompany ||
+      data.parsed_payload?.company ||
+      null;
+
     return {
       id: data.id,
       type: data.type,
@@ -65,7 +123,11 @@ export class StreamAPI {
       areaSqft: data.area_sqft || undefined,
       confidence: data.confidence_score || 0,
       source: data.source_phone || '',
-      brokerPhoneMasked: masked,
+      brokerPhone,
+      brokerName,
+      brokerCompany,
+      waLink: this.generateWaLink(data, brokerName, brokerPhone),
+      isNetworkItem: String(data.tenant_id || '') !== currentTenantId,
       isRead: data.is_read || false,
       createdAt: data.created_at,
     };
