@@ -53,6 +53,9 @@ type ConversationEngineResult = {
     data?: Record<string, unknown>;
 };
 
+const ATTACHMENT_REFERENCE_PATTERN = /\b(attach(?:ed|ment)?|file|image|pdf|screenshot|document|txt|csv|photo|pic)\b/i;
+const EXPLICIT_ACTION_PATTERN = /\b(add|save|post|create|schedule|show|search|find|fetch|verify|check|pull|import|extract|parse|summari[sz]e|analy[sz]e|read)\b/i;
+
 function cleanWhatsAppReply(text: string) {
     let cleaned = String(text || '').trim();
     if (!cleaned) return '';
@@ -119,6 +122,23 @@ async function recordInboundEvent(input: ConversationEngineInput) {
     });
 }
 
+function shouldUseAttachmentContextForRouting(rawText: string, hasAttachments: boolean) {
+    if (!hasAttachments) {
+        return false;
+    }
+
+    const normalized = String(rawText || '').trim();
+    if (!normalized) {
+        return false;
+    }
+
+    if (!ATTACHMENT_REFERENCE_PATTERN.test(normalized)) {
+        return false;
+    }
+
+    return EXPLICIT_ACTION_PATTERN.test(normalized);
+}
+
 export class ConversationEngineService {
     async process(input: ConversationEngineInput): Promise<ConversationEngineResult> {
         const { event } = input;
@@ -131,24 +151,27 @@ export class ConversationEngineService {
             console.warn('[conversationEngineService] Failed to record inbound event', error);
         });
 
-        let prompt = event.content.text;
-        if (event.channel === 'web' && Array.isArray(event.content.attachments) && event.content.attachments.length > 0) {
+        const rawPrompt = String(event.content.text || '').trim();
+        const hasWebAttachments = event.channel === 'web' && Array.isArray(event.content.attachments) && event.content.attachments.length > 0;
+        let prompt = rawPrompt;
+        if (hasWebAttachments) {
             const attachmentContext = await buildAttachmentContext(event.tenantId, event.content.attachments as AttachmentInfo[]);
             if (attachmentContext) {
-                prompt = `${prompt}\n\n---\nAttached context:\n${attachmentContext}\n---`;
+                prompt = `${rawPrompt}\n\n---\nAttached context:\n${attachmentContext}\n---`;
             }
         }
 
-        const route = await agentRouterService.route(event.tenantId, prompt, history);
+        const routePrompt = shouldUseAttachmentContextForRouting(rawPrompt, hasWebAttachments) ? prompt : rawPrompt;
+        const route = await agentRouterService.route(event.tenantId, routePrompt, history);
         const capabilityHint = buildCapabilityHint(route.intent);
 
-        const sharedRouteResult = await executeSharedRoute(event.tenantId, route, prompt);
+        const sharedRouteResult = await executeSharedRoute(event.tenantId, route, routePrompt);
         if (sharedRouteResult.handled) {
             const renderedReply = renderChannelReply(event.channel, sharedRouteResult.agentResponse);
             const personalizedReply = event.channel === 'whatsapp'
                 ? maybePersonalizeWhatsAppGreeting(renderedReply, input.greetingName, input.shouldGreetByName)
                 : renderedReply;
-            await saveToHistory(event.conversation.key, prompt, personalizedReply, input.sessionId);
+            await saveToHistory(event.conversation.key, rawPrompt, personalizedReply, input.sessionId);
 
             return {
                 reply: personalizedReply,
@@ -186,7 +209,7 @@ export class ConversationEngineService {
             if (structuredToolCall) {
                 const toolReply = await executeStructuredToolCall(event.tenantId, structuredToolCall);
                 const agentResponse = toAgentResponse(toolReply);
-                await saveToHistory(event.conversation.key, prompt, toolReply, input.sessionId);
+                await saveToHistory(event.conversation.key, rawPrompt, toolReply, input.sessionId);
                 return {
                     reply: toolReply,
                     text: toolReply,
@@ -202,7 +225,7 @@ export class ConversationEngineService {
         const personalizedReply = event.channel === 'whatsapp'
             ? maybePersonalizeWhatsAppGreeting(renderedReply, input.greetingName, input.shouldGreetByName)
             : renderedReply;
-        await saveToHistory(event.conversation.key, prompt, personalizedReply, input.sessionId);
+        await saveToHistory(event.conversation.key, rawPrompt, personalizedReply, input.sessionId);
 
         return {
             reply: personalizedReply,

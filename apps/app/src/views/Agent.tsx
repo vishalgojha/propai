@@ -509,10 +509,12 @@ export const Agent: React.FC = () => {
 
   const handleSend = async (text = input) => {
 	    const prompt = text.trim();
-	    if (!prompt) return;
+      const hasAttachments = attachedFiles.length > 0;
+      if (!prompt && !hasAttachments) return;
+      const messageText = prompt || 'Please read the attached file and tell me what it contains.';
 
     track('ai_prompt_sent', {
-      words: wordCount(prompt),
+      words: wordCount(messageText),
       quick_action: text !== input,
     });
 
@@ -520,14 +522,14 @@ export const Agent: React.FC = () => {
 
     setMessages((prev) => [
       ...prev,
-      { role: 'user', content: prompt, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
+      { role: 'user', content: messageText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
     ]);
 	    setInput('');
 	    setIsTyping(true);
 
 	    try {
 	      const response = await backendApi.post(ENDPOINTS.ai.chat, {
-	        message: prompt,
+	        message: messageText,
 	        model: selectedModel,
 	        session_id: sessionId,
 	        attachments: attachedFiles.map((file) => file.id),
@@ -542,7 +544,7 @@ export const Agent: React.FC = () => {
       const modelName = response.data.model || response.data.provider || null;
       track('ai_prompt_completed', {
         route: route || 'unknown',
-        words: wordCount(prompt),
+        words: wordCount(messageText),
       });
       setActiveModelName(modelName);
       if (response.data.fallback_error) {
