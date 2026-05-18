@@ -13,6 +13,7 @@ import {
   getIgrPrice,
   getMarketSummary,
   matchBuyerToInventory,
+  buildPricingNegotiationBrief,
   logToolCall,
   qualifyLead,
   saveListingRecord,
@@ -39,6 +40,7 @@ export const MCP_TOOL_NAMES = [
   "save_thread_listing",
   "create_thread_follow_up",
   "buyer_to_inventory_match",
+  "pricing_negotiation_brief",
   "draft_growth_asset",
   "create_requirement",
   "draft_broadcast",
@@ -174,6 +176,39 @@ export function createMcpServer(context: ToolContext = {}) {
         unresolved_questions: actions.unresolved_questions,
         recommended_actions: actions.recommended_actions,
       });
+    },
+  );
+
+  server.registerTool(
+    "pricing_negotiation_brief",
+    {
+      description:
+        "Build a pricing and negotiation brief using current asking price, market comparables, and Maharashtra IGR context.",
+      inputSchema: {
+        locality: z.string().optional(),
+        building_name: z.string().optional(),
+        bhk: z.number().optional(),
+        area_sqft: z.number().optional(),
+        asking_price_cr: z.number().optional().describe("Current asking price in crores"),
+        property_type: z.enum(["sale", "rent", "lease", "all"]).default("sale"),
+      },
+    },
+    async (input) => {
+      const id = requireBrokerId(context);
+      await logToolCall(id, "pricing_negotiation_brief", input);
+      const result = await buildPricingNegotiationBrief(input);
+
+      const leverage = result.leverage_points.length
+        ? `Leverage: ${result.leverage_points.join(" | ")}`
+        : "Leverage: not enough pricing anchors yet.";
+      const risks = result.risks.length
+        ? `Risks: ${result.risks.join(" | ")}`
+        : "Risks: no major pricing data gaps flagged.";
+
+      return textResponse(
+        `${result.summary}\n\nNegotiation stance: ${result.negotiation_stance}\n\n${leverage}\n\n${risks}`,
+        result,
+      );
     },
   );
 

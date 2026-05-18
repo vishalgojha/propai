@@ -1028,6 +1028,98 @@ export async function estimatePrice(input: {
   };
 }
 
+export async function buildPricingNegotiationBrief(input: {
+  locality?: string;
+  building_name?: string;
+  bhk?: number;
+  area_sqft?: number;
+  asking_price_cr?: number;
+  property_type?: "sale" | "rent" | "lease" | "all";
+}) {
+  const estimate = await estimatePrice({
+    locality: input.locality,
+    building_name: input.building_name,
+    bhk: input.bhk,
+    area_sqft: input.area_sqft,
+    property_type: input.property_type || "sale",
+  });
+
+  const askingPrice = input.asking_price_cr ?? null;
+  const estimatedPrice = estimate.estimated_price_cr ?? null;
+  const referencePpsf = estimate.reference_price_per_sqft ?? null;
+  const igrRate = estimate.igr_market?.avg_price_per_sqft ?? null;
+  const publicRate = estimate.public_market?.avg_price_per_sqft ?? null;
+
+  let pricePosition: "above_market" | "at_market" | "below_market" | "unknown" = "unknown";
+  let deltaCr: number | null = null;
+  if (askingPrice != null && estimatedPrice != null) {
+    deltaCr = Number((askingPrice - estimatedPrice).toFixed(2));
+    const ratio = estimatedPrice > 0 ? askingPrice / estimatedPrice : null;
+    if (ratio != null) {
+      if (ratio >= 1.08) pricePosition = "above_market";
+      else if (ratio <= 0.94) pricePosition = "below_market";
+      else pricePosition = "at_market";
+    }
+  }
+
+  const negotiationStance = (() => {
+    if (pricePosition === "above_market") {
+      return "Push back with comparables and anchor the conversation around realistic clearing price rather than the first ask.";
+    }
+    if (pricePosition === "below_market") {
+      return "Move fast. This looks competitive relative to current comps, so confirm condition, availability, and seller seriousness before others do.";
+    }
+    if (pricePosition === "at_market") {
+      return "Negotiate on terms, urgency, furnishing, and payment certainty rather than forcing a large price cut.";
+    }
+    return "Use IGR and current comparables to test the ask before taking a hard negotiation stance.";
+  })();
+
+  const leveragePoints = [
+    publicRate != null ? `Public comparable rate around ${formatPerSqft(publicRate)}` : null,
+    igrRate != null ? `IGR-backed locality rate around ${formatPerSqft(igrRate)}` : null,
+    askingPrice != null && estimatedPrice != null
+      ? `Ask is ${deltaCr && deltaCr > 0 ? `${formatCurrencyCr(deltaCr)} above` : deltaCr && deltaCr < 0 ? `${formatCurrencyCr(Math.abs(deltaCr))} below` : "roughly at"} the estimated market value`
+      : null,
+    estimate.igr_transaction?.reg_date
+      ? `Recent IGR transaction on ${formatDate(estimate.igr_transaction.reg_date)}`
+      : null,
+  ].filter(Boolean) as string[];
+
+  const risks = [
+    askingPrice == null ? "Asking price not provided, so the brief is based on market reference only." : null,
+    referencePpsf == null ? "Comparable market rate is thin, so pricing confidence is lower than normal." : null,
+    input.area_sqft == null ? "Area not provided, so valuation falls back to broader market comps." : null,
+  ].filter(Boolean) as string[];
+
+  const summaryParts = [
+    estimatedPrice != null ? `Estimated value: ${formatCurrencyCr(estimatedPrice)}.` : "Estimated value unavailable.",
+    askingPrice != null ? `Current ask: ${formatCurrencyCr(askingPrice)}.` : "Current ask not provided.",
+    pricePosition === "above_market"
+      ? "This ask looks above market."
+      : pricePosition === "below_market"
+        ? "This ask looks competitive to slightly below market."
+        : pricePosition === "at_market"
+          ? "This ask looks close to market."
+          : "Market position is still uncertain.",
+  ];
+
+  return {
+    asking_price_cr: askingPrice,
+    estimated_price_cr: estimatedPrice,
+    price_position: pricePosition,
+    delta_cr: deltaCr,
+    reference_price_per_sqft: referencePpsf,
+    public_market: estimate.public_market,
+    igr_market: estimate.igr_market,
+    igr_transaction: estimate.igr_transaction,
+    leverage_points: leveragePoints,
+    risks,
+    negotiation_stance: negotiationStance,
+    summary: summaryParts.join(" "),
+  };
+}
+
 export async function qualifyLead(input: {
   brokerId: string;
   lead_id?: string;

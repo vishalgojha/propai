@@ -3,6 +3,31 @@ import { z } from "zod";
 
 export function registerMcpPrompts(server: McpServer) {
   server.registerPrompt(
+    "pricing_negotiation_brief",
+    {
+      title: "Pricing Negotiation Brief",
+      description: "Turn an asking price plus market context into a broker-ready negotiation brief.",
+      argsSchema: {
+        locality: z.string().optional(),
+        building_name: z.string().optional(),
+        asking_price_cr: z.string().optional(),
+        area_sqft: z.string().optional(),
+      },
+    },
+    async ({ locality, building_name, asking_price_cr, area_sqft }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Build a pricing and negotiation brief for this property. Locality: ${locality || "not provided"}. Building: ${building_name || "not provided"}. Ask: ${asking_price_cr || "not provided"} Cr. Area: ${area_sqft || "not provided"} sqft. Use market comps and IGR context, then tell me how I should negotiate.`,
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
     "buyer_to_inventory_match",
     {
       title: "Buyer to Inventory Match",
