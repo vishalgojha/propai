@@ -76,6 +76,8 @@ type CanonicalizationResult = {
     canonicalRecordId: string | null;
 };
 
+const MISSING_SCHEMA_ERROR_CODES = new Set(['42P01', '42703', 'PGRST204', 'PGRST205']);
+
 const extractJsonPayload = (text: string) => {
     const trimmed = String(text || '').trim();
     if (!trimmed) {
@@ -134,29 +136,77 @@ const conflictFieldsFor = (item: StreamRow, canonical: CanonicalRow) => {
         .map(([field]) => field as string);
 };
 
-export class CanonicalizationService {
-    async canonicalizeStreamItem(item: StreamRow) {
-        const semanticFingerprintText = fingerprintFor(item);
-        const candidates = await this.findCandidates(item);
-        const decision = candidates.length > 0
-            ? await this.chooseMatch(item, semanticFingerprintText, candidates)
-            : {
-                decision: 'new',
-                canonicalRecordId: null,
-                confidence: 0.95,
-                summary: 'No recent canonical candidates found.',
-                agreeingFields: [],
-                conflictingFields: [],
-            } satisfies MatchDecision;
+function isMissingCanonicalizationSchemaError(error: unknown) {
+    const err = error as { code?: string; message?: string; details?: string; hint?: string } | null;
+    const message = [
+        err?.message,
+        err?.details,
+        err?.hint,
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
 
-        if ((decision.decision === 'match' || decision.decision === 'conflict') && decision.canonicalRecordId) {
-            return this.attachToCanonical(item, semanticFingerprintText, decision, candidates);
+    return MISSING_SCHEMA_ERROR_CODES.has(String(err?.code || '')) ||
+        message.includes('schema cache') ||
+        message.includes('does not exist') ||
+        message.includes('could not find the table') ||
+        message.includes('could not find the column') ||
+        message.includes('canonical_records') ||
+        message.includes('canonical_record_evidence') ||
+        message.includes('source_reliability');
+}
+
+export class CanonicalizationService {
+    private schemaAvailable = true;
+
+    async canonicalizeStreamItem(item: StreamRow) {
+        if (!this.schemaAvailable) {
+            return null;
         }
 
-        return this.createCanonical(item, semanticFingerprintText, decision);
+        try {
+            const semanticFingerprintText = fingerprintFor(item);
+            const candidates = await this.findCandidates(item);
+            const decision = candidates.length > 0
+                ? await this.chooseMatch(item, semanticFingerprintText, candidates)
+                : {
+                    decision: 'new',
+                    canonicalRecordId: null,
+                    confidence: 0.95,
+                    summary: 'No recent canonical candidates found.',
+                    agreeingFields: [],
+                    conflictingFields: [],
+                } satisfies MatchDecision;
+
+            if ((decision.decision === 'match' || decision.decision === 'conflict') && decision.canonicalRecordId) {
+                return this.attachToCanonical(item, semanticFingerprintText, decision, candidates);
+            }
+
+            return this.createCanonical(item, semanticFingerprintText, decision);
+        } catch (error) {
+            if (this.disableForMissingSchema(error, 'stream item canonicalization')) {
+                return null;
+            }
+
+            throw error;
+        }
     }
 
     async backfillTenantStreamItems(tenantId: string, limit = 500, onlyMissing = true) {
+        if (!this.schemaAvailable) {
+            return {
+                scanned: 0,
+                processed: 0,
+                new: 0,
+                matched: 0,
+                conflicted: 0,
+                failed: 0,
+                totalCanonicalizedStreamItems: 0,
+                disabled: true,
+            };
+        }
+
         let query = db
             .from('stream_items')
             .select('*')
@@ -170,6 +220,18 @@ export class CanonicalizationService {
 
         const { data, error } = await query;
         if (error) {
+            if (this.disableForMissingSchema(error, 'canonicalization backfill query')) {
+                return {
+                    scanned: 0,
+                    processed: 0,
+                    new: 0,
+                    matched: 0,
+                    conflicted: 0,
+                    failed: 0,
+                    totalCanonicalizedStreamItems: 0,
+                    disabled: true,
+                };
+            }
             throw new Error(error.message);
         }
 
@@ -208,6 +270,19 @@ export class CanonicalizationService {
             ...counts,
             totalCanonicalizedStreamItems: canonicalizedCount || 0,
         };
+    }
+
+    private disableForMissingSchema(error: unknown, context: string) {
+        if (!isMissingCanonicalizationSchemaError(error)) {
+            return false;
+        }
+
+        if (this.schemaAvailable) {
+            this.schemaAvailable = false;
+            console.warn(`[Canonicalization] Disabled due to missing schema during ${context}. Apply the canonicalization migration before re-enabling.`, error);
+        }
+
+        return true;
     }
 
     private async findCandidates(item: StreamRow) {

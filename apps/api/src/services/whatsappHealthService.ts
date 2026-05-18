@@ -30,6 +30,8 @@ const STALE_MS = DAY_MS * 7;
 
 const db = supabaseAdmin || supabase;
 
+type EventLogSessionField = 'session_label' | 'session_id';
+
 function asIso(value?: string | null) {
     const parsed = value ? new Date(value) : new Date();
     return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
@@ -69,7 +71,24 @@ function deriveGroupStatus(lastMessageAt?: string | null, failedCount = 0) {
     return 'active';
 }
 
+function isMissingEventLogSessionLabelError(error: unknown) {
+    const err = error as { code?: string; message?: string; details?: string; hint?: string } | null;
+    const message = [
+        err?.message,
+        err?.details,
+        err?.hint,
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+    return (String(err?.code || '') === 'PGRST204' || String(err?.code || '') === '42703') &&
+        message.includes('session_label');
+}
+
 export class WhatsAppHealthService {
+    private eventLogSessionField: EventLogSessionField = 'session_label';
+
     async upsertConnectionSnapshot(input: ConnectionSnapshotInput) {
         if (input.tenantId === 'system') {
             return;
@@ -411,12 +430,7 @@ export class WhatsAppHealthService {
     }
 
     async getEvents(tenantId: string, limit = 30) {
-        const { data, error } = await db
-            .from('whatsapp_event_logs')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .order('created_at', { ascending: false })
-            .limit(limit);
+        const { data, error } = await this.readEventRows(tenantId, limit);
 
         if (error) {
             throw error;
@@ -424,7 +438,7 @@ export class WhatsAppHealthService {
 
         return (data || []).map((row: any) => ({
             id: row.id,
-            sessionLabel: row.session_label,
+            sessionLabel: row.session_label || row.session_id || null,
             eventType: row.event_type,
             message: row.message,
             metadata: row.metadata || {},
@@ -467,19 +481,59 @@ export class WhatsAppHealthService {
             return;
         }
 
-        const { error } = await db
+        const { error } = await this.insertEventRow(tenantId, sessionLabel, eventType, message, metadata);
+
+        if (error) {
+            console.error('[WhatsAppHealthService] Failed to log event:', error);
+        }
+    }
+
+    private async readEventRows(tenantId: string, limit: number) {
+        let result = await db
+            .from('whatsapp_event_logs')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        if (result.error && this.eventLogSessionField === 'session_label' && isMissingEventLogSessionLabelError(result.error)) {
+            this.eventLogSessionField = 'session_id';
+            result = await db
+                .from('whatsapp_event_logs')
+                .select('*')
+                .eq('tenant_id', tenantId)
+                .order('created_at', { ascending: false })
+                .limit(limit);
+        }
+
+        return result;
+    }
+
+    private async insertEventRow(tenantId: string, sessionLabel: string, eventType: string, message: string, metadata: Record<string, unknown>) {
+        let result = await db
             .from('whatsapp_event_logs')
             .insert({
                 tenant_id: tenantId,
-                session_label: sessionLabel,
+                [this.eventLogSessionField]: sessionLabel,
                 event_type: eventType,
                 message,
                 metadata,
             });
 
-        if (error) {
-            console.error('[WhatsAppHealthService] Failed to log event:', error);
+        if (result.error && this.eventLogSessionField === 'session_label' && isMissingEventLogSessionLabelError(result.error)) {
+            this.eventLogSessionField = 'session_id';
+            result = await db
+                .from('whatsapp_event_logs')
+                .insert({
+                    tenant_id: tenantId,
+                    session_id: sessionLabel,
+                    event_type: eventType,
+                    message,
+                    metadata,
+                });
         }
+
+        return result;
     }
 
     private deriveHealthState(row: any) {
