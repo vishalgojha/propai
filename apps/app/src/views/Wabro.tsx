@@ -152,7 +152,7 @@ function ServiceBanner({
   if (state === 'ready' && !error) {
     return (
       <div className="rounded-[16px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 text-[12px] text-[var(--text-primary)]">
-        WaBro backend is live. This route is using the same PropAI session and the shared `/api/wabro` backend surface.
+        WaBro is live inside PropAI. This route is using your shared PropAI session and the monorepo `/api/wabro` backend.
       </div>
     );
   }
@@ -216,7 +216,7 @@ function AccessGate({
             {title || 'Unlock WaBro'}
           </h3>
           <p className="mt-2 max-w-xl text-[13px] leading-6 text-[var(--text-secondary)]">
-            {body || 'WaBro includes a 7-day free trial from install so brokers can set up Android delivery and test campaigns before paying. After the trial, campaign execution stays behind the WaBro plan.'}
+            {body || 'WaBro includes a 7-day free trial so you can install the Android app, confirm the shared login flow, and test delivery before paying. After the trial, campaign execution stays behind the WaBro plan.'}
           </p>
         </div>
 
@@ -279,7 +279,7 @@ function WabroShell({
             </h2>
             <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">{subtitle}</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              {['Separate paid product', 'Android execution', 'Broker broadcasts'].map((pill) => (
+              {['Live in PropAI', 'Android execution', 'Shared auth + backend'].map((pill) => (
                 <span
                   key={pill}
                   className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]"
@@ -540,8 +540,8 @@ export const WabroOverview: React.FC = () => {
 
   return (
     <WabroShell
-      title="Dedicated broadcast campaigns for broker outreach"
-      subtitle="WaBro runs inside PropAI as its own product surface. Broker contacts auto-populate from Inbox DM tagging — tag a direct message as Realtor and it feeds your broadcast lists. Use this route for APK access, setup, campaigns, devices, and a separate access boundary."
+      title="WaBro dashboard inside PropAI"
+      subtitle="WaBro now runs directly inside the main PropAI app at /wabro/app. Use this surface for campaign operations, Android device setup, delivery visibility, and APK access while broker contacts keep auto-populating from Inbox DM tagging."
       serviceState={serviceState}
       error={error}
       onRetry={reload}
@@ -612,21 +612,21 @@ export const WabroOverview: React.FC = () => {
         <div className="space-y-4">
           <SurfaceSection title="Android execution" subtitle="Linked-device model" icon={SmartphoneIcon}>
             <div className="space-y-3 text-[12px] leading-6 text-[var(--text-secondary)]">
-              <p>WaBro uses Android as the execution layer. The web app is for orchestration, not QR pairing or chat parsing.</p>
+              <p>WaBro uses Android as the execution layer, while this dashboard handles orchestration through the shared PropAI deployment and monorepo backend.</p>
               <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
                 <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Current device state</p>
                 <p className="mt-2 text-[13px] font-semibold text-[var(--text-primary)]">
                   {stats.total_devices ? `${stats.active_devices} active / ${stats.total_devices} linked` : 'No device linked yet'}
                 </p>
-                <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">Open the WaBro Android app, sign into the same account, and let it register as the delivery device.</p>
+                <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">Download the APK from the sidebar or this page, sign into the same PropAI account, and let the phone register against this workspace as the delivery device.</p>
               </div>
             </div>
           </SurfaceSection>
 
           <SurfaceSection title="Product boundary" subtitle="Keep WaBro separate" icon={CheckCircleIcon}>
             <div className="space-y-2 text-[12px] leading-6 text-[var(--text-secondary)]">
-              <p>WaBro is for broker broadcast campaigns, APK download, Android execution, and send visibility.</p>
-              <p>WhatsApp stays responsible for QR, session health, inbox, parsing, and group sync. Do not merge those surfaces in copy or onboarding.</p>
+              <p>WaBro is the product surface for broker broadcast campaigns, APK download, Android execution, and send visibility.</p>
+              <p>WhatsApp still owns QR, session health, inbox, parsing, and group sync. WaBro shares auth and deployment with PropAI, but its copy should stay focused on broadcasts and Android execution.</p>
             </div>
           </SurfaceSection>
         </div>
@@ -913,8 +913,8 @@ export const WabroSetup: React.FC = () => {
 
   return (
     <WabroShell
-      title="Android setup"
-      subtitle="Set up WaBro as a broadcast delivery product. Broker contacts grow automatically when you tag DMs as Realtor from the Inbox. Keep the instructions limited to Android execution and campaign launch, not general WhatsApp connection workflows."
+      title="WaBro Android setup inside PropAI"
+      subtitle="Set up the Android delivery flow that powers WaBro inside the main PropAI app. Open WaBro from the dashboard, download the APK, sign in with the same PropAI account, and keep the instructions focused on broadcast execution rather than general WhatsApp connection workflows."
       serviceState="ready"
       error={null}
       actions={
@@ -931,17 +931,18 @@ export const WabroSetup: React.FC = () => {
       <AccessGate
         access={access}
         title="Prepare WaBro setup"
-        body="You can review the setup flow before access is enabled, but Android execution and campaign launch should remain locked until WaBro is explicitly turned on."
+        body="You can review the setup flow before access is enabled, but Android execution and campaign launch should remain locked until WaBro is explicitly turned on for this PropAI workspace."
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
         {[
-          ['1. Install the Android app', 'Download the WaBro APK on the phone that will execute campaign delivery.'],
-          ['2. Sign in with the same account', 'Use the same PropAI identity so the Android device registers against the same WaBro workspace.'],
-          ['3. Build broker contacts', 'Tag incoming DMs as Realtor from the Inbox — they auto-populate as broker contacts with phone and locality. Or import lists manually via CSV in the campaigns route.'],
-          ['4. Create the campaign on web', 'Write the message template and choose the target list inside PropAI → WaBro.'],
-          ['5. Let Android execute', 'The Android app pulls pending campaigns and handles delivery execution from the linked device.'],
-          ['6. Monitor results on web', 'Track sent, failed, skipped, and active-device state from the WaBro pages in PropAI.'],
+          ['1. Open WaBro inside PropAI', 'Start from /wabro/app so you are inside the live WaBro dashboard, using the shared PropAI login and the current workspace before touching the Android phone.'],
+          ['2. Download and install the APK', 'Use the Download APK action here or the sidebar shortcut on the phone that will execute campaign delivery.'],
+          ['3. Sign in with the same account', 'Use the same PropAI identity so the Android device registers against this WaBro workspace without a separate auth flow.'],
+          ['4. Build broker contacts', 'Tag incoming DMs as Realtor from the Inbox so broker contacts auto-populate with phone and locality, or import a list manually from the campaigns page.'],
+          ['5. Create the campaign on web', 'Write the message template and choose the target list inside PropAI → WaBro.'],
+          ['6. Let Android execute', 'The Android app pulls pending campaigns from the shared `/api/wabro` backend and handles delivery from the linked device.'],
+          ['7. Monitor results on web', 'Track sent, failed, skipped, and active-device state from the WaBro pages in PropAI.'],
         ].map(([title, body]) => (
           <div key={title} className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">{title}</p>
