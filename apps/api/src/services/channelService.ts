@@ -1654,9 +1654,11 @@ private backfillInitiated = false;
     }
 
     private async upsertWebsiteListing(tenantId: string, parsed: ParsedStreamCandidate): Promise<void> {
+        const phone = parsed.sourcePhone || this.extractPhoneFromText(parsed.rawText);
         const structuredData: Record<string, unknown> = {
             bhk: parsed.bhk || null,
             locality: parsed.locality || null,
+            contact_number: phone,
             city: parsed.city || null,
             type: parsed.streamType?.toLowerCase?.() || null,
             deal_type: parsed.dealType || null,

@@ -676,9 +676,8 @@ try {
                 : 'workspace@s.whatsapp.net';
         }
 
-        const participant = String(msg?.key?.participant || msg?.participant || '').trim();
-        const pushName = String(msg?.pushName || '').trim();
-        return pushName || participant || null;
+        const participant = String(msg?.key?.participant || msg?.participant || msg?.key?.remoteJid || '').trim();
+        return participant || null;
     }
 
     private resolveMessageTimestamp(msg: any) {

@@ -107,7 +107,7 @@ export class StreamAPI {
   }
 
   private mapToStreamItem(data: any, currentTenantId: string): StreamItem {
-    const brokerPhone = data.source_phone || null;
+    const brokerPhone = data.source_phone || data.parsed_payload?.sourcePhone || data.parsed_payload?.contactPhone || null;
     const brokerName =
       data.broker_name ||
       data.parsed_payload?.brokerName ||

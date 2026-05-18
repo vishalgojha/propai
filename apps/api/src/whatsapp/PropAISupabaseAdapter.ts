@@ -101,7 +101,7 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                     text: input.text,
                     direction: input.fromMe ? 'outbound' : 'inbound',
                     senderJid: String(rawMessage?.key?.participant || input.sender || '').trim() || input.remoteJid,
-                    senderName: input.sender ?? null,
+                    senderName: rawMessage?.pushName || null,
                     messageKey,
                     messageType: 'text',
                     timestamp: input.timestamp ?? new Date().toISOString(),

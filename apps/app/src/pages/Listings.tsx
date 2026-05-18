@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ArrowUpFromLine,
   ChevronDown,
   Filter,
   IndianRupee,
@@ -353,6 +354,7 @@ export const Listings: React.FC = () => {
   const [waClickStats, setWaClickStats] = React.useState<WaClickStats | null>(null);
   const [quickTimeBands, setQuickTimeBands] = React.useState<Array<'1h' | '8h'>>([]);
   const sentinelRef = React.useRef<HTMLDivElement>(null);
+  const [showScrollTop, setShowScrollTop] = React.useState(false);
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
@@ -671,6 +673,12 @@ if (brokerOnly) {
     void fetch();
     const interval = setInterval(fetch, 30000);
     return () => clearInterval(interval);
+  }, []);
+
+  React.useEffect(() => {
+    const handleScroll = () => setShowScrollTop(window.scrollY > 400);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   React.useEffect(() => {
@@ -1158,6 +1166,15 @@ if (brokerOnly) {
           {hasMore ? `${renderedStream.length} of ${visibleStream.length} loaded. More items appear as you scroll.` : 'End of feed'}
         </div>
     </div>
+      {showScrollTop && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-6 right-6 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--border)] bg-[var(--bg-surface)] text-[var(--text-secondary)] shadow-lg transition-all hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
+        >
+          <ArrowUpFromLine className="h-4 w-4" />
+        </button>
+      )}
     </>
   );
 };
