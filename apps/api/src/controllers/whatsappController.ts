@@ -767,9 +767,9 @@ export const submitSupportLogs = async (req: Request, res: Response) => {
             sessionEventService.getRecent(tenantId, 50),
             getDbClient()
                 .from('whatsapp_group_health')
-                .select('group_id, group_name, is_active')
+                .select('*')
                 .eq('tenant_id', tenantId)
-                .order('last_group_sync_at', { ascending: false })
+                .order('updated_at', { ascending: false })
                 .limit(10),
             getDbClient()
                 .from('profiles')
@@ -799,7 +799,7 @@ export const submitSupportLogs = async (req: Request, res: Response) => {
             groups: (groupHealthRows.data || []).map((g: any) => ({
                 id: g.group_id,
                 name: g.group_name,
-                active: g.is_active,
+                active: typeof g.is_active === 'boolean' ? g.is_active : String(g.status || '').toLowerCase() !== 'stale',
             })),
         };
 

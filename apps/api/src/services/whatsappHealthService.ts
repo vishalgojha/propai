@@ -86,8 +86,52 @@ function isMissingEventLogSessionLabelError(error: unknown) {
         message.includes('session_label');
 }
 
+function isMissingGroupHealthColumnError(error: unknown, column: string) {
+    const err = error as { code?: string; message?: string; details?: string; hint?: string } | null;
+    const message = [
+        err?.message,
+        err?.details,
+        err?.hint,
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+    return (String(err?.code || '') === 'PGRST204' || String(err?.code || '') === '42703') &&
+        message.includes(column.toLowerCase());
+}
+
 export class WhatsAppHealthService {
     private eventLogSessionField: EventLogSessionField = 'session_label';
+
+    private async upsertGroupHealthRecord(primaryPayload: Record<string, unknown>, compatPayload: Record<string, unknown>) {
+        const result = await db
+            .from('whatsapp_group_health')
+            .upsert(primaryPayload, { onConflict: 'tenant_id,session_label,group_id' });
+
+        if (!result.error) {
+            return;
+        }
+
+        if (![
+            'is_active',
+            'last_group_sync_at',
+            'last_parsed_at',
+            'messages_received_24h',
+            'messages_parsed_24h',
+            'messages_failed_24h',
+        ].some((column) => isMissingGroupHealthColumnError(result.error, column))) {
+            throw result.error;
+        }
+
+        const { error: compatError } = await db
+            .from('whatsapp_group_health')
+            .upsert(compatPayload, { onConflict: 'tenant_id,session_label,group_id' });
+
+        if (compatError) {
+            throw compatError;
+        }
+    }
 
     async upsertConnectionSnapshot(input: ConnectionSnapshotInput) {
         if (input.tenantId === 'system') {
@@ -161,9 +205,8 @@ export class WhatsAppHealthService {
 
         for (const group of uniqueGroups) {
             try {
-                const { error } = await db
-                    .from('whatsapp_group_health')
-                    .upsert({
+                await this.upsertGroupHealthRecord(
+                    {
                         tenant_id: tenantId,
                         session_label: sessionLabel,
                         group_id: group.id,
@@ -171,13 +214,17 @@ export class WhatsAppHealthService {
                         is_active: true,
                         last_group_sync_at: now,
                         updated_at: now,
-                    }, { onConflict: 'tenant_id,session_label,group_id' });
-
-                if (error) {
-                    console.error('[WhatsAppHealthService] Failed to upsert group health', group.id, error);
-                    failedCount++;
-                    continue;
-                }
+                    },
+                    {
+                        tenant_id: tenantId,
+                        session_label: sessionLabel,
+                        group_id: group.id,
+                        group_name: group.name || group.id,
+                        status: 'active',
+                        last_sync_at: now,
+                        updated_at: now,
+                    },
+                );
 
                 syncedCount++;
             } catch (groupError: unknown) {
@@ -313,9 +360,8 @@ export class WhatsAppHealthService {
         const groupFailed = Number(existingGroup?.messages_failed_24h || 0) + (input.failed ? 1 : 0);
         const nextStatus = deriveGroupStatus(timestamp, groupFailed);
 
-        const { error: groupError } = await db
-            .from('whatsapp_group_health')
-            .upsert({
+        await this.upsertGroupHealthRecord(
+            {
                 tenant_id: input.tenantId,
                 session_label: input.sessionLabel,
                 group_id: groupId,
@@ -328,11 +374,18 @@ export class WhatsAppHealthService {
                 messages_failed_24h: groupFailed,
                 status: nextStatus,
                 updated_at: new Date().toISOString(),
-            }, { onConflict: 'tenant_id,session_label,group_id' });
-
-        if (groupError) {
-            throw groupError;
-        }
+            },
+            {
+                tenant_id: input.tenantId,
+                session_label: input.sessionLabel,
+                group_id: groupId,
+                group_name: existingGroup?.group_name || groupId,
+                status: nextStatus,
+                last_message_at: timestamp,
+                last_sync_at: timestamp,
+                updated_at: new Date().toISOString(),
+            },
+        );
     }
 
     async getHealth(tenantId: string) {
@@ -419,13 +472,13 @@ export class WhatsAppHealthService {
             sessionLabel: row.session_label,
             groupId: row.group_id,
             groupName: row.group_name,
-            lastGroupSyncAt: row.last_group_sync_at,
+            lastGroupSyncAt: row.last_group_sync_at || row.last_sync_at || null,
             lastMessageAt: row.last_message_at,
-            lastParsedAt: row.last_parsed_at,
+            lastParsedAt: row.last_parsed_at || null,
             messagesReceived24h: Number(row.messages_received_24h || 0),
             messagesParsed24h: Number(row.messages_parsed_24h || 0),
             messagesFailed24h: Number(row.messages_failed_24h || 0),
-            status: row.status,
+            status: row.status || 'unknown',
         }));
     }
 
