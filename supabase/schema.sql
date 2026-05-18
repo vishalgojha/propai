@@ -1,7 +1,7 @@
 -- Profiles (Updated for Phone-First Identity)
 create table profiles (
   id uuid references auth.users on delete cascade primary key,
-  phone text unique not null,
+  phone text unique,
   email text unique,
   full_name text,
   timezone text default 'UTC',

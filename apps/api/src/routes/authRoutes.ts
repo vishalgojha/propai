@@ -93,6 +93,7 @@ async function upsertProfile(userId: string, email: string | null | undefined, f
     const isCanonicalPhoneOwner = !normalizedPhone || !phoneOwnership || phoneOwnership.isCanonicalOwner || !phoneOwnership.canonicalOwnerId;
     const client = getProfileClient(accessToken);
     const existingProfile = await getProfileById(userId, accessToken);
+    const verificationEnabled = process.env.ENABLE_SYSTEM_WHATSAPP_SESSION === 'true';
 
     const payload: Record<string, unknown> = {
         id: userId,
@@ -103,10 +104,13 @@ async function upsertProfile(userId: string, email: string | null | undefined, f
     if (fullName?.trim()) payload.full_name = fullName.trim();
     if (normalizedPhone) {
         const existingPhone = normalizePhone(String(existingProfile?.phone || ''));
-        if (isCanonicalPhoneOwner || existingPhone === normalizedPhone) {
+        const canAssignVerifiedPhone = existingPhone === normalizedPhone
+            || (isCanonicalPhoneOwner && verificationEnabled);
+
+        if (canAssignVerifiedPhone) {
             payload.phone = normalizedPhone;
         }
-        if (!isCanonicalPhoneOwner && existingPhone !== normalizedPhone) {
+        if ((!isCanonicalPhoneOwner || !verificationEnabled) && existingPhone !== normalizedPhone) {
             payload.phone_verified = false;
         }
     }
