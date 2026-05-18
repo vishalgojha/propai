@@ -21,13 +21,14 @@ RUN pnpm run build
 
 FROM node:20-alpine AS runner
 
-WORKDIR /app
+WORKDIR /app/apps/www
 ENV NODE_ENV=production
 ENV PORT=3002
 
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/apps/www/node_modules ./node_modules
 COPY --from=builder /app/apps/www/dist ./dist
 COPY --from=builder /app/apps/www/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3002
 
