@@ -12,6 +12,7 @@ import {
 import { buildFullName, splitFullName } from '../lib/names';
 
 interface User {
+  id?: string;
   email: string;
   first_name?: string | null;
   last_name?: string | null;
@@ -135,6 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
           setBackendApiAuthToken(activeSession.token);
             setUser({
+              id: serverUser.id || response.data?.profile?.id || undefined,
               email: serverUser.email,
               ...resolvedNames,
               token: activeSession.token,
@@ -163,6 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const resolvedNames = resolveNameParts(activeSession);
             setBackendApiAuthToken(activeSession.token);
             setUser({
+              id: activeSession.id,
               email: activeSession.email,
               ...resolvedNames,
               token: activeSession.token,
@@ -214,6 +217,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     authMutationRef.current += 1;
     const resolvedNames = resolveNameParts(session);
     const userData = {
+      id: session.id,
       email,
       ...resolvedNames,
       token: session.token || '',
