@@ -6,42 +6,40 @@ const connectorUrl = "https://mcp.propai.live";
 
 const coreTools = [
   "search_listings",
-  "semantic_search",
   "search_requirements",
   "match_listing_to_requirement",
-  "market_summary",
+  "buyer_to_inventory_match",
   "price_estimate",
+  "pricing_negotiation_brief",
   "get_igr_price",
-  "get_fresh_stream",
-  "save_listing",
-  "create_requirement",
-  "qualify_lead",
-  "set_follow_up",
-  "summarise_thread",
-  "draft_broadcast",
+  "market_summary",
   "broker_activity",
   "triage_hot_leads",
+  "stale_lead_reactivation",
+  "summarise_thread",
   "extract_thread_actions",
   "save_thread_requirement",
   "save_thread_listing",
   "create_thread_follow_up",
-  "buyer_to_inventory_match",
-  "pricing_negotiation_brief",
-  "stale_lead_reactivation",
+  "save_listing",
+  "create_requirement",
+  "qualify_lead",
+  "set_follow_up",
+  "draft_broadcast",
   "draft_growth_asset",
 ];
 
 export const metadata: Metadata = {
-  title: "PropAI MCP Server | Real Estate Connector for Claude and MCP Clients",
+  title: "PropAI MCP | Broker Workflow Connector for Claude and MCP Clients",
   description:
-    "Connect PropAI's broker-network real estate data to Claude and other MCP clients. Search live listings, inspect IGR pricing, save CRM records, schedule follow-ups, and summarize broker threads.",
+    "Connect PropAI broker workflows to Claude and other MCP clients. Search inventory, review pricing context, work CRM actions, triage leads, and manage follow-ups from one authenticated connector.",
   alternates: {
     canonical: canonicalUrl("/mcp"),
   },
   openGraph: {
-    title: "PropAI MCP Server",
+    title: "PropAI MCP",
     description:
-      "Broker workflow, listings, CRM, thread summaries, and market intelligence from PropAI.",
+      "Authenticated MCP access to PropAI broker workflows, CRM actions, follow-ups, thread intelligence, and pricing context.",
     url: canonicalUrl("/mcp"),
     type: "website",
   },
@@ -49,155 +47,187 @@ export const metadata: Metadata = {
 
 export default function McpPage() {
   return (
-    <main className="mx-auto max-w-6xl px-5 py-12">
-      <section className="rounded-[28px] border border-[#243040] bg-[linear-gradient(135deg,rgba(62,232,138,0.12),rgba(9,16,22,0.94)_35%,rgba(9,16,22,0.98))] p-7 sm:p-10">
-        <div className="inline-flex items-center gap-2 rounded-full border border-[#3EE88A] bg-[rgba(62,232,138,0.12)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[#b9f8d0]">
+    <main>
+      <section className="mx-auto max-w-3xl px-5 pt-14 pb-8 text-center">
+        <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#2DC96E] bg-[rgba(62,232,138,0.12)] px-3.5 py-1.5 text-xs text-white">
           <span className="live-dot h-1.5 w-1.5 rounded-full bg-[#2DC96E]" />
-          Public MCP server
+          Authenticated MCP connector
         </div>
-        <h1 className="mt-5 max-w-3xl text-4xl font-medium leading-tight text-white sm:text-5xl">
-          PropAI MCP Server
+        <h1 className="text-[30px] font-medium leading-tight text-white">
+          PropAI workflows,<br />
+          <em className="not-italic text-[#2DC96E]">inside Claude and MCP clients.</em>
         </h1>
-        <p className="mt-4 max-w-3xl text-sm leading-7 text-[#b7c5d6] sm:text-base">
-          PropAI brings broker-network real estate intelligence into Claude and other MCP clients.
-          You can search fresh listings from WhatsApp broker groups, inspect Maharashtra IGR pricing,
-          save CRM records, qualify leads, set follow-ups, draft outreach, and summarize threads from one connector.
+        <p className="mx-auto mt-3.5 max-w-2xl text-sm leading-relaxed text-[#94a3b8]">
+          PropAI MCP gives broker teams one authenticated connector for inventory search, pricing context,
+          lead triage, thread intelligence, CRM writes, follow-ups, and outbound drafting.
+          It is built for operators, not for public browsing.
+        </p>
+      </section>
+
+      <div className="mx-auto grid max-w-4xl gap-3 px-5 mb-8 sm:grid-cols-3">
+        <div className="rounded-xl bg-[#111820] p-4">
+          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[#64748b]">Connector URL</div>
+          <div className="mt-2 text-sm font-medium text-white">{connectorUrl}</div>
+        </div>
+        <div className="rounded-xl bg-[#111820] p-4">
+          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[#64748b]">Authentication</div>
+          <div className="mt-2 text-sm font-medium text-white">OAuth and bearer token</div>
+        </div>
+        <div className="rounded-xl bg-[#111820] p-4">
+          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[#64748b]">Primary use</div>
+          <div className="mt-2 text-sm font-medium text-white">Broker ops and GTM workflows</div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl border-t border-[#243040]" />
+
+      <section className="mx-auto max-w-7xl px-5 py-8">
+        <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[#64748b]">What it covers</div>
+        <h2 className="text-xl font-medium text-white">One connector for broker operations</h2>
+        <p className="mt-1.5 max-w-3xl text-sm text-[#94a3b8]">
+          PropAI MCP exposes the operating layer behind PropAI: inventory lookup, buyer matching,
+          pricing and negotiation briefs, hot lead review, stale lead recovery, thread extraction,
+          CRM save actions, follow-ups, and growth drafting.
         </p>
 
-        <div className="mt-7 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-[#243040] bg-[#101720]/80 p-4">
-            <div className="text-[11px] uppercase tracking-[0.08em] text-[#6f8399]">Connector URL</div>
-            <div className="mt-2 text-sm font-medium text-white">{connectorUrl}</div>
-          </div>
-          <div className="rounded-2xl border border-[#243040] bg-[#101720]/80 p-4">
-            <div className="text-[11px] uppercase tracking-[0.08em] text-[#6f8399]">Authentication</div>
-            <div className="mt-2 text-sm font-medium text-white">OAuth and bearer token</div>
-          </div>
-          <div className="rounded-2xl border border-[#243040] bg-[#101720]/80 p-4">
-            <div className="text-[11px] uppercase tracking-[0.08em] text-[#6f8399]">Primary users</div>
-            <div className="mt-2 text-sm font-medium text-white">Real estate brokers and operators</div>
-          </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            {
+              title: "Search and match",
+              desc: "Search listings, requirements, and buyer-to-inventory matches with ranked fit and next-step suggestions.",
+            },
+            {
+              title: "Price and negotiate",
+              desc: "Use IGR context, comparables, and asking price to build broker-ready pricing and negotiation briefs.",
+            },
+            {
+              title: "Triage and recover",
+              desc: "Review hot leads, stale leads, follow-up pressure, and callback queues without digging through CRM screens.",
+            },
+            {
+              title: "Extract and write",
+              desc: "Turn stored threads into requirements, listings, follow-up actions, and outbound or GTM drafts.",
+            },
+          ].map((item) => (
+            <div key={item.title} className="rounded-2xl border border-[#243040] bg-[#121a24]/80 p-4">
+              <h3 className="text-sm font-medium text-white">{item.title}</h3>
+              <p className="mt-1 text-xs leading-relaxed text-[#94a3b8]">{item.desc}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      <section className="mt-10 grid gap-4 md:grid-cols-2">
-        {[
-          {
-            title: "What PropAI MCP does",
-            body:
-              "It exposes PropAI's real estate workflow to MCP clients: fresh listing search, semantic inventory search, buyer requirement lookup, IGR-backed pricing context, CRM save flows, lead qualification, follow-up scheduling, thread summaries, and broker activity reporting.",
-          },
-          {
-            title: "Where the data comes from",
-            body:
-              "PropAI ingests broker WhatsApp activity, normalizes it into listing and requirement records, and combines that with market context such as Maharashtra IGR registration data. The MCP server lets authenticated users work with that data inside their client.",
-          },
-        ].map((item) => (
-          <div key={item.title} className="rounded-2xl border border-[#243040] bg-[#101720]/80 p-5">
-            <h2 className="text-lg font-medium text-white">{item.title}</h2>
-            <p className="mt-2 text-sm leading-7 text-[#9fb0c2]">{item.body}</p>
-          </div>
-        ))}
-      </section>
+      <div className="mx-auto max-w-7xl border-t border-[#243040]" />
 
-      <section className="mt-10 rounded-[28px] border border-[#243040] bg-[#0f151d]/90 p-7">
-        <div className="text-[11px] uppercase tracking-[0.08em] text-[#6f8399]">Core tools</div>
-        <h2 className="mt-2 text-2xl font-medium text-white">Available MCP tools</h2>
-        <p className="mt-2 max-w-3xl text-sm leading-7 text-[#9fb0c2]">
-          The server supports read and workflow actions. Search tools operate on PropAI&apos;s broker network data.
-          Workflow tools write into the authenticated broker workspace.
+      <section className="mx-auto max-w-7xl px-5 py-8">
+        <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[#64748b]">Core tools</div>
+        <h2 className="text-xl font-medium text-white">Available MCP actions</h2>
+        <p className="mt-1.5 max-w-3xl text-sm text-[#94a3b8]">
+          The connector includes read tools, ranking tools, CRM write tools, thread workflows, and GTM drafting.
+          It is meant for authenticated workspace use, not anonymous public data access.
         </p>
 
-        <div className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {coreTools.map((tool) => (
-            <div
-              key={tool}
-              className="rounded-xl border border-[#243040] bg-[#121a24] px-3 py-2 text-sm text-[#d8e4f0]"
-            >
+            <div key={tool} className="rounded-xl border border-[#243040] bg-[#111820] px-3 py-2 text-sm text-[#d5dfeb]">
               {tool}
             </div>
           ))}
         </div>
       </section>
 
-      <section className="mt-10 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[28px] border border-[#243040] bg-[#101720]/80 p-7">
-          <div className="text-[11px] uppercase tracking-[0.08em] text-[#6f8399]">Setup</div>
-          <h2 className="mt-2 text-2xl font-medium text-white">Connect in an MCP client</h2>
-          <ol className="mt-5 space-y-4 text-sm leading-7 text-[#9fb0c2]">
-            <li>
-              1. Add the server URL: <span className="font-medium text-white">{connectorUrl}</span>
-            </li>
-            <li>
-              2. Complete OAuth sign-in with your PropAI account, or use a valid bearer token tied to your workspace.
-            </li>
-            <li>
-              3. Start with listing search, IGR pricing, or CRM save actions depending on your workflow.
-            </li>
-          </ol>
+      <div className="mx-auto max-w-7xl border-t border-[#243040]" />
 
-          <div className="mt-6 rounded-2xl border border-[#243040] bg-[#0c1118] p-4">
-            <div className="text-[11px] uppercase tracking-[0.08em] text-[#6f8399]">Common prompts</div>
-            <div className="mt-3 space-y-2 text-sm text-[#d8e4f0]">
-              <div>&ldquo;Find fresh 2BHK sale listings in Bandra under 4 Cr.&rdquo;</div>
-              <div>&ldquo;What is the last registered IGR rate for this building in Powai?&rdquo;</div>
-              <div>&ldquo;Save this requirement and set a follow-up for tomorrow morning.&rdquo;</div>
-              <div>&ldquo;Summarise this broker thread and tell me the next action.&rdquo;</div>
-            </div>
-          </div>
-        </div>
+      <section className="mx-auto max-w-7xl px-5 py-8">
+        <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[#64748b]">How it works</div>
+        <h2 className="text-xl font-medium text-white">Connect in three steps</h2>
 
-        <div className="rounded-[28px] border border-[#243040] bg-[#101720]/80 p-7">
-          <div className="text-[11px] uppercase tracking-[0.08em] text-[#6f8399]">Best for</div>
-          <h2 className="mt-2 text-2xl font-medium text-white">Primary use cases</h2>
-          <div className="mt-5 space-y-4">
-            {[
-              "Search live broker inventory faster than traditional property portals.",
-              "Compare ask prices against recent Maharashtra IGR transaction context.",
-              "Save listings and buyer requirements into the broker CRM from a client chat.",
-              "Qualify inbound leads and keep callback queues structured.",
-              "Turn noisy WhatsApp threads into concise operational summaries.",
-            ].map((item) => (
-              <div key={item} className="rounded-2xl border border-[#243040] bg-[#0c1118] px-4 py-3 text-sm leading-6 text-[#d8e4f0]">
-                {item}
+        <div className="mt-5 space-y-0">
+          {[
+            {
+              num: "1",
+              title: "Add the MCP server",
+              desc: `Use ${connectorUrl} as the MCP endpoint in Claude Desktop or another MCP-capable client.`,
+            },
+            {
+              num: "2",
+              title: "Authenticate with PropAI",
+              desc: "Complete OAuth sign-in or use a valid workspace bearer token so the connector can operate inside your broker context.",
+            },
+            {
+              num: "3",
+              title: "Run operational workflows",
+              desc: "Search inventory, price a deal, review hot leads, extract thread actions, save CRM records, and schedule follow-ups from the same client session.",
+            },
+          ].map((step) => (
+            <div key={step.num} className="flex gap-4 border-b border-[#243040] py-4 last:border-b-0">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#2DC96E] text-xs font-medium text-white">
+                {step.num}
               </div>
-            ))}
-          </div>
+              <div>
+                <h3 className="text-sm font-medium text-white">{step.title}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-[#94a3b8]">{step.desc}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
-      <section className="mt-10 grid gap-4 md:grid-cols-2">
-        <div className="rounded-[28px] border border-[#243040] bg-[#101720]/80 p-7">
-          <div className="text-[11px] uppercase tracking-[0.08em] text-[#6f8399]">Security and privacy</div>
-          <h2 className="mt-2 text-2xl font-medium text-white">Access model</h2>
-          <p className="mt-3 text-sm leading-7 text-[#9fb0c2]">
-            The MCP server is authenticated. Users only access their own PropAI workspace context.
-            The public website and policies for PropAI are available at{" "}
-            <Link href="/" className="text-[#3EE88A] hover:underline">
-              propai.live
-            </Link>.
-          </p>
-        </div>
+      <div className="mx-auto max-w-7xl border-t border-[#243040]" />
 
-        <div className="rounded-[28px] border border-[#243040] bg-[#101720]/80 p-7">
-          <div className="text-[11px] uppercase tracking-[0.08em] text-[#6f8399]">Need access?</div>
-          <h2 className="mt-2 text-2xl font-medium text-white">Get started with PropAI</h2>
-          <p className="mt-3 text-sm leading-7 text-[#9fb0c2]">
-            If you want to use PropAI MCP with a broker workspace, start from the PropAI app or broker signup flow.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <a
-              href="https://app.propai.live"
-              className="rounded-xl bg-[#2DC96E] px-5 py-2.5 text-sm font-medium text-white hover:brightness-110"
-            >
-              Open PropAI App
-            </a>
-            <Link
-              href="/broker/signup"
-              className="rounded-xl border border-[#243040] bg-[#121a24] px-5 py-2.5 text-sm text-[#d5dfeb] hover:text-white"
-            >
-              Broker signup
-            </Link>
+      <section className="mx-auto max-w-7xl px-5 py-8">
+        <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[#64748b]">Example workflows</div>
+        <h2 className="text-xl font-medium text-white">What teams actually use it for</h2>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-2">
+          {[
+            "Match this buyer brief to current inventory and tell me which two listings I should send first.",
+            "Build a negotiation brief for this Powai ask using comparables and IGR context.",
+            "Show my hottest leads and tell me what I should handle before EOD.",
+            "Extract thread actions from this broker chat, then save the requirement and create the callback.",
+            "Find stale leads older than 30 days and draft short reactivation openers.",
+            "Draft a broker pitch for PropAI using these proof points and this audience.",
+          ].map((item) => (
+            <div key={item} className="rounded-2xl border border-[#243040] bg-[#121a24]/80 px-4 py-3 text-sm leading-6 text-[#d5dfeb]">
+              {item}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="mx-auto max-w-7xl border-t border-[#243040]" />
+
+      <section className="mx-auto max-w-7xl px-5 py-8">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-[#243040] bg-[#121a24]/80 p-5">
+            <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[#64748b]">Access model</div>
+            <h2 className="mt-2 text-xl font-medium text-white">Private workspace context</h2>
+            <p className="mt-2 text-sm leading-7 text-[#94a3b8]">
+              PropAI MCP is authenticated. It operates inside the user&apos;s PropAI workspace context and is intended
+              for broker operations, not consumer-facing browsing.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-[#243040] bg-[#121a24]/80 p-5">
+            <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[#64748b]">Get access</div>
+            <h2 className="mt-2 text-xl font-medium text-white">Start from PropAI</h2>
+            <p className="mt-2 text-sm leading-7 text-[#94a3b8]">
+              If you want to use PropAI MCP, start from the PropAI app or the broker signup flow.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                href="https://app.propai.live"
+                className="rounded-xl bg-[#2DC96E] px-5 py-2.5 text-sm font-medium text-white hover:brightness-110"
+              >
+                Open PropAI App
+              </Link>
+              <Link
+                href="/broker/signup"
+                className="rounded-xl border border-[#243040] bg-[#111820] px-5 py-2.5 text-sm text-[#94a3b8] hover:text-white"
+              >
+                Broker signup
+              </Link>
+            </div>
           </div>
         </div>
       </section>
