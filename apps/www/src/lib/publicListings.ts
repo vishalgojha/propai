@@ -23,18 +23,17 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
     throw new Error("Database not configured");
   }
 
-  const [{ data: listings, error: listingError }, { data: profiles }, { data: subscriptions }] = await Promise.all([
+  const [{ data: streamItems, error: streamError }, { data: profiles }, { data: subscriptions }] = await Promise.all([
     supabaseAdmin
-      .from("listings")
-      .select("id, tenant_id, structured_data, raw_text, status, created_at")
-      .eq("status", "Active")
+      .from("stream_items")
+      .select("id, tenant_id, type, deal_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, parsed_payload")
       .order("created_at", { ascending: false }),
     supabaseAdmin.from("profiles").select("id, phone, full_name"),
     supabaseAdmin.from("subscriptions").select("tenant_id, plan, status"),
   ]);
 
-  if (listingError) {
-    throw new Error(listingError.message);
+  if (streamError) {
+    throw new Error(streamError.message);
   }
 
   const paidTenantIds = new Set(
@@ -42,7 +41,7 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
       .filter(
         (row: any) =>
           (row.status === "active" || row.status === "trial") &&
-          (row.plan === "Pro" || row.plan === "Team")
+          (row.plan === "Solo" || row.plan === "Team" || row.plan === "Trial" || row.plan === "Pro")
       )
       .map((row: any) => row.tenant_id)
   );
@@ -55,7 +54,10 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
     paidBrokerMap.set(digits, { phone: digits, fullName: (row as any).full_name || null });
   }
 
-  return ((listings || []) as any[]).map((row) => normalizeListing(row, paidBrokerMap)).filter(Boolean);
+  return ((streamItems || []) as any[])
+    .filter((row) => paidTenantIds.has(String((row as any).tenant_id || "")))
+    .map((row) => normalizeStreamListing(row, paidBrokerMap))
+    .filter(Boolean);
 }
 
 export async function fetchPublicListingBySlug(slug: string): Promise<PublicListing | null> {
@@ -73,10 +75,9 @@ export async function recordPublicWaClick(input: {
   }
 
   const { data: row } = await supabaseAdmin
-    .from("listings")
-    .select("tenant_id, structured_data, raw_text")
+    .from("stream_items")
+    .select("id, tenant_id, source_phone, raw_text, parsed_payload")
     .eq("id", input.listingId)
-    .eq("status", "Active")
     .single()
     .throwOnError();
 
@@ -84,10 +85,9 @@ export async function recordPublicWaClick(input: {
     return null;
   }
 
-  const data = (row.structured_data || {}) as Record<string, unknown>;
   const rawText = String(row.raw_text || "");
   const phone =
-    String(data.contact_number || data.phone || data.contactPhone || data.sourcePhone || "").replace(/\D/g, "") ||
+    String((row as any).source_phone || (row as any).parsed_payload?.contactPhone || (row as any).parsed_payload?.sourcePhone || "").replace(/\D/g, "") ||
     rawText.match(/(?:\+91[-\s]?)?([6-9]\d{9})/)?.[1] ||
     null;
 
@@ -131,26 +131,24 @@ export async function createPublicLead(input: {
   }
 
   const { data: listing } = await supabaseAdmin
-    .from("listings")
-    .select("id, tenant_id, status, structured_data")
+    .from("stream_items")
+    .select("id, tenant_id, locality, parsed_payload")
     .eq("id", input.listingId)
-    .eq("status", "Active")
     .maybeSingle();
 
   if (!listing) {
     return "missing";
   }
 
-  const structured = (listing.structured_data || {}) as Record<string, unknown>;
   const { error: insertError } = await supabaseAdmin.from("public_property_leads").insert({
-    listing_id: listing.id,
+    stream_item_id: listing.id,
     broker_tenant_id: listing.tenant_id,
     lead_name: input.name.trim(),
     lead_phone: normalizedPhone,
     source_path: input.referer,
     payload: {
-      listingTitle: String(structured.title || structured.name || ""),
-      locality: String(structured.locality || structured.location || ""),
+      listingTitle: String((listing as any).parsed_payload?.displayTitle || ""),
+      locality: String((listing as any).locality || ""),
       submittedFrom: input.hostname,
       userAgent: input.userAgent,
     },
@@ -195,6 +193,54 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
   const availability = pickString(data.availability, data.available_from, data.possession) || null;
   const brokerDigits = digitsOnly(
     pickString(data.contact_number, data.phone, data.contactPhone, data.sourcePhone) || extractPhone(rawText)
+  );
+  const fallbackBroker = brokerDigits ? paidBrokerMap.get(brokerDigits) : null;
+  const slug = generateListingSlug({
+    bhk,
+    localitySlug: slugifyLocality(locality),
+    type: type.toLowerCase(),
+    id: row.id,
+  });
+
+  return {
+    id: row.id,
+    title,
+    price: priceAmount || 0,
+    locality,
+    type: type as "Rent" | "Sale" | "Requirement",
+    bhk,
+    area_sqft: areaSqft || undefined,
+    furnishing: furnishing || undefined,
+    availability: availability || undefined,
+    raw_text: rawText,
+    created_at: row.created_at,
+    slug,
+    floor: floor || undefined,
+    broker_phone: brokerDigits ? `91${fallbackBroker?.phone || brokerDigits}` : undefined,
+  };
+}
+
+function normalizeStreamListing(row: any, paidBrokerMap: Map<string, { phone: string; fullName: string | null }>): PublicListing {
+  const data = (row.parsed_payload || {}) as Record<string, unknown>;
+  const rawText = String(row.raw_text || "");
+  const title =
+    pickString(data.displayTitle, data.title, data.buildingName, data.microLocation) ||
+    inferTitle(rawText) ||
+    "Property Listing";
+  const location =
+    pickString(row.locality, data.locality, data.microLocation, data.buildingName, row.city) ||
+    inferLocation(rawText) ||
+    "Unknown locality";
+  const locality = normalizeLocality(location);
+  const bhk = pickString(row.bhk, data.bhk) || inferBhk(rawText) || "Flexible";
+  const type = normalizeType(pickString(row.type, row.deal_type, data.type, data.deal_type), rawText);
+  const priceAmount = parsePriceAmount(row.price_numeric, row.price_label, rawText, type);
+  const floor = pickString((data as any).floor_number, (data as any).floorNumber) || null;
+  const furnishing = pickString(data.furnishing) || null;
+  const areaSqft = parseAreaSqft(row.area_sqft, data.area_sqft, data.areaSqft);
+  const availability = pickString(data.availability, data.available_from, data.possession) || null;
+  const brokerDigits = digitsOnly(
+    pickString(row.source_phone, data.contactPhone, data.sourcePhone) || extractPhone(rawText)
   );
   const fallbackBroker = brokerDigits ? paidBrokerMap.get(brokerDigits) : null;
   const slug = generateListingSlug({
