@@ -28,23 +28,23 @@ import { AuthCard } from '../components/ui/AuthCard';
 const capabilities = [
   {
     icon: MessageSquareTextIcon,
-    title: 'Never lose a hot deal again',
-    copy: 'Pulse reads every WhatsApp group message and flags listings and requirements before you can scroll past them.',
+    title: 'Monitor the right WhatsApp groups',
+    copy: 'Monitor turns WhatsApp into a cleaner real-estate workspace so brokers stay inside PropAI instead of scrolling irrelevant chat noise.',
   },
   {
     icon: WorkflowIcon,
-    title: 'Your pipeline runs itself',
-    copy: 'Tell Pulse what you heard — it files the listing, creates the follow-up, and routes the match. Zero manual entry.',
+    title: 'Stream parses what matters',
+    copy: 'Stream captures listings and requirements from your groups, structures them, and keeps your market feed searchable and usable.',
   },
   {
     icon: FollowUpIcon,
-    title: 'Follow up before it goes cold',
-    copy: 'Pulse queues reminders, tracks hot leads by urgency, and tells you exactly who to call next.',
+    title: 'Broadcast when you need reach',
+    copy: 'WaBro gives you the outbound layer for broker campaigns and follow-up pushes without leaving the PropAI workflow.',
   },
   {
     icon: SearchIcon,
-    title: 'Find the match in seconds',
-    copy: 'Describe what the buyer wants in plain language. Pulse searches your entire inventory and returns the right unit.',
+    title: 'Choose private or network intelligence',
+    copy: 'Run a private Personal Parser stack, or move to PropAI Network when you want market-wide data and global broker context.',
   },
 ];
 
@@ -282,12 +282,12 @@ export const Login: React.FC = () => {
               </div>
               <div>
                 <p className="text-[13px] font-bold tracking-[0.06em]">PROPAI PULSE</p>
-                <p className="text-[11px] text-[var(--text-secondary)]">Your AI partner for real estate</p>
+                <p className="text-[11px] text-[var(--text-secondary)]">Monitor WhatsApp. Parse Stream. Broadcast with WaBro.</p>
               </div>
             </div>
             <div className="hidden md:flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">
               <ShieldCheckIcon className="h-3.5 w-3.5" />
-              <span>Email login | Tool-calling | Lead ops</span>
+              <span>Email login | MCP | Stream ops | WaBro ready</span>
               <span className={cn('ml-2', authPill)}>
                 <span className={apiStatus === 'online' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : apiStatus === 'offline' ? 'h-2 w-2 rounded-full bg-[var(--red)]' : 'h-2 w-2 rounded-full bg-[var(--amber)]'} />
                 {apiStatus === 'online' ? 'API connected' : apiStatus === 'offline' ? 'API offline' : 'Checking API'}
@@ -325,17 +325,17 @@ export const Login: React.FC = () => {
               <AuthCard className="p-6 md:p-8">
                 <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
                   <WorkflowIcon className="h-3.5 w-3.5" />
-                  No tool names. No training. Just talk.
+                  Broker workflow. Parsing. Broadcast. Just talk.
                 </div>
 
                 <div className="mt-6 max-w-3xl">
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">PropAI Pulse</p>
                   <h1 className="mt-3 text-3xl font-bold leading-tight tracking-[-0.02em] text-[var(--text-primary)] sm:text-4xl md:text-5xl">
-                    The deal that slipped through
-                    <span className="block text-[var(--accent)]">won't happen again.</span>
+                    Your broker stack
+                    <span className="block text-[var(--accent)]">finally works together.</span>
                   </h1>
                   <p className="mt-5 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                    Pulse reads your WhatsApp groups, captures every listing and requirement, matches buyers to properties, and keeps your follow-up queue moving — all in plain language, no spreadsheets.
+                    PropAI gives you a live WhatsApp Monitor, a parsed Stream for listings and requirements, and WaBro for outbound broker broadcasts. Keep your workflow private with Personal Parser, or move into PropAI Network when you want global market data.
                   </p>
                 </div>
 
@@ -402,7 +402,7 @@ export const Login: React.FC = () => {
                 <div className="mt-4 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">PropAI Assistant</p>
                   <p className="mt-2 text-[12px] leading-5 text-[var(--text-primary)]">
-                    Need help onboarding? Message the PropAI Assistant on WhatsApp at {PROPAI_ASSISTANT_NUMBER}.
+                    Need help choosing between Personal Parser and PropAI Network, or setting up WaBro? Message the PropAI Assistant on WhatsApp at {PROPAI_ASSISTANT_NUMBER}.
                   </p>
                   <a href={PROPAI_ASSISTANT_WA_LINK} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07]">
                     Open WhatsApp
@@ -462,7 +462,7 @@ export const Login: React.FC = () => {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-[13px] leading-7 text-[var(--text-secondary)]">
-                              Pulse captures the listing, finds matching buyers in your pipeline, and queues the follow-up — watch it happen.
+                              Pulse picks up the message from Stream, keeps Monitor relevant, and lines up the next action without making you juggle three tools.
                             </p>
                           </div>
                           <div className="hidden min-w-[84px] text-right sm:block">
@@ -501,8 +501,8 @@ export const Login: React.FC = () => {
                   </h2>
                   <p className="mt-2 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
                     {mode === 'signup'
-                      ? 'New partners add their name and WhatsApp number once. Returning partners sign in with email and password.'
-                      : 'Sign in to start the agent. First time here? Switch to Create account and get set up in under 5 minutes.'}
+                      ? 'New brokers add their name and WhatsApp number once. Then they can run a private Personal Parser workflow or move into PropAI Network.'
+                      : 'Sign in to open Monitor, Stream, and WaBro. First time here? Switch to Create account and get set up in under 5 minutes.'}
                   </p>
                 </div>
 
@@ -638,7 +638,7 @@ export const Login: React.FC = () => {
                           <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">No tool names needed</p>
                         </div>
                         <p className="mt-2 text-[12px] leading-5 text-[var(--text-primary)]">
-                          Use this if your account is already set up. New partners can switch to Create account.
+                          Use this if your account is already set up. New brokers can switch to Create account.
                         </p>
                       </div>
 
@@ -835,10 +835,10 @@ export const Login: React.FC = () => {
               <AuthCard className="mt-4 p-4">
                 <div className="flex items-center gap-2">
               <ListingIcon className="h-3.5 w-3.5 text-[var(--accent)]" />
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Pulse capability reminder</p>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Workspace capability reminder</p>
                 </div>
                 <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-                  After login, Pulse keeps coaching you with examples like add listing, save requirement, schedule follow-up, and check the queue. No manual entry, no spreadsheets.
+                  After login, Pulse helps you move between Monitor, Stream, and WaBro without losing context. Add listings, save requirements, schedule follow-up, and open broker outreach from one workspace.
                 </p>
               </AuthCard>
             </aside>
