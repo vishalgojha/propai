@@ -4,6 +4,7 @@ import React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { AuthProvider } from "@/context/AuthContext";
 import { initAnalytics, track } from "@/services/analytics";
+import { PWARegistration } from "@/components/PWARegistration";
 
 function AnalyticsBootstrap() {
   const pathname = usePathname();
@@ -29,6 +30,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <AuthProvider>
       <React.Suspense fallback={null}>
         <AnalyticsBootstrap />
+        <PWARegistration />
       </React.Suspense>
       {children}
     </AuthProvider>

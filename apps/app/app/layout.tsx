@@ -1,11 +1,28 @@
 import { Suspense } from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Providers } from "./providers";
 import "../src/index.css";
 
 export const metadata: Metadata = {
   title: "PropAI Pulse",
   description: "Multi-tenant WhatsApp AI for real estate brokers.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "PropAI",
+  },
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#07111a",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

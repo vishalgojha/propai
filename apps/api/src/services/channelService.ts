@@ -59,6 +59,8 @@ export type StreamItemRecord = {
     price: string;
     priceNumeric?: number | null;
     bhk: string;
+    propertyCategory?: 'residential' | 'commercial';
+    areaSqft?: number | null;
     posted: string;
     rawText?: string;
     source: string;
@@ -1234,12 +1236,13 @@ private backfillInitiated = false;
         ]));
     }
 
-     async listStreamItems(
+    async listStreamItems(
         tenantId: string,
         accessToken?: string | null,
         channelId?: string | null,
         sessionLabel?: string | null,
         networkMode = false,
+        limit = 100,
     ): Promise<StreamItemRecord[]> {
          // Only trigger backfill once and don't block the read on it
          if (!this.backfillInitiated) {
@@ -1295,7 +1298,7 @@ private backfillInitiated = false;
             .select('*')
             .in('tenant_id', accessibleTenantIds)
             .order('created_at', { ascending: false })
-            .limit(200);
+            .limit(Math.max(20, Math.min(200, limit)));
 
         if (error) {
             throw new Error(error.message);
@@ -1305,6 +1308,131 @@ private backfillInitiated = false;
         return this.enrichSourcePhones(
             Array.isArray(filteredItems) ? filteredItems.map((item: any) => this.mapStreamItem(item, tenantId)) : []
         );
+    }
+
+    async getStreamSummary(
+        tenantId: string,
+        channelId?: string | null,
+        sessionLabel?: string | null,
+        networkMode = false,
+    ) {
+        const accessibleTenantIds = await this.getNetworkTenantIds(tenantId, networkMode);
+        const now = Date.now();
+        const windows = {
+            oneHour: new Date(now - 60 * 60 * 1000).toISOString(),
+            fourHours: new Date(now - 4 * 60 * 60 * 1000).toISOString(),
+            oneDay: new Date(now - 24 * 60 * 60 * 1000).toISOString(),
+            sevenDays: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
+        } as const;
+
+        if (channelId) {
+            const { data: links, error: linksError } = await this.db
+                .from('channel_items')
+                .select('stream_item_id')
+                .eq('tenant_id', tenantId)
+                .eq('channel_id', channelId);
+
+            if (linksError) {
+                throw new Error(linksError.message);
+            }
+
+            const streamIds = Array.isArray(links) ? links.map((link: any) => String(link.stream_item_id || '')).filter(Boolean) : [];
+            if (streamIds.length === 0) {
+                return { oneHour: 0, fourHours: 0, oneDay: 0, sevenDays: 0, allTime: 0 };
+            }
+
+            const { data, error } = await this.db
+                .from('stream_items')
+                .select('id, tenant_id, created_at, source_group_id')
+                .in('tenant_id', accessibleTenantIds)
+                .in('id', streamIds);
+
+            if (error) {
+                throw new Error(error.message);
+            }
+
+            const filteredItems = await this.filterItemsBySession(tenantId, data || [], sessionLabel, networkMode);
+            const counts = { oneHour: 0, fourHours: 0, oneDay: 0, sevenDays: 0, allTime: 0 };
+
+            for (const item of filteredItems) {
+                const createdAt = new Date(String((item as any).created_at || ''));
+                if (Number.isNaN(createdAt.getTime())) {
+                    continue;
+                }
+                counts.allTime += 1;
+                const timestamp = createdAt.getTime();
+                if (timestamp >= new Date(windows.sevenDays).getTime()) counts.sevenDays += 1;
+                if (timestamp >= new Date(windows.oneDay).getTime()) counts.oneDay += 1;
+                if (timestamp >= new Date(windows.fourHours).getTime()) counts.fourHours += 1;
+                if (timestamp >= new Date(windows.oneHour).getTime()) counts.oneHour += 1;
+            }
+
+            return counts;
+        }
+
+        let sessionGroupIds: string[] | null = null;
+        if (!networkMode && sessionLabel) {
+            const groupsResult = await this.db
+                .from('whatsapp_groups')
+                .select('group_jid')
+                .eq('tenant_id', tenantId)
+                .eq('session_label', sessionLabel)
+                .eq('is_archived', false);
+
+            if (groupsResult.error) {
+                if (isMissingSchemaEntityError(groupsResult.error.message)) {
+                    sessionGroupIds = null;
+                } else {
+                    throw new Error(groupsResult.error.message);
+                }
+            } else {
+                sessionGroupIds = Array.isArray(groupsResult.data)
+                    ? groupsResult.data.map((row: any) => String(row.group_jid || '')).filter(Boolean)
+                    : [];
+                if (sessionGroupIds.length === 0) {
+                    return { oneHour: 0, fourHours: 0, oneDay: 0, sevenDays: 0, allTime: 0 };
+                }
+            }
+        }
+
+        const buildCountQuery = (createdAfter?: string) => {
+            let query = this.db
+                .from('stream_items')
+                .select('id', { count: 'exact', head: true })
+                .in('tenant_id', accessibleTenantIds);
+
+            if (sessionGroupIds) {
+                query = query.in('source_group_id', sessionGroupIds);
+            }
+
+            if (createdAfter) {
+                query = query.gte('created_at', createdAfter);
+            }
+
+            return query;
+        };
+
+        const [allTimeResult, sevenDaysResult, oneDayResult, fourHoursResult, oneHourResult] = await Promise.all([
+            buildCountQuery(),
+            buildCountQuery(windows.sevenDays),
+            buildCountQuery(windows.oneDay),
+            buildCountQuery(windows.fourHours),
+            buildCountQuery(windows.oneHour),
+        ]);
+
+        for (const result of [allTimeResult, sevenDaysResult, oneDayResult, fourHoursResult, oneHourResult]) {
+            if (result.error) {
+                throw new Error(result.error.message);
+            }
+        }
+
+        return {
+            oneHour: oneHourResult.count || 0,
+            fourHours: fourHoursResult.count || 0,
+            oneDay: oneDayResult.count || 0,
+            sevenDays: sevenDaysResult.count || 0,
+            allTime: allTimeResult.count || 0,
+        };
     }
 
     private async filterItemsBySession(tenantId: string, items: any[], sessionLabel?: string | null, networkMode = false) {
@@ -2267,6 +2395,17 @@ ${rawText}
 
     private mapStreamItem(item: any, currentTenantId: string, isRead?: boolean): StreamItemRecord {
         const rawText = String(item.raw_text || '');
+        const locality = String(item.locality || '').trim();
+        const dealType = String(item.deal_type || '').trim() || extractDealType(rawText);
+        const inferredBhk = String(item.bhk || '').trim() || extractBhk(rawText);
+        const inferredBuildingName = extractBuildingName(rawText);
+        const inferredMicroLocation = extractMicroLocation(rawText);
+        const inferredTitle = buildDisplayTitle(inferredBuildingName, inferredMicroLocation, locality || 'Mumbai market');
+        const inferredPrice = extractPriceInfo(rawText, dealType);
+        const propertyCategory = item.property_category === 'commercial' ? 'commercial' : 'residential';
+        const areaSqft = item.area_sqft != null && Number.isFinite(Number(item.area_sqft))
+            ? Number(item.area_sqft)
+            : extractAreaSqft(rawText);
         const sourcePhone =
             item.source_phone ||
             item.parsed_payload?.sourcePhone ||
@@ -2293,12 +2432,14 @@ ${rawText}
         return {
             id: String(item.id),
             type: (item.type || 'Sale') as StreamType,
-            title: item.parsed_payload?.displayTitle || item.locality || 'Location not parsed yet',
-            location: item.locality || 'Location not parsed yet',
+            title: item.parsed_payload?.displayTitle || inferredTitle,
+            location: locality || 'Mumbai market',
             city: item.city || undefined,
-            price: item.price_label || 'Unspecified',
+            price: String(item.price_label || '').trim() || inferredPrice.label || '',
             priceNumeric: item.price_numeric != null ? Number(item.price_numeric) : null,
-            bhk: item.bhk || 'N/A',
+            bhk: inferredBhk,
+            propertyCategory,
+            areaSqft,
             posted: formatPostedTime(item.created_at),
             createdAt: item.created_at,
             source,
@@ -2311,7 +2452,7 @@ ${rawText}
             description: item.raw_text || '',
             rawText: item.raw_text || '',
             recordType: item.record_type || 'unknown',
-            dealType: item.deal_type || 'unknown',
+            dealType,
             assetClass: item.asset_class || 'unknown',
             parseNotes: item.parsed_payload?.parseNotes || null,
             isCorrected: Boolean(item.parsed_payload?.isCorrected),

@@ -97,12 +97,17 @@ function inferFeatureChips(text: string): string[] {
 function buildDisplayTitle(listing: StreamItem): string {
     const explicit = String(listing.title || '').trim();
     if (explicit) return explicit;
+    const location = String(listing.location || '').trim();
+    const cleanedBhk = String(listing.bhk || '').trim();
+    const usableBhk = cleanedBhk && !/^n\/?a$/i.test(cleanedBhk) ? cleanedBhk : '';
+    const inferredUse = inferFurnishing(listing.rawText || listing.description || '');
     const parts = [
-        listing.bhk || null,
+        usableBhk || null,
         listing.propertyCategory ? toTitleCase(String(listing.propertyCategory)) : null,
-        listing.location ? `in ${listing.location}` : null,
+        inferredUse || null,
+        location ? `in ${location}` : null,
     ].filter(Boolean);
-    return parts.join(' ') || listing.location || 'Broker-sourced property';
+    return parts.join(' ') || location || 'Broker-sourced property';
 }
 
 function buildDescription(listing: StreamItem): string {
@@ -110,7 +115,7 @@ function buildDescription(listing: StreamItem): string {
     const dealType = listing.type === 'Requirement' ? 'Wanted' : listing.type === 'Rent' ? 'Available for rent' : 'Available for sale';
     parts.push(dealType);
 
-    if (listing.bhk) parts.push(listing.bhk);
+    if (listing.bhk && !/^n\/?a$/i.test(String(listing.bhk))) parts.push(listing.bhk);
     if (listing.propertyCategory) parts.push(toTitleCase(String(listing.propertyCategory)));
     if (listing.location) parts.push(`in ${listing.location}`);
 
@@ -125,7 +130,7 @@ function buildDescription(listing: StreamItem): string {
 function buildChips(listing: StreamItem): string[] {
     const raw = sanitizeVisibleText(listing.rawText || listing.description || '');
     const chips = [
-        listing.bhk || null,
+        listing.bhk && !/^n\/?a$/i.test(String(listing.bhk)) ? listing.bhk : null,
         listing.areaSqft ? `${listing.areaSqft.toLocaleString('en-IN')} sqft` : null,
         listing.propertyCategory ? toTitleCase(String(listing.propertyCategory)) : null,
         inferFurnishing(raw),
@@ -199,7 +204,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
 
     return (
         <div className={cn(
-            'group rounded-[28px] bg-[var(--bg-surface)] p-7 transition-all duration-500',
+            'group relative rounded-[22px] bg-[var(--bg-surface)] p-4 transition-all duration-500 sm:rounded-[28px] sm:p-7',
             isExpanded
                 ? 'border border-[color:var(--accent-border)] shadow-[0_32px_64px_rgba(0,0,0,0.3)]'
                 : 'border border-white/[0.02] shadow-[0_8px_40px_rgba(0,0,0,0.15)] hover:-translate-y-2 hover:shadow-[0_32px_64px_rgba(0,0,0,0.3)] hover:bg-[var(--bg-hover)]'
@@ -209,7 +214,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
 
             <div className="relative z-10">
                 {/* Top row: Type badge + time */}
-                <div className="flex items-center justify-between mb-4">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                         <span className={cn(
                             'inline-flex rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.1em] backdrop-blur-md',
@@ -233,10 +238,10 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                 <div className="flex items-start gap-2 mb-3">
                     <MapPin className="mt-1 h-4 w-4 shrink-0 text-[var(--accent)]" />
                     <div className="min-w-0">
-                        <h3 className="text-[20px] font-bold text-[var(--text-primary)] leading-[1.3] group-hover:text-[var(--accent)] transition-colors duration-300">
+                        <h3 className="text-[17px] font-bold leading-[1.3] text-[var(--text-primary)] transition-colors duration-300 group-hover:text-[var(--accent)] sm:text-[20px]">
                             {displayTitle}
                         </h3>
-                        <p className="text-[13px] text-[var(--text-secondary)] font-medium mt-0.5">
+                        <p className="mt-0.5 text-[12px] font-medium text-[var(--text-secondary)] sm:text-[13px]">
                             {listing.location || 'Mumbai market'} · {sourceLabel}
                         </p>
                     </div>
@@ -256,17 +261,17 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                 {/* Short Description */}
                 {description ? (
                     <div className="mb-4">
-                        <p className="text-[14px] leading-relaxed text-[var(--text-secondary)] line-clamp-3 font-medium">
+                        <p className="line-clamp-3 text-[13px] font-medium leading-relaxed text-[var(--text-secondary)] sm:text-[14px]">
                             {description}
                         </p>
                     </div>
                 ) : null}
 
                 {/* Footer */}
-                <div className="mt-6 pt-5 border-t border-white/[0.03] flex items-center justify-between">
+                <div className="mt-6 flex flex-col gap-3 border-t border-white/[0.03] pt-5 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1">
-                        <div className="text-[26px] font-bold text-[var(--text-primary)] tracking-tight">
-                            {priceLabel}
+                        <div className="text-[22px] font-bold tracking-tight text-[var(--text-primary)] sm:text-[26px]">
+                            {priceLabel || 'Price on request'}
                             {listing.type === 'Rent' && <span className="text-[14px] ml-1 text-[var(--text-muted)] font-medium">/mo</span>}
                         </div>
                         {rateLabel ? (
@@ -275,11 +280,11 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                             <div className="text-[11px] text-[var(--text-muted)]">{localClickCount} WA click{localClickCount !== 1 ? 's' : ''}</div>
                         ) : null}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex w-full items-center gap-2 sm:w-auto">
                         <button
                             onClick={handleOpenWa}
                             disabled={isOpening}
-                            className="flex items-center gap-2 h-11 px-5 rounded-2xl bg-[var(--accent)] text-[var(--on-propai-green)] text-[12px] font-bold uppercase tracking-[0.1em] hover:scale-[1.05] active:scale-[0.98] transition-all shadow-[0_12px_24px_rgba(62,232,138,0.2)] disabled:opacity-60"
+                            className="flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-4 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--on-propai-green)] shadow-[0_12px_24px_rgba(62,232,138,0.2)] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 sm:flex-none sm:px-5 sm:text-[12px] sm:tracking-[0.1em]"
                         >
                             <MessageSquare className="h-4 w-4" />
                             {isOpening ? 'Opening...' : 'Contact on WhatsApp'}
@@ -287,7 +292,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                         <button
                             type="button"
                             onClick={onToggle}
-                            className="flex items-center justify-center h-11 w-11 rounded-2xl border border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-white transition-all"
+                            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] transition-all hover:text-white"
                         >
                             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </button>
