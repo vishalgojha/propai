@@ -1,6 +1,7 @@
 import { createSupabaseAnonClient, supabase, supabaseAdmin } from '../config/supabase';
 import { aiService } from './aiService';
 import { canonicalizationService } from './canonicalizationService';
+import { igrQueryService, type IgrTransactionPreview } from './igrQueryService';
 import { extractIndianCity, extractIndianLocality, parseIndianLocation } from '../utils/locationParser';
 
 type ChannelType = 'listing' | 'requirement' | 'mixed';
@@ -55,6 +56,8 @@ export type StreamItemRecord = {
     type: StreamType;
     title?: string;
     location: string;
+    buildingName?: string | null;
+    microLocation?: string | null;
     city?: string;
     price: string;
     priceNumeric?: number | null;
@@ -78,6 +81,7 @@ export type StreamItemRecord = {
     parseNotes?: string | null;
     isCorrected?: boolean;
     isRead?: boolean;
+    igrTransactions?: IgrTransactionPreview[];
 };
 
 export type CreateChannelInput = {
@@ -1285,12 +1289,12 @@ private backfillInitiated = false;
 
             const linkMap = new Map<string, any>(links.map((link: any) => [link.stream_item_id, link]));
             const filteredItems = await this.filterItemsBySession(tenantId, (items || []), sessionLabel, networkMode);
-            return this.enrichSourcePhones(
+            return this.enrichWithIgrTransactions(this.enrichSourcePhones(
                 Array.isArray(filteredItems) ? filteredItems
                     .map((item: any) => this.mapStreamItem(item, tenantId, linkMap.get(item.id)?.is_read))
                     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
                 : []
-            );
+            ));
         }
 
         const { data, error } = await readClient
@@ -1305,9 +1309,9 @@ private backfillInitiated = false;
         }
 
         const filteredItems = await this.filterItemsBySession(tenantId, data || [], sessionLabel, networkMode);
-        return this.enrichSourcePhones(
+        return this.enrichWithIgrTransactions(this.enrichSourcePhones(
             Array.isArray(filteredItems) ? filteredItems.map((item: any) => this.mapStreamItem(item, tenantId)) : []
-        );
+        ));
     }
 
     async getStreamSummary(
@@ -2398,8 +2402,8 @@ ${rawText}
         const locality = String(item.locality || '').trim();
         const dealType = String(item.deal_type || '').trim() || extractDealType(rawText);
         const inferredBhk = String(item.bhk || '').trim() || extractBhk(rawText);
-        const inferredBuildingName = extractBuildingName(rawText);
-        const inferredMicroLocation = extractMicroLocation(rawText);
+        const inferredBuildingName = String(item.parsed_payload?.buildingName || '').trim() || extractBuildingName(rawText);
+        const inferredMicroLocation = String(item.parsed_payload?.microLocation || '').trim() || extractMicroLocation(rawText);
         const inferredTitle = buildDisplayTitle(inferredBuildingName, inferredMicroLocation, locality || 'Mumbai market');
         const inferredPrice = extractPriceInfo(rawText, dealType);
         const propertyCategory = item.property_category === 'commercial' ? 'commercial' : 'residential';
@@ -2434,6 +2438,8 @@ ${rawText}
             type: (item.type || 'Sale') as StreamType,
             title: item.parsed_payload?.displayTitle || inferredTitle,
             location: locality || 'Mumbai market',
+            buildingName: inferredBuildingName || null,
+            microLocation: inferredMicroLocation || null,
             city: item.city || undefined,
             price: String(item.price_label || '').trim() || inferredPrice.label || '',
             priceNumeric: item.price_numeric != null ? Number(item.price_numeric) : null,
@@ -2458,6 +2464,72 @@ ${rawText}
             isCorrected: Boolean(item.parsed_payload?.isCorrected),
             isRead,
         };
+    }
+
+    private async enrichWithIgrTransactions(items: StreamItemRecord[]): Promise<StreamItemRecord[]> {
+        if (!Array.isArray(items) || items.length === 0) {
+            return items;
+        }
+
+        const lookupCandidates = items.filter((item) =>
+            item.recordType === 'listing' &&
+            String(item.buildingName || '').trim() &&
+            String(item.location || '').trim()
+        );
+
+        if (lookupCandidates.length === 0) {
+            return items;
+        }
+
+        const cache = new Map<string, IgrTransactionPreview[]>();
+        const uniqueCandidates = new Map<string, { buildingName: string; location: string }>();
+
+        for (const item of lookupCandidates) {
+            const buildingName = String(item.buildingName || '').trim();
+            const location = String(item.location || '').trim();
+            const key = `${normalize(buildingName)}|${normalize(location)}`;
+            if (key && !uniqueCandidates.has(key)) {
+                uniqueCandidates.set(key, { buildingName, location });
+            }
+        }
+
+        try {
+            await Promise.all(
+                Array.from(uniqueCandidates.entries()).map(async ([key, candidate]) => {
+                    const transactions = await igrQueryService.getRecentTransactionsForListing(
+                        candidate.buildingName,
+                        candidate.location,
+                        3,
+                    );
+                    cache.set(key, transactions);
+                }),
+            );
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error || '');
+            if (!isMissingSchemaEntityError(message) && !/igr_transactions|building_name|reg_date|price_per_sqft|consideration/i.test(message)) {
+                console.warn('[ChannelService] Failed to enrich stream with IGR transactions:', message);
+            }
+            return items;
+        }
+
+        return items.map((item) => {
+            const buildingName = String(item.buildingName || '').trim();
+            const location = String(item.location || '').trim();
+            if (!buildingName || !location) {
+                return item;
+            }
+
+            const key = `${normalize(buildingName)}|${normalize(location)}`;
+            const igrTransactions = cache.get(key);
+            if (!igrTransactions?.length) {
+                return item;
+            }
+
+            return {
+                ...item,
+                igrTransactions,
+            };
+        });
     }
 
     private enrichSourcePhones(items: StreamItemRecord[]) {

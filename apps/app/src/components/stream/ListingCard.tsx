@@ -49,6 +49,23 @@ function formatTimeAgo(createdAt: string): string {
     return `${Math.round(hours / 24)}d ago`;
 }
 
+function formatCurrency(value?: number | null): string {
+    if (value == null || !Number.isFinite(value)) {
+        return 'N/A';
+    }
+
+    if (value >= 10000000) return `₹${(value / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+    if (value >= 100000) return `₹${(value / 100000).toFixed(1).replace(/\.0$/, '')} L`;
+    return `₹${Math.round(value).toLocaleString('en-IN')}`;
+}
+
+function formatShortDate(value?: string | null): string {
+    if (!value) return 'Unknown date';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function getTypeBadgeClass(type: string) {
     if (type === 'Rent') return 'bg-[var(--propai-green)]/10 text-[var(--propai-green)] border-[rgba(62,232,138,0.30)]';
     if (type === 'Sale') return 'bg-amber-500/10 text-amber-500 border-amber-400/30';
@@ -163,6 +180,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
     const chips = buildChips(listing);
     const description = buildDescription(listing);
     const sourceLabel = networkMode && listing.isNetworkItem ? 'Shared network feed' : 'Private workspace feed';
+    const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
 
     const handleOpenWa = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -264,6 +282,43 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                         <p className="line-clamp-3 text-[13px] font-medium leading-relaxed text-[var(--text-secondary)] sm:text-[14px]">
                             {description}
                         </p>
+                    </div>
+                ) : null}
+
+                {igrTransactions.length > 0 ? (
+                    <div className="mb-4 rounded-[18px] border border-[rgba(255,255,255,0.04)] bg-[var(--bg-elevated)] p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">Recent registrations</p>
+                                <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
+                                    Last {igrTransactions.length} IGR transaction{igrTransactions.length > 1 ? 's' : ''} for {listing.buildingName || listing.location}
+                                </p>
+                            </div>
+                            <Zap className="h-4 w-4 text-[var(--accent)]" />
+                        </div>
+
+                        <div className="space-y-2">
+                            {igrTransactions.map((transaction) => (
+                                <div
+                                    key={`${transaction.doc_number || 'txn'}-${transaction.reg_date || ''}`}
+                                    className="rounded-[14px] border border-white/[0.03] bg-[var(--bg-surface)] px-3 py-3"
+                                >
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div className="text-[12px] font-semibold text-[var(--text-primary)]">
+                                            {formatCurrency(transaction.consideration)}
+                                        </div>
+                                        <div className="text-[10px] text-[var(--text-secondary)]">
+                                            {formatShortDate(transaction.reg_date)}
+                                        </div>
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--text-secondary)]">
+                                        <span>{transaction.price_per_sqft != null ? `₹${Math.round(transaction.price_per_sqft).toLocaleString('en-IN')}/sqft` : 'Rate N/A'}</span>
+                                        <span>{transaction.area_sqft ? `${Math.round(transaction.area_sqft).toLocaleString('en-IN')} sqft` : 'Area N/A'}</span>
+                                        {transaction.config ? <span>{transaction.config}</span> : null}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 ) : null}
 

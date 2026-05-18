@@ -3,6 +3,8 @@ export interface StreamItem {
   type: 'property' | 'stream' | 'commercial';
   title?: string;
   location: string;
+  buildingName?: string | null;
+  microLocation?: string | null;
   city?: string;
   price: string;
   priceNumeric?: number;
@@ -17,6 +19,18 @@ export interface StreamItem {
   isNetworkItem?: boolean;
   isRead: boolean;
   createdAt: string;
+  igrTransactions?: IgrTransactionPreview[];
+}
+
+export interface IgrTransactionPreview {
+  doc_number: string | null;
+  reg_date: string | null;
+  building_name: string | null;
+  locality: string | null;
+  consideration: number | null;
+  area_sqft: number | null;
+  price_per_sqft: number | null;
+  config: string | null;
 }
 
 export interface StreamFilters {

@@ -11,6 +11,8 @@ type TransactionRecord = {
   config: string | null;
 };
 
+export type IgrTransactionPreview = TransactionRecord;
+
 type SearchQuery = {
   locality?: string;
   building?: string;
@@ -74,6 +76,116 @@ function median(values: number[]) {
 }
 
 export class IgrQueryService {
+  private mapTransaction(row: Record<string, unknown>): TransactionRecord {
+    return {
+      doc_number: typeof row.doc_number === 'string' ? row.doc_number : null,
+      reg_date: typeof row.reg_date === 'string' ? row.reg_date : null,
+      building_name: typeof row.building_name === 'string' ? row.building_name : null,
+      locality: typeof row.locality === 'string' ? row.locality : null,
+      consideration: toNumber(row.consideration),
+      area_sqft: toNumber(row.area_sqft),
+      price_per_sqft: toNumber(row.price_per_sqft),
+      config: typeof row.config === 'string' ? row.config : null,
+    };
+  }
+
+  async getRecentTransactionsForListing(buildingName: string, locality?: string | null, limit = 3): Promise<IgrTransactionPreview[]> {
+    const trimmedBuilding = buildingName.trim();
+    const trimmedLocality = String(locality || '').trim();
+    const effectiveLimit = Math.max(1, Math.min(limit, 10));
+
+    if (!trimmedBuilding) {
+      return [];
+    }
+
+    let directQuery = getClient()
+      .from('igr_transactions')
+      .select('doc_number, reg_date, building_name, locality, consideration, area_sqft, price_per_sqft, config')
+      .ilike('building_name', `%${trimmedBuilding}%`)
+      .order('reg_date', { ascending: false })
+      .limit(effectiveLimit);
+
+    if (trimmedLocality) {
+      directQuery = directQuery.ilike('locality', `%${trimmedLocality}%`);
+    }
+
+    const { data, error } = await directQuery;
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const directRows = Array.isArray(data) ? data.map((row) => this.mapTransaction(row as Record<string, unknown>)) : [];
+    if (directRows.length >= effectiveLimit) {
+      return directRows.slice(0, effectiveLimit);
+    }
+
+    const buildingTokens = getSearchTokens(trimmedBuilding);
+    const localityTokens = getSearchTokens(trimmedLocality);
+    const queryTokens = Array.from(new Set([...buildingTokens, ...localityTokens]));
+    if (!queryTokens.length) {
+      return directRows.slice(0, effectiveLimit);
+    }
+
+    const orQuery = queryTokens
+      .flatMap((token) => [
+        `building_name.ilike.%${token}%`,
+        `locality.ilike.%${token}%`,
+      ])
+      .join(',');
+
+    let fuzzyQuery = getClient()
+      .from('igr_transactions')
+      .select('doc_number, reg_date, building_name, locality, consideration, area_sqft, price_per_sqft, config')
+      .or(orQuery)
+      .order('reg_date', { ascending: false })
+      .limit(40);
+
+    if (trimmedLocality) {
+      fuzzyQuery = fuzzyQuery.ilike('locality', `%${trimmedLocality}%`);
+    }
+
+    const { data: fuzzyRows, error: fuzzyError } = await fuzzyQuery;
+    if (fuzzyError) {
+      throw new Error(fuzzyError.message);
+    }
+
+    const seen = new Set(directRows.map((row) => `${row.doc_number || ''}|${row.reg_date || ''}`));
+    const ranked = (Array.isArray(fuzzyRows) ? fuzzyRows : [])
+      .map((row) => {
+        const transaction = this.mapTransaction(row as Record<string, unknown>);
+        const haystack = `${normalizeSearchText(transaction.building_name)} ${normalizeSearchText(transaction.locality)}`;
+        const score = queryTokens.reduce((sum, token) => sum + (haystack.includes(token) ? 1 : 0), 0);
+        const localityBonus = trimmedLocality && normalizeSearchText(transaction.locality).includes(normalizeSearchText(trimmedLocality)) ? 2 : 0;
+        return {
+          transaction,
+          score: score + localityBonus,
+        };
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+        return new Date(String(right.transaction.reg_date || '')).getTime() - new Date(String(left.transaction.reg_date || '')).getTime();
+      });
+
+    const merged = [...directRows];
+    for (const entry of ranked) {
+      const key = `${entry.transaction.doc_number || ''}|${entry.transaction.reg_date || ''}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      merged.push(entry.transaction);
+      if (merged.length >= effectiveLimit) {
+        break;
+      }
+    }
+
+    return merged.slice(0, effectiveLimit);
+  }
+
   async getLastTransactionForBuilding(buildingName: string): Promise<TransactionRecord | null> {
     const name = buildingName.trim();
     if (!name) return null;
@@ -124,28 +236,10 @@ export class IgrQueryService {
       const best = ranked[0]?.row;
       if (!best) return null;
 
-      return {
-        doc_number: best.doc_number ?? null,
-        reg_date: best.reg_date ?? null,
-        building_name: best.building_name ?? null,
-        locality: best.locality ?? null,
-        consideration: toNumber(best.consideration),
-        area_sqft: toNumber(best.area_sqft),
-        price_per_sqft: toNumber(best.price_per_sqft),
-        config: best.config ?? null,
-      };
+      return this.mapTransaction(best as Record<string, unknown>);
     }
 
-    return {
-      doc_number: data.doc_number ?? null,
-      reg_date: data.reg_date ?? null,
-      building_name: data.building_name ?? null,
-      locality: data.locality ?? null,
-      consideration: toNumber(data.consideration),
-      area_sqft: toNumber(data.area_sqft),
-      price_per_sqft: toNumber(data.price_per_sqft),
-      config: data.config ?? null,
-    };
+    return this.mapTransaction(data as Record<string, unknown>);
   }
 
   async getLocalityStats(locality: string, months = 6): Promise<LocalityStats> {
