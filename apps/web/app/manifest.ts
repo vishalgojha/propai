@@ -2,15 +2,16 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "PropAI Pulse",
+    name: "PropAI Listings",
     short_name: "PropAI",
-    description: "Mobile-first WhatsApp AI workspace for broker inventory, demand, and follow-up.",
-    start_url: "/",
+    description: "Mobile-friendly Mumbai property listings with installable search and WhatsApp lead follow-up.",
+    start_url: "/mumbai",
+    scope: "/",
     display: "standalone",
-    background_color: "#07111a",
-    theme_color: "#07111a",
+    background_color: "#fbf7f0",
+    theme_color: "#fbf7f0",
     orientation: "portrait",
-    categories: ["business", "productivity"],
+    categories: ["business", "lifestyle", "real-estate"],
     icons: [
       {
         src: "/icon-192",

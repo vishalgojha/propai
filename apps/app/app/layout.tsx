@@ -13,8 +13,11 @@ export const metadata: Metadata = {
     title: "PropAI",
   },
   icons: {
-    icon: "/favicon.svg",
-    apple: "/favicon.svg",
+    icon: [
+      { url: "/icon-192", sizes: "192x192", type: "image/png" },
+      { url: "/icon", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/apple-icon",
   },
 };
 

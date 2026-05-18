@@ -1,5 +1,11 @@
-const CACHE_NAME = "propai-shell-v1";
-const APP_SHELL = ["/", "/manifest.webmanifest", "/icon-192", "/icon", "/apple-icon", "/favicon.svg"];
+const CACHE_NAME = "propai-web-shell-v1";
+const APP_SHELL = [
+  "/manifest.webmanifest",
+  "/mumbai",
+  "/icon-192",
+  "/icon",
+  "/apple-icon",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -29,7 +35,7 @@ self.addEventListener("fetch", (event) => {
 
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match("/")),
+      fetch(event.request).catch(() => caches.match("/mumbai") || caches.match("/")),
     );
     return;
   }

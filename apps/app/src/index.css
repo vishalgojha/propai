@@ -49,6 +49,7 @@
 
   html {
     background: var(--bg-base);
+    color-scheme: dark;
   }
 
   html,
@@ -69,6 +70,9 @@
       linear-gradient(180deg, #090d12 0%, #090d12 100%);
     color: var(--text-primary);
     overflow-x: hidden;
+    min-height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom);
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
@@ -293,4 +297,3 @@ body::-webkit-scrollbar-thumb:hover,
   border: 2px solid transparent;
   background-clip: padding-box;
 }
-
