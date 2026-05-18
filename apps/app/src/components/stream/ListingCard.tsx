@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Clock, ExternalLink, ChevronUp, ChevronDown, Copy, Save, MapPin, Check, Zap, ArrowRight } from 'lucide-react';
+import { MessageSquare, Clock, ExternalLink, ChevronUp, ChevronDown, Copy, Save, MapPin, Check, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { logWaClick, fetchWaClickListingLog, type WaClickListingLog } from '../../services/waClickAPI';
 import type { StreamItem } from '../../services/streamAPI';
@@ -105,6 +105,23 @@ function buildDisplayTitle(listing: StreamItem): string {
     return parts.join(' ') || listing.location || 'Broker-sourced property';
 }
 
+function buildDescription(listing: StreamItem): string {
+    const parts: string[] = [];
+    const dealType = listing.type === 'Requirement' ? 'Wanted' : listing.type === 'Rent' ? 'Available for rent' : 'Available for sale';
+    parts.push(dealType);
+
+    if (listing.bhk) parts.push(listing.bhk);
+    if (listing.propertyCategory) parts.push(toTitleCase(String(listing.propertyCategory)));
+    if (listing.location) parts.push(`in ${listing.location}`);
+
+    const furnishing = inferFurnishing(listing.rawText || listing.description || '');
+    if (furnishing) parts.push(`(${furnishing})`);
+
+    if (listing.areaSqft) parts.push(`${listing.areaSqft.toLocaleString('en-IN')} sqft`);
+
+    return parts.join(' ') || 'Property listing from broker broadcast';
+}
+
 function buildChips(listing: StreamItem): string[] {
     const raw = sanitizeVisibleText(listing.rawText || listing.description || '');
     const chips = [
@@ -139,7 +156,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
     const rateLabel = formatPricePerSqft(listing);
     const displayTitle = buildDisplayTitle(listing);
     const chips = buildChips(listing);
-    const visibleRaw = sanitizeVisibleText(listing.rawText || listing.description || '');
+    const description = buildDescription(listing);
     const sourceLabel = networkMode && listing.isNetworkItem ? 'Shared network feed' : 'Private workspace feed';
 
     const handleOpenWa = async (e: React.MouseEvent) => {
@@ -236,18 +253,14 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                     </div>
                 ) : null}
 
-                {/* Intelligence Quote */}
-                <div className="space-y-2 mb-4">
-                    <div className="flex items-center gap-2">
-                        <div className="relative flex items-center justify-center">
-                            <Zap className="h-3 w-3 text-[var(--accent)] fill-[var(--accent)]" />
-                        </div>
-                        <span className="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[var(--accent)]">Live Intelligence Fragment</span>
+                {/* Short Description */}
+                {description ? (
+                    <div className="mb-4">
+                        <p className="text-[14px] leading-relaxed text-[var(--text-secondary)] line-clamp-3 font-medium">
+                            {description}
+                        </p>
                     </div>
-                    <p className="text-[14px] leading-relaxed text-[var(--text-secondary)] line-clamp-4 font-medium italic opacity-75 group-hover:opacity-100 transition-opacity">
-                        "{visibleRaw}"
-                    </p>
-                </div>
+                ) : null}
 
                 {/* Footer */}
                 <div className="mt-6 pt-5 border-t border-white/[0.03] flex items-center justify-between">
@@ -301,14 +314,6 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                 ))}
                             </div>
 
-                            {visibleRaw ? (
-                                <div>
-                                    <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-2">Source message</div>
-                                    <div className="rounded-[18px] bg-[var(--bg-elevated)] p-4 border border-white/[0.02] text-[13px] leading-6 text-[var(--text-primary)]">
-                                        {visibleRaw}
-                                    </div>
-                                </div>
-                            ) : null}
                         </div>
 
                         <div className="space-y-3">
@@ -384,8 +389,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        const text = sanitizeVisibleText(listing.rawText || listing.description || displayTitle);
-                                        navigator.clipboard.writeText(text).then(() => {
+                                        navigator.clipboard.writeText(description).then(() => {
                                             setCopied(true);
                                             window.setTimeout(() => setCopied(false), 1600);
                                         }).catch(() => {});

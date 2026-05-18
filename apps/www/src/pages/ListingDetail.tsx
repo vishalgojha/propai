@@ -7,6 +7,18 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import ListingCard from '@/components/ListingCard';
 
+function buildDescription(listing: PublicListing): string {
+  const parts: string[] = [];
+  const dealType = listing.type === 'Rent' ? 'Available for rent' : 'Available for sale';
+  parts.push(dealType);
+  if (listing.bhk) parts.push(`${listing.bhk}`);
+  if (listing.locality) parts.push(`in ${listing.locality}`);
+  if (listing.furnishing) parts.push(`(${listing.furnishing})`);
+  if (listing.area_sqft) parts.push(`${listing.area_sqft} sqft`);
+  if (listing.availability) parts.push(`· ${listing.availability}`);
+  return parts.join(' ') || 'Property listing from broker broadcast';
+}
+
 export default function ListingDetail() {
   const { slug } = useParams();
   const [listing, setListing] = useState<PublicListing | null>(null);
@@ -59,12 +71,13 @@ export default function ListingDetail() {
       </div>
   );
 
-  // JSON-LD structured data for Google Real Estate search
+  const description = buildDescription(listing);
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Accommodation",
     "name": listing.title,
-    "description": listing.raw_text,
+    "description": description,
     "address": {
       "@type": "PostalAddress",
       "addressLocality": listing.locality,
@@ -85,7 +98,7 @@ export default function ListingDetail() {
         <title>{listing.title} | {listing.locality} | PropAI Pulse</title>
         <meta name="description" content={`View off-market details for ${listing.title} in ${listing.locality}. Directly from the broker network.`} />
         <meta property="og:title" content={`${listing.title} in ${listing.locality} | Off-Market Intelligence`} />
-        <meta property="og:description" content={listing.raw_text.slice(0, 160)} />
+        <meta property="og:description" content={description} />
         <script type="application/ld+json">
           {JSON.stringify(jsonLd)}
         </script>
@@ -141,12 +154,11 @@ export default function ListingDetail() {
                     ID: {listing.id.slice(0, 8)} | SYNC_OK
                   </div>
                 </div>
-                <p className="text-[20px] md:text-[28px] font-mono leading-relaxed text-[var(--text-primary)] font-medium italic whitespace-pre-wrap selection:bg-[var(--accent)] selection:text-black">
-                  "{listing.raw_text}"
+                <p className="text-[20px] md:text-[28px] font-mono leading-relaxed text-[var(--text-primary)] font-medium italic whitespace-pre-wrap">
+                  {description}
                 </p>
              </div>
              
-             {/* Decorative Background Elements */}
              <div className="absolute bottom-0 right-0 h-32 w-64 opacity-[0.03] select-none pointer-events-none">
                 <div className="absolute inset-0 bg-[var(--accent)]" style={{ clipPath: 'polygon(100% 100%, 0% 100%, 100% 0%)' }} />
              </div>
@@ -172,7 +184,6 @@ export default function ListingDetail() {
         {/* Sidebar/Action Box */}
         <div className="space-y-6">
           <div className="sticky top-24 rounded-[28px] bg-[var(--bg-surface)] p-8 shadow-[0_32px_96px_rgba(0,0,0,0.5)] relative overflow-hidden">
-             {/* Decorative glow */}
              <div className="absolute -top-12 -right-12 h-24 w-24 bg-[var(--accent)]/5 blur-[40px] rounded-full" />
              
              <div className="relative z-10">
@@ -205,7 +216,6 @@ export default function ListingDetail() {
                   </div>
                </div>
 
-               {/* Lead Form */}
                <div className="mt-10 pt-10 border-t border-white/[0.03]">
                   <h4 className="text-[13px] font-bold text-[var(--text-primary)] mb-5 uppercase tracking-[0.08em]">Check availability</h4>
                   <div className="space-y-4">

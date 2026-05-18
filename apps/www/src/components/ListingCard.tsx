@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
-import { MapPin, ArrowRight, MessageCircle, Zap } from 'lucide-react';
+import { MapPin, MessageCircle, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PublicListing } from '@/lib/listings';
 
@@ -11,12 +11,23 @@ interface ListingCardProps {
   key?: React.Key;
 }
 
+function buildDescription(listing: PublicListing): string {
+  const parts: string[] = [];
+  const dealType = listing.type === 'Rent' ? 'Available for rent' : 'Available for sale';
+  parts.push(dealType);
+
+  if (listing.bhk) parts.push(`${listing.bhk}`);
+  if (listing.locality) parts.push(`in ${listing.locality}`);
+
+  if (listing.furnishing) parts.push(`(${listing.furnishing})`);
+  if (listing.area_sqft) parts.push(`${listing.area_sqft} sqft`);
+  if (listing.availability) parts.push(`· ${listing.availability}`);
+
+  return parts.join(' ') || 'Property listing from broker broadcast';
+}
+
 export default function ListingCard({ listing }: ListingCardProps) {
-  const typeStyles = {
-    Rent: 'text-[var(--propai-green)] bg-[rgba(62,232,138,0.1)]',
-    Sale: 'text-amber-500 bg-amber-500/10',
-    Requirement: 'text-blue-500 bg-blue-500/10'
-  };
+  const description = buildDescription(listing);
 
   const formattedPrice = listing.price >= 10000000 
     ? `₹${(listing.price / 10000000).toFixed(2)} Cr`
@@ -24,18 +35,16 @@ export default function ListingCard({ listing }: ListingCardProps) {
       ? `₹${(listing.price / 100000).toFixed(2)} L`
       : `₹${listing.price.toLocaleString()}`;
 
-  // Simple tag extraction for "bento" feel
   const features = [];
   if (listing.bhk) features.push(`${listing.bhk} BHK`);
-  if (listing.raw_text.toLowerCase().includes('furnish')) features.push('Furnished');
-  if (listing.raw_text.toLowerCase().includes('parking')) features.push('Parking');
-  if (listing.raw_text.toLowerCase().includes('sea view') || listing.raw_text.toLowerCase().includes('ocean')) features.push('Sea View');
-  if (listing.raw_text.toLowerCase().includes('metro')) features.push('Metro Nearby');
+  if (listing.raw_text?.toLowerCase().includes('furnish')) features.push('Furnished');
+  if (listing.raw_text?.toLowerCase().includes('parking')) features.push('Parking');
+  if (listing.raw_text?.toLowerCase().includes('sea view') || listing.raw_text?.toLowerCase().includes('ocean')) features.push('Sea View');
+  if (listing.raw_text?.toLowerCase().includes('metro')) features.push('Metro Nearby');
 
   return (
     <Link to={`/listings/${listing.slug}`} className="group block animate-stream-in">
       <div className="h-full bg-[var(--bg-surface)] rounded-[28px] p-7 transition-all duration-500 hover:-translate-y-2 shadow-[0_8px_40px_rgba(0,0,0,0.15)] hover:shadow-[0_32px_64px_rgba(0,0,0,0.3)] relative overflow-hidden group-hover:bg-[var(--bg-hover)] border border-white/[0.02]">
-        {/* Subtle background glow on hover */}
         <div className="absolute -top-32 -right-32 h-64 w-64 bg-[var(--accent)]/3 blur-[100px] rounded-full group-hover:bg-[var(--accent)]/8 transition-all duration-700" />
         
         <div className="flex flex-col h-full justify-between relative z-10">
@@ -63,23 +72,14 @@ export default function ListingCard({ listing }: ListingCardProps) {
               </span>
             </div>
 
-            {/* Intelligence Quote Section */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="relative flex items-center justify-center">
-                    <Zap className="h-3 w-3 text-[var(--accent)] fill-[var(--accent)] animate-pulse" />
-                  </div>
-                  <span className="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[var(--accent)]">Live Intelligence Fragment</span>
-                </div>
-                <span className="text-[10px] text-[var(--text-muted)] font-mono">00:14:22</span>
-              </div>
-              <p className="text-[14px] leading-relaxed text-[var(--text-secondary)] line-clamp-5 font-medium italic opacity-75 group-hover:opacity-100 transition-opacity">
-                {listing.raw_text}
+            {/* Short Description */}
+            {description ? (
+              <p className="text-[14px] leading-relaxed text-[var(--text-secondary)] font-medium">
+                {description}
               </p>
-            </div>
+            ) : null}
 
-            {/* Tags - cleaner, no borders */}
+            {/* Tags */}
             <div className="flex flex-wrap gap-2 pt-2">
               {features.map((f, i) => (
                 <span key={i} className="px-3 py-1.5 rounded-xl bg-[var(--bg-elevated)] text-[11px] font-bold text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-base)]">
