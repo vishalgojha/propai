@@ -91,6 +91,8 @@ async function upsertProfile(userId: string, email: string | null | undefined, f
     const normalizedPhone = normalizePhone(phone);
     const phoneOwnership = await getPhoneOwnershipState(userId, normalizedPhone);
     const isCanonicalPhoneOwner = !normalizedPhone || !phoneOwnership || phoneOwnership.isCanonicalOwner || !phoneOwnership.canonicalOwnerId;
+    const client = getProfileClient(accessToken);
+    const existingProfile = await getProfileById(userId, accessToken);
 
     const payload: Record<string, unknown> = {
         id: userId,
@@ -100,13 +102,15 @@ async function upsertProfile(userId: string, email: string | null | undefined, f
 
     if (fullName?.trim()) payload.full_name = fullName.trim();
     if (normalizedPhone) {
-        payload.phone = normalizedPhone;
-        if (!isCanonicalPhoneOwner) {
+        const existingPhone = normalizePhone(String(existingProfile?.phone || ''));
+        if (isCanonicalPhoneOwner || existingPhone === normalizedPhone) {
+            payload.phone = normalizedPhone;
+        }
+        if (!isCanonicalPhoneOwner && existingPhone !== normalizedPhone) {
             payload.phone_verified = false;
         }
     }
 
-    const client = getProfileClient(accessToken);
     const { error } = await client
         .from('profiles')
         .upsert(payload, { onConflict: 'id' });
@@ -118,7 +122,7 @@ async function upsertProfile(userId: string, email: string | null | undefined, f
     const fallbackProfile = profile || {
         id: userId,
         full_name: fullName?.trim() || null,
-        phone: normalizedPhone || null,
+        phone: isCanonicalPhoneOwner ? normalizedPhone || null : existingProfile?.phone || null,
         email: email || null,
         phone_verified: false,
         app_role: 'broker',
