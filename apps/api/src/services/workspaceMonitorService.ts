@@ -1,4 +1,5 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
+import { liveMonitorService } from './liveMonitorService';
 
 const db = supabaseAdmin || supabase;
 const DEFAULT_THREAD_PAGE_SIZE = 100;
@@ -9,6 +10,8 @@ type MessageRow = {
     sender?: string | null;
     text?: string | null;
     timestamp?: string | null;
+    title?: string | null;
+    participantsCount?: number | null;
 };
 
 type MirrorRow = {
@@ -92,6 +95,11 @@ function buildDirectLabel(row: MessageRow) {
 
 export class WorkspaceMonitorService {
     private async loadMessageRows(workspaceOwnerId: string, sessionLabel?: string | null) {
+        const liveRows = liveMonitorService.getSessionRows(workspaceOwnerId, sessionLabel);
+        if (liveRows.length > 0) {
+            return liveRows as MessageRow[];
+        }
+
         let mirrorQuery = db
             .from('whatsapp_message_mirror')
             .select('id, remote_jid, sender_name, sender_jid, text, timestamp, direction, session_label')
@@ -125,6 +133,11 @@ export class WorkspaceMonitorService {
     }
 
     private async loadChatMessageRows(workspaceOwnerId: string, chatId: string, sessionLabel?: string | null, before?: string | null, limit?: number) {
+        const liveRows = liveMonitorService.getChatRows(workspaceOwnerId, chatId, sessionLabel, before, limit);
+        if (liveRows.length > 0) {
+            return liveRows as MessageRow[];
+        }
+
         let mirrorQuery = db
             .from('whatsapp_message_mirror')
             .select('id, remote_jid, sender_name, sender_jid, text, timestamp, direction, session_label')
@@ -246,10 +259,16 @@ export class WorkspaceMonitorService {
         return true;
     }
 
-    private buildChatRecord(row: MessageRow, groupMeta?: GroupRow) {
+    private buildChatRecord(
+        row: MessageRow,
+        groupMeta?: GroupRow,
+        liveMeta?: { title?: string; participantsCount?: number } | null,
+    ) {
         const remoteJid = String(row.remote_jid || '');
         const isGroup = remoteJid.endsWith('@g.us');
-        const title = isGroup ? groupMeta?.group_name || 'WhatsApp group' : buildDirectLabel(row);
+        const title = isGroup
+            ? String(groupMeta?.group_name || liveMeta?.title || row.title || 'WhatsApp group')
+            : String(row.title || buildDirectLabel(row));
         const messageText = String(row.text || '').trim();
         const timestamp = row.timestamp || new Date().toISOString();
 
@@ -265,7 +284,7 @@ export class WorkspaceMonitorService {
             city: groupMeta?.city || null,
             category: groupMeta?.category || null,
             tags: Array.isArray(groupMeta?.tags) ? groupMeta.tags : [],
-            participantsCount: Number(groupMeta?.member_count || 0),
+            participantsCount: Number(groupMeta?.member_count || liveMeta?.participantsCount || row.participantsCount || 0),
             broadcastEnabled: Boolean(groupMeta?.broadcast_enabled),
             isParsing: groupMeta ? Boolean(groupMeta?.is_parsing) : undefined,
             messageCount: 0,
@@ -307,9 +326,17 @@ export class WorkspaceMonitorService {
 
             totalMessages += 1;
             const remoteJid = String(row.remote_jid || '');
-            const chatRecord = chatsMap.get(remoteJid) || this.buildChatRecord(row, context.groupsByJid.get(remoteJid));
+            const liveMeta = liveMonitorService.getChatMeta(workspaceOwnerId, remoteJid, sessionLabel);
+            const groupMeta = context.groupsByJid.get(remoteJid);
+            const chatRecord = chatsMap.get(remoteJid) || this.buildChatRecord(row, groupMeta, liveMeta);
 
             chatRecord.messageCount += 1;
+            if (remoteJid.endsWith('@g.us')) {
+                chatRecord.title = String(groupMeta?.group_name || liveMeta?.title || row.title || chatRecord.title || 'WhatsApp group');
+            }
+            if (!chatRecord.participantsCount) {
+                chatRecord.participantsCount = Number(groupMeta?.member_count || liveMeta?.participantsCount || row.participantsCount || 0);
+            }
             if (new Date(row.timestamp || 0).getTime() >= new Date(chatRecord.lastMessageAt).getTime()) {
                 chatRecord.preview = String(row.text || '').trim();
                 chatRecord.lastMessageAt = row.timestamp || new Date().toISOString();
@@ -385,7 +412,8 @@ export class WorkspaceMonitorService {
         const pageRows = hasMore ? rows.slice(0, limit) : rows;
         const groupMeta = context.groupsByJid.get(chatId);
         const isGroup = chatId.endsWith('@g.us');
-        const title = isGroup ? groupMeta?.group_name || 'WhatsApp group' : null;
+        const liveMeta = liveMonitorService.getChatMeta(workspaceOwnerId, chatId, sessionLabel);
+        const title = isGroup ? groupMeta?.group_name || liveMeta?.title || 'WhatsApp group' : null;
         const messages = pageRows
             .slice()
             .reverse()
@@ -394,7 +422,7 @@ export class WorkspaceMonitorService {
                 chatId,
                 remoteJid: chatId,
                 type: isGroup ? 'group' : 'direct',
-                title: title || buildDirectLabel(row),
+                title: title || String(row.title || buildDirectLabel(row)),
                 text: String(row.text || '').trim(),
                 sender: row.sender || null,
                 direction: isOutboundSender(row.sender) ? 'outbound' : 'inbound',
