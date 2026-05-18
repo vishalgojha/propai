@@ -20,6 +20,7 @@ import {
   SearchIcon,
   SettingsIcon,
   StreamIcon,
+  SmartphoneIcon,
   XIcon,
   WorkflowIcon,
 } from '../lib/icons';
@@ -39,7 +40,7 @@ const NAV_ITEMS = [
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
   { label: 'WaBro', path: '/wabro/app', icon: BroadcastIcon },
-  { label: 'Download WaBro', path: 'https://github.com/vishalgojha/wabro/releases/latest/download/wabro-release.apk', icon: Smartphone },
+  { label: 'Download WaBro', path: 'https://github.com/vishalgojha/wabro/releases/latest/download/wabro-release.apk', icon: SmartphoneIcon },
   { label: 'Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },
   { label: 'AI Usage', path: '/aiusage', icon: CreditCardIcon },

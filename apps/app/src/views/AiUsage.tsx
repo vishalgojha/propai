@@ -1,8 +1,7 @@
 import React from 'react';
-import backendApi from '../services/api';
+import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { useAuth } from '../context/AuthContext';
-import { handleApiError } from '../utils/handleApiError';
 
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'vishal@chaoscraftlabs.com',
