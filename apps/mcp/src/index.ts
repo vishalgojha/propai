@@ -34,6 +34,9 @@ export const MCP_TOOL_NAMES = [
   "broker_activity",
   "triage_hot_leads",
   "extract_thread_actions",
+  "save_thread_requirement",
+  "save_thread_listing",
+  "create_thread_follow_up",
   "draft_growth_asset",
   "create_requirement",
   "draft_broadcast",
@@ -169,6 +172,90 @@ export function createMcpServer(context: ToolContext = {}) {
         unresolved_questions: actions.unresolved_questions,
         recommended_actions: actions.recommended_actions,
       });
+    },
+  );
+
+  server.registerTool(
+    "save_thread_requirement",
+    {
+      description:
+        "Persist one extracted thread requirement candidate into the broker CRM.",
+      inputSchema: {
+        raw_text: z.string().describe("Requirement text to save"),
+        name: z.string().optional().describe("Lead or buyer name"),
+        phone: z.string().optional().describe("Lead phone number"),
+        budget: z.union([z.string(), z.number()]).optional(),
+        location_pref: z.string().optional(),
+        timeline: z.string().optional(),
+        possession: z.string().optional(),
+        bhk_preference: z.array(z.string()).optional(),
+        property_type: z.string().optional(),
+        listing_type: z.string().optional(),
+      },
+    },
+    async (input) => {
+      const id = requireBrokerId(context);
+      await logToolCall(id, "save_thread_requirement", input);
+      const result = await createRequirementRecord({ brokerId: id, ...input });
+      return textResponse(
+        `Thread requirement saved${result.lead?.lead_id ? ` with lead id ${result.lead.lead_id}` : ""} for ${input.location_pref || "the requested location"}.`,
+        result,
+      );
+    },
+  );
+
+  server.registerTool(
+    "save_thread_listing",
+    {
+      description:
+        "Persist one extracted thread listing candidate into the broker CRM.",
+      inputSchema: {
+        raw_text: z.string().describe("Listing text to save"),
+        name: z.string().optional().describe("Contact or owner name"),
+        phone: z.string().optional().describe("Contact phone number"),
+        bhk: z.string().optional(),
+        location: z.string().optional(),
+        price: z.string().optional(),
+        carpet_area: z.string().optional(),
+        furnishing: z.string().optional(),
+        possession_date: z.string().optional(),
+        contact_number: z.string().optional(),
+      },
+    },
+    async (input) => {
+      const id = requireBrokerId(context);
+      await logToolCall(id, "save_thread_listing", input);
+      const result = await saveListingRecord({ brokerId: id, ...input });
+      return textResponse(
+        `Thread listing saved${result.listing_id ? ` with id ${result.listing_id}` : ""} for ${result.listing.location || "the requested location"}.`,
+        result,
+      );
+    },
+  );
+
+  server.registerTool(
+    "create_thread_follow_up",
+    {
+      description:
+        "Create one follow-up task from an extracted thread action candidate.",
+      inputSchema: {
+        lead_id: z.string().optional(),
+        lead_name: z.string().describe("Lead name for the follow-up"),
+        lead_phone: z.string().optional(),
+        due_at: z.string().optional().describe("ISO datetime. Defaults to 24h from now."),
+        notes: z.string().optional(),
+        action_type: z.enum(["call", "email", "visit"]).default("call"),
+        priority_bucket: z.enum(["P1", "P2", "P3"]).optional(),
+      },
+    },
+    async (input) => {
+      const id = requireBrokerId(context);
+      await logToolCall(id, "create_thread_follow_up", input);
+      const result = await scheduleFollowUp({ brokerId: id, ...input });
+      return textResponse(
+        `Thread follow-up scheduled for ${input.lead_name} at ${result.due_at}.`,
+        result,
+      );
     },
   );
 

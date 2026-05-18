@@ -22,6 +22,9 @@ const coreTools = [
   "broker_activity",
   "triage_hot_leads",
   "extract_thread_actions",
+  "save_thread_requirement",
+  "save_thread_listing",
+  "create_thread_follow_up",
   "draft_growth_asset",
 ];
 
