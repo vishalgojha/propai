@@ -602,7 +602,7 @@ def main() -> int:
         print("SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and PROPAI_TENANT_ID are required.", file=sys.stderr)
         return 1
 
-    db = sqlite3.connect(f"file:{args.db_path}?mode=ro", uri=True)
+    db = sqlite3.connect(f"file:{args.db_path}?mode=ro&immutable=1", uri=True)
     db.row_factory = sqlite3.Row
     client = SupabaseRestClient(supabase_url, service_key)
     stats = ImportStats()
