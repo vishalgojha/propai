@@ -152,7 +152,7 @@ export class WorkspaceMonitorService {
     ): Promise<MonitorRow[]> {
         const liveRows = liveMonitorService.getChatRows(workspaceOwnerId, chatId, sessionLabel, before, limit);
         if (liveRows.length > 0) {
-            return liveRows as MonitorRow[];
+            return liveRows as unknown as MonitorRow[];
         }
 
         let mirrorQuery = db
