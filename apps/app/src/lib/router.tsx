@@ -33,7 +33,7 @@ export function Link({
   href,
   children,
   ...props
-}: React.ComponentProps<typeof LinkBase> & { to?: string }) {
+}: Omit<React.ComponentProps<typeof LinkBase>, "href"> & { href?: React.ComponentProps<typeof LinkBase>["href"]; to?: string }) {
   return (
     <LinkBase href={href || to || "/"} {...props}>
       {children}
