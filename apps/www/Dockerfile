@@ -2,29 +2,21 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy workspace configuration first for dependency resolution.
+# Copy root workspace config
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/www/package.json ./apps/www/
-COPY packages/propai-theme/package.json ./packages/propai-theme/
 
-# Install only the public-site workspace and its dependencies.
+# Install only the www workspace and its dependencies
 RUN corepack enable && \
     NODE_ENV=development pnpm install --filter www... --frozen-lockfile && \
     echo "pnpm install completed"
 
-# Copy app sources after dependency install for better layer caching.
-COPY apps/www/app ./apps/www/app
-COPY apps/www/components ./apps/www/components
-COPY apps/www/lib ./apps/www/lib
-COPY apps/www/next.config.mjs ./apps/www/
-COPY apps/www/next-env.d.ts ./apps/www/
-COPY apps/www/postcss.config.js ./apps/www/
-COPY apps/www/public ./apps/www/public
-COPY apps/www/tailwind.config.ts ./apps/www/
-COPY apps/www/tsconfig.json ./apps/www/
-COPY packages/propai-theme ./packages/propai-theme
+# Copy app sources
+COPY apps/www/ ./apps/www/
 
 WORKDIR /app/apps/www
+
+# Build the Vite frontend
 RUN pnpm run build
 
 FROM node:20-alpine AS runner
@@ -33,10 +25,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3002
 
-COPY --from=builder /app/apps/www/.next/standalone ./
-COPY --from=builder /app/apps/www/.next/static ./apps/www/.next/static
-COPY --from=builder /app/apps/www/public ./apps/www/public
+COPY --from=builder /app/apps/www/dist ./dist
+COPY --from=builder /app/apps/www/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3002
 
-CMD ["node", "apps/www/server.js"]
+CMD ["node", "dist/server.mjs"]

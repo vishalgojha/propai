@@ -1,0 +1,119 @@
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { formatDistanceToNow } from 'date-fns';
+import { MapPin, ArrowRight, MessageCircle, Zap } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { PublicListing } from '@/lib/listings';
+
+interface ListingCardProps {
+  listing: PublicListing;
+  view?: 'grid' | 'list';
+  key?: React.Key;
+}
+
+export default function ListingCard({ listing }: ListingCardProps) {
+  const typeStyles = {
+    Rent: 'text-[var(--propai-green)] bg-[rgba(62,232,138,0.1)]',
+    Sale: 'text-amber-500 bg-amber-500/10',
+    Requirement: 'text-blue-500 bg-blue-500/10'
+  };
+
+  const formattedPrice = listing.price >= 10000000 
+    ? `₹${(listing.price / 10000000).toFixed(2)} Cr`
+    : listing.price >= 100000 
+      ? `₹${(listing.price / 100000).toFixed(2)} L`
+      : `₹${listing.price.toLocaleString()}`;
+
+  // Simple tag extraction for "bento" feel
+  const features = [];
+  if (listing.bhk) features.push(`${listing.bhk} BHK`);
+  if (listing.raw_text.toLowerCase().includes('furnish')) features.push('Furnished');
+  if (listing.raw_text.toLowerCase().includes('parking')) features.push('Parking');
+  if (listing.raw_text.toLowerCase().includes('sea view') || listing.raw_text.toLowerCase().includes('ocean')) features.push('Sea View');
+  if (listing.raw_text.toLowerCase().includes('metro')) features.push('Metro Nearby');
+
+  return (
+    <Link to={`/listings/${listing.slug}`} className="group block animate-stream-in">
+      <div className="h-full bg-[var(--bg-surface)] rounded-[28px] p-7 transition-all duration-500 hover:-translate-y-2 shadow-[0_8px_40px_rgba(0,0,0,0.15)] hover:shadow-[0_32px_64px_rgba(0,0,0,0.3)] relative overflow-hidden group-hover:bg-[var(--bg-hover)] border border-white/[0.02]">
+        {/* Subtle background glow on hover */}
+        <div className="absolute -top-32 -right-32 h-64 w-64 bg-[var(--accent)]/3 blur-[100px] rounded-full group-hover:bg-[var(--accent)]/8 transition-all duration-700" />
+        
+        <div className="flex flex-col h-full justify-between relative z-10">
+          <div className="space-y-6">
+            {/* Header: Title and Type */}
+            <div className="flex justify-between items-start gap-4">
+              <div className="space-y-1.5">
+                <h3 className="text-[20px] font-bold text-[var(--text-primary)] leading-[1.3] group-hover:text-[var(--accent)] transition-colors duration-300">
+                  {listing.title}
+                </h3>
+                <div className="flex items-center gap-2 text-[13px] text-[var(--text-secondary)] font-medium">
+                  <div className="flex items-center justify-center w-5 h-5 rounded-full bg-[var(--accent-glow)] text-[var(--accent)] opacity-80">
+                    <MapPin className="h-3 w-3" />
+                  </div>
+                  <span>{listing.locality}, Mumbai</span>
+                </div>
+              </div>
+              <span className={cn(
+                "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.1em] backdrop-blur-md",
+                listing.type === 'Rent' ? "bg-[var(--propai-green)]/10 text-[var(--propai-green)]" : 
+                listing.type === 'Sale' ? "bg-amber-500/10 text-amber-500" :
+                "bg-blue-500/10 text-blue-400"
+              )}>
+                {listing.type}
+              </span>
+            </div>
+
+            {/* Intelligence Quote Section */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex items-center justify-center">
+                    <Zap className="h-3 w-3 text-[var(--accent)] fill-[var(--accent)] animate-pulse" />
+                  </div>
+                  <span className="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[var(--accent)]">Live Intelligence Fragment</span>
+                </div>
+                <span className="text-[10px] text-[var(--text-muted)] font-mono">00:14:22</span>
+              </div>
+              <p className="text-[14px] leading-relaxed text-[var(--text-secondary)] line-clamp-5 font-medium italic opacity-75 group-hover:opacity-100 transition-opacity">
+                {listing.raw_text}
+              </p>
+            </div>
+
+            {/* Tags - cleaner, no borders */}
+            <div className="flex flex-wrap gap-2 pt-2">
+              {features.map((f, i) => (
+                <span key={i} className="px-3 py-1.5 rounded-xl bg-[var(--bg-elevated)] text-[11px] font-bold text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-base)]">
+                  {f}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer Area */}
+          <div className="mt-8 pt-6 border-t border-white/[0.03] flex items-center justify-between">
+            <div className="space-y-0.5">
+              <div className="text-[26px] font-bold text-[var(--text-primary)] tracking-tight">
+                {formattedPrice}
+                {listing.type === 'Rent' && <span className="text-[14px] ml-1 text-[var(--text-muted)] font-medium">/mo</span>}
+              </div>
+            </div>
+
+            <button 
+              className="group/btn flex items-center gap-2 h-12 px-6 rounded-2xl bg-[var(--accent)] text-[var(--on-propai-green)] text-[13px] font-bold uppercase tracking-[0.1em] hover:scale-[1.05] active:scale-[0.98] transition-all shadow-[0_12px_24px_rgba(62,232,138,0.2)]"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const phone = listing.broker_phone || '';
+                const text = encodeURIComponent(`Hi, I am interested in ${listing.title} in ${listing.locality} (via PropAI)`);
+                window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+              }}
+            >
+              <MessageCircle className="h-4.5 w-4.5" />
+              <span>Connect</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}

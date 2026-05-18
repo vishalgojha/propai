@@ -1,0 +1,23 @@
+# PropAI Pulse
+
+PropAI Pulse is a real-time real estate intelligence platform for Mumbai. It uses AI to parse off-market inventory directly from broker WhatsApp broadcasts before they reach public portals.
+
+## High-Level Purpose
+- Real-time off-market inventory parsing.
+- Direct connection to brokers via WhatsApp.
+- Coverage of Mumbai micro-markets (Bandra, Worli, Powai, etc.).
+- Intelligence mesh summarizing noisy broadcast data into clean property listings.
+
+## Key Entry Points
+- Home: https://propai.pulse/
+- Listings: https://propai.pulse/listings
+- Broker Signup: https://propai.pulse/broker/signup
+
+## Data Structure
+Property listings include:
+- Title (Config: BHK + Typology)
+- Locality (Mumbai micro-market)
+- Price (INR)
+- Raw Text (Original broadcast message)
+- Features (Amenities, Floor, etc.)
+- Broker Contact (WhatsApp link)
