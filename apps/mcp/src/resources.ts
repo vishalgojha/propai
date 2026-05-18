@@ -1,6 +1,7 @@
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   getBrokerActivity,
+  getHotLeadTriage,
   getPendingFollowUps,
   getRecentRequirements,
   getRecentSavedListings,
@@ -56,6 +57,21 @@ export function registerMcpResources(server: McpServer, context: ToolContext = {
     async (uri: URL) => {
       const id = requireBrokerId(context);
       const payload = await getBrokerActivity({ brokerId: id, days: 7 });
+      return jsonResource(uri.toString(), payload);
+    },
+  );
+
+  server.registerResource(
+    "broker-hot-leads",
+    "propai://broker/hot-leads",
+    {
+      title: "Hot Lead Triage",
+      description: "Ranked hot leads based on priority, urgency, follow-up pressure, and recent message signals.",
+      mimeType: "application/json",
+    },
+    async (uri: URL) => {
+      const id = requireBrokerId(context);
+      const payload = await getHotLeadTriage({ brokerId: id, days: 7, limit: 12 });
       return jsonResource(uri.toString(), payload);
     },
   );

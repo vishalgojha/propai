@@ -20,6 +20,7 @@ const coreTools = [
   "summarise_thread",
   "draft_broadcast",
   "broker_activity",
+  "triage_hot_leads",
 ];
 
 export const metadata: Metadata = {

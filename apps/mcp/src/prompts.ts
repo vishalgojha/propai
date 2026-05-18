@@ -3,6 +3,28 @@ import { z } from "zod";
 
 export function registerMcpPrompts(server: McpServer) {
   server.registerPrompt(
+    "hot_lead_triage",
+    {
+      title: "Hot Lead Triage",
+      description: "Review the broker's hottest leads and tell them what to act on first.",
+      argsSchema: {
+        days: z.string().optional().describe("Lookback window in days, e.g. 3 or 7"),
+      },
+    },
+    async ({ days }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Triage my hottest leads from the last ${days || "7"} days. Use the hot lead and follow-up resources or tools. Rank what I should do first, explain why, and suggest the next 3 actions.`,
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
     "daily_activity_review",
     {
       title: "Daily Activity Review",
@@ -104,7 +126,7 @@ export function registerMcpPrompts(server: McpServer) {
           role: "user",
           content: {
             type: "text",
-            text: "Review my PropAI follow-up queue, tell me the most urgent callbacks first, and suggest the next 3 actions.",
+            text: "Review my PropAI follow-up queue, combine it with hot lead triage, tell me the most urgent callbacks first, and suggest the next 3 actions.",
           },
         },
       ],

@@ -9,6 +9,7 @@ import {
   estimatePrice,
   getBrokerActivity,
   getFreshStream,
+  getHotLeadTriage,
   getIgrPrice,
   getMarketSummary,
   logToolCall,
@@ -31,6 +32,7 @@ export const MCP_TOOL_NAMES = [
   "semantic_search",
   "get_fresh_stream",
   "broker_activity",
+  "triage_hot_leads",
   "create_requirement",
   "draft_broadcast",
   "market_summary",
@@ -83,6 +85,38 @@ export function createMcpServer(context: ToolContext = {}) {
 
   registerMcpResources(server, context);
   registerMcpPrompts(server);
+
+  server.registerTool(
+    "triage_hot_leads",
+    {
+      description:
+        "Rank the broker's hottest leads by urgency, follow-up pressure, and recent activity so they know what to handle first.",
+      inputSchema: {
+        days: z.number().default(7).describe("Look back window in days"),
+        limit: z.number().default(10).describe("How many hot leads to return"),
+      },
+    },
+    async (input) => {
+      const id = requireBrokerId(context);
+      await logToolCall(id, "triage_hot_leads", input);
+      const result = await getHotLeadTriage({ brokerId: id, days: input.days, limit: input.limit });
+
+      if (!result.items.length) {
+        return textResponse("No hot-lead candidates found for this window yet.", result);
+      }
+
+      const lines = result.items.map((item, index) => {
+        const place = item.location ? ` in ${item.location}` : "";
+        const due = item.due_at ? `, follow-up ${item.due_at}` : "";
+        return `${index + 1}. ${item.name}${place} - score ${item.score}${due}. Why: ${item.why.join(", ")}. Next: ${item.next_action}`;
+      });
+
+      return textResponse(
+        `Hot lead triage for the last ${result.days} days:\n\n${lines.join("\n")}`,
+        result,
+      );
+    },
+  );
 
   server.registerTool(
     "broker_activity",

@@ -520,6 +520,130 @@ export async function getBrokerActivity(input: { brokerId: string; days?: number
   };
 }
 
+export async function getHotLeadTriage(input: { brokerId: string; days?: number; limit?: number }) {
+  const days = Math.min(Math.max(input.days ?? 7, 1), 30);
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+  const [leadResult, followUpResult, messageResult] = await Promise.all([
+    supabase
+      .from("lead_records")
+      .select("lead_id, name, phone, record_type, locality_canonical, location_hint, budget, priority_bucket, urgency, priority_score, raw_text, created_at, updated_at")
+      .eq("tenant_id", input.brokerId)
+      .gte("created_at", since)
+      .order("priority_score", { ascending: false, nullsFirst: false })
+      .limit(100),
+    supabase
+      .from("follow_up_tasks")
+      .select("lead_id, lead_name, lead_phone, due_at, status, priority_bucket, notes")
+      .eq("tenant_id", input.brokerId)
+      .eq("status", "pending")
+      .order("due_at", { ascending: true })
+      .limit(100),
+    supabase
+      .from("messages")
+      .select("remote_jid, text, sender, timestamp, created_at")
+      .eq("tenant_id", input.brokerId)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(200),
+  ]);
+
+  if (leadResult.error) throw new Error(leadResult.error.message);
+  if (followUpResult.error) throw new Error(followUpResult.error.message);
+  if (messageResult.error) throw new Error(messageResult.error.message);
+
+  const leads = leadResult.data || [];
+  const followUps = followUpResult.data || [];
+  const messages = messageResult.data || [];
+  const now = Date.now();
+  const followUpByLeadId = new Map<string, typeof followUps[number]>();
+  const followUpByPhone = new Map<string, typeof followUps[number]>();
+
+  for (const item of followUps) {
+    if (item.lead_id) followUpByLeadId.set(item.lead_id, item);
+    if (item.lead_phone) followUpByPhone.set(item.lead_phone, item);
+  }
+
+  const scored = leads.map((lead) => {
+    const followUp = (lead.lead_id && followUpByLeadId.get(lead.lead_id))
+      || (lead.phone && followUpByPhone.get(lead.phone))
+      || null;
+    const leadText = String(lead.raw_text || "").toLowerCase();
+    const recentMessageCount = messages.filter((message) => {
+      const text = String(message.text || "").toLowerCase();
+      return (
+        text.includes((lead.phone || "").replace(/[^\d]/g, "").slice(-6))
+        || (lead.name && text.includes(String(lead.name).toLowerCase()))
+        || (lead.location_hint && text.includes(String(lead.location_hint).toLowerCase()))
+      );
+    }).length;
+
+    let score = Number(lead.priority_score || 0);
+    if (lead.priority_bucket === "P1") score += 22;
+    else if (lead.priority_bucket === "P2") score += 12;
+    else if (lead.priority_bucket === "P3") score += 4;
+
+    if (lead.urgency === "high") score += 16;
+    else if (lead.urgency === "medium") score += 8;
+
+    if (/\b(site visit|visit|inspection|closing|token|final|urgent|asap|immediate)\b/i.test(leadText)) {
+      score += 10;
+    }
+
+    if (followUp?.due_at) {
+      const dueAt = new Date(followUp.due_at).getTime();
+      if (!Number.isNaN(dueAt)) {
+        if (dueAt <= now) score += 18;
+        else if (dueAt - now <= 24 * 60 * 60 * 1000) score += 10;
+      }
+    } else {
+      score += 6;
+    }
+
+    score += Math.min(recentMessageCount * 2, 10);
+
+    const why = [
+      lead.priority_bucket ? `${lead.priority_bucket} priority` : null,
+      lead.urgency ? `${lead.urgency} urgency` : null,
+      followUp?.due_at
+        ? new Date(followUp.due_at).getTime() <= now
+          ? "follow-up overdue"
+          : "follow-up scheduled"
+        : "no follow-up booked",
+      recentMessageCount > 0 ? `${recentMessageCount} recent message signals` : null,
+    ].filter(Boolean) as string[];
+
+    return {
+      lead_id: lead.lead_id,
+      name: lead.name || followUp?.lead_name || "Unknown lead",
+      phone: lead.phone || followUp?.lead_phone || null,
+      record_type: lead.record_type,
+      location: lead.locality_canonical || lead.location_hint || null,
+      budget: lead.budget ?? null,
+      priority_bucket: lead.priority_bucket || null,
+      urgency: lead.urgency || null,
+      due_at: followUp?.due_at || null,
+      score,
+      why,
+      next_action: followUp?.due_at
+        ? "Call or message this lead before the due follow-up slips further."
+        : "Book a follow-up now and confirm exact budget, locality, and timeline.",
+      raw_text: lead.raw_text || null,
+    };
+  });
+
+  const items = scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, clampLimit(input.limit, 10, 25));
+
+  return {
+    days,
+    total_candidates: leads.length,
+    pending_follow_ups: followUps.length,
+    items,
+  };
+}
+
 export async function getPendingFollowUps(input: { brokerId: string; limit?: number }) {
   const { data, error } = await supabase
     .from("follow_up_tasks")
