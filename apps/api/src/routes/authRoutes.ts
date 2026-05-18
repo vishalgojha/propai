@@ -70,6 +70,30 @@ function getProfileClient(accessToken?: string) {
     throw new Error('Supabase profile access is not configured on this deployment');
 }
 
+async function assertPhoneAvailable(userId: string, phone?: string, accessToken?: string) {
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) {
+        return;
+    }
+
+    const client = getProfileClient(accessToken);
+    const { data, error } = await client
+        .from('profiles')
+        .select('id, phone')
+        .eq('phone', normalizedPhone)
+        .maybeSingle();
+
+    if (error) {
+        throw error;
+    }
+
+    if (data && String(data.id || '') !== userId) {
+        const duplicateError = new Error('This WhatsApp number is already linked to another account');
+        (duplicateError as Error & { status?: number }).status = 409;
+        throw duplicateError;
+    }
+}
+
 async function upsertProfile(userId: string, email: string | null | undefined, fullName?: string, phone?: string, accessToken?: string) {
     const payload: Record<string, unknown> = {
         id: userId,
@@ -81,6 +105,7 @@ async function upsertProfile(userId: string, email: string | null | undefined, f
     if (phone?.trim()) payload.phone = normalizePhone(phone);
 
     const client = getProfileClient(accessToken);
+    await assertPhoneAvailable(userId, phone, accessToken);
     const { error } = await client
         .from('profiles')
         .upsert(payload, { onConflict: 'id' });
@@ -164,6 +189,13 @@ router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (
             const normalizedPhone = normalizePhone(phone);
             if (!fullName || !normalizedPhone) {
                 return res.status(400).json({ error: 'Full name and WhatsApp number are required for sign up' });
+            }
+
+            try {
+                await assertPhoneAvailable('__signup__', normalizedPhone);
+            } catch (phoneError: any) {
+                const status = Number(phoneError?.status || 500);
+                return res.status(status).json({ error: phoneError?.message || 'This WhatsApp number is already linked to another account' });
             }
 
             const existingUser = await findAuthUserByEmail(email);
@@ -308,7 +340,7 @@ router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (
         });
     } catch (error: any) {
         console.error('Password auth error:', error);
-        return res.status(500).json({ error: error.message || 'Failed to authenticate' });
+        return res.status(Number(error?.status || 500)).json({ error: error.message || 'Failed to authenticate' });
     }
 });
 

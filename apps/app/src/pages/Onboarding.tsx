@@ -35,6 +35,8 @@ type OnboardingData = {
     onboarding_completed?: boolean;
 };
 
+const normalizePhone = (value?: string) => String(value || '').replace(/\D/g, '');
+
 const emptyData: OnboardingData = {
     full_name: '', agency_name: '', city: '',
     localities: [], team_members: [],
@@ -155,6 +157,15 @@ export const Onboarding: React.FC = () => {
 
     const addTeamMember = () => {
         if (!teamName.trim() && !teamPhone.trim()) return;
+        const normalizedPhone = normalizePhone(teamPhone);
+        if (normalizedPhone) {
+            const exists = (data.team_members || []).some((member) => normalizePhone(member.mobile) === normalizedPhone);
+            if (exists) {
+                setError('This mobile number is already added to the team list');
+                return;
+            }
+        }
+        setError(null);
         updateData({ team_members: [...(data.team_members || []), { name: teamName.trim() || undefined, mobile: teamPhone.trim() || undefined }] });
         setTeamName('');
         setTeamPhone('');

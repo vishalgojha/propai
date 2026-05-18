@@ -69,6 +69,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   }
   if (!user) return <Navigate to="/login" replace />;
   if (onboardingCheck === 'needed' && location.pathname !== '/onboarding') return <Navigate to="/onboarding" replace />;
+  if (onboardingCheck === 'done' && location.pathname === '/onboarding') return <Navigate to="/connect-whatsapp" replace />;
 
   return <>{children}</>;
 };
