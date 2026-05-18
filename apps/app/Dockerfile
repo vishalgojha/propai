@@ -13,27 +13,26 @@ RUN corepack enable && \
     NODE_ENV=development pnpm install --filter react-example... --no-frozen-lockfile && \
     echo "pnpm install completed"
 
-# Build-time args for Vite environment variables
-ARG VITE_API_BASE_URL
-ARG VITE_SUPABASE_URL
-ARG VITE_SUPABASE_ANON_KEY
-ARG VITE_SUPABASE_SERVICE_ROLE_KEY
-ARG VITE_POSTHOG_KEY
-ARG VITE_POSTHOG_HOST
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
-ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
-ENV VITE_SUPABASE_SERVICE_ROLE_KEY=$VITE_SUPABASE_SERVICE_ROLE_KEY
-ENV VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY
-ENV VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
+# Build-time args for Next public environment variables
+ARG NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_POSTHOG_KEY
+ARG NEXT_PUBLIC_POSTHOG_HOST
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_POSTHOG_KEY=$NEXT_PUBLIC_POSTHOG_KEY
+ENV NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST
 
 # Copy source
+COPY apps/app/app ./apps/app/app
 COPY apps/app/src ./apps/app/src
 COPY apps/app/public ./apps/app/public
-COPY apps/app/index.html ./apps/app/
 COPY apps/app/tsconfig.json ./apps/app/
-COPY apps/app/vite.config.ts ./apps/app/
-COPY apps/app/server.js ./apps/app/server.js
+COPY apps/app/next-env.d.ts ./apps/app/
+COPY apps/app/next.config.mjs ./apps/app/
+COPY apps/app/postcss.config.mjs ./apps/app/
 
 # Build
 WORKDIR /app/apps/app
@@ -43,18 +42,16 @@ RUN pnpm run build
 FROM node:22-alpine
 
 WORKDIR /app/apps/app
+ENV NODE_ENV=production
+ENV PORT=3000
 
-# Copy built files and server.js
-COPY --from=builder /app/apps/app/dist ./dist
-COPY --from=builder /app/apps/app/server.js ./server.js
-
-# Install production dependencies
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/apps/app/node_modules ./node_modules
+COPY --from=builder /app/apps/app/.next ./.next
+COPY --from=builder /app/apps/app/public ./public
 COPY --from=builder /app/apps/app/package.json ./package.json
-COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
-RUN corepack enable && \
-    NODE_ENV=production pnpm install --ignore-scripts --no-frozen-lockfile --config.minimumReleaseAge=0 && \
-    echo "pnpm install completed"
+COPY --from=builder /app/apps/app/next.config.mjs ./next.config.mjs
 
-EXPOSE 3002
+EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["node_modules/.bin/next", "start", "-H", "0.0.0.0", "-p", "3000"]

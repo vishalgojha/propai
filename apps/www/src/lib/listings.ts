@@ -1,19 +1,6 @@
-export interface PublicListing {
-  id: string;
-  title: string;
-  price: number;
-  locality: string;
-  type: 'Rent' | 'Sale' | 'Requirement';
-  bhk?: number | string;
-  area_sqft?: number;
-  furnishing?: string;
-  availability?: string;
-  raw_text: string;
-  created_at: string;
-  slug: string;
-  floor?: string;
-  broker_phone?: string;
-}
+import type { PublicListing } from "@/lib/publicListings";
+
+export type { PublicListing };
 
 export async function getListings(): Promise<PublicListing[]> {
   const res = await fetch('/api/listings');

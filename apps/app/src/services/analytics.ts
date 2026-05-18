@@ -1,5 +1,5 @@
-const posthogKey = (import.meta as any).env.VITE_POSTHOG_KEY;
-const posthogHost = (import.meta as any).env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com';
+const posthogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
 
 let initialized = false;
 let posthogClientPromise: Promise<typeof import('posthog-js').default | null> | null = null;

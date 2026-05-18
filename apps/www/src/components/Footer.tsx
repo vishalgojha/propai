@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 
 export default function Footer() {
   return (
@@ -18,29 +18,29 @@ export default function Footer() {
           <div>
             <h4 className="mb-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">Platform</h4>
             <ul className="space-y-2">
-              <li><Link to="/listings" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Browse Listings</Link></li>
-              <li><Link to="/mcp" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">MCP Protocol</Link></li>
-              <li><Link to="/api" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">API Access</Link></li>
+              <li><Link href="/listings" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Browse Listings</Link></li>
+              <li><Link href="/mcp" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">MCP Protocol</Link></li>
+              <li><Link href="/api" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">API Access</Link></li>
             </ul>
           </div>
 
           <div>
             <h4 className="mb-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">Localities</h4>
             <ul className="space-y-2">
-              <li><Link to="/locality/bandra-west" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Bandra West</Link></li>
-              <li><Link to="/locality/juhu" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Juhu</Link></li>
-              <li><Link to="/locality/worli" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Worli</Link></li>
+              <li><Link href="/locality/bandra-west" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Bandra West</Link></li>
+              <li><Link href="/locality/juhu" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Juhu</Link></li>
+              <li><Link href="/locality/worli" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Worli</Link></li>
             </ul>
           </div>
 
           <div>
             <h4 className="mb-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">Legal</h4>
             <ul className="space-y-2">
-              <li><Link to="/privacy" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Privacy Policy</Link></li>
-              <li><Link to="/terms" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Terms & Conditions</Link></li>
-              <li><Link to="/refund" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Refund Policy</Link></li>
-              <li><Link to="/cancellation" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Cancellation Policy</Link></li>
-              <li><Link to="/contact" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Contact Us</Link></li>
+              <li><Link href="/privacy" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Privacy Policy</Link></li>
+              <li><Link href="/terms" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Terms & Conditions</Link></li>
+              <li><Link href="/refund" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Refund Policy</Link></li>
+              <li><Link href="/cancellation" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Cancellation Policy</Link></li>
+              <li><Link href="/contact" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Contact Us</Link></li>
             </ul>
           </div>
         </div>

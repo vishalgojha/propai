@@ -8,7 +8,7 @@ COPY apps/www/package.json ./apps/www/
 
 # Install only the www workspace and its dependencies
 RUN corepack enable && \
-    NODE_ENV=development pnpm install --filter www... --frozen-lockfile && \
+    NODE_ENV=development pnpm install --filter www... --no-frozen-lockfile && \
     echo "pnpm install completed"
 
 # Copy app sources
@@ -16,7 +16,7 @@ COPY apps/www/ ./apps/www/
 
 WORKDIR /app/apps/www
 
-# Build the Vite frontend
+# Build the Next app
 RUN pnpm run build
 
 FROM node:20-alpine AS runner
@@ -27,9 +27,11 @@ ENV PORT=3002
 
 COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/apps/www/node_modules ./node_modules
-COPY --from=builder /app/apps/www/dist ./dist
+COPY --from=builder /app/apps/www/.next ./.next
+COPY --from=builder /app/apps/www/public ./public
 COPY --from=builder /app/apps/www/package.json ./package.json
+COPY --from=builder /app/apps/www/next.config.mjs ./next.config.mjs
 
 EXPOSE 3002
 
-CMD ["node", "dist/server.mjs"]
+CMD ["node_modules/.bin/next", "start", "-H", "0.0.0.0", "-p", "3002"]

@@ -15,7 +15,7 @@ const backendApi = axios.create({
   timeout: 30000,
 });
 
-let refreshInFlight: Promise<ReturnType<typeof refreshSupabaseSession>> | null = null;
+let refreshInFlight: Promise<Awaited<ReturnType<typeof refreshSupabaseSession>>> | null = null;
 
 async function refreshSessionOnce() {
   const session = readStoredSession();

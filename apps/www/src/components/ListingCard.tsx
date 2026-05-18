@@ -1,5 +1,7 @@
+"use client";
+
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { MapPin, MessageCircle, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -43,7 +45,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
   if (listing.raw_text?.toLowerCase().includes('metro')) features.push('Metro Nearby');
 
   return (
-    <Link to={`/listings/${listing.slug}`} className="group block animate-stream-in">
+    <Link href={`/listings/${listing.slug}`} className="group block animate-stream-in">
       <div className="h-full bg-[var(--bg-surface)] rounded-[28px] p-7 transition-all duration-500 hover:-translate-y-2 shadow-[0_8px_40px_rgba(0,0,0,0.15)] hover:shadow-[0_32px_64px_rgba(0,0,0,0.3)] relative overflow-hidden group-hover:bg-[var(--bg-hover)] border border-white/[0.02]">
         <div className="absolute -top-32 -right-32 h-64 w-64 bg-[var(--accent)]/3 blur-[100px] rounded-full group-hover:bg-[var(--accent)]/8 transition-all duration-700" />
         

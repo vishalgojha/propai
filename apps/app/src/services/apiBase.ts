@@ -17,4 +17,4 @@ function getRuntimeApiBase() {
   return `${window.location.origin}/api`;
 }
 
-export const backendApiUrl = (import.meta as any).env.VITE_API_BASE_URL || getRuntimeApiBase();
+export const backendApiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || getRuntimeApiBase();
