@@ -1088,6 +1088,36 @@ type RawInboundMessage = {
     created_at?: string | null;
 };
 
+type GroupIngestionContext = {
+    groupJid: string;
+    groupName: string | null;
+    locality: string | null;
+    city: string | null;
+    category: string | null;
+    tags: string[];
+};
+
+type MessageIngestionStatus =
+    | 'accepted'
+    | 'suppressed_low_effort'
+    | 'suppressed_bulk_spam'
+    | 'suppressed_unresolved_context';
+
+type MessageQualityDecision = {
+    status: MessageIngestionStatus;
+    suppressionReason: string | null;
+    qualityScore: number;
+    metrics: {
+        candidateCount: number;
+        avgConfidence: number;
+        lowEffortRate: number;
+        unresolvedRate: number;
+        lineCount: number;
+        resolvedWithGroupCount: number;
+    };
+    resolutionContext: Record<string, unknown>;
+};
+
 type StreamCorrectionInput = {
     type?: StreamType;
     location?: string;
@@ -1116,6 +1146,188 @@ export class ChannelService {
 
     private shouldPersistParsedCandidate(parsed: ParsedStreamCandidate) {
         return true;
+    }
+
+    private isPlaceholderLocation(value?: string | null) {
+        const normalized = normalize(String(value || ''));
+        return !normalized || normalized === 'location not parsed yet' || normalized === 'unknown';
+    }
+
+    private hasUsefulPrice(parsed: ParsedStreamCandidate) {
+        if (typeof parsed.priceNumeric === 'number' && Number.isFinite(parsed.priceNumeric) && parsed.priceNumeric > 0) {
+            return true;
+        }
+
+        const priceLabel = normalize(parsed.priceLabel || '');
+        return Boolean(priceLabel) && priceLabel !== 'unspecified';
+    }
+
+    private hasMeaningfulTypology(parsed: ParsedStreamCandidate) {
+        const bhk = normalize(parsed.bhk || '');
+        return Boolean(parsed.propertyUse) || (Boolean(bhk) && bhk !== 'na' && bhk !== 'n a');
+    }
+
+    private hasStructuralAnchor(parsed: ParsedStreamCandidate) {
+        const payload = (parsed.parsedPayload || {}) as Record<string, unknown>;
+        return Boolean(
+            payload.buildingName ||
+            payload.microLocation ||
+            parsed.areaSqft ||
+            parsed.floorNumber ||
+            parsed.totalFloors,
+        );
+    }
+
+    private scoreCandidateCompleteness(parsed: ParsedStreamCandidate) {
+        let score = 0;
+        if (!this.isPlaceholderLocation(parsed.locality)) score += 2;
+        if (this.hasUsefulPrice(parsed)) score += 1;
+        if (this.hasMeaningfulTypology(parsed)) score += 1;
+        if (this.hasStructuralAnchor(parsed)) score += 1;
+        if (Number(parsed.confidenceScore || 0) >= 65) score += 1;
+        return score;
+    }
+
+    private async loadGroupIngestionContext(tenantId: string, groupJid?: string | null): Promise<GroupIngestionContext | null> {
+        const normalizedGroupJid = String(groupJid || '').trim();
+        if (!normalizedGroupJid) {
+            return null;
+        }
+
+        const { data, error } = await this.db
+            .from('whatsapp_groups')
+            .select('group_jid, group_name, locality, city, category, tags')
+            .eq('tenant_id', tenantId)
+            .eq('group_jid', normalizedGroupJid)
+            .maybeSingle();
+
+        if (error) {
+            if (!isMissingSchemaEntityError(error.message)) {
+                console.error('[ChannelService] Failed to load group ingestion context', error);
+            }
+            return null;
+        }
+
+        if (!data) {
+            return null;
+        }
+
+        return {
+            groupJid: String(data.group_jid || normalizedGroupJid),
+            groupName: data.group_name ? String(data.group_name) : null,
+            locality: data.locality ? String(data.locality) : null,
+            city: data.city ? String(data.city) : null,
+            category: data.category ? String(data.category) : null,
+            tags: Array.isArray(data.tags) ? data.tags.map((tag: unknown) => String(tag || '').trim()).filter(Boolean) : [],
+        };
+    }
+
+    private applyGroupContextToCandidate(parsed: ParsedStreamCandidate, groupContext: GroupIngestionContext | null): ParsedStreamCandidate {
+        if (!groupContext) {
+            return parsed;
+        }
+
+        const payload = { ...(parsed.parsedPayload || {}) } as Record<string, unknown>;
+        const nextLocality = this.isPlaceholderLocation(parsed.locality) && groupContext.locality
+            ? groupContext.locality
+            : parsed.locality;
+        const nextCity = (!parsed.city || normalize(parsed.city) === 'unknown') && groupContext.city
+            ? groupContext.city
+            : parsed.city;
+        const usedGroupContext = nextLocality !== parsed.locality || nextCity !== parsed.city;
+
+        return {
+            ...parsed,
+            locality: nextLocality,
+            city: nextCity,
+            sourceGroupName: parsed.sourceGroupName || groupContext.groupName,
+            parsedPayload: {
+                ...payload,
+                groupContext: {
+                    groupJid: groupContext.groupJid,
+                    groupName: groupContext.groupName,
+                    locality: groupContext.locality,
+                    city: groupContext.city,
+                    category: groupContext.category,
+                    tags: groupContext.tags,
+                },
+                groupContextApplied: usedGroupContext,
+                groupContextResolvedLocality: usedGroupContext ? nextLocality : payload.groupContextResolvedLocality || null,
+            },
+        };
+    }
+
+    private evaluateMessageQuality(message: RawInboundMessage, candidates: ParsedStreamCandidate[], groupContext: GroupIngestionContext | null): MessageQualityDecision {
+        const rawText = String(message.text || '').trim();
+        const lines = rawText.split('\n').map((line) => line.trim()).filter(Boolean);
+        const candidateCount = candidates.length;
+        const avgConfidence = candidateCount > 0
+            ? candidates.reduce((sum, candidate) => sum + Number(candidate.confidenceScore || 0), 0) / candidateCount
+            : 0;
+
+        let lowEffortCount = 0;
+        let unresolvedCount = 0;
+        let resolvedWithGroupCount = 0;
+
+        for (const candidate of candidates) {
+            const completeness = this.scoreCandidateCompleteness(candidate);
+            const payload = (candidate.parsedPayload || {}) as Record<string, unknown>;
+            if (completeness <= 2) {
+                lowEffortCount += 1;
+            }
+            if (this.isPlaceholderLocation(candidate.locality)) {
+                unresolvedCount += 1;
+            }
+            if (payload.groupContextApplied) {
+                resolvedWithGroupCount += 1;
+            }
+        }
+
+        const lowEffortRate = candidateCount > 0 ? lowEffortCount / candidateCount : 0;
+        const unresolvedRate = candidateCount > 0 ? unresolvedCount / candidateCount : 0;
+        const qualityScore = Math.max(0, Math.round(avgConfidence - (lowEffortRate * 35) - (unresolvedRate * 30) + (resolvedWithGroupCount * 4)));
+
+        let status: MessageIngestionStatus = 'accepted';
+        let suppressionReason: string | null = null;
+
+        if (candidateCount >= 10 && (lowEffortRate >= 0.35 || avgConfidence < 72 || unresolvedRate >= 0.25)) {
+            status = 'suppressed_bulk_spam';
+            suppressionReason = `Suppressed ${candidateCount}-item broker blast due to weak structure and low-actionability.`;
+        } else if (candidateCount >= 6 && lowEffortRate >= 0.6) {
+            status = 'suppressed_bulk_spam';
+            suppressionReason = `Suppressed multi-listing broker blast because most extracted records are low-effort.`;
+        } else if (!groupContext?.locality && candidateCount >= 3 && unresolvedRate >= 0.6) {
+            status = 'suppressed_unresolved_context';
+            suppressionReason = 'Suppressed message because locality context remained unresolved across most extracted records.';
+        } else if (candidateCount >= 2 && lowEffortRate >= 0.75 && avgConfidence < 68) {
+            status = 'suppressed_low_effort';
+            suppressionReason = 'Suppressed message because most extracted records are too vague to be actionable.';
+        } else if (candidateCount === 1 && lowEffortRate === 1 && avgConfidence < 55) {
+            status = 'suppressed_low_effort';
+            suppressionReason = 'Suppressed single low-effort listing with insufficient actionable detail.';
+        }
+
+        return {
+            status,
+            suppressionReason,
+            qualityScore,
+            metrics: {
+                candidateCount,
+                avgConfidence: Math.round(avgConfidence * 10) / 10,
+                lowEffortRate: Math.round(lowEffortRate * 100) / 100,
+                unresolvedRate: Math.round(unresolvedRate * 100) / 100,
+                lineCount: lines.length,
+                resolvedWithGroupCount,
+            },
+            resolutionContext: {
+                sourceGroupId: message.remote_jid || null,
+                sourceGroupName: groupContext?.groupName || null,
+                groupLocality: groupContext?.locality || null,
+                groupCity: groupContext?.city || null,
+                groupCategory: groupContext?.category || null,
+                groupTags: groupContext?.tags || [],
+            },
+        };
     }
 
     async createChannel(tenantId: string, input: CreateChannelInput): Promise<PersonalChannelRecord> {
@@ -1281,6 +1493,7 @@ private backfillInitiated = false;
                 .from('stream_items')
                 .select('*')
                 .in('tenant_id', accessibleTenantIds)
+                .eq('ingestion_status', 'accepted')
                 .in('id', streamIds);
 
             if (itemsError) {
@@ -1301,6 +1514,7 @@ private backfillInitiated = false;
             .from('stream_items')
             .select('*')
             .in('tenant_id', accessibleTenantIds)
+            .eq('ingestion_status', 'accepted')
             .order('created_at', { ascending: false })
             .limit(Math.max(20, Math.min(200, limit)));
 
@@ -1349,6 +1563,7 @@ private backfillInitiated = false;
                 .from('stream_items')
                 .select('id, tenant_id, created_at, source_group_id')
                 .in('tenant_id', accessibleTenantIds)
+                .eq('ingestion_status', 'accepted')
                 .in('id', streamIds);
 
             if (error) {
@@ -1403,7 +1618,8 @@ private backfillInitiated = false;
             let query = this.db
                 .from('stream_items')
                 .select('id', { count: 'exact', head: true })
-                .in('tenant_id', accessibleTenantIds);
+                .in('tenant_id', accessibleTenantIds)
+                .eq('ingestion_status', 'accepted');
 
             if (sessionGroupIds) {
                 query = query.in('source_group_id', sessionGroupIds);
@@ -1501,7 +1717,8 @@ private backfillInitiated = false;
         const { count } = await this.db
             .from('stream_items')
             .select('id', { count: 'exact', head: true })
-            .eq('tenant_id', tenantId);
+            .eq('tenant_id', tenantId)
+            .eq('ingestion_status', 'accepted');
 
         return {
             scanned: (messages || []).length,
@@ -1673,16 +1890,28 @@ private backfillInitiated = false;
     }
 
     async ingestMessage(tenantId: string, message: RawInboundMessage) {
-        const candidates = await this.parseMessage(tenantId, message);
+        const groupContext = await this.loadGroupIngestionContext(tenantId, message.remote_jid);
+        const candidates = (await this.parseMessage(tenantId, message)).map((candidate) => this.applyGroupContextToCandidate(candidate, groupContext));
         if (candidates.length === 0) {
             return 0;
         }
+
+        const qualityDecision = this.evaluateMessageQuality(message, candidates, groupContext);
+        const isAccepted = qualityDecision.status === 'accepted';
 
         let ingestedCount = 0;
         for (const parsed of candidates) {
             if (!this.shouldPersistParsedCandidate(parsed)) {
                 continue;
             }
+
+            const parsedPayload = {
+                ...(parsed.parsedPayload || {}),
+                ingestionStatus: qualityDecision.status,
+                suppressionReason: qualityDecision.suppressionReason,
+                qualityScore: qualityDecision.qualityScore,
+                qualityMetrics: qualityDecision.metrics,
+            };
 
             const { data, error } = await this.db
                 .from('stream_items')
@@ -1711,7 +1940,16 @@ private backfillInitiated = false;
                     property_use: parsed.propertyUse,
                     confidence_score: parsed.confidenceScore,
                     is_global: this.isGlobalStreamCandidate(parsed),
-                    parsed_payload: parsed.parsedPayload,
+                    parsed_payload: parsedPayload,
+                    ingestion_status: qualityDecision.status,
+                    suppression_reason: qualityDecision.suppressionReason,
+                    suppressed_at: isAccepted ? null : new Date().toISOString(),
+                    resolution_context: {
+                        ...qualityDecision.resolutionContext,
+                        qualityMetrics: qualityDecision.metrics,
+                        qualityScore: qualityDecision.qualityScore,
+                        candidateMessageId: parsed.messageId,
+                    },
                     created_at: parsed.createdAt,
                 }, { onConflict: 'tenant_id,message_id' })
                 .select('*')
@@ -1719,6 +1957,10 @@ private backfillInitiated = false;
 
             if (error || !data) {
                 console.error('[ChannelService] Failed to upsert stream item', error);
+                continue;
+            }
+
+            if (!isAccepted) {
                 continue;
             }
 
@@ -2194,6 +2436,7 @@ ${rawText}
             .from('stream_items')
             .select('*')
             .eq('tenant_id', tenantId)
+            .eq('ingestion_status', 'accepted')
             .order('created_at', { ascending: false })
             .limit(200);
 

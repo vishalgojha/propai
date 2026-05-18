@@ -24,7 +24,8 @@ export class StreamAPI {
     let query = supabase
       .from('stream_items')
       .select('*')
-      .in('tenant_id', tenantIds);
+      .in('tenant_id', tenantIds)
+      .eq('ingestion_status', 'accepted');
 
     if (filters?.type && filters.type.length > 0) {
       // 'type' column might not exist in stream_items table on some deployments.
@@ -150,7 +151,8 @@ export class StreamAPI {
     const { data, error } = await supabase
       .from('stream_items')
       .select('confidence_score, is_read')
-      .eq('tenant_id', tenantId);
+      .eq('tenant_id', tenantId)
+      .eq('ingestion_status', 'accepted');
 
     if (error || !data) return { total: 0, unread: 0, avgConfidence: 0 };
     if (!Array.isArray(data)) return { total: 0, unread: 0, avgConfidence: 0 };
@@ -191,7 +193,8 @@ export class StreamAPI {
     const { data, error } = await supabase
       .from('stream_items')
       .select('source_phone')
-      .eq('tenant_id', tenantId);
+      .eq('tenant_id', tenantId)
+      .eq('ingestion_status', 'accepted');
 
     if (error || !data) return [];
     if (!Array.isArray(data)) return [];

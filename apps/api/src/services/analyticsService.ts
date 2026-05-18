@@ -74,12 +74,14 @@ async function queryStreamItems(tenantId: string) {
             .from('stream_items')
             .select('type, deal_type, locality, source_phone, confidence_score, created_at')
             .eq('tenant_id', tenantId)
+            .eq('ingestion_status', 'accepted')
             .order('created_at', { ascending: false })
             .limit(5000),
         db
             .from('stream_items')
             .select('id', { count: 'exact', head: true })
-            .eq('tenant_id', tenantId),
+            .eq('tenant_id', tenantId)
+            .eq('ingestion_status', 'accepted'),
     ]);
 
     if (streamResult.error) throw streamResult.error;

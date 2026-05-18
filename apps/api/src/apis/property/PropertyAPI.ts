@@ -6,7 +6,8 @@ export class PropertyAPI {
     let query = supabase
       .from('stream_items')
       .select('*')
-      .eq('tenant_id', tenantId);
+      .eq('tenant_id', tenantId)
+      .eq('ingestion_status', 'accepted');
 
     if (filters?.type && filters.type.length > 0) {
       query = query.in('type', filters.type);
