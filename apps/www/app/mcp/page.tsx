@@ -27,6 +27,7 @@ const coreTools = [
   "create_thread_follow_up",
   "buyer_to_inventory_match",
   "pricing_negotiation_brief",
+  "stale_lead_reactivation",
   "draft_growth_asset",
 ];
 

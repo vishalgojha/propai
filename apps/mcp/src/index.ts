@@ -13,6 +13,7 @@ import {
   getIgrPrice,
   getMarketSummary,
   matchBuyerToInventory,
+  getStaleLeadReactivation,
   buildPricingNegotiationBrief,
   logToolCall,
   qualifyLead,
@@ -41,6 +42,7 @@ export const MCP_TOOL_NAMES = [
   "create_thread_follow_up",
   "buyer_to_inventory_match",
   "pricing_negotiation_brief",
+  "stale_lead_reactivation",
   "draft_growth_asset",
   "create_requirement",
   "draft_broadcast",
@@ -176,6 +178,37 @@ export function createMcpServer(context: ToolContext = {}) {
         unresolved_questions: actions.unresolved_questions,
         recommended_actions: actions.recommended_actions,
       });
+    },
+  );
+
+  server.registerTool(
+    "stale_lead_reactivation",
+    {
+      description:
+        "Find stale leads that are worth reactivating and draft a practical re-engagement opener for each one.",
+      inputSchema: {
+        days_stale: z.number().default(21).describe("Minimum stale age in days"),
+        limit: z.number().default(10).describe("How many stale leads to return"),
+      },
+    },
+    async (input) => {
+      const id = requireBrokerId(context);
+      await logToolCall(id, "stale_lead_reactivation", input);
+      const result = await getStaleLeadReactivation({ brokerId: id, ...input });
+
+      if (!result.items.length) {
+        return textResponse("No stale leads worth reactivating found for this window.", result);
+      }
+
+      const lines = result.items.map((item, index) => {
+        const location = item.location ? ` in ${item.location}` : "";
+        return `${index + 1}. ${item.name}${location} - score ${item.score}. Why: ${item.why.join(", ")}. Opener: ${item.reactivation_opener}`;
+      });
+
+      return textResponse(
+        `Found ${result.items.length} stale leads worth reactivating:\n\n${lines.join("\n")}`,
+        result,
+      );
     },
   );
 

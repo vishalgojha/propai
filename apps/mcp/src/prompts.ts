@@ -3,6 +3,28 @@ import { z } from "zod";
 
 export function registerMcpPrompts(server: McpServer) {
   server.registerPrompt(
+    "stale_lead_reactivation",
+    {
+      title: "Stale Lead Reactivation",
+      description: "Find stale leads and suggest who to revive first with a clean opener.",
+      argsSchema: {
+        days_stale: z.string().optional(),
+      },
+    },
+    async ({ days_stale }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Find stale leads older than ${days_stale || "21"} days, rank who is worth reviving first, and give me short reactivation openers I can actually use.`,
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
     "pricing_negotiation_brief",
     {
       title: "Pricing Negotiation Brief",

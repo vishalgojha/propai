@@ -1120,6 +1120,105 @@ export async function buildPricingNegotiationBrief(input: {
   };
 }
 
+export async function getStaleLeadReactivation(input: {
+  brokerId: string;
+  days_stale?: number;
+  limit?: number;
+}) {
+  const staleDays = Math.min(Math.max(input.days_stale ?? 21, 7), 180);
+  const cutoffIso = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const [leadResult, followUpResult] = await Promise.all([
+    supabase
+      .from("lead_records")
+      .select("lead_id, name, phone, record_type, location_hint, locality_canonical, budget, priority_bucket, urgency, raw_text, created_at, updated_at")
+      .eq("tenant_id", input.brokerId)
+      .lt("updated_at", cutoffIso)
+      .order("updated_at", { ascending: true, nullsFirst: false })
+      .limit(100),
+    supabase
+      .from("follow_up_tasks")
+      .select("lead_id, lead_name, lead_phone, due_at, status, notes")
+      .eq("tenant_id", input.brokerId)
+      .order("due_at", { ascending: false })
+      .limit(200),
+  ]);
+
+  if (leadResult.error) throw new Error(leadResult.error.message);
+  if (followUpResult.error) throw new Error(followUpResult.error.message);
+
+  const followUps = followUpResult.data || [];
+  const followUpByLeadId = new Map<string, typeof followUps[number]>();
+  const followUpByPhone = new Map<string, typeof followUps[number]>();
+
+  for (const item of followUps) {
+    if (item.lead_id) followUpByLeadId.set(item.lead_id, item);
+    if (item.lead_phone) followUpByPhone.set(item.lead_phone, item);
+  }
+
+  const items = (leadResult.data || [])
+    .map((lead) => {
+      const followUp = (lead.lead_id && followUpByLeadId.get(lead.lead_id))
+        || (lead.phone && followUpByPhone.get(lead.phone))
+        || null;
+      const lastTouchedAt = lead.updated_at || lead.created_at;
+      const staleForDays = lastTouchedAt
+        ? Math.max(1, Math.floor((Date.now() - new Date(lastTouchedAt).getTime()) / (24 * 60 * 60 * 1000)))
+        : staleDays;
+
+      let score = staleForDays;
+      if (lead.priority_bucket === "P1") score += 18;
+      else if (lead.priority_bucket === "P2") score += 10;
+      else if (lead.priority_bucket === "P3") score += 4;
+
+      if (lead.urgency === "high") score += 10;
+      else if (lead.urgency === "medium") score += 5;
+
+      if (lead.record_type === "buyer_requirement") score += 8;
+      if (!followUp || followUp.status !== "pending") score += 6;
+
+      const why = [
+        `${staleForDays} days stale`,
+        lead.priority_bucket ? `${lead.priority_bucket} priority` : null,
+        lead.record_type === "buyer_requirement" ? "buyer-side lead" : "inventory-side lead",
+        !followUp || followUp.status !== "pending" ? "no active follow-up" : "follow-up exists",
+      ].filter(Boolean) as string[];
+
+      const location = lead.locality_canonical || lead.location_hint || null;
+      const budgetText = lead.budget != null ? formatCurrencyCr(lead.budget) : null;
+      const rawText = String(lead.raw_text || "").trim();
+      const opener = lead.record_type === "buyer_requirement"
+        ? `Hi ${lead.name || "there"}, circling back on your ${location || "property"} requirement. Still active, or has the brief changed?`
+        : `Hi ${lead.name || "there"}, checking whether your ${location || "listing"} is still active and if pricing or availability has shifted.`;
+
+      return {
+        lead_id: lead.lead_id,
+        name: lead.name || "Unknown lead",
+        phone: lead.phone || null,
+        record_type: lead.record_type,
+        location,
+        budget: budgetText,
+        stale_for_days: staleForDays,
+        score,
+        why,
+        recommended_channel: lead.phone ? "whatsapp_or_call" : "manual_review",
+        reactivation_opener: opener,
+        next_action: lead.phone
+          ? "Send the opener, then confirm current need, timing, and whether pricing has moved."
+          : "Find the latest contact path before attempting reactivation.",
+        raw_text: rawText || null,
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, clampLimit(input.limit, 10, 25));
+
+  return {
+    days_stale: staleDays,
+    total_candidates: (leadResult.data || []).length,
+    items,
+  };
+}
+
 export async function qualifyLead(input: {
   brokerId: string;
   lead_id?: string;
