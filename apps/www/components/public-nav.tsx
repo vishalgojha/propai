@@ -9,6 +9,9 @@ export function PublicNav() {
           PropAI
         </Link>
         <div className="flex items-center gap-3">
+          <Link href="/mcp" className="text-xs text-[#d5dfeb] hover:text-white">
+            MCP
+          </Link>
           <Link href="/broker/signup" className="rounded-full border border-[#2b3a4e] px-3.5 py-1.5 text-xs text-[#d5dfeb]">
             For brokers
           </Link>
