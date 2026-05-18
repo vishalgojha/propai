@@ -61,8 +61,15 @@ export async function sendWhatsAppLifecycleEmail(input: LifecycleEmailInput) {
     const lastStatusEmailDelivery = typeof sessionData.lastStatusEmailDelivery === 'string'
         ? sessionData.lastStatusEmailDelivery
         : null;
+    const lastStatusEmailErrorCode = typeof sessionData.lastStatusEmailErrorCode === 'string'
+        ? sessionData.lastStatusEmailErrorCode
+        : null;
 
     if (lastNotifiedStatus === status && lastStatusEmailDelivery === 'sent') {
+        return;
+    }
+
+    if (lastNotifiedStatus === status && lastStatusEmailDelivery === 'permanent_failure' && lastStatusEmailErrorCode) {
         return;
     }
 
@@ -75,6 +82,27 @@ export async function sendWhatsAppLifecycleEmail(input: LifecycleEmailInput) {
     });
 
     if ('success' in delivery && delivery.success === false) {
+        if (delivery.permanent) {
+            const nextSessionData = {
+                ...sessionData,
+                lastNotifiedStatus: status,
+                lastStatusEmailDelivery: 'permanent_failure',
+                lastStatusEmailAt: new Date().toISOString(),
+                lastStatusEmailErrorCode: delivery.code || 'unknown',
+            };
+
+            const { error: updateError } = await db
+                .from('whatsapp_sessions')
+                .update({ session_data: nextSessionData })
+                .eq('tenant_id', tenantId)
+                .eq('label', label);
+
+            if (updateError) {
+                console.error('[WhatsAppEmail] Failed to persist permanent lifecycle email failure marker:', updateError);
+            }
+            return;
+        }
+
         console.error('[WhatsAppEmail] Lifecycle email send failed; notification marker will not be updated.', {
             tenantId,
             label,
@@ -84,6 +112,10 @@ export async function sendWhatsAppLifecycleEmail(input: LifecycleEmailInput) {
     }
 
     if ('skipped' in delivery && delivery.skipped) {
+        if (delivery.reason === 'suppressed_permanent_failure') {
+            return;
+        }
+
         console.warn('[WhatsAppEmail] Lifecycle email skipped because email delivery is not configured; notification marker will not be updated.', {
             tenantId,
             label,
@@ -150,16 +182,28 @@ export function createPropAIRuntimeHooks(): WhatsAppRuntimeHooks {
                 });
 
                 if (event.status === 'connected') {
-                    const groups = await getWhatsAppGateway(event.tenantId).listGroups({
-                        workspaceOwnerId: event.tenantId,
-                        sessionLabel: event.label,
-                    });
-                    if (groups.length > 0) {
-                        await processWhatsAppGroupSyncEvent({
-                            tenantId: event.tenantId,
+                    try {
+                        const groups = await getWhatsAppGateway(event.tenantId).listGroups({
+                            workspaceOwnerId: event.tenantId,
                             sessionLabel: event.label,
-                            groups,
                         });
+                        if (groups.length > 0) {
+                            await processWhatsAppGroupSyncEvent({
+                                tenantId: event.tenantId,
+                                sessionLabel: event.label,
+                                groups,
+                            });
+                        }
+                    } catch (groupError) {
+                        const message = groupError instanceof Error ? groupError.message : String(groupError || '');
+                        if (message.toLowerCase().includes('connection closed')) {
+                            console.warn('[WhatsAppRuntime] Skipping group sync because the session closed before groups could be fetched.', {
+                                tenantId: event.tenantId,
+                                label: event.label,
+                            });
+                            return;
+                        }
+                        throw groupError;
                     }
                 }
             } catch (error) {

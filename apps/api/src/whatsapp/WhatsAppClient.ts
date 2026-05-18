@@ -56,6 +56,11 @@ export class WhatsAppClient {
     private circuitBreaker = new CircuitBreaker();
     private healthCheckInterval: NodeJS.Timeout | null = null;
     private autoSyncInterval: NodeJS.Timeout | null = null;
+    private disconnectMeta: { reason: string | null; replaced: boolean; at: string | null } = {
+        reason: null,
+        replaced: false,
+        at: null,
+    };
 
     constructor(options: WhatsAppClientOptions) {
         this.tenantId = options.tenantId;
@@ -150,13 +155,32 @@ export class WhatsAppClient {
                     if (connection === 'close') {
                         this.connectionStatus = 'disconnected';
                         const statusCode = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode;
-                        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                        const replaced = this.isSessionReplaced(lastDisconnect?.error);
+                        const shouldReconnect = statusCode !== DisconnectReason.loggedOut && !replaced;
+                        this.disconnectMeta = {
+                            reason: replaced ? 'replaced' : statusCode === DisconnectReason.loggedOut ? 'logged_out' : 'closed',
+                            replaced,
+                            at: new Date().toISOString(),
+                        };
+
+                        if (this.reconnectTimer) {
+                            clearTimeout(this.reconnectTimer);
+                            this.reconnectTimer = null;
+                        }
 
                         if (statusCode === DisconnectReason.loggedOut) {
                             await this.storage.deleteSession?.({
                                 tenantId: this.tenantId,
                                 label: this.label,
                             });
+                        }
+
+                        if (replaced) {
+                            this.reconnectAttempts = 0;
+                            this.circuitBreaker.recordFailure();
+                            console.warn(`[WhatsAppClient] Session replaced by another linked device; auto-reconnect blocked for ${this.tenantId}:${this.label}`);
+                            await this.persistStatus('disconnected');
+                            return;
                         }
 
                         if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -176,6 +200,7 @@ export class WhatsAppClient {
                     } else if (connection === 'open') {
                         this.connectionStatus = 'connected';
                         this.reconnectAttempts = 0;
+                        this.disconnectMeta = { reason: null, replaced: false, at: null };
                         this.circuitBreaker.recordSuccess();
                         if (this.reconnectTimer) {
                             clearTimeout(this.reconnectTimer);
@@ -444,7 +469,7 @@ try {
     }
 
     async getParticipatingGroups(): Promise<GroupInfo[]> {
-        if (!this.socket) {
+        if (!this.socket || this.connectionStatus !== 'connected') {
             throw new Error('WhatsApp session is not connected');
         }
 
@@ -469,6 +494,21 @@ try {
             isReconnecting: this.reconnectAttempts > 0 && this.connectionStatus === 'connecting',
             circuitBreaker: this.circuitBreaker.getStatus(),
         };
+    }
+
+    private isSessionReplaced(error: unknown): boolean {
+        const row = (error || {}) as {
+            message?: string;
+            data?: unknown;
+            output?: { payload?: { message?: string } };
+        };
+        const message = [
+            String(row.message || ''),
+            String(row.output?.payload?.message || ''),
+            typeof row.data === 'string' ? row.data : '',
+        ].join(' ').toLowerCase();
+
+        return message.includes('conflict') && message.includes('replaced');
     }
 
     private async tryReconnect() {
@@ -656,7 +696,42 @@ try {
         };
 
         await this.storage.saveSessionStatus(payload);
+        await this.persistDisconnectMeta(status);
         await this.hooks?.onConnectionUpdate?.(payload);
+    }
+
+    private async persistDisconnectMeta(status: ConnectionStatus) {
+        try {
+            const { data: existing } = await supabase
+                .from('whatsapp_sessions')
+                .select('session_data')
+                .eq('tenant_id', this.tenantId)
+                .eq('label', this.label)
+                .maybeSingle();
+
+            const sessionData = (existing?.session_data && typeof existing.session_data === 'object')
+                ? existing.session_data as Record<string, unknown>
+                : {};
+
+            const nextSessionData = {
+                ...sessionData,
+                disconnectReason: status === 'disconnected' ? this.disconnectMeta.reason : null,
+                autoReconnectBlocked: status === 'disconnected' ? this.disconnectMeta.replaced : false,
+                autoReconnectBlockedAt: status === 'disconnected' ? this.disconnectMeta.at : null,
+            };
+
+            await supabase
+                .from('whatsapp_sessions')
+                .update({ session_data: nextSessionData, updated_at: new Date().toISOString() })
+                .eq('tenant_id', this.tenantId)
+                .eq('label', this.label);
+        } catch (error) {
+            console.warn('[WhatsAppClient] Failed to persist disconnect metadata', {
+                tenantId: this.tenantId,
+                label: this.label,
+                error,
+            });
+        }
     }
 
     private extractMessageText(message: any): string {

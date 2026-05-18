@@ -9,8 +9,8 @@ type EmailPayload = {
 
 type EmailSendResult =
     | { success: true }
-    | { skipped: true }
-    | { success: false; error: unknown };
+    | { skipped: true; reason?: string }
+    | { success: false; error: unknown; permanent?: boolean; code?: string };
 
 type WelcomeEmailInput = {
     to: string;
@@ -37,6 +37,7 @@ class EmailNotificationService {
     private readonly from = process.env.EMAIL_FROM || process.env.RESEND_FROM || 'hello@propai.live';
     private readonly replyTo = process.env.EMAIL_REPLY_TO || 'hello@propai.live';
     private readonly appUrl = process.env.APP_URL || 'https://app.propai.live';
+    private readonly permanentlySuppressedSubjects = new Set<string>();
 
     isConfigured() {
         return Boolean(this.apiKey && this.from);
@@ -194,7 +195,11 @@ class EmailNotificationService {
     private async sendEmail(payload: EmailPayload): Promise<EmailSendResult> {
         if (!this.isConfigured()) {
             console.warn('[EmailNotificationService] Email provider not configured (RESEND_API_KEY or EMAIL_FROM missing), skipping email:', payload.subject);
-            return { skipped: true };
+            return { skipped: true, reason: 'not_configured' };
+        }
+
+        if (this.permanentlySuppressedSubjects.has(payload.subject)) {
+            return { skipped: true, reason: 'suppressed_permanent_failure' };
         }
 
         try {
@@ -216,14 +221,33 @@ class EmailNotificationService {
 
             if (!response.ok) {
                 const errorText = await response.text().catch(() => '');
-                throw new Error(`Resend request failed with ${response.status}: ${errorText}`);
+                const permanentFailure = this.classifyPermanentFailure(response.status, errorText);
+                const error = new Error(`Resend request failed with ${response.status}: ${errorText}`);
+                if (permanentFailure) {
+                    this.permanentlySuppressedSubjects.add(payload.subject);
+                    console.warn('[EmailNotificationService] Permanent email delivery failure, suppressing future retries for this subject.', {
+                        subject: payload.subject,
+                        reason: permanentFailure,
+                    });
+                    return { success: false, error, permanent: true, code: permanentFailure };
+                }
+                throw error;
             }
 
             return { success: true };
         } catch (error) {
             console.error('[EmailNotificationService] Failed to send email:', error);
-            return { success: false, error };
+            return { success: false, error, permanent: false };
         }
+    }
+
+    private classifyPermanentFailure(status: number, errorText: string): string | null {
+        const normalized = String(errorText || '').toLowerCase();
+        if (status === 403 && normalized.includes('domain is not verified')) {
+            return 'resend_domain_not_verified';
+        }
+
+        return null;
     }
 
     private getFirstName(fullName?: string | null) {
