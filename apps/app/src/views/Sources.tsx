@@ -156,7 +156,7 @@ type WhatsappGroupHealth = {
   messagesReceived24h: number;
   messagesParsed24h: number;
   messagesFailed24h: number;
-  status: 'active' | 'quiet' | 'stale' | 'error';
+  status: 'active' | 'quiet' | 'stale' | 'error' | 'unknown';
 };
 
 type WhatsappEventRecord = {
@@ -166,6 +166,28 @@ type WhatsappEventRecord = {
   message: string;
   createdAt: string;
 };
+
+const mapWhatsappGroupHealth = (row: any, index: number): WhatsappGroupHealth => ({
+  id: String(row?.id || `group-health-${index}`),
+  sessionLabel: String(row?.sessionLabel || row?.session_label || ''),
+  groupId: String(row?.groupId || row?.group_id || ''),
+  groupName: String(row?.groupName || row?.group_name || row?.groupId || row?.group_id || 'Unknown group'),
+  lastGroupSyncAt: row?.lastGroupSyncAt || row?.last_group_sync_at || row?.lastSyncAt || row?.last_sync_at || null,
+  lastMessageAt: row?.lastMessageAt || row?.last_message_at || null,
+  lastParsedAt: row?.lastParsedAt || row?.last_parsed_at || null,
+  messagesReceived24h: Number(row?.messagesReceived24h || row?.messages_received_24h || 0),
+  messagesParsed24h: Number(row?.messagesParsed24h || row?.messages_parsed_24h || 0),
+  messagesFailed24h: Number(row?.messagesFailed24h || row?.messages_failed_24h || 0),
+  status: String(row?.status || 'unknown') as WhatsappGroupHealth['status'],
+});
+
+const mapWhatsappEvent = (row: any, index: number): WhatsappEventRecord => ({
+  id: String(row?.id || `wa-event-${index}`),
+  sessionLabel: String(row?.sessionLabel || row?.session_label || row?.session_id || ''),
+  eventType: String(row?.eventType || row?.event_type || 'unknown'),
+  message: String(row?.message || row?.payload?.message || ''),
+  createdAt: String(row?.createdAt || row?.created_at || ''),
+});
 
 type WhatsappGroupOption = {
   id: string;
@@ -478,9 +500,14 @@ export const Sources: React.FC = () => {
         backendApi.get(ENDPOINTS.whatsapp.events),
       ]);
 
-      const nextGroupHealth = Array.isArray(groupResponse.data) ? groupResponse.data : [];
+      const nextGroupHealth = Array.isArray(groupResponse.data)
+        ? groupResponse.data.map((row: any, index: number) => mapWhatsappGroupHealth(row, index))
+        : [];
       const derivedGroupCount = nextGroupHealth.length;
       const derivedActiveGroups24h = nextGroupHealth.filter((group) => group.status === 'active').length;
+      const nextEventLogs = Array.isArray(eventResponse.data)
+        ? eventResponse.data.map((row: any, index: number) => mapWhatsappEvent(row, index))
+        : [];
 
       setHealth({
         sessions: Array.isArray(healthResponse.data?.sessions) ? healthResponse.data.sessions : [],
@@ -491,7 +518,7 @@ export const Sources: React.FC = () => {
         },
       });
       setGroupHealth(nextGroupHealth);
-      setEventLogs(Array.isArray(eventResponse.data) ? eventResponse.data : []);
+      setEventLogs(nextEventLogs);
     } catch (err) {
       console.error(handleApiError(err));
       setHealth({ sessions: [], summary: defaultHealthSummary });
@@ -1853,7 +1880,7 @@ export const Sources: React.FC = () => {
                     eventLogs.map((event) => (
                       <div key={event.id} className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">{event.eventType.split('_').join(' ')}</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">{(event.eventType || 'unknown').split('_').join(' ')}</p>
                           <p className="text-[10px] text-[var(--text-secondary)]">{formatDateTime(event.createdAt)}</p>
                         </div>
                         <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">{event.message}</p>
