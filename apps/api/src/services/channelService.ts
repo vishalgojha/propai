@@ -1467,7 +1467,7 @@ private backfillInitiated = false;
             throw new Error(logError.message);
         }
 
-        return this.mapStreamItem(corrected);
+        return this.mapStreamItem(corrected, tenantId);
     }
 
     async markChannelRead(tenantId: string, channelId: string) {
