@@ -108,19 +108,18 @@ export default async function ListingDetailPage({
             <div className="mt-2 text-sm text-[#8ea2ba]">{listing.locality}, {listing.area}</div>
 
             <div className="mt-6 border-t border-[#243040] pt-6">
-              {listing.isPro && listing.brokerPhone ? (
+              {listing.hasWhatsAppContact ? (
                 <div className="space-y-3">
                   <div className="text-lg text-white">{listing.brokerName || "Verified broker"}</div>
-                  <div className="font-mono text-[#d2dbe7]">+91 {listing.brokerPhone}</div>
+                  <div className="text-sm text-[#8ea2ba]">Broker contact is available through WhatsApp. Plain numbers stay hidden on public pages.</div>
                   <div className="flex gap-3">
-                    <a href={`https://wa.me/91${listing.brokerPhone}`} className="rounded-full bg-[#3EE88A] px-4 py-2 text-sm font-semibold text-black">WhatsApp</a>
-                    <a href={`tel:+91${listing.brokerPhone}`} className="rounded-full border border-[#243040] px-4 py-2 text-sm text-[#d2dbe7]">Call</a>
+                    <a href={`/api/connect?id=${listing.id}`} className="rounded-full bg-[#3EE88A] px-4 py-2 text-sm font-semibold text-black">Contact on WhatsApp</a>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="text-sm text-[#f3c66c]">Broker not on PropAI Pro</div>
-                  <Link href="/broker/signup" className="inline-flex rounded-full border border-[#5a4a22] px-4 py-2 text-sm text-white">Unlock contact →</Link>
+                  <div className="text-sm text-[#f3c66c]">Public WhatsApp contact is unavailable for this post.</div>
+                  <Link href="/broker/signup" className="inline-flex rounded-full border border-[#5a4a22] px-4 py-2 text-sm text-white">Join as a broker →</Link>
                 </div>
               )}
             </div>

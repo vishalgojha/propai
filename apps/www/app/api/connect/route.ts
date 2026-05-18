@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { createHash } from "crypto";
+
+function getDeviceLabel(userAgent: string) {
+  const normalized = userAgent.toLowerCase();
+  if (/mobile|android|iphone|ipad/.test(normalized)) return "mobile";
+  return "web";
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -16,7 +23,7 @@ export async function GET(request: Request) {
 
   const { data: row } = await supabase
     .from("listings")
-    .select("structured_data, raw_text")
+    .select("tenant_id, structured_data, raw_text")
     .eq("id", id)
     .eq("status", "Active")
     .single()
@@ -37,6 +44,20 @@ export async function GET(request: Request) {
   if (!phone) {
     return NextResponse.json({ error: "Broker contact not available" }, { status: 404 });
   }
+
+  const forwardedFor = request.headers.get("x-forwarded-for") || "";
+  const userAgent = request.headers.get("user-agent") || "public-web";
+  const visitorSeed = `${forwardedFor}|${userAgent}|${id}`;
+  const visitorId = `public:${createHash("sha256").update(visitorSeed).digest("hex").slice(0, 24)}`;
+
+  await supabase.from("wa_click_events").insert({
+    listing_id: id,
+    broker_phone: phone.slice(-10),
+    user_id: visitorId,
+    workspace_id: String((row as any).tenant_id || "public"),
+    source: "www",
+    device: getDeviceLabel(userAgent),
+  });
 
   const waUrl = `https://wa.me/91${phone.slice(-10)}?text=${encodeURIComponent(
     "Hi, I saw your property listing on PropAI. Is it still available?"

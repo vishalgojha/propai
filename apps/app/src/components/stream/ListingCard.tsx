@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, MapPin, Clock, ExternalLink, ChevronDown, ChevronUp, Copy, Save, Check } from 'lucide-react';
+import { MessageSquare, Clock, ExternalLink, ChevronUp, ChevronDown, Copy, Save, MapPin, Check } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { logWaClick, fetchWaClickListingLog, type WaClickListingLog } from '../../services/waClickAPI';
 import type { StreamItem } from '../../services/streamAPI';
@@ -26,22 +26,32 @@ function formatPriceDisplay(item: StreamItem): string {
 
     if (isRent) {
         if (numeric >= 100000) {
-            return `₹${(numeric / 100000).toFixed(1).replace(/\.0$/, '')}L/mo`;
+            return `Rs ${(numeric / 100000).toFixed(1).replace(/\.0$/, '')}L/mo`;
         }
-        return `₹${Math.round(numeric / 1000)}K/mo`;
+        return `Rs ${Math.round(numeric / 1000)}K/mo`;
     }
 
     if (isSale) {
         if (numeric >= 10000000) {
-            return `₹${(numeric / 10000000).toFixed(2).replace(/\.00$/, '')}Cr`;
+            return `Rs ${(numeric / 10000000).toFixed(2).replace(/\.00$/, '')}Cr`;
         }
         if (numeric >= 100000) {
-            return `₹${(numeric / 100000).toFixed(1).replace(/\.0$/, '')}L`;
+            return `Rs ${(numeric / 100000).toFixed(1).replace(/\.0$/, '')}L`;
         }
-        return `₹${Math.round(numeric / 1000)}K`;
+        return `Rs ${Math.round(numeric / 1000)}K`;
     }
 
     return item.price || 'Unspecified';
+}
+
+function formatPricePerSqft(item: StreamItem): string | null {
+    if (item.type !== 'Sale' || !item.priceNumeric || !item.areaSqft || item.areaSqft <= 0) {
+        return null;
+    }
+
+    const rate = Math.round(item.priceNumeric / item.areaSqft);
+    if (!Number.isFinite(rate) || rate <= 0) return null;
+    return `Rs ${rate.toLocaleString('en-IN')}/sqft`;
 }
 
 function formatTimeAgo(createdAt: string): string {
@@ -62,7 +72,74 @@ function getConfidenceColor(confidence: number) {
 function getTypeBadgeClass(type: string) {
     if (type === 'Rent') return 'bg-[rgba(62,232,138,0.10)] text-[--propai-green] border-[rgba(62,232,138,0.30)]';
     if (type === 'Sale') return 'bg-amber-500/10 text-amber-400 border-amber-400/30';
+    if (type === 'Requirement') return 'bg-blue-500/10 text-blue-300 border-blue-400/30';
     return 'bg-blue-500/10 text-blue-400 border-blue-400/30';
+}
+
+function sanitizeVisibleText(text?: string | null): string {
+    return String(text || '')
+        .replace(/(?:\+?91[-\s]?)?[6-9]\d{9}\b/g, '[WhatsApp hidden]')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function toTitleCase(value: string): string {
+    return value
+        .split(/[\s_]+/)
+        .filter(Boolean)
+        .map((word) => word[0].toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+}
+
+function inferFurnishing(text: string): string | null {
+    const lower = text.toLowerCase();
+    if (lower.includes('fully furnished')) return 'Fully furnished';
+    if (lower.includes('semi furnished') || lower.includes('semi-furnished')) return 'Semi furnished';
+    if (lower.includes('furnished')) return 'Furnished';
+    if (lower.includes('unfurnished')) return 'Unfurnished';
+    return null;
+}
+
+function inferFeatureChips(text: string): string[] {
+    const lower = text.toLowerCase();
+    const chips: string[] = [];
+
+    if (lower.includes('balcony')) chips.push('Balcony');
+    if (lower.includes('terrace')) chips.push('Terrace');
+    if (lower.includes('brand new')) chips.push('Brand new');
+    if (lower.includes('direct')) chips.push('Direct');
+    if (lower.includes('parking')) chips.push('Parking');
+    if (lower.includes('all amenities') || lower.includes('amenities')) chips.push('Amenities');
+    if (lower.includes('pet') && lower.includes('not allowed')) chips.push('No pets');
+    if (lower.includes('family only')) chips.push('Family only');
+
+    return chips;
+}
+
+function buildDisplayTitle(listing: StreamItem): string {
+    const explicit = String(listing.title || '').trim();
+    if (explicit) return explicit;
+
+    const parts = [
+        listing.bhk || null,
+        listing.propertyCategory ? toTitleCase(String(listing.propertyCategory)) : null,
+        listing.location ? `in ${listing.location}` : null,
+    ].filter(Boolean);
+
+    return parts.join(' ') || listing.location || 'Broker-sourced property';
+}
+
+function buildChips(listing: StreamItem): string[] {
+    const raw = sanitizeVisibleText(listing.rawText || listing.description || '');
+    const chips = [
+        listing.bhk || null,
+        listing.areaSqft ? `${listing.areaSqft.toLocaleString('en-IN')} sqft` : null,
+        listing.propertyCategory ? toTitleCase(String(listing.propertyCategory)) : null,
+        inferFurnishing(raw),
+        ...inferFeatureChips(raw),
+    ].filter(Boolean) as string[];
+
+    return Array.from(new Set(chips)).slice(0, 6);
 }
 
 export const ListingCard: React.FC<ListingCardProps> = ({
@@ -80,6 +157,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
     const [toast, setToast] = React.useState<string | null>(null);
     const [showChannelPicker, setShowChannelPicker] = React.useState(false);
     const [savingChannelId, setSavingChannelId] = React.useState<string | null>(null);
+    const [copied, setCopied] = React.useState(false);
     const shortId = listing.id.replace(/-/g, '').slice(-8);
 
     const handleOpenWa = async (e: React.MouseEvent) => {
@@ -89,13 +167,13 @@ export const ListingCard: React.FC<ListingCardProps> = ({
 
         const result = await logWaClick(listing.id, 'stream', 'web');
         if (!result) {
-            setToast('Failed to open — try again');
+            setToast('Failed to open WhatsApp');
             setIsOpening(false);
             return;
         }
 
         setLocalClickCount((c) => c + 1);
-        setToast('Opening WhatsApp — click logged');
+        setToast('Opening WhatsApp');
 
         if (clickLog) {
             setClickLog({
@@ -105,9 +183,9 @@ export const ListingCard: React.FC<ListingCardProps> = ({
             });
         }
 
-        window.open(listing.waLink || result.redirect_url, '_blank', 'noopener');
+        window.open(result.redirect_url, '_blank', 'noopener');
         setIsOpening(false);
-        setTimeout(() => setToast(null), 2000);
+        window.setTimeout(() => setToast(null), 1800);
     };
 
     const loadClickLog = React.useCallback(async () => {
@@ -124,223 +202,221 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         }
     }, [isExpanded, clickLog, loadClickLog]);
 
-    const attributes = [listing.bhk, listing.areaSqft ? `${listing.areaSqft} sqft` : null, listing.description?.match(/furnish/i) ? 'Furnished' : null].filter(Boolean) as string[];
-
     const confidenceColor = getConfidenceColor(listing.confidence);
     const timeAgo = formatTimeAgo(listing.createdAt);
     const priceLabel = formatPriceDisplay(listing);
-    const brokerLabel = [listing.brokerName, listing.brokerCompany].filter(Boolean).join(' • ');
-    const whatsappLabel = listing.brokerName ? `WhatsApp ${listing.brokerName.split(' ')[0]}` : 'WhatsApp';
+    const rateLabel = formatPricePerSqft(listing);
+    const displayTitle = buildDisplayTitle(listing);
+    const chips = buildChips(listing);
+    const visibleRaw = sanitizeVisibleText(listing.rawText || listing.description || '');
+    const excerpt = visibleRaw.length > 180 ? `${visibleRaw.slice(0, 177)}...` : visibleRaw;
+    const sourceLabel = networkMode && listing.isNetworkItem ? 'Network feed' : 'WhatsApp stream';
 
     return (
-        <div className={cn('border border-white/[0.07] rounded-[10px] transition-colors', isExpanded ? 'border-[rgba(62,232,138,0.30)] bg-[#1C2620]' : 'bg-[#161D18]')}>
+        <div className={cn('rounded-[16px] border transition-colors', isExpanded ? 'border-[rgba(62,232,138,0.28)] bg-[#18211c]' : 'border-white/[0.07] bg-[#131a16]')}>
             <button type="button" onClick={onToggle} className="w-full p-4 text-left">
-                <div className="flex items-start gap-3">
-                    <div className="flex flex-col items-center gap-1.5 shrink-0">
-                        <span className={cn('inline-flex rounded px-2 py-0.5 text-[9px] font-semibold uppercase border', getTypeBadgeClass(listing.type))}>
-                            {listing.type === 'Rent' ? 'RENT' : listing.type === 'Sale' ? 'SALE' : listing.type}
-                        </span>
-                        <span className="text-[9px] font-mono text-neutral-600">{shortId}</span>
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                            <div className="font-semibold text-white text-sm leading-snug">{listing.location}</div>
-                            {networkMode && listing.isNetworkItem ? (
-                                <span className="rounded-full border border-[#1f6f57] bg-[rgba(0,168,132,0.12)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#7be0b8]">
-                                    Network
+                <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]', getTypeBadgeClass(listing.type))}>
+                                {listing.type}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[11px] text-neutral-500">
+                                <Clock className="h-3 w-3" />
+                                {timeAgo}
+                            </span>
+                            {localClickCount > 0 ? (
+                                <span className="rounded-full border border-[rgba(62,232,138,0.28)] bg-[rgba(62,232,138,0.10)] px-2 py-0.5 text-[10px] font-medium text-[--propai-green]">
+                                    {localClickCount} WA clicks
                                 </span>
                             ) : null}
+                            <span className="rounded-full bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] text-neutral-500">
+                                {shortId}
+                            </span>
                         </div>
-                        {attributes.length > 0 && (
-                            <div className="mt-0.5 text-[11px] text-neutral-400">{attributes.join(' · ')}</div>
-                        )}
-                        {listing.description && (
-                            <div className="mt-1 text-[11px] text-neutral-500 line-clamp-1">{listing.description}</div>
-                        )}
+
+                        <div className="mt-2 flex items-start gap-2">
+                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#5d7f6f]" />
+                            <div className="min-w-0">
+                                <div className="text-[17px] font-semibold leading-snug text-white">{displayTitle}</div>
+                                <div className="mt-1 text-[12px] text-neutral-400">{listing.location || 'Mumbai market'} · {sourceLabel}</div>
+                            </div>
+                        </div>
+
+                        {chips.length > 0 ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {chips.map((chip) => (
+                                    <span key={chip} className="rounded-full border border-white/[0.07] bg-[#1b241f] px-2.5 py-1 text-[11px] text-neutral-300">
+                                        {chip}
+                                    </span>
+                                ))}
+                            </div>
+                        ) : null}
+
+                        {excerpt ? (
+                            <div className="mt-3 line-clamp-2 text-[12px] leading-5 text-neutral-500">
+                                {excerpt}
+                            </div>
+                        ) : null}
                     </div>
 
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                        <div className="text-sm font-bold text-white">{priceLabel}</div>
-                        {listing.bhk && <div className="rounded-full bg-neutral-800 px-2 py-0.5 text-[10px] text-neutral-300">{listing.bhk}</div>}
-                    </div>
-                </div>
-
-                <div className="mt-3 flex items-center gap-2 text-[10px] text-neutral-500">
-                    <span className="text-neutral-400 font-medium">{brokerLabel || listing.source}</span>
-                    <span>·</span>
-                    <Clock className="h-3 w-3" />
-                    <span>{timeAgo}</span>
-                    <div className="flex-1" />
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-12 h-[3px] rounded-full bg-neutral-800 overflow-hidden">
-                            <div className={cn('h-full rounded-full transition-all', confidenceColor)} style={{ width: `${Math.round(listing.confidence)}%` }} />
+                    <div className="shrink-0 text-right">
+                        <div className="text-[20px] font-bold leading-none text-white">{priceLabel}</div>
+                        <div className="mt-2 text-[11px] text-neutral-500">{rateLabel || `${Math.round(listing.confidence)}% confidence`}</div>
+                        <div className="mt-4 flex items-center justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={handleOpenWa}
+                                disabled={isOpening}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-[--propai-green] px-3 py-2 text-[11px] font-semibold text-[#0D1A12] hover:brightness-110 disabled:opacity-60"
+                            >
+                                <MessageSquare className="h-3.5 w-3.5" />
+                                {isOpening ? 'Opening...' : 'Contact on WhatsApp'}
+                            </button>
+                            <button type="button" onClick={onToggle} className="rounded-xl border border-white/[0.08] p-2 text-neutral-400 hover:text-white">
+                                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </button>
                         </div>
-                        <span className={cn('text-[10px] font-medium', listing.confidence >= 70 ? 'text-[--propai-green]' : listing.confidence >= 40 ? 'text-amber-400' : 'text-red-400')}>
-                            {Math.round(listing.confidence)}%
-                        </span>
                     </div>
-                    {localClickCount > 0 && (
-                        <span className="rounded-full bg-[rgba(62,232,138,0.10)] text-[--propai-green] border border-[rgba(62,232,138,0.30)] px-1.5 py-0.5 text-[9px] font-medium">
-                            {localClickCount}
-                        </span>
-                    )}
-                    <button
-                        type="button"
-                        onClick={handleOpenWa}
-                        disabled={isOpening}
-                        className="rounded-lg bg-[--propai-green] px-2.5 py-1 text-[10px] font-semibold text-[#0D1A12] hover:brightness-110 disabled:opacity-60"
-                    >
-                        Open WA
-                    </button>
                 </div>
             </button>
 
-            {(brokerLabel || listing.waLink) ? (
-                <div className="border-t border-white/[0.06] px-4 py-3">
-                    {brokerLabel ? (
-                        <div className="mb-2 text-[12px] text-neutral-300">
-                            {brokerLabel}
+            {isExpanded ? (
+                <div className="border-t border-white/[0.07] px-4 pb-4 pt-3">
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_280px]">
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                                {[
+                                    { label: 'Deal', value: listing.type },
+                                    { label: 'Area', value: listing.areaSqft ? `${listing.areaSqft.toLocaleString('en-IN')} sqft` : 'Not parsed' },
+                                    { label: 'Category', value: listing.propertyCategory ? toTitleCase(String(listing.propertyCategory)) : 'Not parsed' },
+                                    { label: 'Source', value: sourceLabel },
+                                ].map((item) => (
+                                    <div key={item.label} className="rounded-xl border border-white/[0.06] bg-[#101612] p-3">
+                                        <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">{item.label}</div>
+                                        <div className="mt-1 text-[13px] text-white">{item.value}</div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {visibleRaw ? (
+                                <div>
+                                    <div className="mb-1 text-[10px] uppercase tracking-[0.08em] text-neutral-500">Broker message</div>
+                                    <div className="rounded-xl border border-white/[0.06] bg-[#101612] p-3 text-[12px] leading-6 text-neutral-300">
+                                        {visibleRaw}
+                                    </div>
+                                </div>
+                            ) : null}
                         </div>
-                    ) : null}
-                    {listing.waLink ? (
-                        <button
-                            type="button"
-                            onClick={() => window.open(listing.waLink!, '_blank', 'noopener')}
-                            className="inline-flex items-center gap-2 rounded-lg bg-[#1faa61] px-3 py-1.5 text-[11px] font-semibold text-white hover:brightness-110"
-                        >
-                            <MessageSquare className="h-3.5 w-3.5" />
-                            {whatsappLabel}
-                        </button>
-                    ) : null}
+
+                        <div className="space-y-3">
+                            <div className="rounded-xl border border-white/[0.06] bg-[#101612] p-3">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">Post analytics</div>
+                                        <div className="mt-1 text-[18px] font-semibold text-white">{localClickCount}</div>
+                                        <div className="text-[11px] text-neutral-500">WhatsApp opens recorded</div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="h-[4px] w-14 overflow-hidden rounded-full bg-neutral-800">
+                                            <div className={cn('h-full rounded-full transition-all', confidenceColor)} style={{ width: `${Math.round(listing.confidence)}%` }} />
+                                        </div>
+                                        <span className={cn('text-[11px] font-medium', listing.confidence >= 70 ? 'text-[--propai-green]' : listing.confidence >= 40 ? 'text-amber-400' : 'text-red-400')}>
+                                            {Math.round(listing.confidence)}%
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl border border-white/[0.06] bg-[#101612] p-3">
+                                <div className="mb-2 text-[10px] uppercase tracking-[0.08em] text-neutral-500">Recent click log</div>
+                                <div className="max-h-28 space-y-1 overflow-y-auto">
+                                    {clickLog === null ? (
+                                        <div className="text-[11px] text-neutral-600">Loading...</div>
+                                    ) : clickLog.events.length === 0 ? (
+                                        <div className="text-[11px] text-neutral-600">No WhatsApp clicks yet</div>
+                                    ) : (
+                                        clickLog.events.map((ev, index) => (
+                                            <div key={`${ev.clicked_at}-${index}`} className="flex items-center justify-between gap-2 text-[11px] text-neutral-400">
+                                                <span>{new Date(ev.clicked_at).toLocaleString('en-IN')}</span>
+                                                <span className="rounded-full border border-white/[0.06] px-2 py-0.5 text-[10px] text-neutral-500">{ev.source}</span>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleOpenWa}
+                                    disabled={isOpening}
+                                    className="flex items-center gap-1.5 rounded-lg bg-[--propai-green] px-3 py-1.5 text-xs font-semibold text-[#0D1A12] hover:brightness-110 disabled:opacity-60"
+                                >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    {isOpening ? 'Opening...' : 'Open WhatsApp'}
+                                </button>
+                                <div className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowChannelPicker((v) => !v)}
+                                        className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:text-white"
+                                    >
+                                        <Save className="h-3.5 w-3.5" />
+                                        Save to Channel
+                                    </button>
+                                    {showChannelPicker ? (
+                                        <div className="absolute bottom-full left-0 z-50 mb-2 min-w-[200px] rounded-xl border border-neutral-700 bg-[#1a1a1a] p-2 shadow-2xl">
+                                            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Pick a channel</p>
+                                            {channels.length === 0 ? (
+                                                <p className="px-2 py-2 text-[11px] text-neutral-500">No channels yet. Create one from the sidebar.</p>
+                                            ) : (
+                                                <div className="mt-1 max-h-48 space-y-1 overflow-y-auto">
+                                                    {channels.map((channel) => (
+                                                        <button
+                                                            key={channel.id}
+                                                            type="button"
+                                                            disabled={savingChannelId === channel.id}
+                                                            onClick={() => {
+                                                                setSavingChannelId(channel.id);
+                                                                onSaveToChannel?.(channel.id, listing.id);
+                                                                setShowChannelPicker(false);
+                                                            }}
+                                                            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-neutral-300 hover:bg-neutral-800 hover:text-white disabled:opacity-50"
+                                                        >
+                                                            <span className="truncate">{channel.name}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : null}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const text = sanitizeVisibleText(listing.rawText || listing.description || displayTitle);
+                                        navigator.clipboard.writeText(text).then(() => {
+                                            setCopied(true);
+                                            window.setTimeout(() => setCopied(false), 1600);
+                                        }).catch(() => {});
+                                    }}
+                                    className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:text-white"
+                                >
+                                    {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                    {copied ? 'Copied' : 'Copy clean text'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             ) : null}
 
-            {isExpanded && (
-                <div className="border-t border-white/[0.07] px-4 pb-4 pt-3 space-y-4">
-                    <div className="grid grid-cols-3 gap-3 text-xs">
-                        <div>
-                            <div className="text-[10px] text-neutral-500 uppercase tracking-wider">Added</div>
-                            <div className="mt-0.5 text-white">{timeAgo}</div>
-                        </div>
-                        <div>
-                            <div className="text-[10px] text-neutral-500 uppercase tracking-wider">Source</div>
-                            <div className="mt-0.5 text-white truncate">{brokerLabel || listing.source}</div>
-                        </div>
-                    </div>
-
-                    {listing.description && (
-                        <div>
-                            <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Raw Message</div>
-                            <div className="bg-[#0D1A12]/40 rounded-lg p-3 text-xs text-neutral-400 font-mono leading-relaxed whitespace-pre-wrap">
-                                {listing.description}
-                            </div>
-                        </div>
-                    )}
-
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="text-[10px] text-neutral-500 uppercase tracking-wider">WA click log</div>
-                            {clickLog && <span className="text-[10px] text-neutral-500">({clickLog.total})</span>}
-                        </div>
-                        <div className="max-h-24 overflow-y-auto space-y-1">
-                            {clickLog === null ? (
-                                <div className="text-[11px] text-neutral-600">Loading...</div>
-                            ) : clickLog.events.length === 0 ? (
-                                <div className="text-[11px] text-neutral-600">No clicks yet</div>
-                            ) : (
-                                clickLog.events.map((ev, i) => (
-                                    <div key={i} className="flex items-center gap-2 text-[11px] text-neutral-400">
-                                        <span>{new Date(ev.clicked_at).toLocaleTimeString()}</span>
-                                        <span className="text-neutral-600">·</span>
-                                        <span>{ev.device}</span>
-                                        <span className="rounded bg-neutral-800 px-1 py-0.5 text-[9px] text-neutral-500">wa.me</span>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={handleOpenWa}
-                            disabled={isOpening}
-                            className="flex items-center gap-1.5 rounded-lg bg-[--propai-green] px-3 py-1.5 text-xs font-semibold text-[#0D1A12] hover:brightness-110 disabled:opacity-60"
-                        >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            {isOpening ? 'Opening...' : 'Open WhatsApp'}
-                        </button>
-                        {listing.waLink ? (
-                            <button
-                                type="button"
-                                onClick={() => window.open(listing.waLink!, '_blank', 'noopener')}
-                                className="flex items-center gap-1.5 rounded-lg bg-[#1faa61] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
-                            >
-                                <MessageSquare className="h-3.5 w-3.5" />
-                                {whatsappLabel}
-                            </button>
-                        ) : null}
-                        <div className="relative">
-                            <button
-                                type="button"
-                                onClick={() => setShowChannelPicker((v) => !v)}
-                                className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:text-white"
-                            >
-                                <Save className="h-3.5 w-3.5" />
-                                Save to Channel
-                            </button>
-                            {showChannelPicker && (
-                                <div className="absolute bottom-full left-0 mb-2 z-50 min-w-[200px] rounded-xl border border-neutral-700 bg-[#1a1a1a] p-2 shadow-2xl">
-                                    <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Pick a channel</p>
-                                    {channels.length === 0 ? (
-                                        <p className="px-2 py-2 text-[11px] text-neutral-500">No channels yet. Create one from the sidebar.</p>
-                                    ) : (
-                                        <div className="mt-1 max-h-48 overflow-y-auto space-y-1">
-                                            {channels.map((ch) => (
-                                                <button
-                                                    key={ch.id}
-                                                    type="button"
-                                                    disabled={savingChannelId === ch.id}
-                                                    onClick={() => {
-                                                        setSavingChannelId(ch.id);
-                                                        onSaveToChannel?.(ch.id, listing.id);
-                                                        setShowChannelPicker(false);
-                                                    }}
-                                                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-neutral-300 hover:bg-neutral-800 hover:text-white disabled:opacity-50"
-                                                >
-                                                    <span className="truncate">{ch.name}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                const text = listing.description || listing.rawText || '';
-                                navigator.clipboard.writeText(text).catch(() => {});
-                            }}
-                            className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:text-white"
-                        >
-                            <Copy className="h-3.5 w-3.5" />
-                            Copy
-                        </button>
-                        <div className="flex-1" />
-                        <button type="button" onClick={onToggle} className="text-neutral-500 hover:text-white">
-                            <ChevronUp className="h-4 w-4" />
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {toast && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl bg-neutral-900 border border-neutral-700 px-4 py-2 text-xs text-white shadow-2xl">
+            {toast ? (
+                <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-xs text-white shadow-2xl">
                     {toast}
                 </div>
-            )}
+            ) : null}
         </div>
     );
 };

@@ -32,7 +32,7 @@ export default async function HomePage() {
         </div>
         <div className="rounded-xl bg-[#111820] p-3.5 text-center">
           <div className="text-lg font-medium text-white">{data.stats.brokers.toLocaleString("en-IN")}</div>
-          <div className="mt-0.5 text-xs text-[#94a3b8]">Active brokers</div>
+          <div className="mt-0.5 text-xs text-[#94a3b8]">WhatsApp-ready posts</div>
         </div>
         <div className="rounded-xl bg-[#111820] p-3.5 text-center">
           <div className="text-lg font-medium text-white">&lt;1 hr</div>
@@ -47,7 +47,7 @@ export default async function HomePage() {
         <div className="flex items-end justify-between">
           <div>
             <h2 className="text-xl font-medium text-white">Just posted in broker groups</h2>
-            <p className="mt-1.5 text-sm text-[#94a3b8]">These came in from WhatsApp in the last few hours. The broker who posted is real, verified, and reachable.</p>
+            <p className="mt-1.5 text-sm text-[#94a3b8]">These came in from WhatsApp in the last few hours. Contact stays frictionless through WhatsApp, without cluttering public pages with raw phone numbers.</p>
           </div>
           <Link href="/listings" className="shrink-0 text-sm text-[#2DC96E] hover:underline">
             Browse all &rarr;
@@ -77,7 +77,7 @@ export default async function HomePage() {
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { icon: "⏱️", bg: "bg-[rgba(62, 232, 138, 0.12)]", title: "Minutes, not days", desc: "Listings appear here within minutes of a broker posting on WhatsApp. 99acres gets it days later &mdash; if at all." },
-            { icon: "✓", bg: "bg-[#FAEEDA]", title: "Real brokers, real listings", desc: "Every listing ties to a verified broker in our network. No ghost listings, no duplicate reposts." },
+            { icon: "✓", bg: "bg-[#FAEEDA]", title: "Real brokers, real listings", desc: "Every listing ties to a real broker-sourced post in our network. No ghost listings, no duplicate reposts." },
             { icon: "👥", bg: "bg-[#E6F1FB]", title: "Broker-friendly", desc: "We work with brokers, not around them. They get tools, you get fresh inventory &mdash; everyone wins." },
             { icon: "📍", bg: "bg-[#EEEDFE]", title: "Deep MMR coverage", desc: "48 localities across Mumbai and MMR &mdash; from Bandra West to Thane, BKC to Chembur." },
           ].map((item, i) => (
@@ -101,8 +101,8 @@ export default async function HomePage() {
         <div className="mt-5 space-y-0">
           {[
             { num: "1", title: "Search in plain language", desc: 'Type what you want — "3BHK Andheri West under 2Cr furnished" — our AI understands and returns matching live listings instantly.' },
-            { num: "2", title: "See who posted it and when", desc: "Each listing shows the broker's WhatsApp group, time posted, and contact. No mystery middlemen — you know exactly where it came from." },
-            { num: "3", title: "Connect directly with the broker", desc: "One tap to WhatsApp or call the broker who has the actual keys. No lead forms, no callback queues." },
+            { num: "2", title: "See what just came in", desc: "Each listing keeps the useful context — locality, configuration, price, freshness, and source timing — without turning the page into a raw contact dump." },
+            { num: "3", title: "Connect on WhatsApp instantly", desc: "One tap opens WhatsApp with the broker who posted it. No lead forms, no callback queues, no gatekeeping." },
           ].map((step, i) => (
             <div key={i} className="flex gap-4 border-b border-[#243040] py-4 last:border-b-0">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#2DC96E] text-xs font-medium text-white">
@@ -124,7 +124,7 @@ export default async function HomePage() {
           </div>
           <div>
             <h3 className="text-sm font-medium text-white">Are you a broker?</h3>
-            <p className="mt-0.5 text-xs text-[#94a3b8]">Join {data.stats.brokers} brokers already on PropAI. Your WhatsApp listings get found by serious buyers and renters — automatically.</p>
+            <p className="mt-0.5 text-xs text-[#94a3b8]">Join the broker network already powering {data.stats.brokers} WhatsApp-ready posts on PropAI. Your listings get found by serious buyers and renters automatically.</p>
             <Link href="/broker/signup" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[#2DC96E] hover:underline">
               Join as a broker &rarr;
             </Link>

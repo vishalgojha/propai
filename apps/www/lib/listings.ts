@@ -30,7 +30,7 @@ export type PublicListing = {
   priceLabel: string;
   tags: string[];
   brokerName: string | null;
-  brokerPhone: string | null;
+  hasWhatsAppContact: boolean;
   isPro: boolean;
   brokerInitials: string;
   description: string;
@@ -127,7 +127,7 @@ function normalizeListing(row: LegacyListingRow, paidBrokerMap: Map<string, ProB
   const brokerDigits = digitsOnly(pickString(data.contact_number, data.phone, data.contactPhone, data.sourcePhone) || extractPhone(rawText));
   const proBroker = brokerDigits ? paidBrokerMap.get(brokerDigits) || null : null;
   const brokerName = proBroker?.fullName || null;
-  const brokerPhone = proBroker?.phone || null;
+  const hasWhatsAppContact = Boolean(brokerDigits);
   const amenities = inferAmenities(data, rawText);
   const tags = amenities.slice(0, 3);
   const slug = generateListingSlug({ bhk, localitySlug: slugifyLocality(locality), type, id: row.id });
@@ -148,7 +148,7 @@ function normalizeListing(row: LegacyListingRow, paidBrokerMap: Map<string, ProB
     priceLabel,
     tags,
     brokerName,
-    brokerPhone,
+    hasWhatsAppContact,
     isPro: Boolean(proBroker),
     brokerInitials: initials(brokerName || "Broker"),
     description: rawText || title,
@@ -178,7 +178,7 @@ export async function getHomepageData() {
     localityCounts,
     stats: {
       listings: all.length,
-      brokers: new Set(all.filter((item) => item.brokerPhone).map((item) => item.brokerPhone)).size,
+      brokers: all.filter((item) => item.hasWhatsAppContact).length,
       localities: new Set(all.map((item) => item.localitySlug)).size
     }
   };

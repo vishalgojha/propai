@@ -20,7 +20,7 @@ const syne = Syne({
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "PropAI — Fresh Property Listings Directly from Broker WhatsApp Networks in Mumbai",
-  description: "Discover verified flats, apartments, offices, shops, and commercial properties for rent and sale in Mumbai, Bandra West, Powai, Andheri, Worli, Thane, and 48+ MMR localities. Listings appear minutes after brokers post on WhatsApp — not days later. Direct broker contact via WhatsApp.",
+  description: "Discover verified flats, apartments, offices, shops, and commercial properties for rent and sale in Mumbai, Bandra West, Powai, Andheri, Worli, Thane, and 48+ MMR localities. Listings appear minutes after brokers post on WhatsApp — not days later. One-tap WhatsApp contact without exposing raw phone numbers on public pages.",
   keywords: [
     "property listings Mumbai", "flats for rent Mumbai", "apartments for sale Mumbai",
     "broker WhatsApp network", "real estate Mumbai", "Bandra West flats",
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "PropAI — Fresh Property Listings Directly from Broker WhatsApp Networks",
-    description: "Discover verified flats, apartments, offices, shops, and commercial properties for rent and sale across 48+ Mumbai localities. Direct broker contact via WhatsApp.",
+    description: "Discover verified flats, apartments, offices, shops, and commercial properties for rent and sale across 48+ Mumbai localities. One-tap WhatsApp contact without exposing raw phone numbers on public pages.",
     url: canonicalUrl("/"),
     type: "website"
   }
