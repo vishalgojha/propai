@@ -15,6 +15,7 @@ import {
   Download,
   Phone,
   Activity,
+  Signal,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { cn } from '../lib/utils';
@@ -25,7 +26,8 @@ import {
   attachStreamItemToChannel,
   type PersonalChannel,
 } from '../services/channelApi';
-import { handleApiError } from '../services/api';
+import { handleApiError, default as backendApi } from '../services/api';
+import { ENDPOINTS } from '../services/endpoints';
 import { fetchStreamItems, fetchStreamStats, correctStreamItem, type StreamItem } from '../services/streamAPI';
 import { rebuildStreamFromSavedMessages } from '../services/streamService';
 import { ListingCard } from '../components/stream/ListingCard';
@@ -355,6 +357,7 @@ export const Listings: React.FC = () => {
   const [quickTimeBands, setQuickTimeBands] = React.useState<Array<'1h' | '8h'>>([]);
   const sentinelRef = React.useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = React.useState(false);
+  const [waStatus, setWaStatus] = React.useState<string>('loading');
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
@@ -676,6 +679,20 @@ if (brokerOnly) {
   }, []);
 
   React.useEffect(() => {
+    const fetch = async () => {
+      try {
+        const resp = await backendApi.get(ENDPOINTS.whatsapp.status);
+        setWaStatus(resp.data?.status || 'disconnected');
+      } catch {
+        setWaStatus('disconnected');
+      }
+    };
+    void fetch();
+    const interval = setInterval(fetch, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  React.useEffect(() => {
     const handleScroll = () => setShowScrollTop(window.scrollY > 400);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
@@ -777,6 +794,22 @@ if (brokerOnly) {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="flex items-center gap-3 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-2.5 text-[11px]">
+        <Signal className={cn(
+          'h-3.5 w-3.5',
+          waStatus === 'connected' ? 'text-[var(--accent)]' : waStatus === 'connecting' ? 'text-[var(--amber)]' : waStatus === 'loading' ? 'text-[var(--text-secondary)]' : 'text-[var(--red)]',
+        )} />
+        <span className={cn(
+          'font-medium',
+          waStatus === 'connected' ? 'text-[var(--accent)]' : waStatus === 'connecting' ? 'text-[var(--amber)]' : 'text-[var(--text-secondary)]',
+        )}>
+          {waStatus === 'connected' ? 'WhatsApp connected — stream is live'
+            : waStatus === 'connecting' ? 'WhatsApp connecting...'
+            : waStatus === 'loading' ? 'Checking connection...'
+            : 'WhatsApp disconnected'}
+        </span>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
