@@ -1113,7 +1113,7 @@ if (brokerOnly) {
       ) : null}
 
       <div className="glass-panel overflow-hidden rounded-2xl border-[color:var(--border)]">
-        <div className="space-y-3 lg:hidden">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:hidden">
           {isLoading ? (
             <div className="flex items-center justify-center gap-3 px-5 py-12 text-sm text-[var(--text-secondary)]">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1153,9 +1153,8 @@ if (brokerOnly) {
           )}
         </div>
 
-        <div className="hidden lg:block">
-          <div className="space-y-3">
-            {isLoading ? (
+        <div className="hidden lg:grid lg:grid-cols-3 gap-4">
+          {isLoading ? (
               <div className="flex items-center justify-center gap-3 px-5 py-12 text-sm text-[var(--text-secondary)]">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading inventory feed...
@@ -1193,9 +1192,8 @@ if (brokerOnly) {
             })
             )}
           </div>
-        </div>
 
-        <div ref={sentinelRef} className="px-6 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+          <div ref={sentinelRef} className="px-6 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
           {hasMore ? `${renderedStream.length} of ${visibleStream.length} loaded. More items appear as you scroll.` : 'End of feed'}
         </div>
     </div>
