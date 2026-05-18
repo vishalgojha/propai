@@ -12,6 +12,7 @@ import {
   getHotLeadTriage,
   getIgrPrice,
   getMarketSummary,
+  matchBuyerToInventory,
   logToolCall,
   qualifyLead,
   saveListingRecord,
@@ -37,6 +38,7 @@ export const MCP_TOOL_NAMES = [
   "save_thread_requirement",
   "save_thread_listing",
   "create_thread_follow_up",
+  "buyer_to_inventory_match",
   "draft_growth_asset",
   "create_requirement",
   "draft_broadcast",
@@ -172,6 +174,44 @@ export function createMcpServer(context: ToolContext = {}) {
         unresolved_questions: actions.unresolved_questions,
         recommended_actions: actions.recommended_actions,
       });
+    },
+  );
+
+  server.registerTool(
+    "buyer_to_inventory_match",
+    {
+      description:
+        "Match a buyer brief to current inventory from the PropAI broker network, workspace CRM, or both, with explainable ranking.",
+      inputSchema: {
+        raw_text: z.string().optional().describe("Buyer brief or requirement note"),
+        locality: z.string().optional(),
+        city: z.string().optional(),
+        bhk: z.number().optional(),
+        max_budget_cr: z.number().optional(),
+        property_type: z.enum(["sale", "rent", "lease", "all"]).default("sale"),
+        source_mode: z.enum(["public", "workspace", "both"]).default("both"),
+        limit: z.number().default(8),
+      },
+    },
+    async (input) => {
+      const id = requireBrokerId(context);
+      await logToolCall(id, "buyer_to_inventory_match", input);
+      const result = await matchBuyerToInventory({ brokerId: id, ...input });
+
+      if (!result.items.length) {
+        return textResponse("No strong inventory matches found for this buyer brief yet.", result);
+      }
+
+      const lines = result.items.map((item, index) => {
+        const location = item.location ? ` in ${item.location}` : "";
+        const price = item.price != null ? `, approx ₹${item.price}Cr` : "";
+        return `${index + 1}. ${item.title}${location}${price} - score ${item.score}. Why: ${item.why.join(", ")}. Next: ${item.suggested_action}`;
+      });
+
+      return textResponse(
+        `Found ${result.items.length} ranked buyer-to-inventory matches:\n\n${lines.join("\n")}`,
+        result,
+      );
     },
   );
 

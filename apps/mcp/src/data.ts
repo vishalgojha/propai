@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { supabase } from "./supabase.js";
-import { formatBudgetRange, formatCurrencyCr, formatPerSqft, igrSummary, toNumber } from "./format.js";
+import { formatBudgetRange, formatCurrencyCr, formatPerSqft, igrSummary, listingLabel, toNumber } from "./format.js";
 import type { IgrTransaction, LocalityStats, PublicListing } from "./types.js";
 
 const PUBLIC_LISTING_COLUMNS =
@@ -113,6 +113,26 @@ export async function getFreshStream(input: { hours?: number; city?: string; lim
     size_sqft: toNumber(row.size_sqft),
     bhk: toNumber(row.bhk),
   })) as PublicListing[];
+}
+
+export async function getWorkspaceListings(input: {
+  brokerId: string;
+  limit?: number;
+}) {
+  const { data, error } = await supabase
+    .from("listings")
+    .select("id, structured_data, raw_text, created_at")
+    .eq("tenant_id", input.brokerId)
+    .order("created_at", { ascending: false })
+    .limit(clampLimit(input.limit, 25, 100));
+
+  if (error) throw new Error(error.message);
+  return (data || []) as Array<{
+    id: string;
+    structured_data: Record<string, unknown> | null;
+    raw_text: string | null;
+    created_at: string | null;
+  }>;
 }
 
 export async function getLastTransactionForBuilding(buildingName: string) {
@@ -640,6 +660,190 @@ export async function getHotLeadTriage(input: { brokerId: string; days?: number;
     days,
     total_candidates: leads.length,
     pending_follow_ups: followUps.length,
+    items,
+  };
+}
+
+function tokenizeMatchText(value: string) {
+  return String(value || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 3);
+}
+
+export async function matchBuyerToInventory(input: {
+  brokerId: string;
+  raw_text?: string;
+  locality?: string;
+  city?: string;
+  bhk?: number;
+  max_budget_cr?: number;
+  property_type?: "sale" | "rent" | "lease" | "all";
+  source_mode?: "public" | "workspace" | "both";
+  limit?: number;
+}) {
+  const sourceMode = input.source_mode || "both";
+  const limit = clampLimit(input.limit, 8, 20);
+  const queryTokens = tokenizeMatchText([
+    input.raw_text || "",
+    input.locality || "",
+    input.city || "",
+    input.bhk ? `${input.bhk} bhk` : "",
+  ].join(" "));
+
+  const [publicRows, workspaceRows] = await Promise.all([
+    sourceMode === "workspace"
+      ? Promise.resolve([])
+      : searchPublicListings({
+          locality: input.locality,
+          city: input.city,
+          property_type: input.property_type,
+          bhk: input.bhk,
+          max_budget_cr: input.max_budget_cr,
+          listingKind: "listing",
+          limit: 30,
+        }),
+    sourceMode === "public"
+      ? Promise.resolve([])
+      : getWorkspaceListings({ brokerId: input.brokerId, limit: 30 }),
+  ]);
+
+  const publicMatches = publicRows.map((row) => {
+    let score = 0;
+    const why: string[] = [];
+    const localityText = `${row.sub_area || ""} ${row.area || ""} ${row.location || ""}`.toLowerCase();
+    if (input.locality && localityText.includes(input.locality.toLowerCase())) {
+      score += 28;
+      why.push("locality fit");
+    }
+    if (input.city && localityText.includes(input.city.toLowerCase())) {
+      score += 10;
+      why.push("city fit");
+    }
+    if (input.bhk != null && row.bhk === input.bhk) {
+      score += 20;
+      why.push("BHK fit");
+    }
+    if (input.max_budget_cr != null && row.price != null) {
+      if (row.price <= input.max_budget_cr) {
+        score += 22;
+        why.push("within budget");
+      } else if (row.price <= input.max_budget_cr * 1.12) {
+        score += 8;
+        why.push("slightly above budget");
+      }
+    }
+    const haystack = `${row.title || ""} ${row.description || ""} ${row.cleaned_message || ""} ${row.raw_message || ""}`.toLowerCase();
+    const tokenHits = queryTokens.filter((token) => haystack.includes(token)).length;
+    if (tokenHits > 0) {
+      score += Math.min(tokenHits * 4, 16);
+      why.push(`${tokenHits} keyword hit${tokenHits > 1 ? "s" : ""}`);
+    }
+    if (row.message_timestamp) {
+      const ageHours = Math.max(0, (Date.now() - new Date(row.message_timestamp).getTime()) / 3600000);
+      if (ageHours <= 24) {
+        score += 10;
+        why.push("fresh listing");
+      } else if (ageHours <= 72) {
+        score += 5;
+      }
+    }
+    return {
+      source: "public" as const,
+      source_id: row.source_message_id,
+      title: row.title || listingLabel(row),
+      location: row.sub_area || row.area || row.location || null,
+      price: row.price,
+      bhk: row.bhk,
+      size_sqft: row.size_sqft,
+      contact: row.primary_contact_wa || row.primary_contact_number || null,
+      created_at: row.message_timestamp || row.created_at,
+      score,
+      why,
+      raw_text: row.raw_message || row.cleaned_message || row.description || null,
+    };
+  });
+
+  const workspaceMatches = workspaceRows.map((row) => {
+    const structured = row.structured_data || {};
+    const location = String(structured.location || structured.locality || "").trim() || null;
+    const bhkText = String(structured.bhk || "").trim();
+    const priceText = String(structured.price || "").trim();
+    const priceCr = parseBudgetToCr(priceText);
+    let score = 0;
+    const why: string[] = [];
+
+    if (input.locality && location?.toLowerCase().includes(input.locality.toLowerCase())) {
+      score += 28;
+      why.push("locality fit");
+    }
+    if (input.bhk != null && bhkText && bhkText.toLowerCase().includes(String(input.bhk))) {
+      score += 20;
+      why.push("BHK fit");
+    }
+    if (input.max_budget_cr != null && priceCr != null) {
+      if (priceCr <= input.max_budget_cr) {
+        score += 22;
+        why.push("within budget");
+      } else if (priceCr <= input.max_budget_cr * 1.12) {
+        score += 8;
+        why.push("slightly above budget");
+      }
+    }
+
+    const haystack = `${row.raw_text || ""} ${JSON.stringify(structured)}`.toLowerCase();
+    const tokenHits = queryTokens.filter((token) => haystack.includes(token)).length;
+    if (tokenHits > 0) {
+      score += Math.min(tokenHits * 4, 16);
+      why.push(`${tokenHits} keyword hit${tokenHits > 1 ? "s" : ""}`);
+    }
+
+    if (row.created_at) {
+      const ageHours = Math.max(0, (Date.now() - new Date(row.created_at).getTime()) / 3600000);
+      if (ageHours <= 24) {
+        score += 8;
+        why.push("fresh CRM listing");
+      } else if (ageHours <= 72) {
+        score += 4;
+      }
+    }
+
+    return {
+      source: "workspace" as const,
+      source_id: row.id,
+      title: String(structured.title || structured.location || "Saved listing"),
+      location,
+      price: priceCr,
+      bhk: bhkText ? Number.parseInt(bhkText, 10) || null : null,
+      size_sqft: toNumber(structured.carpet_area || structured.size_sqft),
+      contact: String(structured.contact_number || "").trim() || null,
+      created_at: row.created_at,
+      score,
+      why,
+      raw_text: row.raw_text,
+    };
+  });
+
+  const items = [...publicMatches, ...workspaceMatches]
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((item) => ({
+      ...item,
+      suggested_action: item.contact
+        ? "Send this buyer the listing summary and confirm viewing interest."
+        : "Review the listing details and confirm the best contact path before sharing.",
+      weak_points: [
+        item.price == null ? "price unclear" : null,
+        item.location == null ? "location unclear" : null,
+        item.bhk == null ? "BHK unclear" : null,
+      ].filter(Boolean),
+    }));
+
+  return {
+    source_mode: sourceMode,
+    total_considered: publicMatches.length + workspaceMatches.length,
     items,
   };
 }
