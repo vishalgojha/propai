@@ -34,6 +34,13 @@ export type ThreadActionExtraction = {
   recommended_actions: string[];
 };
 
+export type GrowthDraft = {
+  title: string;
+  body: string;
+  CTA: string;
+  angle: string;
+};
+
 const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
 const GROQ_BASE_URL = process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";
@@ -315,6 +322,101 @@ export async function extractThreadActionsWithLlm(input: {
         messages,
       );
       return parseThreadActions(raw, fallback);
+    } catch {
+      // Fall through.
+    }
+  }
+
+  return fallback;
+}
+
+function fallbackGrowthDraft(input: {
+  assetType: string;
+  audience: string;
+  context: string;
+}): GrowthDraft {
+  return {
+    title: `PropAI ${input.assetType} draft`,
+    body: [
+      `Audience: ${input.audience}`,
+      input.context || "Use PropAI's broker-network data, CRM actions, and workflow automation as the core message.",
+      "Focus on concrete broker outcomes: faster response, cleaner follow-ups, better matching, and easier pricing decisions.",
+    ].join("\n\n"),
+    CTA: "Reply if you want this rewritten for a specific broker, investor, or partner audience.",
+    angle: "Operational proof over generic hype",
+  };
+}
+
+function parseGrowthDraft(raw: string, fallback: GrowthDraft) {
+  try {
+    const parsed = JSON.parse(raw) as Partial<GrowthDraft>;
+    const title = String(parsed.title || "").trim();
+    const body = String(parsed.body || "").trim();
+    const CTA = String(parsed.CTA || "").trim();
+    const angle = String(parsed.angle || "").trim();
+    if (!title || !body || !CTA || !angle) return fallback;
+    return { title, body, CTA, angle };
+  } catch {
+    return fallback;
+  }
+}
+
+export async function draftGrowthAssetWithLlm(input: {
+  assetType: "launch_post" | "broker_pitch" | "partner_outreach" | "case_study";
+  audience: string;
+  context: string;
+  tone?: string;
+}) {
+  const fallback = fallbackGrowthDraft(input);
+  const systemPrompt = [
+    "You write sharp GTM copy for PropAI, an Indian real estate workflow product for brokers.",
+    "Return strict JSON with keys: title, body, CTA, angle.",
+    "Write with concrete operator language, not startup fluff.",
+    "Use proof, workflow outcomes, and clear differentiation.",
+  ].join(" ");
+
+  const userPrompt = [
+    `Asset type: ${input.assetType}`,
+    `Audience: ${input.audience}`,
+    `Tone: ${input.tone || "clear, direct, operator-grade"}`,
+    "Context:",
+    input.context || "PropAI connects broker-network inventory, CRM actions, follow-ups, thread summaries, and pricing workflows through MCP and internal AI surfaces.",
+  ].join("\n\n");
+
+  const messages: ChatMessage[] = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt },
+  ];
+
+  const openRouterKey = process.env.OPENROUTER_API_KEY || "";
+  if (openRouterKey) {
+    try {
+      const raw = await callOpenAICompatible(
+        OPENROUTER_BASE_URL,
+        openRouterKey,
+        OPENROUTER_MODEL,
+        messages,
+        {
+          "HTTP-Referer": "https://mcp.propai.live",
+          "X-Title": "PropAI MCP",
+        },
+      );
+      return parseGrowthDraft(raw, fallback);
+    } catch {
+      // Fall through.
+    }
+  }
+
+  const groqKey = process.env.GROQ_API_KEY || "";
+  if (groqKey) {
+    try {
+      const raw = await callOpenAICompatible(
+        GROQ_BASE_URL,
+        groqKey,
+        GROQ_MODEL,
+        messages,
+      );
+      return parseGrowthDraft(raw, fallback);
     } catch {
       // Fall through.
     }

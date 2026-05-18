@@ -22,6 +22,7 @@ const coreTools = [
   "broker_activity",
   "triage_hot_leads",
   "extract_thread_actions",
+  "draft_growth_asset",
 ];
 
 export const metadata: Metadata = {

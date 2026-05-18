@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { supabase } from "./supabase.js";
-import { extractThreadActionsWithLlm, summarizeBrokerThreadWithLlm } from "./ai.js";
+import { draftGrowthAssetWithLlm, extractThreadActionsWithLlm, summarizeBrokerThreadWithLlm } from "./ai.js";
 import {
   buildBroadcastDraft,
   createRequirementRecord,
@@ -34,6 +34,7 @@ export const MCP_TOOL_NAMES = [
   "broker_activity",
   "triage_hot_leads",
   "extract_thread_actions",
+  "draft_growth_asset",
   "create_requirement",
   "draft_broadcast",
   "market_summary",
@@ -86,6 +87,33 @@ export function createMcpServer(context: ToolContext = {}) {
 
   registerMcpResources(server, context);
   registerMcpPrompts(server);
+
+  server.registerTool(
+    "draft_growth_asset",
+    {
+      description:
+        "Draft GTM or marketing copy for PropAI such as launch posts, broker pitches, partner outreach, or case-study style summaries.",
+      inputSchema: {
+        asset_type: z.enum(["launch_post", "broker_pitch", "partner_outreach", "case_study"]),
+        audience: z.string().describe("Who this is for, e.g. Mumbai brokers, channel partners, investors"),
+        context: z.string().describe("Facts, proof points, feature notes, or the situation to write from"),
+        tone: z.string().optional().describe("Optional tone direction"),
+      },
+    },
+    async (input) => {
+      const result = await draftGrowthAssetWithLlm({
+        assetType: input.asset_type,
+        audience: input.audience,
+        context: input.context,
+        tone: input.tone,
+      });
+
+      return textResponse(
+        `${result.title}\n\n${result.body}\n\nCTA: ${result.CTA}\nAngle: ${result.angle}`,
+        result,
+      );
+    },
+  );
 
   server.registerTool(
     "extract_thread_actions",
