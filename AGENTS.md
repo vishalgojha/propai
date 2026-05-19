@@ -7,6 +7,14 @@
   - `apps/www` -> public website service
   - If a task affects multiple deployable surfaces, redeploy each affected Coolify service.
 
+## Critical WaBro Rule
+
+- Treat the main PropAI WhatsApp runtime in `apps/api` as the single owner of any live Baileys/linked-device session.
+- Do not add, run, revive, or deploy a second Baileys socket for the same WhatsApp number from WaBro or any other surface.
+- In particular, do not use `apps/wabro-backend/baileys.js` as a second live session owner for a number that is already connected through `apps/api`.
+- If WaBro needs WhatsApp capabilities, route them through the shared `apps/api` / `/api/wabro` path and the existing workspace session model instead of opening another linked-device session.
+- If an AI agent touches WaBro and is unsure whether a change could create another WhatsApp session owner, stop and verify before shipping. Multiple session owners cause WhatsApp `conflict type="replaced"` disconnects.
+
 ## PropAI Status Handoff
 
 ### Current Branch
