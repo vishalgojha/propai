@@ -30,7 +30,14 @@ function ProtectedLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [onboardingCheck, setOnboardingCheck] = React.useState<"loading" | "needed" | "done" | null>(null);
+  const [onboardingCheck, setOnboardingCheck] = React.useState<"loading" | "needed" | "done">(() => {
+    if (typeof window === "undefined") {
+      return "loading";
+    }
+
+    const cached = window.sessionStorage.getItem("propai.onboarding_status");
+    return cached === "needed" || cached === "done" ? cached : "done";
+  });
 
   React.useEffect(() => {
     if (!user) return;
@@ -40,11 +47,14 @@ function ProtectedLayoutInner({ children }: { children: React.ReactNode }) {
       try {
         const resp = await backendApi.get(ENDPOINTS.identity.onboarding);
         const data = resp.data?.data;
+        const nextState = data && data.onboarding_completed ? "done" : "needed";
         if (!cancelled) {
-          setOnboardingCheck(data && data.onboarding_completed ? "done" : "needed");
+          window.sessionStorage.setItem("propai.onboarding_status", nextState);
+          setOnboardingCheck(nextState);
         }
       } catch {
         if (!cancelled) {
+          window.sessionStorage.setItem("propai.onboarding_status", "done");
           setOnboardingCheck("done");
         }
       }
@@ -73,7 +83,7 @@ function ProtectedLayoutInner({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, onboardingCheck, pathname, router, searchParams, user]);
 
-  if (isLoading || !user || onboardingCheck === null) {
+  if (isLoading || !user || onboardingCheck === "loading") {
     return (
       <div className="h-screen bg-black flex items-center justify-center">
         <Skeleton className="w-64 h-8" />

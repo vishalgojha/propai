@@ -110,6 +110,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       let activeSession = savedSession;
+      const resolvedNames = resolveNameParts(activeSession);
+
+      if (!cancelled && authMutationRef.current === restoreVersion) {
+        setBackendApiAuthToken(activeSession.token);
+        setUser({
+          id: activeSession.id,
+          email: activeSession.email,
+          ...resolvedNames,
+          token: activeSession.token,
+          refreshToken: activeSession.refreshToken,
+          expiresAt: activeSession.expiresAt,
+          appRole: resolveAppRole(activeSession.email, activeSession.appRole),
+        });
+        setIsLoading(false);
+      }
 
       try {
         if (isSessionExpiring(activeSession)) {
@@ -151,7 +166,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
           identify(serverUser.email, { restored: true });
           track('session_restored', { restored: true });
-          setIsLoading(false);
           return;
         }
       } catch (error: any) {
@@ -162,7 +176,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.warn('Session restore hit a backend error, preserving local session state.', error);
 
           if (!cancelled && authMutationRef.current === restoreVersion) {
-            const resolvedNames = resolveNameParts(activeSession);
             setBackendApiAuthToken(activeSession.token);
             setUser({
               id: activeSession.id,
@@ -173,7 +186,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               expiresAt: activeSession.expiresAt,
               appRole: resolveAppRole(activeSession.email, activeSession.appRole),
             });
-            setIsLoading(false);
           }
           return;
         }
