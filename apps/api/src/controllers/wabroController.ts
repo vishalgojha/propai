@@ -3,6 +3,14 @@ import { supabaseAdmin } from '../config/supabase';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { parseGroupsForContacts } from '../services/groupContactParser';
 import { generateWabroDeviceToken, hashWabroDeviceToken, maskWabroDeviceToken } from '../services/wabroDeviceProvisioningService';
+import { sessionManager } from '../whatsapp/SessionManager';
+import multer from 'multer';
+import crypto from 'crypto';
+
+const wabroUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+});
 
 function getTenant(req: Request): string {
   return req.user?.id || (req as any).wabroDeviceContext?.tenantId || '';
@@ -827,5 +835,282 @@ export async function dashboardStats(req: Request, res: Response) {
     });
   } catch (error: unknown) {
     res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
+  }
+}
+
+// ── Message Sending (via connected WhatsApp session) ────
+
+export async function sendMessage(req: Request, res: Response) {
+  try {
+    const tenantId = getTenant(req);
+    const { deviceId: _deviceId, campaignId: _campaignId, contactPhone, contactName, text } = req.body;
+
+    const client = await sessionManager.getSession(tenantId);
+    if (!client) {
+      return res.status(400).json({
+        status: 'failed',
+        error: 'No WhatsApp session connected. Connect WhatsApp in the PropAI app first.',
+        serverTimestamp: Date.now(),
+      });
+    }
+
+    const jid = `${contactPhone.replace(/\D/g, '')}@s.whatsapp.net`;
+    await client.sendMessage(jid, text);
+
+    res.json({ status: 'sent', providerMessageId: null, serverTimestamp: Date.now() });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({
+      status: 'failed',
+      error: getErrorMessage(error, 'Failed to send message'),
+      serverTimestamp: Date.now(),
+    });
+  }
+}
+
+export async function sendMediaMessage(req: Request, res: Response) {
+  try {
+    const tenantId = getTenant(req);
+    const { deviceId: _deviceId, campaignId: _campaignId, contactPhone, contactName, text, mediaUrl, mimeType, fileName } = req.body;
+
+    const client = await sessionManager.getSession(tenantId);
+    if (!client) {
+      return res.status(400).json({
+        status: 'failed',
+        error: 'No WhatsApp session connected. Connect WhatsApp in the PropAI app first.',
+        serverTimestamp: Date.now(),
+      });
+    }
+
+    const jid = `${contactPhone.replace(/\D/g, '')}@s.whatsapp.net`;
+    const fullText = mediaUrl ? `${text}\n\n${fileName || 'Media'}: ${mediaUrl}` : text;
+    await client.sendMessage(jid, fullText);
+
+    res.json({ status: 'sent', providerMessageId: null, serverTimestamp: Date.now() });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({
+      status: 'failed',
+      error: getErrorMessage(error, 'Failed to send media message'),
+      serverTimestamp: Date.now(),
+    });
+  }
+}
+
+// ── Campaign Lifecycle ──────────────────────────────────
+
+export async function startCampaign(req: Request, res: Response) {
+  try {
+    const tenantId = getTenant(req);
+    const { id } = req.params;
+    const now = new Date().toISOString();
+
+    const { error } = await supabaseAdmin!
+      .from('wabro_campaigns')
+      .update({ status: 'running', started_at: now, updated_at: now })
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
+  }
+}
+
+export async function pauseCampaign(req: Request, res: Response) {
+  try {
+    const tenantId = getTenant(req);
+    const { id } = req.params;
+    const now = new Date().toISOString();
+
+    const { error } = await supabaseAdmin!
+      .from('wabro_campaigns')
+      .update({ status: 'paused', updated_at: now })
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
+  }
+}
+
+export async function stopCampaign(req: Request, res: Response) {
+  try {
+    const tenantId = getTenant(req);
+    const { id } = req.params;
+    const now = new Date().toISOString();
+
+    const { error } = await supabaseAdmin!
+      .from('wabro_campaigns')
+      .update({ status: 'cancelled', updated_at: now })
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
+  }
+}
+
+export async function getCampaignStatusEndpoint(req: Request, res: Response) {
+  try {
+    const tenantId = getTenant(req);
+    const { id } = req.params;
+
+    const { data, error } = await supabaseAdmin!
+      .from('wabro_campaigns')
+      .select('id, status, total_contacts, sent_count, failed_count, skipped_count, created_at, updated_at')
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .single();
+    if (error) return res.status(404).json({ error: 'Campaign not found' });
+
+    res.json({
+      campaignId: Number(data.id),
+      status: data.status,
+      total: Number(data.total_contacts || 0),
+      sent: Number(data.sent_count || 0),
+      failed: Number(data.failed_count || 0),
+      skipped: Number(data.skipped_count || 0),
+      paused: 0,
+      updatedAt: new Date(data.updated_at || data.created_at).getTime(),
+    });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
+  }
+}
+
+// ── Media Upload ────────────────────────────────────────
+
+export const uploadMediaHandler = [
+  wabroUpload.single('file'),
+  async (req: Request, res: Response) => {
+    try {
+      const tenantId = getTenant(req);
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ error: 'File is required' });
+      }
+
+      const ext = file.originalname.slice(file.originalname.lastIndexOf('.')).toLowerCase().slice(0, 12) || '';
+      const fileId = crypto.randomUUID();
+      const storagePath = `wabro/${tenantId}/${fileId}${ext}`;
+
+      const { error: uploadError } = await supabaseAdmin!.storage
+        .from('workspace-files')
+        .upload(storagePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabaseAdmin!.storage
+        .from('workspace-files')
+        .getPublicUrl(storagePath);
+
+      res.json({
+        mediaUrl: urlData?.publicUrl || '',
+        mimeType: file.mimetype,
+        fileName: file.originalname,
+      });
+    } catch (error: unknown) {
+      res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to upload media') });
+    }
+  },
+];
+
+// ── Events (Inbound Message Polling) ────────────────────
+
+export async function getEvents(req: Request, res: Response) {
+  try {
+    const tenantId = getTenant(req);
+    const cursor = String(req.query.cursor || '').trim();
+    const pageSize = 20;
+
+    let query = supabaseAdmin!
+      .from('messages')
+      .select('id, remote_jid, sender, text, timestamp')
+      .eq('tenant_id', tenantId)
+      .order('timestamp', { ascending: false })
+      .limit(pageSize);
+
+    if (cursor) {
+      query = query.lt('timestamp', cursor);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const events = (data || []).map((msg) => ({
+      id: msg.id,
+      type: msg.sender === 'AI' ? 'reply' : 'message',
+      deviceId: '',
+      campaignId: null,
+      phone: (msg.remote_jid || '').split('@')[0] || null,
+      pushName: null,
+      text: msg.text || null,
+      providerMessageId: null,
+      status: null,
+      timestamp: new Date(msg.timestamp).getTime(),
+    }));
+
+    const nextCursor = data && data.length === pageSize ? data[data.length - 1].timestamp : null;
+
+    res.json({ nextCursor, events });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
+  }
+}
+
+// ── Groups ──────────────────────────────────────────────
+
+export async function listGroups(req: Request, res: Response) {
+  try {
+    const tenantId = getTenant(req);
+
+    const client = await sessionManager.getSession(tenantId);
+    if (!client) {
+      return res.status(400).json({ error: 'No WhatsApp session connected', groups: [] });
+    }
+
+    const groups = await client.getParticipatingGroups();
+    const result = groups.map((g: { id: string; name: string }) => ({
+      id: g.id,
+      name: g.name,
+    }));
+
+    res.json(result);
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
+  }
+}
+
+export async function getGroupParticipants(req: Request, res: Response) {
+  try {
+    const tenantId = getTenant(req);
+    const { groupId } = req.params;
+
+    const client = await sessionManager.getSession(tenantId);
+    if (!client) {
+      return res.status(400).json({ error: 'No WhatsApp session connected', participants: [] });
+    }
+
+    const sock = (client as any).socket;
+    if (!sock || typeof sock.groupMetadata !== 'function') {
+      return res.status(500).json({ error: 'Session socket not available', participants: [] });
+    }
+
+    const metadata = await sock.groupMetadata(groupId);
+    const participants = (metadata?.participants || []).map((p: { id: string; name?: string; notify?: string }) => ({
+      phone: (p.id || '').split('@')[0],
+      name: p.name || p.notify || '',
+    }));
+
+    res.json({ participants });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed'), participants: [] });
   }
 }

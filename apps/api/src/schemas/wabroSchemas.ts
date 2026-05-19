@@ -70,3 +70,22 @@ export const syncCampaignProgressSchema = z.object({
     skipped_count: z.number().int().nonnegative().optional(),
     status: z.enum(['draft', 'pending', 'running', 'paused', 'completed', 'cancelled']).optional(),
 });
+
+export const sendMessageSchema = z.object({
+    deviceId: z.string().min(1),
+    campaignId: z.number().int().nonnegative(),
+    contactPhone: z.string().min(1),
+    contactName: z.string().optional().default(''),
+    text: z.string().min(1),
+});
+
+export const sendMediaMessageSchema = z.object({
+    deviceId: z.string().min(1),
+    campaignId: z.number().int().nonnegative(),
+    contactPhone: z.string().min(1),
+    contactName: z.string().optional().default(''),
+    text: z.string().min(1),
+    mediaUrl: z.string().min(1),
+    mimeType: z.string().optional().default('application/octet-stream'),
+    fileName: z.string().optional().default('attachment'),
+});

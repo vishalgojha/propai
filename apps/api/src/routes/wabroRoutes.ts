@@ -26,6 +26,16 @@ import {
   listBroadcastLists,
   sendToBroadcastList,
   listAreas,
+  sendMessage,
+  sendMediaMessage,
+  startCampaign,
+  pauseCampaign,
+  stopCampaign,
+  getCampaignStatusEndpoint,
+  uploadMediaHandler,
+  getEvents,
+  listGroups,
+  getGroupParticipants,
 } from '../controllers/wabroController';
 import { validate } from '../middleware/validate';
 import {
@@ -37,6 +47,8 @@ import {
   registerDeviceSchema,
   syncSendLogsSchema,
   syncCampaignProgressSchema,
+  sendMessageSchema,
+  sendMediaMessageSchema,
 } from '../schemas/wabroSchemas';
 
 const router = Router();
@@ -85,5 +97,25 @@ router.post(ROUTE_PATHS.wabro.broadcastListSend, sendToBroadcastList);
 
 // Areas
 router.get(ROUTE_PATHS.wabro.areas, listAreas);
+
+// Campaign Lifecycle (Android app expects GET for status, POST for lifecycle actions)
+router.get(ROUTE_PATHS.wabro.campaignStatus, getCampaignStatusEndpoint);
+router.post(ROUTE_PATHS.wabro.campaignStart, startCampaign);
+router.post(ROUTE_PATHS.wabro.campaignPause, pauseCampaign);
+router.post(ROUTE_PATHS.wabro.campaignStop, stopCampaign);
+
+// Message Sending (via connected WhatsApp session)
+router.post(ROUTE_PATHS.wabro.messagesSend, validate(sendMessageSchema), sendMessage);
+router.post(ROUTE_PATHS.wabro.messagesSendMedia, validate(sendMediaMessageSchema), sendMediaMessage);
+
+// Media Upload
+router.post(ROUTE_PATHS.wabro.mediaUpload, ...uploadMediaHandler);
+
+// Events (Inbound Message Polling)
+router.get(ROUTE_PATHS.wabro.events, getEvents);
+
+// Groups
+router.get(ROUTE_PATHS.wabro.groups, listGroups);
+router.get(ROUTE_PATHS.wabro.groupParticipants, getGroupParticipants);
 
 export default router;
