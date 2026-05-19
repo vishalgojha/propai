@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
@@ -160,6 +161,7 @@ const sanitizeInboxError = (message: string) => {
 };
 
 export const Inbox: React.FC = () => {
+  const navigate = useNavigate();
   const [data, setData] = React.useState<InboxResponse | null>(null);
   const [selectedSessionLabel, setSelectedSessionLabel] = React.useState<string | null>(() => {
     try {
@@ -232,6 +234,15 @@ export const Inbox: React.FC = () => {
     return source.filter((chat) => `${chat.title} ${chat.preview}`.toLowerCase().includes(normalized));
   }, [data?.chats, search]);
 
+  const threadsNeedingResponse = React.useMemo(
+    () => chats.filter((chat) => !String(chat.preview || '').trim().toLowerCase().startsWith('you:')),
+    [chats],
+  );
+  const recentThreads = React.useMemo(
+    () => chats.filter((chat) => !threadsNeedingResponse.some((pending) => pending.id === chat.id)),
+    [chats, threadsNeedingResponse],
+  );
+
   const selectedChat = chats.find((chat) => chat.id === selectedChatId) || chats[0] || null;
   const messages = React.useMemo(
     () => (data?.messages || []).filter((message) => message.chatId === selectedChat?.id),
@@ -242,6 +253,7 @@ export const Inbox: React.FC = () => {
     [messages],
   );
   const outboundMessages = messages.length - inboundMessages.length;
+  const latestMessage = messages[messages.length - 1] || null;
   const queueCards = [
     {
       label: 'Active threads',
@@ -261,18 +273,54 @@ export const Inbox: React.FC = () => {
   ];
   const selectedPhone = selectedChat ? normalizePhone(selectedChat.remoteJid.split('@')[0]) : null;
   const lastInboundAt = inboundMessages[inboundMessages.length - 1]?.timestamp || null;
+  const selectedSessionChip = selectedSessionLabel || 'workspace';
+  const workspaceViews = [
+    { label: 'All threads', value: chats.length, active: true },
+    { label: 'Needs reply', value: threadsNeedingResponse.length, active: false },
+    { label: 'Recent', value: recentThreads.length, active: false },
+  ];
+  const renderThreadButton = (chat: InboxChat) => (
+    <button
+      key={chat.id}
+      type="button"
+      onClick={() => setSelectedChatId(chat.id)}
+      className={cn(
+        'flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors',
+        selectedChat?.id === chat.id
+          ? 'border-[#4a99ff]/40 bg-[#182230]'
+          : 'border-[rgba(148,163,184,0.08)] bg-[rgba(15,23,36,0.56)] hover:border-[rgba(148,163,184,0.18)] hover:bg-[rgba(20,31,48,0.92)]',
+      )}
+    >
+      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgba(74,153,255,0.12)] text-[#7dd3fc]">
+        <MessageSquareTextIcon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <p className="truncate text-sm font-medium text-white">{chat.title}</p>
+          <span className="shrink-0 pt-0.5 text-[11px] text-slate-500">{formatTime(chat.lastMessageAt)}</span>
+        </div>
+        <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-400">{chat.preview || 'No message text'}</p>
+        <div className="mt-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
+          <span>{chat.messageCount} messages</span>
+          {!String(chat.preview || '').trim().toLowerCase().startsWith('you:') ? (
+            <span className="rounded-full bg-[rgba(74,153,255,0.16)] px-2 py-0.5 text-[#7dd3fc]">Needs reply</span>
+          ) : null}
+        </div>
+      </div>
+    </button>
+  );
 
   return (
-    <div className="h-[calc(100vh-10rem)] overflow-hidden rounded-[28px] border border-[color:var(--border)] bg-[linear-gradient(180deg,#0b1220_0%,#0f1724_100%)] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
-      <div className="grid h-full grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)_360px]">
+    <div className="h-[calc(100vh-10rem)] overflow-hidden rounded-[24px] border border-[color:var(--border)] bg-[linear-gradient(180deg,#0b1019_0%,#111827_100%)] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+      <div className="grid h-full grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)_320px]">
         <aside className="hidden h-full flex-col border-r border-[rgba(148,163,184,0.14)] bg-[rgba(15,23,36,0.88)] lg:flex">
           <div className="border-b border-[rgba(148,163,184,0.14)] px-4 py-4">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">Threads</p>
-                <p className="mt-1 text-lg font-semibold text-white">Conversation workspace</p>
+                <p className="mt-1 text-lg font-semibold text-white">Broker workspace</p>
                 <p className="mt-1 text-[12px] leading-5 text-slate-400">
-                  Work direct-message lanes as operational threads tied to the current WhatsApp session.
+                  Run direct-message lanes like a workspace queue, not a WhatsApp mirror.
                 </p>
               </div>
               <button
@@ -283,6 +331,23 @@ export const Inbox: React.FC = () => {
                 {isLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <RefreshIcon className="h-4 w-4" />}
                 Refresh
               </button>
+            </div>
+          </div>
+
+          <div className="border-b border-[rgba(148,163,184,0.14)] px-4 py-3">
+            <div className="rounded-2xl border border-[rgba(148,163,184,0.14)] bg-[rgba(11,18,32,0.86)] px-3 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Active lane</p>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-white">{selectedSessionChip}</p>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    {selectedSessionLabel ? 'Scoped to the selected number/session' : 'Using the current workspace default'}
+                  </p>
+                </div>
+                <span className="rounded-full bg-[rgba(74,153,255,0.16)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">
+                  Live
+                </span>
+              </div>
             </div>
           </div>
 
@@ -311,6 +376,26 @@ export const Inbox: React.FC = () => {
             </div>
           </div>
 
+          <div className="border-b border-[rgba(148,163,184,0.14)] px-3 py-3">
+            <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Views</p>
+            <div className="mt-2 space-y-1">
+              {workspaceViews.map((view) => (
+                <div
+                  key={view.label}
+                  className={cn(
+                    'flex items-center justify-between rounded-xl px-3 py-2 text-[12px]',
+                    view.active
+                      ? 'bg-[rgba(74,153,255,0.14)] text-white'
+                      : 'text-slate-400',
+                  )}
+                >
+                  <span>{view.label}</span>
+                  <span className="rounded-full bg-[rgba(255,255,255,0.06)] px-2 py-0.5 text-[10px]">{view.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {error ? (
             <div className={cn(
               'mx-3 mt-3 rounded-2xl px-3 py-3 text-xs leading-5',
@@ -323,34 +408,23 @@ export const Inbox: React.FC = () => {
           ) : null}
 
           <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-            {chats.map((chat) => (
-              <button
-                key={chat.id}
-                type="button"
-                onClick={() => setSelectedChatId(chat.id)}
-                className={cn(
-                  'mb-2 flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left transition-colors',
-                  selectedChat?.id === chat.id
-                    ? 'border-[#7dd3fc]/40 bg-[#112031]'
-                    : 'border-[rgba(148,163,184,0.08)] bg-[rgba(15,23,36,0.7)] hover:border-[rgba(148,163,184,0.18)] hover:bg-[rgba(20,31,48,0.92)]',
-                )}
-              >
-                <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgba(125,211,252,0.1)] text-[#7dd3fc]">
-                  <MessageSquareTextIcon className="h-5 w-5" />
+            {threadsNeedingResponse.length > 0 ? (
+              <div className="mb-4">
+                <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Needs reply</p>
+                <div className="space-y-2">
+                  {threadsNeedingResponse.map(renderThreadButton)}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="truncate text-sm font-medium text-white">{chat.title}</p>
-                    <span className="shrink-0 pt-0.5 text-[11px] text-slate-500">{formatTime(chat.lastMessageAt)}</span>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-400">{chat.preview || 'No message text'}</p>
-                  <div className="mt-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
-                    <span>{chat.messageCount} messages</span>
-                    {selectedChat?.id === chat.id ? <span className="text-[#7dd3fc]">Active</span> : null}
-                  </div>
+              </div>
+            ) : null}
+
+            {recentThreads.length > 0 ? (
+              <div>
+                <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Recent threads</p>
+                <div className="space-y-2">
+                  {recentThreads.map(renderThreadButton)}
                 </div>
-              </button>
-            ))}
+              </div>
+            ) : null}
 
             {!isLoading && chats.length === 0 ? (
               <div className="px-4 py-10 text-sm text-slate-500">
@@ -377,9 +451,28 @@ export const Inbox: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 text-slate-500">
-                  <MailIcon className="h-5 w-5" />
-                  <CallbackIcon className="h-5 w-5" />
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/agent')}
+                    className="rounded-full border border-[rgba(148,163,184,0.16)] bg-[rgba(15,23,36,0.88)] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
+                  >
+                    Open Agent
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/stream')}
+                    className="rounded-full border border-[rgba(148,163,184,0.16)] bg-[rgba(15,23,36,0.88)] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
+                  >
+                    Open Stream
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/wabro')}
+                    className="rounded-full border border-[rgba(148,163,184,0.16)] bg-[rgba(15,23,36,0.88)] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
+                  >
+                    Open WaBro
+                  </button>
                 </div>
               </div>
             ) : (
@@ -459,7 +552,7 @@ export const Inbox: React.FC = () => {
           <div className="border-b border-[rgba(148,163,184,0.14)] px-4 py-4">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Context</p>
-              <p className="mt-1 text-lg font-semibold text-white">Operator panel</p>
+              <p className="mt-1 text-lg font-semibold text-white">Workspace context</p>
               <p className="mt-1 text-[12px] leading-5 text-slate-400">
                 Keep identity, AI context, and next-step actions beside the active thread.
               </p>
@@ -483,25 +576,44 @@ export const Inbox: React.FC = () => {
             </div>
 
             <div className="rounded-2xl border border-[rgba(148,163,184,0.14)] bg-[rgba(15,23,36,0.9)] p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">AI context</p>
-              <p className="mt-2 text-sm font-medium text-white">What this lane is for</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Thread state</p>
+              <p className="mt-2 text-sm font-medium text-white">
+                {latestMessage?.direction === 'outbound' ? 'Waiting on contact' : 'Operator response likely needed'}
+              </p>
               <p className="mt-2 text-[12px] leading-6 text-slate-400">
-                Use Threads as the broker operations layer: read the direct-message lane, summarize context, decide the next action, and hand qualified brokers into WaBro or Stream flows.
+                This lane should help you decide the next operational step: reply, qualify, move to Stream, or push into WaBro outreach.
               </p>
               <div className="mt-3 space-y-2 text-[12px] text-slate-300">
-                <div className="rounded-xl bg-[rgba(148,163,184,0.06)] px-3 py-2">Summarize the conversation before acting.</div>
-                <div className="rounded-xl bg-[rgba(148,163,184,0.06)] px-3 py-2">Tag the contact as broker, buyer, seller, or follow-up target.</div>
-                <div className="rounded-xl bg-[rgba(148,163,184,0.06)] px-3 py-2">Convert useful messages into listings, requirements, or outreach lists.</div>
+                <div className="rounded-xl bg-[rgba(148,163,184,0.06)] px-3 py-2">Summarize this thread in Agent before responding.</div>
+                <div className="rounded-xl bg-[rgba(148,163,184,0.06)] px-3 py-2">Promote useful inventory or requirements into Stream.</div>
+                <div className="rounded-xl bg-[rgba(148,163,184,0.06)] px-3 py-2">Use WaBro only after the contact is qualified and categorized.</div>
               </div>
             </div>
 
             <div className="rounded-2xl border border-[rgba(148,163,184,0.14)] bg-[rgba(15,23,36,0.9)] p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Next actions</p>
-              <div className="mt-3 space-y-2 text-[12px] text-slate-300">
-                <div className="rounded-xl border border-[rgba(148,163,184,0.1)] px-3 py-2">Draft reply in AI Agent</div>
-                <div className="rounded-xl border border-[rgba(148,163,184,0.1)] px-3 py-2">Add broker to WaBro contact flow</div>
-                <div className="rounded-xl border border-[rgba(148,163,184,0.1)] px-3 py-2">Create listing or requirement from latest message</div>
-                <div className="rounded-xl border border-[rgba(148,163,184,0.1)] px-3 py-2">Schedule follow-up from this thread</div>
+              <div className="mt-3 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/agent')}
+                  className="w-full rounded-xl border border-[rgba(148,163,184,0.1)] px-3 py-2 text-left text-[12px] text-slate-300 hover:border-[#7dd3fc]"
+                >
+                  Draft reply in AI Agent
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/stream')}
+                  className="w-full rounded-xl border border-[rgba(148,163,184,0.1)] px-3 py-2 text-left text-[12px] text-slate-300 hover:border-[#7dd3fc]"
+                >
+                  Review related Stream items
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/wabro')}
+                  className="w-full rounded-xl border border-[rgba(148,163,184,0.1)] px-3 py-2 text-left text-[12px] text-slate-300 hover:border-[#7dd3fc]"
+                >
+                  Move qualified contact into WaBro
+                </button>
               </div>
               <p className="mt-3 text-[11px] text-slate-500">
                 Last inbound message {lastInboundAt ? formatTime(lastInboundAt) : 'not available'}.
