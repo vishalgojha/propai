@@ -8,6 +8,8 @@ type WorkflowResult =
     | { handled: false }
     | { handled: true; reply: string; data?: any };
 
+type ConfirmationIntent = 'save_listing' | 'save_requirement';
+
 export type GroupMentionListingMatch = {
     id: string;
     title: string;
@@ -294,6 +296,17 @@ export class BrokerWorkflowService {
             },
         };
 
+        if (!this.isDraftConfirmed(draft) && !this.isExplicitSaveIntent(prompt)) {
+            return {
+                handled: true,
+                reply: this.buildListingConfirmationReply(intake),
+                data: {
+                    type: 'listing_confirmation_required',
+                    confirmation_intent: 'save_listing',
+                },
+            };
+        }
+
         await this.saveListing(tenantId, intake);
         await this.saveLeadRecord(tenantId, intake);
 
@@ -320,13 +333,53 @@ export class BrokerWorkflowService {
             },
         };
 
+        if (!this.isDraftConfirmed(draft) && !this.isExplicitSaveIntent(prompt)) {
+            return {
+                handled: true,
+                reply: this.buildRequirementConfirmationReply(intake),
+                data: {
+                    type: 'requirement_confirmation_required',
+                    confirmation_intent: 'save_requirement',
+                },
+            };
+        }
+
         await this.saveLeadRecord(tenantId, intake);
+        const matches = await this.matchListingToRequirements(tenantId, intake.raw_text, 3);
+        const location = intake.requirement?.location_pref || 'the requested location';
+        const streamReply = matches.length
+            ? `\n\nStream matches right now:\n${this.renderRequirementMatches(matches)}`
+            : '\n\nI checked Stream and did not find a close live match yet.';
 
         return {
             handled: true,
-            reply: `Saved your requirement for ${intake.requirement?.location_pref || 'the requested location'}.`,
-            data: { type: 'requirement_saved', record_type: 'buyer_requirement' },
+            reply: `Saved your requirement for ${location}.${streamReply}`,
+            data: {
+                type: 'requirement_saved',
+                record_type: 'buyer_requirement',
+                stream_match_count: matches.length,
+                stream_matches: matches,
+            },
         };
+    }
+
+    isAffirmativeReply(text: string) {
+        return /^(y|yes|yeah|yep|confirm|confirmed|ok|okay|go ahead|do it|save it)$/i.test(String(text || '').trim());
+    }
+
+    isNegativeReply(text: string) {
+        return /^(n|no|nope|cancel|stop|not now|don't|do not)$/i.test(String(text || '').trim());
+    }
+
+    extractConfirmationIntent(text: string): ConfirmationIntent | null {
+        const normalized = String(text || '');
+        if (/I understood this as a buyer requirement:/i.test(normalized)) {
+            return 'save_requirement';
+        }
+        if (/I understood this as a listing:/i.test(normalized)) {
+            return 'save_listing';
+        }
+        return null;
     }
 
     async createChannelFromDraft(tenantId: string, draft: Record<string, unknown>, fallbackText: string): Promise<WorkflowResult> {
@@ -500,6 +553,60 @@ export class BrokerWorkflowService {
                 : 'I did not find any matching listings.',
             data: { type: 'listing_search', items: matches },
         };
+    }
+
+    private isDraftConfirmed(draft: Record<string, unknown>) {
+        return draft.confirmed === true || draft.confirmed === 'true';
+    }
+
+    private isExplicitSaveIntent(prompt: string) {
+        return /\b(save|add|store|record|log|create|post|put|submit|update crm|save this|add this)\b/i.test(prompt);
+    }
+
+    private buildRequirementConfirmationReply(intake: ParsedIntake) {
+        return `I understood this as a buyer requirement:\n${this.describePendingRequirement(intake)}\n\nShould I save it and check Stream for matches? Reply Y or N.`;
+    }
+
+    private buildListingConfirmationReply(intake: ParsedIntake) {
+        return `I understood this as a listing:\n${this.describePendingListing(intake)}\n\nShould I save it? Reply Y or N.`;
+    }
+
+    private describePendingRequirement(intake: ParsedIntake) {
+        const bits = [
+            this.extractBhk(intake.raw_text) || '',
+            /\b(rent|lease)\b/i.test(intake.raw_text) ? 'for rent' : /\b(sale|buy|outright|purchase)\b/i.test(intake.raw_text) ? 'for sale' : '',
+            intake.requirement?.location_pref || '',
+            intake.requirement?.budget ? `budget ${intake.requirement.budget}` : '',
+            intake.requirement?.timeline ? `timeline ${intake.requirement.timeline}` : '',
+        ].filter(Boolean);
+
+        return bits.length ? `• ${bits.join(' | ')}` : `• ${intake.raw_text}`;
+    }
+
+    private describePendingListing(intake: ParsedIntake) {
+        const bits = [
+            intake.listing?.bhk || '',
+            intake.listing?.location || '',
+            intake.listing?.price ? `price ${intake.listing.price}` : '',
+            intake.listing?.carpet_area ? `area ${intake.listing.carpet_area}` : '',
+            intake.listing?.furnishing ? intake.listing.furnishing : '',
+        ].filter(Boolean);
+
+        return bits.length ? `• ${bits.join(' | ')}` : `• ${intake.raw_text}`;
+    }
+
+    private renderRequirementMatches(matches: GroupMentionListingMatch[]) {
+        return matches
+            .map((match, index) => {
+                const detailBits = [
+                    match.location,
+                    match.bhk || '',
+                    match.priceLabel || '',
+                    match.areaSqft ? `${Math.round(match.areaSqft)} sqft` : '',
+                ].filter(Boolean);
+                return `${index + 1}. ${detailBits.join(' | ')}`;
+            })
+            .join('\n');
     }
 
     private async semanticSearchListings(tenantId: string, prompt: string): Promise<WorkflowResult> {

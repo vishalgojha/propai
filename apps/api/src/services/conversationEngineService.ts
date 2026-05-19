@@ -1,5 +1,6 @@
 import { aiService } from './aiService';
 import { agentRouterService } from './agentRouterService';
+import { brokerWorkflowService } from './brokerWorkflowService';
 import { PULSE_CHAT_SYSTEM_PROMPT } from './pulseChatPrompt';
 import {
     buildCapabilityHint,
@@ -161,6 +162,11 @@ export class ConversationEngineService {
             }
         }
 
+        const confirmedWorkflowResult = await this.tryHandlePendingWorkflowConfirmation(input, history, rawPrompt);
+        if (confirmedWorkflowResult) {
+            return confirmedWorkflowResult;
+        }
+
         const routePrompt = shouldUseAttachmentContextForRouting(rawPrompt, hasWebAttachments) ? prompt : rawPrompt;
         const route = await agentRouterService.route(event.tenantId, routePrompt, history);
         const capabilityHint = buildCapabilityHint(route.intent);
@@ -233,6 +239,76 @@ export class ConversationEngineService {
             agentResponse,
             route,
             capabilityHint,
+        };
+    }
+
+    private async tryHandlePendingWorkflowConfirmation(
+        input: ConversationEngineInput,
+        history: Awaited<ReturnType<typeof getConversationHistory>>,
+        rawPrompt: string,
+    ): Promise<ConversationEngineResult | null> {
+        if (!brokerWorkflowService.isAffirmativeReply(rawPrompt) && !brokerWorkflowService.isNegativeReply(rawPrompt)) {
+            return null;
+        }
+
+        const lastAssistant = [...history].reverse().find((entry) => entry.role === 'assistant');
+        const confirmationIntent = brokerWorkflowService.extractConfirmationIntent(lastAssistant?.content || '');
+        if (!lastAssistant || !confirmationIntent) {
+            return null;
+        }
+
+        const assistantIndex = history.lastIndexOf(lastAssistant);
+        const priorUser = assistantIndex > 0 ? history.slice(0, assistantIndex).reverse().find((entry) => entry.role === 'user') : null;
+        if (!priorUser?.content?.trim()) {
+            return null;
+        }
+
+        if (brokerWorkflowService.isNegativeReply(rawPrompt)) {
+            const reply = 'Okay. I did not save it. Send the corrected brief whenever you want me to retry.';
+            const agentResponse = toAgentResponse(reply);
+            await saveToHistory(input.event.conversation.key, rawPrompt, reply, input.sessionId);
+            return {
+                reply,
+                text: reply,
+                agentResponse,
+                route: {
+                    intent: confirmationIntent,
+                    confidence: 1,
+                    rationale: 'Broker declined the pending confirmation.',
+                    args: {},
+                },
+                capabilityHint: '',
+                workflowData: {
+                    type: `${confirmationIntent}_cancelled`,
+                },
+            };
+        }
+
+        const route = {
+            intent: confirmationIntent,
+            confidence: 1,
+            rationale: 'Broker confirmed the previously inferred workflow.',
+            args: { confirmed: true },
+        } as Awaited<ReturnType<typeof agentRouterService.route>>;
+        const sharedRouteResult = await executeSharedRoute(input.event.tenantId, route, priorUser.content);
+        if (!sharedRouteResult.handled) {
+            return null;
+        }
+
+        const renderedReply = renderChannelReply(input.event.channel, sharedRouteResult.agentResponse);
+        const personalizedReply = input.event.channel === 'whatsapp'
+            ? maybePersonalizeWhatsAppGreeting(renderedReply, input.greetingName, input.shouldGreetByName)
+            : renderedReply;
+        await saveToHistory(input.event.conversation.key, rawPrompt, personalizedReply, input.sessionId);
+
+        return {
+            reply: personalizedReply,
+            text: personalizedReply,
+            agentResponse: sharedRouteResult.agentResponse,
+            route,
+            capabilityHint: '',
+            workflowData: sharedRouteResult.workflowData,
+            data: sharedRouteResult.data,
         };
     }
 }

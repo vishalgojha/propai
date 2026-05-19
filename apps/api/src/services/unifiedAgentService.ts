@@ -82,7 +82,7 @@ export async function executeSharedRoute(
             reply: agentResponse.message,
             agentResponse,
             workflowData: workflow.data,
-            capabilityHint: buildCapabilityHint(route.intent),
+            capabilityHint: shouldSuppressWorkflowCapabilityHint(workflow.data) ? '' : buildCapabilityHint(route.intent),
         };
     }
 
@@ -204,6 +204,16 @@ export function buildCapabilityHint(intent: string) {
 
 function isOwnerSuperAdminEmail(email?: string | null) {
     return OWNER_SUPER_ADMIN_EMAILS.has(String(email || '').trim().toLowerCase());
+}
+
+function shouldSuppressWorkflowCapabilityHint(data?: Record<string, unknown>) {
+    const workflowType = String(data?.type || '').trim();
+    return [
+        'listing_saved',
+        'requirement_saved',
+        'listing_confirmation_required',
+        'requirement_confirmation_required',
+    ].includes(workflowType);
 }
 
 async function executeRoutedToolIntent(route: AgentRoutePlan, prompt: string): Promise<SharedRouteExecutionResult> {
