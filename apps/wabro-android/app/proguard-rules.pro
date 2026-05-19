@@ -14,6 +14,7 @@
 # Gson
 -keepattributes Signature
 -keepattributes *Annotation*
+-keep class com.chaoscraft.wablaster.util.** { *; }
 -keep class com.chaoscraft.wablaster.engine.SkillsConfig { *; }
 -keep class com.chaoscraft.wablaster.db.entities.** { *; }
 

@@ -57,11 +57,6 @@ fun MainNavigation(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    val brokerViewModel: BrokerViewModel = hiltViewModel()
-    val listingViewModel: ListingViewModel = hiltViewModel()
-    val campaignViewModel: CampaignViewModel = hiltViewModel()
-    val responseDashboardViewModel: ResponseDashboardViewModel = hiltViewModel()
-
     val showBottomBar = NavTab.tabs.any { tab ->
         currentDestination?.hierarchy?.any { it.route == tab.route } == true
     }
@@ -140,6 +135,7 @@ fun MainNavigation(
             }
 
             composable(NavTab.Brokers.route) {
+                val brokerViewModel: BrokerViewModel = hiltViewModel()
                 BrokerListScreen(
                     viewModel = brokerViewModel,
                     onBrokerClick = { brokerId ->
@@ -155,6 +151,7 @@ fun MainNavigation(
                 route = "broker/{brokerId}",
                 arguments = listOf(navArgument("brokerId") { type = NavType.LongType })
             ) { backStackEntry ->
+                val brokerViewModel: BrokerViewModel = hiltViewModel()
                 val brokerId = backStackEntry.arguments?.getLong("brokerId") ?: 0L
                 BrokerDetailScreen(
                     brokerId = brokerId,
@@ -170,6 +167,7 @@ fun MainNavigation(
                 route = "broker/edit/{brokerId}",
                 arguments = listOf(navArgument("brokerId") { type = NavType.LongType })
             ) { backStackEntry ->
+                val brokerViewModel: BrokerViewModel = hiltViewModel()
                 val brokerId = backStackEntry.arguments?.getLong("brokerId") ?: 0L
                 BrokerEditScreen(
                     brokerId = if (brokerId > 0) brokerId else null,
@@ -179,10 +177,12 @@ fun MainNavigation(
             }
 
             composable(NavTab.Listings.route) {
+                val listingViewModel: ListingViewModel = hiltViewModel()
                 ListingManagerScreen(viewModel = listingViewModel)
             }
 
             composable(NavTab.Campaigns.route) {
+                val campaignViewModel: CampaignViewModel = hiltViewModel()
                 CampaignOverviewScreen(
                     viewModel = campaignViewModel,
                     campaignManager = campaignManager,
@@ -197,6 +197,7 @@ fun MainNavigation(
             }
 
             composable("campaigns/new") {
+                val campaignViewModel: CampaignViewModel = hiltViewModel()
                 CampaignScreen(
                     viewModel = campaignViewModel,
                     onBack = { navController.popBackStack() }
@@ -207,6 +208,7 @@ fun MainNavigation(
                 route = "campaign/dashboard/{campaignId}",
                 arguments = listOf(navArgument("campaignId") { type = NavType.LongType })
             ) { backStackEntry ->
+                val campaignViewModel: CampaignViewModel = hiltViewModel()
                 val campaignId = backStackEntry.arguments?.getLong("campaignId") ?: 0L
                 campaignViewModel.selectDashboardCampaign(campaignId)
                 CampaignDashboardScreen(
@@ -216,6 +218,7 @@ fun MainNavigation(
             }
 
             composable(NavTab.Dashboard.route) {
+                val campaignViewModel: CampaignViewModel = hiltViewModel()
                 DashboardScreen(viewModel = campaignViewModel)
             }
 
@@ -223,6 +226,7 @@ fun MainNavigation(
                 route = "responses/{campaignId}",
                 arguments = listOf(navArgument("campaignId") { type = NavType.LongType })
             ) { backStackEntry ->
+                val responseDashboardViewModel: ResponseDashboardViewModel = hiltViewModel()
                 val campaignId = backStackEntry.arguments?.getLong("campaignId") ?: 0L
                 responseDashboardViewModel.selectCampaign(campaignId)
                 ResponseDashboardScreen(
@@ -238,6 +242,7 @@ fun MainNavigation(
                 route = "lead/{leadId}",
                 arguments = listOf(navArgument("leadId") { type = NavType.LongType })
             ) { backStackEntry ->
+                val responseDashboardViewModel: ResponseDashboardViewModel = hiltViewModel()
                 val leadId = backStackEntry.arguments?.getLong("leadId") ?: 0L
                 LeadDetailScreen(
                     leadId = leadId,

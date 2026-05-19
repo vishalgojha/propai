@@ -1,6 +1,7 @@
 package com.chaoscraft.wablaster.util
 
 import android.content.SharedPreferences
+import androidx.annotation.Keep
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
@@ -12,6 +13,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@Keep
 data class AuthSession(
     val email: String,
     val token: String,
@@ -19,6 +21,7 @@ data class AuthSession(
     val expiresAt: Long?
 )
 
+@Keep
 data class AuthRequest(
     val mode: String,
     val email: String,
@@ -27,13 +30,15 @@ data class AuthRequest(
     val phone: String? = null
 )
 
+@Keep
 data class AuthResponse(
-    val session: AuthSessionDto?,
-    val user: AuthUserDto?,
-    val error: String?,
-    val message: String?
+    @SerializedName("session") val session: AuthSessionDto?,
+    @SerializedName("user") val user: AuthUserDto?,
+    @SerializedName("error") val error: String?,
+    @SerializedName("message") val message: String?
 )
 
+@Keep
 data class AuthSessionDto(
     @SerializedName("access_token") val accessToken: String?,
     @SerializedName("refresh_token") val refreshToken: String?,
@@ -41,9 +46,10 @@ data class AuthSessionDto(
     @SerializedName("expires_at") val expiresAt: Long?
 )
 
+@Keep
 data class AuthUserDto(
-    val id: String?,
-    val email: String?
+    @SerializedName("id") val id: String?,
+    @SerializedName("email") val email: String?
 )
 
 @Singleton
