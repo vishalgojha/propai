@@ -40,6 +40,16 @@ type InboxResponse = {
   messages: InboxMessage[];
 };
 
+type InboxMessagesResponse = {
+  chatId: string;
+  messages: InboxMessage[];
+  pagination?: {
+    limit: number;
+    hasMore: boolean;
+    nextBefore: string | null;
+  };
+};
+
 type RawMessageRow = {
   id?: string;
   remote_jid?: string;
@@ -163,6 +173,7 @@ const sanitizeInboxError = (message: string) => {
 export const Inbox: React.FC = () => {
   const navigate = useNavigate();
   const [data, setData] = React.useState<InboxResponse | null>(null);
+  const [threadMessages, setThreadMessages] = React.useState<Record<string, InboxMessage[]>>({});
   const [selectedSessionLabel, setSelectedSessionLabel] = React.useState<string | null>(() => {
     try {
       return window.localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
@@ -173,6 +184,7 @@ export const Inbox: React.FC = () => {
   const [selectedChatId, setSelectedChatId] = React.useState('');
   const [search, setSearch] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const loadInbox = React.useCallback(async () => {
@@ -185,6 +197,7 @@ export const Inbox: React.FC = () => {
       });
       const payload = unwrapInboxPayload(response.data);
       setData(payload);
+      setThreadMessages({});
       setSelectedChatId((current) => current || payload.chats?.[0]?.id || '');
       return;
     } catch (err: any) {
@@ -194,6 +207,13 @@ export const Inbox: React.FC = () => {
         const fallback = await backendApi.get(ENDPOINTS.whatsapp.messages);
         const payload = fallbackInboxFromMessages(Array.isArray(fallback.data) ? fallback.data : []);
         setData(payload);
+        setThreadMessages(
+          payload.messages.reduce<Record<string, InboxMessage[]>>((acc, message) => {
+            acc[message.chatId] = acc[message.chatId] || [];
+            acc[message.chatId].push(message);
+            return acc;
+          }, {}),
+        );
         setSelectedChatId((current) => current || payload.chats?.[0]?.id || '');
         setError(
           err?.response?.status === 404
@@ -244,10 +264,17 @@ export const Inbox: React.FC = () => {
   );
 
   const selectedChat = chats.find((chat) => chat.id === selectedChatId) || chats[0] || null;
-  const messages = React.useMemo(
-    () => (data?.messages || []).filter((message) => message.chatId === selectedChat?.id),
-    [data?.messages, selectedChat?.id],
-  );
+  const messages = React.useMemo(() => {
+    if (!selectedChat?.id) {
+      return [];
+    }
+
+    if (threadMessages[selectedChat.id]) {
+      return threadMessages[selectedChat.id];
+    }
+
+    return (data?.messages || []).filter((message) => message.chatId === selectedChat.id);
+  }, [data?.messages, selectedChat?.id, threadMessages]);
   const inboundMessages = React.useMemo(
     () => messages.filter((message) => message.direction === 'inbound'),
     [messages],
@@ -298,10 +325,62 @@ export const Inbox: React.FC = () => {
     </button>
   );
 
+  React.useEffect(() => {
+    if (!selectedChat?.id) {
+      return;
+    }
+
+    if (threadMessages[selectedChat.id]) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadThreadMessages = async () => {
+      setIsLoadingMessages(true);
+      try {
+        const response = await backendApi.get<InboxMessagesResponse>(ENDPOINTS.whatsapp.monitorMessages, {
+          params: {
+            chatId: selectedChat.id,
+            sessionLabel: selectedSessionLabel || undefined,
+            limit: 100,
+          },
+        });
+
+        if (!cancelled) {
+          const nextMessages = Array.isArray(response.data?.messages) ? response.data.messages : [];
+          setThreadMessages((current) => ({
+            ...current,
+            [selectedChat.id]: nextMessages,
+          }));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const fallbackMessages = (data?.messages || []).filter((message) => message.chatId === selectedChat.id);
+          setThreadMessages((current) => ({
+            ...current,
+            [selectedChat.id]: fallbackMessages,
+          }));
+          setError((current) => current || handleApiError(err));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingMessages(false);
+        }
+      }
+    };
+
+    void loadThreadMessages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data?.messages, selectedChat?.id, selectedSessionLabel, threadMessages]);
+
   return (
     <div className="h-[calc(100vh-10rem)] overflow-hidden rounded-[20px] border border-[rgba(148,163,184,0.14)] bg-[#0b0f17] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
-      <div className="grid h-full grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_280px]">
-        <aside className="hidden h-full flex-col border-r border-[rgba(148,163,184,0.12)] bg-[#111723] lg:flex">
+      <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_280px]">
+        <aside className="hidden h-full min-h-0 flex-col border-r border-[rgba(148,163,184,0.12)] bg-[#111723] lg:flex">
           <div className="border-b border-[rgba(148,163,184,0.12)] px-4 py-4">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -411,7 +490,7 @@ export const Inbox: React.FC = () => {
           </div>
         </aside>
 
-        <section className="flex h-full min-w-0 flex-col bg-[#0b0f17]">
+        <section className="flex h-full min-h-0 min-w-0 flex-col bg-[#0b0f17]">
           <div className="border-b border-[rgba(148,163,184,0.12)] px-5 py-4">
             {selectedChat ? (
               <div className="flex items-start justify-between gap-4">
@@ -489,6 +568,11 @@ export const Inbox: React.FC = () => {
           <div className="min-h-0 flex-1 overflow-y-auto bg-[#0f141d] px-6 py-6">
             {selectedChat ? (
               <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+                {isLoadingMessages && messages.length === 0 ? (
+                  <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] px-4 py-3 text-sm text-slate-400">
+                    Loading thread history...
+                  </div>
+                ) : null}
                 {messages.map((message) => (
                   <div
                     key={message.id}
@@ -525,7 +609,7 @@ export const Inbox: React.FC = () => {
           </div>
         </section>
 
-        <aside className="hidden h-full flex-col border-l border-[rgba(148,163,184,0.12)] bg-[#111723] xl:flex">
+        <aside className="hidden h-full min-h-0 flex-col border-l border-[rgba(148,163,184,0.12)] bg-[#111723] xl:flex">
           <div className="border-b border-[rgba(148,163,184,0.12)] px-4 py-4">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Details</p>
