@@ -1,5 +1,6 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { liveMonitorService } from './liveMonitorService';
+import { inboxGovernanceService } from './inboxGovernanceService';
 import { whatsappPresenceService } from './whatsappPresenceService';
 
 const db = supabaseAdmin || supabase;
@@ -315,8 +316,9 @@ export class WorkspaceMonitorService {
         const chats = Array.from(chatsMap.values()).sort((left, right) => {
             return new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime();
         });
+        const decoratedChats = await inboxGovernanceService.decorateThreads(workspaceOwnerId, chats, sessionLabel);
 
-        return this.buildSummaryPayload(chats, context.sessions, totalMessages);
+        return this.buildSummaryPayload(decoratedChats, context.sessions, totalMessages);
     }
 
     async getChatMessages(workspaceOwnerId: string, options: ThreadPageOptions) {

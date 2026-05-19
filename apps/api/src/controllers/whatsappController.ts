@@ -13,6 +13,7 @@ import { sessionEventService } from '../services/sessionEventService';
 import { emailNotificationService } from '../services/emailNotificationService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { whatsappPresenceService } from '../services/whatsappPresenceService';
+import { inboxGovernanceService } from '../services/inboxGovernanceService';
 import '../types/express';
 
 type LiveSessionRecord = {
@@ -555,6 +556,60 @@ export const getInbox = async (req: Request, res: Response) => {
         });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load realtor inbox') });
+    }
+};
+
+export const getInboxGovernance = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
+        const governance = await inboxGovernanceService.getWorkspaceGovernanceSummary(context.workspaceOwnerId, sessionLabel);
+
+        res.json({
+            success: true,
+            workspace: {
+                ownerId: context.workspaceOwnerId,
+                memberRole: context.memberRole,
+                canManageTeam: context.canManageTeam,
+                canSendOutbound: context.canSendOutbound,
+            },
+            governance,
+        });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load inbox governance') });
+    }
+};
+
+export const saveInboxGovernance = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const sessionLabel = typeof req.body?.sessionLabel === 'string' ? req.body.sessionLabel : null;
+        const chatId = typeof req.body?.chatId === 'string' ? req.body.chatId.trim() : '';
+        const state = req.body?.state;
+        const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : null;
+
+        if (!chatId) {
+            return res.status(400).json({ error: 'chatId is required' });
+        }
+
+        if (state !== 'allowed' && state !== 'held' && state !== 'ignored') {
+            return res.status(400).json({ error: 'state must be allowed, held, or ignored' });
+        }
+
+        const override = await inboxGovernanceService.setThreadState({
+            workspaceOwnerId: context.workspaceOwnerId,
+            chatId,
+            state,
+            sessionLabel,
+            reason,
+        });
+
+        res.json({
+            success: true,
+            override,
+        });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to update inbox governance') });
     }
 };
 

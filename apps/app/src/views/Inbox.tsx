@@ -22,6 +22,12 @@ type InboxChat = {
   lastMessageAt: string;
   messageCount: number;
   type?: 'direct' | 'group';
+  governance?: {
+    state: ThreadGovernanceState;
+    reason: string;
+    confidence: 'high' | 'medium';
+    override: boolean;
+  };
 };
 
 type InboxMessage = {
@@ -62,7 +68,7 @@ type RawMessageRow = {
   created_at?: string | null;
 };
 
-type ThreadGovernanceState = 'allowed' | 'held' | 'blocked';
+type ThreadGovernanceState = 'allowed' | 'held' | 'ignored';
 
 type ThreadSignal = {
   suggestedState: ThreadGovernanceState;
@@ -71,7 +77,6 @@ type ThreadSignal = {
 };
 
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
-const THREAD_GOVERNANCE_STORAGE_KEY = 'propai.inbox.governance.v1';
 const REAL_ESTATE_KEYWORDS = [
   'buyer',
   'seller',
@@ -149,38 +154,6 @@ const buildWaLink = (phone: string, title: string) => {
 };
 
 const buildCallLink = (phone: string) => `tel:+${phone}`;
-
-const getThreadStorageKey = (sessionLabel?: string | null) => `${THREAD_GOVERNANCE_STORAGE_KEY}:${sessionLabel || 'workspace'}`;
-
-const readGovernanceState = (sessionLabel?: string | null): Record<string, ThreadGovernanceState> => {
-  if (typeof window === 'undefined') {
-    return {};
-  }
-
-  try {
-    const raw = window.localStorage.getItem(getThreadStorageKey(sessionLabel));
-    if (!raw) {
-      return {};
-    }
-
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, ThreadGovernanceState> : {};
-  } catch {
-    return {};
-  }
-};
-
-const persistGovernanceState = (sessionLabel: string | null | undefined, value: Record<string, ThreadGovernanceState>) => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(getThreadStorageKey(sessionLabel), JSON.stringify(value));
-  } catch {
-    // Ignore storage failures and keep the current session usable.
-  }
-};
 
 const isEmojiHeavy = (value?: string | null) => {
   const text = String(value || '').trim();
@@ -321,7 +294,7 @@ const sanitizeInboxError = (message: string) => {
     normalized.includes('created_at does not exist') ||
     normalized.includes('message_text does not exist')
   ) {
-    return 'this workspace is still on an older database shape, so Threads is falling back to the direct-message log without the richer thread metadata';
+    return 'this workspace is still on an older database shape, so Inbox is falling back to the direct-message log without the richer thread metadata';
   }
 
   return message;
@@ -342,17 +315,9 @@ export const Inbox: React.FC = () => {
   const [search, setSearch] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
+  const [isSavingGovernance, setIsSavingGovernance] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [listMode, setListMode] = React.useState<ThreadGovernanceState>('allowed');
-  const [threadGovernance, setThreadGovernance] = React.useState<Record<string, ThreadGovernanceState>>(() => readGovernanceState(null));
-
-  React.useEffect(() => {
-    setThreadGovernance(readGovernanceState(selectedSessionLabel));
-  }, [selectedSessionLabel]);
-
-  React.useEffect(() => {
-    persistGovernanceState(selectedSessionLabel, threadGovernance);
-  }, [selectedSessionLabel, threadGovernance]);
 
   const loadInbox = React.useCallback(async () => {
     setIsLoading(true);
@@ -385,8 +350,8 @@ export const Inbox: React.FC = () => {
         setSelectedChatId((current) => current || payload.chats?.[0]?.id || '');
         setError(
           err?.response?.status === 404
-            ? 'Threads endpoint is not live on this API build yet, so this view is using the saved direct-message log for now.'
-            : `Threads history is unavailable right now, so this view is using the saved direct-message log instead. (${sanitizeInboxError(primaryError)})`,
+            ? 'Inbox endpoint is not live on this API build yet, so this view is using the saved direct-message log for now.'
+            : `Inbox history is unavailable right now, so this view is using the saved direct-message log instead. (${sanitizeInboxError(primaryError)})`,
         );
       } catch (fallbackErr) {
         setError(handleApiError(fallbackErr));
@@ -422,15 +387,21 @@ export const Inbox: React.FC = () => {
 
   const threadSignals = React.useMemo(
     () => chats.reduce<Record<string, ThreadSignal>>((acc, chat) => {
-      acc[chat.id] = inferThreadSignal(chat);
+      acc[chat.id] = chat.governance
+        ? {
+            suggestedState: chat.governance.state,
+            reason: chat.governance.reason,
+            confidence: chat.governance.confidence,
+          }
+        : inferThreadSignal(chat);
       return acc;
     }, {}),
     [chats],
   );
 
   const effectiveThreadState = React.useCallback((chat: InboxChat) => {
-    return threadGovernance[chat.id] || threadSignals[chat.id]?.suggestedState || 'allowed';
-  }, [threadGovernance, threadSignals]);
+    return chat.governance?.state || threadSignals[chat.id]?.suggestedState || 'allowed';
+  }, [threadSignals]);
 
   const visibleChats = React.useMemo(
     () => chats.filter((chat) => effectiveThreadState(chat) === listMode),
@@ -444,7 +415,7 @@ export const Inbox: React.FC = () => {
         acc[state] += 1;
         return acc;
       },
-      { allowed: 0, held: 0, blocked: 0 } as Record<ThreadGovernanceState, number>,
+      { allowed: 0, held: 0, ignored: 0 } as Record<ThreadGovernanceState, number>,
     ),
     [chats, effectiveThreadState],
   );
@@ -478,12 +449,57 @@ export const Inbox: React.FC = () => {
     return (data?.messages || []).filter((message) => message.chatId === selectedChat.id);
   }, [data?.messages, selectedChat?.id, threadMessages]);
 
-  const setChatGovernance = React.useCallback((chatId: string, state: ThreadGovernanceState) => {
-    setThreadGovernance((current) => ({
-      ...current,
-      [chatId]: state,
-    }));
-  }, []);
+  const setChatGovernance = React.useCallback(async (chatId: string, state: ThreadGovernanceState) => {
+    if (isSavingGovernance) {
+      return;
+    }
+
+    const reason =
+      state === 'allowed'
+        ? 'Broker kept this thread in the inbox.'
+        : state === 'held'
+          ? 'Broker held this thread outside the inbox.'
+          : 'Broker ignored this thread from the inbox.';
+
+    const previousData = data;
+    setIsSavingGovernance(true);
+    setData((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        chats: current.chats.map((chat) => (
+          chat.id === chatId
+            ? {
+                ...chat,
+                governance: {
+                  state,
+                  reason,
+                  confidence: chat.governance?.confidence || 'high',
+                  override: true,
+                },
+              }
+            : chat
+        )),
+      };
+    });
+
+    try {
+      await backendApi.post(ENDPOINTS.whatsapp.inboxGovernance, {
+        chatId,
+        state,
+        reason,
+        sessionLabel: selectedSessionLabel || undefined,
+      });
+    } catch (err) {
+      setData(previousData);
+      setError(handleApiError(err));
+    } finally {
+      setIsSavingGovernance(false);
+    }
+  }, [data, isSavingGovernance, selectedSessionLabel]);
 
   const renderThreadButton = (chat: InboxChat) => {
     const state = effectiveThreadState(chat);
@@ -493,31 +509,31 @@ export const Inbox: React.FC = () => {
         type="button"
         onClick={() => setSelectedChatId(chat.id)}
         className={cn(
-          'flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors',
+          'flex w-full items-start gap-2.5 rounded-xl border px-2.5 py-2.5 text-left transition-colors',
           selectedChat?.id === chat.id
             ? 'border-[#4a99ff]/40 bg-[#182230]'
             : 'border-[rgba(148,163,184,0.08)] bg-[rgba(15,23,36,0.56)] hover:border-[rgba(148,163,184,0.18)] hover:bg-[rgba(20,31,48,0.92)]',
         )}
       >
-        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgba(74,153,255,0.12)] text-[#7dd3fc]">
-          <MessageSquareTextIcon className="h-4 w-4" />
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[rgba(74,153,255,0.12)] text-[#7dd3fc]">
+          <MessageSquareTextIcon className="h-3.5 w-3.5" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <p className="truncate text-sm font-medium text-white">{chat.title}</p>
-            <span className="shrink-0 pt-0.5 text-[11px] text-slate-500">{formatTime(chat.lastMessageAt)}</span>
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-[13px] font-medium text-white">{chat.title}</p>
+            <span className="shrink-0 text-[10px] text-slate-500">{formatTime(chat.lastMessageAt)}</span>
           </div>
-          <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-400">{chat.preview || 'No message text'}</p>
-          <div className="mt-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
+          <p className="mt-0.5 truncate text-[12px] leading-5 text-slate-400">{chat.preview || 'No message text'}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[9px] uppercase tracking-[0.12em] text-slate-500">
             <span>{chat.messageCount} msgs</span>
             {state === 'held' ? (
-              <span className="rounded-full bg-amber-500/12 px-2 py-0.5 text-amber-200">AI held</span>
+              <span className="rounded-full bg-amber-500/12 px-1.5 py-0.5 text-amber-200">AI held</span>
             ) : null}
-            {state === 'blocked' ? (
-              <span className="rounded-full bg-rose-500/12 px-2 py-0.5 text-rose-200">Ignored</span>
+            {state === 'ignored' ? (
+              <span className="rounded-full bg-rose-500/12 px-1.5 py-0.5 text-rose-200">Ignored</span>
             ) : null}
             {!String(chat.preview || '').trim().toLowerCase().startsWith('you:') ? (
-              <span className="rounded-full bg-[rgba(74,153,255,0.16)] px-2 py-0.5 text-[#7dd3fc]">Needs reply</span>
+              <span className="rounded-full bg-[rgba(74,153,255,0.16)] px-1.5 py-0.5 text-[#7dd3fc]">Needs reply</span>
             ) : null}
           </div>
         </div>
@@ -584,7 +600,7 @@ export const Inbox: React.FC = () => {
           <div className="border-b border-[rgba(148,163,184,0.12)] px-4 py-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">Threads</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">Inbox</p>
                 <p className="mt-1 text-lg font-semibold text-white">{selectedSessionChip}</p>
               </div>
               <button
@@ -617,7 +633,7 @@ export const Inbox: React.FC = () => {
               {[
                 { key: 'allowed', label: 'Inbox', count: chatCounts.allowed },
                 { key: 'held', label: 'Held by AI', count: chatCounts.held },
-                { key: 'blocked', label: 'Ignored', count: chatCounts.blocked },
+                { key: 'ignored', label: 'Ignored', count: chatCounts.ignored },
               ].map((item) => (
                 <button
                   key={item.key}
@@ -700,7 +716,7 @@ export const Inbox: React.FC = () => {
                   ) : null}
                   <button
                     type="button"
-                    onClick={() => setChatGovernance(selectedChat.id, 'allowed')}
+                    onClick={() => void setChatGovernance(selectedChat.id, 'allowed')}
                     className="inline-flex items-center gap-2 rounded-lg border border-[rgba(74,153,255,0.25)] bg-[rgba(74,153,255,0.12)] px-3 py-1.5 text-[11px] font-medium text-[#c7e7ff] hover:border-[#7dd3fc]"
                   >
                     <SparklesIcon className="h-3.5 w-3.5" />
@@ -708,14 +724,14 @@ export const Inbox: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setChatGovernance(selectedChat.id, 'held')}
+                    onClick={() => void setChatGovernance(selectedChat.id, 'held')}
                     className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[11px] font-medium text-amber-100 hover:border-amber-400/40"
                   >
                     Hold outside inbox
                   </button>
                   <button
                     type="button"
-                    onClick={() => setChatGovernance(selectedChat.id, 'blocked')}
+                    onClick={() => void setChatGovernance(selectedChat.id, 'ignored')}
                     className="inline-flex items-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-1.5 text-[11px] font-medium text-rose-100 hover:border-rose-400/40"
                   >
                     <XIcon className="h-3.5 w-3.5" />
