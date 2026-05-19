@@ -123,6 +123,15 @@ const titleCase = (value: string) => {
     }).join(' ');
 };
 
+function isMissingIngestionStatusError(message?: string | null) {
+    const normalized = String(message || '').toLowerCase();
+    return normalized.includes('ingestion_status') && (
+        normalized.includes('does not exist') ||
+        normalized.includes('schema cache') ||
+        normalized.includes('column')
+    );
+}
+
 const escapeRegExp = (value: string) => {
     // Since we're removing regex usage, this function is no longer needed for regex
     // But keeping it for compatibility - just return the value as-is
@@ -1137,6 +1146,77 @@ type StreamCorrectionInput = {
 export class ChannelService {
     private readonly db = supabaseAdmin ?? supabase;
 
+    private async readAcceptedStreamItems(readClient: any, tenantIds: string[], options?: {
+        streamIds?: string[];
+        limit?: number;
+        orderByCreatedAt?: boolean;
+    }) {
+        const buildQuery = (acceptedOnly: boolean) => {
+            let query = readClient
+                .from('stream_items')
+                .select('*')
+                .in('tenant_id', tenantIds);
+
+            if (acceptedOnly) {
+                query = query.eq('ingestion_status', 'accepted');
+            }
+
+            if (options?.streamIds?.length) {
+                query = query.in('id', options.streamIds);
+            }
+
+            if (options?.orderByCreatedAt) {
+                query = query.order('created_at', { ascending: false });
+            }
+
+            if (typeof options?.limit === 'number') {
+                query = query.limit(options.limit);
+            }
+
+            return query;
+        };
+
+        let result = await buildQuery(true);
+        if (result.error && isMissingIngestionStatusError(result.error.message)) {
+            result = await buildQuery(false);
+        }
+
+        return result;
+    }
+
+    private async countAcceptedStreamItems(tenantIds: string[], options?: {
+        createdAfter?: string;
+        sessionGroupIds?: string[] | null;
+    }) {
+        const buildQuery = (acceptedOnly: boolean) => {
+            let query = this.db
+                .from('stream_items')
+                .select('id', { count: 'exact', head: true })
+                .in('tenant_id', tenantIds);
+
+            if (acceptedOnly) {
+                query = query.eq('ingestion_status', 'accepted');
+            }
+
+            if (options?.sessionGroupIds) {
+                query = query.in('source_group_id', options.sessionGroupIds);
+            }
+
+            if (options?.createdAfter) {
+                query = query.gte('created_at', options.createdAfter);
+            }
+
+            return query;
+        };
+
+        let result = await buildQuery(true);
+        if (result.error && isMissingIngestionStatusError(result.error.message)) {
+            result = await buildQuery(false);
+        }
+
+        return result;
+    }
+
     private isGlobalStreamCandidate(parsed: ParsedStreamCandidate) {
         return typeof parsed.priceNumeric === 'number'
             && Number.isFinite(parsed.priceNumeric)
@@ -1489,12 +1569,9 @@ private backfillInitiated = false;
             if (!Array.isArray(links)) return [];
 
             const streamIds = links.map((link: any) => link.stream_item_id);
-            const { data: items, error: itemsError } = await readClient
-                .from('stream_items')
-                .select('*')
-                .in('tenant_id', accessibleTenantIds)
-                .eq('ingestion_status', 'accepted')
-                .in('id', streamIds);
+            const { data: items, error: itemsError } = await this.readAcceptedStreamItems(readClient, accessibleTenantIds, {
+                streamIds,
+            });
 
             if (itemsError) {
                 throw new Error(itemsError.message);
@@ -1510,13 +1587,10 @@ private backfillInitiated = false;
             ));
         }
 
-        const { data, error } = await readClient
-            .from('stream_items')
-            .select('*')
-            .in('tenant_id', accessibleTenantIds)
-            .eq('ingestion_status', 'accepted')
-            .order('created_at', { ascending: false })
-            .limit(Math.max(20, Math.min(200, limit)));
+        const { data, error } = await this.readAcceptedStreamItems(readClient, accessibleTenantIds, {
+            limit: Math.max(20, Math.min(200, limit)),
+            orderByCreatedAt: true,
+        });
 
         if (error) {
             throw new Error(error.message);
@@ -1559,12 +1633,9 @@ private backfillInitiated = false;
                 return { oneHour: 0, fourHours: 0, oneDay: 0, sevenDays: 0, allTime: 0 };
             }
 
-            const { data, error } = await this.db
-                .from('stream_items')
-                .select('id, tenant_id, created_at, source_group_id')
-                .in('tenant_id', accessibleTenantIds)
-                .eq('ingestion_status', 'accepted')
-                .in('id', streamIds);
+            const { data, error } = await this.readAcceptedStreamItems(this.db, accessibleTenantIds, {
+                streamIds,
+            });
 
             if (error) {
                 throw new Error(error.message);
@@ -1614,30 +1685,12 @@ private backfillInitiated = false;
             }
         }
 
-        const buildCountQuery = (createdAfter?: string) => {
-            let query = this.db
-                .from('stream_items')
-                .select('id', { count: 'exact', head: true })
-                .in('tenant_id', accessibleTenantIds)
-                .eq('ingestion_status', 'accepted');
-
-            if (sessionGroupIds) {
-                query = query.in('source_group_id', sessionGroupIds);
-            }
-
-            if (createdAfter) {
-                query = query.gte('created_at', createdAfter);
-            }
-
-            return query;
-        };
-
         const [allTimeResult, sevenDaysResult, oneDayResult, fourHoursResult, oneHourResult] = await Promise.all([
-            buildCountQuery(),
-            buildCountQuery(windows.sevenDays),
-            buildCountQuery(windows.oneDay),
-            buildCountQuery(windows.fourHours),
-            buildCountQuery(windows.oneHour),
+            this.countAcceptedStreamItems(accessibleTenantIds, { sessionGroupIds }),
+            this.countAcceptedStreamItems(accessibleTenantIds, { createdAfter: windows.sevenDays, sessionGroupIds }),
+            this.countAcceptedStreamItems(accessibleTenantIds, { createdAfter: windows.oneDay, sessionGroupIds }),
+            this.countAcceptedStreamItems(accessibleTenantIds, { createdAfter: windows.fourHours, sessionGroupIds }),
+            this.countAcceptedStreamItems(accessibleTenantIds, { createdAfter: windows.oneHour, sessionGroupIds }),
         ]);
 
         for (const result of [allTimeResult, sevenDaysResult, oneDayResult, fourHoursResult, oneHourResult]) {
@@ -1714,11 +1767,7 @@ private backfillInitiated = false;
             }
         }
 
-        const { count } = await this.db
-            .from('stream_items')
-            .select('id', { count: 'exact', head: true })
-            .eq('tenant_id', tenantId)
-            .eq('ingestion_status', 'accepted');
+        const { count } = await this.countAcceptedStreamItems([tenantId]);
 
         return {
             scanned: (messages || []).length,
@@ -2432,13 +2481,10 @@ ${rawText}
             return;
         }
 
-        const { data: streamItems, error: itemsError } = await this.db
-            .from('stream_items')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .eq('ingestion_status', 'accepted')
-            .order('created_at', { ascending: false })
-            .limit(200);
+        const { data: streamItems, error: itemsError } = await this.readAcceptedStreamItems(this.db, [tenantId], {
+            limit: 200,
+            orderByCreatedAt: true,
+        });
 
         if (itemsError) {
             return;

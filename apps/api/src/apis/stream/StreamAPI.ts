@@ -1,6 +1,15 @@
 import { supabase } from '../../config/supabase';
 import type { StreamItem, StreamFilters, StreamStats, StreamChannel } from './types';
 
+function isMissingIngestionStatusError(message?: string | null) {
+  const normalized = String(message || '').toLowerCase();
+  return normalized.includes('ingestion_status') && (
+    normalized.includes('does not exist') ||
+    normalized.includes('schema cache') ||
+    normalized.includes('column')
+  );
+}
+
 export class StreamAPI {
   async getStreamItems(
     tenantId: string,
@@ -21,47 +30,60 @@ export class StreamAPI {
       ]));
     }
 
-    let query = supabase
-      .from('stream_items')
-      .select('*')
-      .in('tenant_id', tenantIds)
-      .eq('ingestion_status', 'accepted');
-
-    if (filters?.type && filters.type.length > 0) {
-      // 'type' column might not exist in stream_items table on some deployments.
-      try {
-        query = query.in('type', filters.type);
-      } catch (e) {
-        // Ignore type filter if column does not exist
+    const applyFilters = (query: any) => {
+      if (filters?.type && filters.type.length > 0) {
+        try {
+          query = query.in('type', filters.type);
+        } catch (e) {
+        }
       }
-    }
 
-    if (filters?.category) {
-      query = query.eq('property_category', filters.category);
-    }
+      if (filters?.category) {
+        query = query.eq('property_category', filters.category);
+      }
 
-    if (filters?.locality) {
-      query = query.ilike('locality', `%${filters.locality}%`);
-    }
+      if (filters?.locality) {
+        query = query.ilike('locality', `%${filters.locality}%`);
+      }
 
-    if (filters?.minConfidence) {
-      query = query.gte('confidence_score', filters.minConfidence);
-    }
+      if (filters?.minConfidence) {
+        query = query.gte('confidence_score', filters.minConfidence);
+      }
 
-    if (filters?.source && filters.source !== 'all') {
-      query = query.eq('source_phone', filters.source);
-    }
+      if (filters?.source && filters.source !== 'all') {
+        query = query.eq('source_phone', filters.source);
+      }
 
-    if (filters?.isRead !== undefined) {
-      query = query.eq('is_read', filters.isRead);
-    }
+      if (filters?.isRead !== undefined) {
+        query = query.eq('is_read', filters.isRead);
+      }
 
-    if (filters?.search) {
-      const search = `%${filters.search.toLowerCase()}%`;
-      query = query.or(`locality.ilike.${search},title.ilike.${search},raw_text.ilike.${search}`);
-    }
+      if (filters?.search) {
+        const search = `%${filters.search.toLowerCase()}%`;
+        query = query.or(`locality.ilike.${search},title.ilike.${search},raw_text.ilike.${search}`);
+      }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+      return query;
+    };
+
+    let query = applyFilters(
+      supabase
+        .from('stream_items')
+        .select('*')
+        .in('tenant_id', tenantIds)
+        .eq('ingestion_status', 'accepted')
+    );
+
+    let { data, error } = await query.order('created_at', { ascending: false });
+    if (error && isMissingIngestionStatusError(error.message)) {
+      query = applyFilters(
+        supabase
+          .from('stream_items')
+          .select('*')
+          .in('tenant_id', tenantIds)
+      );
+      ({ data, error } = await query.order('created_at', { ascending: false }));
+    }
 
     if (error || !data || !Array.isArray(data)) {
       return { items: [], network_mode: networkMode, total: 0 };
@@ -148,11 +170,18 @@ export class StreamAPI {
   }
 
   async getStats(tenantId: string): Promise<StreamStats> {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('stream_items')
       .select('confidence_score, is_read')
       .eq('tenant_id', tenantId)
       .eq('ingestion_status', 'accepted');
+
+    if (error && isMissingIngestionStatusError(error.message)) {
+      ({ data, error } = await supabase
+        .from('stream_items')
+        .select('confidence_score, is_read')
+        .eq('tenant_id', tenantId));
+    }
 
     if (error || !data) return { total: 0, unread: 0, avgConfidence: 0 };
     if (!Array.isArray(data)) return { total: 0, unread: 0, avgConfidence: 0 };
@@ -190,11 +219,18 @@ export class StreamAPI {
   }
 
   async getChannels(tenantId: string): Promise<StreamChannel[]> {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('stream_items')
       .select('source_phone')
       .eq('tenant_id', tenantId)
       .eq('ingestion_status', 'accepted');
+
+    if (error && isMissingIngestionStatusError(error.message)) {
+      ({ data, error } = await supabase
+        .from('stream_items')
+        .select('source_phone')
+        .eq('tenant_id', tenantId));
+    }
 
     if (error || !data) return [];
     if (!Array.isArray(data)) return [];

@@ -66,10 +66,19 @@ export type AnalyticsResult = {
     health: unknown;
 };
 
+function isMissingIngestionStatusError(message?: string | null) {
+    const normalized = String(message || '').toLowerCase();
+    return normalized.includes('ingestion_status') && (
+        normalized.includes('does not exist') ||
+        normalized.includes('schema cache') ||
+        normalized.includes('column')
+    );
+}
+
 async function queryStreamItems(tenantId: string) {
     if (!db) return { data: [] as StreamItemRow[], count: 0 };
 
-    const [streamResult, countResult] = await Promise.all([
+    let [streamResult, countResult] = await Promise.all([
         db
             .from('stream_items')
             .select('type, deal_type, locality, source_phone, confidence_score, created_at')
@@ -83,6 +92,21 @@ async function queryStreamItems(tenantId: string) {
             .eq('tenant_id', tenantId)
             .eq('ingestion_status', 'accepted'),
     ]);
+
+    if ((streamResult.error && isMissingIngestionStatusError(streamResult.error.message)) || (countResult.error && isMissingIngestionStatusError(countResult.error.message))) {
+        [streamResult, countResult] = await Promise.all([
+            db
+                .from('stream_items')
+                .select('type, deal_type, locality, source_phone, confidence_score, created_at')
+                .eq('tenant_id', tenantId)
+                .order('created_at', { ascending: false })
+                .limit(5000),
+            db
+                .from('stream_items')
+                .select('id', { count: 'exact', head: true })
+                .eq('tenant_id', tenantId),
+        ]);
+    }
 
     if (streamResult.error) throw streamResult.error;
     if (countResult.error) throw countResult.error;

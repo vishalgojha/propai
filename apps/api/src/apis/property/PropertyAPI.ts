@@ -1,47 +1,71 @@
 import { supabase } from '../../config/supabase';
 import type { PropertyItem, PropertyFilters, PropertyStats } from './types';
 
+function isMissingIngestionStatusError(message?: string | null) {
+  const normalized = String(message || '').toLowerCase();
+  return normalized.includes('ingestion_status') && (
+    normalized.includes('does not exist') ||
+    normalized.includes('schema cache') ||
+    normalized.includes('column')
+  );
+}
+
 export class PropertyAPI {
   async getProperties(tenantId: string, filters?: PropertyFilters): Promise<PropertyItem[]> {
-    let query = supabase
-      .from('stream_items')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('ingestion_status', 'accepted');
+    const applyFilters = (query: any) => {
+      if (filters?.type && filters.type.length > 0) {
+        query = query.in('type', filters.type);
+      }
 
-    if (filters?.type && filters.type.length > 0) {
-      query = query.in('type', filters.type);
+      if (filters?.category) {
+        query = query.eq('property_category', filters.category);
+      }
+
+      if (filters?.bhk && filters.bhk !== 'all') {
+        query = query.eq('bhk', filters.bhk);
+      }
+
+      if (filters?.minPrice) {
+        query = query.gte('price_numeric', filters.minPrice);
+      }
+
+      if (filters?.maxPrice) {
+        query = query.lte('price_numeric', filters.maxPrice);
+      }
+
+      if (filters?.minArea) {
+        query = query.gte('area_sqft', filters.minArea);
+      }
+
+      if (filters?.source && filters.source !== 'all') {
+        query = query.eq('source_phone', filters.source);
+      }
+
+      if (filters?.confidenceMin) {
+        query = query.gte('confidence_score', filters.confidenceMin);
+      }
+
+      return query;
+    };
+
+    let query = applyFilters(
+      supabase
+        .from('stream_items')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('ingestion_status', 'accepted')
+    );
+
+    let { data, error } = await query.order('created_at', { ascending: false });
+    if (error && isMissingIngestionStatusError(error.message)) {
+      query = applyFilters(
+        supabase
+          .from('stream_items')
+          .select('*')
+          .eq('tenant_id', tenantId)
+      );
+      ({ data, error } = await query.order('created_at', { ascending: false }));
     }
-
-    if (filters?.category) {
-      query = query.eq('property_category', filters.category);
-    }
-
-    if (filters?.bhk && filters.bhk !== 'all') {
-      query = query.eq('bhk', filters.bhk);
-    }
-
-    if (filters?.minPrice) {
-      query = query.gte('price_numeric', filters.minPrice);
-    }
-
-    if (filters?.maxPrice) {
-      query = query.lte('price_numeric', filters.maxPrice);
-    }
-
-    if (filters?.minArea) {
-      query = query.gte('area_sqft', filters.minArea);
-    }
-
-    if (filters?.source && filters.source !== 'all') {
-      query = query.eq('source_phone', filters.source);
-    }
-
-    if (filters?.confidenceMin) {
-      query = query.gte('confidence_score', filters.confidenceMin);
-    }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error || !data) return [];
     if (!Array.isArray(data)) return [];
