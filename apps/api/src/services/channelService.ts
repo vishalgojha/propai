@@ -1509,7 +1509,7 @@ export class ChannelService {
         return this.mapChannelRow(data as ChannelRow, counts.get(channelId));
     }
 
-private backfillInitiated = false;
+private backfillInitiatedTenants = new Set<string>();
 
     private async getNetworkTenantIds(tenantId: string, networkMode: boolean) {
         if (!networkMode) {
@@ -1541,8 +1541,8 @@ private backfillInitiated = false;
         limit = 100,
     ): Promise<StreamItemRecord[]> {
          // Only trigger backfill once and don't block the read on it
-         if (!this.backfillInitiated) {
-             this.backfillInitiated = true;
+         if (!this.backfillInitiatedTenants.has(tenantId)) {
+             this.backfillInitiatedTenants.add(tenantId);
              // Fire-and-forget: ensureStreamBackfilled runs in the background
              void this.ensureStreamBackfilled(tenantId);
          }
@@ -2134,28 +2134,31 @@ private backfillInitiated = false;
     }
 
 private async ensureStreamBackfilled(tenantId: string) {
-         // Check if there are any messages to backfill from before running expensive rebuild
-         const { count: messageCount } = await this.db
+         // Keep this path cheap. Stream loads should not depend on exact counts or a large rebuild.
+         const { data: anyMessage, error: messageError } = await this.db
              .from('messages')
-             .select('id', { count: 'exact', head: true })
+             .select('id')
              .eq('tenant_id', tenantId)
-             .limit(1);
+             .limit(1)
+             .maybeSingle();
 
-         if ((messageCount || 0) === 0) {
+         if (messageError || !anyMessage) {
              return;
          }
 
-         const { count } = await this.db
+         const { data: existingStreamItem, error: streamError } = await this.db
              .from('stream_items')
-             .select('id', { count: 'exact', head: true })
-             .eq('tenant_id', tenantId);
+             .select('id')
+             .eq('tenant_id', tenantId)
+             .limit(1)
+             .maybeSingle();
 
-         if ((count || 0) > 0) {
+         if (streamError || existingStreamItem) {
              return;
          }
 
          try {
-             await this.rebuildStreamFromMessages(tenantId, 200);
+             await this.rebuildStreamFromMessages(tenantId, 50);
          } catch (error) {
              console.error('[ChannelService] Failed to backfill stream items from messages', error);
          }
