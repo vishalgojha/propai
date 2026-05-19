@@ -8,6 +8,24 @@ function getTenant(req: Request): string {
   return req.user?.id || (req as any).wabroDeviceContext?.tenantId || '';
 }
 
+function getAppOrigin(req: Request): string {
+  const configured = String(process.env.APP_URL || process.env.APP_ORIGIN || '').trim().replace(/\/+$/, '');
+  if (configured) {
+    return configured;
+  }
+
+  const host = String(req.get('host') || '').trim();
+  if (!host) {
+    return 'https://app.propai.live';
+  }
+
+  if (host.startsWith('api.')) {
+    return `${req.protocol}://${host.replace(/^api\./, 'app.')}`;
+  }
+
+  return `${req.protocol}://${host}`;
+}
+
 function getDeviceContext(req: Request): {
   registrationId?: string;
   tenantId?: string;
@@ -342,10 +360,11 @@ export async function createDeviceProvision(req: Request, res: Response) {
 }
 
 export async function getAppVersion(req: Request, res: Response) {
+  const apkUrl = `${getAppOrigin(req)}/wabro.apk`;
   res.json({
     versionCode: 1,
     versionName: '1.0.0',
-    apkUrl: 'https://github.com/vishalgojha/wabro/releases/latest/download/wabro-release.apk',
+    apkUrl,
     releaseNotes: 'Use the shared PropAI WaBro workspace and device provisioning flow. Do not run a second Baileys session from Android.',
     forceUpdate: false,
   });
@@ -597,7 +616,7 @@ export async function listBrokerContacts(req: Request, res: Response) {
     let query = supabaseAdmin!
       .from('broker_contacts')
       .select('id, display_name, phone, inferred_areas, source_groups, group_count, last_seen_at, created_at', { count: 'exact' })
-      .eq('workspace_id', tenantId);
+      .eq('tenant_id', tenantId);
 
     if (area) {
       query = query.contains('inferred_areas', [area]);
@@ -644,7 +663,7 @@ export async function listBroadcastLists(req: Request, res: Response) {
     const { data, error } = await supabaseAdmin!
       .from('broadcast_lists')
       .select('*')
-      .eq('workspace_id', tenantId)
+      .eq('tenant_id', tenantId)
       .order('contact_count', { ascending: false });
 
     if (error) throw error;
@@ -668,7 +687,7 @@ export async function sendToBroadcastList(req: Request, res: Response) {
       .from('broadcast_lists')
       .select('*')
       .eq('id', id)
-      .eq('workspace_id', tenantId)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (listError || !list) {
@@ -693,7 +712,7 @@ export async function sendToBroadcastList(req: Request, res: Response) {
       .from('broker_contacts')
       .select('phone, display_name')
       .in('id', contactIds)
-      .eq('workspace_id', tenantId);
+      .eq('tenant_id', tenantId);
 
     // Create a campaign from this broadcast list
     const campaignContacts = (contacts || []).map(c => ({
@@ -744,7 +763,7 @@ export async function listAreas(req: Request, res: Response) {
     const { data, error } = await supabaseAdmin!
       .from('broker_contacts')
       .select('inferred_areas')
-      .eq('workspace_id', tenantId);
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
 

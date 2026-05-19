@@ -12,3 +12,10 @@ build/
 *.log
 .DS_Store
 supabase/.temp/
+apps/api/reports/
+apps/wabro-backend/
+apps/wabro-android/.android-sdk/
+apps/wabro-android/.gradle/
+apps/wabro-android/.gradle-local/
+apps/wabro-android/.home/
+apps/wabro-android/.jdk/
