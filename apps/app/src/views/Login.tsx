@@ -79,19 +79,27 @@ const productHighlights = [
 const stackHighlights = [
   {
     title: 'WaBro',
-    copy: 'Outbound broker broadcasts, follow-up pushes, and Android execution without leaving the same PropAI workspace.',
+    summary: 'WhatsApp broadcast software for real estate brokers.',
+    copy: 'WaBro is the part of PropAI that helps you send broker broadcasts, follow-up messages, and campaign pushes from one place. You do not need to juggle separate tools for outreach.',
+    seo: 'Useful if you are searching for a WhatsApp marketing tool for brokers, broker follow-up software, or a simple outbound workflow for real estate teams.',
   },
   {
     title: 'MCP',
-    copy: 'Structured machine context so your agent layer can work against broker data, prompts, and workspace actions cleanly.',
+    summary: 'The rules that help the AI understand your workspace properly.',
+    copy: 'MCP helps PropAI pass the right context into the AI so it knows which listings, requirements, follow-ups, and workspace actions belong to you. Non-technical version: it helps the AI stay organized instead of guessing.',
+    seo: 'This matters for cleaner AI answers, better CRM actions, and more reliable real estate workflow automation.',
   },
   {
     title: 'BYOK',
-    copy: 'Bring your own API keys when you want tighter cost control, model choice, and a cleaner private deployment boundary.',
+    summary: 'Bring Your Own Keys for more control.',
+    copy: 'BYOK means you can use your own AI API keys instead of depending fully on ours. That gives you more control over model choice, spending, privacy boundaries, and how your team wants to run AI.',
+    seo: 'Helpful for people comparing private AI deployment, own API key AI tools, and cost-controlled AI CRM software.',
   },
   {
     title: 'Shared workspace',
-    copy: 'Monitor, Stream, agent actions, and WaBro stay in one surface instead of breaking into separate broker tools.',
+    summary: 'One broker workspace instead of five disconnected apps.',
+    copy: 'Shared workspace means your Monitor, Stream, AI actions, and WaBro broadcasts live together. Listings, requirements, follow-ups, and outreach stay connected, so your team does not lose context between tools.',
+    seo: 'This is the operational benefit for teams looking for a real estate broker CRM, WhatsApp workspace, and AI-assisted broker operations in one system.',
   },
 ];
 
@@ -417,9 +425,16 @@ export const Login: React.FC = () => {
               <AuthCard className="p-5 md:p-6">
                 <div className="flex items-center gap-2">
                   <WorkflowIcon className="h-4 w-4 text-[var(--accent)]" />
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Product map</p>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plain-English product docs</p>
                 </div>
                 <div className="mt-4 space-y-4">
+                  <div className="rounded-[14px] border border-[color:var(--border)] bg-[rgba(255,255,255,0.015)] p-4">
+                    <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">What do WaBro, MCP, BYOK, and shared workspace actually mean?</h2>
+                    <p className="mt-2 max-w-4xl text-[13px] leading-6 text-[var(--text-secondary)]">
+                      If you are not technical, think of this page as a simple guide. PropAI is real estate broker software that connects WhatsApp monitoring, listing parsing, broker follow-up, team workflow, and AI assistance into one workspace.
+                    </p>
+                  </div>
+
                   <div className="grid gap-4 xl:grid-cols-2">
                     {productHighlights.map((item) => (
                       <div
@@ -449,8 +464,10 @@ export const Login: React.FC = () => {
                         key={item.title}
                         className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
                       >
-                        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">{item.title}</p>
+                        <h3 className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">{item.title}</h3>
+                        <p className="mt-2 text-[13px] font-medium leading-5 text-[var(--text-primary)]">{item.summary}</p>
                         <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">{item.copy}</p>
+                        <p className="mt-3 text-[11px] leading-5 text-[var(--text-muted)]">{item.seo}</p>
                       </div>
                     ))}
                   </div>
