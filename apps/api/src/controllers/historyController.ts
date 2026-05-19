@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { historyTextImportService } from '../services/historyTextImportService';
 import { historyImportTrackingService } from '../services/historyImportTrackingService';
+import { channelService } from '../services/channelService';
+import { workspaceAccessService } from '../services/workspaceAccessService';
 import { getErrorMessage } from '../utils/controllerHelpers';
 import '../types/express';
 
@@ -168,5 +170,27 @@ export const checkDuplicateImports = async (req: Request, res: Response) => {
     res.json({ alreadyImported });
   } catch (error: unknown) {
     res.status(500).json({ error: getErrorMessage(error, 'Failed to check duplicates') });
+  }
+};
+
+export const backfillHistoryToStream = async (req: Request, res: Response) => {
+  try {
+    const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
+    const tenantId = context.workspaceOwnerId;
+    const { limit, remoteJid, from, to } = req.body || {};
+
+    const result = await channelService.rebuildStreamFromMessages(tenantId, {
+      limit: typeof limit === 'number' ? limit : undefined,
+      remoteJid: typeof remoteJid === 'string' ? remoteJid.trim() || null : null,
+      from: typeof from === 'string' ? from : null,
+      to: typeof to === 'string' ? to : null,
+    });
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error: unknown) {
+    res.status(500).json({ error: getErrorMessage(error, 'Failed to backfill saved messages into Stream') });
   }
 };

@@ -8,6 +8,7 @@ import type { AgentRoutePlan } from './agentRouterService';
 import { toAgentResponse } from '../types/agent';
 import { normalizeConversationPhoneNumber } from '../memory/conversationMemory';
 import { buildIstSystemContext } from '../utils/istTime';
+import { getPulseCapabilityHint } from './pulseCapabilities';
 
 type BrokerProfile = {
     full_name: string;
@@ -157,49 +158,7 @@ export function buildPersonalizedSystemPrompt(
 }
 
 export function buildCapabilityHint(intent: string) {
-    switch (intent) {
-        case 'save_listing':
-            return 'You can say: "Add this listing ..." and I will save it for you.';
-        case 'save_requirement':
-            return 'You can say: "Add this requirement ..." and I will save the buyer brief.';
-        case 'create_channel':
-            return 'You can say: "Create a Powai rentals channel" and I will turn that into a personal stream channel.';
-        case 'get_my_listings':
-            return 'You can say: "Show my saved listings in Andheri" and I will pull them from your CRM.';
-        case 'get_my_requirements':
-            return 'You can say: "Show my buyer requirements for Powai" and I will pull them from your CRM.';
-        case 'search_my_crm':
-            return 'You can say: "Search my CRM for Bandra 3BHK" and I will search across saved listings and requirements.';
-        case 'schedule_callback':
-            return 'You can say: "Schedule a follow-up for Raj tomorrow" and I will set the reminder.';
-        case 'check_callbacks':
-            return 'You can say: "Show my follow-up queue" to review pending reminders.';
-        case 'search_listings':
-            return 'You can ask me to find matching inventory in plain language.';
-        case 'web_fetch':
-            return 'You can paste a property or project URL and I will fetch the page contents for you.';
-        case 'search_web':
-            return 'You can ask me to search the web for project, builder, or market information.';
-        case 'verify_rera':
-            return 'You can ask me to verify a project RERA registration in plain language.';
-        case 'fetch_property_listing':
-            return 'You can paste a listing URL and I will extract structured property details.';
-        case 'igr_last_transaction':
-        case 'igr_locality_stats':
-            return 'You can ask for the latest IGR transaction or locality registration stats using building plus locality.';
-        case 'identity_question':
-            return 'You can ask who built PropAI, what Pulse is, or whether I’m AI, and I’ll answer directly.';
-        case 'runtime_status_question':
-            return 'You can ask which model is active, whether WhatsApp is connected, which number is live, or whether web tools are available.';
-        case 'privacy_or_limits_question':
-            return 'You can ask what PropAI stores, whether I auto-message anyone, and what your current workspace plan allows.';
-        case 'support_issue':
-            return 'If something feels broken, send what happened and I’ll guide you or ask for a screenshot for support.';
-        case 'general_chat':
-        case 'general_answer':
-        default:
-            return '';
-    }
+    return getPulseCapabilityHint(intent);
 }
 
 function isOwnerSuperAdminEmail(email?: string | null) {

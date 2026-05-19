@@ -1775,13 +1775,40 @@ private backfillInitiatedTenants = new Set<string>();
         });
     }
 
-    async rebuildStreamFromMessages(tenantId: string, limit = 500) {
-        const { data: messages, error } = await this.db
+    async rebuildStreamFromMessages(
+        tenantId: string,
+        limitOrOptions: number | {
+            limit?: number;
+            remoteJid?: string | null;
+            from?: string | null;
+            to?: string | null;
+        } = 500,
+    ) {
+        const options = typeof limitOrOptions === 'number'
+            ? { limit: limitOrOptions }
+            : (limitOrOptions || {});
+        const limit = Math.max(1, Math.min(10000, Number(options.limit || 500)));
+
+        let query = this.db
             .from('messages')
             .select('id, remote_jid, sender, text, timestamp')
             .eq('tenant_id', tenantId)
             .order('timestamp', { ascending: true })
             .limit(limit);
+
+        if (options.remoteJid) {
+            query = query.eq('remote_jid', options.remoteJid);
+        }
+
+        if (options.from) {
+            query = query.gte('timestamp', options.from);
+        }
+
+        if (options.to) {
+            query = query.lte('timestamp', options.to);
+        }
+
+        const { data: messages, error } = await query;
 
         if (error) {
             throw new Error(error.message);
@@ -1802,6 +1829,12 @@ private backfillInitiatedTenants = new Set<string>();
             scanned: (messages || []).length,
             ingested: ingestedCount,
             totalStreamItems: count || 0,
+            filters: {
+                remoteJid: options.remoteJid || null,
+                from: options.from || null,
+                to: options.to || null,
+                limit,
+            },
         };
     }
 

@@ -1,5 +1,6 @@
 import { runtimeStatusService } from './runtimeStatusService';
 import { whatsappHealthService } from './whatsappHealthService';
+import { getPulseCapabilityAnswerText } from './pulseCapabilities';
 
 export type KnowledgeIntent =
     | 'identity_question'
@@ -246,7 +247,7 @@ export class ProductKnowledgeService {
         }
 
         if (text.includes('what can you actually do') || text.includes('what can you do')) {
-            return 'I can help save listings and requirements, search your saved CRM, summarize stream activity, help create tracking channels, and use web tools when available.';
+            return getPulseCapabilityAnswerText();
         }
 
         if (text.includes('what cant you do') || text.includes('what can\'t you do')) {

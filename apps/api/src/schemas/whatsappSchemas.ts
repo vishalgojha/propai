@@ -50,3 +50,10 @@ export const disconnectSchema = z.object({
     sessionKey: z.string().optional(),
     phoneNumber: z.string().optional(),
 });
+
+export const historyBackfillStreamSchema = z.object({
+    limit: z.number().int().min(1).max(10000).optional(),
+    remoteJid: z.string().trim().min(1).optional(),
+    from: z.string().datetime().optional(),
+    to: z.string().datetime().optional(),
+});

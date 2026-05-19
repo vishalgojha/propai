@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getMonitorMessages, getInbox, disconnectWhatsApp, getMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getHistoryDebug, getGroupHealth, getEvents, getHealthLogs, submitSupportLogs, getGroups, getOutboundRecipients } from '../controllers/whatsappController';
-import { importHistoryTxt, getHistoryImports, checkDuplicateImports } from '../controllers/historyController';
+import { importHistoryTxt, getHistoryImports, checkDuplicateImports, backfillHistoryToStream } from '../controllers/historyController';
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { supabase } from '../config/supabase';
 import { validate } from '../middleware/validate';
 import { whatsappGroupService } from '../services/whatsappGroupService';
-import { connectWhatsAppSchema, forceRefreshQRSchema, saveProfileSchema, sendMessageSchema, sendBulkSchema, broadcastSchema, disconnectSchema } from '../schemas/whatsappSchemas';
+import { connectWhatsAppSchema, forceRefreshQRSchema, saveProfileSchema, sendMessageSchema, sendBulkSchema, broadcastSchema, disconnectSchema, historyBackfillStreamSchema } from '../schemas/whatsappSchemas';
 
 const router = Router();
 
@@ -18,6 +18,7 @@ router.post(ROUTE_PATHS.whatsapp.qrForceRefresh, validate(forceRefreshQRSchema),
 router.post(ROUTE_PATHS.whatsapp.historyImport, importHistoryTxt);
 router.get(ROUTE_PATHS.whatsapp.historyImports, getHistoryImports);
 router.post(ROUTE_PATHS.whatsapp.historyCheckDuplicates, checkDuplicateImports);
+router.post(ROUTE_PATHS.whatsapp.historyBackfillStream, validate(historyBackfillStreamSchema), backfillHistoryToStream);
 router.get(ROUTE_PATHS.whatsapp.status, getStatus);
 router.get(ROUTE_PATHS.whatsapp.monitor, getMonitor);
 router.get(ROUTE_PATHS.whatsapp.monitorMessages, getMonitorMessages);

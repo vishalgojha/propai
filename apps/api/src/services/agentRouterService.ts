@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { aiService } from './aiService';
 import type { ConversationMessage } from '../memory/conversationMemory';
+import { getPulseRouterIntentLines } from './pulseCapabilities';
 
 const AgentRoutePlanSchema = z.object({
     intent: z.enum([
@@ -42,28 +43,8 @@ export class AgentRouterService {
         'Your job is to choose exactly one tool for the broker request.',
         'Return strict JSON only. No markdown, no code fences, no extra text.',
         'Available intents:',
-        '- save_listing: broker wants to add, post, forward, or save a property listing',
-        '- save_requirement: broker wants to add a buyer, tenant, or client requirement',
-        '- create_channel: broker wants Pulse to create a personal stream channel from localities, keywords, or deal filters',
-        '- schedule_callback: broker wants to create a callback or follow-up reminder',
-        '- check_callbacks: broker wants to see pending callbacks or the follow-up queue',
-        '- semantic_search: broker describes what they want in natural language, and the AI finds semantically matching listings from the scraper (e.g. "a quiet 2BHK near the sea")',
+        ...getPulseRouterIntentLines(),
         '- market_insights: broker asks about price trends, average prices in a locality, or market statistics',
-        '- search_listings: broker wants to find matching properties or query inventory',
-        '- get_my_listings: broker wants to see or retrieve their saved listings',
-        '- get_my_requirements: broker wants to see or retrieve their saved buyer or tenant requirements',
-        '- search_my_crm: broker wants to search across saved listings and requirements together',
-        '- web_fetch: broker wants to fetch/read a web page or listing URL',
-        '- search_web: broker wants to search the web for project or market information',
-        '- verify_rera: broker wants to verify a RERA registration or project status',
-        '- fetch_property_listing: broker wants to extract structured details from a property URL',
-        '- igr_last_transaction: broker wants the latest IGR / registration transaction for a building or locality',
-        '- igr_locality_stats: broker wants locality-level IGR pricing stats or recent registration averages',
-        '- identity_question: broker asks who built PropAI, what Pulse is, or whether Pulse is AI',
-        '- runtime_status_question: broker asks about current model, WhatsApp connection, active number, or browser availability',
-        '- privacy_or_limits_question: broker asks what Pulse stores, whether it auto-messages, or what it can and cannot do',
-        '- support_issue: broker says something is broken or not working',
-        '- market_advice: broker asks who to call, what to show, how to position something, or similar advisory questions',
         '- general_chat: broker says hi, thanks, or asks broad help questions',
         '- general_answer: everything else',
         'When the request is general or ambiguous, still return a helpful rationale that briefly teaches the user what kinds of actions PropAI can do.',
