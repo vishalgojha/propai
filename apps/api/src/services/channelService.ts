@@ -1121,8 +1121,10 @@ type MessageQualityDecision = {
         avgConfidence: number;
         lowEffortRate: number;
         unresolvedRate: number;
+        actionableRate: number;
         lineCount: number;
         resolvedWithGroupCount: number;
+        actionableCount: number;
     };
     resolutionContext: Record<string, unknown>;
 };
