@@ -37,6 +37,13 @@ export interface BroadcastOptions {
     onError?: (groupId: string, error: unknown) => void;
 }
 
+export type WhatsAppMediaInput = {
+    url: string;
+    mimeType?: string | null;
+    fileName?: string | null;
+    caption?: string | null;
+};
+
 export class WhatsAppClient {
     private socket: WASocket | null = null;
     private readonly tenantId: string;
@@ -474,6 +481,50 @@ try {
             label: this.label,
             remoteJid: jid,
             text: sanitizedText,
+            timestamp: new Date().toISOString(),
+        });
+    }
+
+    async sendMedia(jid: string, media: WhatsAppMediaInput) {
+        if (!this.socket) {
+            throw new Error('WhatsApp session is not connected');
+        }
+
+        const url = String(media.url || '').trim();
+        if (!url) {
+            throw new Error('Media URL is required');
+        }
+
+        const mimeType = String(media.mimeType || 'application/octet-stream').trim();
+        const fileName = String(media.fileName || 'attachment').trim() || 'attachment';
+        const caption = String(media.caption || '').trim();
+        const lowerMimeType = mimeType.toLowerCase();
+        const message: Record<string, unknown> = {
+            mimetype: mimeType,
+        };
+
+        if (caption) {
+            message.caption = sanitizeForWhatsApp(caption);
+        }
+
+        if (lowerMimeType.startsWith('image/')) {
+            message.image = { url };
+        } else if (lowerMimeType.startsWith('video/')) {
+            message.video = { url };
+        } else if (lowerMimeType.startsWith('audio/')) {
+            message.audio = { url };
+            message.ptt = false;
+        } else {
+            message.document = { url };
+            message.fileName = fileName;
+        }
+
+        await this.socket.sendMessage(jid, message as any);
+        await this.hooks?.onOutgoingMessage?.({
+            tenantId: this.tenantId,
+            label: this.label,
+            remoteJid: jid,
+            text: caption || fileName,
             timestamp: new Date().toISOString(),
         });
     }

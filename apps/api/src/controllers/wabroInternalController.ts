@@ -54,13 +54,12 @@ async function sendTextCommand(payload: RuntimeSendMessageRequest) {
 
 async function sendMediaCommand(payload: RuntimeSendMediaRequest) {
     const client = await getRuntimeClient(payload.auth.workspaceId, payload.auth.sessionId);
-    const caption = String(payload.media.caption || '').trim();
-    const label = String(payload.media.fileName || 'Media').trim();
-    const fullText = caption
-        ? `${caption}\n\n${label}: ${payload.media.url}`
-        : `${label}: ${payload.media.url}`;
-
-    await client.sendMessage(toWhatsAppJid(payload.chatId), fullText);
+    await client.sendMedia(toWhatsAppJid(payload.chatId), {
+        url: payload.media.url,
+        mimeType: payload.media.mimeType,
+        fileName: payload.media.fileName || null,
+        caption: payload.media.caption || null,
+    });
 }
 
 function buildInboundRecord(payload: WhatsAppInboundMessagePayload): IncomingMessageRecord {

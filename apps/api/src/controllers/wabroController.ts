@@ -882,8 +882,12 @@ export async function sendMediaMessage(req: Request, res: Response) {
     }
 
     const jid = `${contactPhone.replace(/\D/g, '')}@s.whatsapp.net`;
-    const fullText = mediaUrl ? `${text}\n\n${fileName || 'Media'}: ${mediaUrl}` : text;
-    await client.sendMessage(jid, fullText);
+    await client.sendMedia(jid, {
+      url: mediaUrl,
+      mimeType,
+      fileName,
+      caption: text,
+    });
 
     res.json({ status: 'sent', providerMessageId: null, serverTimestamp: Date.now() });
   } catch (error: unknown) {
