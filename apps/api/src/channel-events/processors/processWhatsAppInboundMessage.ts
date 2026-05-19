@@ -356,6 +356,15 @@ async function getBotJids(tenantId: string, sessionLabel?: string): Promise<stri
     return jids;
 }
 
+function jidMatchesAnyPhone(targetJid: string, candidates: string[]) {
+    const targetPhone = normalizeComparablePhone(targetJid);
+    if (!targetPhone) {
+        return false;
+    }
+
+    return candidates.some((candidate) => normalizeComparablePhone(candidate) === targetPhone);
+}
+
 export async function processWhatsAppInboundMessage(event: IncomingMessageRecord) {
     const { tenantId, remoteJid, text, fromMe, label } = event;
     const isGroup = remoteJid.endsWith('@g.us');
@@ -364,9 +373,9 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
     const messageJids = [remoteJid, rawMessage?.key?.remoteJidAlt]
         .map(normalizeJid)
         .filter((jid): jid is string => Boolean(jid));
-    const isSelfChat = !isGroup && messageJids.some((jid) => botJids.includes(jid));
+    const isSelfChat = !isGroup && messageJids.some((jid) => botJids.includes(jid) || jidMatchesAnyPhone(jid, botJids));
     const normalizedRemoteJid = normalizeJid(remoteJid);
-    const isRemoteBotJid = Boolean(normalizedRemoteJid) && botJids.includes(normalizedRemoteJid);
+    const isRemoteBotJid = Boolean(normalizedRemoteJid) && (botJids.includes(normalizedRemoteJid) || jidMatchesAnyPhone(normalizedRemoteJid, botJids));
     const effectiveIsSelfChat = Boolean(isSelfChat && isRemoteBotJid);
 
     if (effectiveIsSelfChat && fromMe && isRecentSelfChatReply(tenantId, label, remoteJid, text)) {
@@ -388,8 +397,8 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
     const ASSISTANT_PHONE = '7021045254';
     const isAssistantSession = botJids.some(
         (jid) => normalizeComparablePhone(jid) === normalizeComparablePhone(ASSISTANT_PHONE)
-    );
-    const isAssistantDM = !isGroup && (isAssistantSession || label === 'Assistant');
+    ) || label === 'Assistant';
+    const isAssistantDM = !isGroup && normalizeComparablePhone(normalizedRemoteJid) === normalizeComparablePhone(ASSISTANT_PHONE);
 
     const selfChatEnabled = await isSelfChatEnabled(tenantId, label);
     if (effectiveIsSelfChat && !selfChatEnabled) {
