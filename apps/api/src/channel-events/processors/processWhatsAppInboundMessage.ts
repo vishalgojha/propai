@@ -47,6 +47,15 @@ function normalizeComparablePhone(value?: string | null) {
     return digits.slice(-10);
 }
 
+function formatSelfChatReply(text: string) {
+    const normalized = String(text || '').trim();
+    if (!normalized) {
+        return 'PropAI -';
+    }
+
+    return normalized.startsWith('PropAI -') ? normalized : `PropAI - ${normalized}`;
+}
+
 async function sendViaTenantSession(tenantId: string, remoteJid: string, text: string, sessionLabel?: string) {
     await getWhatsAppGateway(tenantId).sendMessage({
         workspaceOwnerId: tenantId,
@@ -56,18 +65,19 @@ async function sendViaTenantSession(tenantId: string, remoteJid: string, text: s
     });
 }
 
-async function triggerAgent(tenantId: string, remoteJid: string, text: string, sessionLabel?: string) {
+async function triggerAgent(tenantId: string, remoteJid: string, text: string, sessionLabel?: string, options?: { prefixAsPropAI?: boolean }) {
     const { agentExecutor } = require('../../services/AgentExecutor');
 
     try {
         const response = await agentExecutor.processMessage(tenantId, remoteJid, text, sessionLabel);
-        await sendViaTenantSession(tenantId, remoteJid, response, sessionLabel);
-        rememberSelfChatReply(tenantId, sessionLabel, remoteJid, response);
+        const outboundText = options?.prefixAsPropAI ? formatSelfChatReply(response) : response;
+        await sendViaTenantSession(tenantId, remoteJid, outboundText, sessionLabel);
+        rememberSelfChatReply(tenantId, sessionLabel, remoteJid, outboundText);
 
         await db.from('messages').insert({
             tenant_id: tenantId,
             remote_jid: remoteJid,
-            text: response,
+            text: outboundText,
             sender: AI_SENDER,
             timestamp: new Date().toISOString(),
         });
@@ -98,10 +108,13 @@ async function triggerAgent(tenantId: string, remoteJid: string, text: string, s
         }
 
         try {
+            const fallbackText = options?.prefixAsPropAI
+                ? formatSelfChatReply('Sorry, something went wrong. A crash report has been sent to support@propai.live. Please try again.')
+                : 'Sorry, something went wrong. A crash report has been sent to support@propai.live. Please try again.';
             await sendViaTenantSession(
                 tenantId,
                 remoteJid,
-                'Sorry, something went wrong. A crash report has been sent to support@propai.live. Please try again.',
+                fallbackText,
                 sessionLabel,
             );
         } catch (sendError) {
@@ -361,12 +374,14 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
     }
 
     if (effectiveIsSelfChat && text.toUpperCase() === 'HI') {
+        const introText = formatSelfChatReply('Hi! 👋 This is PropAI Pulse. Send me any message and I\'ll help you with real estate insights, listings, or requirements. Your messages are processed securely through AI.');
         await sendViaTenantSession(
             tenantId,
             remoteJid,
-            'Hi! 👋 This is PropAI Pulse. Send me any message and I\'ll help you with real estate insights, listings, or requirements. Your messages are processed securely through AI.',
+            introText,
             label,
         );
+        rememberSelfChatReply(tenantId, label, remoteJid, introText);
         return;
     }
 
@@ -472,5 +487,5 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
         { remoteJid, isGroup, selfChat: effectiveIsSelfChat, assistantDm: isAssistantDM },
     ).catch(() => undefined);
 
-    await triggerAgent(tenantId, remoteJid, text, label);
+    await triggerAgent(tenantId, remoteJid, text, label, { prefixAsPropAI: effectiveIsSelfChat });
 }
