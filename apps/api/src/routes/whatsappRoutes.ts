@@ -39,7 +39,7 @@ router.get(ROUTE_PATHS.whatsapp.groups, getGroups);
 router.get(ROUTE_PATHS.whatsapp.recipients, getOutboundRecipients);
 
 router.post(ROUTE_PATHS.whatsapp.config, async (req: Request, res: Response) => {
-    const { group_id, behavior, session_label, parse_direct_messages, self_chat_enabled, ai_reply_enabled } = req.body;
+    const { group_id, behavior, session_label, parse_direct_messages, self_chat_enabled } = req.body;
     const tenant_id = req.user?.id;
     const db = supabase;
 
@@ -51,7 +51,7 @@ router.post(ROUTE_PATHS.whatsapp.config, async (req: Request, res: Response) => 
         if (error) return res.status(500).json({ error: error.message });
     }
 
-    if (session_label && (typeof parse_direct_messages === 'boolean' || typeof self_chat_enabled === 'boolean' || typeof ai_reply_enabled === 'boolean')) {
+    if (session_label && (typeof parse_direct_messages === 'boolean' || typeof self_chat_enabled === 'boolean')) {
         const { data: sessionRow, error: sessionError } = await db
             .from('whatsapp_sessions')
             .select('session_data')
@@ -77,10 +77,6 @@ router.post(ROUTE_PATHS.whatsapp.config, async (req: Request, res: Response) => 
                     ...(typeof self_chat_enabled === 'boolean' ? {
                         selfChatEnabled: self_chat_enabled,
                         self_chat_enabled,
-                    } : {}),
-                    ...(typeof ai_reply_enabled === 'boolean' ? {
-                        aiReplyEnabled: ai_reply_enabled,
-                        ai_reply_enabled,
                     } : {}),
                 },
                 updated_at: new Date().toISOString(),
