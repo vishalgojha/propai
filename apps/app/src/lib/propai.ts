@@ -1,6 +1,8 @@
 export const PROPAI_ASSISTANT_NUMBER = '+91 7021045254';
 export const PROPAI_ASSISTANT_PHONE_DIGITS = '7021045254';
-export const PROPAI_ASSISTANT_WA_LINK = 'https://wa.me/917021045254';
+export const PROPAI_ASSISTANT_PREFILL =
+  'Hi PropAI Assistant, I need help choosing between Personal Parser and PropAI Network.';
+export const PROPAI_ASSISTANT_WA_LINK = `https://wa.me/917021045254?text=${encodeURIComponent(PROPAI_ASSISTANT_PREFILL)}`;
 export const PROPAI_PLAN_CARDS = [
   {
     name: 'Trial',
