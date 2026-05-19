@@ -9,6 +9,7 @@ import { createSupabaseAuthState, type SupabaseAuthState } from './SupabaseAuthS
 import { CircuitBreaker } from './CircuitBreaker';
 import { PropAISupabaseAdapter } from './PropAISupabaseAdapter';
 import { sessionEventService } from '../services/sessionEventService';
+import { wabroMessageStatusService } from '../services/wabroMessageStatusService';
 import { whatsappGroupService } from '../services/whatsappGroupService';
 import { liveMonitorService } from '../services/liveMonitorService';
 import { supabase } from '../config/supabase';
@@ -68,6 +69,66 @@ export class WhatsAppClient {
         replaced: false,
         at: null,
     };
+
+    private mapBaileysStatus(code?: number | null): 'server_ack' | 'delivered' | 'read' | 'played' | null {
+        switch (code) {
+            case 2:
+                return 'server_ack';
+            case 3:
+                return 'delivered';
+            case 4:
+                return 'read';
+            case 5:
+                return 'played';
+            default:
+                return null;
+        }
+    }
+
+    private async recordMessageStatus(input: {
+        messageId: string;
+        chatId: string;
+        state: 'sent' | 'server_ack' | 'delivered' | 'read' | 'played' | 'failed';
+        timestamp?: string | null;
+        errorCode?: string | null;
+        errorMessage?: string | null;
+        rawPayload?: Record<string, unknown> | null;
+        source: 'api_runtime_send' | 'api_runtime_update';
+    }) {
+        const messageId = String(input.messageId || '').trim();
+        const chatId = String(input.chatId || '').trim();
+        if (!messageId || !chatId) {
+            return;
+        }
+
+        const timestamp = input.timestamp || new Date().toISOString();
+        const eventId = `${input.source}:${this.tenantId}:${this.label}:${messageId}:${input.state}:${timestamp}`;
+
+        await wabroMessageStatusService.record({
+            eventId,
+            tenantId: this.tenantId,
+            sessionLabel: this.label,
+            messageId,
+            chatId,
+            state: input.state,
+            timestamp,
+            errorCode: input.errorCode || null,
+            errorMessage: input.errorMessage || null,
+            rawPayload: input.rawPayload || null,
+        });
+
+        void sessionEventService.log(this.tenantId, 'message_status', {
+            label: this.label,
+            eventId,
+            messageId,
+            chatId,
+            state: input.state,
+            timestamp,
+            errorCode: input.errorCode || null,
+            errorMessage: input.errorMessage || null,
+            source: input.source,
+        });
+    }
 
     constructor(options: WhatsAppClientOptions) {
         this.tenantId = options.tenantId;
@@ -379,6 +440,7 @@ this.socket.ev.on('messages.upsert', async (payload: any) => {
                       const updateType = update.update?.type; // 'revoked' or 'edited'
                       const remoteJid = key?.remoteJid || '';
                       const messageId = key?.id;
+                      const statusCode = typeof update.update?.status === 'number' ? update.update.status : null;
                       const isGroup = remoteJid.endsWith('@g.us');
 
                       void sessionEventService.log(this.tenantId, 'message_updated', {
@@ -386,8 +448,21 @@ this.socket.ev.on('messages.upsert', async (payload: any) => {
                           isGroup,
                           label: this.label,
                           updateType,
+                          statusCode,
                           keyId: messageId,
                       });
+
+                      const mappedStatus = this.mapBaileysStatus(statusCode);
+                      if (mappedStatus && messageId && remoteJid) {
+                          await this.recordMessageStatus({
+                              messageId,
+                              chatId: remoteJid,
+                              state: mappedStatus,
+                              timestamp: new Date().toISOString(),
+                              rawPayload: update,
+                              source: 'api_runtime_update',
+                          });
+                      }
 
                       // Mark revoked messages as deleted in the DB
                       if (updateType === 'revoked' && messageId) {
@@ -476,6 +551,14 @@ try {
         const sanitizedText = sanitizeForWhatsApp(text);
         this.rememberOutgoingMessage(jid, sanitizedText);
         const result = await this.socket.sendMessage(jid, { text: sanitizedText });
+        await this.recordMessageStatus({
+            messageId: String(result?.key?.id || ''),
+            chatId: jid,
+            state: 'sent',
+            timestamp: new Date().toISOString(),
+            rawPayload: result as unknown as Record<string, unknown>,
+            source: 'api_runtime_send',
+        });
         await this.hooks?.onOutgoingMessage?.({
             tenantId: this.tenantId,
             label: this.label,
@@ -521,6 +604,14 @@ try {
         }
 
         const result = await this.socket.sendMessage(jid, message as any);
+        await this.recordMessageStatus({
+            messageId: String(result?.key?.id || ''),
+            chatId: jid,
+            state: 'sent',
+            timestamp: new Date().toISOString(),
+            rawPayload: result as unknown as Record<string, unknown>,
+            source: 'api_runtime_send',
+        });
         await this.hooks?.onOutgoingMessage?.({
             tenantId: this.tenantId,
             label: this.label,
