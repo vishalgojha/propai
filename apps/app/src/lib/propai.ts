@@ -20,7 +20,7 @@ export const PROPAI_PLAN_CARDS = [
   },
   {
     name: 'PropAI Network',
-    price: '₹999',
+    price: '₹999 / month',
     devices: 'Network intelligence access',
     blurb: 'Move beyond a private parser into shared PropAI market data, broader listing visibility, and network context.',
   },
