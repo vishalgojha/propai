@@ -61,26 +61,37 @@ const examples = [
   'Show me hot leads from this week',
 ];
 
-const demoConversation = [
+const productHighlights = [
   {
-    role: 'user',
-    text: '3BHK Bandra West 1.8Cr, ready possession, owner direct',
-    timestamp: 'Now',
+    title: 'Private Plan',
+    eyebrow: 'Personal Parser',
+    copy: 'Your own WhatsApp groups, your own parsed Stream, your own broker workflow. Keep the market graph private and run with your own keys.',
+    points: ['Private group coverage', 'Private Stream memory', 'Own API keys and workflow control'],
   },
   {
-    role: 'ai',
-    text: 'Saved as listing. Found 2 buyer matches in your pipeline — Rahul (budget 1.5–2Cr, Bandra) and Priya (ready possession, West Mumbai). Want me to draft follow-up messages for both?',
-    timestamp: 'Now',
+    title: 'Public Plan',
+    eyebrow: 'PropAI Network',
+    copy: 'Everything in the private stack, plus network-wide broker data, broader market visibility, and shared intelligence across the PropAI graph.',
+    points: ['Network-wide listings', 'Public market visibility', 'Shared intelligence layer'],
+  },
+];
+
+const stackHighlights = [
+  {
+    title: 'WaBro',
+    copy: 'Outbound broker broadcasts, follow-up pushes, and Android execution without leaving the same PropAI workspace.',
   },
   {
-    role: 'user',
-    text: 'Yes. And remind me to call Rahul tomorrow at 10am',
-    timestamp: 'Now',
+    title: 'MCP',
+    copy: 'Structured machine context so your agent layer can work against broker data, prompts, and workspace actions cleanly.',
   },
   {
-    role: 'ai',
-    text: 'Done. Reminder set for 10am. I drafted a WhatsApp message for Rahul highlighting the Bandra West unit and ready possession — review it in Inbox before sending.',
-    timestamp: 'Now',
+    title: 'BYOK',
+    copy: 'Bring your own API keys when you want tighter cost control, model choice, and a cleaner private deployment boundary.',
+  },
+  {
+    title: 'Shared workspace',
+    copy: 'Monitor, Stream, agent actions, and WaBro stay in one surface instead of breaking into separate broker tools.',
   },
 ];
 
@@ -113,7 +124,6 @@ export const Login: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  const [demoIndex, setDemoIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
@@ -135,14 +145,6 @@ export const Login: React.FC = () => {
     const next = params.get('next');
     return next && next.startsWith('/') ? next : '/agent';
   }, [location.search]);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setDemoIndex((current) => (current + 1) % (demoConversation.length + 1));
-    }, 1800);
-
-    return () => window.clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     if (!isLoading && user) {
@@ -210,6 +212,7 @@ export const Login: React.FC = () => {
           response.data?.user?.email || email,
           {
             ...buildSessionFromSupabase(response.data?.user?.email || email, session),
+            id: response.data?.user?.id,
             appRole: resolveAppRole(
               response.data?.user?.email || email,
               response.data?.profile?.appRole || response.data?.user?.appRole
@@ -264,17 +267,18 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)]">
+    <div className="min-h-screen bg-[#000000] text-[var(--text-primary)]">
       <div
         className="min-h-screen"
         style={{
           backgroundImage:
-            'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px), radial-gradient(ellipse at top, rgba(62,232,138,0.07) 0%, transparent 60%)',
+            'linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px)',
           backgroundSize: '28px 28px, 28px 28px, auto',
           backgroundPosition: 'center top',
+          backgroundColor: '#000000',
         }}
       >
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="mx-auto w-full max-w-[1680px] px-4 sm:px-6 lg:px-10 xl:px-12 py-6 lg:py-8">
           <AuthCard className="mb-6 flex flex-col items-start justify-between gap-3 px-4 py-3 sm:flex-row sm:items-center">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)] shadow-[0_0_0_1px_rgba(62,232,138,0.08)]">
@@ -320,7 +324,7 @@ export const Login: React.FC = () => {
             </AuthCard>
           )}
 
-          <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] items-start">
+          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr] items-start">
             <section className="order-2 space-y-6 lg:order-1">
               <AuthCard className="p-6 md:p-8">
                 <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
@@ -410,80 +414,46 @@ export const Login: React.FC = () => {
                 </div>
               </AuthCard>
 
-              <AuthCard className="p-5">
+              <AuthCard className="p-5 md:p-6">
                 <div className="flex items-center gap-2">
-              <WorkflowIcon className="h-4 w-4 text-[var(--accent)]" />
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Sample conversation</p>
+                  <WorkflowIcon className="h-4 w-4 text-[var(--accent)]" />
+                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Product map</p>
                 </div>
-                <div className="relative mt-4 h-[320px] overflow-hidden rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)]">
-                  <div className="pulse-scrollbar h-full space-y-5 overflow-y-auto px-4 py-4 pr-3">
-                    {demoConversation.slice(0, demoIndex).map((item, index) => {
-                      const isAi = item.role === 'ai';
-                      return (
-                        <div key={`${item.role}-${index}`} className="group px-0">
-                          <div className="flex items-start gap-3">
-                            <div className="w-[12px] shrink-0 pt-[3px]">
-                              {isAi ? (
-                                <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">
-              <ActivityIcon className="h-3 w-3" />
-                                  <span>Pulse</span>
-                                </div>
-                              ) : (
-                                <div className="flex h-6 w-6 items-center justify-center rounded-full border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[10px] font-bold text-[var(--accent)]">
-                                  U
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <p className={isAi ? 'text-[13px] leading-7 text-[var(--text-primary)]' : 'text-[13px] leading-7 text-[var(--text-secondary)]'}>
-                                {item.text}
-                              </p>
-                            </div>
-
-                            <div className="hidden min-w-[84px] text-right sm:block">
-                              <span className="inline-block text-[10px] font-medium text-[var(--text-ghost)] opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                                {item.timestamp}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {demoIndex === 0 ? (
-                      <div className="group px-0">
-                        <div className="flex items-start gap-3">
-                          <div className="w-[12px] shrink-0 pt-[3px]">
-                            <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">
-              <ActivityIcon className="h-3 w-3" />
-                              <span>Pulse</span>
-                            </div>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[13px] leading-7 text-[var(--text-secondary)]">
-                              Pulse picks up the message from Stream, keeps Monitor relevant, and lines up the next action without making you juggle three tools.
-                            </p>
-                          </div>
-                          <div className="hidden min-w-[84px] text-right sm:block">
-                            <span className="inline-block text-[10px] font-medium text-[var(--text-ghost)] opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                              Now
+                <div className="mt-4 space-y-4">
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    {productHighlights.map((item) => (
+                      <div
+                        key={item.title}
+                        className="rounded-[16px] border border-[color:var(--accent-border)] bg-[linear-gradient(180deg,rgba(17,24,32,0.96),rgba(10,14,19,0.98))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.3)]"
+                      >
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">{item.eyebrow}</p>
+                        <h3 className="mt-3 text-[26px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">{item.title}</h3>
+                        <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">{item.copy}</p>
+                        <div className="mt-5 flex flex-wrap gap-2">
+                          {item.points.map((point) => (
+                            <span
+                              key={point}
+                              className="rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]"
+                            >
+                              {point}
                             </span>
-                          </div>
+                          ))}
                         </div>
                       </div>
-                    ) : null}
-
-                    <div className="flex items-center gap-2 pt-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
-                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)] opacity-70" />
-                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)] opacity-40" />
-                      <span className="text-[10px] text-[var(--text-secondary)]">
-                        {demoIndex === demoConversation.length ? 'Looping demo' : 'Auto-playing capability demo'}
-                      </span>
-                    </div>
+                    ))}
                   </div>
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[var(--bg-elevated)] to-transparent" />
+
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {stackHighlights.map((item) => (
+                      <div
+                        key={item.title}
+                        className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
+                      >
+                        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">{item.title}</p>
+                        <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">{item.copy}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </AuthCard>
             </section>
@@ -845,7 +815,7 @@ export const Login: React.FC = () => {
           </div>
         </div>
       </div>
-      <LegalFooter className="border-t-0 bg-[transparent]" />
+      <LegalFooter className="border-t-0 bg-[#000000]" />
     </div>
   );
 };
