@@ -2,8 +2,11 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Install git for pnpm workspace
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+# Install git plus CA roots so pnpm can resolve git-based deps over HTTPS.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy workspace configuration FIRST
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -36,6 +39,7 @@ WORKDIR /app/apps/api
 
 # Install runtime dependencies needed for onnxruntime-node (glibc, libstdc++)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
