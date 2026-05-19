@@ -4,7 +4,7 @@ import type {
     RuntimeSendMessageRequest,
     WhatsAppInboundMessagePayload,
     WhatsAppStatusPayload,
-} from '../../../../packages/wabro-contracts';
+} from '../contracts/wabroContracts';
 
 type ProcessResult = {
     accepted: true;

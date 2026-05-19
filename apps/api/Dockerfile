@@ -14,8 +14,6 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 # Copy package.json from workspace packages (required for pnpm workspace resolution)
 COPY apps/api/package.json ./apps/api/
 COPY packages/agent/package.json ./packages/agent/
-COPY packages/wabro-contracts/package.json ./packages/wabro-contracts/
-
 # Install dependencies.
 # The API package.json changes more frequently than the shared workspace lockfile
 # in this repo, so avoid failing deploys on a stale root lockfile here.
@@ -26,7 +24,6 @@ RUN corepack enable && \
 # Copy source after deps are installed (better layer caching)
 COPY apps/api/src ./apps/api/src
 COPY apps/api/tsconfig.json ./apps/api/
-COPY packages/wabro-contracts ./packages/wabro-contracts
 
 # Build the TypeScript project
 WORKDIR /app/apps/api

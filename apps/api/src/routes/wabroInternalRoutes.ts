@@ -6,7 +6,7 @@ import {
     runtimeSessionStatusQuerySchema,
     whatsappInboundMessagePayloadSchema,
     whatsappStatusPayloadSchema,
-} from '../../../../packages/wabro-contracts';
+} from '../contracts/wabroContracts';
 import { validate } from '../middleware/validate';
 import { ROUTE_PATHS } from './routePaths';
 import {

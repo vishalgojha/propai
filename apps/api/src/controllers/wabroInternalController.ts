@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import type { RuntimeBroadcastRequest, RuntimeSendMediaRequest, RuntimeSendMessageRequest } from '../../../../packages/wabro-contracts';
+import type { RuntimeBroadcastRequest, RuntimeSendMediaRequest, RuntimeSendMessageRequest } from '../contracts/wabroContracts';
 import { sessionManager } from '../whatsapp/SessionManager';
 import { getErrorMessage, getErrorStatus, HttpError } from '../utils/controllerHelpers';
 import { wabroRuntimeBridgeService } from '../services/wabroRuntimeBridgeService';
