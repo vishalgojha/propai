@@ -153,7 +153,7 @@ const sanitizeInboxError = (message: string) => {
     normalized.includes('created_at does not exist') ||
     normalized.includes('message_text does not exist')
   ) {
-    return 'this workspace is still on an older database shape, so Inbox is falling back to the direct-message log without the richer mirror metadata';
+    return 'this workspace is still on an older database shape, so Inbox is falling back to the direct-message log without the richer thread metadata';
   }
 
   return message;
@@ -196,7 +196,7 @@ export const Inbox: React.FC = () => {
         setError(
           err?.response?.status === 404
             ? 'Inbox endpoint is not live on this API build yet, so this view is using the saved direct-message log for now.'
-            : `Inbox mirror is unavailable right now, so this view is using the saved direct-message log instead. (${sanitizeInboxError(primaryError)})`,
+            : `Inbox history is unavailable right now, so this view is using the saved direct-message log instead. (${sanitizeInboxError(primaryError)})`,
         );
       } catch (fallbackErr) {
         setError(handleApiError(fallbackErr));

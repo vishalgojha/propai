@@ -339,7 +339,7 @@ export const Login: React.FC = () => {
                     <span className="block text-[var(--accent)]">finally works together.</span>
                   </h1>
                   <p className="mt-5 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                    PropAI gives you a live WhatsApp Monitor, a parsed Stream for listings and requirements, and WaBro for outbound broker broadcasts. Keep your workflow private with Personal Parser, or move into PropAI Network when you want global market data.
+                    PropAI gives you a WhatsApp workspace console, a parsed Stream for listings and requirements, and WaBro for outbound broker broadcasts. Keep your workflow private with Personal Parser, or move into PropAI Network when you want global market data.
                   </p>
                 </div>
 

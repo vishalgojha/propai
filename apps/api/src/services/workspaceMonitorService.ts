@@ -15,17 +15,6 @@ type MessageRow = {
     participantsCount?: number | null;
 };
 
-type MirrorRow = {
-    id: string;
-    remote_jid: string;
-    sender_name?: string | null;
-    sender_jid?: string | null;
-    text?: string | null;
-    timestamp?: string | null;
-    direction?: 'inbound' | 'outbound' | null;
-    session_label?: string | null;
-};
-
 type MonitorRow = MessageRow & {
     direction?: 'inbound' | 'outbound' | null;
 };
@@ -99,40 +88,10 @@ function buildDirectLabel(row: MessageRow) {
 }
 
 export class WorkspaceMonitorService {
-    private mapMirrorRow(row: MirrorRow): MonitorRow {
-        return {
-            id: row.id,
-            remote_jid: row.remote_jid,
-            sender: row.direction === 'outbound'
-                ? (row.sender_name || 'Broker')
-                : (row.sender_name || row.sender_jid || null),
-            text: row.text || '',
-            timestamp: row.timestamp || new Date().toISOString(),
-            title: null,
-            participantsCount: null,
-            direction: row.direction || null,
-        };
-    }
-
     private async loadMessageRows(workspaceOwnerId: string, sessionLabel?: string | null): Promise<MonitorRow[]> {
         const liveRows = liveMonitorService.getSessionRows(workspaceOwnerId, sessionLabel);
         if (liveRows.length > 0) {
             return liveRows as MonitorRow[];
-        }
-
-        let mirrorQuery = db
-            .from('whatsapp_message_mirror')
-            .select('id, remote_jid, sender_name, sender_jid, text, timestamp, direction, session_label')
-            .eq('tenant_id', workspaceOwnerId)
-            .order('timestamp', { ascending: false });
-
-        if (sessionLabel) {
-            mirrorQuery = mirrorQuery.eq('session_label', sessionLabel);
-        }
-
-        const mirrorResult = await mirrorQuery;
-        if (!mirrorResult.error && Array.isArray(mirrorResult.data)) {
-            return (mirrorResult.data as MirrorRow[]).map((row) => this.mapMirrorRow(row));
         }
 
         const messagesResult = await db
@@ -158,30 +117,6 @@ export class WorkspaceMonitorService {
         const liveRows = liveMonitorService.getChatRows(workspaceOwnerId, chatId, sessionLabel, before, limit);
         if (liveRows.length > 0) {
             return liveRows as unknown as MonitorRow[];
-        }
-
-        let mirrorQuery = db
-            .from('whatsapp_message_mirror')
-            .select('id, remote_jid, sender_name, sender_jid, text, timestamp, direction, session_label')
-            .eq('tenant_id', workspaceOwnerId)
-            .eq('remote_jid', chatId)
-            .order('timestamp', { ascending: false });
-
-        if (sessionLabel) {
-            mirrorQuery = mirrorQuery.eq('session_label', sessionLabel);
-        }
-
-        if (before) {
-            mirrorQuery = mirrorQuery.lt('timestamp', before);
-        }
-
-        if (typeof limit === 'number') {
-            mirrorQuery = mirrorQuery.limit(limit);
-        }
-
-        const mirrorResult = await mirrorQuery;
-        if (!mirrorResult.error && Array.isArray(mirrorResult.data)) {
-            return (mirrorResult.data as MirrorRow[]).map((row) => this.mapMirrorRow(row));
         }
 
         let messagesQuery = db

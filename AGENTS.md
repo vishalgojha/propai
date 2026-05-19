@@ -43,15 +43,14 @@
 
 ### What The Current Uncommitted Work Does
 
-- Monitor is being moved away from the transient mirror-first model.
-- Backend monitor overview now reads from persisted workspace message history instead of the live mirror path.
+- Monitor now uses persisted workspace message history as the source of truth.
 - A dedicated lazy thread-history endpoint is being introduced for Monitor:
   - `GET /whatsapp/monitor/messages`
 - Frontend Monitor is being refactored to:
   - use `/whatsapp/monitor` for the chat list / overview
   - lazy-load thread history per selected chat
   - page older messages on demand instead of relying on a hard global message cap
-  - treat Monitor as a workspace-history console, not a post-QR debug mirror
+  - treat Monitor as a workspace-history console
 - Additional untracked WaBro artifacts are present and intended for commit only if the user confirms they belong in the current push:
   - `apps/app/public/wabro.apk`
   - `apps/wabro-android/`

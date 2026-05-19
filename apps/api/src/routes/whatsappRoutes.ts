@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMirror, getMonitor, getMonitorMessages, getInbox, disconnectWhatsApp, getMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getGroupHealth, getEvents, getHealthLogs, submitSupportLogs, getGroups, getOutboundRecipients } from '../controllers/whatsappController';
+import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getMonitorMessages, getInbox, disconnectWhatsApp, getMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getGroupHealth, getEvents, getHealthLogs, submitSupportLogs, getGroups, getOutboundRecipients } from '../controllers/whatsappController';
 import { importHistoryTxt, getHistoryImports, checkDuplicateImports } from '../controllers/historyController';
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
@@ -19,7 +19,6 @@ router.post(ROUTE_PATHS.whatsapp.historyImport, importHistoryTxt);
 router.get(ROUTE_PATHS.whatsapp.historyImports, getHistoryImports);
 router.post(ROUTE_PATHS.whatsapp.historyCheckDuplicates, checkDuplicateImports);
 router.get(ROUTE_PATHS.whatsapp.status, getStatus);
-router.get(ROUTE_PATHS.whatsapp.mirror, getMirror);
 router.get(ROUTE_PATHS.whatsapp.monitor, getMonitor);
 router.get(ROUTE_PATHS.whatsapp.monitorMessages, getMonitorMessages);
 router.get(ROUTE_PATHS.whatsapp.inbox, getInbox);
@@ -111,6 +110,32 @@ router.patch('/groups/:groupJid/toggle-parsing', async (req: Request, res: Respo
         res.json({ success: true, group: result });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to toggle group parsing';
+        res.status(500).json({ error: message });
+    }
+});
+
+router.patch('/groups/:groupJid/visibility', async (req: Request, res: Response) => {
+    try {
+        const tenantId = req.user?.id;
+        if (!tenantId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const groupJid = String(req.params.groupJid || '');
+        const { visibilityStatus } = req.body;
+
+        if (!groupJid) {
+            return res.status(400).json({ error: 'groupJid is required' });
+        }
+
+        if (visibilityStatus !== 'visible' && visibilityStatus !== 'hidden') {
+            return res.status(400).json({ error: 'visibilityStatus must be visible or hidden' });
+        }
+
+        const result = await whatsappGroupService.updateGroup(tenantId, groupJid, {
+            visibilityStatus,
+        });
+        res.json({ success: true, group: result });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to update group visibility';
         res.status(500).json({ error: message });
     }
 });

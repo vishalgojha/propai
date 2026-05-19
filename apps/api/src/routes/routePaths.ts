@@ -51,7 +51,6 @@ export const ROUTE_PATHS = {
         historyImports: '/history/imports',
         historyCheckDuplicates: '/history/check-duplicates',
         status: '/status',
-        mirror: '/mirror',
         monitor: '/monitor',
         monitorMessages: '/monitor/messages',
         inbox: '/inbox',

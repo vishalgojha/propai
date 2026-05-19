@@ -50,7 +50,6 @@ export const ENDPOINTS = {
     connect: '/whatsapp/connect',
     disconnect: '/whatsapp/disconnect',
     status: '/whatsapp/status',
-    mirror: '/whatsapp/mirror',
     sessions: '/whatsapp/sessions',
     qr: '/whatsapp/qr',
     monitor: '/whatsapp/monitor',

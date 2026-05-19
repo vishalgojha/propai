@@ -677,7 +677,7 @@ export const Monitor: React.FC = () => {
               <p className="text-sm font-semibold text-white">Monitor</p>
               <p className="text-[11px] text-[#8696a0]">
                 <span className="relative mr-1.5 inline-block h-2 w-2 rounded-full bg-[#00a884] shadow-[0_0_6px_#00a884]" />
-                Live WhatsApp mirror · {data?.summary.totalChats || 0} chats · {data?.summary.totalMessages || 0} messages
+                Workspace history · {data?.summary.totalChats || 0} chats · {data?.summary.totalMessages || 0} messages
               </p>
             </div>
             <button
@@ -840,7 +840,7 @@ export const Monitor: React.FC = () => {
 
             {!isLoading && displayChats.length === 0 ? (
               <div className="px-4 py-10 text-sm text-[#8696a0]">
-                No mirrored chats yet.
+                No saved chats yet.
               </div>
             ) : null}
           </div>
@@ -948,7 +948,7 @@ export const Monitor: React.FC = () => {
                   </div>
                   <h3 className="mt-4 text-xl font-semibold text-white">WhatsApp workspace monitor</h3>
                   <p className="mt-2 text-sm leading-6 text-[#8696a0]">
-                    Pick a chat from the left and this panel will load mirrored WhatsApp history.
+                    Pick a chat from the left and this panel will load saved workspace history.
                   </p>
                 </div>
               </div>

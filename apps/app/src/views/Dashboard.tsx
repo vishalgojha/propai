@@ -530,7 +530,7 @@ export const Dashboard: React.FC = () => {
         <StatCard
           title="Monitor"
           value="Groups + DMs"
-          hint="Live mirror view of your WhatsApp activity for debugging and review."
+          hint="Workspace message history for WhatsApp review, follow-up, and broker actions."
           icon={<Eye className="h-5 w-5" />}
           onClick={() => navigate('/monitor')}
           cta="Open Monitor"

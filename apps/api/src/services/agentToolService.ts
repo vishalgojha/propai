@@ -1,5 +1,4 @@
 import { aiService } from './aiService';
-import { whatsappMessageMirrorService } from './whatsappMessageMirrorService';
 import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { safeJSONParse } from '../utils/jsonUtils';
@@ -62,15 +61,6 @@ export class AgentToolService {
                     sender: 'AI',
                     timestamp: new Date().toISOString(),
                 });
-                await whatsappMessageMirrorService.append({
-                    tenantId,
-                    remoteJid: destinationJid,
-                    text: messageText,
-                    direction: 'outbound',
-                    senderName: 'AI',
-                    timestamp: new Date().toISOString(),
-                    messageKey: `agent-tool:${tenantId}:${destinationJid}:${Date.now()}`,
-                });
                 return { success: true };
             }
             case 'send_whatsapp_message': {
@@ -88,15 +78,6 @@ export class AgentToolService {
                         text: messageText,
                         sender: 'AI',
                         timestamp: new Date().toISOString(),
-                    });
-                    await whatsappMessageMirrorService.append({
-                        tenantId,
-                        remoteJid: destinationJid,
-                        text: messageText,
-                        direction: 'outbound',
-                        senderName: 'AI',
-                        timestamp: new Date().toISOString(),
-                        messageKey: `agent-tool:${tenantId}:${destinationJid}:${Date.now()}`,
                     });
                     return { success: true };
                 } catch (error: any) {
