@@ -9,6 +9,7 @@ export type SessionEventType =
   | 'group_participants_updated'
   | 'message_deleted'
   | 'message_received'
+  | 'message_status'
   | 'message_updated'
   | 'parse_failed'
   | 'parse_success';

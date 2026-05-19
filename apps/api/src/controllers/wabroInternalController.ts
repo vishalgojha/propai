@@ -14,6 +14,7 @@ import { processWhatsAppInboundMessage } from '../channel-events/processors/proc
 import { liveMonitorService } from '../services/liveMonitorService';
 import { sessionEventService } from '../services/sessionEventService';
 import { PropAISupabaseAdapter } from '../whatsapp/PropAISupabaseAdapter';
+import { wabroMessageStatusService } from '../services/wabroMessageStatusService';
 
 const storageAdapter = new PropAISupabaseAdapter();
 
@@ -49,12 +50,12 @@ async function getRuntimeClient(workspaceId: string, sessionId?: string) {
 
 async function sendTextCommand(payload: RuntimeSendMessageRequest) {
     const client = await getRuntimeClient(payload.auth.workspaceId, payload.auth.sessionId);
-    await client.sendMessage(toWhatsAppJid(payload.chatId), payload.text);
+    return client.sendMessage(toWhatsAppJid(payload.chatId), payload.text);
 }
 
 async function sendMediaCommand(payload: RuntimeSendMediaRequest) {
     const client = await getRuntimeClient(payload.auth.workspaceId, payload.auth.sessionId);
-    await client.sendMedia(toWhatsAppJid(payload.chatId), {
+    return client.sendMedia(toWhatsAppJid(payload.chatId), {
         url: payload.media.url,
         mimeType: payload.media.mimeType,
         fileName: payload.media.fileName || null,
@@ -150,6 +151,33 @@ export async function receiveStatusEvent(req: Request, res: Response) {
         const payload = req.body as WhatsAppStatusPayload;
         const accepted = wabroRuntimeBridgeService.acceptStatusEvent(payload);
 
+        if (accepted) {
+            await wabroMessageStatusService.record({
+                eventId: payload.eventId,
+                tenantId: payload.auth.workspaceId,
+                sessionLabel: payload.auth.sessionId,
+                messageId: payload.status.messageId,
+                chatId: payload.status.chatId,
+                state: payload.status.state,
+                timestamp: payload.status.timestamp,
+                errorCode: payload.status.errorCode || null,
+                errorMessage: payload.status.errorMessage || null,
+                rawPayload: payload as unknown as Record<string, unknown>,
+            });
+
+            void sessionEventService.log(payload.auth.workspaceId, 'message_status', {
+                label: payload.auth.sessionId,
+                eventId: payload.eventId,
+                messageId: payload.status.messageId,
+                chatId: payload.status.chatId,
+                state: payload.status.state,
+                timestamp: payload.status.timestamp,
+                errorCode: payload.status.errorCode || null,
+                errorMessage: payload.status.errorMessage || null,
+                source: 'wabro_internal',
+            });
+        }
+
         res.json({
             accepted: true,
             duplicate: !accepted,
@@ -164,9 +192,11 @@ export async function runtimeSendMessage(req: Request, res: Response) {
     try {
         const payload = req.body as RuntimeSendMessageRequest;
         const accepted = wabroRuntimeBridgeService.beginOutboundCommand('send-message', payload);
+        let providerMessageId: string | null = null;
 
         if (accepted) {
-            await sendTextCommand(payload);
+            const result = await sendTextCommand(payload);
+            providerMessageId = String(result?.key?.id || '').trim() || null;
         }
 
         res.json({
@@ -174,7 +204,7 @@ export async function runtimeSendMessage(req: Request, res: Response) {
             duplicate: !accepted,
             requestId: payload.requestId,
             idempotencyKey: payload.idempotencyKey,
-            providerMessageId: null,
+            providerMessageId,
             status: accepted ? 'sent' : 'duplicate_ignored',
         });
     } catch (error: unknown) {
@@ -186,9 +216,11 @@ export async function runtimeSendMedia(req: Request, res: Response) {
     try {
         const payload = req.body as RuntimeSendMediaRequest;
         const accepted = wabroRuntimeBridgeService.beginOutboundCommand('send-media', payload);
+        let providerMessageId: string | null = null;
 
         if (accepted) {
-            await sendMediaCommand(payload);
+            const result = await sendMediaCommand(payload);
+            providerMessageId = String(result?.key?.id || '').trim() || null;
         }
 
         res.json({
@@ -196,7 +228,7 @@ export async function runtimeSendMedia(req: Request, res: Response) {
             duplicate: !accepted,
             requestId: payload.requestId,
             idempotencyKey: payload.idempotencyKey,
-            providerMessageId: null,
+            providerMessageId,
             status: accepted ? 'sent' : 'duplicate_ignored',
         });
     } catch (error: unknown) {

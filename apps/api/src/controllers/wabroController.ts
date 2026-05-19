@@ -855,9 +855,9 @@ export async function sendMessage(req: Request, res: Response) {
     }
 
     const jid = `${contactPhone.replace(/\D/g, '')}@s.whatsapp.net`;
-    await client.sendMessage(jid, text);
+    const result = await client.sendMessage(jid, text);
 
-    res.json({ status: 'sent', providerMessageId: null, serverTimestamp: Date.now() });
+    res.json({ status: 'sent', providerMessageId: result?.key?.id || null, serverTimestamp: Date.now() });
   } catch (error: unknown) {
     res.status(getErrorStatus(error)).json({
       status: 'failed',
@@ -882,14 +882,14 @@ export async function sendMediaMessage(req: Request, res: Response) {
     }
 
     const jid = `${contactPhone.replace(/\D/g, '')}@s.whatsapp.net`;
-    await client.sendMedia(jid, {
+    const result = await client.sendMedia(jid, {
       url: mediaUrl,
       mimeType,
       fileName,
       caption: text,
     });
 
-    res.json({ status: 'sent', providerMessageId: null, serverTimestamp: Date.now() });
+    res.json({ status: 'sent', providerMessageId: result?.key?.id || null, serverTimestamp: Date.now() });
   } catch (error: unknown) {
     res.status(getErrorStatus(error)).json({
       status: 'failed',

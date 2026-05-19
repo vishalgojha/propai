@@ -475,7 +475,7 @@ try {
 
         const sanitizedText = sanitizeForWhatsApp(text);
         this.rememberOutgoingMessage(jid, sanitizedText);
-        await this.socket.sendMessage(jid, { text: sanitizedText });
+        const result = await this.socket.sendMessage(jid, { text: sanitizedText });
         await this.hooks?.onOutgoingMessage?.({
             tenantId: this.tenantId,
             label: this.label,
@@ -483,6 +483,7 @@ try {
             text: sanitizedText,
             timestamp: new Date().toISOString(),
         });
+        return result;
     }
 
     async sendMedia(jid: string, media: WhatsAppMediaInput) {
@@ -519,7 +520,7 @@ try {
             message.fileName = fileName;
         }
 
-        await this.socket.sendMessage(jid, message as any);
+        const result = await this.socket.sendMessage(jid, message as any);
         await this.hooks?.onOutgoingMessage?.({
             tenantId: this.tenantId,
             label: this.label,
@@ -527,6 +528,7 @@ try {
             text: caption || fileName,
             timestamp: new Date().toISOString(),
         });
+        return result;
     }
 
     async getGroups() {
