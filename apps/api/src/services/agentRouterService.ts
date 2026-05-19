@@ -67,6 +67,8 @@ export class AgentRouterService {
         '- general_chat: broker says hi, thanks, or asks broad help questions',
         '- general_answer: everything else',
         'When the request is general or ambiguous, still return a helpful rationale that briefly teaches the user what kinds of actions PropAI can do.',
+        'Do not choose create_channel unless the broker has provided at least one concrete channel filter such as locality, keyword, deal type, BHK, asset class, or record type.',
+        'If the broker only says something like "create a channel for me" without the filter, prefer general_answer and ask exactly one short follow-up question for the missing area or filter.',
         'Arguments should include whatever useful fields you can infer from the user text.',
         'If unsure, prefer general_answer rather than inventing data.',
         'Output shape: {"intent":"...","confidence":0-1,"rationale":"...","args":{...}}',

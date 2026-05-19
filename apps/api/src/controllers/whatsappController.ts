@@ -685,6 +685,117 @@ export const getDetailedHealth = async (req: Request, res: Response) => {
     }
 };
 
+export const getHistoryDebug = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const tenantId = context.workspaceOwnerId;
+        const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel.trim() : null;
+        const dbClient = getDbClient();
+        const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+        const countRawDump = async (options?: {
+            directOnly?: boolean;
+            groupOnly?: boolean;
+            since?: string;
+        }) => {
+            let query = dbClient
+                .from('raw_dump')
+                .select('id', { count: 'exact', head: true })
+                .eq('workspace_id', tenantId);
+
+            if (sessionLabel) query = query.eq('session_id', sessionLabel);
+            if (options?.since) query = query.gte('received_at', options.since);
+            if (options?.groupOnly) query = query.like('group_jid', '%@g.us');
+            if (options?.directOnly) query = query.not('group_jid', 'like', '%@g.us');
+
+            const result = await query;
+            if (result.error) throw result.error;
+            return Number(result.count || 0);
+        };
+
+        const [total, direct, groups, recent24h, latestRows, sessionRows] = await Promise.all([
+            countRawDump(),
+            countRawDump({ directOnly: true }),
+            countRawDump({ groupOnly: true }),
+            countRawDump({ since: since24h }),
+            (() => {
+                let query = dbClient
+                    .from('raw_dump')
+                    .select('group_jid, sender_jid, received_at, session_id')
+                    .eq('workspace_id', tenantId)
+                    .order('received_at', { ascending: false })
+                    .limit(20);
+
+                if (sessionLabel) query = query.eq('session_id', sessionLabel);
+                return query;
+            })(),
+            dbClient
+                .from('whatsapp_sessions')
+                .select('label, status, session_data, last_sync')
+                .eq('tenant_id', tenantId)
+                .order('last_sync', { ascending: false }),
+        ]);
+
+        if (latestRows.error) throw latestRows.error;
+        if (sessionRows.error) throw sessionRows.error;
+
+        const targetSessions = (sessionRows.data || []).filter((row: any) => {
+            return !sessionLabel || String(row.label || '') === sessionLabel;
+        });
+
+        const chatTitleCount = targetSessions.reduce((sum: number, row: any) => {
+            const titles = row?.session_data?.chatTitles;
+            return sum + (titles && typeof titles === 'object' ? Object.keys(titles).length : 0);
+        }, 0);
+
+        const uniqueChats = new Set(
+            (latestRows.data || [])
+                .map((row: any) => String(row.group_jid || '').trim())
+                .filter(Boolean),
+        );
+
+        res.json({
+            success: true,
+            workspace: {
+                ownerId: context.workspaceOwnerId,
+                memberRole: context.memberRole,
+            },
+            sessionLabel: sessionLabel || null,
+            rawDump: {
+                totalMessages: total,
+                directMessages: direct,
+                groupMessages: groups,
+                recent24hMessages: recent24h,
+                sampledRecentChats: uniqueChats.size,
+            },
+            sessions: targetSessions.map((row: any) => ({
+                label: row.label,
+                status: row.status,
+                phoneNumber: row?.session_data?.phoneNumber || null,
+                lastSync: row.last_sync || null,
+                storedDirectChatTitles: row?.session_data?.chatTitles && typeof row.session_data.chatTitles === 'object'
+                    ? Object.keys(row.session_data.chatTitles).length
+                    : 0,
+            })),
+            recent: (latestRows.data || []).map((row: any) => ({
+                chatId: row.group_jid,
+                sender: row.sender_jid || null,
+                receivedAt: row.received_at,
+                type: String(row.group_jid || '').endsWith('@g.us') ? 'group' : 'direct',
+                sessionLabel: row.session_id || null,
+            })),
+            summary: {
+                connectedSessions: targetSessions.filter((row: any) => row.status === 'connected').length,
+                storedDirectChatTitles: chatTitleCount,
+            },
+        });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({
+            error: getErrorMessage(error, 'Failed to load WhatsApp history debug data'),
+        });
+    }
+};
+
 export const getGroupHealth = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
 

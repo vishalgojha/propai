@@ -4,9 +4,10 @@ import makeWASocket, {
      type WASocket,
  } from '@whiskeysockets/baileys';
  import { Boom } from '@hapi/boom';
- import { sanitizeForWhatsApp } from './sanitizer';
+import { sanitizeForWhatsApp } from './sanitizer';
 import { createSupabaseAuthState, type SupabaseAuthState } from './SupabaseAuthState';
 import { CircuitBreaker } from './CircuitBreaker';
+import { PropAISupabaseAdapter } from './PropAISupabaseAdapter';
 import { sessionEventService } from '../services/sessionEventService';
 import { whatsappGroupService } from '../services/whatsappGroupService';
 import { liveMonitorService } from '../services/liveMonitorService';
@@ -255,6 +256,8 @@ export class WhatsAppClient {
                         });
                     }
 
+                    await this.persistChatTitles(chats);
+
                     for (const msg of messages) {
                         const remoteJid = String(msg?.key?.remoteJid || '').trim();
                         if (!remoteJid) continue;
@@ -278,6 +281,17 @@ export class WhatsAppClient {
                             direction: msg?.key?.fromMe ? 'outbound' : 'inbound',
                             title,
                         });
+
+                        await this.persistHistoryMessage({
+                            tenantId: this.tenantId,
+                            label: this.label,
+                            remoteJid,
+                            text,
+                            sender: this.resolveStoredSender(msg),
+                            timestamp: this.resolveMessageTimestamp(msg),
+                            fromMe: Boolean(msg?.key?.fromMe),
+                            rawMessage: msg,
+                        });
                     }
                 } catch (error) {
                     await this.hooks?.onError?.({
@@ -291,51 +305,53 @@ export class WhatsAppClient {
 
 this.socket.ev.on('messages.upsert', async (payload: any) => {
                  try {
-                     const msg = payload?.messages?.[0];
-                     if (!msg?.message) {
-                         return;
+                     const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+                     for (const msg of messages) {
+                         if (!msg?.message) {
+                             continue;
+                         }
+
+                         const messageText = this.extractMessageText(msg.message);
+                         const remoteJid = String(msg.key?.remoteJid || '').trim();
+                         const remoteJidAlt = String(msg.key?.remoteJidAlt || '');
+                         const wasSentByThisClient = this.isRecentOutgoingMessage(remoteJid, messageText);
+
+                         if (!remoteJid || !messageText) {
+                             continue;
+                         }
+
+                         if (msg.key?.fromMe && wasSentByThisClient) {
+                             continue;
+                         }
+
+                         if (msg.key?.fromMe && remoteJid.endsWith('@lid') && remoteJidAlt.startsWith(`${this.connectedPhoneNumber}@`)) {
+                             this.connectedLidJid = remoteJid;
+                             await this.persistStatus(this.connectionStatus);
+                         }
+
+                         const isGroup = remoteJid.endsWith('@g.us');
+                         void sessionEventService.log(this.tenantId, 'message_received', {
+                             remoteJid,
+                             isGroup,
+                             label: this.label,
+                             length: messageText.length,
+                             hasMedia: Boolean(msg.message?.imageMessage || msg.message?.videoMessage),
+                         });
+
+                         const event: IncomingMessageRecord = {
+                             tenantId: this.tenantId,
+                             label: this.label,
+                             remoteJid,
+                             text: messageText,
+                             sender: this.resolveStoredSender(msg),
+                             timestamp: this.resolveMessageTimestamp(msg),
+                             fromMe: Boolean(msg.key?.fromMe),
+                             rawMessage: msg,
+                         };
+
+                         await this.storage.saveInboundMessage(event);
+                         await this.hooks?.onMessage?.(event);
                      }
-
-                     const messageText = this.extractMessageText(msg.message);
-                     const remoteJid = msg.key?.remoteJid || '';
-                     const remoteJidAlt = String(msg.key?.remoteJidAlt || '');
-                     const wasSentByThisClient = this.isRecentOutgoingMessage(remoteJid, messageText);
-
-                     if (!messageText) {
-                         return;
-                     }
-
-                     if (msg.key?.fromMe && wasSentByThisClient) {
-                         return;
-                     }
-
-                     if (msg.key?.fromMe && remoteJid.endsWith('@lid') && remoteJidAlt.startsWith(`${this.connectedPhoneNumber}@`)) {
-                         this.connectedLidJid = remoteJid;
-                         await this.persistStatus(this.connectionStatus);
-                     }
-
-                     const isGroup = remoteJid.endsWith('@g.us');
-                     void sessionEventService.log(this.tenantId, 'message_received', {
-                         remoteJid,
-                         isGroup,
-                         label: this.label,
-                         length: messageText.length,
-                         hasMedia: Boolean(msg.message?.imageMessage || msg.message?.videoMessage),
-                     });
-
-                     const event: IncomingMessageRecord = {
-                         tenantId: this.tenantId,
-                         label: this.label,
-                         remoteJid,
-                         text: messageText,
-                         sender: this.resolveStoredSender(msg),
-                         timestamp: this.resolveMessageTimestamp(msg),
-                         fromMe: Boolean(msg.key?.fromMe),
-                         rawMessage: msg,
-                     };
-
-                     await this.storage.saveInboundMessage(event);
-                     await this.hooks?.onMessage?.(event);
                  } catch (error) {
                      await this.hooks?.onError?.({
                          tenantId: this.tenantId,
@@ -799,5 +815,77 @@ try {
 
         this.recentOutgoingMessages.delete(key);
         return true;
+    }
+
+    private async persistHistoryMessage(event: IncomingMessageRecord) {
+        if (this.storage instanceof PropAISupabaseAdapter) {
+            await this.storage.saveHistoryMessage(event);
+            return;
+        }
+
+        await this.storage.saveInboundMessage(event);
+    }
+
+    private async persistChatTitles(chats: any[]) {
+        const directChatTitles = Object.fromEntries(
+            (Array.isArray(chats) ? chats : [])
+                .map((chat) => {
+                    const chatId = String(chat?.id || '').trim();
+                    if (!chatId || chatId.endsWith('@g.us')) return null;
+
+                    const title = String(
+                        chat?.name ||
+                        chat?.conversationName ||
+                        chat?.subject ||
+                        chat?.pushName ||
+                        ''
+                    ).trim();
+
+                    if (!title) return null;
+                    return [chatId, title] as const;
+                })
+                .filter((entry): entry is readonly [string, string] => Boolean(entry)),
+        );
+
+        if (Object.keys(directChatTitles).length === 0) {
+            return;
+        }
+
+        try {
+            const { data: existing } = await supabase
+                .from('whatsapp_sessions')
+                .select('session_data')
+                .eq('tenant_id', this.tenantId)
+                .eq('label', this.label)
+                .maybeSingle();
+
+            const sessionData = (existing?.session_data && typeof existing.session_data === 'object')
+                ? existing.session_data as Record<string, unknown>
+                : {};
+            const existingTitles = (sessionData.chatTitles && typeof sessionData.chatTitles === 'object')
+                ? sessionData.chatTitles as Record<string, unknown>
+                : {};
+
+            await supabase
+                .from('whatsapp_sessions')
+                .update({
+                    session_data: {
+                        ...sessionData,
+                        chatTitles: {
+                            ...existingTitles,
+                            ...directChatTitles,
+                        },
+                    },
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('tenant_id', this.tenantId)
+                .eq('label', this.label);
+        } catch (error) {
+            console.warn('[WhatsAppClient] Failed to persist chat titles', {
+                tenantId: this.tenantId,
+                label: this.label,
+                error,
+            });
+        }
     }
 }

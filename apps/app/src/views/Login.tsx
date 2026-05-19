@@ -489,7 +489,7 @@ export const Login: React.FC = () => {
                   <p className="mt-2 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
                     {mode === 'signup'
                       ? 'New brokers add their name and WhatsApp number once. Then they can run a private Personal Parser workflow or move into PropAI Network.'
-                      : 'Sign in to open Stream, Inbox, and WaBro. First time here? Switch to Create account and get set up in under 5 minutes.'}
+                      : 'Sign in to open Stream, Threads, and WaBro. First time here? Switch to Create account and get set up in under 5 minutes.'}
                   </p>
                 </div>
 
@@ -825,7 +825,7 @@ export const Login: React.FC = () => {
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Workspace capability reminder</p>
                 </div>
                 <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-                  After login, Pulse helps you move between Inbox, Stream, and WaBro without losing context. Add listings, save requirements, schedule follow-up, and open broker outreach from one workspace.
+                  After login, Pulse helps you move between Threads, Stream, and WaBro without losing context. Add listings, save requirements, schedule follow-up, and open broker outreach from one workspace.
                 </p>
               </AuthCard>
             </aside>

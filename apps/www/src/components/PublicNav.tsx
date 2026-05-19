@@ -5,8 +5,8 @@ export default function PublicNav() {
     <nav className="sticky top-0 z-50 w-full border-b border-[color:var(--border)] bg-[var(--bg-base)]/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-8">
         <Link href="/" className="flex items-center gap-2 group">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[var(--accent)] shadow-[0_0_12px_rgba(62,232,138,0.5)] animate-live-pulse" />
+          <div className="flex items-center gap-3">
+            <img src="/favicon.svg" alt="PropAI" className="h-8 w-8 rounded-[10px]" />
             <span className="text-[18px] font-bold tracking-tight text-white">
               PropAI <span className="text-[var(--accent)]">Pulse</span>
             </span>

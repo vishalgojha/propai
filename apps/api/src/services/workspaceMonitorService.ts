@@ -40,7 +40,7 @@ type SessionRow = {
     label: string;
     owner_name?: string | null;
     status: string;
-    session_data?: { phoneNumber?: string | null } | null;
+    session_data?: { phoneNumber?: string | null; chatTitles?: Record<string, string | null> | null } | null;
     last_sync?: string | null;
 };
 
@@ -48,6 +48,7 @@ type MonitorQueryContext = {
     groupsData: GroupRow[];
     groupsByJid: Map<string, GroupRow>;
     sessionGroupIds: Set<string>;
+    directTitlesByJid: Map<string, string>;
     sessions: SessionRow[];
 };
 
@@ -184,6 +185,16 @@ export class WorkspaceMonitorService {
             sessionGroupIds: new Set<string>(
                 groupsData.map((group) => String(group.group_jid || '')).filter(Boolean),
             ),
+            directTitlesByJid: new Map<string, string>(
+                ((sessionsResult.data || []) as SessionRow[])
+                    .flatMap((session) => {
+                        const chatTitles = session.session_data?.chatTitles;
+                        if (!chatTitles || typeof chatTitles !== 'object') return [];
+                        return Object.entries(chatTitles)
+                            .map(([jid, title]) => [String(jid || '').trim(), String(title || '').trim()] as const)
+                            .filter(([jid, title]) => Boolean(jid) && Boolean(title));
+                    }),
+            ),
             sessions: (sessionsResult.data || []) as SessionRow[],
         };
     }
@@ -217,7 +228,7 @@ export class WorkspaceMonitorService {
         const isGroup = remoteJid.endsWith('@g.us');
         const title = isGroup
             ? String(groupMeta?.group_name || liveMeta?.title || row.title || 'WhatsApp group')
-            : String(row.title || buildDirectLabel(row));
+            : String(row.title || liveMeta?.title || buildDirectLabel(row));
         const messageText = String(row.text || '').trim();
         const timestamp = row.timestamp || new Date().toISOString();
 
@@ -277,6 +288,12 @@ export class WorkspaceMonitorService {
             const remoteJid = String(row.remote_jid || '');
             const liveMeta = liveMonitorService.getChatMeta(workspaceOwnerId, remoteJid, sessionLabel);
             const groupMeta = context.groupsByJid.get(remoteJid);
+            if (!remoteJid.endsWith('@g.us') && !liveMeta?.title) {
+                const directTitle = context.directTitlesByJid.get(remoteJid);
+                if (directTitle) {
+                    row.title = directTitle;
+                }
+            }
             const chatRecord = chatsMap.get(remoteJid) || this.buildChatRecord(row, groupMeta, liveMeta);
 
             chatRecord.messageCount += 1;
@@ -337,6 +354,7 @@ export class WorkspaceMonitorService {
         const groupMeta = context.groupsByJid.get(chatId);
         const isGroup = chatId.endsWith('@g.us');
         const liveMeta = liveMonitorService.getChatMeta(workspaceOwnerId, chatId, sessionLabel);
+        const directTitle = !isGroup ? context.directTitlesByJid.get(chatId) || null : null;
         const title = isGroup ? groupMeta?.group_name || liveMeta?.title || 'WhatsApp group' : null;
         const messages = pageRows
             .slice()
@@ -346,7 +364,7 @@ export class WorkspaceMonitorService {
                 chatId,
                 remoteJid: chatId,
                 type: isGroup ? 'group' : 'direct',
-                title: title || String(row.title || buildDirectLabel(row)),
+                title: title || String(directTitle || row.title || liveMeta?.title || buildDirectLabel(row)),
                 text: String(row.text || '').trim(),
                 sender: row.sender || null,
                 direction: isOutboundSender(row.sender) ? 'outbound' : 'inbound',

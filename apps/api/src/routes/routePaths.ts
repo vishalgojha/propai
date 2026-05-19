@@ -56,6 +56,7 @@ export const ROUTE_PATHS = {
         inbox: '/inbox',
         health: '/health',
         healthDetailed: '/health/detailed',
+        historyDebug: '/history/debug',
         healthLogs: '/health/logs',
         groupsHealth: '/groups/health',
         events: '/events',

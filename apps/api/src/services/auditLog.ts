@@ -7,7 +7,9 @@ export type AuditAction =
     | 'impersonation_created'
     | 'impersonation_revoked'
     | 'group_updated'
-    | 'system_session_restart';
+    | 'system_session_restart'
+    | 'backfill_listings'
+    | 'backfill_public_listings';
 
 export type AuditEvent = {
     id: string;

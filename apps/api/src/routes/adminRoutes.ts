@@ -10,6 +10,8 @@ import {
     revokeImpersonation,
     listImpersonations,
     getAdminAuditLog,
+    backfillListings,
+    backfillPublicListings,
 } from '../controllers/adminController';
 import {
     listWorkspacesQuerySchema,
@@ -34,5 +36,9 @@ router.get('/impersonations', listImpersonations);
 
 // Audit log
 router.get('/audit', validate(getAuditLogQuerySchema, 'query'), getAdminAuditLog);
+
+// Backfill
+router.post('/backfill/listings', backfillListings);
+router.post('/backfill/public-listings', backfillPublicListings);
 
 export default router;

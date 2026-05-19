@@ -536,12 +536,12 @@ export const Dashboard: React.FC = () => {
           cta="Open agent"
         />
         <StatCard
-          title="Inbox"
-          value="Direct messages"
-          hint="1:1 follow-up lane (no groups). Keep conversations clean and searchable."
+          title="Threads"
+          value="Conversation workspace"
+          hint="Work direct-message threads as an operational queue instead of a WhatsApp clone."
           icon={<Inbox className="h-5 w-5" />}
           onClick={() => navigate('/inbox')}
-          cta="Open Inbox"
+          cta="Open Threads"
         />
         <StatCard
           title="Next actions"

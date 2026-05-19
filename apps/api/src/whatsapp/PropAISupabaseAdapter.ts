@@ -61,35 +61,72 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
     }
 
     async saveInboundMessage(input: IncomingMessageRecord): Promise<{ id?: string } | void> {
+        return this.persistMessage(input, { runGate: true, ingestStream: true, recordMetrics: true });
+    }
+
+    async saveHistoryMessage(input: IncomingMessageRecord): Promise<{ id?: string } | void> {
+        return this.persistMessage(input, { runGate: false, ingestStream: false, recordMetrics: false });
+    }
+
+    private async persistMessage(
+        input: IncomingMessageRecord,
+        options: {
+            runGate: boolean;
+            ingestStream: boolean;
+            recordMetrics: boolean;
+        },
+    ): Promise<{ id?: string } | void> {
         const rawMessage = (input.rawMessage || {}) as any;
         const rawDumpId = crypto.randomUUID();
-        const messageKey = String(rawMessage?.key?.id || '').trim() || rawDumpId;
 
         try {
-            const gateResult = await this.runPriceGate(input.text, input.tenantId);
-
-            const { data, error } = await db
+            const gateResult = options.runGate
+                ? await this.runPriceGate(input.text, input.tenantId)
+                : {
+                    hasPrice: false,
+                    isRequirement: false,
+                    shouldParse: true,
+                    reason: 'history_sync',
+                };
+            const timestamp = input.timestamp ?? new Date().toISOString();
+            const { data: existingMessage } = await db
                 .from('messages')
-                .insert({
-                    tenant_id: input.tenantId,
-                    remote_jid: input.remoteJid,
-                    text: input.text,
-                    sender: input.sender ?? undefined,
-                    timestamp: input.timestamp ?? new Date().toISOString(),
-                })
                 .select('id, remote_jid, sender, text, timestamp')
-                .single();
+                .eq('tenant_id', input.tenantId)
+                .eq('remote_jid', input.remoteJid)
+                .eq('text', input.text)
+                .eq('timestamp', timestamp)
+                .maybeSingle();
 
-            const messageRecord = data || {
-                id: rawDumpId,
-                remote_jid: input.remoteJid,
-                sender: input.sender ?? undefined,
-                text: input.text,
-                timestamp: input.timestamp ?? new Date().toISOString(),
-            };
+            let messageRecord = existingMessage || null;
+            if (!messageRecord) {
+                const { data, error } = await db
+                    .from('messages')
+                    .insert({
+                        tenant_id: input.tenantId,
+                        remote_jid: input.remoteJid,
+                        text: input.text,
+                        sender: input.sender ?? undefined,
+                        timestamp,
+                    })
+                    .select('id, remote_jid, sender, text, timestamp')
+                    .single();
 
-            if (error) {
-                console.warn('[PropAISupabaseAdapter] Failed to persist inbound message row, continuing with direct handling.', error);
+                messageRecord = data || {
+                    id: rawDumpId,
+                    remote_jid: input.remoteJid,
+                    sender: input.sender ?? undefined,
+                    text: input.text,
+                    timestamp,
+                };
+
+                if (error) {
+                    console.warn('[PropAISupabaseAdapter] Failed to persist inbound message row, continuing with direct handling.', error);
+                }
+            }
+
+            if (existingMessage) {
+                return { id: String(existingMessage.id || rawDumpId) };
             }
 
             const { error: rawDumpError } = await db
@@ -101,7 +138,7 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                     group_jid: input.remoteJid,
                     sender_jid: input.sender ?? null,
                     raw_text: input.text,
-                    received_at: input.timestamp ?? new Date().toISOString(),
+                    received_at: timestamp,
                     gate_status: gateResult.shouldParse ? 'passed' : 'rejected',
                     rejection_reason: gateResult.shouldParse ? null : gateResult.reason || 'price_gate_rejected',
                 });
@@ -116,37 +153,44 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                     label: input.label,
                     reason: gateResult.reason || 'price_gate_rejected',
                 });
+                if (options.recordMetrics) {
+                    await whatsappHealthService.recordMessageMetrics({
+                        tenantId: input.tenantId,
+                        sessionLabel: input.label,
+                        remoteJid: input.remoteJid,
+                        parsed: false,
+                        timestamp: input.timestamp,
+                    });
+                }
+                return { id: String(messageRecord.id || rawDumpId) };
+            }
+
+            let streamItem: unknown = null;
+            if (options.ingestStream) {
+                streamItem = await channelService.ingestMessage(input.tenantId, messageRecord);
+                if (streamItem) {
+                    void sessionEventService.log(input.tenantId, 'parse_success', {
+                        remoteJid: input.remoteJid,
+                        label: input.label,
+                        streamItemId: typeof streamItem === 'object' && 'id' in streamItem ? (streamItem as any).id : undefined,
+                    });
+                } else {
+                    void sessionEventService.log(input.tenantId, 'parse_failed', {
+                        remoteJid: input.remoteJid,
+                        label: input.label,
+                        reason: 'ingest_returned_null',
+                    });
+                }
+            }
+            if (options.recordMetrics) {
                 await whatsappHealthService.recordMessageMetrics({
                     tenantId: input.tenantId,
                     sessionLabel: input.label,
                     remoteJid: input.remoteJid,
-                    parsed: false,
+                    parsed: options.ingestStream ? Boolean(streamItem) : true,
                     timestamp: input.timestamp,
                 });
-                return { id: String(messageRecord.id || rawDumpId) };
             }
-
-            const streamItem = await channelService.ingestMessage(input.tenantId, messageRecord);
-            if (streamItem) {
-                void sessionEventService.log(input.tenantId, 'parse_success', {
-                    remoteJid: input.remoteJid,
-                    label: input.label,
-                    streamItemId: typeof streamItem === 'object' && 'id' in streamItem ? (streamItem as any).id : undefined,
-                });
-            } else {
-                void sessionEventService.log(input.tenantId, 'parse_failed', {
-                    remoteJid: input.remoteJid,
-                    label: input.label,
-                    reason: 'ingest_returned_null',
-                });
-            }
-            await whatsappHealthService.recordMessageMetrics({
-                tenantId: input.tenantId,
-                sessionLabel: input.label,
-                remoteJid: input.remoteJid,
-                parsed: Boolean(streamItem),
-                timestamp: input.timestamp,
-            });
 
             return { id: String(messageRecord.id) };
         } catch (error) {
@@ -155,14 +199,16 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                 label: input.label,
                 reason: error instanceof Error ? error.message.slice(0, 100) : 'unknown_error',
             });
-            await whatsappHealthService.recordMessageMetrics({
-                tenantId: input.tenantId,
-                sessionLabel: input.label,
-                remoteJid: input.remoteJid,
-                parsed: false,
-                failed: true,
-                timestamp: input.timestamp,
-            });
+            if (options.recordMetrics) {
+                await whatsappHealthService.recordMessageMetrics({
+                    tenantId: input.tenantId,
+                    sessionLabel: input.label,
+                    remoteJid: input.remoteJid,
+                    parsed: false,
+                    failed: true,
+                    timestamp: input.timestamp,
+                });
+            }
             throw error;
         }
     }

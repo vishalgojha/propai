@@ -130,4 +130,34 @@ export class WaClickAPI {
 
         return (data[0] as any).source_phone || null;
     }
+
+    async getListingDetails(listingId: string): Promise<{
+        type?: string;
+        locality?: string;
+        bhk?: string;
+        priceLabel?: string;
+        areaSqft?: number | null;
+        sourceLabel?: string;
+        rawText?: string;
+    } | null> {
+        const { data, error } = await supabase
+            .from('stream_items')
+            .select('type, locality, bhk, price_label, area_sqft, source_label, raw_text, source_phone, source_group_name')
+            .eq('id', listingId)
+            .single();
+
+        if (error || !data) {
+            return null;
+        }
+
+        return {
+            type: (data as any).type,
+            locality: (data as any).locality,
+            bhk: (data as any).bhk,
+            priceLabel: (data as any).price_label,
+            areaSqft: (data as any).area_sqft,
+            sourceLabel: (data as any).source_label || (data as any).source_group_name || (data as any).source_phone,
+            rawText: (data as any).raw_text,
+        };
+    }
 }

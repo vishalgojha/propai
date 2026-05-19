@@ -33,7 +33,7 @@ import { SidebarCard } from './ui/SidebarCard';
 
 const NAV_ITEMS = [
   { label: 'AI Agent', path: '/agent', icon: ActivityIcon },
-  { label: 'Inbox', path: '/inbox', icon: MessageSquareTextIcon },
+  { label: 'Threads', path: '/inbox', icon: MessageSquareTextIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
   { label: 'WaBro', path: '/wabro/app', icon: BroadcastIcon },

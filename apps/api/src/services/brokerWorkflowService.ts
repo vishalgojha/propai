@@ -398,6 +398,24 @@ export class BrokerWorkflowService {
                     ? 'listing'
                     : 'mixed';
 
+        const hasEnoughChannelCriteria = localities.length > 0
+            || keywords.length > 0
+            || recordTypes.length > 0
+            || dealTypes.length > 0
+            || bhkValues.length > 0
+            || assetClasses.length > 0;
+
+        if (!hasEnoughChannelCriteria) {
+            return {
+                handled: true,
+                reply: 'Sure. Which area or filter should I use for the channel? For example: Bandra West, 2BHK buyers, or South Mumbai listings.',
+                data: {
+                    type: 'channel_clarification_required',
+                    missing: ['locality_or_filter'],
+                },
+            };
+        }
+
         const created = await channelService.createChannel(tenantId, {
             name: String(draft.name || '').trim() || undefined,
             channelType,

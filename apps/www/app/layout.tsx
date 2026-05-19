@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   title: "PropAI Pulse | Real-Time Off-Market Mumbai Real Estate",
   description:
     "Access Mumbai's off-market property inventory before it hits MagicBricks or 99acres. Sourced directly from real-time broker broadcasts using AI.",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

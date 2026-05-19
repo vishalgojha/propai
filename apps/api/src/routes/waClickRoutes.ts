@@ -7,6 +7,24 @@ const router = Router();
 
 router.use(authMiddleware);
 
+function buildWaMessage(details: {
+    type?: string; locality?: string; bhk?: string;
+    priceLabel?: string; areaSqft?: number | null;
+    sourceLabel?: string; rawText?: string;
+}): string {
+    const parts: string[] = [];
+    parts.push(`Hi, I'm interested in:`);
+    if (details.type) parts.push(`• Type: ${details.type}`);
+    if (details.locality) parts.push(`• Location: ${details.locality}`);
+    if (details.bhk) parts.push(`• ${details.bhk}`);
+    if (details.areaSqft) parts.push(`• ${details.areaSqft} sqft`);
+    if (details.priceLabel) parts.push(`• Price: ${details.priceLabel}`);
+    if (details.sourceLabel) parts.push(`• Posted by: ${details.sourceLabel}`);
+    parts.push('');
+    parts.push(`(via PropAI Pulse — ${details.type || 'property'} from stream)`);
+    return parts.join('\n');
+}
+
 router.post('/', async (req, res) => {
     try {
         const userId = (req as any).user?.id;
@@ -23,6 +41,8 @@ router.post('/', async (req, res) => {
             return res.status(404).json({ error: 'Listing not found' });
         }
 
+        const details = await waClickAPI.getListingDetails(listing_id);
+
         const result = await waClickAPI.logClick({
             listingId: listing_id,
             brokerPhone,
@@ -37,7 +57,9 @@ router.post('/', async (req, res) => {
         }
 
         const cleanPhone = brokerPhone.replace(/^\+/, '');
-        const redirectUrl = `https://wa.me/${cleanPhone}`;
+        const message = details ? buildWaMessage(details) : '';
+        const encoded = encodeURIComponent(message);
+        const redirectUrl = `https://wa.me/${cleanPhone}?text=${encoded}`;
 
         res.json({ redirect_url: redirectUrl, logged: true });
     } catch (error: unknown) {

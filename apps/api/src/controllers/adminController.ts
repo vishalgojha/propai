@@ -458,3 +458,207 @@ export const updateWorkspaceGroup = async (req: Request, res: Response) => {
     res.status(statusCode).json({ error: error instanceof Error ? error.message : 'Failed to update workspace group' });
   }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /backfill/listings — backfill listings table from stream_items
+// ─────────────────────────────────────────────────────────────────────────────
+export const backfillListings = async (req: Request, res: Response) => {
+  try {
+    await requireSuperAdmin(req);
+
+    if (!supabaseAdmin) {
+      return res.status(503).json({ error: 'Supabase admin unavailable' });
+    }
+
+    const { data: existing } = await supabaseAdmin
+      .from('listings')
+      .select('id, raw_text');
+    const existingRawTexts = new Set((existing || []).map((r: any) => (r.raw_text || '').trim()));
+
+    const { data: items, error } = await supabaseAdmin
+      .from('stream_items')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    if (!items || !items.length) {
+      return res.json({ inserted: 0, message: 'No stream_items found.' });
+    }
+
+    const toInsert = (items as any[]).filter((item) => {
+      const raw = (item.raw_text || '').trim();
+      return raw && !existingRawTexts.has(raw);
+    });
+
+    if (!toInsert.length) {
+      return res.json({ inserted: 0, message: 'Nothing to backfill.' });
+    }
+
+    const rows = toInsert.map((item: any) => ({
+      tenant_id: item.tenant_id,
+      source_group_id: item.source_group_id || null,
+      structured_data: {
+        bhk: item.bhk || null,
+        locality: item.locality || null,
+        city: item.city || null,
+        type: (item.type || '').toLowerCase() || null,
+        deal_type: item.deal_type || null,
+        price_numeric: item.price_numeric || null,
+        price: item.price_label || null,
+        area_sqft: item.area_sqft || null,
+        furnishing: item.furnishing || null,
+        floor_number: item.floor_number || null,
+        total_floors: item.total_floors || null,
+        asset_class: item.asset_class || null,
+        property_use: item.property_use || null,
+        property_category: item.property_category || null,
+        confidence: item.confidence_score || null,
+        title: [item.bhk, item.locality, item.type === 'Rent' ? 'for Rent' : item.type === 'Sale' ? 'for Sale' : ''].filter(Boolean).join(' ') || 'Property Listing',
+        building: null,
+        micro_location: null,
+      },
+      raw_text: item.raw_text || '',
+      status: 'Active',
+      created_at: item.created_at,
+    }));
+
+    const BATCH = 100;
+    let inserted = 0;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const batch = rows.slice(i, i + BATCH);
+      const { error: insertError } = await supabaseAdmin.from('listings').insert(batch);
+      if (insertError) {
+        console.error(`Backfill batch ${i / BATCH} failed:`, insertError.message);
+      } else {
+        inserted += batch.length;
+      }
+    }
+
+    recordAuditEvent({
+      action: 'backfill_listings',
+      adminId: (req as any).adminInfo?.userId || 'unknown',
+      adminEmail: (req as any).adminInfo?.email || 'unknown',
+      payload: { inserted, total: rows.length },
+    });
+
+    res.json({ inserted, total: rows.length });
+  } catch (error: unknown) {
+    const statusCode = error instanceof HttpError ? error.statusCode : 500;
+    res.status(statusCode).json({ error: error instanceof Error ? error.message : 'Backfill failed' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /backfill/public-listings — backfill public_listings from stream_items
+// ─────────────────────────────────────────────────────────────────────────────
+export const backfillPublicListings = async (req: Request, res: Response) => {
+  try {
+    await requireSuperAdmin(req);
+
+    if (!supabaseAdmin) {
+      return res.status(503).json({ error: 'Supabase admin unavailable' });
+    }
+
+    const { data: existing } = await supabaseAdmin
+      .from('public_listings')
+      .select('source_message_id');
+    const existingIds = new Set((existing || []).map((r: any) => r.source_message_id));
+
+    const { data: items, error } = await supabaseAdmin
+      .from('stream_items')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    if (!items || !items.length) {
+      return res.json({ inserted: 0, message: 'No stream_items found.' });
+    }
+
+    const toInsert = (items as any[]).filter((item) => {
+      const mid = item.source_message_id || item.message_id;
+      return !existingIds.has(mid);
+    });
+
+    if (!toInsert.length) {
+      return res.json({ inserted: 0, message: 'Nothing to backfill.' });
+    }
+
+    function parseBhk(bhk: string | null | undefined): number | null {
+      if (!bhk) return null;
+      const m = String(bhk).match(/(\d+)/);
+      return m ? parseInt(m[1], 10) : null;
+    }
+
+    function extractPhone(text: string): string | null {
+      const m = text.match(/(?:\+?91)?[6-9]\d{9}/);
+      return m ? m[0] : null;
+    }
+
+    const rows = toInsert.map((item: any) => {
+      const mid = item.source_message_id || item.message_id;
+      const phone = item.source_phone || extractPhone(item.raw_text || '');
+      const listingType = (() => {
+        const t = (item.type || '').toLowerCase();
+        if (t === 'rent') return 'listing_rent';
+        if (t === 'sale') return 'listing_sale';
+        if (t === 'pre-leased') return 'listing_rent';
+        return 'requirement';
+      })();
+      const title = [item.bhk, item.locality, item.type === 'Rent' ? 'for Rent' : item.type === 'Sale' ? 'for Sale' : ''].filter(Boolean).join(' ') || 'Property Listing';
+      return {
+        source_message_id: mid,
+        source_group_id: item.source_group_id || null,
+        source_group_name: item.source_group_name || null,
+        listing_type: listingType,
+        area: item.locality || null,
+        sub_area: null,
+        location: item.locality || 'Unknown',
+        price: item.price_numeric || null,
+        price_type: item.type === 'Rent' ? 'monthly' : item.type === 'Sale' ? 'total' : null,
+        size_sqft: item.area_sqft || null,
+        furnishing: item.furnishing || null,
+        bhk: parseBhk(item.bhk),
+        property_type: null,
+        title,
+        description: item.raw_text || '',
+        raw_message: item.raw_text || null,
+        cleaned_message: null,
+        sender_number: phone,
+        primary_contact_name: item.source_label || item.source_group_name || null,
+        primary_contact_number: phone,
+        primary_contact_wa: phone ? `91${phone.replace(/^\+?91/, '')}` : null,
+        contacts: [],
+        confidence: item.confidence_score ?? 0.8,
+        message_timestamp: item.created_at || new Date().toISOString(),
+        search_text: [item.raw_text, item.locality, item.bhk, item.type].filter(Boolean).join(' '),
+      };
+    });
+
+    const { error: insertError } = await supabaseAdmin.from('public_listings').upsert(rows, {
+      onConflict: 'source_message_id',
+      ignoreDuplicates: true,
+    });
+
+    if (insertError) {
+      return res.status(500).json({ error: insertError.message });
+    }
+
+    recordAuditEvent({
+      action: 'backfill_public_listings',
+      adminId: (req as any).adminInfo?.userId || 'unknown',
+      adminEmail: (req as any).adminInfo?.email || 'unknown',
+      payload: { inserted: rows.length },
+    });
+
+    res.json({ inserted: rows.length, total: rows.length });
+  } catch (error: unknown) {
+    const statusCode = error instanceof HttpError ? error.statusCode : 500;
+    res.status(statusCode).json({ error: error instanceof Error ? error.message : 'Backfill failed' });
+  }
+};
