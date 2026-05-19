@@ -255,21 +255,9 @@ export const Inbox: React.FC = () => {
   const outboundMessages = messages.length - inboundMessages.length;
   const latestMessage = messages[messages.length - 1] || null;
   const queueCards = [
-    {
-      label: 'Active threads',
-      value: chats.length,
-      note: selectedSessionLabel ? 'Scoped to selected session' : 'Across the current workspace lane',
-    },
-    {
-      label: 'Need response',
-      value: chats.filter((chat) => chat.preview && !chat.preview.startsWith('You:')).length,
-      note: 'Use this as a working queue, not a message archive',
-    },
-    {
-      label: 'Messages loaded',
-      value: data?.summary.totalMessages || 0,
-      note: 'Saved direct-message log available to the workspace',
-    },
+    { label: 'Threads', value: chats.length },
+    { label: 'Needs reply', value: threadsNeedingResponse.length },
+    { label: 'Messages', value: data?.summary.totalMessages || 0 },
   ];
   const selectedPhone = selectedChat ? normalizePhone(selectedChat.remoteJid.split('@')[0]) : null;
   const lastInboundAt = inboundMessages[inboundMessages.length - 1]?.timestamp || null;
@@ -311,17 +299,15 @@ export const Inbox: React.FC = () => {
   );
 
   return (
-    <div className="h-[calc(100vh-10rem)] overflow-hidden rounded-[24px] border border-[color:var(--border)] bg-[linear-gradient(180deg,#0b1019_0%,#111827_100%)] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
-      <div className="grid h-full grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)_320px]">
-        <aside className="hidden h-full flex-col border-r border-[rgba(148,163,184,0.14)] bg-[rgba(15,23,36,0.88)] lg:flex">
-          <div className="border-b border-[rgba(148,163,184,0.14)] px-4 py-4">
+    <div className="h-[calc(100vh-10rem)] overflow-hidden rounded-[20px] border border-[rgba(148,163,184,0.14)] bg-[#0b0f17] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+      <div className="grid h-full grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_280px]">
+        <aside className="hidden h-full flex-col border-r border-[rgba(148,163,184,0.12)] bg-[#111723] lg:flex">
+          <div className="border-b border-[rgba(148,163,184,0.12)] px-4 py-4">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">Threads</p>
-                <p className="mt-1 text-lg font-semibold text-white">Broker workspace</p>
-                <p className="mt-1 text-[12px] leading-5 text-slate-400">
-                  Run direct-message lanes like a workspace queue, not a WhatsApp mirror.
-                </p>
+                <p className="mt-1 text-lg font-semibold text-white">Conversations</p>
+                <p className="mt-1 text-[12px] leading-5 text-slate-400">One workspace. Multiple lanes. Triage here, act elsewhere.</p>
               </div>
               <button
                 type="button"
@@ -334,58 +320,49 @@ export const Inbox: React.FC = () => {
             </div>
           </div>
 
-          <div className="border-b border-[rgba(148,163,184,0.14)] px-4 py-3">
-            <div className="rounded-2xl border border-[rgba(148,163,184,0.14)] bg-[rgba(11,18,32,0.86)] px-3 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Active lane</p>
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold text-white">{selectedSessionChip}</p>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    {selectedSessionLabel ? 'Scoped to the selected number/session' : 'Using the current workspace default'}
-                  </p>
-                </div>
-                <span className="rounded-full bg-[rgba(74,153,255,0.16)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">
-                  Live
-                </span>
+          <div className="border-b border-[rgba(148,163,184,0.12)] px-4 py-3">
+            <div className="flex items-center justify-between text-[11px]">
+              <div>
+                <p className="font-medium text-white">{selectedSessionChip}</p>
+                <p className="mt-1 text-slate-500">{selectedSessionLabel ? 'Selected lane' : 'Workspace default lane'}</p>
               </div>
+              <span className="rounded-full bg-[rgba(74,153,255,0.12)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#7dd3fc]">Live</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-2 border-b border-[rgba(148,163,184,0.14)] px-3 py-3">
-            {queueCards.map((card) => (
-              <div
-                key={card.label}
-                className="rounded-2xl border border-[rgba(148,163,184,0.14)] bg-[rgba(15,23,36,0.9)] px-3 py-3"
-              >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{card.label}</p>
-                <p className="mt-1 text-2xl font-semibold text-white">{card.value}</p>
-                <p className="mt-1 text-[11px] leading-5 text-slate-500">{card.note}</p>
-              </div>
-            ))}
+          <div className="border-b border-[rgba(148,163,184,0.12)] px-4 py-3">
+            <div className="grid grid-cols-3 gap-2">
+              {queueCards.map((card) => (
+                <div key={card.label} className="rounded-xl bg-[rgba(255,255,255,0.03)] px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.1em] text-slate-500">{card.label}</p>
+                  <p className="mt-1 text-base font-semibold text-white">{card.value}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="border-b border-[rgba(148,163,184,0.14)] px-3 py-3">
+          <div className="border-b border-[rgba(148,163,184,0.12)] px-4 py-3">
             <div className="relative">
               <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search threads, names, or last message"
-                className="w-full rounded-2xl border border-[rgba(148,163,184,0.14)] bg-[rgba(15,23,36,0.9)] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#7dd3fc]"
+                className="w-full rounded-xl border border-[rgba(148,163,184,0.12)] bg-[#0d1420] py-2.5 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#7dd3fc]"
               />
             </div>
           </div>
 
-          <div className="border-b border-[rgba(148,163,184,0.14)] px-3 py-3">
-            <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Views</p>
+          <div className="border-b border-[rgba(148,163,184,0.12)] px-4 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Views</p>
             <div className="mt-2 space-y-1">
               {workspaceViews.map((view) => (
                 <div
                   key={view.label}
                   className={cn(
-                    'flex items-center justify-between rounded-xl px-3 py-2 text-[12px]',
+                    'flex items-center justify-between rounded-lg px-3 py-2 text-[12px]',
                     view.active
-                      ? 'bg-[rgba(74,153,255,0.14)] text-white'
+                      ? 'bg-[rgba(74,153,255,0.12)] text-white'
                       : 'text-slate-400',
                   )}
                 >
@@ -398,7 +375,7 @@ export const Inbox: React.FC = () => {
 
           {error ? (
             <div className={cn(
-              'mx-3 mt-3 rounded-2xl px-3 py-3 text-xs leading-5',
+              'mx-4 mt-3 rounded-xl px-3 py-3 text-xs leading-5',
               error.includes('not live')
                 ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-100'
                 : 'border border-amber-500/20 bg-amber-500/10 text-amber-100',
@@ -407,10 +384,10 @@ export const Inbox: React.FC = () => {
             </div>
           ) : null}
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
             {threadsNeedingResponse.length > 0 ? (
               <div className="mb-4">
-                <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Needs reply</p>
+                <p className="px-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Needs reply</p>
                 <div className="space-y-2">
                   {threadsNeedingResponse.map(renderThreadButton)}
                 </div>
@@ -419,7 +396,7 @@ export const Inbox: React.FC = () => {
 
             {recentThreads.length > 0 ? (
               <div>
-                <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Recent threads</p>
+                <p className="px-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Recent threads</p>
                 <div className="space-y-2">
                   {recentThreads.map(renderThreadButton)}
                 </div>
@@ -434,13 +411,13 @@ export const Inbox: React.FC = () => {
           </div>
         </aside>
 
-        <section className="flex h-full min-w-0 flex-col bg-[rgba(9,14,24,0.72)]">
-          <div className="border-b border-[rgba(148,163,184,0.14)] px-5 py-4">
+        <section className="flex h-full min-w-0 flex-col bg-[#0b0f17]">
+          <div className="border-b border-[rgba(148,163,184,0.12)] px-5 py-4">
             {selectedChat ? (
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgba(125,211,252,0.1)] text-[#7dd3fc]">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgba(74,153,255,0.12)] text-[#7dd3fc]">
                       <SmartphoneIcon className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
@@ -455,21 +432,21 @@ export const Inbox: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate('/agent')}
-                    className="rounded-full border border-[rgba(148,163,184,0.16)] bg-[rgba(15,23,36,0.88)] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
+                    className="rounded-lg border border-[rgba(148,163,184,0.14)] bg-[#111723] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
                   >
                     Open Agent
                   </button>
                   <button
                     type="button"
                     onClick={() => navigate('/stream')}
-                    className="rounded-full border border-[rgba(148,163,184,0.16)] bg-[rgba(15,23,36,0.88)] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
+                    className="rounded-lg border border-[rgba(148,163,184,0.14)] bg-[#111723] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
                   >
                     Open Stream
                   </button>
                   <button
                     type="button"
                     onClick={() => navigate('/wabro')}
-                    className="rounded-full border border-[rgba(148,163,184,0.16)] bg-[rgba(15,23,36,0.88)] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
+                    className="rounded-lg border border-[rgba(148,163,184,0.14)] bg-[#111723] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
                   >
                     Open WaBro
                   </button>
@@ -480,14 +457,14 @@ export const Inbox: React.FC = () => {
             )}
           </div>
 
-          <div className="border-b border-[rgba(148,163,184,0.14)] px-4 py-3 lg:hidden">
+          <div className="border-b border-[rgba(148,163,184,0.12)] px-4 py-3 lg:hidden">
             <div className="relative">
               <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search threads"
-                className="w-full rounded-2xl border border-[rgba(148,163,184,0.14)] bg-[rgba(15,23,36,0.9)] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#7dd3fc]"
+                className="w-full rounded-xl border border-[rgba(148,163,184,0.12)] bg-[#111723] py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#7dd3fc]"
               />
             </div>
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
@@ -497,7 +474,7 @@ export const Inbox: React.FC = () => {
                   type="button"
                   onClick={() => setSelectedChatId(chat.id)}
                   className={cn(
-                    'shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-medium',
+                    'shrink-0 rounded-lg border px-3 py-1.5 text-[11px] font-medium',
                     selectedChat?.id === chat.id
                       ? 'border-[#7dd3fc]/40 bg-[#112031] text-white'
                       : 'border-[rgba(148,163,184,0.12)] bg-[rgba(15,23,36,0.8)] text-slate-400',
@@ -509,17 +486,17 @@ export const Inbox: React.FC = () => {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+          <div className="min-h-0 flex-1 overflow-y-auto bg-[#0f141d] px-6 py-6">
             {selectedChat ? (
               <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
                 {messages.map((message) => (
                   <div
                     key={message.id}
                     className={cn(
-                      'max-w-[78%] rounded-2xl border px-4 py-3 shadow-[0_12px_28px_rgba(0,0,0,0.16)]',
+                      'max-w-[78%] rounded-xl border px-4 py-3',
                       message.direction === 'outbound'
-                        ? 'ml-auto border-emerald-500/20 bg-emerald-500/12 text-white'
-                        : 'border-[rgba(148,163,184,0.12)] bg-[rgba(15,23,36,0.95)] text-slate-100',
+                        ? 'ml-auto border-emerald-500/20 bg-emerald-500/10 text-white'
+                        : 'border-[rgba(148,163,184,0.1)] bg-[#151c28] text-slate-100',
                     )}
                   >
                     {message.direction === 'inbound' && message.sender ? (
@@ -540,7 +517,7 @@ export const Inbox: React.FC = () => {
                   </div>
                   <h3 className="mt-4 text-xl font-semibold text-white">Thread workspace</h3>
                   <p className="mt-2 text-sm leading-6 text-slate-400">
-                    Use this surface to work live conversation threads as operational lanes for reply, tagging, AI context, and follow-up.
+                    Pick a thread on the left. Use the center for context. Use the right rail for actions.
                   </p>
                 </div>
               </div>
@@ -548,35 +525,32 @@ export const Inbox: React.FC = () => {
           </div>
         </section>
 
-        <aside className="hidden h-full flex-col border-l border-[rgba(148,163,184,0.14)] bg-[rgba(12,18,29,0.92)] xl:flex">
-          <div className="border-b border-[rgba(148,163,184,0.14)] px-4 py-4">
+        <aside className="hidden h-full flex-col border-l border-[rgba(148,163,184,0.12)] bg-[#111723] xl:flex">
+          <div className="border-b border-[rgba(148,163,184,0.12)] px-4 py-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Context</p>
-              <p className="mt-1 text-lg font-semibold text-white">Workspace context</p>
-              <p className="mt-1 text-[12px] leading-5 text-slate-400">
-                Keep identity, AI context, and next-step actions beside the active thread.
-              </p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Details</p>
+              <p className="mt-1 text-lg font-semibold text-white">Thread details</p>
             </div>
           </div>
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
-            <div className="rounded-2xl border border-[rgba(148,163,184,0.14)] bg-[rgba(15,23,36,0.9)] p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Identity</p>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Identity</p>
               <p className="mt-2 text-base font-semibold text-white">{selectedChat?.title || 'No thread selected'}</p>
               <p className="mt-1 text-[12px] text-slate-400">{selectedPhone ? `+91 ${selectedPhone}` : 'Select a thread to inspect the contact lane.'}</p>
               <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-400">
-                <div className="rounded-xl bg-[rgba(148,163,184,0.06)] px-3 py-2">
+                <div className="rounded-lg bg-[rgba(255,255,255,0.04)] px-3 py-2">
                   <p className="uppercase tracking-[0.08em] text-slate-500">Inbound</p>
                   <p className="mt-1 text-lg font-semibold text-white">{inboundMessages.length}</p>
                 </div>
-                <div className="rounded-xl bg-[rgba(148,163,184,0.06)] px-3 py-2">
+                <div className="rounded-lg bg-[rgba(255,255,255,0.04)] px-3 py-2">
                   <p className="uppercase tracking-[0.08em] text-slate-500">Outbound</p>
                   <p className="mt-1 text-lg font-semibold text-white">{outboundMessages}</p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[rgba(148,163,184,0.14)] bg-[rgba(15,23,36,0.9)] p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Thread state</p>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Status</p>
               <p className="mt-2 text-sm font-medium text-white">
                 {latestMessage?.direction === 'outbound' ? 'Waiting on contact' : 'Operator response likely needed'}
               </p>
@@ -584,33 +558,33 @@ export const Inbox: React.FC = () => {
                 This lane should help you decide the next operational step: reply, qualify, move to Stream, or push into WaBro outreach.
               </p>
               <div className="mt-3 space-y-2 text-[12px] text-slate-300">
-                <div className="rounded-xl bg-[rgba(148,163,184,0.06)] px-3 py-2">Summarize this thread in Agent before responding.</div>
-                <div className="rounded-xl bg-[rgba(148,163,184,0.06)] px-3 py-2">Promote useful inventory or requirements into Stream.</div>
-                <div className="rounded-xl bg-[rgba(148,163,184,0.06)] px-3 py-2">Use WaBro only after the contact is qualified and categorized.</div>
+                <div className="rounded-lg bg-[rgba(255,255,255,0.04)] px-3 py-2">Summarize in Agent before replying.</div>
+                <div className="rounded-lg bg-[rgba(255,255,255,0.04)] px-3 py-2">Move useful inventory into Stream.</div>
+                <div className="rounded-lg bg-[rgba(255,255,255,0.04)] px-3 py-2">Push qualified contacts into WaBro.</div>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[rgba(148,163,184,0.14)] bg-[rgba(15,23,36,0.9)] p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Next actions</p>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Actions</p>
               <div className="mt-3 space-y-2">
                 <button
                   type="button"
                   onClick={() => navigate('/agent')}
-                  className="w-full rounded-xl border border-[rgba(148,163,184,0.1)] px-3 py-2 text-left text-[12px] text-slate-300 hover:border-[#7dd3fc]"
+                  className="w-full rounded-lg border border-[rgba(148,163,184,0.1)] px-3 py-2 text-left text-[12px] text-slate-300 hover:border-[#7dd3fc]"
                 >
                   Draft reply in AI Agent
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate('/stream')}
-                  className="w-full rounded-xl border border-[rgba(148,163,184,0.1)] px-3 py-2 text-left text-[12px] text-slate-300 hover:border-[#7dd3fc]"
+                  className="w-full rounded-lg border border-[rgba(148,163,184,0.1)] px-3 py-2 text-left text-[12px] text-slate-300 hover:border-[#7dd3fc]"
                 >
                   Review related Stream items
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate('/wabro')}
-                  className="w-full rounded-xl border border-[rgba(148,163,184,0.1)] px-3 py-2 text-left text-[12px] text-slate-300 hover:border-[#7dd3fc]"
+                  className="w-full rounded-lg border border-[rgba(148,163,184,0.1)] px-3 py-2 text-left text-[12px] text-slate-300 hover:border-[#7dd3fc]"
                 >
                   Move qualified contact into WaBro
                 </button>
