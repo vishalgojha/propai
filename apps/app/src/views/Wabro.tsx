@@ -794,8 +794,18 @@ export const WabroCampaigns: React.FC = () => {
         </a>
       }
     >
-      <AccessGate access={access} body="Campaign creation, broker list management (auto-populated from Inbox DM tagging), and Android execution are all part of the WaBro paid product surface." />
-
+      {!access.hasAccess ? (
+        <div className="space-y-4">
+          <AccessGate access={access} body="Campaign creation, broker list management, and Android execution stay locked until WaBro access is enabled for this workspace." />
+          <SurfaceSection title="Current workspace state" subtitle="Live data, even before access is enabled" icon={BroadcastIcon}>
+            <div className="grid gap-4 md:grid-cols-3">
+              <StatCard label="Campaigns" value={formatNumber(campaigns.length)} note="Campaign records currently available in this workspace." />
+              <StatCard label="Broker Lists" value={formatNumber(lists.length)} note="Imported or auto-populated broker lists available for future launches." />
+              <StatCard label="Backend" value={serviceState === 'ready' ? 'Live' : 'Check'} note={error || 'WaBro API is connected. Access is the only thing still locked.'} />
+            </div>
+          </SurfaceSection>
+        </div>
+      ) : (
       <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
         <SurfaceSection title="Broker lists" subtitle="Import outreach targets or auto-populate from Inbox DM tagging" icon={GroupsIcon}>
           <div className="space-y-4">
@@ -909,13 +919,14 @@ export const WabroCampaigns: React.FC = () => {
                 </div>
               )) : (
                 <div className="rounded-[14px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] p-4 text-[12px] text-[var(--text-secondary)]">
-                  No campaigns created yet.
+                  No campaigns created yet for this workspace.
                 </div>
               )}
             </div>
           </div>
         </SurfaceSection>
       </div>
+      )}
     </WabroShell>
   );
 };
