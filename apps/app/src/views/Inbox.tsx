@@ -4,10 +4,14 @@ import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
 import {
+  CallbackIcon,
   LoaderIcon,
   MessageSquareTextIcon,
   RefreshIcon,
   SearchIcon,
+  ShieldCheckIcon,
+  SparklesIcon,
+  XIcon,
 } from '../lib/icons';
 
 type InboxChat = {
@@ -17,6 +21,7 @@ type InboxChat = {
   preview: string;
   lastMessageAt: string;
   messageCount: number;
+  type?: 'direct' | 'group';
 };
 
 type InboxMessage = {
@@ -57,6 +62,72 @@ type RawMessageRow = {
   created_at?: string | null;
 };
 
+type ThreadGovernanceState = 'allowed' | 'held' | 'blocked';
+
+type ThreadSignal = {
+  suggestedState: ThreadGovernanceState;
+  reason: string;
+  confidence: 'high' | 'medium';
+};
+
+const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
+const THREAD_GOVERNANCE_STORAGE_KEY = 'propai.inbox.governance.v1';
+const REAL_ESTATE_KEYWORDS = [
+  'buyer',
+  'seller',
+  'tenant',
+  'landlord',
+  'owner',
+  'broker',
+  'realtor',
+  'agent',
+  'property',
+  'listing',
+  'inventory',
+  'rent',
+  'rental',
+  'lease',
+  'sale',
+  'resale',
+  'bhk',
+  'flat',
+  'apartment',
+  'villa',
+  'plot',
+  'commercial',
+  'office',
+  'warehouse',
+  'shop',
+  'sqft',
+  'budget',
+  'cr',
+  'lac',
+  'lakh',
+  'crore',
+  'locality',
+  'site visit',
+];
+const LOW_SIGNAL_PATTERNS = [
+  'good morning',
+  'good night',
+  'happy birthday',
+  'happy anniversary',
+  'festival wishes',
+  'okay',
+  'thanks',
+  'thank you',
+];
+const BLOCKED_LINK_PATTERNS = [
+  'youtube.com',
+  'youtu.be',
+  'instagram.com',
+  'instagr.am',
+  'facebook.com',
+  'fb.watch',
+  'x.com',
+  'twitter.com',
+];
+
 const formatTime = (value?: string | null) =>
   value
     ? new Intl.DateTimeFormat('en-IN', {
@@ -70,6 +141,95 @@ const formatTime = (value?: string | null) =>
 const normalizePhone = (value?: string | null) => {
   const digits = String(value || '').split('').filter(c => c >= '0' && c <= '9').join('');
   return digits.length >= 10 ? digits : null;
+};
+
+const buildWaLink = (phone: string, title: string) => {
+  const text = `Hi ${title}, reaching out on your real estate message.`;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+};
+
+const buildCallLink = (phone: string) => `tel:+${phone}`;
+
+const getThreadStorageKey = (sessionLabel?: string | null) => `${THREAD_GOVERNANCE_STORAGE_KEY}:${sessionLabel || 'workspace'}`;
+
+const readGovernanceState = (sessionLabel?: string | null): Record<string, ThreadGovernanceState> => {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getThreadStorageKey(sessionLabel));
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, ThreadGovernanceState> : {};
+  } catch {
+    return {};
+  }
+};
+
+const persistGovernanceState = (sessionLabel: string | null | undefined, value: Record<string, ThreadGovernanceState>) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(getThreadStorageKey(sessionLabel), JSON.stringify(value));
+  } catch {
+    // Ignore storage failures and keep the current session usable.
+  }
+};
+
+const isEmojiHeavy = (value?: string | null) => {
+  const text = String(value || '').trim();
+  if (!text) {
+    return false;
+  }
+
+  const emojiMatches = text.match(/[\u{1F300}-\u{1FAFF}]/gu) || [];
+  const alphaNumeric = text.replace(/[^a-z0-9]/gi, '');
+  return emojiMatches.length >= 2 && alphaNumeric.length <= Math.max(4, Math.floor(text.length * 0.25));
+};
+
+const inferThreadSignal = (chat: InboxChat): ThreadSignal => {
+  const haystack = `${chat.title} ${chat.preview}`.toLowerCase();
+  const hasBlockedLink = BLOCKED_LINK_PATTERNS.some((pattern) => haystack.includes(pattern));
+  const hasLowSignalPhrase = LOW_SIGNAL_PATTERNS.some((pattern) => haystack.includes(pattern));
+  const hasRealEstateKeyword = REAL_ESTATE_KEYWORDS.some((pattern) => haystack.includes(pattern))
+    || /\b\d+\s*bhk\b/.test(haystack)
+    || /\b\d+(\.\d+)?\s*(cr|crore|lac|lakh)\b/.test(haystack);
+
+  if (hasBlockedLink && !hasRealEstateKeyword) {
+    return {
+      suggestedState: 'held',
+      reason: 'AI held this thread because the latest message looks like a social link, not a real-estate lead for your inbox.',
+      confidence: 'high',
+    };
+  }
+
+  if ((hasLowSignalPhrase || isEmojiHeavy(chat.preview)) && !hasRealEstateKeyword) {
+    return {
+      suggestedState: 'held',
+      reason: 'AI held this thread because it looks like low-signal chatter instead of business context for the inbox.',
+      confidence: 'medium',
+    };
+  }
+
+  if (!hasRealEstateKeyword) {
+    return {
+      suggestedState: 'held',
+      reason: 'AI held this thread until it sees a real-estate signal or you explicitly allow it into the inbox.',
+      confidence: 'medium',
+    };
+  }
+
+  return {
+    suggestedState: 'allowed',
+    reason: 'AI marked this thread as real-estate relevant and safe to keep in your private inbox.',
+    confidence: 'high',
+  };
 };
 
 const isOutboundSender = (sender?: string | null) => {
@@ -108,6 +268,7 @@ const fallbackInboxFromMessages = (rows: RawMessageRow[]): InboxResponse => {
       preview: text,
       lastMessageAt: timestamp,
       messageCount: 0,
+      type: 'direct' as const,
     };
 
     existing.messageCount += 1;
@@ -151,7 +312,6 @@ const unwrapInboxPayload = (data: any): InboxResponse => ({
   chats: Array.isArray(data?.chats) ? data.chats : [],
   messages: Array.isArray(data?.messages) ? data.messages : [],
 });
-const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
 
 const sanitizeInboxError = (message: string) => {
   const normalized = message.toLowerCase();
@@ -182,9 +342,17 @@ export const Inbox: React.FC = () => {
   const [search, setSearch] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
-  const [draft, setDraft] = React.useState('');
-  const [isSending, setIsSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [listMode, setListMode] = React.useState<ThreadGovernanceState>('allowed');
+  const [threadGovernance, setThreadGovernance] = React.useState<Record<string, ThreadGovernanceState>>(() => readGovernanceState(null));
+
+  React.useEffect(() => {
+    setThreadGovernance(readGovernanceState(selectedSessionLabel));
+  }, [selectedSessionLabel]);
+
+  React.useEffect(() => {
+    persistGovernanceState(selectedSessionLabel, threadGovernance);
+  }, [selectedSessionLabel, threadGovernance]);
 
   const loadInbox = React.useCallback(async () => {
     setIsLoading(true);
@@ -198,6 +366,7 @@ export const Inbox: React.FC = () => {
       setData(payload);
       setThreadMessages({});
       setSelectedChatId((current) => current || payload.chats?.[0]?.id || '');
+      setIsLoading(false);
       return;
     } catch (err: any) {
       const primaryError = handleApiError(err);
@@ -225,9 +394,7 @@ export const Inbox: React.FC = () => {
       } finally {
         setIsLoading(false);
       }
-      return;
     }
-    setIsLoading(false);
   }, [selectedSessionLabel]);
 
   React.useEffect(() => {
@@ -253,12 +420,52 @@ export const Inbox: React.FC = () => {
     return source.filter((chat) => `${chat.title} ${chat.preview}`.toLowerCase().includes(normalized));
   }, [data?.chats, search]);
 
-  const threadsNeedingResponse = React.useMemo(
-    () => chats.filter((chat) => !String(chat.preview || '').trim().toLowerCase().startsWith('you:')),
+  const threadSignals = React.useMemo(
+    () => chats.reduce<Record<string, ThreadSignal>>((acc, chat) => {
+      acc[chat.id] = inferThreadSignal(chat);
+      return acc;
+    }, {}),
     [chats],
   );
 
-  const selectedChat = chats.find((chat) => chat.id === selectedChatId) || chats[0] || null;
+  const effectiveThreadState = React.useCallback((chat: InboxChat) => {
+    return threadGovernance[chat.id] || threadSignals[chat.id]?.suggestedState || 'allowed';
+  }, [threadGovernance, threadSignals]);
+
+  const visibleChats = React.useMemo(
+    () => chats.filter((chat) => effectiveThreadState(chat) === listMode),
+    [chats, effectiveThreadState, listMode],
+  );
+
+  const chatCounts = React.useMemo(
+    () => chats.reduce(
+      (acc, chat) => {
+        const state = effectiveThreadState(chat);
+        acc[state] += 1;
+        return acc;
+      },
+      { allowed: 0, held: 0, blocked: 0 } as Record<ThreadGovernanceState, number>,
+    ),
+    [chats, effectiveThreadState],
+  );
+
+  const threadsNeedingResponse = React.useMemo(
+    () => visibleChats.filter((chat) => !String(chat.preview || '').trim().toLowerCase().startsWith('you:')),
+    [visibleChats],
+  );
+
+  const selectedChat = visibleChats.find((chat) => chat.id === selectedChatId) || visibleChats[0] || null;
+  const selectedSignal = selectedChat ? threadSignals[selectedChat.id] || inferThreadSignal(selectedChat) : null;
+  const selectedPhone = normalizePhone(selectedChat?.remoteJid?.split('@')[0]);
+  const selectedSessionChip = selectedSessionLabel || 'workspace';
+
+  React.useEffect(() => {
+    if (selectedChatId && visibleChats.some((chat) => chat.id === selectedChatId)) {
+      return;
+    }
+    setSelectedChatId(visibleChats[0]?.id || '');
+  }, [selectedChatId, visibleChats]);
+
   const messages = React.useMemo(() => {
     if (!selectedChat?.id) {
       return [];
@@ -270,37 +477,53 @@ export const Inbox: React.FC = () => {
 
     return (data?.messages || []).filter((message) => message.chatId === selectedChat.id);
   }, [data?.messages, selectedChat?.id, threadMessages]);
-  const selectedSessionChip = selectedSessionLabel || 'workspace';
-  const renderThreadButton = (chat: InboxChat) => (
-    <button
-      key={chat.id}
-      type="button"
-      onClick={() => setSelectedChatId(chat.id)}
-      className={cn(
-        'flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors',
-        selectedChat?.id === chat.id
-          ? 'border-[#4a99ff]/40 bg-[#182230]'
-          : 'border-[rgba(148,163,184,0.08)] bg-[rgba(15,23,36,0.56)] hover:border-[rgba(148,163,184,0.18)] hover:bg-[rgba(20,31,48,0.92)]',
-      )}
-    >
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgba(74,153,255,0.12)] text-[#7dd3fc]">
-        <MessageSquareTextIcon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <p className="truncate text-sm font-medium text-white">{chat.title}</p>
-          <span className="shrink-0 pt-0.5 text-[11px] text-slate-500">{formatTime(chat.lastMessageAt)}</span>
+
+  const setChatGovernance = React.useCallback((chatId: string, state: ThreadGovernanceState) => {
+    setThreadGovernance((current) => ({
+      ...current,
+      [chatId]: state,
+    }));
+  }, []);
+
+  const renderThreadButton = (chat: InboxChat) => {
+    const state = effectiveThreadState(chat);
+    return (
+      <button
+        key={chat.id}
+        type="button"
+        onClick={() => setSelectedChatId(chat.id)}
+        className={cn(
+          'flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors',
+          selectedChat?.id === chat.id
+            ? 'border-[#4a99ff]/40 bg-[#182230]'
+            : 'border-[rgba(148,163,184,0.08)] bg-[rgba(15,23,36,0.56)] hover:border-[rgba(148,163,184,0.18)] hover:bg-[rgba(20,31,48,0.92)]',
+        )}
+      >
+        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgba(74,153,255,0.12)] text-[#7dd3fc]">
+          <MessageSquareTextIcon className="h-4 w-4" />
         </div>
-        <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-400">{chat.preview || 'No message text'}</p>
-        <div className="mt-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
-          <span>{chat.messageCount} msgs</span>
-          {!String(chat.preview || '').trim().toLowerCase().startsWith('you:') ? (
-            <span className="rounded-full bg-[rgba(74,153,255,0.16)] px-2 py-0.5 text-[#7dd3fc]">Needs reply</span>
-          ) : null}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <p className="truncate text-sm font-medium text-white">{chat.title}</p>
+            <span className="shrink-0 pt-0.5 text-[11px] text-slate-500">{formatTime(chat.lastMessageAt)}</span>
+          </div>
+          <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-slate-400">{chat.preview || 'No message text'}</p>
+          <div className="mt-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-slate-500">
+            <span>{chat.messageCount} msgs</span>
+            {state === 'held' ? (
+              <span className="rounded-full bg-amber-500/12 px-2 py-0.5 text-amber-200">AI held</span>
+            ) : null}
+            {state === 'blocked' ? (
+              <span className="rounded-full bg-rose-500/12 px-2 py-0.5 text-rose-200">Ignored</span>
+            ) : null}
+            {!String(chat.preview || '').trim().toLowerCase().startsWith('you:') ? (
+              <span className="rounded-full bg-[rgba(74,153,255,0.16)] px-2 py-0.5 text-[#7dd3fc]">Needs reply</span>
+            ) : null}
+          </div>
         </div>
-      </div>
-    </button>
-  );
+      </button>
+    );
+  };
 
   React.useEffect(() => {
     if (!selectedChat?.id) {
@@ -354,74 +577,6 @@ export const Inbox: React.FC = () => {
     };
   }, [data?.messages, selectedChat?.id, selectedSessionLabel, threadMessages]);
 
-  React.useEffect(() => {
-    setDraft('');
-  }, [selectedChat?.id]);
-
-  const handleSend = React.useCallback(async () => {
-    if (!selectedChat || isSending) {
-      return;
-    }
-
-    const text = draft.trim();
-    if (!text) {
-      return;
-    }
-
-    setIsSending(true);
-    setError(null);
-
-    try {
-      await backendApi.post(ENDPOINTS.whatsapp.send, {
-        remoteJid: selectedChat.remoteJid,
-        text,
-        sessionKey: selectedSessionLabel || undefined,
-      });
-
-      const optimisticMessage: InboxMessage = {
-        id: `local-${selectedChat.id}-${Date.now()}`,
-        chatId: selectedChat.id,
-        text,
-        sender: 'Broker',
-        direction: 'outbound',
-        timestamp: new Date().toISOString(),
-      };
-
-      setThreadMessages((current) => ({
-        ...current,
-        [selectedChat.id]: [...(current[selectedChat.id] || messages), optimisticMessage],
-      }));
-      setData((current) => {
-        if (!current) {
-          return current;
-        }
-
-        return {
-          ...current,
-          summary: {
-            ...current.summary,
-            totalMessages: current.summary.totalMessages + 1,
-          },
-          chats: current.chats.map((chat) =>
-            chat.id === selectedChat.id
-              ? {
-                  ...chat,
-                  preview: `You: ${text}`,
-                  lastMessageAt: optimisticMessage.timestamp,
-                  messageCount: chat.messageCount + 1,
-                }
-              : chat,
-          ),
-        };
-      });
-      setDraft('');
-    } catch (err) {
-      setError(handleApiError(err));
-    } finally {
-      setIsSending(false);
-    }
-  }, [draft, isSending, messages, selectedChat, selectedSessionLabel]);
-
   return (
     <div className="h-[calc(100vh-10rem)] overflow-hidden rounded-[20px] border border-[rgba(148,163,184,0.14)] bg-[#0b0f17] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
       <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
@@ -454,9 +609,30 @@ export const Inbox: React.FC = () => {
               />
             </div>
             <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-400">
-              <span>{chats.length} threads</span>
+              <span>{visibleChats.length} threads</span>
               <span className="text-slate-600">/</span>
               <span>{threadsNeedingResponse.length} need reply</span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[
+                { key: 'allowed', label: 'Inbox', count: chatCounts.allowed },
+                { key: 'held', label: 'Held by AI', count: chatCounts.held },
+                { key: 'blocked', label: 'Ignored', count: chatCounts.blocked },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setListMode(item.key as ThreadGovernanceState)}
+                  className={cn(
+                    'rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors',
+                    listMode === item.key
+                      ? 'border-[#7dd3fc]/40 bg-[#112031] text-white'
+                      : 'border-[rgba(148,163,184,0.12)] bg-[#0d1420] text-slate-400 hover:border-[rgba(148,163,184,0.22)] hover:text-slate-200',
+                  )}
+                >
+                  {item.label} · {item.count}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -472,13 +648,17 @@ export const Inbox: React.FC = () => {
           ) : null}
 
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-            {!isLoading && chats.length === 0 ? (
+            {!isLoading && visibleChats.length === 0 ? (
               <div className="px-4 py-10 text-sm text-slate-500">
-                No direct-message threads are available yet.
+                {listMode === 'allowed'
+                  ? 'No direct-message threads are cleared for the inbox yet.'
+                  : listMode === 'held'
+                    ? 'AI is not holding any threads right now.'
+                    : 'No threads are currently ignored.'}
               </div>
             ) : (
               <div className="space-y-2">
-                {chats.map(renderThreadButton)}
+                {visibleChats.map(renderThreadButton)}
               </div>
             )}
           </div>
@@ -493,8 +673,54 @@ export const Inbox: React.FC = () => {
                   <p className="mt-0.5 truncate text-[12px] text-slate-400">
                     {selectedChat.remoteJid} · last activity {formatTime(selectedChat.lastMessageAt)}
                   </p>
+                  <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-emerald-500/18 bg-emerald-500/8 px-3 py-1 text-[11px] text-emerald-100">
+                    <ShieldCheckIcon className="h-3.5 w-3.5" />
+                    Private to your workspace. Not shown in public stream.
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {selectedPhone ? (
+                    <>
+                      <a
+                        href={buildCallLink(selectedPhone)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-medium text-emerald-100 hover:border-emerald-400/40"
+                      >
+                        <CallbackIcon className="h-3.5 w-3.5" />
+                        Call
+                      </a>
+                      <a
+                        href={buildWaLink(selectedPhone, selectedChat.title)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-[rgba(148,163,184,0.14)] bg-[#111723] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
+                      >
+                        Open WhatsApp
+                      </a>
+                    </>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setChatGovernance(selectedChat.id, 'allowed')}
+                    className="inline-flex items-center gap-2 rounded-lg border border-[rgba(74,153,255,0.25)] bg-[rgba(74,153,255,0.12)] px-3 py-1.5 text-[11px] font-medium text-[#c7e7ff] hover:border-[#7dd3fc]"
+                  >
+                    <SparklesIcon className="h-3.5 w-3.5" />
+                    Keep in inbox
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChatGovernance(selectedChat.id, 'held')}
+                    className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[11px] font-medium text-amber-100 hover:border-amber-400/40"
+                  >
+                    Hold outside inbox
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChatGovernance(selectedChat.id, 'blocked')}
+                    className="inline-flex items-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-1.5 text-[11px] font-medium text-rose-100 hover:border-rose-400/40"
+                  >
+                    <XIcon className="h-3.5 w-3.5" />
+                    Never show in inbox
+                  </button>
                   <button
                     type="button"
                     onClick={() => navigate('/agent')}
@@ -508,13 +734,6 @@ export const Inbox: React.FC = () => {
                     className="rounded-lg border border-[rgba(148,163,184,0.14)] bg-[#111723] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
                   >
                     Open Stream
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/wabro')}
-                    className="rounded-lg border border-[rgba(148,163,184,0.14)] bg-[#111723] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
-                  >
-                    Open WaBro
                   </button>
                 </div>
               </div>
@@ -534,7 +753,7 @@ export const Inbox: React.FC = () => {
               />
             </div>
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-              {chats.map((chat) => (
+              {visibleChats.map((chat) => (
                 <button
                   key={chat.id}
                   type="button"
@@ -555,6 +774,29 @@ export const Inbox: React.FC = () => {
           <div className="min-h-0 flex-1 overflow-y-auto bg-[#0f141d] px-4 py-4 sm:px-6">
             {selectedChat ? (
               <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+                <div className="rounded-2xl border border-[rgba(148,163,184,0.12)] bg-[#111723] p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">AI source control</p>
+                      <p className="mt-2 text-sm font-medium text-white">
+                        {selectedSignal?.reason || 'AI is evaluating this thread for business relevance.'}
+                      </p>
+                      <p className="mt-1 text-[12px] leading-5 text-slate-400">
+                        Social links, emoji-heavy chatter, and non-real-estate DMs are held out of the inbox by default unless you explicitly allow them.
+                      </p>
+                    </div>
+                    <span className={cn(
+                      'rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]',
+                      effectiveThreadState(selectedChat) === 'allowed'
+                        ? 'bg-emerald-500/12 text-emerald-100'
+                        : effectiveThreadState(selectedChat) === 'held'
+                          ? 'bg-amber-500/12 text-amber-100'
+                          : 'bg-rose-500/12 text-rose-100',
+                    )}>
+                      {effectiveThreadState(selectedChat)}
+                    </span>
+                  </div>
+                </div>
                 {isLoadingMessages && messages.length === 0 ? (
                   <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] px-4 py-3 text-sm text-slate-400">
                     Loading thread history...
@@ -593,36 +835,20 @@ export const Inbox: React.FC = () => {
                   </div>
                   <h3 className="mt-4 text-xl font-semibold text-white">Thread workspace</h3>
                   <p className="mt-2 text-sm leading-6 text-slate-400">
-                    Pick a thread on the left, scroll the conversation here, and reply from the pinned composer.
+                    Pick a thread on the left to review its private message history, AI relevance decision, and next actions.
                   </p>
                 </div>
               </div>
             )}
           </div>
+
           {selectedChat ? (
             <div className="shrink-0 border-t border-[rgba(148,163,184,0.12)] bg-[#111723] px-4 py-3 sm:px-6">
-              <div className="mx-auto flex w-full max-w-4xl items-end gap-3">
-                <textarea
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      void handleSend();
-                    }
-                  }}
-                  rows={1}
-                  placeholder={`Reply to ${selectedChat.title}`}
-                  className="min-h-[52px] flex-1 resize-none rounded-2xl border border-[rgba(148,163,184,0.14)] bg-[#0d1420] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#7dd3fc]"
-                />
-                <button
-                  type="button"
-                  onClick={() => void handleSend()}
-                  disabled={isSending || !draft.trim()}
-                  className="rounded-2xl bg-[#2f7df6] px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSending ? 'Sending...' : 'Send'}
-                </button>
+              <div className="mx-auto flex w-full max-w-4xl flex-col gap-2 rounded-2xl border border-[rgba(148,163,184,0.12)] bg-[#0d1420] px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Personal outreach only</p>
+                <p className="text-sm leading-6 text-slate-200">
+                  PropAI keeps this thread as private intel. Reach out from your own phone using call or WhatsApp so the relationship stays personal.
+                </p>
               </div>
             </div>
           ) : null}
