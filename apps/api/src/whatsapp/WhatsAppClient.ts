@@ -137,6 +137,7 @@ export class WhatsAppClient {
         this.label = options.label;
         this.ownerName = options.ownerName;
         this.connectedPhoneNumber = options.phoneNumber || options.usePairingCode;
+        this.startHealthCheck();
     }
 
     async connect(options: { usePairingCode?: string; phoneNumber?: string } = {}) {
@@ -173,8 +174,7 @@ export class WhatsAppClient {
             }
 
             if (this.socket) {
-                await this.socket.logout().catch(() => undefined);
-                this.socket = null;
+                await this.disposeSocket({ logout: false });
             }
 
             this.socket = makeWASocket({
@@ -225,16 +225,26 @@ export class WhatsAppClient {
                         const statusCode = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode;
                         const replaced = this.isSessionReplaced(lastDisconnect?.error);
                         const shouldReconnect = statusCode !== DisconnectReason.loggedOut && !replaced;
+                        const disconnectReason = replaced
+                            ? 'replaced'
+                            : statusCode === DisconnectReason.loggedOut
+                                ? 'logged_out'
+                                : `closed:${statusCode ?? 'unknown'}`;
                         this.disconnectMeta = {
                             reason: replaced ? 'replaced' : statusCode === DisconnectReason.loggedOut ? 'logged_out' : 'closed',
                             replaced,
                             at: new Date().toISOString(),
                         };
+                        this.socket = null;
 
                         if (this.reconnectTimer) {
                             clearTimeout(this.reconnectTimer);
                             this.reconnectTimer = null;
                         }
+
+                        console.warn(
+                            `[WhatsAppClient] Connection closed for ${this.tenantId}:${this.label} (${disconnectReason}). autoReconnect=${shouldReconnect}`
+                        );
 
                         if (statusCode === DisconnectReason.loggedOut) {
                             await this.storage.deleteSession?.({
@@ -256,6 +266,9 @@ export class WhatsAppClient {
                             this.circuitBreaker.recordFailure();
 
                             const backoffMs = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+                            console.log(
+                                `[WhatsAppClient] Scheduling reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${backoffMs}ms for ${this.tenantId}:${this.label}`
+                            );
                             await this.persistStatus('connecting');
                             this.reconnectTimer = setTimeout(() => {
                                 this.tryReconnect();
@@ -706,6 +719,41 @@ try {
         }
     }
 
+    private async disposeSocket({ logout }: { logout: boolean }) {
+        const activeSocket = this.socket as (WASocket & {
+            ws?: { close?: () => void; terminate?: () => void };
+            end?: (error?: Error) => void;
+        }) | null;
+
+        this.socket = null;
+        if (!activeSocket) {
+            return;
+        }
+
+        if (logout) {
+            await activeSocket.logout().catch(() => undefined);
+            return;
+        }
+
+        try {
+            activeSocket.ws?.close?.();
+        } catch {
+            // Ignore teardown errors while recycling the socket.
+        }
+
+        try {
+            activeSocket.ws?.terminate?.();
+        } catch {
+            // Ignore teardown errors while recycling the socket.
+        }
+
+        try {
+            activeSocket.end?.(new Error('Recycling WhatsApp socket for reconnect'));
+        } catch {
+            // Ignore teardown errors while recycling the socket.
+        }
+    }
+
     async broadcastToGroups(groupJids: string[], text: string, options: BroadcastOptions = {}) {
         const uniqueGroupJids = Array.from(new Set((groupJids || []).filter(Boolean)));
         const batchSize = options.batchSize || 5;
@@ -764,8 +812,8 @@ try {
         }
         this.reconnectAttempts = 0;
 
-        await this.socket.logout();
-        this.socket = null;
+        this.stopHealthCheck();
+        await this.disposeSocket({ logout: true });
         this.connectionStatus = 'disconnected';
         await this.persistStatus('disconnected');
         await this.storage.deleteSession?.({
