@@ -20,7 +20,6 @@ import {
   SearchIcon,
   SettingsIcon,
   StreamIcon,
-  SmartphoneIcon,
   XIcon,
   WorkflowIcon,
 } from '../lib/icons';
@@ -40,7 +39,6 @@ const NAV_ITEMS = [
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
   { label: 'WaBro', path: '/wabro/app', icon: BroadcastIcon },
-  { label: 'Download WaBro', path: 'https://github.com/vishalgojha/wabro/releases/latest/download/wabro-release.apk', icon: SmartphoneIcon },
   { label: 'Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },
   { label: 'AI Usage', path: '/aiusage', icon: CreditCardIcon },
@@ -325,9 +323,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
       <div className="border-b-[0.5px] border-[color:var(--border)] px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-[10px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent-dim)] shadow-[0_0_0_1px_rgba(62,232,138,0.04)]">
-              <WorkflowIcon className="h-5 w-5 text-[var(--accent)]" />
-            </div>
+            <img
+              src="/favicon.svg"
+              alt="PropAI"
+              className="h-11 w-11 rounded-[10px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-2 shadow-[0_0_0_1px_rgba(62,232,138,0.04)]"
+            />
             <div className={cn('min-w-0', isCollapsed && 'lg:hidden')}>
               <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">PropAI Pulse</p>
               <p className="truncate text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">AI-routed broker channels</p>

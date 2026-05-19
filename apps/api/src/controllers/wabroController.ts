@@ -342,11 +342,10 @@ export async function createDeviceProvision(req: Request, res: Response) {
 }
 
 export async function getAppVersion(req: Request, res: Response) {
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
   res.json({
     versionCode: 1,
     versionName: '1.0.0',
-    apkUrl: `${baseUrl}/wabro.apk`,
+    apkUrl: 'https://github.com/vishalgojha/wabro/releases/latest/download/wabro-release.apk',
     releaseNotes: 'Use the shared PropAI WaBro workspace and device provisioning flow. Do not run a second Baileys session from Android.',
     forceUpdate: false,
   });

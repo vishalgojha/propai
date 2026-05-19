@@ -17,7 +17,7 @@ import { cn } from '../lib/utils';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { useAuth } from '../context/AuthContext';
-import { PROPAI_ASSISTANT_WA_LINK } from '../lib/propai';
+import { PROPAI_ASSISTANT_WA_LINK, WABRO_APK_URL } from '../lib/propai';
 import { SurfaceSection } from '../components/ui/SurfaceSection';
 
 type WabroStats = {
@@ -99,6 +99,7 @@ const WABRO_NAV = [
   { label: 'Devices', path: '/wabro/app/devices' },
   { label: 'Setup', path: '/wabro/app/setup' },
   { label: 'Billing', path: '/wabro/app/billing' },
+  { label: 'Download APK', path: WABRO_APK_URL, external: true },
 ] as const;
 
 const EMPTY_STATS: WabroStats = {
@@ -335,18 +336,24 @@ function WabroShell({
 
         <div className="mt-6 flex flex-wrap gap-2">
           {WABRO_NAV.map((item) => {
-            const active = location.pathname === item.path;
+            const active = !('external' in item) && location.pathname === item.path;
+            const className = cn(
+              'rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
+              active
+                ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]'
+            );
+
+            if ('external' in item && item.external) {
+              return (
+                <a key={item.label} href={item.path} target="_blank" rel="noreferrer" className={className}>
+                  {item.label}
+                </a>
+              );
+            }
+
             return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={cn(
-                  'rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                  active
-                    ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
-                    : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]'
-                )}
-              >
+              <Link key={item.path} to={item.path} className={className}>
                 {item.label}
               </Link>
             );
@@ -619,8 +626,9 @@ export const WabroOverview: React.FC = () => {
       actions={
         <>
           <a
-            href="/wabro.apk"
-            download
+            href={WABRO_APK_URL}
+            target="_blank"
+            rel="noreferrer"
             className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-opacity hover:opacity-90"
           >
             <SmartphoneIcon className="h-3.5 w-3.5" />
@@ -689,7 +697,7 @@ export const WabroOverview: React.FC = () => {
                 <p className="mt-2 text-[13px] font-semibold text-[var(--text-primary)]">
                   {stats.total_devices ? `${stats.active_devices} active / ${stats.total_devices} linked` : 'No device linked yet'}
                 </p>
-                <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">Download the APK from the sidebar or this page, sign into the same PropAI account, and let the phone register against this workspace as the delivery device.</p>
+                <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">Download the APK from this WaBro surface, sign into the same PropAI account, and let the phone register against this workspace as the delivery device.</p>
               </div>
             </div>
           </SurfaceSection>
@@ -776,8 +784,9 @@ export const WabroCampaigns: React.FC = () => {
       onRetry={reload}
       actions={
         <a
-          href="/wabro.apk"
-          download
+          href={WABRO_APK_URL}
+          target="_blank"
+          rel="noreferrer"
           className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-opacity hover:opacity-90"
         >
           <SmartphoneIcon className="h-3.5 w-3.5" />
@@ -1038,8 +1047,9 @@ export const WabroSetup: React.FC = () => {
       error={null}
       actions={
         <a
-          href="/wabro.apk"
-          download
+          href={WABRO_APK_URL}
+          target="_blank"
+          rel="noreferrer"
           className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-opacity hover:opacity-90"
         >
           <SmartphoneIcon className="h-3.5 w-3.5" />
@@ -1056,7 +1066,7 @@ export const WabroSetup: React.FC = () => {
       <div className="grid gap-4 lg:grid-cols-2">
         {[
           ['1. Open WaBro inside PropAI', 'Start from /wabro/app so you are inside the live WaBro dashboard, using the shared PropAI login and the current workspace before touching the Android phone.'],
-          ['2. Download and install the APK', 'Use the Download APK action here or the sidebar shortcut on the phone that will execute campaign delivery.'],
+          ['2. Download and install the APK', 'Use the Download APK action inside WaBro on the phone that will execute campaign delivery.'],
           ['3. Sign in with the same account', 'Use the same PropAI identity so the Android device registers against this WaBro workspace without a separate auth flow.'],
           ['4. Build broker contacts', 'Tag incoming DMs as Realtor from the Inbox so broker contacts auto-populate with phone and locality, or import a list manually from the campaigns page.'],
           ['5. Create the campaign on web', 'Write the message template and choose the target list inside PropAI → WaBro.'],
