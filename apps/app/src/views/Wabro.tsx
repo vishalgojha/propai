@@ -90,7 +90,7 @@ type AccessState = {
   trialDaysRemaining?: number | null;
 };
 
-const WABRO_PRICE = 'Rs 499/year';
+const WABRO_PRICE = '₹499 / bi-annual';
 const WABRO_TRIAL_DAYS = 7;
 
 const WABRO_NAV = [

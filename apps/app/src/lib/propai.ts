@@ -12,14 +12,26 @@ export const PROPAI_PLAN_CARDS = [
   },
   {
     name: 'Personal Parser',
-    price: '₹999/mo',
+    price: '₹1499 / bi-annual',
     devices: 'Up to 2 WhatsApp devices',
     blurb: 'Private broker stack: your own groups, your own parsed Stream, your own API keys, MCP, and WaBro control.',
   },
   {
     name: 'PropAI Network',
+    price: '₹999',
+    devices: 'Network intelligence access',
+    blurb: 'Move beyond a private parser into shared PropAI market data, broader listing visibility, and network context.',
+  },
+  {
+    name: 'Team Plan',
     price: '₹2999/mo',
     devices: 'Up to 5 WhatsApp devices',
-    blurb: 'Everything in Personal Parser, plus network-wide broker data, global Stream visibility, agent workflows, MCP, and WaBro broadcasts.',
+    blurb: 'Built for broker teams that need shared workspace operations, more connected devices, and coordinated execution.',
+  },
+  {
+    name: 'WaBro',
+    price: '₹499 / bi-annual',
+    devices: 'Broadcast add-on',
+    blurb: 'Outbound broker broadcasts and follow-up execution inside the same PropAI workflow.',
   },
 ] as const;
