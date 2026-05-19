@@ -136,6 +136,13 @@ backendApi.interceptors.response.use(
 
 export const handleApiError = (error: any) => {
   console.error("API Error:", error);
+  if (error?.code === 'ECONNABORTED' || String(error?.message || '').toLowerCase().includes('timeout')) {
+    const requestUrl = String(error?.config?.url || '');
+    const isAuthRequest = PUBLIC_AUTH_PATHS.some((path) => requestUrl.includes(path));
+    return isAuthRequest
+      ? 'Sign in is taking too long right now. Please try again in a moment.'
+      : 'The request took too long. Please try again in a moment.';
+  }
   const rawMessage = error.response?.data?.error || error.response?.data?.message || error.message || "An unexpected error occurred";
   const normalized = typeof rawMessage === 'object'
     ? (rawMessage?.message || rawMessage?.error || JSON.stringify(rawMessage))

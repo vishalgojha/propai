@@ -26,6 +26,7 @@ const PROFILE_BASE_SELECT = 'id, full_name, phone, email, phone_verified';
 const normalizePhone = (value?: string) => normalizePhoneValue(value);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const AUTH_OPTIONAL_WORK_TIMEOUT_MS = 2500;
+const AUTH_REQUIRED_WORK_TIMEOUT_MS = 10000;
 
 function extractAuthErrorMessage(error: any, fallback = 'Authentication failed'): string {
     if (!error) return fallback;
@@ -53,6 +54,27 @@ async function withTimeout<T>(task: Promise<T>, timeoutMs: number, label: string
                 timeoutHandle = setTimeout(() => {
                     console.warn(`[Auth] ${label} timed out after ${timeoutMs}ms`);
                     resolve(null);
+                }, timeoutMs);
+            }),
+        ]);
+    } finally {
+        if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+        }
+    }
+}
+
+async function withRequiredTimeout<T>(task: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+    let timeoutHandle: NodeJS.Timeout | null = null;
+
+    try {
+        return await Promise.race([
+            task,
+            new Promise<T>((_, reject) => {
+                timeoutHandle = setTimeout(() => {
+                    const error = new Error(`${label} timed out after ${timeoutMs}ms`);
+                    console.error(`[Auth] ${error.message}`);
+                    reject(error);
                 }, timeoutMs);
             }),
         ]);
@@ -282,10 +304,14 @@ router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (
         const authClient = createSupabaseAnonClient();
 
         for (let attempt = 0; attempt < 3; attempt += 1) {
-            const { data, error } = await authClient.auth.signInWithPassword({
-                email,
-                password,
-            });
+            const { data, error } = await withRequiredTimeout(
+                authClient.auth.signInWithPassword({
+                    email,
+                    password,
+                }),
+                AUTH_REQUIRED_WORK_TIMEOUT_MS,
+                'signInWithPassword',
+            );
 
             authError = error;
             authData = data;
@@ -420,6 +446,11 @@ router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (
             referral,
         });
     } catch (error: any) {
+        if (String(error?.message || '').includes('timed out')) {
+            return res.status(504).json({
+                error: 'Sign in is taking too long right now. Please try again in a moment.',
+            });
+        }
         console.error('Password auth error:', error);
         return res.status(Number(error?.status || 500)).json({ error: error.message || 'Failed to authenticate' });
     }
