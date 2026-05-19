@@ -10,6 +10,7 @@ import { getPhoneOwnership, markPhoneVerifiedForUser, normalizePhone as normaliz
 const db = supabaseAdmin || supabase;
 const AI_SENDER = 'AI';
 const recentSelfChatReplies = new Map<string, number>();
+const recentProcessedSelfChatMessages = new Map<string, number>();
 
 function makeSelfChatReplyKey(tenantId: string, sessionLabel: string | undefined, remoteJid: string, text: string) {
     return `${tenantId}:${sessionLabel || 'default'}:${remoteJid}:${text.trim()}`;
@@ -36,6 +37,45 @@ function isRecentSelfChatReply(tenantId: string, sessionLabel: string | undefine
 
     if (Date.now() - timestamp > 60_000) {
         recentSelfChatReplies.delete(key);
+        return false;
+    }
+
+    return true;
+}
+
+function makeProcessedSelfChatMessageKey(event: IncomingMessageRecord) {
+    const rawMessage = (event.rawMessage || {}) as { key?: { id?: string | null; participant?: string | null } } | undefined;
+    const messageId = String(rawMessage?.key?.id || '').trim();
+    const participant = String(rawMessage?.key?.participant || '').trim();
+
+    if (messageId) {
+        return `${event.tenantId}:${event.label || 'default'}:${event.remoteJid}:${participant}:${messageId}`;
+    }
+
+    return `${event.tenantId}:${event.label || 'default'}:${event.remoteJid}:${event.timestamp}:${event.text.trim()}`;
+}
+
+function markSelfChatMessageProcessed(event: IncomingMessageRecord) {
+    const key = makeProcessedSelfChatMessageKey(event);
+    const now = Date.now();
+    recentProcessedSelfChatMessages.set(key, now);
+
+    for (const [entryKey, timestamp] of recentProcessedSelfChatMessages.entries()) {
+        if (now - timestamp > 60_000) {
+            recentProcessedSelfChatMessages.delete(entryKey);
+        }
+    }
+}
+
+function wasSelfChatMessageProcessed(event: IncomingMessageRecord) {
+    const key = makeProcessedSelfChatMessageKey(event);
+    const timestamp = recentProcessedSelfChatMessages.get(key);
+    if (!timestamp) {
+        return false;
+    }
+
+    if (Date.now() - timestamp > 60_000) {
+        recentProcessedSelfChatMessages.delete(key);
         return false;
     }
 
@@ -378,8 +418,16 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
     const isRemoteBotJid = Boolean(normalizedRemoteJid) && (botJids.includes(normalizedRemoteJid) || jidMatchesAnyPhone(normalizedRemoteJid, botJids));
     const effectiveIsSelfChat = Boolean(isSelfChat && isRemoteBotJid);
 
+    if (effectiveIsSelfChat && wasSelfChatMessageProcessed(event)) {
+        return;
+    }
+
     if (effectiveIsSelfChat && fromMe && isRecentSelfChatReply(tenantId, label, remoteJid, text)) {
         return;
+    }
+
+    if (effectiveIsSelfChat) {
+        markSelfChatMessageProcessed(event);
     }
 
     if (effectiveIsSelfChat && text.toUpperCase() === 'HI') {
