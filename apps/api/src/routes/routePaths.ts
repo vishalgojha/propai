@@ -12,6 +12,7 @@ export const ROUTE_PATHS = {
     settings: '/api/settings',
     files: '/api/files',
     wabro: '/api/wabro',
+    internal: '/api/internal',
     voiceListen: '/api/voice/listen',
     health: '/health',
     propertiesSearch: '/api/properties/search',
@@ -150,5 +151,13 @@ export const ROUTE_PATHS = {
     syncLogs: '/sync/logs',
     syncCampaign: '/sync/campaign/:campaignId',
     crashLog: '/crash',
+  },
+  internal: {
+    whatsappInbound: '/whatsapp/inbound',
+    whatsappStatus: '/whatsapp/status',
+    runtimeSendMessage: '/runtime/send-message',
+    runtimeSendMedia: '/runtime/send-media',
+    runtimeBroadcast: '/runtime/broadcast',
+    runtimeSessionStatus: '/runtime/session/status',
   },
 } as const;
