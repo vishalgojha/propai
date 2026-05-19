@@ -50,7 +50,7 @@ const capabilitySections = [
   {
     title: 'WhatsApp',
     icon: GroupsIcon,
-    copy: 'Connect broker numbers, scan QR, monitor ingestion health, review groups, and disconnect devices cleanly when needed.',
+    copy: 'Connect broker numbers, scan QR, review ingestion health, review groups, and disconnect devices cleanly when needed.',
     examples: [
       'Connect your broker number and scan the QR.',
       'Open Logs to see groups detected and parser health.',

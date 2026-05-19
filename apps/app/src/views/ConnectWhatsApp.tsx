@@ -179,7 +179,7 @@ export const ConnectWhatsApp: React.FC = () => {
         <div className="mx-auto max-w-lg py-10">
             <div className="mb-8 text-center">
                 <h1 className="mb-2 text-2xl font-bold text-[var(--text-primary)]">Connect WhatsApp</h1>
-                <p className="text-[15px] text-[var(--text-secondary)]">Link your device to let Pulse monitor your groups</p>
+                <p className="text-[15px] text-[var(--text-secondary)]">Link your device to let Pulse read your groups</p>
             </div>
 
             {error && (

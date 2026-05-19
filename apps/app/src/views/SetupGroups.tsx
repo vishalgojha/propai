@@ -107,7 +107,7 @@ export const SetupGroups: React.FC = () => {
         <div className="mx-auto max-w-2xl py-10">
             <div className="mb-8 text-center">
                 <h1 className="mb-2 text-2xl font-bold text-[var(--text-primary)]">Group & Realtor Setup</h1>
-                <p className="text-[15px] text-[var(--text-secondary)]">Manage which groups Pulse monitors and who it recognises</p>
+                <p className="text-[15px] text-[var(--text-secondary)]">Manage which groups Pulse reads and who it recognises</p>
             </div>
 
             {error && (
@@ -125,7 +125,7 @@ export const SetupGroups: React.FC = () => {
                         <div>
                             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">WhatsApp Groups</p>
                             <p className="mt-1 text-[14px] font-semibold text-[var(--text-primary)]">
-                                {activeGroups.length} monitored · {excludedGroups.length} personal
+                                {activeGroups.length} active · {excludedGroups.length} personal
                             </p>
                         </div>
                     </div>
@@ -159,7 +159,7 @@ export const SetupGroups: React.FC = () => {
                                             {g.name}
                                         </span>
                                         {g.excluded && <span className="rounded bg-red-500/10 px-2 py-0.5 text-[11px] text-red-400">Personal</span>}
-                                        {!g.excluded && <span className="rounded bg-[var(--accent)]/10 px-2 py-0.5 text-[11px] text-[var(--accent)]">Monitored</span>}
+                                        {!g.excluded && <span className="rounded bg-[var(--accent)]/10 px-2 py-0.5 text-[11px] text-[var(--accent)]">Active</span>}
                                     </div>
                                     <button onClick={() => removeGroup(i)} className="text-[var(--text-muted)] hover:text-red-400">
                                         <TrashIcon className="h-4 w-4" />

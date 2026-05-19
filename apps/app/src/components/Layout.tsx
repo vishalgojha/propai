@@ -85,7 +85,6 @@ export const Layout: React.FC = () => {
 
   const getPageTitle = (path: string) => {
     switch (path) {
-      case '/monitor': return 'Monitor';
       case '/inbox':
       case '/messages':
         return 'Inbox';
@@ -115,7 +114,7 @@ export const Layout: React.FC = () => {
   const channelName = searchParams.get('channelName');
   const title = channelParam ? channelName || `#${channelParam}` : getPageTitle(location.pathname);
   const searchKey = searchParams.toString();
-  const hideFooter = location.pathname === '/monitor' || location.pathname === '/inbox' || location.pathname === '/messages';
+  const hideFooter = location.pathname === '/inbox' || location.pathname === '/messages';
 
   React.useEffect(() => {
     setIsSidebarOpen(false);

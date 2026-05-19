@@ -52,8 +52,6 @@ export const ENDPOINTS = {
     status: '/whatsapp/status',
     sessions: '/whatsapp/sessions',
     qr: '/whatsapp/qr',
-    monitor: '/whatsapp/monitor',
-    monitorMessages: '/whatsapp/monitor/messages',
     inbox: '/whatsapp/inbox',
     health: '/whatsapp/health',
     healthLogs: '/whatsapp/health/logs',

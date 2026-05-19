@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, ArrowRight, Eye, History, Inbox, MessageSquare, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { Activity, ArrowRight, History, Inbox, MessageSquare, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
@@ -528,12 +528,12 @@ export const Dashboard: React.FC = () => {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <StatCard
-          title="Monitor"
-          value="Groups + DMs"
-          hint="Workspace message history for WhatsApp review, follow-up, and broker actions."
-          icon={<Eye className="h-5 w-5" />}
-          onClick={() => navigate('/monitor')}
-          cta="Open Monitor"
+          title="AI Agent"
+          value="Plain-language ops"
+          hint="Save requirements, search CRM, check follow-ups, and work the workspace without opening another console."
+          icon={<Activity className="h-5 w-5" />}
+          onClick={() => navigate('/agent')}
+          cta="Open agent"
         />
         <StatCard
           title="Inbox"

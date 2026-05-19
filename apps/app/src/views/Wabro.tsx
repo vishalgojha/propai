@@ -1071,7 +1071,7 @@ export const WabroSetup: React.FC = () => {
           ['4. Build broker contacts', 'Tag incoming DMs as Realtor from the Inbox so broker contacts auto-populate with phone and locality, or import a list manually from the campaigns page.'],
           ['5. Create the campaign on web', 'Write the message template and choose the target list inside PropAI → WaBro.'],
           ['6. Let Android execute', 'The Android app pulls pending campaigns from the shared `/api/wabro` backend and handles delivery from the linked device.'],
-          ['7. Monitor results on web', 'Track sent, failed, skipped, and active-device state from the WaBro pages in PropAI.'],
+          ['7. Review results on web', 'Track sent, failed, skipped, and active-device state from the WaBro pages in PropAI.'],
         ].map(([title, body]) => (
           <div key={title} className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">{title}</p>

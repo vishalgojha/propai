@@ -289,7 +289,7 @@ export const Admin: React.FC = () => {
               PropAI Operations
             </h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              Manage partner workspaces, monitor system health, impersonate accounts for debugging, and view the global audit log.
+              Manage partner workspaces, review system health, impersonate accounts for debugging, and view the global audit log.
             </p>
           </div>
           <button

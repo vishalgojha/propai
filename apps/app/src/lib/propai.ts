@@ -10,7 +10,7 @@ export const PROPAI_PLAN_CARDS = [
     name: 'Trial',
     price: '7 days free',
     devices: 'No credit card required',
-    blurb: 'Connect WhatsApp, open Monitor, watch Stream fill up, and test WaBro before you pay.',
+    blurb: 'Connect WhatsApp, watch Stream fill up, and test WaBro before you pay.',
   },
   {
     name: 'Personal Parser',

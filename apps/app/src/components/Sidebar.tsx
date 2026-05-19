@@ -9,7 +9,6 @@ import {
   ChannelIcon,
   CreditCardIcon,
   ChevronLeftIcon,
-  EyeIcon,
   GroupsIcon,
   LogoutIcon,
   MessageSquareTextIcon,
@@ -34,7 +33,6 @@ import { SidebarCard } from './ui/SidebarCard';
 
 const NAV_ITEMS = [
   { label: 'AI Agent', path: '/agent', icon: ActivityIcon },
-  { label: 'Monitor', path: '/monitor', icon: EyeIcon },
   { label: 'Inbox', path: '/inbox', icon: MessageSquareTextIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },

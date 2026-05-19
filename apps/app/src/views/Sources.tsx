@@ -1275,7 +1275,7 @@ export const Sources: React.FC = () => {
               WhatsApp is the ingestion engine that powers Stream.
             </h2>
             <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              Connect broker WhatsApp numbers here so PropAI can ingest chats, parse groups into Stream, power the monitor, run the assistant, and handle deliberate outbound outreach from the same workspace.
+              Connect broker WhatsApp numbers here so PropAI can ingest chats, parse groups into Stream, run the assistant, and handle deliberate outbound outreach from the same workspace.
             </p>
           </div>
 
@@ -1746,7 +1746,7 @@ export const Sources: React.FC = () => {
 
           <div className="mt-5 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
             <p className="text-[12px] leading-6 text-[var(--text-secondary)]">
-              WhatsApp here is the main ingestion engine for PropAI. It connects broker numbers, reads inbound activity, feeds Stream, powers Monitor, gives the AI assistant live message context, and supports controlled outbound sends from the same workspace.
+              WhatsApp here is the main ingestion engine for PropAI. It connects broker numbers, reads inbound activity, feeds Stream, gives the AI assistant live message context, and supports controlled outbound sends from the same workspace.
             </p>
           </div>
 

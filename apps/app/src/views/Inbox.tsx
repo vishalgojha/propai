@@ -380,7 +380,7 @@ export const Inbox: React.FC = () => {
                   </div>
                   <h3 className="mt-4 text-xl font-semibold text-white">WhatsApp-style inbox</h3>
                   <p className="mt-2 text-sm leading-6 text-[#8696a0]">
-                    This is the direct follow-up lane for the broker team. Monitor shows all chats, while Inbox keeps only one-to-one conversations.
+                    This is the direct follow-up lane for the broker team. Inbox keeps only one-to-one conversations so outreach stays clean and searchable.
                   </p>
                 </div>
               </div>

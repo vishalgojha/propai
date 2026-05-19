@@ -28,8 +28,8 @@ import { AuthCard } from '../components/ui/AuthCard';
 const capabilities = [
   {
     icon: MessageSquareTextIcon,
-    title: 'Monitor the right WhatsApp groups',
-    copy: 'Monitor turns WhatsApp into a cleaner real-estate workspace so brokers stay inside PropAI instead of scrolling irrelevant chat noise.',
+    title: 'Work the right WhatsApp groups',
+    copy: 'PropAI turns WhatsApp into a cleaner real-estate workspace so brokers stay inside the workflow instead of scrolling irrelevant chat noise.',
   },
   {
     icon: WorkflowIcon,
@@ -98,7 +98,7 @@ const stackHighlights = [
   {
     title: 'Shared workspace',
     summary: 'One broker workspace instead of five disconnected apps.',
-    copy: 'Shared workspace means your Monitor, Stream, AI actions, and WaBro broadcasts live together. Listings, requirements, follow-ups, and outreach stay connected, so your team does not lose context between tools.',
+    copy: 'Shared workspace means your WhatsApp intake, Stream, AI actions, and WaBro broadcasts live together. Listings, requirements, follow-ups, and outreach stay connected, so your team does not lose context between tools.',
     seo: 'This is the operational benefit for teams looking for a real estate broker CRM, WhatsApp workspace, and AI-assisted broker operations in one system.',
   },
 ];
@@ -294,7 +294,7 @@ export const Login: React.FC = () => {
               </div>
               <div>
                 <p className="text-[13px] font-bold tracking-[0.06em]">PROPAI PULSE</p>
-                <p className="text-[11px] text-[var(--text-secondary)]">Monitor WhatsApp. Parse Stream. Broadcast with WaBro.</p>
+                <p className="text-[11px] text-[var(--text-secondary)]">Work WhatsApp. Parse Stream. Broadcast with WaBro.</p>
               </div>
             </div>
             <div className="hidden md:flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">
@@ -431,7 +431,7 @@ export const Login: React.FC = () => {
                   <div className="rounded-[14px] border border-[color:var(--border)] bg-[rgba(255,255,255,0.015)] p-4">
                     <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">What do WaBro, MCP, BYOK, and shared workspace actually mean?</h2>
                     <p className="mt-2 max-w-4xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                      If you are not technical, think of this page as a simple guide. PropAI is real estate broker software that connects WhatsApp monitoring, listing parsing, broker follow-up, team workflow, and AI assistance into one workspace.
+                      If you are not technical, think of this page as a simple guide. PropAI is real estate broker software that connects WhatsApp intake, listing parsing, broker follow-up, team workflow, and AI assistance into one workspace.
                     </p>
                   </div>
 
@@ -489,7 +489,7 @@ export const Login: React.FC = () => {
                   <p className="mt-2 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
                     {mode === 'signup'
                       ? 'New brokers add their name and WhatsApp number once. Then they can run a private Personal Parser workflow or move into PropAI Network.'
-                      : 'Sign in to open Monitor, Stream, and WaBro. First time here? Switch to Create account and get set up in under 5 minutes.'}
+                      : 'Sign in to open Stream, Inbox, and WaBro. First time here? Switch to Create account and get set up in under 5 minutes.'}
                   </p>
                 </div>
 
@@ -825,7 +825,7 @@ export const Login: React.FC = () => {
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Workspace capability reminder</p>
                 </div>
                 <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-                  After login, Pulse helps you move between Monitor, Stream, and WaBro without losing context. Add listings, save requirements, schedule follow-up, and open broker outreach from one workspace.
+                  After login, Pulse helps you move between Inbox, Stream, and WaBro without losing context. Add listings, save requirements, schedule follow-up, and open broker outreach from one workspace.
                 </p>
               </AuthCard>
             </aside>
