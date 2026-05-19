@@ -160,6 +160,25 @@ async function isSelfChatEnabled(tenantId: string, sessionLabel?: string) {
     return sessionData.selfChatEnabled === true || sessionData.self_chat_enabled === true;
 }
 
+async function isAiReplyEnabledOutsideSelfChat(tenantId: string, sessionLabel?: string) {
+    if (!sessionLabel) {
+        return false;
+    }
+
+    const { data } = await db
+        .from('whatsapp_sessions')
+        .select('session_data')
+        .eq('tenant_id', tenantId)
+        .eq('label', sessionLabel)
+        .maybeSingle();
+
+    const sessionData = (data?.session_data && typeof data.session_data === 'object')
+        ? data.session_data as Record<string, any>
+        : {};
+
+    return sessionData.aiReplyEnabled === true || sessionData.ai_reply_enabled === true;
+}
+
 async function handleVerificationReply(remoteJid: string) {
     const phone = normalizePhoneValue(remoteJid.split('@')[0]);
     const ownership = await getPhoneOwnership(phone);
@@ -393,6 +412,8 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
         return;
     }
 
+    const aiReplyEnabledOutsideSelfChat = await isAiReplyEnabledOutsideSelfChat(tenantId, label);
+
     if (text.toUpperCase() === 'YES') {
         try {
             const verified = await handleVerificationReply(remoteJid);
@@ -427,6 +448,16 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
 
         const mentionQuery = extractPropAIMentionQuery(event);
         if (mentionQuery) {
+            if (!aiReplyEnabledOutsideSelfChat) {
+                await whatsappHealthService.appendEvent(
+                    tenantId,
+                    label || 'default',
+                    'group_reply_blocked',
+                    'Group AI reply skipped because explicit outbound AI reply permission is disabled for this session.',
+                    { remoteJid, explicitPermissionRequired: true },
+                ).catch(() => undefined);
+                return;
+            }
             await handleGroupMentionSearch(tenantId, remoteJid, mentionQuery, label);
             return;
         }
@@ -445,6 +476,17 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
     }
 
     if (!effectiveIsSelfChat && !isAssistantDM && !isRealEstateMessage(text)) {
+        return;
+    }
+
+    if (!effectiveIsSelfChat && !aiReplyEnabledOutsideSelfChat) {
+        await whatsappHealthService.appendEvent(
+            tenantId,
+            label || 'default',
+            'ai_reply_blocked',
+            'AI reply skipped because explicit outbound AI reply permission is disabled for this session.',
+            { remoteJid, isGroup, assistantDm: isAssistantDM, explicitPermissionRequired: true },
+        ).catch(() => undefined);
         return;
     }
 
