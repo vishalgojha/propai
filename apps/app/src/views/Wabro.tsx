@@ -53,6 +53,35 @@ type WabroContact = {
   locality?: string | null;
 };
 
+type WabroDevice = {
+  device_id: string;
+  display_name: string;
+  device_model?: string | null;
+  android_version?: string | null;
+  app_version?: string | null;
+  platform?: string | null;
+  registration_status?: string | null;
+  last_poll_at?: string | null;
+  last_sync_at?: string | null;
+  claimed_at?: string | null;
+  created_at?: string | null;
+};
+
+type WabroPendingRegistration = {
+  id: string;
+  device_label: string;
+  platform: string;
+  status: string;
+  expires_at?: string | null;
+  created_at?: string | null;
+};
+
+type WabroProvisionPayload = {
+  registration: WabroPendingRegistration;
+  token: string;
+  token_masked: string;
+};
+
 type ServiceState = 'idle' | 'loading' | 'ready' | 'degraded';
 
 type AccessState = {
@@ -125,6 +154,17 @@ function formatShortDate(value?: string | null) {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+  }).format(new Date(value));
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return 'Not available';
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   }).format(new Date(value));
 }
 
@@ -444,14 +484,21 @@ function useWabroDeviceData() {
   const [error, setError] = React.useState<string | null>(null);
   const [stats, setStats] = React.useState<WabroStats>(EMPTY_STATS);
   const [campaigns, setCampaigns] = React.useState<WabroCampaign[]>([]);
+  const [devices, setDevices] = React.useState<WabroDevice[]>([]);
+  const [pendingRegistrations, setPendingRegistrations] = React.useState<WabroPendingRegistration[]>([]);
 
   const load = React.useCallback(async () => {
     setServiceState('loading');
     setError(null);
     try {
-      const response = await backendApi.get(ENDPOINTS.wabro.dashboardStats);
-      setStats(response.data?.stats || EMPTY_STATS);
-      setCampaigns(Array.isArray(response.data?.campaigns) ? response.data.campaigns : []);
+      const [statsResponse, devicesResponse] = await Promise.all([
+        backendApi.get(ENDPOINTS.wabro.dashboardStats),
+        backendApi.get(ENDPOINTS.wabro.devices),
+      ]);
+      setStats(statsResponse.data?.stats || EMPTY_STATS);
+      setCampaigns(Array.isArray(statsResponse.data?.campaigns) ? statsResponse.data.campaigns : []);
+      setDevices(Array.isArray(devicesResponse.data?.devices) ? devicesResponse.data.devices : []);
+      setPendingRegistrations(Array.isArray(devicesResponse.data?.pending_registrations) ? devicesResponse.data.pending_registrations : []);
       setServiceState('ready');
     } catch (err) {
       setError(handleApiError(err));
@@ -463,7 +510,31 @@ function useWabroDeviceData() {
     void load();
   }, [load]);
 
-  return { serviceState, error, stats, campaigns, reload: load };
+  return { serviceState, error, stats, campaigns, devices, pendingRegistrations, reload: load };
+}
+
+function useWabroSetupData() {
+  const [isCreating, setIsCreating] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [provision, setProvision] = React.useState<WabroProvisionPayload | null>(null);
+
+  const createProvision = React.useCallback(async (deviceLabel: string) => {
+    setIsCreating(true);
+    setError(null);
+    try {
+      const response = await backendApi.post(ENDPOINTS.wabro.deviceProvision, {
+        device_label: deviceLabel,
+        platform: 'android',
+      });
+      setProvision(response.data || null);
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsCreating(false);
+    }
+  }, []);
+
+  return { isCreating, error, provision, createProvision };
 }
 
 function StatCard({ label, value, note }: { label: string; value: string; note: string }) {
@@ -843,7 +914,7 @@ export const WabroCampaigns: React.FC = () => {
 export const WabroDevices: React.FC = () => {
   const { user } = useAuth();
   const access = resolveWabroAccess(user);
-  const { serviceState, error, stats, campaigns, reload } = useWabroDeviceData();
+  const { serviceState, error, stats, campaigns, devices, pendingRegistrations, reload } = useWabroDeviceData();
   const runningCampaigns = campaigns.filter((campaign) => ['running', 'pending', 'paused'].includes(String(campaign.status || '').toLowerCase()));
 
   return (
@@ -890,16 +961,62 @@ export const WabroDevices: React.FC = () => {
 
         <SurfaceSection title="Operations notes" subtitle="Current backend scope" icon={AlertTriangleIcon}>
           <div className="space-y-3 text-[12px] leading-6 text-[var(--text-secondary)]">
-            <p>The current `/api/wabro` backend exposes aggregate device counts through dashboard stats, not a full per-device card model yet.</p>
-            <p>That means this page can show whether the execution fleet is alive, but detailed Android metadata should be added later when the backend contract grows.</p>
+            <p>WaBro devices are now provisioned explicitly from PropAI before Android starts polling.</p>
+            <p>The Android app should only call the tokenized device routes and must never spin up its own linked-device or Baileys session.</p>
             <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Later backend work</p>
               <ul className="mt-2 space-y-2 text-[11px] leading-5 text-[var(--text-secondary)]">
-                <li>Per-device status cards</li>
+                <li>Revocation actions for compromised device tokens</li>
                 <li>Crash/report visibility in UI</li>
-                <li>Last sync and app version snapshots</li>
+                <li>APK self-update prompts from app-version</li>
               </ul>
             </div>
+          </div>
+        </SurfaceSection>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SurfaceSection title="Linked devices" subtitle="Claimed Android executors" icon={SmartphoneIcon}>
+          <div className="space-y-3">
+            {devices.length ? devices.map((device) => (
+              <div key={device.device_id} className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[13px] font-semibold text-[var(--text-primary)]">{device.display_name}</p>
+                    <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{device.device_model || device.device_id}</p>
+                  </div>
+                  <div className="rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+                    {device.registration_status || 'claimed'}
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 text-[11px] text-[var(--text-secondary)]">
+                  <p>Platform: {device.platform || 'android'}</p>
+                  <p>App version: {device.app_version || 'unknown'}</p>
+                  <p>Last poll: {formatDateTime(device.last_poll_at)}</p>
+                  <p>Last sync: {formatDateTime(device.last_sync_at)}</p>
+                </div>
+              </div>
+            )) : (
+              <div className="rounded-[14px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] p-4 text-[12px] text-[var(--text-secondary)]">
+                No Android device has claimed this workspace yet.
+              </div>
+            )}
+          </div>
+        </SurfaceSection>
+
+        <SurfaceSection title="Pending provisions" subtitle="Tokens created but not claimed" icon={SettingsIcon}>
+          <div className="space-y-3">
+            {pendingRegistrations.length ? pendingRegistrations.map((registration) => (
+              <div key={registration.id} className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+                <p className="text-[13px] font-semibold text-[var(--text-primary)]">{registration.device_label}</p>
+                <p className="mt-1 text-[11px] text-[var(--text-secondary)]">Status: {registration.status}</p>
+                <p className="mt-1 text-[11px] text-[var(--text-secondary)]">Expires: {formatShortDate(registration.expires_at)}</p>
+              </div>
+            )) : (
+              <div className="rounded-[14px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] p-4 text-[12px] text-[var(--text-secondary)]">
+                No pending device provisions.
+              </div>
+            )}
           </div>
         </SurfaceSection>
       </div>
@@ -910,6 +1027,8 @@ export const WabroDevices: React.FC = () => {
 export const WabroSetup: React.FC = () => {
   const { user } = useAuth();
   const access = resolveWabroAccess(user);
+  const [deviceLabel, setDeviceLabel] = React.useState('Primary Android');
+  const { isCreating, error, provision, createProvision } = useWabroSetupData();
 
   return (
     <WabroShell
@@ -950,6 +1069,55 @@ export const WabroSetup: React.FC = () => {
           </div>
         ))}
       </div>
+
+      <SurfaceSection title="Provision Android device" subtitle="Create the token Android should use" icon={SaveIcon}>
+        <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+            <label className="block text-[11px] font-semibold text-[var(--text-primary)]" htmlFor="wabro-device-label">
+              Device label
+            </label>
+            <input
+              id="wabro-device-label"
+              value={deviceLabel}
+              onChange={(event) => setDeviceLabel(event.target.value)}
+              className="mt-3 w-full rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-primary)] outline-none transition-colors focus:border-[color:var(--accent-border)]"
+              placeholder="Primary Android"
+            />
+            <button
+              type="button"
+              onClick={() => createProvision(deviceLabel.trim() || 'Primary Android')}
+              disabled={isCreating}
+              className="mt-4 inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              <SaveIcon className="h-3.5 w-3.5" />
+              {isCreating ? 'Creating…' : 'Create provision token'}
+            </button>
+            {error ? <p className="mt-3 text-[11px] text-[var(--amber)]">{error}</p> : null}
+          </div>
+
+          <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">Android handoff</p>
+            {provision ? (
+              <>
+                <p className="mt-3 text-[12px] leading-6 text-[var(--text-secondary)]">
+                  Use this token inside the Android app. It should be sent on every device route call and must never be reused by a second phone.
+                </p>
+                <div className="mt-4 rounded-[16px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Provision token</p>
+                  <code className="mt-2 block break-all text-[12px] text-[var(--text-primary)]">{provision.token}</code>
+                </div>
+                <p className="mt-3 text-[11px] text-[var(--text-secondary)]">
+                  Registration: {provision.registration.device_label} · expires {formatShortDate(provision.registration.expires_at)}
+                </p>
+              </>
+            ) : (
+              <p className="mt-3 text-[12px] leading-6 text-[var(--text-secondary)]">
+                Generate a token here, then configure the Android package to call the public WaBro device endpoints instead of the old standalone WaBro backend or any Baileys session flow.
+              </p>
+            )}
+          </div>
+        </div>
+      </SurfaceSection>
 
       <SurfaceSection title="Copy guardrails" subtitle="Keep WaBro distinct from WhatsApp" icon={BookOpenIcon}>
         <div className="grid gap-4 md:grid-cols-2">

@@ -36,10 +36,20 @@ export const addContactsSchema = z.object({
 });
 
 export const registerDeviceSchema = z.object({
-    device_id: z.string().min(1, 'Device ID is required'),
+    device_id: z.string().min(1, 'Device ID is required').optional(),
     device_model: z.string().optional().default(''),
     android_version: z.string().optional().default(''),
     app_version: z.string().optional().default(''),
+    deviceName: z.string().optional(),
+    appVersion: z.string().optional(),
+    platform: z.string().optional(),
+    brokerUserId: z.string().optional().nullable(),
+});
+
+export const createDeviceProvisionSchema = z.object({
+    device_label: z.string().min(1, 'Device label is required'),
+    platform: z.string().optional().default('android'),
+    expires_in_days: z.number().int().min(1).max(30).optional().default(7),
 });
 
 const sendLogSchema = z.object({

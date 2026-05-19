@@ -11,6 +11,8 @@ import {
   getContactsByList,
   addContacts,
   deleteContact,
+  listDevices,
+  createDeviceProvision,
   registerDevice,
   deviceHeartbeat,
   getPendingCampaigns,
@@ -18,6 +20,12 @@ import {
   syncCampaignProgress,
   reportCrash,
   dashboardStats,
+  getAppVersion,
+  syncBrokerContacts,
+  listBrokerContacts,
+  listBroadcastLists,
+  sendToBroadcastList,
+  listAreas,
 } from '../controllers/wabroController';
 import { validate } from '../middleware/validate';
 import {
@@ -25,6 +33,7 @@ import {
   updateCampaignStatusSchema,
   scheduleCampaignSchema,
   addContactsSchema,
+  createDeviceProvisionSchema,
   registerDeviceSchema,
   syncSendLogsSchema,
   syncCampaignProgressSchema,
@@ -47,8 +56,11 @@ router.post(ROUTE_PATHS.wabro.contacts, validate(addContactsSchema), addContacts
 router.delete('/contacts/:id', deleteContact);
 
 // Device
+router.get(ROUTE_PATHS.wabro.devices, listDevices);
+router.post(ROUTE_PATHS.wabro.deviceProvision, validate(createDeviceProvisionSchema), createDeviceProvision);
 router.post(ROUTE_PATHS.wabro.registerDevice, validate(registerDeviceSchema), registerDevice);
 router.post(ROUTE_PATHS.wabro.deviceHeartbeat, deviceHeartbeat);
+router.get(ROUTE_PATHS.wabro.appVersion, getAppVersion);
 
 // App Polling
 router.get(ROUTE_PATHS.wabro.pendingCampaigns, getPendingCampaigns);
@@ -62,5 +74,16 @@ router.post(ROUTE_PATHS.wabro.crashLog, reportCrash);
 
 // Dashboard Stats
 router.get(ROUTE_PATHS.wabro.dashboardStats, dashboardStats);
+
+// Broker Contacts (Group Parsed)
+router.post(ROUTE_PATHS.wabro.brokerContactsSync, syncBrokerContacts);
+router.get(ROUTE_PATHS.wabro.brokerContacts, listBrokerContacts);
+
+// Broadcast Lists
+router.get(ROUTE_PATHS.wabro.broadcastLists, listBroadcastLists);
+router.post(ROUTE_PATHS.wabro.broadcastListSend, sendToBroadcastList);
+
+// Areas
+router.get(ROUTE_PATHS.wabro.areas, listAreas);
 
 export default router;

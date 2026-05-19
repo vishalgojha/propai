@@ -111,6 +111,9 @@ export const ENDPOINTS = {
     contacts: '/wabro/contacts',
     contactsByList: (listName: string) => `/wabro/contacts/${encodeURIComponent(listName)}`,
     dashboardStats: '/wabro/dashboard/stats',
+    devices: '/wabro/devices',
+    deviceProvision: '/wabro/devices/provision',
+    appVersion: '/wabro/app-version',
   },
   dmContacts: {
     list: '/api/intelligence/dm-contacts',
