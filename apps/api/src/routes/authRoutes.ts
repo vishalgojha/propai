@@ -25,6 +25,7 @@ const PROFILE_BASE_SELECT = 'id, full_name, phone, email, phone_verified';
 
 const normalizePhone = (value?: string) => normalizePhoneValue(value);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const AUTH_OPTIONAL_WORK_TIMEOUT_MS = 2500;
 
 function extractAuthErrorMessage(error: any, fallback = 'Authentication failed'): string {
     if (!error) return fallback;
@@ -40,6 +41,26 @@ function extractAuthErrorMessage(error: any, fallback = 'Authentication failed')
         }
     }
     return raw || fallback;
+}
+
+async function withTimeout<T>(task: Promise<T>, timeoutMs: number, label: string): Promise<T | null> {
+    let timeoutHandle: NodeJS.Timeout | null = null;
+
+    try {
+        return await Promise.race([
+            task,
+            new Promise<null>((resolve) => {
+                timeoutHandle = setTimeout(() => {
+                    console.warn(`[Auth] ${label} timed out after ${timeoutMs}ms`);
+                    resolve(null);
+                }, timeoutMs);
+            }),
+        ]);
+    } finally {
+        if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+        }
+    }
 }
 
 async function findAuthUserByEmail(email: string) {
@@ -293,29 +314,43 @@ router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (
         const authUserMetadata = (authData.user.user_metadata || {}) as Record<string, any>;
         let profile: Record<string, unknown> | null = null;
         try {
-            profile = await getProfileById(authData.user.id, accessToken);
+            profile = await withTimeout(
+                getProfileById(authData.user.id, accessToken),
+                AUTH_OPTIONAL_WORK_TIMEOUT_MS,
+                'getProfileById',
+            );
         } catch (profileError: unknown) {
             console.error('[Auth] getProfileById failed (non-fatal):', profileError);
         }
 
         try {
             if (loginMode === 'signup') {
-                profile = await upsertProfile(
-                    authData.user.id,
-                    authData.user.email || email,
-                    fullName,
-                    phone,
-                    accessToken
+                profile = await withTimeout(
+                    upsertProfile(
+                        authData.user.id,
+                        authData.user.email || email,
+                        fullName,
+                        phone,
+                        accessToken
+                    ),
+                    AUTH_OPTIONAL_WORK_TIMEOUT_MS,
+                    'signup upsertProfile',
                 );
             } else if (!profile) {
                 const legacyUser = await getLegacyUserSeed(authData.user.id);
-                profile = await upsertProfile(
-                    authData.user.id,
-                    authData.user.email || email || legacyUser?.email || null,
-                    authUserMetadata.full_name || legacyUser?.full_name || undefined,
-                    authUserMetadata.phone || legacyUser?.profile?.phone || undefined,
-                    accessToken
-                );
+                void withTimeout(
+                    upsertProfile(
+                        authData.user.id,
+                        authData.user.email || email || legacyUser?.email || null,
+                        authUserMetadata.full_name || legacyUser?.full_name || undefined,
+                        authUserMetadata.phone || legacyUser?.profile?.phone || undefined,
+                        accessToken
+                    ),
+                    AUTH_OPTIONAL_WORK_TIMEOUT_MS,
+                    'signin backfill upsertProfile',
+                ).catch((profileError) => {
+                    console.error('[Auth] Deferred signin upsertProfile failed (non-fatal):', profileError);
+                });
             }
         } catch (profileError: unknown) {
             console.error('[Auth] upsertProfile failed (non-fatal):', profileError);
@@ -341,12 +376,24 @@ router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (
         let subscription: unknown = null;
         let referral: unknown = null;
         try {
-            subscription = await subscriptionService.ensureTrialSubscription(authData.user.id, authData.user.email || email);
-            referral = await referralService.getSummary(
-                authData.user.id,
-                authData.user.email || email,
-                profile?.full_name || fullName || null,
-            );
+            const [subscriptionResult, referralResult] = await Promise.all([
+                withTimeout(
+                    subscriptionService.ensureTrialSubscription(authData.user.id, authData.user.email || email),
+                    AUTH_OPTIONAL_WORK_TIMEOUT_MS,
+                    'ensureTrialSubscription',
+                ),
+                withTimeout(
+                    referralService.getSummary(
+                        authData.user.id,
+                        authData.user.email || email,
+                        profile?.full_name || fullName || null,
+                    ),
+                    AUTH_OPTIONAL_WORK_TIMEOUT_MS,
+                    'referral getSummary',
+                ),
+            ]);
+            subscription = subscriptionResult;
+            referral = referralResult;
         } catch (postAuthError: unknown) {
             console.error('[Auth] Post-auth subscription/referral failed (non-fatal):', postAuthError);
         }
