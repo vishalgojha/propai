@@ -6,18 +6,6 @@ import type {
     WhatsAppStatusPayload,
 } from '../contracts/wabroContracts';
 
-type ProcessResult = {
-    accepted: true;
-    eventId: string;
-    actions: Array<{
-        type: 'no_reply';
-        clientActionId: string;
-        reason: string;
-    }>;
-    tags?: string[];
-    updates?: Record<string, unknown>;
-};
-
 class IdempotencyStore {
     private readonly items = new Map<string, number>();
     private readonly ttlMs = 15 * 60 * 1000;
@@ -45,32 +33,12 @@ class IdempotencyStore {
 class WabroRuntimeBridgeService {
     private readonly idempotencyStore = new IdempotencyStore();
 
-    acceptInboundEvent(payload: WhatsAppInboundMessagePayload): ProcessResult {
-        this.idempotencyStore.remember('inbound', payload.eventId);
-        return {
-            accepted: true,
-            eventId: payload.eventId,
-            actions: [
-                {
-                    type: 'no_reply',
-                    clientActionId: `no-reply:${payload.eventId}`,
-                    reason: 'No PropAI automation has been configured for this inbound event yet.',
-                },
-            ],
-            tags: [],
-            updates: {
-                workspaceId: payload.auth.workspaceId,
-                sessionId: payload.auth.sessionId,
-            },
-        };
+    acceptInboundEvent(payload: WhatsAppInboundMessagePayload) {
+        return this.idempotencyStore.remember('inbound', payload.eventId);
     }
 
     acceptStatusEvent(payload: WhatsAppStatusPayload) {
-        this.idempotencyStore.remember('status', payload.eventId);
-        return {
-            accepted: true as const,
-            eventId: payload.eventId,
-        };
+        return this.idempotencyStore.remember('status', payload.eventId);
     }
 
     beginOutboundCommand(scope: 'send-message' | 'send-media' | 'broadcast', payload: RuntimeSendMessageRequest | RuntimeSendMediaRequest | RuntimeBroadcastRequest) {

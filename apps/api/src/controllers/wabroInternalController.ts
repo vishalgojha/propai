@@ -1,8 +1,21 @@
 import { Request, Response } from 'express';
-import type { RuntimeBroadcastRequest, RuntimeSendMediaRequest, RuntimeSendMessageRequest } from '../contracts/wabroContracts';
+import type {
+    RuntimeBroadcastRequest,
+    RuntimeSendMediaRequest,
+    RuntimeSendMessageRequest,
+    WhatsAppInboundMessagePayload,
+    WhatsAppStatusPayload,
+} from '../contracts/wabroContracts';
+import type { IncomingMessageRecord } from '@vishalgojha/whatsapp-baileys-runtime';
 import { sessionManager } from '../whatsapp/SessionManager';
 import { getErrorMessage, getErrorStatus, HttpError } from '../utils/controllerHelpers';
 import { wabroRuntimeBridgeService } from '../services/wabroRuntimeBridgeService';
+import { processWhatsAppInboundMessage } from '../channel-events/processors/processWhatsAppInboundMessage';
+import { liveMonitorService } from '../services/liveMonitorService';
+import { sessionEventService } from '../services/sessionEventService';
+import { PropAISupabaseAdapter } from '../whatsapp/PropAISupabaseAdapter';
+
+const storageAdapter = new PropAISupabaseAdapter();
 
 function toWhatsAppJid(chatId: string) {
     const value = String(chatId || '').trim();
@@ -50,10 +63,84 @@ async function sendMediaCommand(payload: RuntimeSendMediaRequest) {
     await client.sendMessage(toWhatsAppJid(payload.chatId), fullText);
 }
 
+function buildInboundRecord(payload: WhatsAppInboundMessagePayload): IncomingMessageRecord {
+    const remoteJid = toWhatsAppJid(payload.message.chatId);
+    const sender = String(payload.contact.pushName || payload.contact.name || payload.message.from || '').trim() || null;
+    const raw = (payload.message.raw && typeof payload.message.raw === 'object')
+        ? { ...payload.message.raw }
+        : {};
+
+    const rawMessage = {
+        ...raw,
+        key: {
+            ...((raw as Record<string, any>).key || {}),
+            id: payload.message.messageId,
+            remoteJid,
+            participant: payload.context.groupId ? payload.message.from : undefined,
+            fromMe: payload.message.fromMe,
+        },
+        messageTimestamp: payload.message.timestamp,
+    };
+
+    return {
+        tenantId: payload.auth.workspaceId,
+        label: payload.auth.sessionId,
+        remoteJid,
+        text: String(payload.message.text || '').trim(),
+        sender,
+        timestamp: payload.message.timestamp,
+        fromMe: payload.message.fromMe,
+        rawMessage,
+    };
+}
+
 export async function receiveInboundEvent(req: Request, res: Response) {
     try {
-        const result = wabroRuntimeBridgeService.acceptInboundEvent(req.body);
-        res.json(result);
+        const payload = req.body as WhatsAppInboundMessagePayload;
+        const accepted = wabroRuntimeBridgeService.acceptInboundEvent(payload);
+
+        if (!accepted) {
+            return res.json({
+                accepted: true,
+                duplicate: true,
+                eventId: payload.eventId,
+                processing: 'deduplicated',
+            });
+        }
+
+        const event = buildInboundRecord(payload);
+        const isGroup = event.remoteJid.endsWith('@g.us');
+
+        liveMonitorService.recordMessage({
+            tenantId: event.tenantId,
+            sessionLabel: event.label,
+            remoteJid: event.remoteJid,
+            sender: event.sender || null,
+            text: event.text,
+            timestamp: event.timestamp,
+            direction: event.fromMe ? 'outbound' : 'inbound',
+            title: payload.context.groupName || payload.contact.name || payload.contact.pushName || null,
+        });
+
+        void sessionEventService.log(event.tenantId, 'message_received', {
+            remoteJid: event.remoteJid,
+            isGroup,
+            label: event.label,
+            length: event.text.length,
+            hasMedia: Boolean(payload.message.media?.url || payload.message.media?.mimeType),
+            source: 'wabro_internal',
+            eventId: payload.eventId,
+        });
+
+        await storageAdapter.saveInboundMessage(event);
+        await processWhatsAppInboundMessage(event);
+
+        res.json({
+            accepted: true,
+            duplicate: false,
+            eventId: payload.eventId,
+            processing: 'propai_pipeline',
+        });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to process inbound event') });
     }
@@ -61,8 +148,14 @@ export async function receiveInboundEvent(req: Request, res: Response) {
 
 export async function receiveStatusEvent(req: Request, res: Response) {
     try {
-        const result = wabroRuntimeBridgeService.acceptStatusEvent(req.body);
-        res.json(result);
+        const payload = req.body as WhatsAppStatusPayload;
+        const accepted = wabroRuntimeBridgeService.acceptStatusEvent(payload);
+
+        res.json({
+            accepted: true,
+            duplicate: !accepted,
+            eventId: payload.eventId,
+        });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to process status event') });
     }
