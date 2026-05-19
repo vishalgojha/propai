@@ -25,35 +25,42 @@
 
 ### Current Remote State
 
-- At review time, `HEAD`, `origin/main`, and `origin/HEAD` point to:
-  - `177003a` — `Add public_listings upsert to real-time ingestion pipeline + backfill script`
+- User said the latest work has already been pushed.
+- Treat local `main` as the latest source of truth until a fresh `git fetch` confirms otherwise.
 
 ### Current Local Worktree
 
 - Modified files:
-  - `apps/api/src/controllers/whatsappController.ts`
-  - `apps/api/src/routes/routePaths.ts`
-  - `apps/api/src/routes/whatsappRoutes.ts`
-  - `apps/api/src/services/workspaceMonitorService.ts`
-  - `apps/app/src/pages/Monitor.tsx`
-  - `apps/app/src/services/endpoints.ts`
-- Untracked files:
+  - `apps/app/public/wabro-1.2.0.apk`
   - `apps/app/public/wabro.apk`
-  - `apps/wabro-android/`
+  - `apps/wabro-android/app/src/main/java/com/chaoscraft/wablaster/ui/SettingsScreen.kt`
+  - `apps/wabro-android/app/src/main/java/com/chaoscraft/wablaster/util/AppUpdateManager.kt`
+  - `apps/wabro-android/app/src/main/java/com/chaoscraft/wablaster/util/AuthManager.kt`
+  - `supabase/.temp/cli-latest`
 
-### What The Current Uncommitted Work Does
+### What Was Just Completed
 
-- Monitor now uses persisted workspace message history as the source of truth.
-- A dedicated lazy thread-history endpoint is being introduced for Monitor:
-  - `GET /whatsapp/monitor/messages`
-- Frontend Monitor is being refactored to:
-  - use `/whatsapp/monitor` for the chat list / overview
-  - lazy-load thread history per selected chat
-  - page older messages on demand instead of relying on a hard global message cap
-  - treat Monitor as a workspace-history console
-- Additional untracked WaBro artifacts are present and intended for commit only if the user confirms they belong in the current push:
-  - `apps/app/public/wabro.apk`
-  - `apps/wabro-android/`
+- Inbox governance foundation was built and committed:
+  - `1a29c6a1` — `Refocus inbox as private intel workspace`
+  - `eed348b8` — `Build inbox governance foundation`
+- User-facing terminology now treats the old mirrored `Monitor` surface as deprecated.
+- Sidebar label changed from `Threads` to `Inbox`.
+- Inbox now has:
+  - compact thread list
+  - privacy reassurance in the thread header
+  - personal outreach CTAs (`Call`, `Open WhatsApp`)
+  - server-persisted thread governance states:
+    - `allowed`
+    - `held`
+    - `ignored`
+- New architecture doc added:
+  - `docs/INBOX_INTELLIGENCE_ARCHITECTURE.md`
+- Backend additions:
+  - `apps/api/src/services/inboxGovernanceService.ts`
+  - `GET /api/whatsapp/inbox/governance`
+  - `POST /api/whatsapp/inbox/governance`
+- Current persistence path for inbox governance is inside `workspace_settings.settings.inboxIntelligence`
+  so the feature is server-owned without introducing new tables yet.
 
 ### Operational Rules
 
@@ -67,12 +74,20 @@
 
 ### Active Pending Work
 
-- Finish validating the current Monitor refactor on `main`.
-- Commit and push the Monitor changes if they are approved as ready.
-- Commit and push `apps/app/public/wabro.apk` and `apps/wabro-android/` only if they are intentionally part of the current delivery.
-- Redeploy affected Coolify services after push:
+- Redeploy affected Coolify services tomorrow after the already-completed push:
   - `apps/api`
   - `apps/app`
+- Do a real browser smoke test after redeploy:
+  - sidebar shows `Inbox`
+  - inbox threads load
+  - `allowed / held / ignored` tabs work
+  - thread governance actions persist across refresh
+  - `Call` and `Open WhatsApp` actions render correctly
+- Build the next Inbox intelligence slice:
+  - contact memory
+  - thread summary compaction
+  - agent tools that join Inbox + Stream
+- Decide separately whether the dirty WaBro/APK files belong to a future commit.
 
 ### Handoff Hygiene
 
