@@ -16,7 +16,6 @@ import com.chaoscraft.wablaster.db.daos.BroadcastListContactDao
 import com.chaoscraft.wablaster.db.daos.BroadcastListDao
 import com.chaoscraft.wablaster.ui.AuthScreen
 import com.chaoscraft.wablaster.ui.MainNavigation
-import com.chaoscraft.wablaster.ui.PaywallScreen
 import com.chaoscraft.wablaster.ui.theme.WaBroV2Theme
 import com.chaoscraft.wablaster.util.AuthManager
 import com.chaoscraft.wablaster.util.PaymentManager
@@ -46,20 +45,12 @@ class V2MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     var isLoggedIn by remember { mutableStateOf(authManager.isLoggedIn()) }
-                    var isUnlocked by remember { mutableStateOf(paymentManager.isUnlocked) }
 
                     if (!isLoggedIn) {
                         AuthScreen(
                             authManager = authManager,
                             onAuthenticated = {
                                 isLoggedIn = true
-                            }
-                        )
-                    } else if (!isUnlocked && !paymentManager.isTrialActive()) {
-                        PaywallScreen(
-                            paymentManager = paymentManager,
-                            onUnlocked = {
-                                isUnlocked = true
                             }
                         )
                     } else {
@@ -73,7 +64,6 @@ class V2MainActivity : ComponentActivity() {
                             broadcastListContactDao = broadcastListContactDao,
                             onLogout = {
                                 isLoggedIn = false
-                                isUnlocked = false
                             }
                         )
                     }
