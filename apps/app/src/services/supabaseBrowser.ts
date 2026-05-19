@@ -7,7 +7,7 @@ const supabaseAnonKey =
 
 export function createSupabaseBrowserClient(accessToken?: string | null) {
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be configured');
+    throw new Error('NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be configured');
   }
 
   const client = createClient(supabaseUrl, supabaseAnonKey, {

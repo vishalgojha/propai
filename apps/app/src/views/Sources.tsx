@@ -464,7 +464,7 @@ export const Sources: React.FC = () => {
     return connectedSenderSessions.filter((session) => status.allowedOutboundSessionLabels?.includes(session.label));
   }, [connectedSenderSessions, status.allowedOutboundSessionLabels, status.hasOutboundLaneRestriction]);
 
-  const demoMode = (import.meta as any).env.VITE_WHATSAPP_DEMO_MODE === 'true';
+  const demoMode = process.env.NEXT_PUBLIC_WHATSAPP_DEMO_MODE === 'true';
 
   useEffect(() => {
     setActiveTab((current) => {
