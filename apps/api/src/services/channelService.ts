@@ -1704,28 +1704,37 @@ private backfillInitiatedTenants = new Set<string>();
                 }
             }
         }
+        const { data, error } = await this.readAcceptedStreamItems(this.db, accessibleTenantIds, {
+            limit: 500,
+            orderByCreatedAt: true,
+        });
 
-        const [allTimeResult, sevenDaysResult, oneDayResult, fourHoursResult, oneHourResult] = await Promise.all([
-            this.countAcceptedStreamItems(accessibleTenantIds, { sessionGroupIds }),
-            this.countAcceptedStreamItems(accessibleTenantIds, { createdAfter: windows.sevenDays, sessionGroupIds }),
-            this.countAcceptedStreamItems(accessibleTenantIds, { createdAfter: windows.oneDay, sessionGroupIds }),
-            this.countAcceptedStreamItems(accessibleTenantIds, { createdAfter: windows.fourHours, sessionGroupIds }),
-            this.countAcceptedStreamItems(accessibleTenantIds, { createdAfter: windows.oneHour, sessionGroupIds }),
-        ]);
-
-        for (const result of [allTimeResult, sevenDaysResult, oneDayResult, fourHoursResult, oneHourResult]) {
-            if (result.error) {
-                throw new Error(result.error.message);
-            }
+        if (error) {
+            throw new Error(error.message);
         }
 
-        return {
-            oneHour: oneHourResult.count || 0,
-            fourHours: fourHoursResult.count || 0,
-            oneDay: oneDayResult.count || 0,
-            sevenDays: sevenDaysResult.count || 0,
-            allTime: allTimeResult.count || 0,
-        };
+        const filteredItems = await this.filterItemsBySession(tenantId, data || [], sessionLabel, networkMode);
+        const counts = { oneHour: 0, fourHours: 0, oneDay: 0, sevenDays: 0, allTime: 0 };
+        const oneHourTs = new Date(windows.oneHour).getTime();
+        const fourHoursTs = new Date(windows.fourHours).getTime();
+        const oneDayTs = new Date(windows.oneDay).getTime();
+        const sevenDaysTs = new Date(windows.sevenDays).getTime();
+
+        for (const item of filteredItems) {
+            const createdAt = new Date(String((item as any).created_at || ''));
+            if (Number.isNaN(createdAt.getTime())) {
+                continue;
+            }
+
+            counts.allTime += 1;
+            const timestamp = createdAt.getTime();
+            if (timestamp >= sevenDaysTs) counts.sevenDays += 1;
+            if (timestamp >= oneDayTs) counts.oneDay += 1;
+            if (timestamp >= fourHoursTs) counts.fourHours += 1;
+            if (timestamp >= oneHourTs) counts.oneHour += 1;
+        }
+
+        return counts;
     }
 
     private async filterItemsBySession(tenantId: string, items: any[], sessionLabel?: string | null, networkMode = false) {
@@ -2795,6 +2804,7 @@ ${rawText}
 
         const cache = new Map<string, IgrTransactionPreview[]>();
         const uniqueCandidates = new Map<string, { buildingName: string; location: string }>();
+        const maxCandidates = 8;
 
         for (const item of lookupCandidates) {
             const buildingName = String(item.buildingName || '').trim();
@@ -2802,6 +2812,9 @@ ${rawText}
             const key = `${normalize(buildingName)}|${normalize(location)}`;
             if (key && !uniqueCandidates.has(key)) {
                 uniqueCandidates.set(key, { buildingName, location });
+                if (uniqueCandidates.size >= maxCandidates) {
+                    break;
+                }
             }
         }
 
