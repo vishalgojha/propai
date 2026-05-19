@@ -20,6 +20,7 @@ interface IGRTransaction {
   doc_number: string;
   year: number;
   sro_office: string;
+  district?: string;
   registration_date: string;
   consideration_amount: number;
   stamp_duty: number;
@@ -125,9 +126,15 @@ class IgrScraper {
   private runScanner(
     sro: string,
     year: number,
+    district?: string,
   ): Promise<ScannerResponse> {
     return new Promise((resolve, reject) => {
-      const proc = spawn('python3', [SCRAPER_SCRIPT, '--sro', sro, '--year', String(year)], {
+      const args = [SCRAPER_SCRIPT, '--sro', sro, '--year', String(year)];
+      if (district && district !== 'Unknown') {
+        args.push('--district', district);
+      }
+
+      const proc = spawn('python3', args, {
         env: { ...process.env },
         timeout: 300_000, // 5 min per SRO
       });
@@ -173,6 +180,7 @@ class IgrScraper {
       doc_number: t.doc_number,
       registration_date: t.registration_date || null,
       sro_office: t.sro_office,
+      district: t.district || this.districtMap[t.sro_office] || null,
       article_type: '25', // default sale deed
       consideration_amount: t.consideration_amount || 0,
       property_description: t.property_type || null,
