@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { parseGroupsForContacts } from '../services/groupContactParser';
+import { sessionEventService } from '../services/sessionEventService';
 import { generateWabroDeviceToken, hashWabroDeviceToken, maskWabroDeviceToken } from '../services/wabroDeviceProvisioningService';
 import { wabroMessageStatusService } from '../services/wabroMessageStatusService';
 import { sessionManager } from '../whatsapp/SessionManager';
