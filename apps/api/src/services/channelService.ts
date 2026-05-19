@@ -1258,6 +1258,14 @@ export class ChannelService {
         );
     }
 
+    private hasActionableCore(parsed: ParsedStreamCandidate) {
+        return this.hasUsefulPrice(parsed) && (
+            !this.isPlaceholderLocation(parsed.locality) ||
+            this.hasMeaningfulTypology(parsed) ||
+            this.hasStructuralAnchor(parsed)
+        );
+    }
+
     private scoreCandidateCompleteness(parsed: ParsedStreamCandidate) {
         let score = 0;
         if (!this.isPlaceholderLocation(parsed.locality)) score += 2;
@@ -1348,6 +1356,7 @@ export class ChannelService {
         let lowEffortCount = 0;
         let unresolvedCount = 0;
         let resolvedWithGroupCount = 0;
+        let actionableCount = 0;
 
         for (const candidate of candidates) {
             const completeness = this.scoreCandidateCompleteness(candidate);
@@ -1361,28 +1370,35 @@ export class ChannelService {
             if (payload.groupContextApplied) {
                 resolvedWithGroupCount += 1;
             }
+            if (this.hasActionableCore(candidate)) {
+                actionableCount += 1;
+            }
         }
 
         const lowEffortRate = candidateCount > 0 ? lowEffortCount / candidateCount : 0;
         const unresolvedRate = candidateCount > 0 ? unresolvedCount / candidateCount : 0;
-        const qualityScore = Math.max(0, Math.round(avgConfidence - (lowEffortRate * 35) - (unresolvedRate * 30) + (resolvedWithGroupCount * 4)));
+        const actionableRate = candidateCount > 0 ? actionableCount / candidateCount : 0;
+        const qualityScore = Math.max(
+            0,
+            Math.round(avgConfidence - (lowEffortRate * 35) - (unresolvedRate * 30) + (resolvedWithGroupCount * 4) + (actionableRate * 18)),
+        );
 
         let status: MessageIngestionStatus = 'accepted';
         let suppressionReason: string | null = null;
 
-        if (candidateCount >= 10 && (lowEffortRate >= 0.35 || avgConfidence < 72 || unresolvedRate >= 0.25)) {
+        if (candidateCount >= 10 && actionableRate < 0.4 && (lowEffortRate >= 0.35 || avgConfidence < 72 || unresolvedRate >= 0.25)) {
             status = 'suppressed_bulk_spam';
             suppressionReason = `Suppressed ${candidateCount}-item broker blast due to weak structure and low-actionability.`;
-        } else if (candidateCount >= 6 && lowEffortRate >= 0.6) {
+        } else if (candidateCount >= 6 && lowEffortRate >= 0.6 && actionableRate < 0.35) {
             status = 'suppressed_bulk_spam';
             suppressionReason = `Suppressed multi-listing broker blast because most extracted records are low-effort.`;
-        } else if (!groupContext?.locality && candidateCount >= 3 && unresolvedRate >= 0.6) {
+        } else if (!groupContext?.locality && candidateCount >= 3 && unresolvedRate >= 0.6 && actionableRate < 0.25) {
             status = 'suppressed_unresolved_context';
             suppressionReason = 'Suppressed message because locality context remained unresolved across most extracted records.';
-        } else if (candidateCount >= 2 && lowEffortRate >= 0.75 && avgConfidence < 68) {
+        } else if (candidateCount >= 2 && lowEffortRate >= 0.75 && avgConfidence < 68 && actionableCount === 0) {
             status = 'suppressed_low_effort';
             suppressionReason = 'Suppressed message because most extracted records are too vague to be actionable.';
-        } else if (candidateCount === 1 && lowEffortRate === 1 && avgConfidence < 55) {
+        } else if (candidateCount === 1 && lowEffortRate === 1 && avgConfidence < 55 && !this.hasActionableCore(candidates[0])) {
             status = 'suppressed_low_effort';
             suppressionReason = 'Suppressed single low-effort listing with insufficient actionable detail.';
         }
@@ -1396,8 +1412,10 @@ export class ChannelService {
                 avgConfidence: Math.round(avgConfidence * 10) / 10,
                 lowEffortRate: Math.round(lowEffortRate * 100) / 100,
                 unresolvedRate: Math.round(unresolvedRate * 100) / 100,
+                actionableRate: Math.round(actionableRate * 100) / 100,
                 lineCount: lines.length,
                 resolvedWithGroupCount,
+                actionableCount,
             },
             resolutionContext: {
                 sourceGroupId: message.remote_jid || null,
