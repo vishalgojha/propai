@@ -23,6 +23,7 @@ import com.chaoscraft.wablaster.engine.ResponseClassifier
 import com.chaoscraft.wablaster.engine.SendContext
 import com.chaoscraft.wablaster.engine.SkillPipeline
 import com.chaoscraft.wablaster.engine.SkillsConfig
+import com.chaoscraft.wablaster.util.ReportMessageStatusRequest
 import com.chaoscraft.wablaster.util.SenderConfig
 import com.chaoscraft.wablaster.util.SendMediaMessageRequest
 import com.chaoscraft.wablaster.util.SendMessageRequest
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -292,16 +294,76 @@ class CampaignManager @Inject constructor(
         }
 
         if (response.isFailure) {
-            Log.e(TAG, "Backend send failed for ${contact.phone}: ${response.exceptionOrNull()?.message}")
+            val errorMessage = response.exceptionOrNull()?.message
+            Log.e(TAG, "Backend send failed for ${contact.phone}: $errorMessage")
+            reportFailedStatus(campaignId, contact, errorMessage)
             return SendResult(SendStatus.FAILED)
         }
 
-        return when (response.getOrThrow().status.lowercase()) {
-            "sent", "queued" -> SendResult(SendStatus.SENT)
+        val responseBody = response.getOrThrow()
+        return when (responseBody.status.lowercase()) {
+            "sent", "queued" -> {
+                reportSentStatus(responseBody.providerMessageId, contact)
+                SendResult(SendStatus.SENT)
+            }
             "skipped" -> SendResult(SendStatus.SKIPPED)
             "reply_paused" -> SendResult(SendStatus.REPLY_PAUSED)
-            else -> SendResult(SendStatus.FAILED)
+            else -> {
+                reportFailedStatus(campaignId, contact, responseBody.error ?: "Unexpected send status: ${responseBody.status}")
+                SendResult(SendStatus.FAILED)
+            }
         }
+    }
+
+    private suspend fun reportSentStatus(providerMessageId: String?, contact: Contact) {
+        val messageId = providerMessageId?.trim().orEmpty()
+        if (messageId.isEmpty()) {
+            Log.w(TAG, "Skipping sent status report for ${contact.phone}: missing providerMessageId")
+            return
+        }
+
+        reportMessageStatus(
+            messageId = messageId,
+            chatId = toChatJid(contact.phone),
+            state = "sent"
+        )
+    }
+
+    private suspend fun reportFailedStatus(campaignId: Long, contact: Contact, errorMessage: String?) {
+        reportMessageStatus(
+            messageId = "local:${campaignId}:${contact.phone}:${System.currentTimeMillis()}",
+            chatId = toChatJid(contact.phone),
+            state = "failed",
+            errorCode = "SEND_FAILED",
+            errorMessage = errorMessage
+        )
+    }
+
+    private suspend fun reportMessageStatus(
+        messageId: String,
+        chatId: String,
+        state: String,
+        errorCode: String? = null,
+        errorMessage: String? = null
+    ) {
+        val request = ReportMessageStatusRequest(
+            eventId = "wabro-device:${messageId}:${state}:${System.currentTimeMillis()}",
+            messageId = messageId,
+            chatId = chatId,
+            state = state,
+            timestamp = Instant.now().toString(),
+            errorCode = errorCode,
+            errorMessage = errorMessage
+        )
+
+        waBroApiClient.reportMessageStatus(request).onFailure {
+            Log.w(TAG, "Failed to report message status $state for $chatId: ${it.message}")
+        }
+    }
+
+    private fun toChatJid(phone: String): String {
+        val digits = phone.filter { it.isDigit() }
+        return "${digits}@s.whatsapp.net"
     }
 
     /**

@@ -150,6 +150,7 @@ export const ROUTE_PATHS = {
     pendingCampaigns: '/:deviceId/pending',
     syncLogs: '/sync/logs',
     syncCampaign: '/sync/campaign/:campaignId',
+    statusEvents: '/status-events',
     crashLog: '/crash',
   },
   internal: {

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../config/supabase';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { parseGroupsForContacts } from '../services/groupContactParser';
 import { generateWabroDeviceToken, hashWabroDeviceToken, maskWabroDeviceToken } from '../services/wabroDeviceProvisioningService';
+import { wabroMessageStatusService } from '../services/wabroMessageStatusService';
 import { sessionManager } from '../whatsapp/SessionManager';
 import multer from 'multer';
 import crypto from 'crypto';
@@ -593,6 +594,47 @@ export async function reportCrash(req: Request, res: Response) {
       platform: deviceContext.platform || 'android',
       last_sync_at: new Date().toISOString(),
     }, { onConflict: 'device_id' });
+
+    res.json({ success: true });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Operation failed') });
+  }
+}
+
+export async function reportMessageStatus(req: Request, res: Response) {
+  try {
+    const tenantId = getTenant(req);
+    const deviceContext = getDeviceContext(req);
+    const { eventId, sessionId, messageId, chatId, state, timestamp, errorCode, errorMessage } = req.body;
+
+    await wabroMessageStatusService.record({
+      eventId,
+      tenantId,
+      sessionLabel: sessionId || deviceContext.deviceLabel || 'Owner',
+      messageId,
+      chatId,
+      state,
+      timestamp,
+      errorCode: errorCode || null,
+      errorMessage: errorMessage || null,
+      rawPayload: {
+        source: 'wabro_device',
+        registrationId: deviceContext.registrationId || null,
+        claimedDeviceId: deviceContext.claimedDeviceId || null,
+      },
+    });
+
+    void sessionEventService.log(tenantId, 'message_status', {
+      label: sessionId || deviceContext.deviceLabel || 'Owner',
+      eventId,
+      messageId,
+      chatId,
+      state,
+      timestamp,
+      errorCode: errorCode || null,
+      errorMessage: errorMessage || null,
+      source: 'wabro_device',
+    });
 
     res.json({ success: true });
   } catch (error: unknown) {

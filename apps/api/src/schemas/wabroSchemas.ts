@@ -71,6 +71,17 @@ export const syncCampaignProgressSchema = z.object({
     status: z.enum(['draft', 'pending', 'running', 'paused', 'completed', 'cancelled']).optional(),
 });
 
+export const reportMessageStatusSchema = z.object({
+    eventId: z.string().min(1, 'Event ID is required'),
+    sessionId: z.string().min(1).optional().default('Owner'),
+    messageId: z.string().min(1, 'Message ID is required'),
+    chatId: z.string().min(1, 'Chat ID is required'),
+    state: z.enum(['sent', 'server_ack', 'delivered', 'read', 'played', 'failed']),
+    timestamp: z.string().min(1, 'Timestamp is required'),
+    errorCode: z.string().optional().nullable(),
+    errorMessage: z.string().optional().nullable(),
+});
+
 export const sendMessageSchema = z.object({
     deviceId: z.string().min(1),
     campaignId: z.number().int().nonnegative(),

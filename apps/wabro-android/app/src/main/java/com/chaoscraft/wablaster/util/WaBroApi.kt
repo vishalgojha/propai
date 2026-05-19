@@ -6,6 +6,7 @@ interface WaBroApi {
     suspend fun uploadMedia(request: UploadMediaRequest): Result<UploadMediaResponse>
     suspend fun sendMessage(request: SendMessageRequest): Result<SendMessageResponse>
     suspend fun sendMediaMessage(request: SendMediaMessageRequest): Result<SendMessageResponse>
+    suspend fun reportMessageStatus(request: ReportMessageStatusRequest): Result<Unit>
 
     suspend fun createCampaign(request: CreateCampaignRequest): Result<CreateCampaignResponse>
     suspend fun startCampaign(campaignId: Long): Result<Unit>

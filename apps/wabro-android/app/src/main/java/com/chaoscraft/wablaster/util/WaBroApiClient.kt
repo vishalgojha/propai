@@ -107,6 +107,10 @@ class WaBroApiClient @Inject constructor(
         return execute(buildUserJsonRequest("messages/send-media", "POST", request))
     }
 
+    override suspend fun reportMessageStatus(request: ReportMessageStatusRequest): Result<Unit> {
+        return executeUnit(buildDeviceJsonRequest("status-events", "POST", request))
+    }
+
     override suspend fun createCampaign(request: CreateCampaignRequest): Result<CreateCampaignResponse> {
         return execute(buildUserJsonRequest("campaigns", "POST", request))
     }
@@ -251,7 +255,7 @@ class WaBroApiClient @Inject constructor(
         private const val PREF_USER_API_BASE_URL = "wabro_user_api_base_url"
         private const val PREF_DEVICE_API_BASE_URL = "wabro_device_api_base_url"
         private const val PREF_DEVICE_PROVISIONING_TOKEN = "wabro_device_provisioning_token"
-        private const val DEFAULT_USER_API_BASE_URL = "https://app.propai.live/api/wabro/"
-        private const val DEFAULT_DEVICE_API_BASE_URL = "https://app.propai.live/api/wabro/device/"
+        private const val DEFAULT_USER_API_BASE_URL = "https://api.propai.live/api/wabro/"
+        private const val DEFAULT_DEVICE_API_BASE_URL = "https://api.propai.live/api/wabro/device/"
     }
 }

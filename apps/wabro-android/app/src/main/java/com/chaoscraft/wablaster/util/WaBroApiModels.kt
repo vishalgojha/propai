@@ -54,6 +54,17 @@ data class SendMessageResponse(
     val error: String? = null
 )
 
+data class ReportMessageStatusRequest(
+    val eventId: String,
+    val sessionId: String = "Owner",
+    val messageId: String,
+    val chatId: String,
+    val state: String,
+    val timestamp: String,
+    val errorCode: String? = null,
+    val errorMessage: String? = null
+)
+
 data class CreateCampaignRequest(
     val name: String,
     val messageTemplate: String,
