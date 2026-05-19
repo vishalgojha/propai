@@ -167,11 +167,19 @@ export class AIService {
     private async buildProviderOrder(modelPreference: string, taskType?: string, tenantId?: string): Promise<ProviderId[]> {
         const savedDefault = tenantId ? await getWorkspaceDefaultModel(tenantId).catch(() => null) : null;
         const explicitDefault = tenantId ? await getWorkspaceExplicitDefaultModel(tenantId).catch(() => null) : null;
+        const explicitPreference = this.normalizeProviderPreference(modelPreference && modelPreference !== 'Auto' ? modelPreference : null);
+        const savedPreference = this.normalizeProviderPreference(explicitDefault || savedDefault);
         const preferred =
-            this.normalizeProviderPreference(modelPreference && modelPreference !== 'Auto' ? modelPreference : null) ||
-            this.normalizeProviderPreference(explicitDefault || savedDefault) ||
+            explicitPreference ||
+            savedPreference ||
             this.routeByTask(taskType);
         const order: ProviderId[] = ['Google', 'Groq', 'OpenRouter', 'Doubleword'];
+
+        // If the workspace or request explicitly selected a provider, do not silently
+        // cascade across unrelated providers. Fallback chaining is only useful in Auto mode.
+        if ((explicitPreference || savedPreference) && preferred && order.includes(preferred)) {
+            return [preferred];
+        }
 
         if (preferred && order.includes(preferred)) {
             return [preferred, ...order.filter((provider) => provider !== preferred)];
