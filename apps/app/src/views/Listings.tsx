@@ -461,8 +461,12 @@ React.useEffect(() => {
      }
 
      const setupRealtime = async () => {
-       const { createSupabaseBrowserClient } = await import('../services/supabaseBrowser');
+       const { createSupabaseBrowserClient, isSupabaseBrowserConfigured } = await import('../services/supabaseBrowser');
        if (!active) {
+         return;
+       }
+
+       if (!isSupabaseBrowserConfigured) {
          return;
        }
 

@@ -5,8 +5,12 @@ const supabaseUrl =
 const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
+export const isSupabaseBrowserConfigured = Boolean(
+  supabaseUrl && supabaseAnonKey,
+);
+
 export function createSupabaseBrowserClient(accessToken?: string | null) {
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!isSupabaseBrowserConfigured) {
     throw new Error('NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be configured');
   }
 
