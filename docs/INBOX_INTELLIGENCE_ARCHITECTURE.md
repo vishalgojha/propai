@@ -130,20 +130,25 @@ The message-history route still uses legacy naming internally. User-facing produ
 - `workspaceMonitorService` now decorates inbox threads with server-side governance
 - `inboxGovernanceService` owns thread classification and override persistence
 - `workspaceSettingsService` now preserves nested inbox intelligence settings during saves
+- `inboxMemoryService` now derives compact thread intel from recent messages:
+  - contact role
+  - recalled localities
+  - property-type and budget signals
+  - compact thread summary for the selected inbox thread
 
 ### Frontend
 
 - Inbox uses server-provided governance state for `Inbox`, `Held by AI`, and `Ignored`
 - broker actions like `Keep in inbox`, `Hold outside inbox`, and `Never show in inbox` persist through the backend
 - sidebar product label is now `Inbox`
+- selected threads now surface a compact `AI intel` panel instead of forcing the broker to scan raw history first
 
 ## Near-Term Build Plan
 
 1. Move more thread controls out of local UI state into backend-owned state
-2. Add contact-memory extraction for allowed threads
-3. Build context compaction for thread summaries before LLM calls
-4. Join Inbox and Stream in agent tools
-5. Add proactive follow-up and matching suggestions
+2. Join Inbox and Stream in agent tools
+3. Add proactive follow-up and matching suggestions
+4. Persist contact memory into dedicated tables once the current shape stabilizes
 
 ## Next Tables
 

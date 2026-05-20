@@ -22,11 +22,31 @@ type InboxChat = {
   lastMessageAt: string;
   messageCount: number;
   type?: 'direct' | 'group';
+  intel?: InboxThreadIntel;
   governance?: {
     state: ThreadGovernanceState;
     reason: string;
     confidence: 'high' | 'medium';
     override: boolean;
+  };
+};
+
+type InboxThreadIntel = {
+  summary: string;
+  contact: {
+    phone: string | null;
+    role: 'broker' | 'buyer' | 'seller' | 'tenant' | 'owner' | 'unknown';
+    confidence: 'high' | 'medium';
+    localities: string[];
+    propertyTypes: string[];
+    budgets: string[];
+  };
+  thread: {
+    inboundCount: number;
+    outboundCount: number;
+    lastInboundAt: string | null;
+    lastOutboundAt: string | null;
+    requirementSignals: string[];
   };
 };
 
@@ -154,6 +174,13 @@ const buildWaLink = (phone: string, title: string) => {
 };
 
 const buildCallLink = (phone: string) => `tel:+${phone}`;
+
+const formatRoleLabel = (role: InboxThreadIntel['contact']['role']) => {
+  if (role === 'unknown') {
+    return 'Unknown';
+  }
+  return role.charAt(0).toUpperCase() + role.slice(1);
+};
 
 const isEmojiHeavy = (value?: string | null) => {
   const text = String(value || '').trim();
@@ -427,6 +454,7 @@ export const Inbox: React.FC = () => {
 
   const selectedChat = visibleChats.find((chat) => chat.id === selectedChatId) || visibleChats[0] || null;
   const selectedSignal = selectedChat ? threadSignals[selectedChat.id] || inferThreadSignal(selectedChat) : null;
+  const selectedIntel = selectedChat?.intel || null;
   const selectedPhone = normalizePhone(selectedChat?.remoteJid?.split('@')[0]);
   const selectedSessionChip = selectedSessionLabel || 'workspace';
 
@@ -813,6 +841,82 @@ export const Inbox: React.FC = () => {
                     </span>
                   </div>
                 </div>
+                {selectedIntel ? (
+                  <div className="rounded-2xl border border-[rgba(148,163,184,0.12)] bg-[#111723] p-4">
+                    <div className="flex flex-col gap-4">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">AI intel</p>
+                        <p className="mt-2 text-sm font-medium leading-6 text-white">
+                          {selectedIntel.summary}
+                        </p>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Contact role</p>
+                          <p className="mt-2 text-sm font-medium text-white">
+                            {formatRoleLabel(selectedIntel.contact.role)}
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-500">
+                            Confidence {selectedIntel.contact.confidence}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Message balance</p>
+                          <p className="mt-2 text-sm font-medium text-white">
+                            {selectedIntel.thread.inboundCount} inbound · {selectedIntel.thread.outboundCount} outbound
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-500">
+                            Last inbound {formatTime(selectedIntel.thread.lastInboundAt)}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Budgets</p>
+                          <p className="mt-2 text-sm font-medium text-white">
+                            {selectedIntel.contact.budgets.length > 0 ? selectedIntel.contact.budgets.join(', ') : 'Not detected yet'}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Property focus</p>
+                          <p className="mt-2 text-sm font-medium text-white">
+                            {selectedIntel.contact.propertyTypes.length > 0 ? selectedIntel.contact.propertyTypes.join(', ') : 'Not detected yet'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Localities recalled</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {selectedIntel.contact.localities.length > 0 ? selectedIntel.contact.localities.map((locality) => (
+                              <span
+                                key={locality}
+                                className="rounded-full border border-[rgba(125,211,252,0.18)] bg-[rgba(125,211,252,0.08)] px-2.5 py-1 text-[11px] text-[#c7e7ff]"
+                              >
+                                {locality}
+                              </span>
+                            )) : (
+                              <span className="text-[12px] text-slate-500">No stable locality signal yet.</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Requirement signals</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {selectedIntel.thread.requirementSignals.length > 0 ? selectedIntel.thread.requirementSignals.map((signal) => (
+                              <span
+                                key={signal}
+                                className="rounded-full border border-emerald-500/18 bg-emerald-500/8 px-2.5 py-1 text-[11px] text-emerald-100"
+                              >
+                                {signal}
+                              </span>
+                            )) : (
+                              <span className="text-[12px] text-slate-500">Waiting for clearer requirement cues.</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 {isLoadingMessages && messages.length === 0 ? (
                   <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] px-4 py-3 text-sm text-slate-400">
                     Loading thread history...

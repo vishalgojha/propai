@@ -1,6 +1,7 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { liveMonitorService } from './liveMonitorService';
 import { inboxGovernanceService } from './inboxGovernanceService';
+import { inboxMemoryService } from './inboxMemoryService';
 import { whatsappPresenceService } from './whatsappPresenceService';
 
 const db = supabaseAdmin || supabase;
@@ -18,6 +19,13 @@ type MessageRow = {
 
 type MonitorRow = MessageRow & {
     direction?: 'inbound' | 'outbound' | null;
+};
+
+type ThreadSnippet = {
+    text?: string | null;
+    sender?: string | null;
+    direction?: 'inbound' | 'outbound' | null;
+    timestamp?: string | null;
 };
 
 type GroupRow = {
@@ -249,17 +257,19 @@ export class WorkspaceMonitorService {
             broadcastEnabled: Boolean(groupMeta?.broadcast_enabled),
             isParsing: groupMeta ? Boolean(groupMeta?.is_parsing) : undefined,
             messageCount: 0,
+            recentMessages: [] as ThreadSnippet[],
         };
     }
 
     private buildSummaryPayload(chats: any[], sessions: SessionRow[], totalMessages: number) {
         const activeSessions = sessions.filter((session) => session.status === 'connected');
+        const sanitizedChats = chats.map(({ recentMessages, ...chat }) => chat);
 
         return {
             summary: {
-                totalChats: chats.length,
-                directChats: chats.filter((chat) => chat.type === 'direct').length,
-                groupChats: chats.filter((chat) => chat.type === 'group').length,
+                totalChats: sanitizedChats.length,
+                directChats: sanitizedChats.filter((chat) => chat.type === 'direct').length,
+                groupChats: sanitizedChats.filter((chat) => chat.type === 'group').length,
                 totalMessages,
                 connectedSessions: activeSessions.length,
             },
@@ -270,7 +280,7 @@ export class WorkspaceMonitorService {
                 phoneNumber: session.session_data?.phoneNumber || null,
                 lastSync: session.last_sync || null,
             })),
-            chats,
+            chats: sanitizedChats,
         };
     }
 
@@ -298,6 +308,14 @@ export class WorkspaceMonitorService {
             const chatRecord = chatsMap.get(remoteJid) || this.buildChatRecord(row, groupMeta, liveMeta);
 
             chatRecord.messageCount += 1;
+            if (chatRecord.recentMessages.length < 6) {
+                chatRecord.recentMessages.push({
+                    text: String(row.text || '').trim(),
+                    sender: row.sender || null,
+                    direction: isOutboundSender(row.sender) ? 'outbound' : 'inbound',
+                    timestamp: row.timestamp || new Date().toISOString(),
+                });
+            }
             if (remoteJid.endsWith('@g.us')) {
                 chatRecord.title = String(groupMeta?.group_name || liveMeta?.title || row.title || chatRecord.title || 'WhatsApp group');
             }
@@ -316,7 +334,8 @@ export class WorkspaceMonitorService {
         const chats = Array.from(chatsMap.values()).sort((left, right) => {
             return new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime();
         });
-        const decoratedChats = await inboxGovernanceService.decorateThreads(workspaceOwnerId, chats, sessionLabel);
+        const chatsWithIntel = inboxMemoryService.decorateThreads(chats);
+        const decoratedChats = await inboxGovernanceService.decorateThreads(workspaceOwnerId, chatsWithIntel, sessionLabel);
 
         return this.buildSummaryPayload(decoratedChats, context.sessions, totalMessages);
     }

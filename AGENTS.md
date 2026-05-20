@@ -26,6 +26,7 @@
 ### Current Remote State
 
 - User said the latest work has already been pushed.
+- New inbox-memory work may still be ahead locally until the next push.
 - Treat local `main` as the latest source of truth until a fresh `git fetch` confirms otherwise.
 
 ### Current Local Worktree
@@ -61,6 +62,14 @@
   - `POST /api/whatsapp/inbox/governance`
 - Current persistence path for inbox governance is inside `workspace_settings.settings.inboxIntelligence`
   so the feature is server-owned without introducing new tables yet.
+- Inbox memory slice has now been built locally:
+  - `apps/api/src/services/inboxMemoryService.ts`
+  - `workspaceMonitorService` now derives compact thread intel from recent messages
+  - selected inbox threads now show:
+    - compact thread summary
+    - inferred contact role
+    - recalled localities
+    - budget and property-type signals
 
 ### Operational Rules
 
@@ -84,9 +93,8 @@
   - thread governance actions persist across refresh
   - `Call` and `Open WhatsApp` actions render correctly
 - Build the next Inbox intelligence slice:
-  - contact memory
-  - thread summary compaction
   - agent tools that join Inbox + Stream
+  - proactive matching or follow-up suggestions on top of current thread intel
 - Decide separately whether the dirty WaBro/APK files belong to a future commit.
 
 ### Handoff Hygiene
