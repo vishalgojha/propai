@@ -250,6 +250,27 @@ function toIntel(memory: InboxThreadMemory): InboxThreadIntel {
     };
 }
 
+function buildPendingIntel(thread: ThreadWithRecentMessages): InboxThreadIntel {
+    return {
+        summary: 'AI analysis pending.',
+        contact: {
+            phone: getDirectPhoneFromJid(thread.remoteJid || thread.id),
+            role: 'unknown',
+            confidence: 'medium',
+            localities: [],
+            propertyTypes: [],
+            budgets: [],
+        },
+        thread: {
+            inboundCount: 0,
+            outboundCount: 0,
+            lastInboundAt: null,
+            lastOutboundAt: null,
+            requirementSignals: [],
+        },
+    };
+}
+
 export class InboxMemoryService {
     async decorateThreads<T extends ThreadWithRecentMessages>(
         workspaceOwnerId: string,
@@ -315,24 +336,7 @@ export class InboxMemoryService {
             const { recentMessages, ...rest } = thread;
             return {
                 ...(rest as Omit<T, 'recentMessages'>),
-                intel: effective ? toIntel(effective) : {
-                    summary: 'AI analysis pending.',
-                    contact: {
-                        phone: getDirectPhoneFromJid(thread.remoteJid || thread.id),
-                        role: 'unknown',
-                        confidence: 'medium',
-                        localities: [],
-                        propertyTypes: [],
-                        budgets: [],
-                    },
-                    thread: {
-                        inboundCount: 0,
-                        outboundCount: 0,
-                        lastInboundAt: null,
-                        lastOutboundAt: null,
-                        requirementSignals: [],
-                    },
-                },
+                intel: effective ? toIntel(effective) : buildPendingIntel(thread),
             };
         }));
 
