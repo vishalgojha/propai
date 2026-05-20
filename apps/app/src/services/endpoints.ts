@@ -67,6 +67,7 @@ export const ENDPOINTS = {
     historyImports: '/whatsapp/history/imports',
     historyCheckDuplicates: '/whatsapp/history/check-duplicates',
     groups: '/whatsapp/groups',
+    groupsAudit: '/whatsapp/groups/audit',
     toggleGroupParsing: (groupJid: string) => `/whatsapp/groups/${encodeURIComponent(groupJid)}/toggle-parsing`,
     updateGroupVisibility: (groupJid: string) => `/whatsapp/groups/${encodeURIComponent(groupJid)}/visibility`,
     recipients: '/whatsapp/recipients',

@@ -7,6 +7,7 @@ export type RawGroupInput = {
     id: string;
     name: string;
     participantsCount?: number;
+    participantJids?: string[];
 };
 
 type GroupListFilters = {
@@ -119,6 +120,57 @@ function inferTags(name: string, locality?: string | null, category?: string | n
     return Array.from(tags);
 }
 
+function normalizeParticipantJid(value?: string | null) {
+    const raw = String(value || '').trim().toLowerCase();
+    if (!raw) return '';
+    const atIndex = raw.indexOf('@');
+    return atIndex >= 0 ? raw : `${raw}@s.whatsapp.net`;
+}
+
+function countLikelyBrokerSignals(group: RawGroupInput, locality?: string | null, category?: string | null) {
+    const normalized = normalizeName(group.name || '');
+    let score = 0;
+
+    if (scoreKeywordHits(normalized, BUSINESS_GROUP_KEYWORDS) > 0) score += 35;
+    if (category === 'broker' || category === 'rental' || category === 'sale' || category === 'commercial') score += 20;
+    if (locality) score += 15;
+    if (Number(group.participantsCount || 0) >= 40) score += 10;
+    if (Number(group.participantsCount || 0) >= 100) score += 5;
+
+    return Math.min(100, score);
+}
+
+function countNoiseSignals(group: RawGroupInput, classification: GroupClassification, category?: string | null) {
+    const normalized = normalizeName(group.name || '');
+    let score = 0;
+
+    if (classification === 'personal') score += 45;
+    if (scoreKeywordHits(normalized, PERSONAL_GROUP_KEYWORDS) > 0) score += 25;
+    if (category === 'other') score += 10;
+    if (Number(group.participantsCount || 0) > 250) score += 10;
+    if (/media|promo|offer|youtube|instagram|politics|crypto|meme/.test(normalized)) score += 20;
+
+    return Math.min(100, score);
+}
+
+async function getSessionAuditState(tenantId: string, sessionLabel: string) {
+    const { data } = await db
+        .from('whatsapp_sessions')
+        .select('session_data')
+        .eq('tenant_id', tenantId)
+        .eq('label', sessionLabel)
+        .maybeSingle();
+
+    const sessionData = data?.session_data && typeof data.session_data === 'object'
+        ? data.session_data as Record<string, unknown>
+        : {};
+
+    return {
+        isPending: sessionData.groupAuditPending === true,
+        isCompleted: typeof sessionData.groupAuditCompletedAt === 'string' && String(sessionData.groupAuditCompletedAt).trim().length > 0,
+    };
+}
+
 export class WhatsAppGroupService {
     async syncGroups(tenantId: string, sessionLabel: string, groups: RawGroupInput[]) {
         const uniqueGroups = Array.from(
@@ -128,6 +180,8 @@ export class WhatsAppGroupService {
         const sessionId = `${tenantId}:${sessionLabel}`;
         let syncedCount = 0;
         let failedCount = 0;
+        const auditState = await getSessionAuditState(tenantId, sessionLabel);
+        const seededGroupConfigs: Array<{ group_id: string; tenant_id: string; behavior: string }> = [];
 
         for (const group of uniqueGroups) {
             try {
@@ -137,10 +191,20 @@ export class WhatsAppGroupService {
                 const inferredCategory = inferCategory(group.name || '');
                 const inferredTags = inferTags(group.name || '', inferredLocality, inferredCategory);
                 const autoClassification = classifyGroup(group.name || '', inferredLocality, inferredCategory);
+                const participantJids = Array.isArray(group.participantJids)
+                    ? uniqueStrings(group.participantJids.map((participant) => normalizeParticipantJid(participant)))
+                    : [];
+                const signalScore = countLikelyBrokerSignals(group, inferredLocality, inferredCategory);
+                const noiseScore = countNoiseSignals(group, autoClassification.classification, inferredCategory);
+                const recommendation = autoClassification.classification === 'business' && signalScore >= 45 && noiseScore < 45
+                    ? 'parse'
+                    : autoClassification.classification === 'personal' || noiseScore >= 70
+                        ? 'ignore'
+                        : 'review';
 
                 const { data: existing, error: existingError } = await db
                     .from('whatsapp_groups')
-                    .select('locality, city, category, tags, broadcast_enabled, is_archived, is_parsing, classification, visibility_status, business_confidence')
+                    .select('locality, city, category, tags, broadcast_enabled, is_archived, is_parsing, classification, visibility_status, business_confidence, participant_jids, duplicate_overlap_score, signal_score, noise_score, audit_recommendation')
                     .eq('workspace_id', tenantId)
                     .eq('group_jid', group.id)
                     .maybeSingle();
@@ -165,12 +229,21 @@ export class WhatsAppGroupService {
                     tags: uniqueStrings([...(existing?.tags || []), ...inferredTags]),
                     participant_count: Number(group.participantsCount || 0),
                     member_count: Number(group.participantsCount || 0),
-                    is_parsing: typeof existing?.is_parsing === 'boolean' ? existing.is_parsing : autoClassification.classification === 'business',
+                    participant_jids: participantJids,
+                    is_parsing: typeof existing?.is_parsing === 'boolean'
+                        ? existing.is_parsing
+                        : auditState.isPending
+                            ? false
+                            : autoClassification.classification === 'business',
                     classification: String(existing?.classification || '').trim() || autoClassification.classification,
                     visibility_status: String(existing?.visibility_status || '').trim() || autoClassification.visibilityStatus,
                     business_confidence: typeof existing?.business_confidence === 'number'
                         ? existing.business_confidence
                         : autoClassification.confidence,
+                    duplicate_overlap_score: Number(existing?.duplicate_overlap_score || 0),
+                    signal_score: Number(existing?.signal_score || signalScore),
+                    noise_score: Number(existing?.noise_score || noiseScore),
+                    audit_recommendation: String(existing?.audit_recommendation || recommendation),
                     last_message_at: now,
                     last_active_at: now,
                     broadcast_enabled: typeof existing?.broadcast_enabled === 'boolean' ? existing.broadcast_enabled : true,
@@ -188,11 +261,25 @@ export class WhatsAppGroupService {
                     continue;
                 }
 
+                if (auditState.isPending && !existing) {
+                    seededGroupConfigs.push({
+                        group_id: group.id,
+                        tenant_id: tenantId,
+                        behavior: 'Off',
+                    });
+                }
+
                 syncedCount++;
             } catch (groupError: unknown) {
                 console.error('[WhatsAppGroupService] Unexpected error syncing group', group.id, groupError);
                 failedCount++;
             }
+        }
+
+        if (seededGroupConfigs.length > 0) {
+            await db
+                .from('group_configs')
+                .upsert(seededGroupConfigs, { onConflict: 'tenant_id,group_id' });
         }
 
         return { total: uniqueGroups.length, synced: syncedCount, failed: failedCount };
@@ -229,12 +316,17 @@ export class WhatsAppGroupService {
             category: row.category || 'other',
             tags: Array.isArray(row.tags) ? row.tags : [],
             participantsCount: Number(row.member_count || 0),
+            participantJids: Array.isArray(row.participant_jids) ? row.participant_jids : [],
             broadcastEnabled: Boolean(row.broadcast_enabled),
             isArchived: Boolean(row.is_archived),
             isParsing: Boolean(row.is_parsing),
             classification: row.classification || 'unknown',
             visibilityStatus: row.visibility_status || 'visible',
             businessConfidence: Number(row.business_confidence || 0),
+            duplicateOverlapScore: Number(row.duplicate_overlap_score || 0),
+            signalScore: Number(row.signal_score || 0),
+            noiseScore: Number(row.noise_score || 0),
+            auditRecommendation: String(row.audit_recommendation || 'review'),
             lastActiveAt: row.last_active_at || null,
             sessionLabel: row.session_label || null,
         }));

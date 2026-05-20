@@ -34,6 +34,8 @@ type WhatsappSession = {
     parse_direct_messages?: boolean;
     selfChatEnabled?: boolean;
     self_chat_enabled?: boolean;
+    groupAuditPending?: boolean;
+    groupAuditCompletedAt?: string | null;
   } | null;
   lastSync?: string;
 };
@@ -252,6 +254,45 @@ type WhatsappGroupOption = {
   lastActiveAt?: string | null;
 };
 
+type GroupAuditRecommendation = 'parse' | 'review' | 'ignore';
+
+type GroupAuditGroup = {
+  id: string;
+  name: string;
+  locality?: string | null;
+  city?: string | null;
+  category?: string | null;
+  tags?: string[];
+  participantsCount: number;
+  participantPhoneCount: number;
+  duplicateMemberCount: number;
+  duplicateOverlapPercent: number;
+  signalScore: number;
+  noiseScore: number;
+  chaosScore: number;
+  recommendation: GroupAuditRecommendation;
+  reasons: string[];
+  sessionLabel?: string | null;
+  isParsing?: boolean;
+};
+
+type GroupAuditResponse = {
+  sessionLabel: string;
+  summary: {
+    totalGroups: number;
+    recommendedParseGroups: number;
+    reviewGroups: number;
+    ignoredGroups: number;
+    realEstateGroups: number;
+    uniqueParticipants: number;
+    duplicateParticipants: number;
+    duplicateParticipantRate: number;
+    averageChaosScore: number;
+    averageSignalScore: number;
+  };
+  groups: GroupAuditGroup[];
+};
+
 type OutboundRecipient = {
   id: string;
   name: string;
@@ -344,7 +385,7 @@ export const Sources: React.FC = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'setup' | 'outbound' | 'pricing' | 'logs'>(
+  const [activeTab, setActiveTab] = useState<'setup' | 'audit' | 'outbound' | 'pricing' | 'logs'>(
     location.pathname === '/pricing' ? 'pricing' : 'setup',
   );
   const [fullName, setFullName] = useState('');
@@ -364,6 +405,10 @@ export const Sources: React.FC = () => {
   const [groupHealth, setGroupHealth] = useState<WhatsappGroupHealth[]>([]);
   const [eventLogs, setEventLogs] = useState<WhatsappEventRecord[]>([]);
   const [outboundGroups, setOutboundGroups] = useState<WhatsappGroupOption[]>([]);
+  const [groupAudit, setGroupAudit] = useState<GroupAuditResponse | null>(null);
+  const [isLoadingGroupAudit, setIsLoadingGroupAudit] = useState(false);
+  const [isApplyingGroupAudit, setIsApplyingGroupAudit] = useState(false);
+  const [selectedAuditParseIds, setSelectedAuditParseIds] = useState<string[]>([]);
   const [groupSearchTerm, setGroupSearchTerm] = useState('');
   const [outboundSessionKey, setOutboundSessionKey] = useState('');
   const [brokerRecipients, setBrokerRecipients] = useState<OutboundRecipient[]>([]);
@@ -465,6 +510,10 @@ export const Sources: React.FC = () => {
   }, [connectedSenderSessions, status.allowedOutboundSessionLabels, status.hasOutboundLaneRestriction]);
 
   const demoMode = process.env.NEXT_PUBLIC_WHATSAPP_DEMO_MODE === 'true';
+  const currentSessionAuditPending = Boolean(
+    currentSession?.sessionData?.groupAuditPending
+    && !currentSession?.sessionData?.groupAuditCompletedAt,
+  );
 
   useEffect(() => {
     setActiveTab((current) => {
@@ -614,6 +663,35 @@ export const Sources: React.FC = () => {
     }
   }, []);
 
+  const fetchGroupAudit = useCallback(async (sessionLabel?: string | null) => {
+    const targetSessionLabel = sessionLabel || currentSession?.label || pendingConnection?.label || '';
+    if (!targetSessionLabel) {
+      setGroupAudit(null);
+      return;
+    }
+
+    setIsLoadingGroupAudit(true);
+    try {
+      const response = await backendApi.get<GroupAuditResponse>(ENDPOINTS.whatsapp.groupsAudit, {
+        params: { sessionLabel: targetSessionLabel },
+      });
+      const payload = response.data;
+      setGroupAudit(payload);
+      setSelectedAuditParseIds(
+        Array.isArray(payload?.groups)
+          ? payload.groups
+              .filter((group) => group.recommendation === 'parse')
+              .map((group) => group.id)
+          : [],
+      );
+    } catch (err) {
+      console.error(handleApiError(err));
+      setGroupAudit(null);
+    } finally {
+      setIsLoadingGroupAudit(false);
+    }
+  }, [currentSession?.label, pendingConnection?.label]);
+
   useEffect(() => {
     fetchProfile();
     fetchStatus();
@@ -727,7 +805,7 @@ export const Sources: React.FC = () => {
     return () => window.clearInterval(interval);
   }, [artifactValue, currentSessionStatus, fetchStatus, status.status]);
 
-  const selectTab = (tab: 'setup' | 'outbound' | 'pricing' | 'logs') => {
+  const selectTab = (tab: 'setup' | 'audit' | 'outbound' | 'pricing' | 'logs') => {
     setActiveTab(tab);
     if (tab === 'pricing') {
       navigate('/pricing');
@@ -743,6 +821,9 @@ export const Sources: React.FC = () => {
       void fetchLogs();
       void fetchHealth();
       void fetchHealthLogs();
+    }
+    if (tab === 'audit') {
+      void fetchGroupAudit();
     }
   };
 
@@ -827,7 +908,21 @@ export const Sources: React.FC = () => {
     if (activeTab === 'outbound') {
       void fetchOutboundWorkspace();
     }
-  }, [activeTab, fetchOutboundWorkspace]);
+    if (activeTab === 'audit') {
+      void fetchGroupAudit();
+    }
+  }, [activeTab, fetchGroupAudit, fetchOutboundWorkspace]);
+
+  useEffect(() => {
+    if (!isCurrentSessionConnected || !currentSession?.label) {
+      return;
+    }
+
+    if (searchParams.get('audit') === '1' || currentSessionAuditPending) {
+      setActiveTab('audit');
+      void fetchGroupAudit(currentSession.label);
+    }
+  }, [currentSession?.label, currentSessionAuditPending, fetchGroupAudit, isCurrentSessionConnected, searchParams]);
 
 
   const handleConnectWrapper = async (event: React.FormEvent) => {
@@ -1133,6 +1228,44 @@ export const Sources: React.FC = () => {
     }
   };
 
+  const handleApplyGroupAudit = async () => {
+    if (!currentSession?.label || !groupAudit) {
+      setError('Connect a WhatsApp session first.');
+      return;
+    }
+
+    setIsApplyingGroupAudit(true);
+    setError(null);
+    try {
+      const parseGroupIds = selectedAuditParseIds;
+      const ignoreGroupIds = groupAudit.groups
+        .filter((group) => group.recommendation === 'ignore' && !parseGroupIds.includes(group.id))
+        .map((group) => group.id);
+
+      await backendApi.post(ENDPOINTS.whatsapp.groupsAudit, {
+        sessionLabel: currentSession.label,
+        parseGroupIds,
+        ignoreGroupIds,
+      });
+
+      await Promise.all([
+        fetchStatus(),
+        fetchOutboundWorkspace(),
+        fetchGroupAudit(currentSession.label),
+        fetchHealth(),
+      ]);
+      setOutboundFeedback({
+        tone: 'success',
+        message: `Applied audit decisions for ${parseGroupIds.length} parsing group${parseGroupIds.length === 1 ? '' : 's'}.`,
+      });
+      setActiveTab('outbound');
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsApplyingGroupAudit(false);
+    }
+  };
+
   const handleSendGroups = async () => {
     if (!outboundSessionKey) {
       setOutboundFeedback({ tone: 'error', message: 'Choose which connected WhatsApp number should send this broadcast first.' });
@@ -1302,6 +1435,7 @@ export const Sources: React.FC = () => {
       <div className="flex items-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-1">
         {[
           { id: 'setup' as const, label: 'Setup' },
+          { id: 'audit' as const, label: 'Audit' },
           { id: 'outbound' as const, label: 'Outbound' },
           { id: 'pricing' as const, label: 'Pricing' },
           { id: 'logs' as const, label: 'Logs' },
@@ -1325,9 +1459,9 @@ export const Sources: React.FC = () => {
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="max-w-3xl">
               <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Broker-controlled privacy</p>
-              <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Group parsing is on by default. Direct chats stay off until you enable them.</h3>
+              <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">First scan goes through a group audit. Direct chats stay off until you enable them.</h3>
               <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-              Groups from the connected number are parsed unless you explicitly disable a specific group. The AI assistant on this number and 1:1 direct messages stay off until you enable them for the current connected session.
+              On a newly connected number, PropAI audits group quality before enabling parsing. After audit approval, only the selected groups parse into Stream. The AI assistant on this number and 1:1 direct messages stay off until you enable them for the current connected session.
               </p>
             </div>
           <div className="flex flex-col gap-3 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 md:flex-row md:items-center">
@@ -1394,7 +1528,168 @@ export const Sources: React.FC = () => {
         </div>
       </div>
 
-      {activeTab === 'outbound' ? (
+      {activeTab === 'audit' ? (
+        <div className="space-y-6">
+          <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-3xl">
+                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Group intelligence audit</p>
+                <h3 className="mt-1 text-[18px] font-semibold text-[var(--text-primary)]">See the WhatsApp network before it starts feeding Stream</h3>
+                <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
+                  PropAI scores every synced group for signal, overlap, and chaos so you can decide what deserves parsing. Recommended groups are pre-selected, but you stay in control.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void fetchGroupAudit()}
+                  className={sourceSecondaryButton}
+                  disabled={isLoadingGroupAudit || !currentSession?.label}
+                >
+                  <RefreshCw className={cn('h-4 w-4', isLoadingGroupAudit && 'animate-spin')} />
+                  Refresh audit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleApplyGroupAudit()}
+                  className={sourcePrimaryButton}
+                  disabled={isApplyingGroupAudit || !currentSession?.label || !groupAudit}
+                >
+                  <Zap className="h-4 w-4" />
+                  {isApplyingGroupAudit ? 'Applying...' : 'Apply audit decisions'}
+                </button>
+              </div>
+            </div>
+
+            {!currentSession?.label ? (
+              <div className="mt-4 rounded-[10px] border border-[color:rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.08)] px-4 py-3 text-[12px] text-[var(--amber)]">
+                Connect a WhatsApp number first. Audit becomes available as soon as the group sync completes.
+              </div>
+            ) : null}
+
+            {groupAudit ? (
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                {[
+                  { label: 'Total groups', value: groupAudit.summary.totalGroups, note: 'Synced from this number.' },
+                  { label: 'Recommended parse', value: groupAudit.summary.recommendedParseGroups, note: 'High-signal groups selected by PropAI.' },
+                  { label: 'Duplicate members', value: `${groupAudit.summary.duplicateParticipantRate}%`, note: `${groupAudit.summary.duplicateParticipants} repeated numbers across groups.` },
+                  { label: 'Average chaos', value: groupAudit.summary.averageChaosScore, note: 'Higher means more overlap + more noise.' },
+                  { label: 'Business groups', value: groupAudit.summary.realEstateGroups, note: 'Likely real-estate groups detected.' },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+                    <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">{item.label}</p>
+                    <p className="mt-2 text-[24px] font-bold text-[var(--text-primary)]">{item.value}</p>
+                    <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">{item.note}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Per-group decisions</p>
+                <h4 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Review what PropAI wants to parse</h4>
+              </div>
+              <div className="text-[11px] text-[var(--text-secondary)]">
+                Selected for parsing: <span className="font-semibold text-[var(--text-primary)]">{selectedAuditParseIds.length}</span>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {isLoadingGroupAudit ? (
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
+                  Building group intelligence audit...
+                </div>
+              ) : !groupAudit || groupAudit.groups.length === 0 ? (
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
+                  No group audit is available yet for this number.
+                </div>
+              ) : (
+                groupAudit.groups.map((group) => {
+                  const selected = selectedAuditParseIds.includes(group.id);
+                  return (
+                    <div key={group.id} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate text-[14px] font-semibold text-[var(--text-primary)]">{group.name}</p>
+                            <span className={cn(
+                              'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
+                              group.recommendation === 'parse'
+                                ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
+                                : group.recommendation === 'ignore'
+                                  ? 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]'
+                                  : 'border-[color:rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.08)] text-[var(--amber)]',
+                            )}>
+                              {group.recommendation}
+                            </span>
+                            <span className={cn(
+                              'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
+                              selected
+                                ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
+                                : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
+                            )}>
+                              {selected ? 'Parsing after audit' : 'Won’t parse'}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-[12px] text-[var(--text-secondary)]">
+                            {[group.locality, group.city, group.category, `${group.participantsCount} members`, `${group.duplicateOverlapPercent}% duplicate overlap`].filter(Boolean).join(' • ')}
+                          </p>
+                          {group.reasons.length > 0 ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {group.reasons.slice(0, 4).map((reason) => (
+                                <span key={reason} className="rounded-full border border-[color:var(--border)] px-2 py-0.5 text-[10px] text-[var(--text-secondary)]">
+                                  {reason}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="grid min-w-[240px] gap-2 sm:grid-cols-3 lg:w-[280px]">
+                          <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
+                            <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Signal</p>
+                            <p className="mt-1 text-[18px] font-bold text-[var(--text-primary)]">{group.signalScore}</p>
+                          </div>
+                          <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
+                            <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Chaos</p>
+                            <p className="mt-1 text-[18px] font-bold text-[var(--text-primary)]">{group.chaosScore}</p>
+                          </div>
+                          <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
+                            <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Noise</p>
+                            <p className="mt-1 text-[18px] font-bold text-[var(--text-primary)]">{group.noiseScore}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAuditParseIds((current) => current.includes(group.id) ? current : [...current, group.id])}
+                          className={cn(
+                            sourceSecondaryButton,
+                            selected && 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]',
+                          )}
+                        >
+                          Parse this group
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAuditParseIds((current) => current.filter((id) => id !== group.id))}
+                          className={sourceSecondaryButton}
+                        >
+                          Keep out of Stream
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      ) : activeTab === 'outbound' ? (
         <div className="space-y-6">
           <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
             <div className="flex flex-wrap items-center justify-between gap-4">

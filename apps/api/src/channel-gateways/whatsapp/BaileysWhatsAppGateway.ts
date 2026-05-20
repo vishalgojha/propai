@@ -129,6 +129,9 @@ export class BaileysWhatsAppGateway implements WhatsAppGateway {
             id: String(group.id || ''),
             name: String(group.name || group.id || ''),
             participantsCount: typeof group.participantsCount === 'number' ? group.participantsCount : undefined,
+            participantJids: Array.isArray(group.participantJids)
+                ? group.participantJids.map((participant) => String(participant || '').trim()).filter(Boolean)
+                : [],
         }));
     }
 

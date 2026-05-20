@@ -649,6 +649,10 @@ try {
             return Object.values(groups).map((group: any) => ({
                 id: group.id,
                 name: group.subject || group.name || group.id,
+                participantsCount: Array.isArray(group.participants) ? group.participants.length : undefined,
+                participantJids: Array.isArray(group.participants)
+                    ? group.participants.map((participant: any) => String(participant?.id || '').trim()).filter(Boolean)
+                    : [],
             }));
         }
 

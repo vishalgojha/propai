@@ -87,7 +87,7 @@ export const Layout: React.FC = () => {
     switch (path) {
       case '/inbox':
       case '/messages':
-        return 'Threads';
+        return 'Inbox';
       case '/listings':
       case '/stream': return 'Stream';
       case '/sources':

@@ -60,6 +60,7 @@ export type WhatsAppGroupRecord = {
     id: string;
     name: string;
     participantsCount?: number;
+    participantJids?: string[];
 };
 
 export type WhatsAppSessionSnapshot = {

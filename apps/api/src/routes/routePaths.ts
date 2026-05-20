@@ -57,6 +57,7 @@ export const ROUTE_PATHS = {
         monitorMessages: '/monitor/messages',
         inbox: '/inbox',
         inboxGovernance: '/inbox/governance',
+        groupsAudit: '/groups/audit',
         health: '/health',
         healthDetailed: '/health/detailed',
         historyDebug: '/history/debug',

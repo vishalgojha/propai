@@ -14,6 +14,7 @@ import { emailNotificationService } from '../services/emailNotificationService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { whatsappPresenceService } from '../services/whatsappPresenceService';
 import { inboxGovernanceService } from '../services/inboxGovernanceService';
+import { groupAuditService } from '../services/groupAuditService';
 import '../types/express';
 
 type LiveSessionRecord = {
@@ -211,6 +212,8 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
                     phoneNumber: phoneNumber || null,
                     ownerName: ownerName || null,
                     label: sessionLabel,
+                    groupAuditPending: existingData.groupAuditCompletedAt ? Boolean(existingData.groupAuditPending) : true,
+                    groupAuditCompletedAt: existingData.groupAuditCompletedAt || null,
                 },
                 status: 'connecting',
                 last_sync: new Date().toISOString(),
@@ -1176,6 +1179,48 @@ export const getGroups = async (req: Request, res: Response) => {
         })));
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp groups') });
+    }
+};
+
+export const getGroupsAudit = async (req: Request, res: Response) => {
+    const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel.trim() : '';
+
+    if (!sessionLabel) {
+        return res.status(400).json({ error: 'sessionLabel is required' });
+    }
+
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const gateway = getWhatsAppGateway(context.workspaceOwnerId);
+        const groups = await gateway.listGroups({ workspaceOwnerId: context.workspaceOwnerId, sessionLabel });
+        await whatsappGroupService.syncGroups(context.workspaceOwnerId, sessionLabel, groups);
+        const audit = await groupAuditService.getAudit(context.workspaceOwnerId, sessionLabel);
+        res.json({ success: true, ...audit });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to build WhatsApp group audit') });
+    }
+};
+
+export const applyGroupsAudit = async (req: Request, res: Response) => {
+    const sessionLabel = typeof req.body?.sessionLabel === 'string' ? req.body.sessionLabel.trim() : '';
+    const parseGroupIds = Array.isArray(req.body?.parseGroupIds) ? req.body.parseGroupIds.map((id: unknown) => String(id || '').trim()).filter(Boolean) : [];
+    const ignoreGroupIds = Array.isArray(req.body?.ignoreGroupIds) ? req.body.ignoreGroupIds.map((id: unknown) => String(id || '').trim()).filter(Boolean) : [];
+
+    if (!sessionLabel) {
+        return res.status(400).json({ error: 'sessionLabel is required' });
+    }
+
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const result = await groupAuditService.applyRecommendations({
+            workspaceOwnerId: context.workspaceOwnerId,
+            sessionLabel,
+            parseGroupIds,
+            ignoreGroupIds,
+        });
+        res.json({ success: true, result });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to apply group audit recommendations') });
     }
 };
 
