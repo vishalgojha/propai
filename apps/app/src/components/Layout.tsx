@@ -85,9 +85,6 @@ export const Layout: React.FC = () => {
 
   const getPageTitle = (path: string) => {
     switch (path) {
-      case '/inbox':
-      case '/messages':
-        return 'Inbox';
       case '/listings':
       case '/stream': return 'Stream';
       case '/sources':
@@ -114,7 +111,6 @@ export const Layout: React.FC = () => {
   const channelName = searchParams.get('channelName');
   const title = channelParam ? channelName || `#${channelParam}` : getPageTitle(location.pathname);
   const searchKey = searchParams.toString();
-  const hideFooter = location.pathname === '/inbox' || location.pathname === '/messages';
 
   React.useEffect(() => {
     setIsSidebarOpen(false);
@@ -402,7 +398,7 @@ export const Layout: React.FC = () => {
           </div>
         </div>
 
-        {!hideFooter ? <LegalFooter compact /> : null}
+        <LegalFooter compact />
       </main>
     </div>
   );

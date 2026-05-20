@@ -1,7 +1,6 @@
-"use client";
-
-import { Inbox } from "@/pages/Inbox";
+import { redirect } from "next/navigation";
+import { protectedRouteRedirects } from "../routeRedirects";
 
 export default function Page() {
-  return <Inbox />;
+  redirect(protectedRouteRedirects.agent);
 }
