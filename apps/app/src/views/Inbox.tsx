@@ -199,6 +199,26 @@ const inferThreadSignal = (): ThreadSignal => ({
   confidence: 'medium',
 });
 
+const getThreadNeedsReply = (chat: InboxChat) => {
+  const inbound = Number(chat.intel?.thread.inboundCount || 0);
+  const outbound = Number(chat.intel?.thread.outboundCount || 0);
+  if (inbound <= 0) {
+    return false;
+  }
+
+  const lastInboundAt = chat.intel?.thread.lastInboundAt || chat.lastMessageAt || null;
+  const lastOutboundAt = chat.intel?.thread.lastOutboundAt || null;
+  if (!lastInboundAt) {
+    return false;
+  }
+
+  if (!lastOutboundAt) {
+    return true;
+  }
+
+  return new Date(lastInboundAt).getTime() > new Date(lastOutboundAt).getTime() && inbound >= outbound;
+};
+
 const isOutboundSender = (sender?: string | null) => {
   const value = String(sender || '').trim().toLowerCase();
   return value === 'ai' || value.includes('@') || value.includes('broker') || value.includes('workspace');
@@ -461,10 +481,27 @@ export const Inbox: React.FC = () => {
     return chat.governance?.state || threadSignals[chat.id]?.suggestedState || 'allowed';
   }, [threadSignals]);
 
-  const visibleChats = React.useMemo(
-    () => chats.filter((chat) => effectiveThreadState(chat) === listMode),
-    [chats, effectiveThreadState, listMode],
-  );
+  const visibleChats = React.useMemo(() => {
+    return chats
+      .filter((chat) => effectiveThreadState(chat) === listMode)
+      .slice()
+      .sort((left, right) => {
+        const leftNeedsReply = getThreadNeedsReply(left);
+        const rightNeedsReply = getThreadNeedsReply(right);
+
+        if (leftNeedsReply !== rightNeedsReply) {
+          return leftNeedsReply ? -1 : 1;
+        }
+
+        if (leftNeedsReply && rightNeedsReply) {
+          const leftInboundAt = left.intel?.thread.lastInboundAt || left.lastMessageAt;
+          const rightInboundAt = right.intel?.thread.lastInboundAt || right.lastMessageAt;
+          return new Date(leftInboundAt).getTime() - new Date(rightInboundAt).getTime();
+        }
+
+        return new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime();
+      });
+  }, [chats, effectiveThreadState, listMode]);
 
   const chatCounts = React.useMemo(
     () => chats.reduce(
@@ -479,7 +516,7 @@ export const Inbox: React.FC = () => {
   );
 
   const threadsNeedingResponse = React.useMemo(
-    () => visibleChats.filter((chat) => !String(chat.preview || '').trim().toLowerCase().startsWith('you:')),
+    () => visibleChats.filter((chat) => getThreadNeedsReply(chat)),
     [visibleChats],
   );
 
