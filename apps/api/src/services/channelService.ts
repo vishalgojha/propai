@@ -2226,14 +2226,13 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
              .from('messages')
              .select('id')
              .eq('tenant_id', tenantId)
-             .limit(1)
-             .maybeSingle();
+             .limit(1);
 
          if (sessionLabel) {
              messagesQuery = messagesQuery.eq('session_label', sessionLabel);
          }
 
-         const { data: anyMessage, error: messageError } = await messagesQuery;
+         const { data: anyMessage, error: messageError } = await messagesQuery.maybeSingle();
 
          if (messageError || !anyMessage) {
              return;
@@ -2243,14 +2242,13 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
              .from('stream_items')
              .select('id')
              .eq('tenant_id', tenantId)
-             .limit(1)
-             .maybeSingle();
+             .limit(1);
 
          if (sessionLabel) {
              streamQuery = streamQuery.eq('session_label', sessionLabel);
          }
 
-         const { data: existingStreamItem, error: streamError } = await streamQuery;
+         const { data: existingStreamItem, error: streamError } = await streamQuery.maybeSingle();
 
          if (streamError || existingStreamItem) {
              return;
