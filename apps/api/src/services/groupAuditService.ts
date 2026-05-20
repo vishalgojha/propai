@@ -37,7 +37,7 @@ export class GroupAuditService {
 
         const overlapMap = buildOverlapMap(groups.map((group) => ({
             id: String(group.id || ''),
-            participantJids: Array.isArray((group as any).participantJids) ? (group as any).participantJids : [],
+            participantJids: Array.isArray((group as any).participantJids) ? ((group as any).participantJids as string[]) : [],
         })));
 
         const enrichedGroups = groups.map((group) => {
