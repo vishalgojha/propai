@@ -1193,8 +1193,21 @@ export const getGroupsAudit = async (req: Request, res: Response) => {
     try {
         const context = await workspaceAccessService.resolveContext(req.user ?? {});
         const gateway = getWhatsAppGateway(context.workspaceOwnerId);
-        const groups = await gateway.listGroups({ workspaceOwnerId: context.workspaceOwnerId, sessionLabel });
-        await whatsappGroupService.syncGroups(context.workspaceOwnerId, sessionLabel, groups);
+        let groups: Awaited<ReturnType<typeof gateway.listGroups>> = [];
+
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            groups = await gateway.listGroups({ workspaceOwnerId: context.workspaceOwnerId, sessionLabel });
+            if (groups.length > 0) {
+                break;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+        }
+
+        if (groups.length > 0) {
+            await whatsappGroupService.syncGroups(context.workspaceOwnerId, sessionLabel, groups);
+        }
+
         const audit = await groupAuditService.getAudit(context.workspaceOwnerId, sessionLabel);
         res.json({ success: true, ...audit });
     } catch (error: unknown) {

@@ -10,7 +10,6 @@ import {
   Power,
   QrCode,
   RefreshCw,
-  Save,
   Send,
   ShieldCheck,
   Smartphone,
@@ -1163,10 +1162,6 @@ export const Sources: React.FC = () => {
     }
   }, [currentSession?.label, fetchHealth, fetchLogs, fetchStatus, parseDirectMessages, selfChatEnabled]);
 
-  const handleSaveParsingPreferences = async () => {
-    await saveAssistantSettings();
-  };
-
   const handleParseDirectMessagesToggle = async () => {
     const nextParseDirectMessages = !parseDirectMessages;
     setParseDirectMessages(nextParseDirectMessages);
@@ -1504,68 +1499,14 @@ export const Sources: React.FC = () => {
               On a newly connected number, PropAI audits group quality before enabling parsing. After audit approval, only the selected groups parse into Stream. The AI assistant on this number and 1:1 direct messages stay off until you enable them for the current connected session.
               </p>
             </div>
-          <div className="flex flex-col gap-3 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 md:flex-row md:items-center">
-            <div className="flex items-center gap-3">
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">AI assistant on this number</p>
-                <p className="text-[13px] font-semibold text-[var(--text-primary)]">{selfChatEnabled ? 'Enabled' : 'Off'}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleSelfChatAuditToggle()}
-                disabled={isSavingParsingPrefs || !currentSession?.label}
-                className={cn(
-                  'relative h-6 w-11 rounded-full border transition-colors disabled:opacity-50',
-                  selfChatEnabled
-                    ? 'border-[color:var(--accent-border)] bg-[var(--accent)]'
-                    : 'border-[color:var(--border)] bg-[var(--bg-base)]',
-                )}
-                aria-pressed={selfChatEnabled}
-                aria-label="Toggle AI assistant on this number"
-              >
-                <span
-                  className={cn(
-                    'absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform',
-                    selfChatEnabled ? 'translate-x-5' : 'translate-x-0.5',
-                  )}
-                />
-              </button>
-            </div>
-            <div className="flex items-center gap-3">
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">1:1 direct messages</p>
-                <p className="text-[13px] font-semibold text-[var(--text-primary)]">{parseDirectMessages ? 'Enabled' : 'Off'}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleParseDirectMessagesToggle()}
-                disabled={isSavingParsingPrefs || !currentSession?.label}
-                className={cn(
-                  'relative h-6 w-11 rounded-full border transition-colors disabled:opacity-50',
-                  parseDirectMessages
-                    ? 'border-[color:var(--accent-border)] bg-[var(--accent)]'
-                    : 'border-[color:var(--border)] bg-[var(--bg-base)]',
-                )}
-                aria-pressed={parseDirectMessages}
-                aria-label="Toggle 1:1 direct message parsing"
-              >
-                <span
-                  className={cn(
-                    'absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform',
-                    parseDirectMessages ? 'translate-x-5' : 'translate-x-0.5',
-                  )}
-                />
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => void handleSaveParsingPreferences()}
-              disabled={isSavingParsingPrefs || !currentSession?.label}
-              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-colors hover:brightness-95 disabled:opacity-50"
-            >
-              <Save className="h-4 w-4" />
-              {isSavingParsingPrefs ? 'Saving...' : 'Save assistant settings'}
-            </button>
+          <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
+            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Current session state</p>
+            <p className="mt-1 text-[13px] font-semibold text-[var(--text-primary)]">
+              Assistant {selfChatEnabled ? 'enabled' : 'off'} · Direct messages {parseDirectMessages ? 'enabled' : 'off'}
+            </p>
+            <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
+              Manage these controls in the audit workspace below for the selected connected number.
+            </p>
           </div>
         </div>
       </div>
