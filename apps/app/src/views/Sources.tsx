@@ -1599,7 +1599,7 @@ export const Sources: React.FC = () => {
                     </div>
                     <h4 className="mt-3 text-[16px] font-semibold text-[var(--text-primary)]">Use this number's WhatsApp self chat as your field assistant.</h4>
                     <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
-                      Most brokers are on the move. Enable self chat on this number and message yourself in WhatsApp whenever you want PropAI to summarize a requirement, think through a lead, or help with the next move without opening the app.
+                      Most brokers are on the move. Enable self chat on this number and message yourself in WhatsApp whenever you want PropAI to extract a raw requirement, auto-match inventory, or recall your own old requirements and listings without opening the app.
                     </p>
                     <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
                       Once enabled, open WhatsApp on this same number and send a message to your own chat. PropAI will treat that self chat as a private AI lane for this workspace.
@@ -1634,8 +1634,8 @@ export const Sources: React.FC = () => {
                     </div>
                     <p className="text-[11px] leading-5 text-[var(--text-secondary)]">
                       {selfChatEnabled
-                        ? 'You can now use your own WhatsApp chat on this number to talk to PropAI.'
-                        : 'Keep direct parsing off if you want. This only opens your own self chat as an AI lane.'}
+                        ? 'You can now use your own WhatsApp chat on this number for requirement extraction, matching, and recall.'
+                        : 'Keep direct parsing off if you want. This only opens your own self chat as a private AI lane.'}
                     </p>
                     <div className="rounded-[12px] border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-3">
                       <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">How to start</p>
@@ -1646,7 +1646,7 @@ export const Sources: React.FC = () => {
                         Hi
                       </div>
                       <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
-                        PropAI will reply inside your self chat and you can continue there like a private on-field assistant.
+                        PropAI will reply inside your self chat and help with matching, context recall, and the next move when needed.
                       </p>
                     </div>
                   </div>

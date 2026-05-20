@@ -431,7 +431,7 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
     }
 
     if (effectiveIsSelfChat && text.toUpperCase() === 'HI') {
-        const introText = formatSelfChatReply('Hi! 👋 This is PropAI Pulse. Send me any message and I\'ll help you with real estate insights, listings, or requirements. Your messages are processed securely through AI.');
+        const introText = formatSelfChatReply('Hi. This is PropAI. Send a requirement, listing, or broker message here and I can extract it, auto-match relevant inventory, and recall your own past requirements or listings. If needed, I can also help you think through the next move.');
         await sendViaTenantSession(
             tenantId,
             remoteJid,
