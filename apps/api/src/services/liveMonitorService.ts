@@ -35,6 +35,15 @@ function normalizePhone(value?: string | null) {
     return digits.length >= 10 ? digits : null;
 }
 
+function getDirectPhoneFromJid(value?: string | null) {
+    const jid = String(value || '').trim().toLowerCase();
+    if (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@c.us')) {
+        return null;
+    }
+
+    return normalizePhone(jid.split('@')[0]);
+}
+
 function buildFallbackTitle(remoteJid: string, sender?: string | null) {
     if (remoteJid.endsWith('@g.us')) {
         return 'WhatsApp group';
@@ -45,7 +54,7 @@ function buildFallbackTitle(remoteJid: string, sender?: string | null) {
         return normalizedSender;
     }
 
-    const phone = normalizePhone(remoteJid.split('@')[0]);
+    const phone = getDirectPhoneFromJid(remoteJid);
     return phone ? `+${phone}` : 'Direct contact';
 }
 

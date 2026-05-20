@@ -186,6 +186,15 @@ const normalizePhone = (value?: string | null) => {
   return digits.length >= 10 ? digits : null;
 };
 
+const getDirectPhoneFromJid = (value?: string | null) => {
+  const jid = String(value || '').trim().toLowerCase();
+  if (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@c.us')) {
+    return null;
+  }
+
+  return normalizePhone(jid.split('@')[0]);
+};
+
 const formatPhoneLabel = (value?: string | null) => {
   const phone = normalizePhone(value);
   return phone ? `+${phone}` : null;
@@ -307,7 +316,7 @@ const buildDirectTitle = (row: RawMessageRow) => {
     return sender;
   }
 
-  const phone = normalizePhone(String(row.remote_jid || '').split('@')[0]);
+  const phone = getDirectPhoneFromJid(row.remote_jid);
   return phone ? `+${phone}` : 'Direct contact';
 };
 
@@ -321,7 +330,7 @@ const getChatDisplayTitle = (chat?: InboxChat | null) => {
     return normalizedTitle;
   }
 
-  return formatPhoneLabel(chat.remoteJid?.split('@')[0])
+  return formatPhoneLabel(getDirectPhoneFromJid(chat.remoteJid))
     || formatPhoneLabel(chat.intel?.contact.phone)
     || normalizedTitle
     || 'Direct contact';
@@ -333,7 +342,7 @@ const getChatSubtitle = (chat?: InboxChat | null) => {
   }
 
   return [
-    formatPhoneLabel(chat.intel?.contact.phone) || formatPhoneLabel(chat.remoteJid?.split('@')[0]),
+    formatPhoneLabel(chat.intel?.contact.phone) || formatPhoneLabel(getDirectPhoneFromJid(chat.remoteJid)),
     `last activity ${formatTime(chat.lastMessageAt)}`,
   ].filter(Boolean).join(' · ');
 };
@@ -583,7 +592,7 @@ export const Inbox: React.FC = () => {
   const selectedChat = visibleChats.find((chat) => chat.id === selectedChatId) || visibleChats[0] || null;
   const selectedSignal = selectedChat ? threadSignals[selectedChat.id] || inferThreadSignal(selectedChat) : null;
   const selectedIntel = selectedChat?.intel || null;
-  const selectedPhone = normalizePhone(selectedChat?.remoteJid?.split('@')[0]);
+  const selectedPhone = getDirectPhoneFromJid(selectedChat?.remoteJid);
   const connectedSessions = React.useMemo(
     () => (data?.sessions || []).filter((session) => session.status === 'connected'),
     [data?.sessions],

@@ -73,6 +73,15 @@ function normalizePhone(value?: string | null) {
     return digits.length >= 10 ? digits : null;
 }
 
+function getDirectPhoneFromJid(value?: string | null) {
+    const jid = String(value || '').trim().toLowerCase();
+    if (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@c.us')) {
+        return null;
+    }
+
+    return normalizePhone(jid.split('@')[0]);
+}
+
 function compactText(value?: string | null, maxLength = 160) {
     const compact = String(value || '').replace(/\s+/g, ' ').trim();
     if (!compact) {
@@ -222,7 +231,7 @@ function buildIntel(thread: ThreadWithRecentMessages): InboxThreadIntel {
     const inboundMessages = recentMessages.filter((message) => message.direction !== 'outbound');
     const outboundMessages = recentMessages.filter((message) => message.direction === 'outbound');
     const latestInboundText = inboundMessages[0]?.text || thread.preview || '';
-    const phone = normalizePhone(String(thread.remoteJid || thread.id || '').split('@')[0]);
+    const phone = getDirectPhoneFromJid(thread.remoteJid || thread.id);
     const { role, confidence } = detectRole([String(thread.title || ''), ...snippets]);
     const localities = extractLocalities(snippets);
     const propertyTypes = extractPropertyTypes(snippets);

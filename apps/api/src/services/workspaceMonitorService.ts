@@ -102,6 +102,15 @@ function normalizePhone(value?: string | null) {
     return digits.length >= 10 ? digits : null;
 }
 
+function getDirectPhoneFromJid(value?: string | null) {
+    const jid = String(value || '').trim().toLowerCase();
+    if (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@c.us')) {
+        return null;
+    }
+
+    return normalizePhone(jid.split('@')[0]);
+}
+
 function isOutboundSender(sender?: string | null) {
     const value = String(sender || '').trim().toLowerCase();
     return value === 'ai' || value === 'propai ai' || value.includes('@');
@@ -112,7 +121,7 @@ function buildDirectLabel(row: MessageRow) {
         return row.sender;
     }
 
-    const phone = normalizePhone(row.remote_jid?.split('@')[0]);
+    const phone = getDirectPhoneFromJid(row.remote_jid);
     return phone ? `+${phone}` : 'Direct contact';
 }
 
