@@ -924,6 +924,14 @@ export const Sources: React.FC = () => {
     }
   }, [currentSession?.label, currentSessionAuditPending, currentSessionStatus, fetchGroupAudit, searchParams]);
 
+  useEffect(() => {
+    if (currentSessionStatus !== 'connected' || !currentSession?.label) {
+      return;
+    }
+
+    void fetchGroupAudit(currentSession.label);
+  }, [currentSession?.label, currentSessionStatus, fetchGroupAudit]);
+
 
   const handleConnectWrapper = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1159,8 +1167,18 @@ export const Sources: React.FC = () => {
     await saveAssistantSettings();
   };
 
+  const handleParseDirectMessagesToggle = async () => {
+    const nextParseDirectMessages = !parseDirectMessages;
+    setParseDirectMessages(nextParseDirectMessages);
+    const saved = await saveAssistantSettings({ parseDirectMessages: nextParseDirectMessages });
+    if (!saved) {
+      setParseDirectMessages(currentSessionParseDirectMessages);
+    }
+  };
+
   const handleSelfChatAuditToggle = async () => {
     const nextSelfChatEnabled = !selfChatEnabled;
+    setSelfChatEnabled(nextSelfChatEnabled);
     const saved = await saveAssistantSettings({ selfChatEnabled: nextSelfChatEnabled });
     if (!saved) {
       setSelfChatEnabled(currentSessionSelfChatEnabled);
@@ -1494,9 +1512,10 @@ export const Sources: React.FC = () => {
               </div>
               <button
                 type="button"
-                onClick={() => setSelfChatEnabled((current) => !current)}
+                onClick={() => void handleSelfChatAuditToggle()}
+                disabled={isSavingParsingPrefs || !currentSession?.label}
                 className={cn(
-                  'relative h-6 w-11 rounded-full border transition-colors',
+                  'relative h-6 w-11 rounded-full border transition-colors disabled:opacity-50',
                   selfChatEnabled
                     ? 'border-[color:var(--accent-border)] bg-[var(--accent)]'
                     : 'border-[color:var(--border)] bg-[var(--bg-base)]',
@@ -1519,9 +1538,10 @@ export const Sources: React.FC = () => {
               </div>
               <button
                 type="button"
-                onClick={() => setParseDirectMessages((current) => !current)}
+                onClick={() => void handleParseDirectMessagesToggle()}
+                disabled={isSavingParsingPrefs || !currentSession?.label}
                 className={cn(
-                  'relative h-6 w-11 rounded-full border transition-colors',
+                  'relative h-6 w-11 rounded-full border transition-colors disabled:opacity-50',
                   parseDirectMessages
                     ? 'border-[color:var(--accent-border)] bg-[var(--accent)]'
                     : 'border-[color:var(--border)] bg-[var(--bg-base)]',
