@@ -53,7 +53,7 @@ const normalizeWhatsAppSession = (session: unknown): WhatsAppSessionSummary | nu
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'propai.sidebar_collapsed';
 export const Layout: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, isLoading, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -119,6 +119,15 @@ export const Layout: React.FC = () => {
   React.useEffect(() => {
     setIsSidebarOpen(false);
   }, [location.pathname, searchKey]);
+
+  React.useEffect(() => {
+    if (isLoading || user) {
+      return;
+    }
+
+    const nextPath = searchKey ? `${location.pathname}?${searchKey}` : location.pathname;
+    navigate(`/login?next=${encodeURIComponent(nextPath)}`, { replace: true });
+  }, [isLoading, location.pathname, navigate, searchKey, user]);
 
   React.useEffect(() => {
     try {
@@ -198,6 +207,19 @@ export const Layout: React.FC = () => {
   }, [selectedSessionLabel, syncSelectedSession]);
 
   React.useEffect(() => {
+    if (!user?.token) {
+      setWhatsappStatus({
+        status: 'disconnected',
+        connectedPhoneNumber: null,
+        connectedOwnerName: null,
+        activeCount: 0,
+        limit: 0,
+        sessions: [],
+        selectedSessionLabel: null,
+      });
+      return;
+    }
+
     let cancelled = false;
 
     void loadWhatsappStatus(cancelled);
@@ -209,7 +231,7 @@ export const Layout: React.FC = () => {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [loadWhatsappStatus]);
+  }, [loadWhatsappStatus, user?.token]);
 
   const connectedSessions = React.useMemo(
     () => whatsappStatus.sessions.filter((session) => session.status === 'connected'),

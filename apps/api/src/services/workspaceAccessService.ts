@@ -43,7 +43,46 @@ function normalizeSessionLabels(value: unknown): string[] {
         .filter(Boolean);
 }
 
+function isMissingWorkspaceMembershipSchemaError(error: unknown) {
+    const candidate = error as { code?: string; message?: string; details?: string; hint?: string } | null;
+    const haystack = [
+        candidate?.message,
+        candidate?.details,
+        candidate?.hint,
+    ]
+        .map((value) => String(value || '').toLowerCase())
+        .join(' ');
+
+    return candidate?.code === '42P01'
+        || candidate?.code === '42703'
+        || haystack.includes('workspace_members')
+        || haystack.includes('schema cache')
+        || haystack.includes('does not exist')
+        || haystack.includes('updated_at')
+        || haystack.includes('joined_at')
+        || haystack.includes('last_active_at')
+        || haystack.includes('assigned_session_labels')
+        || haystack.includes('preferred_session_label');
+}
+
 export class WorkspaceAccessService {
+    private buildOwnerContext(currentUserId: string, currentUserEmail: string, isSuperAdmin: boolean): WorkspaceContext {
+        return {
+            workspaceOwnerId: currentUserId,
+            workspaceOwnerEmail: currentUserEmail,
+            currentUserId,
+            currentUserEmail,
+            isWorkspaceOwner: true,
+            isSuperAdmin,
+            memberRole: 'owner',
+            canManageTeam: true,
+            canSendOutbound: true,
+            assignedSessionLabels: [],
+            preferredSessionLabel: null,
+            hasSessionRestriction: false,
+        };
+    }
+
     async resolveContext(user: AuthUserLike): Promise<WorkspaceContext> {
         const currentUserId = String(user?.id || '').trim();
         const currentUserEmail = normalizeEmail(user?.email);
@@ -53,20 +92,7 @@ export class WorkspaceAccessService {
         }
 
         if (OWNER_SUPER_ADMIN_EMAILS.has(currentUserEmail)) {
-            return {
-                workspaceOwnerId: currentUserId,
-                workspaceOwnerEmail: currentUserEmail,
-                currentUserId,
-                currentUserEmail,
-                isWorkspaceOwner: true,
-                isSuperAdmin: true,
-                memberRole: 'owner',
-                canManageTeam: true,
-                canSendOutbound: true,
-                assignedSessionLabels: [],
-                preferredSessionLabel: null,
-                hasSessionRestriction: false,
-            };
+            return this.buildOwnerContext(currentUserId, currentUserEmail, true);
         }
 
         const byUserId = await db
@@ -79,6 +105,9 @@ export class WorkspaceAccessService {
             .maybeSingle();
 
         if (byUserId.error) {
+            if (isMissingWorkspaceMembershipSchemaError(byUserId.error)) {
+                return this.buildOwnerContext(currentUserId, currentUserEmail, false);
+            }
             throw byUserId.error;
         }
 
@@ -134,6 +163,9 @@ export class WorkspaceAccessService {
                 .maybeSingle();
 
             if (byEmail.error) {
+                if (isMissingWorkspaceMembershipSchemaError(byEmail.error)) {
+                    return this.buildOwnerContext(currentUserId, currentUserEmail, false);
+                }
                 throw byEmail.error;
             }
 
@@ -169,20 +201,7 @@ export class WorkspaceAccessService {
             }
         }
 
-        return {
-            workspaceOwnerId: currentUserId,
-            workspaceOwnerEmail: currentUserEmail,
-            currentUserId,
-            currentUserEmail,
-            isWorkspaceOwner: true,
-            isSuperAdmin: false,
-            memberRole: 'owner',
-            canManageTeam: true,
-            canSendOutbound: true,
-            assignedSessionLabels: [],
-            preferredSessionLabel: null,
-            hasSessionRestriction: false,
-        };
+        return this.buildOwnerContext(currentUserId, currentUserEmail, false);
     }
 
     async requireWorkspaceAdmin(user: AuthUserLike) {

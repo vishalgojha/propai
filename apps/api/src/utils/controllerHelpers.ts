@@ -62,7 +62,40 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error) {
     return error.message || fallback;
   }
-  return String(error) || fallback;
+
+  if (error && typeof error === 'object') {
+    const candidate = error as Record<string, unknown>;
+    const directMessage = typeof candidate.message === 'string' ? candidate.message.trim() : '';
+    if (directMessage) {
+      return directMessage;
+    }
+
+    const nestedError = candidate.error;
+    if (typeof nestedError === 'string' && nestedError.trim()) {
+      return nestedError.trim();
+    }
+
+    if (nestedError && typeof nestedError === 'object') {
+      const nestedMessage = typeof (nestedError as Record<string, unknown>).message === 'string'
+        ? String((nestedError as Record<string, unknown>).message).trim()
+        : '';
+      if (nestedMessage) {
+        return nestedMessage;
+      }
+    }
+
+    try {
+      const serialized = JSON.stringify(error);
+      if (serialized && serialized !== '{}' && serialized !== 'null') {
+        return serialized;
+      }
+    } catch {
+      // Ignore stringify failures and use the fallback below.
+    }
+  }
+
+  const stringified = String(error || '').trim();
+  return stringified && stringified !== '[object Object]' ? stringified : fallback;
 }
 
 export function getErrorStatus(error: unknown, fallback = 500): number {

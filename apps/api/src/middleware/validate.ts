@@ -11,7 +11,11 @@ export function validate(schema: ZodSchema, source: 'body' | 'query' | 'params' 
             }));
             return res.status(400).json({ error: 'Validation failed', details });
         }
-        (req as unknown as Record<string, unknown>)[source] = result.data;
+        if (source === 'query') {
+            Object.assign(req.query as Record<string, unknown>, result.data as Record<string, unknown>);
+        } else {
+            (req as unknown as Record<string, unknown>)[source] = result.data;
+        }
         next();
     };
 }

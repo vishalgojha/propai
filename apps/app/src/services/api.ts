@@ -16,6 +16,18 @@ const backendApi = axios.create({
 });
 
 let refreshInFlight: Promise<Awaited<ReturnType<typeof refreshSupabaseSession>>> | null = null;
+let sessionExpiredDispatched = false;
+
+function dispatchSessionExpired(reason = SESSION_EXPIRED_MESSAGE) {
+  if (typeof window === 'undefined' || sessionExpiredDispatched) {
+    return;
+  }
+
+  sessionExpiredDispatched = true;
+  window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, {
+    detail: { reason },
+  }));
+}
 
 async function refreshSessionOnce() {
   const session = readStoredSession();
@@ -44,6 +56,7 @@ async function refreshSessionOnce() {
 
 export function setBackendApiAuthToken(token?: string | null) {
   if (token && typeof token === 'string') {
+    sessionExpiredDispatched = false;
     backendApi.defaults.headers.common.Authorization = `Bearer ${token}`;
     return;
   }
@@ -76,6 +89,7 @@ backendApi.interceptors.request.use(async (config) => {
     } else {
       clearStoredSession();
       setBackendApiAuthToken(null);
+      dispatchSessionExpired();
       return Promise.reject(new Error(SESSION_EXPIRED_MESSAGE));
     }
   }
@@ -90,6 +104,7 @@ backendApi.interceptors.request.use(async (config) => {
 
   clearStoredSession();
   setBackendApiAuthToken(null);
+  dispatchSessionExpired();
   return Promise.reject(new Error(SESSION_EXPIRED_MESSAGE));
 });
 
@@ -114,16 +129,12 @@ backendApi.interceptors.response.use(
       }
 
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, {
-          detail: { reason: error.response?.data?.message || error.response?.data?.error || SESSION_EXPIRED_MESSAGE },
-        }));
+        dispatchSessionExpired(error.response?.data?.message || error.response?.data?.error || SESSION_EXPIRED_MESSAGE);
       }
     }
 
     if (status === 401 && originalRequest && originalRequest._retry && hasBearerAuth && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, {
-        detail: { reason: error.response?.data?.message || error.response?.data?.error || SESSION_EXPIRED_MESSAGE },
-      }));
+      dispatchSessionExpired(error.response?.data?.message || error.response?.data?.error || SESSION_EXPIRED_MESSAGE);
     }
 
     if (error.code === 'ERR_CERT_AUTHORITY_INVALID' || error.code === 'Network Error') {

@@ -324,7 +324,12 @@ export const Agent: React.FC = () => {
   }, [messages, isNearBottom]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !user?.token) {
+      setSessions([]);
+      setActiveSessionId(null);
+      setSessionsLoaded(false);
+      return;
+    }
 
     let mounted = true;
 
@@ -345,7 +350,7 @@ export const Agent: React.FC = () => {
     loadSessions();
 
     return () => { mounted = false; };
-  }, []);
+  }, [user?.token]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !activeSessionId) return;
@@ -447,6 +452,15 @@ export const Agent: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!user?.token) {
+      setAiStatus('checking');
+      setRuntimeStatus(null);
+      setRuntimeCheckedAt(null);
+      setRuntimeNote(null);
+      setIdentityData(null);
+      return;
+    }
+
     let cancelled = false;
 
     const checkAiStatus = async () => {
@@ -483,7 +497,7 @@ export const Agent: React.FC = () => {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [user?.token]);
 
   useEffect(() => {
     const el = inputRef.current;

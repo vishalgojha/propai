@@ -1148,11 +1148,14 @@ type StreamCorrectionInput = {
 
 export class ChannelService {
     private readonly db = supabaseAdmin ?? supabase;
+    private networkTenantIdsCache = new Map<string, { expiresAt: number; tenantIds: string[] }>();
+    private igrEnrichmentCache = new Map<string, { expiresAt: number; transactions: IgrTransactionPreview[] }>();
 
     private async readAcceptedStreamItems(readClient: any, tenantIds: string[], options?: {
         streamIds?: string[];
         limit?: number;
         orderByCreatedAt?: boolean;
+        sessionLabel?: string | null;
     }) {
         const buildQuery = (acceptedOnly: boolean) => {
             let query = readClient
@@ -1166,6 +1169,10 @@ export class ChannelService {
 
             if (options?.streamIds?.length) {
                 query = query.in('id', options.streamIds);
+            }
+
+            if (options?.sessionLabel) {
+                query = query.eq('session_label', options.sessionLabel);
             }
 
             if (options?.orderByCreatedAt) {
@@ -1190,6 +1197,7 @@ export class ChannelService {
     private async countAcceptedStreamItems(tenantIds: string[], options?: {
         createdAfter?: string;
         sessionGroupIds?: string[] | null;
+        sessionLabel?: string | null;
     }) {
         const buildQuery = (acceptedOnly: boolean) => {
             let query = this.db
@@ -1203,6 +1211,10 @@ export class ChannelService {
 
             if (options?.sessionGroupIds) {
                 query = query.in('source_group_id', options.sessionGroupIds);
+            }
+
+            if (options?.sessionLabel) {
+                query = query.eq('session_label', options.sessionLabel);
             }
 
             if (options?.createdAfter) {
@@ -1541,6 +1553,12 @@ private backfillInitiatedScopes = new Set<string>();
             return [tenantId];
         }
 
+        const cacheKey = `network::${tenantId}`;
+        const cached = this.networkTenantIdsCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+            return cached.tenantIds;
+        }
+
         const { data, error } = await this.db
             .from('subscriptions')
             .select('tenant_id')
@@ -1551,10 +1569,17 @@ private backfillInitiatedScopes = new Set<string>();
             throw new Error(error.message);
         }
 
-        return Array.from(new Set([
+        const tenantIds = Array.from(new Set([
             tenantId,
             ...((data || []).map((row: any) => String(row.tenant_id || '')).filter(Boolean)),
         ]));
+
+        this.networkTenantIdsCache.set(cacheKey, {
+            tenantIds,
+            expiresAt: Date.now() + (60 * 1000),
+        });
+
+        return tenantIds;
     }
 
     async listStreamItems(
@@ -1613,10 +1638,32 @@ private backfillInitiatedScopes = new Set<string>();
             ));
         }
 
-        const { data, error } = await this.readAcceptedStreamItems(readClient, accessibleTenantIds, {
-            limit: Math.max(20, Math.min(200, limit)),
-            orderByCreatedAt: true,
-        });
+        const effectiveLimit = Math.max(20, Math.min(200, limit));
+        let data: any[] | null = null;
+        let error: any = null;
+
+        if (!networkMode && sessionLabel) {
+            const scopedResult = await this.readAcceptedStreamItems(readClient, accessibleTenantIds, {
+                limit: effectiveLimit,
+                orderByCreatedAt: true,
+                sessionLabel,
+            });
+
+            if (!scopedResult.error && Array.isArray(scopedResult.data) && scopedResult.data.length > 0) {
+                data = scopedResult.data;
+            } else if (scopedResult.error && !isMissingIngestionStatusError(scopedResult.error.message)) {
+                error = scopedResult.error;
+            }
+        }
+
+        if (!data && !error) {
+            const result = await this.readAcceptedStreamItems(readClient, accessibleTenantIds, {
+                limit: effectiveLimit,
+                orderByCreatedAt: true,
+            });
+            data = result.data || null;
+            error = result.error;
+        }
 
         if (error) {
             throw new Error(error.message);
@@ -1642,6 +1689,23 @@ private backfillInitiatedScopes = new Set<string>();
             oneDay: new Date(now - 24 * 60 * 60 * 1000).toISOString(),
             sevenDays: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
         } as const;
+        const countWindows = async (options?: { sessionGroupIds?: string[] | null; sessionLabel?: string | null }) => {
+            const [oneHour, fourHours, oneDay, sevenDays, allTime] = await Promise.all([
+                this.countAcceptedStreamItems(accessibleTenantIds, { ...options, createdAfter: windows.oneHour }),
+                this.countAcceptedStreamItems(accessibleTenantIds, { ...options, createdAfter: windows.fourHours }),
+                this.countAcceptedStreamItems(accessibleTenantIds, { ...options, createdAfter: windows.oneDay }),
+                this.countAcceptedStreamItems(accessibleTenantIds, { ...options, createdAfter: windows.sevenDays }),
+                this.countAcceptedStreamItems(accessibleTenantIds, options),
+            ]);
+
+            return {
+                oneHour: Number(oneHour.count || 0),
+                fourHours: Number(fourHours.count || 0),
+                oneDay: Number(oneDay.count || 0),
+                sevenDays: Number(sevenDays.count || 0),
+                allTime: Number(allTime.count || 0),
+            };
+        };
 
         if (channelId) {
             const { data: links, error: linksError } = await this.db
@@ -1686,6 +1750,13 @@ private backfillInitiatedScopes = new Set<string>();
             return counts;
         }
 
+        if (!networkMode && sessionLabel) {
+            const directCounts = await countWindows({ sessionLabel });
+            if (directCounts.allTime > 0) {
+                return directCounts;
+            }
+        }
+
         let sessionGroupIds: string[] | null = null;
         if (!networkMode && sessionLabel) {
             const groupsResult = await this.db
@@ -1708,39 +1779,11 @@ private backfillInitiatedScopes = new Set<string>();
                 if (sessionGroupIds.length === 0) {
                     return { oneHour: 0, fourHours: 0, oneDay: 0, sevenDays: 0, allTime: 0 };
                 }
+
+                return countWindows({ sessionGroupIds });
             }
         }
-        const { data, error } = await this.readAcceptedStreamItems(this.db, accessibleTenantIds, {
-            limit: 500,
-            orderByCreatedAt: true,
-        });
-
-        if (error) {
-            throw new Error(error.message);
-        }
-
-        const filteredItems = await this.filterItemsBySession(tenantId, data || [], sessionLabel, networkMode);
-        const counts = { oneHour: 0, fourHours: 0, oneDay: 0, sevenDays: 0, allTime: 0 };
-        const oneHourTs = new Date(windows.oneHour).getTime();
-        const fourHoursTs = new Date(windows.fourHours).getTime();
-        const oneDayTs = new Date(windows.oneDay).getTime();
-        const sevenDaysTs = new Date(windows.sevenDays).getTime();
-
-        for (const item of filteredItems) {
-            const createdAt = new Date(String((item as any).created_at || ''));
-            if (Number.isNaN(createdAt.getTime())) {
-                continue;
-            }
-
-            counts.allTime += 1;
-            const timestamp = createdAt.getTime();
-            if (timestamp >= sevenDaysTs) counts.sevenDays += 1;
-            if (timestamp >= oneDayTs) counts.oneDay += 1;
-            if (timestamp >= fourHoursTs) counts.fourHours += 1;
-            if (timestamp >= oneHourTs) counts.oneHour += 1;
-        }
-
-        return counts;
+        return countWindows();
     }
 
     private async filterItemsBySession(tenantId: string, items: any[], sessionLabel?: string | null, networkMode = false) {
@@ -2879,7 +2922,8 @@ ${rawText}
 
         const cache = new Map<string, IgrTransactionPreview[]>();
         const uniqueCandidates = new Map<string, { buildingName: string; location: string }>();
-        const maxCandidates = 8;
+        const maxCandidates = 2;
+        const cacheTtlMs = 10 * 60 * 1000;
 
         for (const item of lookupCandidates) {
             const buildingName = String(item.buildingName || '').trim();
@@ -2896,12 +2940,22 @@ ${rawText}
         try {
             await Promise.all(
                 Array.from(uniqueCandidates.entries()).map(async ([key, candidate]) => {
+                    const cached = this.igrEnrichmentCache.get(key);
+                    if (cached && cached.expiresAt > Date.now()) {
+                        cache.set(key, cached.transactions);
+                        return;
+                    }
+
                     const transactions = await igrQueryService.getRecentTransactionsForListing(
                         candidate.buildingName,
                         candidate.location,
                         3,
                     );
                     cache.set(key, transactions);
+                    this.igrEnrichmentCache.set(key, {
+                        transactions,
+                        expiresAt: Date.now() + cacheTtlMs,
+                    });
                 }),
             );
         } catch (error) {

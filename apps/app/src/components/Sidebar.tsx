@@ -121,6 +121,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
     OWNER_SUPER_ADMIN_EMAILS.has(String(user?.email || '').trim().toLowerCase());
 
   React.useEffect(() => {
+    if (!user?.token) {
+      setChannels([]);
+      setIsChannelsLoading(false);
+      return;
+    }
+
     let mounted = true;
 
     const loadChannels = async () => {
@@ -195,7 +201,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
       window.removeEventListener('channels:created', handleCreated as EventListener);
       window.clearInterval(interval);
     };
-  }, [user?.email]);
+  }, [user?.email, user?.token]);
 
   const activeChannel = React.useMemo(
     () => channels.find((channel) => channel.id === selectedChannelId) || null,
