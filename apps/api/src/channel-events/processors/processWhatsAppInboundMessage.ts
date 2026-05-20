@@ -528,6 +528,15 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
             await handleGroupMentionSearch(tenantId, remoteJid, mentionQuery, label);
             return;
         }
+
+        await whatsappHealthService.appendEvent(
+            tenantId,
+            label || 'default',
+            'group_message_parse_only',
+            'Group message stored for parsing only. AI did not auto-reply because there was no explicit PropAI mention.',
+            { remoteJid },
+        ).catch(() => undefined);
+        return;
     }
 
     const directParsingEnabled = await isDirectParsingEnabled(tenantId, label);
