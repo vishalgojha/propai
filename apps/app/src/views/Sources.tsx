@@ -914,7 +914,7 @@ export const Sources: React.FC = () => {
   }, [activeTab, fetchGroupAudit, fetchOutboundWorkspace]);
 
   useEffect(() => {
-    if (!isCurrentSessionConnected || !currentSession?.label) {
+    if (currentSessionStatus !== 'connected' || !currentSession?.label) {
       return;
     }
 
@@ -922,7 +922,7 @@ export const Sources: React.FC = () => {
       setActiveTab('audit');
       void fetchGroupAudit(currentSession.label);
     }
-  }, [currentSession?.label, currentSessionAuditPending, fetchGroupAudit, isCurrentSessionConnected, searchParams]);
+  }, [currentSession?.label, currentSessionAuditPending, currentSessionStatus, fetchGroupAudit, searchParams]);
 
 
   const handleConnectWrapper = async (event: React.FormEvent) => {
