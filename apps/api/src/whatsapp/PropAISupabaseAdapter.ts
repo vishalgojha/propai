@@ -10,6 +10,7 @@ import { channelService } from '../services/channelService';
 import { aiService } from '../services/aiService';
 import { whatsappHealthService } from '../services/whatsappHealthService';
 import { sessionEventService } from '../services/sessionEventService';
+import { whatsappThreadService } from '../services/whatsappThreadService';
 
 const db = supabaseAdmin ?? supabase;
 
@@ -128,6 +129,15 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
             if (existingMessage) {
                 return { id: String(existingMessage.id || rawDumpId) };
             }
+
+            await whatsappThreadService.upsertFromMessage({
+                tenantId: input.tenantId,
+                sessionLabel: input.label,
+                remoteJid: input.remoteJid,
+                sender: input.sender ?? undefined,
+                text: input.text,
+                timestamp,
+            });
 
             const { error: rawDumpError } = await db
                 .from('raw_dump')

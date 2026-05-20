@@ -7,6 +7,7 @@ import { followUpService } from './followUpService';
 import { subscriptionService } from './subscriptionService';
 import { igrQueryService } from './igrQueryService';
 import { browserToolService } from './browserToolService';
+import { whatsappThreadService } from './whatsappThreadService';
 import { normalizeConversationPhoneNumber } from '../memory/conversationMemory';
 
 type ExecuteAgentToolContext = {
@@ -49,6 +50,7 @@ export class AgentToolService {
             case 'send_message': {
                 const destinationJid = args.remote_jid;
                 const messageText = cleanMessageText(args.text);
+                const timestamp = new Date().toISOString();
                 await gateway.sendMessage({
                     workspaceOwnerId: tenantId,
                     remoteJid: destinationJid,
@@ -59,7 +61,14 @@ export class AgentToolService {
                     remote_jid: destinationJid,
                     text: messageText,
                     sender: 'AI',
-                    timestamp: new Date().toISOString(),
+                    timestamp,
+                });
+                await whatsappThreadService.upsertFromMessage({
+                    tenantId,
+                    remoteJid: destinationJid,
+                    text: messageText,
+                    sender: 'AI',
+                    timestamp,
                 });
                 return { success: true };
             }
@@ -67,6 +76,7 @@ export class AgentToolService {
                 try {
                     const destinationJid = args.remote_jid || remoteJid;
                     const messageText = cleanMessageText(args.text || args.message || '');
+                    const timestamp = new Date().toISOString();
                     await gateway.sendMessage({
                         workspaceOwnerId: tenantId,
                         remoteJid: destinationJid,
@@ -77,7 +87,14 @@ export class AgentToolService {
                         remote_jid: destinationJid,
                         text: messageText,
                         sender: 'AI',
-                        timestamp: new Date().toISOString(),
+                        timestamp,
+                    });
+                    await whatsappThreadService.upsertFromMessage({
+                        tenantId,
+                        remoteJid: destinationJid,
+                        text: messageText,
+                        sender: 'AI',
+                        timestamp,
                     });
                     return { success: true };
                 } catch (error: any) {

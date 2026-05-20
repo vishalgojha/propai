@@ -6,6 +6,7 @@ import { sessionEventService } from '../../services/sessionEventService';
 import { whatsappHealthService } from '../../services/whatsappHealthService';
 import { getWhatsAppGateway } from '../../channel-gateways/whatsapp/whatsappGatewayRegistry';
 import { getPhoneOwnership, markPhoneVerifiedForUser, normalizePhone as normalizePhoneValue } from '../../services/phoneOwnershipService';
+import { whatsappThreadService } from '../../services/whatsappThreadService';
 
 const db = supabaseAdmin || supabase;
 const AI_SENDER = 'AI';
@@ -114,12 +115,21 @@ async function triggerAgent(tenantId: string, remoteJid: string, text: string, s
         await sendViaTenantSession(tenantId, remoteJid, outboundText, sessionLabel);
         rememberSelfChatReply(tenantId, sessionLabel, remoteJid, outboundText);
 
+        const timestamp = new Date().toISOString();
         await db.from('messages').insert({
             tenant_id: tenantId,
             remote_jid: remoteJid,
             text: outboundText,
             sender: AI_SENDER,
-            timestamp: new Date().toISOString(),
+            timestamp,
+        });
+        await whatsappThreadService.upsertFromMessage({
+            tenantId,
+            sessionLabel,
+            remoteJid,
+            text: outboundText,
+            sender: AI_SENDER,
+            timestamp,
         });
         await whatsappHealthService.appendEvent(
             tenantId,
@@ -166,12 +176,21 @@ async function triggerAgent(tenantId: string, remoteJid: string, text: string, s
 async function sendAutomatedReply(tenantId: string, remoteJid: string, text: string, sessionLabel?: string) {
     await sendViaTenantSession(tenantId, remoteJid, text, sessionLabel);
     rememberSelfChatReply(tenantId, sessionLabel, remoteJid, text);
+    const timestamp = new Date().toISOString();
     await db.from('messages').insert({
         tenant_id: tenantId,
         remote_jid: remoteJid,
         text,
         sender: AI_SENDER,
-        timestamp: new Date().toISOString(),
+        timestamp,
+    });
+    await whatsappThreadService.upsertFromMessage({
+        tenantId,
+        sessionLabel,
+        remoteJid,
+        text,
+        sender: AI_SENDER,
+        timestamp,
     });
 }
 

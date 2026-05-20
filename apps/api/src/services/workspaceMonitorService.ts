@@ -3,6 +3,7 @@ import { liveMonitorService } from './liveMonitorService';
 import { inboxGovernanceService } from './inboxGovernanceService';
 import { inboxMemoryService } from './inboxMemoryService';
 import { whatsappPresenceService } from './whatsappPresenceService';
+import { whatsappThreadService, type WhatsAppThreadRow } from './whatsappThreadService';
 
 const db = supabaseAdmin || supabase;
 const DEFAULT_THREAD_PAGE_SIZE = 100;
@@ -26,6 +27,34 @@ type ThreadSnippet = {
     sender?: string | null;
     direction?: 'inbound' | 'outbound' | null;
     timestamp?: string | null;
+};
+
+type PersistedThreadRecord = {
+    id: string;
+    remoteJid: string;
+    type: 'group' | 'direct';
+    title: string;
+    preview: string;
+    lastMessageAt: string;
+    sender: string | null;
+    locality: string | null;
+    city: string | null;
+    category: string | null;
+    tags: string[];
+    participantsCount: number;
+    broadcastEnabled: boolean;
+    isParsing?: boolean;
+    messageCount: number;
+    recentMessages: ThreadSnippet[];
+    intel?: {
+        thread: {
+            inboundCount: number;
+            outboundCount: number;
+            lastInboundAt: string | null;
+            lastOutboundAt: string | null;
+            requirementSignals: string[];
+        };
+    };
 };
 
 type ChatRecord = {
@@ -129,6 +158,46 @@ function buildDirectLabel(row: MessageRow) {
 }
 
 export class WorkspaceMonitorService {
+    private buildThreadRecord(thread: WhatsAppThreadRow, groupMeta?: GroupRow): PersistedThreadRecord {
+        const remoteJid = String(thread.remote_jid || '');
+        const isGroup = remoteJid.endsWith('@g.us');
+        const title = String(thread.title || (isGroup ? groupMeta?.group_name || 'WhatsApp group' : buildDirectLabel({
+            id: remoteJid,
+            remote_jid: remoteJid,
+            sender: thread.last_sender || null,
+            text: thread.preview || null,
+            timestamp: thread.last_message_at || null,
+        }))).trim();
+
+        return {
+            id: remoteJid,
+            remoteJid,
+            type: isGroup ? 'group' : 'direct',
+            title,
+            preview: String(thread.preview || '').trim(),
+            lastMessageAt: String(thread.last_message_at || new Date().toISOString()),
+            sender: thread.last_sender || null,
+            locality: groupMeta?.locality || null,
+            city: groupMeta?.city || null,
+            category: groupMeta?.category || null,
+            tags: Array.isArray(groupMeta?.tags) ? groupMeta.tags : [],
+            participantsCount: Number(groupMeta?.member_count || 0),
+            broadcastEnabled: Boolean(groupMeta?.broadcast_enabled),
+            isParsing: groupMeta ? Boolean(groupMeta.is_parsing) : undefined,
+            messageCount: Number(thread.message_count || 0),
+            recentMessages: [],
+            intel: {
+                thread: {
+                    inboundCount: Number(thread.inbound_count || 0),
+                    outboundCount: Number(thread.outbound_count || 0),
+                    lastInboundAt: thread.last_inbound_at || null,
+                    lastOutboundAt: thread.last_outbound_at || null,
+                    requirementSignals: [],
+                },
+            },
+        };
+    }
+
     private async loadMessageRows(workspaceOwnerId: string, sessionLabel?: string | null): Promise<MonitorRow[]> {
         const liveRows = liveMonitorService.getSessionRows(workspaceOwnerId, sessionLabel);
         if (liveRows.length > 0) {
@@ -317,6 +386,17 @@ export class WorkspaceMonitorService {
 
     async getMonitorOverview(workspaceOwnerId: string, inboxOnly = false, sessionLabel?: string | null) {
         const context = await this.buildContext(workspaceOwnerId, sessionLabel);
+        const persistedThreads = await whatsappThreadService.listThreads(workspaceOwnerId, sessionLabel);
+        const persistedDirectThreads = persistedThreads.filter((thread) => !String(thread.remote_jid || '').endsWith('@g.us'));
+        if (inboxOnly && persistedDirectThreads.length > 0) {
+            const chats = persistedDirectThreads
+                .map((thread) => this.buildThreadRecord(thread, context.groupsByJid.get(String(thread.remote_jid || ''))))
+                .sort((left, right) => new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime());
+            const chatsWithIntel = await inboxMemoryService.decorateThreads(workspaceOwnerId, chats, sessionLabel);
+            const decoratedChats = await inboxGovernanceService.decorateThreads(workspaceOwnerId, chatsWithIntel, sessionLabel);
+            return this.buildSummaryPayload(decoratedChats, context.sessions, chats.reduce((sum, chat) => sum + chat.messageCount, 0));
+        }
+
         const rows = await this.loadMessageRows(workspaceOwnerId, sessionLabel);
         const chatsMap = new Map<string, ChatRecord>();
         let totalMessages = 0;

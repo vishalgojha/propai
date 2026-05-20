@@ -15,6 +15,7 @@ import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { whatsappPresenceService } from '../services/whatsappPresenceService';
 import { inboxGovernanceService } from '../services/inboxGovernanceService';
 import { groupAuditService } from '../services/groupAuditService';
+import { whatsappThreadService } from '../services/whatsappThreadService';
 import '../types/express';
 
 type LiveSessionRecord = {
@@ -1348,6 +1349,7 @@ export const sendMessage = async (req: Request, res: Response) => {
             sessionKey,
             getConnectedSessionLabels(liveSessions),
         );
+        const timestamp = new Date().toISOString();
 
         await gateway.sendMessage({
             workspaceOwnerId: tenantId,
@@ -1360,7 +1362,15 @@ export const sendMessage = async (req: Request, res: Response) => {
             remote_jid: remoteJid,
             text: String(text).trim(),
             sender: 'Broker',
-            timestamp: new Date().toISOString(),
+            timestamp,
+        });
+        await whatsappThreadService.upsertFromMessage({
+            tenantId,
+            sessionLabel: resolvedSessionLabel || undefined,
+            remoteJid,
+            text: String(text).trim(),
+            sender: 'Broker',
+            timestamp,
         });
         void workspaceActivityService.track({
             actor: user,
@@ -1398,6 +1408,7 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
         );
         const sent: Array<{ remoteJid: string; label?: string | null }> = [];
         const failed: Array<{ remoteJid: string; label?: string | null; error: string }> = [];
+        const timestamp = new Date().toISOString();
 
         for (const recipient of recipients) {
             const remoteJid = toWhatsAppJid(recipient?.remoteJid || recipient?.phone);
@@ -1418,6 +1429,14 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
                 await getDbClient().from('messages').insert({
                     tenant_id: tenantId,
                     remote_jid: remoteJid,
+                    text: String(text).trim(),
+                    sender: 'Broker',
+                    timestamp,
+                });
+                await whatsappThreadService.upsertFromMessage({
+                    tenantId,
+                    sessionLabel: resolvedSessionLabel || undefined,
+                    remoteJid,
                     text: String(text).trim(),
                     sender: 'Broker',
                     timestamp: new Date().toISOString(),
@@ -1492,6 +1511,16 @@ export const broadcastToGroups = async (req: Request, res: Response) => {
             }));
 
             await getDbClient().from('messages').insert(rows);
+            for (const groupJid of result.sent) {
+                await whatsappThreadService.upsertFromMessage({
+                    tenantId,
+                    sessionLabel: resolvedSessionLabel || undefined,
+                    remoteJid: groupJid,
+                    text: String(text).trim(),
+                    sender: 'Broker',
+                    timestamp,
+                });
+            }
         }
 
         void workspaceActivityService.track({
