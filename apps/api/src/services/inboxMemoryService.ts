@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+import { aiService } from './aiService';
 import {
     type InboxIntelligenceSettings,
     type InboxThreadMemory,
@@ -24,45 +26,26 @@ type ThreadWithRecentMessages = ThreadLike & {
     recentMessages?: ThreadMessageSnippet[] | null;
 };
 
-type ContactRole = 'broker' | 'buyer' | 'seller' | 'tenant' | 'owner' | 'unknown';
+export type InboxThreadIntel = Omit<InboxThreadMemory, 'updatedAt' | 'sourceHash' | 'analysis'>;
 
-export type InboxThreadIntel = Omit<InboxThreadMemory, 'updatedAt'>;
-
-const PROPERTY_KEYWORDS = [
-    '1 bhk',
-    '2 bhk',
-    '3 bhk',
-    '4 bhk',
-    'bhk',
-    'flat',
-    'apartment',
-    'villa',
-    'plot',
-    'office',
-    'shop',
-    'warehouse',
-    'commercial',
-    'rental',
-    'rent',
-];
-
-const LOCALITY_STOP_WORDS = new Set([
-    'a', 'an', 'and', 'for', 'from', 'is', 'looking', 'need', 'needs', 'of', 'on',
-    'please', 'property', 'requirement', 'required', 'the', 'this', 'urgent', 'want',
-]);
-
-const NON_LOCALITY_PATTERNS = /\b(?:ai|mba|internship|certificate|certifications?|course|college|university|subject|newsletter|learning|portfolio|skills|ctc|salary|job|career)\b/i;
-
-function escapeRegex(value: string) {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function hasKeywordMatch(haystack: string, keyword: string) {
-    const pattern = keyword.includes(' ')
-        ? `(^|[^a-z0-9])${escapeRegex(keyword)}($|[^a-z0-9])`
-        : `\\b${escapeRegex(keyword)}\\b`;
-    return new RegExp(pattern, 'i').test(haystack);
-}
+type AIThreadAnalysis = {
+    state: 'allowed' | 'held' | 'ignored';
+    category: 'real_estate_lead' | 'inventory_blast' | 'newsletter' | 'junk' | 'personal' | 'unclear';
+    reason: string;
+    confidence: 'high' | 'medium';
+    summary: string;
+    contact: {
+        phone: string | null;
+        role: 'broker' | 'buyer' | 'seller' | 'tenant' | 'owner' | 'unknown';
+        confidence: 'high' | 'medium';
+        localities: string[];
+        propertyTypes: string[];
+        budgets: string[];
+    };
+    thread: {
+        requirementSignals: string[];
+    };
+};
 
 function getSessionKey(sessionLabel?: string | null) {
     return sessionLabel && sessionLabel.trim() ? sessionLabel.trim() : 'workspace';
@@ -82,22 +65,23 @@ function getDirectPhoneFromJid(value?: string | null) {
     return normalizePhone(jid.split('@')[0]);
 }
 
-function compactText(value?: string | null, maxLength = 160) {
+function compactText(value?: string | null, maxLength = 220) {
     const compact = String(value || '').replace(/\s+/g, ' ').trim();
     if (!compact) {
         return '';
     }
+
     return compact.length > maxLength ? `${compact.slice(0, maxLength - 1).trim()}...` : compact;
 }
 
-function uniqueStrings(values: Array<string | null | undefined>, limit = 4) {
+function uniqueStrings(values: Array<string | null | undefined>, limit = 6) {
     const result: string[] = [];
     for (const value of values) {
-        const normalized = String(value || '').trim();
+        const normalized = String(value || '').replace(/\s+/g, ' ').trim();
         if (!normalized) {
             continue;
         }
-        if (result.some((existing) => existing.toLowerCase() === normalized.toLowerCase())) {
+        if (result.some((entry) => entry.toLowerCase() === normalized.toLowerCase())) {
             continue;
         }
         result.push(normalized);
@@ -108,171 +92,162 @@ function uniqueStrings(values: Array<string | null | undefined>, limit = 4) {
     return result;
 }
 
-function extractBudgets(texts: string[]) {
-    const matches: string[] = [];
-    for (const text of texts) {
-        const found = text.match(/\b\d+(?:\.\d+)?\s*(?:cr|crore|lac|lakh|k)\b/gi) || [];
-        for (const budget of found) {
-            matches.push(budget.replace(/\s+/g, ' ').trim());
-        }
-    }
-    return uniqueStrings(matches, 3);
+function buildSourceHash(thread: ThreadWithRecentMessages) {
+    const payload = JSON.stringify({
+        id: thread.id,
+        remoteJid: thread.remoteJid || null,
+        title: compactText(thread.title, 120),
+        preview: compactText(thread.preview, 160),
+        recentMessages: Array.isArray(thread.recentMessages)
+            ? thread.recentMessages.slice(0, 10).map((message) => ({
+                text: compactText(message.text, 220),
+                sender: compactText(message.sender, 80),
+                direction: message.direction || null,
+                timestamp: message.timestamp || null,
+            }))
+            : [],
+    });
+
+    return crypto.createHash('sha1').update(payload).digest('hex');
 }
 
-function extractPropertyTypes(texts: string[]) {
-    const matches: string[] = [];
-    for (const text of texts) {
-        const haystack = text.toLowerCase();
-        for (const keyword of PROPERTY_KEYWORDS) {
-            if (hasKeywordMatch(haystack, keyword)) {
-                matches.push(keyword.toUpperCase().includes('BHK')
-                    ? keyword.toUpperCase()
-                    : keyword.replace(/\b\w/g, (char) => char.toUpperCase()));
-            }
-        }
-    }
-    return uniqueStrings(matches, 4);
+function buildPrompt(thread: ThreadWithRecentMessages) {
+    const messages = (Array.isArray(thread.recentMessages) ? thread.recentMessages : [])
+        .slice(0, 10)
+        .map((message, index) => [
+            `Message ${index + 1}`,
+            `direction: ${message.direction || 'unknown'}`,
+            `sender: ${compactText(message.sender, 80) || 'unknown'}`,
+            `timestamp: ${message.timestamp || 'unknown'}`,
+            `text: ${compactText(message.text, 280) || '(empty)'}`,
+        ].join('\n'))
+        .join('\n\n');
+
+    return `Analyze this private WhatsApp direct-message thread for a broker workspace.
+
+Return only valid JSON with this exact shape:
+{
+  "state": "allowed" | "held" | "ignored",
+  "category": "real_estate_lead" | "inventory_blast" | "newsletter" | "junk" | "personal" | "unclear",
+  "reason": "short explanation",
+  "confidence": "high" | "medium",
+  "summary": "1-2 sentence factual summary, or 'Unclear thread context.'",
+  "contact": {
+    "phone": "digits only or null",
+    "role": "broker" | "buyer" | "seller" | "tenant" | "owner" | "unknown",
+    "confidence": "high" | "medium",
+    "localities": ["string"],
+    "propertyTypes": ["string"],
+    "budgets": ["string"]
+  },
+  "thread": {
+    "requirementSignals": ["string"]
+  }
 }
 
-function extractLocalities(texts: string[]) {
-    const matches: string[] = [];
-    for (const text of texts) {
-        const found = text.match(/\b(?:in|at|near|around)\s+([A-Za-z][A-Za-z0-9-]*(?:\s+[A-Za-z][A-Za-z0-9-]*){0,3})/gi) || [];
-        for (const entry of found) {
-            const normalized = entry.replace(/\b(?:in|at|near|around)\b/i, '').trim();
-            if (!normalized) {
-                continue;
-            }
-            const lower = normalized.toLowerCase();
-            if (LOCALITY_STOP_WORDS.has(lower)) {
-                continue;
-            }
-            if (NON_LOCALITY_PATTERNS.test(normalized)) {
-                continue;
-            }
-            if (/\b(?:bhk|cr|crore|lac|lakh|budget|buyer|seller|tenant|owner|broker|agent)\b/i.test(normalized)) {
-                continue;
-            }
-            matches.push(normalized.replace(/\b\w/g, (char) => char.toUpperCase()));
-        }
-    }
-    return uniqueStrings(matches, 4);
+Rules:
+- Use only evidence from the provided thread.
+- If the thread is not clearly real estate, set state to "held".
+- Do not invent locality, budget, or property data.
+- If uncertain, prefer empty arrays and "unknown".
+- For newsletter, marketing, training, hiring, inspirational, or generic promo content, classify as "newsletter" or "junk" and state "held".
+- Phone must be null unless a real direct-contact phone is evident.
+
+Thread metadata:
+- title: ${compactText(thread.title, 120) || 'unknown'}
+- preview: ${compactText(thread.preview, 160) || 'unknown'}
+- remoteJid: ${thread.remoteJid || thread.id}
+
+Recent messages:
+${messages || 'No recent messages available.'}`;
 }
 
-function detectRole(texts: string[]): { role: ContactRole; confidence: 'high' | 'medium' } {
-    const haystack = texts.join(' ').toLowerCase();
-    const counts = {
-        broker: (haystack.match(/\b(?:broker|realtor|agent|channel partner)\b/g) || []).length,
-        buyer: (haystack.match(/\bbuyer\b/g) || []).length,
-        seller: (haystack.match(/\bseller\b/g) || []).length,
-        tenant: (haystack.match(/\btenant\b/g) || []).length,
-        owner: (haystack.match(/\bowner\b/g) || []).length,
-    };
+function parseJson<T>(value: string): T {
+    const trimmed = value.trim();
+    const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const candidate = fenced ? fenced[1].trim() : trimmed;
+    return JSON.parse(candidate) as T;
+}
 
-    const ordered = (Object.entries(counts) as Array<[ContactRole, number]>)
-        .sort((left, right) => right[1] - left[1]);
-    const [topRole, topCount] = ordered[0] || ['unknown', 0];
-
-    if (!topCount) {
-        return { role: 'unknown', confidence: 'medium' };
-    }
-
+function sanitizeAIAnalysis(raw: AIThreadAnalysis, thread: ThreadWithRecentMessages): AIThreadAnalysis {
+    const phone = normalizePhone(raw?.contact?.phone) || getDirectPhoneFromJid(thread.remoteJid || thread.id);
     return {
-        role: topRole,
-        confidence: topCount >= 2 ? 'high' : 'medium',
-    };
-}
-
-function buildRequirementSignals(localities: string[], propertyTypes: string[], budgets: string[]) {
-    return uniqueStrings([
-        ...propertyTypes,
-        ...localities.map((locality) => `Locality: ${locality}`),
-        ...budgets.map((budget) => `Budget: ${budget}`),
-    ], 6);
-}
-
-function buildSummary(input: {
-    role: ContactRole;
-    propertyTypes: string[];
-    localities: string[];
-    budgets: string[];
-    latestInboundText: string;
-}) {
-    const parts: string[] = [];
-
-    if (input.role !== 'unknown') {
-        parts.push(`${input.role[0].toUpperCase()}${input.role.slice(1)} contact`);
-    } else {
-        parts.push('Direct contact');
-    }
-
-    if (input.propertyTypes.length > 0) {
-        parts.push(`asking about ${input.propertyTypes.join(', ')}`);
-    }
-
-    if (input.localities.length > 0) {
-        parts.push(`around ${input.localities.join(', ')}`);
-    }
-
-    if (input.budgets.length > 0) {
-        parts.push(`with ${input.budgets.join(', ')} budget`);
-    }
-
-    const prefix = parts.join(' ');
-    const latestInboundText = compactText(input.latestInboundText, 140);
-    return latestInboundText ? `${prefix}. Latest inbound: "${latestInboundText}"` : `${prefix}.`;
-}
-
-function buildIntel(thread: ThreadWithRecentMessages): InboxThreadIntel {
-    const recentMessages = Array.isArray(thread.recentMessages) ? thread.recentMessages : [];
-    const snippets = recentMessages
-        .map((message) => compactText(message.text, 220))
-        .filter(Boolean);
-    const inboundMessages = recentMessages.filter((message) => message.direction !== 'outbound');
-    const outboundMessages = recentMessages.filter((message) => message.direction === 'outbound');
-    const latestInboundText = inboundMessages[0]?.text || thread.preview || '';
-    const phone = getDirectPhoneFromJid(thread.remoteJid || thread.id);
-    const { role, confidence } = detectRole([String(thread.title || ''), ...snippets]);
-    const localities = extractLocalities(snippets);
-    const propertyTypes = extractPropertyTypes(snippets);
-    const budgets = extractBudgets(snippets);
-    const requirementSignals = buildRequirementSignals(localities, propertyTypes, budgets);
-
-    return {
-        summary: buildSummary({
-            role,
-            propertyTypes,
-            localities,
-            budgets,
-            latestInboundText: String(latestInboundText || ''),
-        }),
+        state: raw?.state === 'allowed' || raw?.state === 'held' || raw?.state === 'ignored' ? raw.state : 'held',
+        category: raw?.category === 'real_estate_lead'
+            || raw?.category === 'inventory_blast'
+            || raw?.category === 'newsletter'
+            || raw?.category === 'junk'
+            || raw?.category === 'personal'
+            ? raw.category
+            : 'unclear',
+        reason: compactText(raw?.reason, 220) || 'AI review pending.',
+        confidence: raw?.confidence === 'high' ? 'high' : 'medium',
+        summary: compactText(raw?.summary, 260) || 'Unclear thread context.',
         contact: {
             phone,
-            role,
-            confidence,
-            localities,
-            propertyTypes,
-            budgets,
+            role: raw?.contact?.role === 'broker'
+                || raw?.contact?.role === 'buyer'
+                || raw?.contact?.role === 'seller'
+                || raw?.contact?.role === 'tenant'
+                || raw?.contact?.role === 'owner'
+                ? raw.contact.role
+                : 'unknown',
+            confidence: raw?.contact?.confidence === 'high' ? 'high' : 'medium',
+            localities: uniqueStrings(raw?.contact?.localities || [], 4),
+            propertyTypes: uniqueStrings(raw?.contact?.propertyTypes || [], 4),
+            budgets: uniqueStrings(raw?.contact?.budgets || [], 3),
         },
+        thread: {
+            requirementSignals: uniqueStrings(raw?.thread?.requirementSignals || [], 6),
+        },
+    };
+}
+
+async function analyzeThreadWithAI(workspaceOwnerId: string, thread: ThreadWithRecentMessages): Promise<AIThreadAnalysis> {
+    const systemPrompt = 'You classify chaotic WhatsApp inbox threads for a real-estate broker workspace. You must be conservative, factual, and never invent fields.';
+    const response = await aiService.chat(
+        buildPrompt(thread),
+        'doubleword',
+        'inbox_intelligence',
+        workspaceOwnerId,
+        systemPrompt,
+    );
+
+    return sanitizeAIAnalysis(parseJson<AIThreadAnalysis>(response.text), thread);
+}
+
+function buildMemoryFromAI(thread: ThreadWithRecentMessages, sourceHash: string, analysis: AIThreadAnalysis): InboxThreadMemory {
+    const recentMessages = Array.isArray(thread.recentMessages) ? thread.recentMessages : [];
+    const inboundMessages = recentMessages.filter((message) => message.direction !== 'outbound');
+    const outboundMessages = recentMessages.filter((message) => message.direction === 'outbound');
+
+    return {
+        sourceHash,
+        analysis: {
+            state: analysis.state,
+            category: analysis.category,
+            reason: analysis.reason,
+            confidence: analysis.confidence,
+        },
+        summary: analysis.summary,
+        contact: analysis.contact,
         thread: {
             inboundCount: inboundMessages.length,
             outboundCount: outboundMessages.length,
             lastInboundAt: inboundMessages[0]?.timestamp || null,
             lastOutboundAt: outboundMessages[0]?.timestamp || null,
-            requirementSignals,
+            requirementSignals: analysis.thread.requirementSignals,
         },
+        updatedAt: new Date().toISOString(),
     };
 }
 
-function sameIntel(left: InboxThreadIntel, right?: InboxThreadMemory | null) {
-    if (!right) {
-        return false;
-    }
-    return JSON.stringify(left) === JSON.stringify({
-        summary: right.summary,
-        contact: right.contact,
-        thread: right.thread,
-    });
+function toIntel(memory: InboxThreadMemory): InboxThreadIntel {
+    return {
+        summary: memory.summary,
+        contact: memory.contact,
+        thread: memory.thread,
+    };
 }
 
 export class InboxMemoryService {
@@ -290,30 +265,76 @@ export class InboxMemoryService {
         const nextMemories: Record<string, InboxThreadMemory> = { ...storedMemories };
         let hasChanges = false;
 
-        const decoratedThreads = threads.map((thread) => {
-            const derived = buildIntel(thread);
+        const decoratedThreads = await Promise.all(threads.map(async (thread) => {
+            const sourceHash = buildSourceHash(thread);
             const stored = storedMemories[thread.id] || null;
-            if (!sameIntel(derived, stored)) {
-                hasChanges = true;
-                nextMemories[thread.id] = {
-                    ...derived,
-                    updatedAt: new Date().toISOString(),
-                };
+
+            if (!stored || stored.sourceHash !== sourceHash || !stored.analysis) {
+                try {
+                    nextMemories[thread.id] = buildMemoryFromAI(
+                        thread,
+                        sourceHash,
+                        await analyzeThreadWithAI(workspaceOwnerId, thread),
+                    );
+                    hasChanges = true;
+                } catch (error) {
+                    console.error('[InboxMemory] AI analysis failed', { threadId: thread.id, error });
+                    if (!stored) {
+                        nextMemories[thread.id] = {
+                            sourceHash,
+                            analysis: {
+                                state: 'held',
+                                category: 'unclear',
+                                reason: 'AI analysis is temporarily unavailable, so this thread is being held until it can be reviewed again.',
+                                confidence: 'medium',
+                            },
+                            summary: 'AI analysis pending.',
+                            contact: {
+                                phone: getDirectPhoneFromJid(thread.remoteJid || thread.id),
+                                role: 'unknown',
+                                confidence: 'medium',
+                                localities: [],
+                                propertyTypes: [],
+                                budgets: [],
+                            },
+                            thread: {
+                                inboundCount: 0,
+                                outboundCount: 0,
+                                lastInboundAt: null,
+                                lastOutboundAt: null,
+                                requirementSignals: [],
+                            },
+                            updatedAt: new Date().toISOString(),
+                        };
+                        hasChanges = true;
+                    }
+                }
             }
 
             const effective = nextMemories[thread.id] || stored;
             const { recentMessages, ...rest } = thread;
             return {
                 ...(rest as Omit<T, 'recentMessages'>),
-                intel: effective
-                    ? {
-                        summary: effective.summary,
-                        contact: effective.contact,
-                        thread: effective.thread,
-                    }
-                    : derived,
+                intel: effective ? toIntel(effective) : {
+                    summary: 'AI analysis pending.',
+                    contact: {
+                        phone: getDirectPhoneFromJid(thread.remoteJid || thread.id),
+                        role: 'unknown',
+                        confidence: 'medium',
+                        localities: [],
+                        propertyTypes: [],
+                        budgets: [],
+                    },
+                    thread: {
+                        inboundCount: 0,
+                        outboundCount: 0,
+                        lastInboundAt: null,
+                        lastOutboundAt: null,
+                        requirementSignals: [],
+                    },
+                },
             };
-        });
+        }));
 
         if (hasChanges) {
             await saveWorkspaceSettingsRecord(workspaceOwnerId, {

@@ -36,6 +36,13 @@ export type InboxThreadOverride = {
 
 export type InboxThreadMemory = {
     summary: string;
+    sourceHash?: string;
+    analysis?: {
+        state: InboxThreadState;
+        category: 'real_estate_lead' | 'inventory_blast' | 'newsletter' | 'junk' | 'personal' | 'unclear';
+        reason: string;
+        confidence: 'high' | 'medium';
+    };
     contact: {
         phone: string | null;
         role: 'broker' | 'buyer' | 'seller' | 'tenant' | 'owner' | 'unknown';
@@ -212,6 +219,25 @@ function sanitizeInboxIntelligenceSettings(value: unknown): InboxIntelligenceSet
 
                 memoryAcc[threadId] = {
                     summary,
+                    sourceHash: typeof candidate.sourceHash === 'string' && candidate.sourceHash.trim()
+                        ? candidate.sourceHash.trim()
+                        : undefined,
+                    analysis: candidate.analysis && typeof candidate.analysis === 'object'
+                        ? {
+                            state: candidate.analysis.state === 'allowed' || candidate.analysis.state === 'held' || candidate.analysis.state === 'ignored'
+                                ? candidate.analysis.state
+                                : 'held',
+                            category: candidate.analysis.category === 'real_estate_lead'
+                                || candidate.analysis.category === 'inventory_blast'
+                                || candidate.analysis.category === 'newsletter'
+                                || candidate.analysis.category === 'junk'
+                                || candidate.analysis.category === 'personal'
+                                ? candidate.analysis.category
+                                : 'unclear',
+                            reason: typeof candidate.analysis.reason === 'string' ? candidate.analysis.reason : 'AI review pending.',
+                            confidence: candidate.analysis.confidence === 'high' ? 'high' : 'medium',
+                        }
+                        : undefined,
                     contact: {
                         phone: typeof contact.phone === 'string' ? contact.phone : null,
                         role: contact.role === 'broker' || contact.role === 'buyer' || contact.role === 'seller' || contact.role === 'tenant' || contact.role === 'owner'

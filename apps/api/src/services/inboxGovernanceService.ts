@@ -1,7 +1,9 @@
 import {
     type InboxIntelligenceSettings,
+    type InboxThreadMemory,
     type InboxThreadOverride,
     type InboxThreadState,
+    DEFAULT_SETTINGS,
     getWorkspaceSettingsRecord,
     saveWorkspaceSettingsRecord,
 } from './workspaceSettingsService';
@@ -21,122 +23,31 @@ type InboxGovernanceDecision = {
     override: boolean;
 };
 
-const REAL_ESTATE_KEYWORDS = [
-    'buyer',
-    'seller',
-    'tenant',
-    'landlord',
-    'owner',
-    'broker',
-    'realtor',
-    'agent',
-    'property',
-    'listing',
-    'inventory',
-    'rent',
-    'rental',
-    'lease',
-    'sale',
-    'resale',
-    'bhk',
-    'flat',
-    'apartment',
-    'villa',
-    'plot',
-    'commercial',
-    'office',
-    'warehouse',
-    'shop',
-    'sqft',
-    'budget',
-    'cr',
-    'lac',
-    'lakh',
-    'crore',
-    'locality',
-    'site visit',
-];
-
-const LOW_SIGNAL_PATTERNS = [
-    'good morning',
-    'good night',
-    'happy birthday',
-    'happy anniversary',
-    'festival wishes',
-    'okay',
-    'thanks',
-    'thank you',
-];
-
-function escapeRegex(value: string) {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function hasKeywordMatch(haystack: string, keyword: string) {
-    const pattern = keyword.includes(' ')
-        ? `(^|[^a-z0-9])${escapeRegex(keyword)}($|[^a-z0-9])`
-        : `\\b${escapeRegex(keyword)}\\b`;
-    return new RegExp(pattern, 'i').test(haystack);
-}
-
 function getSessionKey(sessionLabel?: string | null) {
     return sessionLabel && sessionLabel.trim() ? sessionLabel.trim() : 'workspace';
 }
 
-function isEmojiHeavy(text?: string | null) {
-    const value = String(text || '').trim();
-    if (!value) {
-        return false;
-    }
-
-    const emojiMatches = value.match(/[\u{1F300}-\u{1FAFF}]/gu) || [];
-    const alphaNumeric = value.replace(/[^a-z0-9]/gi, '');
-    return emojiMatches.length >= 2 && alphaNumeric.length <= Math.max(4, Math.floor(value.length * 0.25));
-}
-
-function inferThreadDecision(thread: ThreadLike, config: InboxIntelligenceSettings): Omit<InboxGovernanceDecision, 'override'> {
-    const haystack = `${thread.title || ''} ${thread.preview || ''}`.toLowerCase();
-    const hasBlockedLink = config.blockedDomains.some((pattern) => haystack.includes(pattern));
-    const hasLowSignalPhrase = config.filterLowSignal && LOW_SIGNAL_PATTERNS.some((pattern) => haystack.includes(pattern));
-    const hasRealEstateKeyword = REAL_ESTATE_KEYWORDS.some((pattern) => hasKeywordMatch(haystack, pattern))
-        || /\b\d+\s*bhk\b/.test(haystack)
-        || /\b\d+(\.\d+)?\s*(cr|crore|lac|lakh)\b/.test(haystack);
-
-    if (hasBlockedLink && !hasRealEstateKeyword) {
+function inferThreadDecision(memory?: InboxThreadMemory | null): Omit<InboxGovernanceDecision, 'override'> {
+    if (memory?.analysis) {
         return {
-            state: 'held',
-            reason: 'AI held this thread because the latest message looks like a social link, not a real-estate lead for the inbox.',
-            confidence: 'high',
-        };
-    }
-
-    if ((hasLowSignalPhrase || (config.filterEmojiHeavy && isEmojiHeavy(thread.preview))) && !hasRealEstateKeyword) {
-        return {
-            state: 'held',
-            reason: 'AI held this thread because it looks like low-signal chatter instead of business context for the inbox.',
-            confidence: 'medium',
-        };
-    }
-
-    if (!hasRealEstateKeyword) {
-        return {
-            state: 'held',
-            reason: 'AI held this thread until it sees a real-estate signal or you explicitly allow it into the inbox.',
-            confidence: 'medium',
+            state: memory.analysis.state,
+            reason: memory.analysis.reason,
+            confidence: memory.analysis.confidence,
         };
     }
 
     return {
-        state: 'allowed',
-        reason: 'AI marked this thread as real-estate relevant and safe to keep in your private inbox.',
-        confidence: 'high',
+        state: 'held',
+        reason: 'AI review is pending for this thread, so it is being held outside the inbox for now.',
+        confidence: 'medium',
     };
 }
 
 export class InboxGovernanceService {
     async getConfig(workspaceOwnerId: string) {
         const record = await getWorkspaceSettingsRecord(workspaceOwnerId);
-        return record.settings.inboxIntelligence as InboxIntelligenceSettings;
+        return record.settings.inboxIntelligence
+            ?? (DEFAULT_SETTINGS.inboxIntelligence as InboxIntelligenceSettings);
     }
 
     async getThreadOverride(workspaceOwnerId: string, chatId: string, sessionLabel?: string | null): Promise<InboxThreadOverride | null> {
@@ -153,7 +64,8 @@ export class InboxGovernanceService {
         reason?: string | null;
     }) {
         const record = await getWorkspaceSettingsRecord(input.workspaceOwnerId);
-        const config = record.settings.inboxIntelligence as InboxIntelligenceSettings;
+        const config = record.settings.inboxIntelligence
+            ?? (DEFAULT_SETTINGS.inboxIntelligence as InboxIntelligenceSettings);
         const sessionKey = getSessionKey(input.sessionLabel);
         const nextConfig: InboxIntelligenceSettings = {
             ...config,
@@ -195,10 +107,12 @@ export class InboxGovernanceService {
 
     async decorateThreads(workspaceOwnerId: string, threads: ThreadLike[], sessionLabel?: string | null) {
         const config = await this.getConfig(workspaceOwnerId);
-        const sessionOverrides = config.sessions[getSessionKey(sessionLabel)]?.threads || {};
+        const sessionData = config.sessions[getSessionKey(sessionLabel)] || { threads: {}, memories: {} };
+        const sessionOverrides = sessionData.threads || {};
+        const sessionMemories = sessionData.memories || {};
 
         return threads.map((thread) => {
-            const inferred = inferThreadDecision(thread, config);
+            const inferred = inferThreadDecision(sessionMemories[thread.id] || null);
             const override = sessionOverrides[thread.id] || null;
             const decision: InboxGovernanceDecision = override
                 ? {

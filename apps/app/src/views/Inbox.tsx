@@ -106,71 +106,6 @@ type ThreadSignal = {
 };
 
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
-const REAL_ESTATE_KEYWORDS = [
-  'buyer',
-  'seller',
-  'tenant',
-  'landlord',
-  'owner',
-  'broker',
-  'realtor',
-  'agent',
-  'property',
-  'listing',
-  'inventory',
-  'rent',
-  'rental',
-  'lease',
-  'sale',
-  'resale',
-  'bhk',
-  'flat',
-  'apartment',
-  'villa',
-  'plot',
-  'commercial',
-  'office',
-  'warehouse',
-  'shop',
-  'sqft',
-  'budget',
-  'cr',
-  'lac',
-  'lakh',
-  'crore',
-  'locality',
-  'site visit',
-];
-const LOW_SIGNAL_PATTERNS = [
-  'good morning',
-  'good night',
-  'happy birthday',
-  'happy anniversary',
-  'festival wishes',
-  'okay',
-  'thanks',
-  'thank you',
-];
-const BLOCKED_LINK_PATTERNS = [
-  'youtube.com',
-  'youtu.be',
-  'instagram.com',
-  'instagr.am',
-  'facebook.com',
-  'fb.watch',
-  'x.com',
-  'twitter.com',
-];
-
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const hasKeywordMatch = (haystack: string, keyword: string) => {
-  const pattern = keyword.includes(' ')
-    ? `(^|[^a-z0-9])${escapeRegex(keyword)}($|[^a-z0-9])`
-    : `\\b${escapeRegex(keyword)}\\b`;
-  return new RegExp(pattern, 'i').test(haystack);
-};
-
 const formatTime = (value?: string | null) =>
   value
     ? new Intl.DateTimeFormat('en-IN', {
@@ -255,55 +190,11 @@ const formatRoleLabel = (role: InboxThreadIntel['contact']['role']) => {
   return role.charAt(0).toUpperCase() + role.slice(1);
 };
 
-const isEmojiHeavy = (value?: string | null) => {
-  const text = String(value || '').trim();
-  if (!text) {
-    return false;
-  }
-
-  const emojiMatches = text.match(/[\u{1F300}-\u{1FAFF}]/gu) || [];
-  const alphaNumeric = text.replace(/[^a-z0-9]/gi, '');
-  return emojiMatches.length >= 2 && alphaNumeric.length <= Math.max(4, Math.floor(text.length * 0.25));
-};
-
-const inferThreadSignal = (chat: InboxChat): ThreadSignal => {
-  const haystack = `${chat.title} ${chat.preview}`.toLowerCase();
-  const hasBlockedLink = BLOCKED_LINK_PATTERNS.some((pattern) => haystack.includes(pattern));
-  const hasLowSignalPhrase = LOW_SIGNAL_PATTERNS.some((pattern) => haystack.includes(pattern));
-  const hasRealEstateKeyword = REAL_ESTATE_KEYWORDS.some((pattern) => hasKeywordMatch(haystack, pattern))
-    || /\b\d+\s*bhk\b/.test(haystack)
-    || /\b\d+(\.\d+)?\s*(cr|crore|lac|lakh)\b/.test(haystack);
-
-  if (hasBlockedLink && !hasRealEstateKeyword) {
-    return {
-      suggestedState: 'held',
-      reason: 'AI held this thread because the latest message looks like a social link, not a real-estate lead for your inbox.',
-      confidence: 'high',
-    };
-  }
-
-  if ((hasLowSignalPhrase || isEmojiHeavy(chat.preview)) && !hasRealEstateKeyword) {
-    return {
-      suggestedState: 'held',
-      reason: 'AI held this thread because it looks like low-signal chatter instead of business context for the inbox.',
-      confidence: 'medium',
-    };
-  }
-
-  if (!hasRealEstateKeyword) {
-    return {
-      suggestedState: 'held',
-      reason: 'AI held this thread until it sees a real-estate signal or you explicitly allow it into the inbox.',
-      confidence: 'medium',
-    };
-  }
-
-  return {
-    suggestedState: 'allowed',
-    reason: 'AI marked this thread as real-estate relevant and safe to keep in your private inbox.',
-    confidence: 'high',
-  };
-};
+const inferThreadSignal = (): ThreadSignal => ({
+  suggestedState: 'held',
+  reason: 'AI review is pending for this thread, so it is being held outside the inbox for now.',
+  confidence: 'medium',
+});
 
 const isOutboundSender = (sender?: string | null) => {
   const value = String(sender || '').trim().toLowerCase();
@@ -557,7 +448,7 @@ export const Inbox: React.FC = () => {
             reason: chat.governance.reason,
             confidence: chat.governance.confidence,
           }
-        : inferThreadSignal(chat);
+        : inferThreadSignal();
       return acc;
     }, {}),
     [chats],
@@ -590,7 +481,7 @@ export const Inbox: React.FC = () => {
   );
 
   const selectedChat = visibleChats.find((chat) => chat.id === selectedChatId) || visibleChats[0] || null;
-  const selectedSignal = selectedChat ? threadSignals[selectedChat.id] || inferThreadSignal(selectedChat) : null;
+  const selectedSignal = selectedChat ? threadSignals[selectedChat.id] || inferThreadSignal() : null;
   const selectedIntel = selectedChat?.intel || null;
   const selectedPhone = getDirectPhoneFromJid(selectedChat?.remoteJid);
   const connectedSessions = React.useMemo(
@@ -1074,7 +965,7 @@ export const Inbox: React.FC = () => {
                           {selectedSignal?.reason || 'AI is evaluating this thread for business relevance.'}
                         </p>
                         <p className="mt-1 text-[12px] leading-5 text-slate-400">
-                          Social links, emoji-heavy chatter, and non-real-estate DMs are held out by default unless you explicitly allow them.
+                          Inbox relevance is model-reviewed from actual thread context. If the model is uncertain, the thread stays held until you explicitly allow it.
                         </p>
                       </div>
                       <span className={cn(
