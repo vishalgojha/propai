@@ -7,6 +7,13 @@ export const metadata: Metadata = {
   title: "PropAI Pulse | Real-Time Off-Market Mumbai Real Estate",
   description:
     "Access Mumbai's off-market property inventory before it hits MagicBricks or 99acres. Sourced directly from real-time broker broadcasts using AI.",
+  metadataBase: new URL("https://www.propai.live"),
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "PropAI",
+  },
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
