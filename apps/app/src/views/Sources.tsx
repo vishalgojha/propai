@@ -1121,27 +1121,49 @@ export const Sources: React.FC = () => {
     }
   };
 
-  const handleSaveParsingPreferences = async () => {
+  const saveAssistantSettings = useCallback(async (overrides?: {
+    parseDirectMessages?: boolean;
+    selfChatEnabled?: boolean;
+  }) => {
     if (!currentSession?.label) {
       setError('Connect a WhatsApp session first.');
-      return;
+      return false;
     }
+
+    const nextParseDirectMessages = overrides?.parseDirectMessages ?? parseDirectMessages;
+    const nextSelfChatEnabled = overrides?.selfChatEnabled ?? selfChatEnabled;
 
     setIsSavingParsingPrefs(true);
     setError(null);
     try {
       await backendApi.post(ENDPOINTS.whatsapp.config, {
         session_label: currentSession.label,
-        parse_direct_messages: parseDirectMessages,
-        self_chat_enabled: selfChatEnabled,
+        parse_direct_messages: nextParseDirectMessages,
+        self_chat_enabled: nextSelfChatEnabled,
       });
+      setParseDirectMessages(nextParseDirectMessages);
+      setSelfChatEnabled(nextSelfChatEnabled);
       await fetchStatus();
       await fetchLogs();
       await fetchHealth();
+      return true;
     } catch (err) {
       setError(handleApiError(err));
+      return false;
     } finally {
       setIsSavingParsingPrefs(false);
+    }
+  }, [currentSession?.label, fetchHealth, fetchLogs, fetchStatus, parseDirectMessages, selfChatEnabled]);
+
+  const handleSaveParsingPreferences = async () => {
+    await saveAssistantSettings();
+  };
+
+  const handleSelfChatAuditToggle = async () => {
+    const nextSelfChatEnabled = !selfChatEnabled;
+    const saved = await saveAssistantSettings({ selfChatEnabled: nextSelfChatEnabled });
+    if (!saved) {
+      setSelfChatEnabled(currentSessionSelfChatEnabled);
     }
   };
 
@@ -1564,6 +1586,59 @@ export const Sources: React.FC = () => {
             {!currentSession?.label ? (
               <div className="mt-4 rounded-[10px] border border-[color:rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.08)] px-4 py-3 text-[12px] text-[var(--amber)]">
                 Connect a WhatsApp number first. Audit becomes available as soon as the group sync completes.
+              </div>
+            ) : null}
+
+            {currentSession?.label ? (
+              <div className="mt-5 rounded-[16px] border border-[color:var(--accent-border)] bg-[linear-gradient(135deg,rgba(62,232,138,0.12),rgba(8,15,11,0.92))] p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="max-w-3xl">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.12)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      Self chat with PropAI
+                    </div>
+                    <h4 className="mt-3 text-[16px] font-semibold text-[var(--text-primary)]">Use this number's WhatsApp self chat as your field assistant.</h4>
+                    <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
+                      Most brokers are on the move. Enable self chat on this number and message yourself in WhatsApp whenever you want PropAI to summarize a requirement, think through a lead, or help with the next move without opening the app.
+                    </p>
+                    <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
+                      Once enabled, open WhatsApp on this same number and send a message to your own chat. PropAI will treat that self chat as a private AI lane for this workspace.
+                    </p>
+                  </div>
+                  <div className="flex min-w-[240px] flex-col gap-3 rounded-[14px] border border-[color:var(--border)] bg-[rgba(5,10,8,0.78)] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Self chat</p>
+                        <p className="mt-1 text-[14px] font-semibold text-[var(--text-primary)]">{selfChatEnabled ? 'Enabled on this number' : 'Off on this number'}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleSelfChatAuditToggle()}
+                        disabled={isSavingParsingPrefs || !currentSession?.label}
+                        className={cn(
+                          'relative h-6 w-11 rounded-full border transition-colors disabled:opacity-50',
+                          selfChatEnabled
+                            ? 'border-[color:var(--accent-border)] bg-[var(--accent)]'
+                            : 'border-[color:var(--border)] bg-[var(--bg-base)]',
+                        )}
+                        aria-pressed={selfChatEnabled}
+                        aria-label="Toggle self chat on this number"
+                      >
+                        <span
+                          className={cn(
+                            'absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform',
+                            selfChatEnabled ? 'translate-x-5' : 'translate-x-0.5',
+                          )}
+                        />
+                      </button>
+                    </div>
+                    <p className="text-[11px] leading-5 text-[var(--text-secondary)]">
+                      {selfChatEnabled
+                        ? 'You can now use your own WhatsApp chat on this number to talk to PropAI.'
+                        : 'Keep direct parsing off if you want. This only opens your own self chat as an AI lane.'}
+                    </p>
+                  </div>
+                </div>
               </div>
             ) : null}
 
