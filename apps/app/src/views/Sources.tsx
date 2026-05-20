@@ -1637,6 +1637,18 @@ export const Sources: React.FC = () => {
                         ? 'You can now use your own WhatsApp chat on this number to talk to PropAI.'
                         : 'Keep direct parsing off if you want. This only opens your own self chat as an AI lane.'}
                     </p>
+                    <div className="rounded-[12px] border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-3">
+                      <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">How to start</p>
+                      <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
+                        Open WhatsApp on this number, open your own self chat, and send:
+                      </p>
+                      <div className="mt-2 inline-flex rounded-[8px] border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.12)] px-3 py-1.5 text-[12px] font-semibold text-[var(--accent)]">
+                        Hi
+                      </div>
+                      <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
+                        PropAI will reply inside your self chat and you can continue there like a private on-field assistant.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
