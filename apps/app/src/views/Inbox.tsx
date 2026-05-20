@@ -168,6 +168,16 @@ const normalizePhone = (value?: string | null) => {
   return digits.length >= 10 ? digits : null;
 };
 
+const formatPhoneLabel = (value?: string | null) => {
+  const phone = normalizePhone(value);
+  return phone ? `+${phone}` : null;
+};
+
+const isLikelyJid = (value?: string | null) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized.includes('@') || normalized.endsWith('.us');
+};
+
 const buildWaLink = (phone: string, title: string) => {
   const text = `Hi ${title}, reaching out on your real estate message.`;
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
@@ -245,6 +255,50 @@ const buildDirectTitle = (row: RawMessageRow) => {
 
   const phone = normalizePhone(String(row.remote_jid || '').split('@')[0]);
   return phone ? `+${phone}` : 'Direct contact';
+};
+
+const getChatDisplayTitle = (chat?: InboxChat | null) => {
+  if (!chat) {
+    return 'Direct contact';
+  }
+
+  const normalizedTitle = String(chat.title || '').trim();
+  if (normalizedTitle && !isLikelyJid(normalizedTitle)) {
+    return normalizedTitle;
+  }
+
+  return formatPhoneLabel(chat.remoteJid?.split('@')[0])
+    || formatPhoneLabel(chat.intel?.contact.phone)
+    || normalizedTitle
+    || 'Direct contact';
+};
+
+const getChatSubtitle = (chat?: InboxChat | null) => {
+  if (!chat) {
+    return '';
+  }
+
+  return [
+    formatPhoneLabel(chat.intel?.contact.phone) || formatPhoneLabel(chat.remoteJid?.split('@')[0]),
+    `last activity ${formatTime(chat.lastMessageAt)}`,
+  ].filter(Boolean).join(' · ');
+};
+
+const formatSenderLabel = (sender?: string | null, chat?: InboxChat | null) => {
+  if (isOutboundSender(sender)) {
+    return 'You';
+  }
+
+  const normalized = String(sender || '').trim();
+  if (!normalized) {
+    return getChatDisplayTitle(chat);
+  }
+
+  if (!isLikelyJid(normalized)) {
+    return normalized;
+  }
+
+  return formatPhoneLabel(normalized.split('@')[0]) || getChatDisplayTitle(chat);
 };
 
 const fallbackInboxFromMessages = (rows: RawMessageRow[]): InboxResponse => {
@@ -343,6 +397,8 @@ export const Inbox: React.FC = () => {
   const [isLoading, setIsLoading] = React.useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
   const [isSavingGovernance, setIsSavingGovernance] = React.useState(false);
+  const [draft, setDraft] = React.useState('');
+  const [isSending, setIsSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [listMode, setListMode] = React.useState<ThreadGovernanceState>('allowed');
 
@@ -457,6 +513,8 @@ export const Inbox: React.FC = () => {
   const selectedIntel = selectedChat?.intel || null;
   const selectedPhone = normalizePhone(selectedChat?.remoteJid?.split('@')[0]);
   const selectedSessionChip = selectedSessionLabel || 'workspace';
+  const selectedChatTitle = getChatDisplayTitle(selectedChat);
+  const selectedChatSubtitle = getChatSubtitle(selectedChat);
 
   React.useEffect(() => {
     if (selectedChatId && visibleChats.some((chat) => chat.id === selectedChatId)) {
@@ -464,6 +522,10 @@ export const Inbox: React.FC = () => {
     }
     setSelectedChatId(visibleChats[0]?.id || '');
   }, [selectedChatId, visibleChats]);
+
+  React.useEffect(() => {
+    setDraft('');
+  }, [selectedChat?.id]);
 
   const messages = React.useMemo(() => {
     if (!selectedChat?.id) {
@@ -529,8 +591,73 @@ export const Inbox: React.FC = () => {
     }
   }, [data, isSavingGovernance, selectedSessionLabel]);
 
+  const handleSend = React.useCallback(async () => {
+    if (!selectedChat || isSending) {
+      return;
+    }
+
+    const text = draft.trim();
+    if (!text) {
+      return;
+    }
+
+    setIsSending(true);
+    setError(null);
+
+    try {
+      await backendApi.post(ENDPOINTS.whatsapp.send, {
+        remoteJid: selectedChat.remoteJid,
+        text,
+        sessionKey: selectedSessionLabel || undefined,
+      });
+
+      const optimisticMessage: InboxMessage = {
+        id: `local-${selectedChat.id}-${Date.now()}`,
+        chatId: selectedChat.id,
+        text,
+        sender: 'Broker',
+        direction: 'outbound',
+        timestamp: new Date().toISOString(),
+      };
+
+      setThreadMessages((current) => ({
+        ...current,
+        [selectedChat.id]: [...(current[selectedChat.id] || messages), optimisticMessage],
+      }));
+      setData((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return {
+          ...current,
+          summary: {
+            ...current.summary,
+            totalMessages: current.summary.totalMessages + 1,
+          },
+          chats: current.chats.map((chat) =>
+            chat.id === selectedChat.id
+              ? {
+                  ...chat,
+                  preview: `You: ${text}`,
+                  lastMessageAt: optimisticMessage.timestamp,
+                  messageCount: chat.messageCount + 1,
+                }
+              : chat,
+          ),
+        };
+      });
+      setDraft('');
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsSending(false);
+    }
+  }, [draft, isSending, messages, selectedChat, selectedSessionLabel]);
+
   const renderThreadButton = (chat: InboxChat) => {
     const state = effectiveThreadState(chat);
+    const displayTitle = getChatDisplayTitle(chat);
     const localityPreview = chat.intel?.contact.localities?.slice(0, 2) || [];
     const rolePreview = chat.intel?.contact.role && chat.intel.contact.role !== 'unknown'
       ? formatRoleLabel(chat.intel.contact.role)
@@ -552,7 +679,7 @@ export const Inbox: React.FC = () => {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <p className="truncate text-[13px] font-medium text-white">{chat.title}</p>
+            <p className="truncate text-[13px] font-medium text-white">{displayTitle}</p>
             <span className="shrink-0 text-[10px] text-slate-500">{formatTime(chat.lastMessageAt)}</span>
           </div>
           <p className="mt-0.5 truncate text-[12px] leading-5 text-slate-400">{chat.preview || 'No message text'}</p>
@@ -735,9 +862,9 @@ export const Inbox: React.FC = () => {
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div className="min-w-0">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#7dd3fc]">Private thread workspace</p>
-                  <p className="mt-2 truncate text-xl font-semibold text-white">{selectedChat.title}</p>
+                  <p className="mt-2 truncate text-xl font-semibold text-white">{selectedChatTitle}</p>
                   <p className="mt-0.5 truncate text-[12px] text-slate-400">
-                    {selectedChat.remoteJid} · last activity {formatTime(selectedChat.lastMessageAt)}
+                    {selectedChatSubtitle}
                   </p>
                   <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-500/18 bg-emerald-500/8 px-3 py-1 text-[11px] text-emerald-100">
                     <ShieldCheckIcon className="h-3.5 w-3.5" />
@@ -755,7 +882,7 @@ export const Inbox: React.FC = () => {
                         Call
                       </a>
                       <a
-                        href={buildWaLink(selectedPhone, selectedChat.title)}
+                        href={buildWaLink(selectedPhone, selectedChatTitle)}
                         target="_blank"
                         rel="noreferrer"
                         className="rounded-lg border border-[rgba(148,163,184,0.14)] bg-[#111723] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
@@ -831,7 +958,7 @@ export const Inbox: React.FC = () => {
                       : 'border-[rgba(148,163,184,0.12)] bg-[rgba(15,23,36,0.8)] text-slate-400',
                   )}
                 >
-                  {chat.title}
+                  {getChatDisplayTitle(chat)}
                 </button>
               ))}
             </div>
@@ -943,7 +1070,7 @@ export const Inbox: React.FC = () => {
                           )}
                         >
                           {message.direction === 'inbound' && message.sender ? (
-                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7dd3fc]">{message.sender}</p>
+                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7dd3fc]">{formatSenderLabel(message.sender, selectedChat)}</p>
                           ) : null}
                           <p className="whitespace-pre-wrap text-[13px] leading-6">{message.text || 'No message text'}</p>
                           <div className="mt-2 flex justify-end text-[10px] text-slate-500">
@@ -977,11 +1104,41 @@ export const Inbox: React.FC = () => {
 
           {selectedChat ? (
             <div className="shrink-0 border-t border-[rgba(148,163,184,0.12)] bg-[#111723] px-4 py-3 sm:px-6">
-              <div className="mx-auto flex w-full max-w-4xl flex-col gap-2 rounded-2xl border border-[rgba(148,163,184,0.12)] bg-[#0d1420] px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Personal outreach only</p>
-                <p className="text-sm leading-6 text-slate-200">
-                  PropAI keeps this thread as private intel. Reach out from your own phone using call or WhatsApp so the relationship stays personal.
-                </p>
+              <div className="mx-auto flex w-full max-w-4xl flex-col gap-3 rounded-2xl border border-[rgba(148,163,184,0.12)] bg-[#0d1420] px-4 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Reply from PropAI</p>
+                    <p className="text-sm leading-6 text-slate-200">
+                      Send directly from the selected workspace lane, or use call and WhatsApp above when you want personal outreach from your own phone.
+                    </p>
+                  </div>
+                  {selectedPhone ? (
+                    <div className="text-[11px] text-slate-500">Contact {selectedChatTitle}</div>
+                  ) : null}
+                </div>
+                <div className="flex w-full items-end gap-3">
+                  <textarea
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        void handleSend();
+                      }
+                    }}
+                    rows={1}
+                    placeholder={`Reply to ${selectedChatTitle}`}
+                    className="min-h-[52px] flex-1 resize-none rounded-2xl border border-[rgba(148,163,184,0.14)] bg-[#111723] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#7dd3fc]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleSend()}
+                    disabled={isSending || !draft.trim()}
+                    className="rounded-2xl bg-[#2f7df6] px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSending ? 'Sending...' : 'Send'}
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}
