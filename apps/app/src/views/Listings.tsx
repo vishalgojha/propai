@@ -358,6 +358,7 @@ export const Listings: React.FC = () => {
   const [waClickStats, setWaClickStats] = React.useState<WaClickStats | null>(null);
   const [quickTimeBands, setQuickTimeBands] = React.useState<Array<'1h' | '4h' | '1d' | '7d'>>([]);
   const sentinelRef = React.useRef<HTMLDivElement>(null);
+  const attemptedBackfillScopesRef = React.useRef<Set<string>>(new Set());
   const [showScrollTop, setShowScrollTop] = React.useState(false);
   const [waStatus, setWaStatus] = React.useState<string>('loading');
 
@@ -365,14 +366,29 @@ export const Listings: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [channelRecords, streamResponse] = await Promise.all([
+      const targetSessionLabel = selectedSessionLabel && selectedSessionLabel !== 'all' ? selectedSessionLabel : undefined;
+      const [channelRecords, initialStreamResponse] = await Promise.all([
         fetchChannels(),
         fetchStreamItems({
           channelId: channelId || undefined,
-          sessionLabel: selectedSessionLabel && selectedSessionLabel !== 'all' ? selectedSessionLabel : undefined,
+          sessionLabel: targetSessionLabel,
           limit: STREAM_FETCH_LIMIT,
         }),
       ]);
+
+      let streamResponse = initialStreamResponse;
+      const backfillScopeKey = channelId ? null : (targetSessionLabel || 'all');
+      if (backfillScopeKey && streamResponse.items.length === 0 && !attemptedBackfillScopesRef.current.has(backfillScopeKey)) {
+        attemptedBackfillScopesRef.current.add(backfillScopeKey);
+        const backfillResult = await rebuildStreamFromSavedMessages(targetSessionLabel ? 2000 : 500, targetSessionLabel || null);
+        if (backfillResult?.scanned) {
+          streamResponse = await fetchStreamItems({
+            channelId: channelId || undefined,
+            sessionLabel: targetSessionLabel,
+            limit: STREAM_FETCH_LIMIT,
+          });
+        }
+      }
 
       const items = streamResponse.items || [];
       setChannels(channelRecords);
@@ -384,7 +400,7 @@ export const Listings: React.FC = () => {
         fetchStreamStats(),
         fetchStreamSummary({
           channelId: channelId || undefined,
-          sessionLabel: selectedSessionLabel && selectedSessionLabel !== 'all' ? selectedSessionLabel : undefined,
+          sessionLabel: targetSessionLabel,
         }),
       ])
         .then(([statsResult, summaryResult]) => {
@@ -527,7 +543,8 @@ React.useEffect(() => {
     setInfoMessage(null);
     setError(null);
     try {
-      const result = await rebuildStreamFromSavedMessages(500);
+      const targetSessionLabel = selectedSessionLabel && selectedSessionLabel !== 'all' ? selectedSessionLabel : null;
+      const result = await rebuildStreamFromSavedMessages(targetSessionLabel ? 2000 : 500, targetSessionLabel);
       setInfoMessage(`Rebuild complete. Scanned ${result.scanned} saved messages and mapped ${result.ingested} into Stream. Total stream items: ${result.totalStreamItems}.`);
       await loadData();
     } catch (err) {

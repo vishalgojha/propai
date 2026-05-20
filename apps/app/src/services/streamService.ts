@@ -11,8 +11,11 @@ export async function fetchLiveStreamItems(channelId?: string | null, sessionLab
   return (Array.isArray(response.data) ? response.data : []) as StreamItem[];
 }
 
-export async function rebuildStreamFromSavedMessages(limit = 500) {
-  const response = await backendApi.post(ENDPOINTS.channels.rebuild, { limit });
+export async function rebuildStreamFromSavedMessages(limit = 500, sessionLabel?: string | null) {
+  const response = await backendApi.post(ENDPOINTS.channels.rebuild, {
+    limit,
+    sessionLabel: sessionLabel || undefined,
+  });
   return response.data as {
     success: boolean;
     scanned: number;

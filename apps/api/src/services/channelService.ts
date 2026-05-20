@@ -1530,7 +1530,11 @@ export class ChannelService {
         return this.mapChannelRow(data as ChannelRow, counts.get(channelId));
     }
 
-private backfillInitiatedTenants = new Set<string>();
+private backfillInitiatedScopes = new Set<string>();
+
+    private getBackfillScopeKey(tenantId: string, sessionLabel?: string | null) {
+        return `${tenantId}::${sessionLabel || 'all'}`;
+    }
 
     private async getNetworkTenantIds(tenantId: string, networkMode: boolean) {
         if (!networkMode) {
@@ -1562,10 +1566,11 @@ private backfillInitiatedTenants = new Set<string>();
         limit = 100,
     ): Promise<StreamItemRecord[]> {
          // Only trigger backfill once and don't block the read on it
-         if (!this.backfillInitiatedTenants.has(tenantId)) {
-             this.backfillInitiatedTenants.add(tenantId);
+         const backfillScopeKey = this.getBackfillScopeKey(tenantId, sessionLabel);
+         if (!this.backfillInitiatedScopes.has(backfillScopeKey)) {
+             this.backfillInitiatedScopes.add(backfillScopeKey);
              // Fire-and-forget: ensureStreamBackfilled runs in the background
-             void this.ensureStreamBackfilled(tenantId);
+             void this.ensureStreamBackfilled(tenantId, sessionLabel);
          }
 
          const readClient = accessToken ? createSupabaseAnonClient(accessToken) : this.db;
@@ -1792,6 +1797,7 @@ private backfillInitiatedTenants = new Set<string>();
         limitOrOptions: number | {
             limit?: number;
             remoteJid?: string | null;
+            sessionLabel?: string | null;
             from?: string | null;
             to?: string | null;
         } = 500,
@@ -1803,10 +1809,14 @@ private backfillInitiatedTenants = new Set<string>();
 
         let query = this.db
             .from('messages')
-            .select('id, remote_jid, sender, text, timestamp')
+            .select('id, session_label, remote_jid, sender, text, timestamp, created_at')
             .eq('tenant_id', tenantId)
             .order('timestamp', { ascending: true })
             .limit(limit);
+
+        if (options.sessionLabel) {
+            query = query.eq('session_label', options.sessionLabel);
+        }
 
         if (options.remoteJid) {
             query = query.eq('remote_jid', options.remoteJid);
@@ -1842,6 +1852,7 @@ private backfillInitiatedTenants = new Set<string>();
             ingested: ingestedCount,
             totalStreamItems: count || 0,
             filters: {
+                sessionLabel: options.sessionLabel || null,
                 remoteJid: options.remoteJid || null,
                 from: options.from || null,
                 to: options.to || null,
@@ -2209,34 +2220,53 @@ private backfillInitiatedTenants = new Set<string>();
         return m ? m[0] : null;
     }
 
-private async ensureStreamBackfilled(tenantId: string) {
-         // Keep this path cheap. Stream loads should not depend on exact counts or a large rebuild.
-         const { data: anyMessage, error: messageError } = await this.db
+private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | null) {
+         // Keep this path scoped and cheap. Reads should not synchronously depend on a full rebuild.
+         let messagesQuery = this.db
              .from('messages')
              .select('id')
              .eq('tenant_id', tenantId)
              .limit(1)
              .maybeSingle();
 
+         if (sessionLabel) {
+             messagesQuery = messagesQuery.eq('session_label', sessionLabel);
+         }
+
+         const { data: anyMessage, error: messageError } = await messagesQuery;
+
          if (messageError || !anyMessage) {
              return;
          }
 
-         const { data: existingStreamItem, error: streamError } = await this.db
+         let streamQuery = this.db
              .from('stream_items')
              .select('id')
              .eq('tenant_id', tenantId)
              .limit(1)
              .maybeSingle();
 
+         if (sessionLabel) {
+             streamQuery = streamQuery.eq('session_label', sessionLabel);
+         }
+
+         const { data: existingStreamItem, error: streamError } = await streamQuery;
+
          if (streamError || existingStreamItem) {
              return;
          }
 
          try {
-             await this.rebuildStreamFromMessages(tenantId, 50);
+             await this.rebuildStreamFromMessages(tenantId, {
+                 limit: sessionLabel ? 2000 : 500,
+                 sessionLabel: sessionLabel || null,
+             });
          } catch (error) {
-             console.error('[ChannelService] Failed to backfill stream items from messages', error);
+             console.error('[ChannelService] Failed to backfill stream items from messages', {
+                 tenantId,
+                 sessionLabel: sessionLabel || null,
+                 error,
+             });
          }
      }
 

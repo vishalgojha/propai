@@ -76,7 +76,11 @@ export const rebuildStream = async (req: Request, res: Response) => {
     try {
         const tenantId = getTenantId(req);
         const limit = typeof req.body?.limit === 'number' ? Math.max(1, Math.min(2000, req.body.limit)) : 500;
-        const result = await channelService.rebuildStreamFromMessages(tenantId, limit);
+        const sessionLabel = typeof req.body?.sessionLabel === 'string' ? req.body.sessionLabel.trim() || null : null;
+        const result = await channelService.rebuildStreamFromMessages(tenantId, {
+            limit,
+            sessionLabel,
+        });
         res.json({ success: true, ...result });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to rebuild stream from saved messages') });
