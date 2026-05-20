@@ -1,3 +1,9 @@
+import {
+    type InboxThreadMemory,
+    getWorkspaceSettingsRecord,
+    saveWorkspaceSettingsRecord,
+} from './workspaceSettingsService';
+
 type ThreadMessageSnippet = {
     text?: string | null;
     sender?: string | null;
@@ -14,24 +20,7 @@ type ThreadLike = {
 
 type ContactRole = 'broker' | 'buyer' | 'seller' | 'tenant' | 'owner' | 'unknown';
 
-export type InboxThreadIntel = {
-    summary: string;
-    contact: {
-        phone: string | null;
-        role: ContactRole;
-        confidence: 'high' | 'medium';
-        localities: string[];
-        propertyTypes: string[];
-        budgets: string[];
-    };
-    thread: {
-        inboundCount: number;
-        outboundCount: number;
-        lastInboundAt: string | null;
-        lastOutboundAt: string | null;
-        requirementSignals: string[];
-    };
-};
+export type InboxThreadIntel = Omit<InboxThreadMemory, 'updatedAt'>;
 
 const PROPERTY_KEYWORDS = [
     '1 bhk',
@@ -52,26 +41,13 @@ const PROPERTY_KEYWORDS = [
 ];
 
 const LOCALITY_STOP_WORDS = new Set([
-    'a',
-    'an',
-    'and',
-    'for',
-    'from',
-    'is',
-    'looking',
-    'need',
-    'needs',
-    'of',
-    'on',
-    'please',
-    'property',
-    'requirement',
-    'required',
-    'the',
-    'this',
-    'urgent',
-    'want',
+    'a', 'an', 'and', 'for', 'from', 'is', 'looking', 'need', 'needs', 'of', 'on',
+    'please', 'property', 'requirement', 'required', 'the', 'this', 'urgent', 'want',
 ]);
+
+function getSessionKey(sessionLabel?: string | null) {
+    return sessionLabel && sessionLabel.trim() ? sessionLabel.trim() : 'workspace';
+}
 
 function normalizePhone(value?: string | null) {
     const digits = String(value || '').replace(/\D/g, '');
@@ -83,7 +59,7 @@ function compactText(value?: string | null, maxLength = 160) {
     if (!compact) {
         return '';
     }
-    return compact.length > maxLength ? `${compact.slice(0, maxLength - 1).trim()}…` : compact;
+    return compact.length > maxLength ? `${compact.slice(0, maxLength - 1).trim()}...` : compact;
 }
 
 function uniqueStrings(values: Array<string | null | undefined>, limit = 4) {
@@ -121,7 +97,9 @@ function extractPropertyTypes(texts: string[]) {
         const haystack = text.toLowerCase();
         for (const keyword of PROPERTY_KEYWORDS) {
             if (haystack.includes(keyword)) {
-                matches.push(keyword.toUpperCase().includes('BHK') ? keyword.toUpperCase() : keyword.replace(/\b\w/g, (char) => char.toUpperCase()));
+                matches.push(keyword.toUpperCase().includes('BHK')
+                    ? keyword.toUpperCase()
+                    : keyword.replace(/\b\w/g, (char) => char.toUpperCase()));
             }
         }
     }
@@ -211,61 +189,112 @@ function buildSummary(input: {
 
     const prefix = parts.join(' ');
     const latestInboundText = compactText(input.latestInboundText, 140);
+    return latestInboundText ? `${prefix}. Latest inbound: "${latestInboundText}"` : `${prefix}.`;
+}
 
-    if (latestInboundText) {
-        return `${prefix}. Latest inbound: "${latestInboundText}"`;
+function buildIntel(thread: ThreadLike & { recentMessages?: ThreadMessageSnippet[] | null }): InboxThreadIntel {
+    const recentMessages = Array.isArray(thread.recentMessages) ? thread.recentMessages : [];
+    const snippets = recentMessages
+        .map((message) => compactText(message.text, 220))
+        .filter(Boolean);
+    const inboundMessages = recentMessages.filter((message) => message.direction !== 'outbound');
+    const outboundMessages = recentMessages.filter((message) => message.direction === 'outbound');
+    const latestInboundText = inboundMessages[0]?.text || thread.preview || '';
+    const phone = normalizePhone(String(thread.remoteJid || thread.id || '').split('@')[0]);
+    const { role, confidence } = detectRole([String(thread.title || ''), ...snippets]);
+    const localities = extractLocalities(snippets);
+    const propertyTypes = extractPropertyTypes(snippets);
+    const budgets = extractBudgets(snippets);
+    const requirementSignals = buildRequirementSignals(localities, propertyTypes, budgets);
+
+    return {
+        summary: buildSummary({
+            role,
+            propertyTypes,
+            localities,
+            budgets,
+            latestInboundText: String(latestInboundText || ''),
+        }),
+        contact: {
+            phone,
+            role,
+            confidence,
+            localities,
+            propertyTypes,
+            budgets,
+        },
+        thread: {
+            inboundCount: inboundMessages.length,
+            outboundCount: outboundMessages.length,
+            lastInboundAt: inboundMessages[0]?.timestamp || null,
+            lastOutboundAt: outboundMessages[0]?.timestamp || null,
+            requirementSignals,
+        },
+    };
+}
+
+function sameIntel(left: InboxThreadIntel, right?: InboxThreadMemory | null) {
+    if (!right) {
+        return false;
     }
-
-    return `${prefix}.`;
+    return JSON.stringify(left) === JSON.stringify({
+        summary: right.summary,
+        contact: right.contact,
+        thread: right.thread,
+    });
 }
 
 export class InboxMemoryService {
-    decorateThreads<T extends ThreadLike>(threads: Array<T & { recentMessages?: ThreadMessageSnippet[] | null }>) {
-        return threads.map((thread) => {
-            const recentMessages = Array.isArray(thread.recentMessages) ? thread.recentMessages : [];
-            const snippets = recentMessages
-                .map((message) => compactText(message.text, 220))
-                .filter(Boolean);
-            const inboundMessages = recentMessages.filter((message) => message.direction !== 'outbound');
-            const outboundMessages = recentMessages.filter((message) => message.direction === 'outbound');
-            const latestInboundText = inboundMessages[0]?.text || thread.preview || '';
-            const phone = normalizePhone(String(thread.remoteJid || thread.id || '').split('@')[0]);
-            const { role, confidence } = detectRole([String(thread.title || ''), ...snippets]);
-            const localities = extractLocalities(snippets);
-            const propertyTypes = extractPropertyTypes(snippets);
-            const budgets = extractBudgets(snippets);
-            const requirementSignals = buildRequirementSignals(localities, propertyTypes, budgets);
+    async decorateThreads<T extends ThreadLike>(workspaceOwnerId: string, threads: Array<T & { recentMessages?: ThreadMessageSnippet[] | null }>, sessionLabel?: string | null) {
+        const record = await getWorkspaceSettingsRecord(workspaceOwnerId);
+        const config = record.settings.inboxIntelligence;
+        const sessionKey = getSessionKey(sessionLabel);
+        const existingSession = config.sessions[sessionKey] || { threads: {}, memories: {} };
+        const storedMemories = existingSession.memories || {};
+        const nextMemories: Record<string, InboxThreadMemory> = { ...storedMemories };
+        let hasChanges = false;
 
-            const intel: InboxThreadIntel = {
-                summary: buildSummary({
-                    role,
-                    propertyTypes,
-                    localities,
-                    budgets,
-                    latestInboundText: String(latestInboundText || ''),
-                }),
-                contact: {
-                    phone,
-                    role,
-                    confidence,
-                    localities,
-                    propertyTypes,
-                    budgets,
-                },
-                thread: {
-                    inboundCount: inboundMessages.length,
-                    outboundCount: outboundMessages.length,
-                    lastInboundAt: inboundMessages[0]?.timestamp || null,
-                    lastOutboundAt: outboundMessages[0]?.timestamp || null,
-                    requirementSignals,
-                },
-            };
+        const decoratedThreads = threads.map((thread) => {
+            const derived = buildIntel(thread);
+            const stored = storedMemories[thread.id] || null;
+            if (!sameIntel(derived, stored)) {
+                hasChanges = true;
+                nextMemories[thread.id] = {
+                    ...derived,
+                    updatedAt: new Date().toISOString(),
+                };
+            }
 
+            const effective = nextMemories[thread.id] || stored;
+            const { recentMessages, ...rest } = thread;
             return {
-                ...thread,
-                intel,
+                ...rest,
+                intel: effective
+                    ? {
+                        summary: effective.summary,
+                        contact: effective.contact,
+                        thread: effective.thread,
+                    }
+                    : derived,
             };
         });
+
+        if (hasChanges) {
+            await saveWorkspaceSettingsRecord(workspaceOwnerId, {
+                inboxIntelligence: {
+                    ...config,
+                    sessions: {
+                        ...config.sessions,
+                        [sessionKey]: {
+                            threads: existingSession.threads || {},
+                            memories: nextMemories,
+                        },
+                    },
+                },
+            }, record.aiKeys);
+        }
+
+        return decoratedThreads;
     }
 }
 

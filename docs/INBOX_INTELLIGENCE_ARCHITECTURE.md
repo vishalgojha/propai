@@ -135,6 +135,7 @@ The message-history route still uses legacy naming internally. User-facing produ
   - recalled localities
   - property-type and budget signals
   - compact thread summary for the selected inbox thread
+  - persisted thread-memory snapshots inside `workspace_settings.settings.inboxIntelligence.sessions[sessionKey].memories`
 
 ### Frontend
 
@@ -142,6 +143,9 @@ The message-history route still uses legacy naming internally. User-facing produ
 - broker actions like `Keep in inbox`, `Hold outside inbox`, and `Never show in inbox` persist through the backend
 - sidebar product label is now `Inbox`
 - selected threads now surface a compact `AI intel` panel instead of forcing the broker to scan raw history first
+- selected thread workspace now uses a visibly different split layout:
+  - left rail for stored memory and source control
+  - right rail for conversation timeline
 
 ## Near-Term Build Plan
 

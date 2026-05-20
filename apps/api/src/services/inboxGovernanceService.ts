@@ -157,6 +157,7 @@ export class InboxGovernanceService {
                             reason: typeof input.reason === 'string' ? input.reason : null,
                         },
                     },
+                    memories: config.sessions[sessionKey]?.memories || {},
                 },
             },
         };

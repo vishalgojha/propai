@@ -65,11 +65,13 @@
 - Inbox memory slice has now been built locally:
   - `apps/api/src/services/inboxMemoryService.ts`
   - `workspaceMonitorService` now derives compact thread intel from recent messages
+  - thread intel now persists into `workspace_settings.settings.inboxIntelligence.sessions[sessionKey].memories`
   - selected inbox threads now show:
     - compact thread summary
     - inferred contact role
     - recalled localities
     - budget and property-type signals
+    - visibly redesigned split thread workspace
 
 ### Operational Rules
 

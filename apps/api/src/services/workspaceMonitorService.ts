@@ -334,7 +334,7 @@ export class WorkspaceMonitorService {
         const chats = Array.from(chatsMap.values()).sort((left, right) => {
             return new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime();
         });
-        const chatsWithIntel = inboxMemoryService.decorateThreads(chats);
+        const chatsWithIntel = await inboxMemoryService.decorateThreads(workspaceOwnerId, chats, sessionLabel);
         const decoratedChats = await inboxGovernanceService.decorateThreads(workspaceOwnerId, chatsWithIntel, sessionLabel);
 
         return this.buildSummaryPayload(decoratedChats, context.sessions, totalMessages);

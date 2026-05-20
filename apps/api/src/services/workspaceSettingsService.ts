@@ -34,8 +34,29 @@ export type InboxThreadOverride = {
     reason?: string | null;
 };
 
+export type InboxThreadMemory = {
+    summary: string;
+    contact: {
+        phone: string | null;
+        role: 'broker' | 'buyer' | 'seller' | 'tenant' | 'owner' | 'unknown';
+        confidence: 'high' | 'medium';
+        localities: string[];
+        propertyTypes: string[];
+        budgets: string[];
+    };
+    thread: {
+        inboundCount: number;
+        outboundCount: number;
+        lastInboundAt: string | null;
+        lastOutboundAt: string | null;
+        requirementSignals: string[];
+    };
+    updatedAt: string;
+};
+
 export type InboxSessionGovernance = {
     threads: Record<string, InboxThreadOverride>;
+    memories?: Record<string, InboxThreadMemory>;
 };
 
 export type InboxIntelligenceSettings = {
@@ -151,6 +172,7 @@ function sanitizeInboxIntelligenceSettings(value: unknown): InboxIntelligenceSet
         }
 
         const rawThreads = (sessionValue as Record<string, unknown>).threads;
+        const rawMemories = (sessionValue as Record<string, unknown>).memories;
         const threads = rawThreads && typeof rawThreads === 'object'
             ? Object.entries(rawThreads as Record<string, unknown>).reduce<Record<string, InboxThreadOverride>>((threadAcc, [threadId, threadValue]) => {
                 if (!threadValue || typeof threadValue !== 'object') {
@@ -174,7 +196,48 @@ function sanitizeInboxIntelligenceSettings(value: unknown): InboxIntelligenceSet
             }, {})
             : {};
 
-        acc[sessionKey] = { threads };
+        const memories = rawMemories && typeof rawMemories === 'object'
+            ? Object.entries(rawMemories as Record<string, unknown>).reduce<Record<string, InboxThreadMemory>>((memoryAcc, [threadId, memoryValue]) => {
+                if (!memoryValue || typeof memoryValue !== 'object') {
+                    return memoryAcc;
+                }
+
+                const candidate = memoryValue as Record<string, any>;
+                const contact = candidate.contact && typeof candidate.contact === 'object' ? candidate.contact : {};
+                const thread = candidate.thread && typeof candidate.thread === 'object' ? candidate.thread : {};
+                const summary = String(candidate.summary || '').trim();
+                if (!summary) {
+                    return memoryAcc;
+                }
+
+                memoryAcc[threadId] = {
+                    summary,
+                    contact: {
+                        phone: typeof contact.phone === 'string' ? contact.phone : null,
+                        role: contact.role === 'broker' || contact.role === 'buyer' || contact.role === 'seller' || contact.role === 'tenant' || contact.role === 'owner'
+                            ? contact.role
+                            : 'unknown',
+                        confidence: contact.confidence === 'high' ? 'high' : 'medium',
+                        localities: Array.isArray(contact.localities) ? contact.localities.map((entry: unknown) => String(entry || '').trim()).filter(Boolean) : [],
+                        propertyTypes: Array.isArray(contact.propertyTypes) ? contact.propertyTypes.map((entry: unknown) => String(entry || '').trim()).filter(Boolean) : [],
+                        budgets: Array.isArray(contact.budgets) ? contact.budgets.map((entry: unknown) => String(entry || '').trim()).filter(Boolean) : [],
+                    },
+                    thread: {
+                        inboundCount: Number(thread.inboundCount || 0),
+                        outboundCount: Number(thread.outboundCount || 0),
+                        lastInboundAt: typeof thread.lastInboundAt === 'string' ? thread.lastInboundAt : null,
+                        lastOutboundAt: typeof thread.lastOutboundAt === 'string' ? thread.lastOutboundAt : null,
+                        requirementSignals: Array.isArray(thread.requirementSignals) ? thread.requirementSignals.map((entry: unknown) => String(entry || '').trim()).filter(Boolean) : [],
+                    },
+                    updatedAt: typeof candidate.updatedAt === 'string' && candidate.updatedAt.trim()
+                        ? candidate.updatedAt
+                        : new Date(0).toISOString(),
+                };
+                return memoryAcc;
+            }, {})
+            : {};
+
+        acc[sessionKey] = { threads, memories };
         return acc;
     }, {});
 

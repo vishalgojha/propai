@@ -531,19 +531,23 @@ export const Inbox: React.FC = () => {
 
   const renderThreadButton = (chat: InboxChat) => {
     const state = effectiveThreadState(chat);
+    const localityPreview = chat.intel?.contact.localities?.slice(0, 2) || [];
+    const rolePreview = chat.intel?.contact.role && chat.intel.contact.role !== 'unknown'
+      ? formatRoleLabel(chat.intel.contact.role)
+      : null;
     return (
       <button
         key={chat.id}
         type="button"
         onClick={() => setSelectedChatId(chat.id)}
         className={cn(
-          'flex w-full items-start gap-2.5 rounded-xl border px-2.5 py-2.5 text-left transition-colors',
+          'flex w-full items-start gap-3 rounded-[16px] border px-3 py-3 text-left transition-colors',
           selectedChat?.id === chat.id
-            ? 'border-[#4a99ff]/40 bg-[#182230]'
+            ? 'border-[#4a99ff]/40 bg-[#182230] shadow-[0_12px_28px_rgba(0,0,0,0.18)]'
             : 'border-[rgba(148,163,184,0.08)] bg-[rgba(15,23,36,0.56)] hover:border-[rgba(148,163,184,0.18)] hover:bg-[rgba(20,31,48,0.92)]',
         )}
       >
-        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[rgba(74,153,255,0.12)] text-[#7dd3fc]">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(74,153,255,0.12)] text-[#7dd3fc]">
           <MessageSquareTextIcon className="h-3.5 w-3.5" />
         </div>
         <div className="min-w-0 flex-1">
@@ -552,6 +556,23 @@ export const Inbox: React.FC = () => {
             <span className="shrink-0 text-[10px] text-slate-500">{formatTime(chat.lastMessageAt)}</span>
           </div>
           <p className="mt-0.5 truncate text-[12px] leading-5 text-slate-400">{chat.preview || 'No message text'}</p>
+          {rolePreview || localityPreview.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {rolePreview ? (
+                <span className="rounded-full border border-[rgba(125,211,252,0.16)] bg-[rgba(125,211,252,0.08)] px-2 py-0.5 text-[10px] text-[#c7e7ff]">
+                  {rolePreview}
+                </span>
+              ) : null}
+              {localityPreview.map((locality) => (
+                <span
+                  key={locality}
+                  className="rounded-full border border-emerald-500/14 bg-emerald-500/8 px-2 py-0.5 text-[10px] text-emerald-100"
+                >
+                  {locality}
+                </span>
+              ))}
+            </div>
+          ) : null}
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[9px] uppercase tracking-[0.12em] text-slate-500">
             <span>{chat.messageCount} msgs</span>
             {state === 'held' ? (
@@ -622,8 +643,8 @@ export const Inbox: React.FC = () => {
   }, [data?.messages, selectedChat?.id, selectedSessionLabel, threadMessages]);
 
   return (
-    <div className="h-[calc(100vh-10rem)] overflow-hidden rounded-[20px] border border-[rgba(148,163,184,0.14)] bg-[#0b0f17] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
-      <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
+    <div className="h-[calc(100vh-10rem)] overflow-hidden rounded-[24px] border border-[rgba(148,163,184,0.14)] bg-[radial-gradient(circle_at_top_left,rgba(74,153,255,0.08),transparent_30%),#0b0f17] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+      <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)]">
         <aside className="hidden h-full min-h-0 flex-col border-r border-[rgba(148,163,184,0.12)] bg-[#111723] lg:flex">
           <div className="border-b border-[rgba(148,163,184,0.12)] px-4 py-4">
             <div className="flex items-center justify-between gap-4">
@@ -708,16 +729,17 @@ export const Inbox: React.FC = () => {
           </div>
         </aside>
 
-        <section className="flex h-full min-h-0 min-w-0 flex-col bg-[#0b0f17]">
+        <section className="flex h-full min-h-0 min-w-0 flex-col bg-[linear-gradient(180deg,#0b0f17_0%,#0c1119_100%)]">
           <div className="border-b border-[rgba(148,163,184,0.12)] px-5 py-4">
             {selectedChat ? (
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div className="min-w-0">
-                  <p className="truncate text-lg font-semibold text-white">{selectedChat.title}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#7dd3fc]">Private thread workspace</p>
+                  <p className="mt-2 truncate text-xl font-semibold text-white">{selectedChat.title}</p>
                   <p className="mt-0.5 truncate text-[12px] text-slate-400">
                     {selectedChat.remoteJid} · last activity {formatTime(selectedChat.lastMessageAt)}
                   </p>
-                  <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-emerald-500/18 bg-emerald-500/8 px-3 py-1 text-[11px] text-emerald-100">
+                  <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-500/18 bg-emerald-500/8 px-3 py-1 text-[11px] text-emerald-100">
                     <ShieldCheckIcon className="h-3.5 w-3.5" />
                     Private to your workspace. Not shown in public stream.
                   </div>
@@ -815,82 +837,65 @@ export const Inbox: React.FC = () => {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto bg-[#0f141d] px-4 py-4 sm:px-6">
+          <div className="min-h-0 flex-1 overflow-y-auto bg-transparent px-4 py-4 sm:px-6">
             {selectedChat ? (
-              <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-                <div className="rounded-2xl border border-[rgba(148,163,184,0.12)] bg-[#111723] p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">AI source control</p>
-                      <p className="mt-2 text-sm font-medium text-white">
-                        {selectedSignal?.reason || 'AI is evaluating this thread for business relevance.'}
-                      </p>
-                      <p className="mt-1 text-[12px] leading-5 text-slate-400">
-                        Social links, emoji-heavy chatter, and non-real-estate DMs are held out of the inbox by default unless you explicitly allow them.
-                      </p>
-                    </div>
-                    <span className={cn(
-                      'rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]',
-                      effectiveThreadState(selectedChat) === 'allowed'
-                        ? 'bg-emerald-500/12 text-emerald-100'
-                        : effectiveThreadState(selectedChat) === 'held'
-                          ? 'bg-amber-500/12 text-amber-100'
-                          : 'bg-rose-500/12 text-rose-100',
-                    )}>
-                      {effectiveThreadState(selectedChat)}
-                    </span>
-                  </div>
-                </div>
-                {selectedIntel ? (
-                  <div className="rounded-2xl border border-[rgba(148,163,184,0.12)] bg-[#111723] p-4">
-                    <div className="flex flex-col gap-4">
+              <div className="mx-auto grid w-full max-w-[1400px] gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+                <div className="space-y-4">
+                  <div className="rounded-[20px] border border-[rgba(148,163,184,0.12)] bg-[#111723] p-4">
+                    <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">AI intel</p>
-                        <p className="mt-2 text-sm font-medium leading-6 text-white">
-                          {selectedIntel.summary}
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">AI source control</p>
+                        <p className="mt-2 text-sm font-medium text-white">
+                          {selectedSignal?.reason || 'AI is evaluating this thread for business relevance.'}
+                        </p>
+                        <p className="mt-1 text-[12px] leading-5 text-slate-400">
+                          Social links, emoji-heavy chatter, and non-real-estate DMs are held out by default unless you explicitly allow them.
                         </p>
                       </div>
-                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <span className={cn(
+                        'rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]',
+                        effectiveThreadState(selectedChat) === 'allowed'
+                          ? 'bg-emerald-500/12 text-emerald-100'
+                          : effectiveThreadState(selectedChat) === 'held'
+                            ? 'bg-amber-500/12 text-amber-100'
+                            : 'bg-rose-500/12 text-rose-100',
+                      )}>
+                        {effectiveThreadState(selectedChat)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {selectedIntel ? (
+                    <div className="rounded-[20px] border border-[rgba(148,163,184,0.12)] bg-[#111723] p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">Stored thread memory</p>
+                      <p className="mt-2 text-sm font-medium leading-6 text-white">
+                        {selectedIntel.summary}
+                      </p>
+
+                      <div className="mt-4 grid gap-3">
                         <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] p-3">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Contact role</p>
-                          <p className="mt-2 text-sm font-medium text-white">
-                            {formatRoleLabel(selectedIntel.contact.role)}
-                          </p>
-                          <p className="mt-1 text-[11px] text-slate-500">
-                            Confidence {selectedIntel.contact.confidence}
-                          </p>
+                          <p className="mt-2 text-sm font-medium text-white">{formatRoleLabel(selectedIntel.contact.role)}</p>
+                          <p className="mt-1 text-[11px] text-slate-500">Confidence {selectedIntel.contact.confidence}</p>
                         </div>
                         <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] p-3">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Message balance</p>
-                          <p className="mt-2 text-sm font-medium text-white">
-                            {selectedIntel.thread.inboundCount} inbound · {selectedIntel.thread.outboundCount} outbound
-                          </p>
-                          <p className="mt-1 text-[11px] text-slate-500">
-                            Last inbound {formatTime(selectedIntel.thread.lastInboundAt)}
-                          </p>
+                          <p className="mt-2 text-sm font-medium text-white">{selectedIntel.thread.inboundCount} inbound · {selectedIntel.thread.outboundCount} outbound</p>
+                          <p className="mt-1 text-[11px] text-slate-500">Last inbound {formatTime(selectedIntel.thread.lastInboundAt)}</p>
                         </div>
                         <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] p-3">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Budgets</p>
-                          <p className="mt-2 text-sm font-medium text-white">
-                            {selectedIntel.contact.budgets.length > 0 ? selectedIntel.contact.budgets.join(', ') : 'Not detected yet'}
-                          </p>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Budgets recalled</p>
+                          <p className="mt-2 text-sm font-medium text-white">{selectedIntel.contact.budgets.length > 0 ? selectedIntel.contact.budgets.join(', ') : 'Not detected yet'}</p>
                         </div>
                         <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] p-3">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Property focus</p>
-                          <p className="mt-2 text-sm font-medium text-white">
-                            {selectedIntel.contact.propertyTypes.length > 0 ? selectedIntel.contact.propertyTypes.join(', ') : 'Not detected yet'}
-                          </p>
+                          <p className="mt-2 text-sm font-medium text-white">{selectedIntel.contact.propertyTypes.length > 0 ? selectedIntel.contact.propertyTypes.join(', ') : 'Not detected yet'}</p>
                         </div>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-2">
                         <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] p-3">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Localities recalled</p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {selectedIntel.contact.localities.length > 0 ? selectedIntel.contact.localities.map((locality) => (
-                              <span
-                                key={locality}
-                                className="rounded-full border border-[rgba(125,211,252,0.18)] bg-[rgba(125,211,252,0.08)] px-2.5 py-1 text-[11px] text-[#c7e7ff]"
-                              >
+                              <span key={locality} className="rounded-full border border-[rgba(125,211,252,0.18)] bg-[rgba(125,211,252,0.08)] px-2.5 py-1 text-[11px] text-[#c7e7ff]">
                                 {locality}
                               </span>
                             )) : (
@@ -902,10 +907,7 @@ export const Inbox: React.FC = () => {
                           <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Requirement signals</p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {selectedIntel.thread.requirementSignals.length > 0 ? selectedIntel.thread.requirementSignals.map((signal) => (
-                              <span
-                                key={signal}
-                                className="rounded-full border border-emerald-500/18 bg-emerald-500/8 px-2.5 py-1 text-[11px] text-emerald-100"
-                              >
+                              <span key={signal} className="rounded-full border border-emerald-500/18 bg-emerald-500/8 px-2.5 py-1 text-[11px] text-emerald-100">
                                 {signal}
                               </span>
                             )) : (
@@ -915,37 +917,48 @@ export const Inbox: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                  ) : null}
+                </div>
+
+                <div className="rounded-[20px] border border-[rgba(148,163,184,0.12)] bg-[#101722]">
+                  <div className="border-b border-[rgba(148,163,184,0.12)] px-5 py-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">Conversation timeline</p>
+                    <p className="mt-1 text-[12px] text-slate-400">Private message history for this thread.</p>
                   </div>
-                ) : null}
-                {isLoadingMessages && messages.length === 0 ? (
-                  <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] px-4 py-3 text-sm text-slate-400">
-                    Loading thread history...
-                  </div>
-                ) : null}
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={cn(
-                      'max-w-[78%] rounded-xl border px-4 py-3',
-                      message.direction === 'outbound'
-                        ? 'ml-auto border-emerald-500/20 bg-emerald-500/10 text-white'
-                        : 'border-[rgba(148,163,184,0.1)] bg-[#151c28] text-slate-100',
-                    )}
-                  >
-                    {message.direction === 'inbound' && message.sender ? (
-                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7dd3fc]">{message.sender}</p>
+                  <div className="flex max-h-[calc(100vh-22rem)] min-h-[520px] flex-col overflow-y-auto px-4 py-4 sm:px-5">
+                    {isLoadingMessages && messages.length === 0 ? (
+                      <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] px-4 py-3 text-sm text-slate-400">
+                        Loading thread history...
+                      </div>
                     ) : null}
-                    <p className="whitespace-pre-wrap text-[13px] leading-6">{message.text || 'No message text'}</p>
-                    <div className="mt-2 flex justify-end text-[10px] text-slate-500">
-                      {formatTime(message.timestamp)}
+                    <div className="flex flex-col gap-4">
+                      {messages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={cn(
+                            'max-w-[78%] rounded-2xl border px-4 py-3 shadow-[0_10px_24px_rgba(0,0,0,0.12)]',
+                            message.direction === 'outbound'
+                              ? 'ml-auto border-emerald-500/20 bg-emerald-500/10 text-white'
+                              : 'border-[rgba(148,163,184,0.1)] bg-[#151c28] text-slate-100',
+                          )}
+                        >
+                          {message.direction === 'inbound' && message.sender ? (
+                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7dd3fc]">{message.sender}</p>
+                          ) : null}
+                          <p className="whitespace-pre-wrap text-[13px] leading-6">{message.text || 'No message text'}</p>
+                          <div className="mt-2 flex justify-end text-[10px] text-slate-500">
+                            {formatTime(message.timestamp)}
+                          </div>
+                        </div>
+                      ))}
                     </div>
+                    {!isLoadingMessages && messages.length === 0 ? (
+                      <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] px-4 py-3 text-sm text-slate-400">
+                        No message history is available for this thread yet.
+                      </div>
+                    ) : null}
                   </div>
-                ))}
-                {!isLoadingMessages && messages.length === 0 ? (
-                  <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] px-4 py-3 text-sm text-slate-400">
-                    No message history is available for this thread yet.
-                  </div>
-                ) : null}
+                </div>
               </div>
             ) : (
               <div className="flex h-full items-center justify-center">
