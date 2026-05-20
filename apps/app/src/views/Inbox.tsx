@@ -64,8 +64,17 @@ type InboxResponse = {
     totalChats: number;
     totalMessages: number;
   };
+  sessions?: InboxSessionSummary[];
   chats: InboxChat[];
   messages: InboxMessage[];
+};
+
+type InboxSessionSummary = {
+  label: string;
+  ownerName?: string | null;
+  phoneNumber?: string | null;
+  status?: 'connected' | 'connecting' | 'disconnected' | string;
+  lastSync?: string | null;
 };
 
 type InboxMessagesResponse = {
@@ -182,9 +191,45 @@ const formatPhoneLabel = (value?: string | null) => {
   return phone ? `+${phone}` : null;
 };
 
+const toTitleCase = (value: string) => value.replace(/\b\w/g, (char) => char.toUpperCase());
+
+const humanizeSessionLabel = (value?: string | null) => {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return 'Workspace lane';
+  }
+
+  const phone = formatPhoneLabel(raw);
+  if (phone) {
+    return phone;
+  }
+
+  return toTitleCase(raw.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim());
+};
+
 const isLikelyJid = (value?: string | null) => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized.includes('@') || normalized.endsWith('.us');
+};
+
+const getSessionDisplayLabel = (session?: InboxSessionSummary | null) => {
+  if (!session) {
+    return 'Workspace inbox';
+  }
+
+  const owner = String(session.ownerName || '').trim();
+  const phone = formatPhoneLabel(session.phoneNumber);
+  if (owner && phone) {
+    return `${owner} · ${phone}`;
+  }
+  if (owner) {
+    return owner;
+  }
+  if (phone) {
+    return phone;
+  }
+
+  return humanizeSessionLabel(session.label);
 };
 
 const buildWaLink = (phone: string, title: string) => {
@@ -372,6 +417,7 @@ const unwrapInboxPayload = (data: any): InboxResponse => ({
     totalChats: 0,
     totalMessages: 0,
   },
+  sessions: Array.isArray(data?.sessions) ? data.sessions : [],
   chats: Array.isArray(data?.chats) ? data.chats : [],
   messages: Array.isArray(data?.messages) ? data.messages : [],
 });
@@ -410,6 +456,23 @@ export const Inbox: React.FC = () => {
   const [isSending, setIsSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [listMode, setListMode] = React.useState<ThreadGovernanceState>('allowed');
+
+  const selectSessionLabel = React.useCallback((nextLabel: string | null) => {
+    setSelectedSessionLabel(nextLabel);
+    try {
+      if (nextLabel) {
+        window.localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, nextLabel);
+      } else {
+        window.localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      }
+    } catch {
+      // Ignore storage failures.
+    }
+
+    window.dispatchEvent(new CustomEvent('whatsapp:selected-session', {
+      detail: { label: nextLabel },
+    }));
+  }, []);
 
   const loadInbox = React.useCallback(async () => {
     setIsLoading(true);
@@ -521,7 +584,23 @@ export const Inbox: React.FC = () => {
   const selectedSignal = selectedChat ? threadSignals[selectedChat.id] || inferThreadSignal(selectedChat) : null;
   const selectedIntel = selectedChat?.intel || null;
   const selectedPhone = normalizePhone(selectedChat?.remoteJid?.split('@')[0]);
-  const selectedSessionChip = selectedSessionLabel || 'workspace';
+  const connectedSessions = React.useMemo(
+    () => (data?.sessions || []).filter((session) => session.status === 'connected'),
+    [data?.sessions],
+  );
+  const selectedSession = React.useMemo(
+    () => connectedSessions.find((session) => session.label === selectedSessionLabel)
+      || (data?.sessions || []).find((session) => session.label === selectedSessionLabel)
+      || connectedSessions[0]
+      || null,
+    [connectedSessions, data?.sessions, selectedSessionLabel],
+  );
+  const selectedSessionChip = getSessionDisplayLabel(selectedSession);
+  const inboxLaneSummary = connectedSessions.length > 1
+    ? `${connectedSessions.length} connected numbers`
+    : connectedSessions.length === 1
+      ? '1 connected number'
+      : 'Workspace inbox';
   const selectedChatTitle = getChatDisplayTitle(selectedChat);
   const selectedChatSubtitle = getChatSubtitle(selectedChat);
 
@@ -787,6 +866,7 @@ export const Inbox: React.FC = () => {
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7dd3fc]">Inbox</p>
                 <p className="mt-1 text-lg font-semibold text-white">{selectedSessionChip}</p>
+                <p className="mt-1 text-[11px] text-slate-500">{inboxLaneSummary}</p>
               </div>
               <button
                 type="button"
@@ -797,6 +877,25 @@ export const Inbox: React.FC = () => {
                 Refresh
               </button>
             </div>
+            {connectedSessions.length > 1 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {connectedSessions.slice(0, 5).map((session) => (
+                  <button
+                    key={session.label}
+                    type="button"
+                    onClick={() => selectSessionLabel(session.label)}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-[10px] font-semibold transition-colors',
+                      selectedSessionLabel === session.label
+                        ? 'border-[#7dd3fc]/40 bg-[#112031] text-white'
+                        : 'border-[rgba(148,163,184,0.12)] bg-[#0d1420] text-slate-400 hover:border-[rgba(148,163,184,0.22)] hover:text-slate-200',
+                    )}
+                  >
+                    {getSessionDisplayLabel(session)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="border-b border-[rgba(148,163,184,0.12)] px-4 py-3">
