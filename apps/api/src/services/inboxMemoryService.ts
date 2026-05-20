@@ -1,5 +1,7 @@
 import {
+    type InboxIntelligenceSettings,
     type InboxThreadMemory,
+    DEFAULT_SETTINGS,
     getWorkspaceSettingsRecord,
     saveWorkspaceSettingsRecord,
 } from './workspaceSettingsService';
@@ -16,6 +18,10 @@ type ThreadLike = {
     remoteJid?: string | null;
     title?: string | null;
     preview?: string | null;
+};
+
+type ThreadWithRecentMessages = ThreadLike & {
+    recentMessages?: ThreadMessageSnippet[] | null;
 };
 
 type ContactRole = 'broker' | 'buyer' | 'seller' | 'tenant' | 'owner' | 'unknown';
@@ -192,7 +198,7 @@ function buildSummary(input: {
     return latestInboundText ? `${prefix}. Latest inbound: "${latestInboundText}"` : `${prefix}.`;
 }
 
-function buildIntel(thread: ThreadLike & { recentMessages?: ThreadMessageSnippet[] | null }): InboxThreadIntel {
+function buildIntel(thread: ThreadWithRecentMessages): InboxThreadIntel {
     const recentMessages = Array.isArray(thread.recentMessages) ? thread.recentMessages : [];
     const snippets = recentMessages
         .map((message) => compactText(message.text, 220))
@@ -245,9 +251,14 @@ function sameIntel(left: InboxThreadIntel, right?: InboxThreadMemory | null) {
 }
 
 export class InboxMemoryService {
-    async decorateThreads<T extends ThreadLike>(workspaceOwnerId: string, threads: Array<T & { recentMessages?: ThreadMessageSnippet[] | null }>, sessionLabel?: string | null) {
+    async decorateThreads<T extends ThreadWithRecentMessages>(
+        workspaceOwnerId: string,
+        threads: T[],
+        sessionLabel?: string | null,
+    ): Promise<Array<Omit<T, 'recentMessages'> & { intel: InboxThreadIntel }>> {
         const record = await getWorkspaceSettingsRecord(workspaceOwnerId);
-        const config = record.settings.inboxIntelligence;
+        const config: InboxIntelligenceSettings = record.settings.inboxIntelligence
+            ?? (DEFAULT_SETTINGS.inboxIntelligence as InboxIntelligenceSettings);
         const sessionKey = getSessionKey(sessionLabel);
         const existingSession = config.sessions[sessionKey] || { threads: {}, memories: {} };
         const storedMemories = existingSession.memories || {};
@@ -268,7 +279,7 @@ export class InboxMemoryService {
             const effective = nextMemories[thread.id] || stored;
             const { recentMessages, ...rest } = thread;
             return {
-                ...rest,
+                ...(rest as Omit<T, 'recentMessages'>),
                 intel: effective
                     ? {
                         summary: effective.summary,

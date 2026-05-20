@@ -28,6 +28,25 @@ type ThreadSnippet = {
     timestamp?: string | null;
 };
 
+type ChatRecord = {
+    id: string;
+    remoteJid: string;
+    type: 'group' | 'direct';
+    title: string;
+    preview: string;
+    lastMessageAt: string;
+    sender: string | null;
+    locality: string | null;
+    city: string | null;
+    category: string | null;
+    tags: string[];
+    participantsCount: number;
+    broadcastEnabled: boolean;
+    isParsing?: boolean;
+    messageCount: number;
+    recentMessages: ThreadSnippet[];
+};
+
 type GroupRow = {
     group_jid?: string | null;
     group_name?: string | null;
@@ -232,7 +251,7 @@ export class WorkspaceMonitorService {
         row: MessageRow,
         groupMeta?: GroupRow,
         liveMeta?: { title?: string; participantsCount?: number } | null,
-    ) {
+    ): ChatRecord {
         const remoteJid = String(row.remote_jid || '');
         const isGroup = remoteJid.endsWith('@g.us');
         const title = isGroup
@@ -261,7 +280,7 @@ export class WorkspaceMonitorService {
         };
     }
 
-    private buildSummaryPayload(chats: any[], sessions: SessionRow[], totalMessages: number) {
+    private buildSummaryPayload(chats: Array<Record<string, unknown>>, sessions: SessionRow[], totalMessages: number) {
         const activeSessions = sessions.filter((session) => session.status === 'connected');
         const sanitizedChats = chats.map(({ recentMessages, ...chat }) => chat);
 
@@ -287,7 +306,7 @@ export class WorkspaceMonitorService {
     async getMonitorOverview(workspaceOwnerId: string, inboxOnly = false, sessionLabel?: string | null) {
         const context = await this.buildContext(workspaceOwnerId, sessionLabel);
         const rows = await this.loadMessageRows(workspaceOwnerId, sessionLabel);
-        const chatsMap = new Map<string, any>();
+        const chatsMap = new Map<string, ChatRecord>();
         let totalMessages = 0;
 
         for (const row of rows) {
