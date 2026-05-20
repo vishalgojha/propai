@@ -143,6 +143,15 @@ export const handleApiError = (error: any) => {
       ? 'Sign in is taking too long right now. Please try again in a moment.'
       : 'The request took too long. Please try again in a moment.';
   }
+  const details = Array.isArray(error?.response?.data?.details) ? error.response.data.details : [];
+  const detailMessage = details
+    .map((detail: any) => {
+      const field = String(detail?.path || detail?.field || '').trim();
+      const message = String(detail?.message || '').trim();
+      return field && message ? `${field}: ${message}` : message || field;
+    })
+    .filter(Boolean)
+    .join(', ');
   const rawMessage = error.response?.data?.error || error.response?.data?.message || error.message || "An unexpected error occurred";
   const normalized = typeof rawMessage === 'object'
     ? (rawMessage?.message || rawMessage?.error || JSON.stringify(rawMessage))
@@ -150,10 +159,15 @@ export const handleApiError = (error: any) => {
   const repaired = normalized === '[object Object]'
     ? (error.response?.data?.message || error.response?.data?.error?.message || JSON.stringify(error.response?.data || rawMessage))
     : normalized;
-  return repaired === 'Missing or invalid authorization header'
-    || repaired === 'Invalid or expired token'
-    ? SESSION_EXPIRED_MESSAGE
+  const withDetails = detailMessage
+    ? repaired === 'Validation failed'
+      ? `${repaired}: ${detailMessage}`
+      : `${repaired}. ${detailMessage}`
     : repaired;
+  return withDetails === 'Missing or invalid authorization header'
+    || withDetails === 'Invalid or expired token'
+    ? SESSION_EXPIRED_MESSAGE
+    : withDetails;
 };
 
 export default backendApi;

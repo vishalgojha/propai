@@ -278,30 +278,39 @@ export const Team: React.FC = () => {
     setIsSavingProfile(true);
     setError(null);
     try {
-      await Promise.all([
-        backendApi.post(ENDPOINTS.auth.me, { fullName }),
-        backendApi.post(ENDPOINTS.identity.onboarding, {
+      await backendApi.post(ENDPOINTS.workspace.metadata, {
+        agencyName,
+        primaryCity,
+        serviceAreas,
+      });
+
+      const followUpErrors: string[] = [];
+
+      try {
+        await backendApi.post(ENDPOINTS.identity.onboarding, {
           first_name: firstName,
           last_name: lastName,
           full_name: fullName,
           agency_name: agencyName,
           city: primaryCity,
           localities: serviceAreas.map((area) => area.locality),
-        }),
-        backendApi.post(ENDPOINTS.workspace.metadata, {
-          agencyName,
-          primaryCity,
-          serviceAreas,
-        }),
-      ]);
+        });
+      } catch (err) {
+        followUpErrors.push(`Onboarding sync failed: ${handleApiError(err)}`);
+      }
 
-      setWorkspaceMetadata({
-        agencyName,
-        primaryCity,
-        serviceAreas,
-      });
+      try {
+        await backendApi.post(ENDPOINTS.auth.me, { fullName });
+      } catch (err) {
+        followUpErrors.push(`Account name sync failed: ${handleApiError(err)}`);
+      }
+
+      await loadTeamData();
       setProfileSaved(true);
       window.setTimeout(() => setProfileSaved(false), 1800);
+      if (followUpErrors.length > 0) {
+        setError(`Workspace profile saved. ${followUpErrors.join(' ')}`);
+      }
     } catch (err) {
       setError(handleApiError(err));
     } finally {
