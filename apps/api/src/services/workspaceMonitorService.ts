@@ -104,11 +104,14 @@ function normalizePhone(value?: string | null) {
 
 function getDirectPhoneFromJid(value?: string | null) {
     const jid = String(value || '').trim().toLowerCase();
-    if (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@c.us')) {
+    if (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@c.us') && !jid.endsWith('@lid')) {
         return null;
     }
 
-    return normalizePhone(jid.split('@')[0]);
+    const localPart = jid.split('@')[0] || '';
+    const deviceSeparatorIndex = localPart.indexOf(':');
+    const phoneCandidate = deviceSeparatorIndex >= 0 ? localPart.slice(0, deviceSeparatorIndex) : localPart;
+    return normalizePhone(phoneCandidate);
 }
 
 function isOutboundSender(sender?: string | null) {
