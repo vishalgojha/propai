@@ -161,9 +161,13 @@ class WaBroApiClient @Inject constructor(
     }
 
     fun getDeviceApiBaseUrl(): String {
-        return prefs.getString(PREF_DEVICE_API_BASE_URL, null)
+        val stored = prefs.getString(PREF_DEVICE_API_BASE_URL, null)
             ?.takeIf { it.isNotBlank() }
-            ?: DEFAULT_DEVICE_API_BASE_URL
+        val normalized = normalizeLegacyBaseUrl(stored, DEFAULT_DEVICE_API_BASE_URL)
+        if (stored != null && stored != normalized) {
+            prefs.edit().putString(PREF_DEVICE_API_BASE_URL, normalized).apply()
+        }
+        return normalized
     }
 
     fun setDeviceApiBaseUrl(value: String) {
@@ -226,9 +230,12 @@ class WaBroApiClient @Inject constructor(
     }
 
     private fun resolveUserUrl(path: String): String {
-        val baseUrl = prefs.getString(PREF_USER_API_BASE_URL, null)
+        val stored = prefs.getString(PREF_USER_API_BASE_URL, null)
             ?.takeIf { it.isNotBlank() }
-            ?: DEFAULT_USER_API_BASE_URL
+        val baseUrl = normalizeLegacyBaseUrl(stored, DEFAULT_USER_API_BASE_URL)
+        if (stored != null && stored != baseUrl) {
+            prefs.edit().putString(PREF_USER_API_BASE_URL, baseUrl).apply()
+        }
         val normalizedBase = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
         return normalizedBase + path.removePrefix("/")
     }
@@ -247,6 +254,12 @@ class WaBroApiClient @Inject constructor(
     private fun requireProvisioningToken(): String {
         return getProvisioningToken().takeIf { it.isNotEmpty() }
             ?: throw IOException("Set the WaBro provisioning token in Settings before syncing this device")
+    }
+
+    private fun normalizeLegacyBaseUrl(value: String?, fallback: String): String {
+        val candidate = value?.trim().orEmpty()
+        if (candidate.isEmpty()) return fallback
+        return candidate.replace("https://api.propai.live/api/", "https://app.propai.live/api/")
     }
 
     companion object {
