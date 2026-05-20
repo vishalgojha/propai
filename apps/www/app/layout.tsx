@@ -8,8 +8,12 @@ export const metadata: Metadata = {
   description:
     "Access Mumbai's off-market property inventory before it hits MagicBricks or 99acres. Sourced directly from real-time broker broadcasts using AI.",
   icons: {
-    icon: "/favicon.svg",
-    apple: "/favicon.svg",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icon", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/favicon.svg",
+    apple: "/apple-icon",
   },
 };
 
