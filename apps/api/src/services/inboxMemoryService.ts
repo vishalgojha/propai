@@ -51,6 +51,19 @@ const LOCALITY_STOP_WORDS = new Set([
     'please', 'property', 'requirement', 'required', 'the', 'this', 'urgent', 'want',
 ]);
 
+const NON_LOCALITY_PATTERNS = /\b(?:ai|mba|internship|certificate|certifications?|course|college|university|subject|newsletter|learning|portfolio|skills|ctc|salary|job|career)\b/i;
+
+function escapeRegex(value: string) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function hasKeywordMatch(haystack: string, keyword: string) {
+    const pattern = keyword.includes(' ')
+        ? `(^|[^a-z0-9])${escapeRegex(keyword)}($|[^a-z0-9])`
+        : `\\b${escapeRegex(keyword)}\\b`;
+    return new RegExp(pattern, 'i').test(haystack);
+}
+
 function getSessionKey(sessionLabel?: string | null) {
     return sessionLabel && sessionLabel.trim() ? sessionLabel.trim() : 'workspace';
 }
@@ -102,7 +115,7 @@ function extractPropertyTypes(texts: string[]) {
     for (const text of texts) {
         const haystack = text.toLowerCase();
         for (const keyword of PROPERTY_KEYWORDS) {
-            if (haystack.includes(keyword)) {
+            if (hasKeywordMatch(haystack, keyword)) {
                 matches.push(keyword.toUpperCase().includes('BHK')
                     ? keyword.toUpperCase()
                     : keyword.replace(/\b\w/g, (char) => char.toUpperCase()));
@@ -123,6 +136,9 @@ function extractLocalities(texts: string[]) {
             }
             const lower = normalized.toLowerCase();
             if (LOCALITY_STOP_WORDS.has(lower)) {
+                continue;
+            }
+            if (NON_LOCALITY_PATTERNS.test(normalized)) {
                 continue;
             }
             if (/\b(?:bhk|cr|crore|lac|lakh|budget|buyer|seller|tenant|owner|broker|agent)\b/i.test(normalized)) {

@@ -68,6 +68,17 @@ const LOW_SIGNAL_PATTERNS = [
     'thank you',
 ];
 
+function escapeRegex(value: string) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function hasKeywordMatch(haystack: string, keyword: string) {
+    const pattern = keyword.includes(' ')
+        ? `(^|[^a-z0-9])${escapeRegex(keyword)}($|[^a-z0-9])`
+        : `\\b${escapeRegex(keyword)}\\b`;
+    return new RegExp(pattern, 'i').test(haystack);
+}
+
 function getSessionKey(sessionLabel?: string | null) {
     return sessionLabel && sessionLabel.trim() ? sessionLabel.trim() : 'workspace';
 }
@@ -87,7 +98,7 @@ function inferThreadDecision(thread: ThreadLike, config: InboxIntelligenceSettin
     const haystack = `${thread.title || ''} ${thread.preview || ''}`.toLowerCase();
     const hasBlockedLink = config.blockedDomains.some((pattern) => haystack.includes(pattern));
     const hasLowSignalPhrase = config.filterLowSignal && LOW_SIGNAL_PATTERNS.some((pattern) => haystack.includes(pattern));
-    const hasRealEstateKeyword = REAL_ESTATE_KEYWORDS.some((pattern) => haystack.includes(pattern))
+    const hasRealEstateKeyword = REAL_ESTATE_KEYWORDS.some((pattern) => hasKeywordMatch(haystack, pattern))
         || /\b\d+\s*bhk\b/.test(haystack)
         || /\b\d+(\.\d+)?\s*(cr|crore|lac|lakh)\b/.test(haystack);
 

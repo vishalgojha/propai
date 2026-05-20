@@ -153,6 +153,15 @@ const BLOCKED_LINK_PATTERNS = [
   'twitter.com',
 ];
 
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const hasKeywordMatch = (haystack: string, keyword: string) => {
+  const pattern = keyword.includes(' ')
+    ? `(^|[^a-z0-9])${escapeRegex(keyword)}($|[^a-z0-9])`
+    : `\\b${escapeRegex(keyword)}\\b`;
+  return new RegExp(pattern, 'i').test(haystack);
+};
+
 const formatTime = (value?: string | null) =>
   value
     ? new Intl.DateTimeFormat('en-IN', {
@@ -207,7 +216,7 @@ const inferThreadSignal = (chat: InboxChat): ThreadSignal => {
   const haystack = `${chat.title} ${chat.preview}`.toLowerCase();
   const hasBlockedLink = BLOCKED_LINK_PATTERNS.some((pattern) => haystack.includes(pattern));
   const hasLowSignalPhrase = LOW_SIGNAL_PATTERNS.some((pattern) => haystack.includes(pattern));
-  const hasRealEstateKeyword = REAL_ESTATE_KEYWORDS.some((pattern) => haystack.includes(pattern))
+  const hasRealEstateKeyword = REAL_ESTATE_KEYWORDS.some((pattern) => hasKeywordMatch(haystack, pattern))
     || /\b\d+\s*bhk\b/.test(haystack)
     || /\b\d+(\.\d+)?\s*(cr|crore|lac|lakh)\b/.test(haystack);
 
