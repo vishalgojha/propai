@@ -41,8 +41,16 @@ export class GroupAuditService {
         })));
 
         const enrichedGroups = groups.map((group) => {
-            const participantJids = Array.isArray((group as any).participantJids) ? (group as any).participantJids : [];
-            const phones = Array.from(new Set(participantJids.map((jid: string) => normalizePhoneFromJid(jid)).filter(Boolean)));
+            const participantJids: string[] = Array.isArray((group as any).participantJids)
+                ? ((group as any).participantJids as string[])
+                : [];
+            const phones: string[] = Array.from(
+                new Set(
+                    participantJids
+                        .map((jid: string) => normalizePhoneFromJid(jid))
+                        .filter((phone): phone is string => Boolean(phone)),
+                ),
+            );
             const duplicatePhones = phones.filter((phone) => (overlapMap.get(phone)?.size || 0) > 1);
             const overlapPercent = phones.length > 0 ? Math.round((duplicatePhones.length / phones.length) * 100) : 0;
             const signalScore = Number((group as any).signalScore || 0);
