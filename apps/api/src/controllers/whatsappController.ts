@@ -143,10 +143,11 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
         const dbClient = getDbClient();
         const { data: existingRow } = await dbClient
             .from('whatsapp_sessions')
-            .select('status, session_data')
+            .select('status, session_data, creds, keys')
             .eq('tenant_id', tenantId)
             .eq('label', sessionLabel)
             .maybeSingle();
+        const hasStoredAuth = Boolean(existingRow?.creds && existingRow?.keys);
 
         if (existingSession?.status === 'connected' && existingRow?.status === 'connected') {
             return res.json({
@@ -160,7 +161,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             });
         }
 
-        if (connectMethod === 'qr' && existingRow?.status !== 'connected') {
+        if (connectMethod === 'qr' && existingRow?.status !== 'connected' && !hasStoredAuth) {
             if (existingSession) {
                 await gateway.disconnect({ workspaceOwnerId: tenantId, sessionLabel });
             } else {

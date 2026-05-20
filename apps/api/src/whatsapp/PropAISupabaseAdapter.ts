@@ -289,8 +289,7 @@ ${text}
     async loadPersistedSessions(): Promise<SessionRecord[]> {
         const { data, error } = await db
             .from('whatsapp_sessions')
-            .select('tenant_id, label, owner_name, session_data, status')
-            .in('status', ['connecting', 'connected'])
+            .select('tenant_id, label, owner_name, session_data, status, creds, keys')
             .order('last_sync', { ascending: false });
 
         if (error) {
@@ -298,6 +297,17 @@ ${text}
         }
 
         return (data || [])
+            .filter((session: any) => {
+                if (!session?.tenant_id || session.tenant_id === 'system') {
+                    return false;
+                }
+
+                if (session.status === 'connected' || session.status === 'connecting') {
+                    return true;
+                }
+
+                return Boolean(session.creds && session.keys);
+            })
             .filter((session: any) => session?.tenant_id && session.tenant_id !== 'system')
             .map((session: any) => ({
                 tenantId: session.tenant_id,
