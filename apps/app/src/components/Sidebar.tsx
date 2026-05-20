@@ -37,7 +37,7 @@ const NAV_ITEMS = [
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
   { label: 'WaBro', path: '/wabro/app', icon: BroadcastIcon },
-  { label: 'Team', path: '/team', icon: ShieldIcon },
+  { label: 'Profile & Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },
   { label: 'AI Usage', path: '/aiusage', icon: CreditCardIcon },
   { label: 'Pricing', path: '/pricing', icon: CreditCardIcon },

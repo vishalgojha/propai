@@ -98,7 +98,7 @@ export const Layout: React.FC = () => {
       case '/docs':
         return 'Docs';
       case '/team':
-        return 'Team';
+        return 'Profile & Team';
       case '/admin':
         return 'Admin';
       case '/aiusage':

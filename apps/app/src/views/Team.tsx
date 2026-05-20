@@ -3,6 +3,7 @@ import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
 import { AlertTriangleIcon, GroupsIcon, PlusIcon, RefreshIcon, ShieldIcon } from '../lib/icons';
+import { useAuth } from '../context/AuthContext';
 
 type WorkspaceSummary = {
   ownerId: string;
@@ -62,6 +63,7 @@ const formatDate = (value?: string | null) =>
     : '—';
 
 export const Team: React.FC = () => {
+  const { user } = useAuth();
   const [workspace, setWorkspace] = React.useState<WorkspaceSummary | null>(null);
   const [members, setMembers] = React.useState<WorkspaceMember[]>([]);
   const [sessions, setSessions] = React.useState<WorkspaceSessionOption[]>([]);
@@ -145,6 +147,12 @@ export const Team: React.FC = () => {
     () => sessions.filter((session) => session.status === 'connected'),
     [sessions],
   );
+  const planLabel = React.useMemo(() => {
+    const normalized = String(user?.subscription?.plan || '').trim().toLowerCase();
+    if (normalized === 'trial' || normalized === 'free') return 'Trial';
+    if (normalized === 'solo' || normalized === 'pro') return 'Solo';
+    return user?.subscription?.plan || 'Team';
+  }, [user?.subscription?.plan]);
 
   const toggleAssignedSession = async (member: WorkspaceMember, sessionLabel: string) => {
     const assigned = new Set(member.assignedSessionLabels || []);
@@ -172,13 +180,13 @@ export const Team: React.FC = () => {
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
               <GroupsIcon className="h-3.5 w-3.5" />
-              Team workspace
+              Profile & team
             </div>
             <h2 className="mt-4 text-[28px] font-bold tracking-[-0.03em] text-[var(--text-primary)] md:text-[34px]">
-              Run one broker workspace with clear operator lanes
+              Manage your profile, team access, and plan-controlled workspace lanes
             </h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              Add operators, assign which WhatsApp numbers they can send from, and keep broker activity inside one shared PropAI Pulse workspace instead of splitting the business into separate accounts.
+              This page is the control surface for who is inside the workspace, which connected numbers they can operate, and what your current plan unlocks before you touch the rest of the product.
             </p>
           </div>
           <button
@@ -198,11 +206,16 @@ export const Team: React.FC = () => {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Workspace owner</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Profile owner</p>
           <p className="mt-3 text-lg font-bold text-[var(--text-primary)]">{workspace?.ownerName || workspace?.ownerEmail || 'Workspace'}</p>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">{workspace?.ownerEmail || '—'}</p>
+        </div>
+        <div className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Current plan</p>
+          <p className="mt-3 text-lg font-bold text-[var(--text-primary)]">{planLabel}</p>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">Plan controls connected devices, lane sharing, and who can operate this workspace.</p>
         </div>
         <div className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Your role</p>
