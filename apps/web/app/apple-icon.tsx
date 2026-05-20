@@ -13,20 +13,25 @@ export default function AppleIcon() {
       <div
         style={{
           alignItems: "center",
-          background:
-            "radial-gradient(circle at top, rgba(180,106,45,0.18), transparent 34%), linear-gradient(180deg, #fbf7f0 0%, #f1eadf 100%)",
+          background: "#090d12",
           borderRadius: 40,
-          color: "#0D1A12",
           display: "flex",
-          fontFamily: "Georgia, serif",
-          fontSize: 68,
-          fontWeight: 700,
           height: "100%",
           justifyContent: "center",
           width: "100%",
         }}
       >
-        P
+        <svg width="180" height="180" viewBox="0 0 64 64" fill="none">
+          <rect width="64" height="64" rx="16" fill="#090d12" />
+          <path d="M37 6L18 35h13L27 58l19-29H33L37 6Z" fill="#3EE88A" />
+          <path d="M37 6L18 35h13L27 58l19-29H33L37 6Z" fill="url(#glow)" opacity="0.18" />
+          <defs>
+            <linearGradient id="glow" x1="18" y1="6" x2="46" y2="58" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#7CFFB2" />
+              <stop offset="1" stopColor="#3EE88A" />
+            </linearGradient>
+          </defs>
+        </svg>
       </div>
     ),
     size,
