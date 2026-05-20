@@ -65,9 +65,10 @@ class AuthManager @Inject constructor(
         private const val PREF_EXPIRES_AT = "auth_expires_at"
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 
-        private const val AUTH_API_URL = "https://app.propai.live/api/auth/password"
+        private const val APP_API_ROOT = "https://app.propai.live/api"
+        private const val AUTH_API_URL = "$APP_API_ROOT/auth/password"
 
-        fun apiBaseUrl() = "https://app.propai.live/api/wabro/"
+        fun apiBaseUrl() = "$APP_API_ROOT/wabro/"
     }
 
     fun getSession(): AuthSession? {
@@ -100,13 +101,13 @@ class AuthManager @Inject constructor(
 
                 val response = httpClient.newCall(httpRequest).execute()
                 val body = response.body?.string().orEmpty()
-                val authResp = gson.fromJson(body, AuthResponse::class.java)
+                val authResp: AuthResponse? = gson.fromJson(body, AuthResponse::class.java)
 
                 if (!response.isSuccessful) {
-                    throw Exception(authResp.error ?: authResp.message ?: "Authentication failed (HTTP ${response.code})")
+                    throw Exception(authResp?.error ?: authResp?.message ?: "Authentication failed (HTTP ${response.code})")
                 }
 
-                val sessionDto = authResp.session
+                val sessionDto = authResp?.session
                     ?: throw Exception("No session returned from server")
 
                 val accessToken = sessionDto.accessToken
