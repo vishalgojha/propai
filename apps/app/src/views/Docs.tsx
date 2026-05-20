@@ -13,6 +13,112 @@ import {
   WorkflowIcon,
 } from '../lib/icons';
 
+const apiReferenceSections = [
+  {
+    title: 'Auth',
+    base: '/api/auth',
+    auth: 'Public except /me',
+    endpoints: [
+      { method: 'POST', path: '/request-verification', note: 'Send OTP / verification code.' },
+      { method: 'POST', path: '/verify', note: 'Verify OTP and establish session.' },
+      { method: 'POST', path: '/password', note: 'Password-based sign-in.' },
+      { method: 'GET', path: '/me', note: 'Get current authenticated user state.' },
+      { method: 'POST', path: '/me', note: 'Update current profile name.' },
+      { method: 'POST', path: '/refresh', note: 'Refresh auth session.' },
+      { method: 'POST', path: '/reset-password', note: 'Reset password flow.' },
+    ],
+  },
+  {
+    title: 'WhatsApp',
+    base: '/api/whatsapp',
+    auth: 'Bearer token required',
+    endpoints: [
+      { method: 'POST', path: '/connect', note: 'Start QR or pairing-based session connection.' },
+      { method: 'GET', path: '/status', note: 'Get live WhatsApp session status and connected numbers.' },
+      { method: 'GET', path: '/qr', note: 'Fetch current QR artifact for a session.' },
+      { method: 'POST', path: '/qr/force-refresh', note: 'Force QR regeneration / reconnect.' },
+      { method: 'POST', path: '/disconnect', note: 'Disconnect a WhatsApp session.' },
+      { method: 'GET', path: '/inbox', note: 'Private inbox thread overview.' },
+      { method: 'GET', path: '/inbox/governance', note: 'Fetch inbox governance state.' },
+      { method: 'POST', path: '/inbox/governance', note: 'Persist inbox governance overrides.' },
+      { method: 'GET', path: '/monitor/messages', note: 'Load thread messages for a chat.' },
+      { method: 'GET', path: '/groups', note: 'List synced WhatsApp groups.' },
+      { method: 'GET', path: '/groups/audit', note: 'Build and fetch group audit recommendations.' },
+      { method: 'POST', path: '/config', note: 'Save parsing, self-chat, and group behavior settings.' },
+      { method: 'POST', path: '/send', note: 'Send one direct WhatsApp message.' },
+      { method: 'POST', path: '/send-bulk', note: 'Send bulk direct WhatsApp messages.' },
+      { method: 'POST', path: '/broadcast', note: 'Broadcast to selected groups using a session.' },
+      { method: 'GET', path: '/health', note: 'High-level ingestion health.' },
+      { method: 'GET', path: '/health/logs', note: 'Detailed health logs and recent failures.' },
+      { method: 'GET', path: '/events', note: 'Session and parser event feed.' },
+    ],
+  },
+  {
+    title: 'Workspace',
+    base: '/api/workspace',
+    auth: 'Bearer token required',
+    endpoints: [
+      { method: 'GET', path: '/overview', note: 'Workspace summary and account context.' },
+      { method: 'GET', path: '/team', note: 'Workspace team roster and sessions.' },
+      { method: 'POST', path: '/team', note: 'Add a workspace member.' },
+      { method: 'PATCH', path: '/team/:memberId', note: 'Update member role, status, or lane access.' },
+      { method: 'GET', path: '/activity', note: 'Workspace activity feed.' },
+      { method: 'GET', path: '/metadata', note: 'Read workspace profile metadata.' },
+      { method: 'POST', path: '/metadata', note: 'Save workspace profile metadata.' },
+      { method: 'GET', path: '/referral', note: 'Referral program state and share data.' },
+    ],
+  },
+  {
+    title: 'AI',
+    base: '/api/ai',
+    auth: 'Bearer token required',
+    endpoints: [
+      { method: 'POST', path: '/chat', note: 'Run the main AI chat/completion flow.' },
+      { method: 'GET', path: '/models', note: 'List configured AI models/providers.' },
+      { method: 'GET', path: '/status', note: 'Current AI availability and config health.' },
+      { method: 'GET', path: '/usage', note: 'Usage counters and cost/limits snapshot.' },
+      { method: 'POST', path: '/usage/reset', note: 'Reset tracked usage state.' },
+      { method: 'GET', path: '/history', note: 'Recent AI history.' },
+      { method: 'GET', path: '/sessions', note: 'Conversation session list.' },
+      { method: 'GET', path: '/sessions/:id', note: 'Fetch one AI session.' },
+      { method: 'POST', path: '/sessions/:id/clear', note: 'Clear one AI session.' },
+    ],
+  },
+  {
+    title: 'Channels And Stream',
+    base: '/api/channels and /api/stream-items',
+    auth: 'Bearer token required',
+    endpoints: [
+      { method: 'GET', path: '/api/channels', note: 'List channels.' },
+      { method: 'POST', path: '/api/channels', note: 'Create a channel.' },
+      { method: 'GET', path: '/api/channels/stream', note: 'Fetch channel stream items.' },
+      { method: 'GET', path: '/api/channels/stream/summary', note: 'Get stream summary metrics.' },
+      { method: 'POST', path: '/api/channels/stream/rebuild', note: 'Rebuild channel stream state.' },
+      { method: 'POST', path: '/api/channels/:channelId/read', note: 'Mark a channel as read.' },
+      { method: 'POST', path: '/api/channels/:channelId/items', note: 'Attach an item to a channel.' },
+      { method: 'GET', path: '/api/stream-items', note: 'List stream items directly.' },
+      { method: 'POST', path: '/api/stream-items/:streamItemId/read', note: 'Mark a stream item as read.' },
+      { method: 'POST', path: '/api/stream-items/:streamItemId/correct', note: 'Correct a parsed stream item.' },
+    ],
+  },
+  {
+    title: 'WaBro',
+    base: '/api/wabro',
+    auth: 'Bearer token required',
+    endpoints: [
+      { method: 'GET', path: '/campaigns', note: 'List campaigns.' },
+      { method: 'POST', path: '/campaigns', note: 'Create campaign.' },
+      { method: 'PATCH', path: '/campaigns/:id/status', note: 'Update campaign status.' },
+      { method: 'GET', path: '/contacts', note: 'List broadcast contacts.' },
+      { method: 'POST', path: '/contacts', note: 'Create/import contacts.' },
+      { method: 'GET', path: '/devices', note: 'List provisioned Android devices.' },
+      { method: 'POST', path: '/devices/provision', note: 'Provision a WaBro device token.' },
+      { method: 'GET', path: '/dashboard/stats', note: 'WaBro dashboard stats.' },
+      { method: 'GET', path: '/app-version', note: 'Current Android APK / app version.' },
+    ],
+  },
+];
+
 const capabilitySections = [
   {
     title: 'AI Agent',
@@ -222,6 +328,66 @@ export const Docs: React.FC = () => {
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="rounded-[10px] border-[0.5px] border-[color:var(--accent-border)] bg-[linear-gradient(180deg,rgba(13,17,23,0.98),rgba(9,13,18,0.98))] p-6 shadow-[0_0_0_1px_rgba(62,232,138,0.08),0_24px_80px_rgba(0,0,0,0.35)]">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+              <BookOpenIcon className="h-3.5 w-3.5" />
+              API Reference
+            </div>
+            <h3 className="mt-4 text-[24px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">
+              Backend routes currently exposed by PropAI
+            </h3>
+            <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
+              Base API host is your configured backend origin. In production this is typically the same domain used by the app, under `/api/...`.
+              This is a live route reference for the current codebase, not a generated OpenAPI schema.
+            </p>
+          </div>
+
+          <div className="min-w-[220px] rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[rgba(255,255,255,0.02)] p-4">
+            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Usage notes</p>
+            <div className="mt-3 space-y-2 text-[11px] leading-5 text-[var(--text-secondary)]">
+              <p>Most routes require the same bearer session the app already uses.</p>
+              <p>Path params like `:memberId` or `:id` are placeholders.</p>
+              <p>Query and request-body shapes are validated in the backend route schemas.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {apiReferenceSections.map((section) => (
+          <div key={section.title} className="rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">{section.title}</p>
+                <h4 className="mt-1 text-[16px] font-semibold text-[var(--text-primary)]">{section.base}</h4>
+              </div>
+              <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                {section.auth}
+              </span>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {section.endpoints.map((endpoint) => (
+                <div
+                  key={`${section.title}-${endpoint.method}-${endpoint.path}`}
+                  className="rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+                      {endpoint.method}
+                    </span>
+                    <code className="text-[12px] font-semibold text-[var(--text-primary)]">{endpoint.path}</code>
+                  </div>
+                  <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">{endpoint.note}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
