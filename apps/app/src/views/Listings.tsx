@@ -380,14 +380,20 @@ export const Listings: React.FC = () => {
       const backfillScopeKey = channelId ? null : (targetSessionLabel || 'all');
       if (backfillScopeKey && streamResponse.items.length === 0 && !attemptedBackfillScopesRef.current.has(backfillScopeKey)) {
         attemptedBackfillScopesRef.current.add(backfillScopeKey);
-        const backfillResult = await rebuildStreamFromSavedMessages(targetSessionLabel ? 2000 : 500, targetSessionLabel || null);
-        if (backfillResult?.scanned) {
-          streamResponse = await fetchStreamItems({
-            channelId: channelId || undefined,
-            sessionLabel: targetSessionLabel,
-            limit: STREAM_FETCH_LIMIT,
+        setInfoMessage('Hydrating Stream from saved WhatsApp history for this number...');
+        void rebuildStreamFromSavedMessages(targetSessionLabel ? 2000 : 500, targetSessionLabel || null)
+          .then((backfillResult) => {
+            if (!backfillResult?.scanned) {
+              return;
+            }
+            setInfoMessage(`Stream hydration started. Scanned ${backfillResult.scanned} saved messages for this WhatsApp session.`);
+            window.setTimeout(() => {
+              void loadData();
+            }, 2500);
+          })
+          .catch(() => {
+            setInfoMessage(null);
           });
-        }
       }
 
       const items = streamResponse.items || [];
