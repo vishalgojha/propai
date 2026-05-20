@@ -118,6 +118,7 @@ async function triggerAgent(tenantId: string, remoteJid: string, text: string, s
         const timestamp = new Date().toISOString();
         await db.from('messages').insert({
             tenant_id: tenantId,
+            session_label: sessionLabel || 'workspace',
             remote_jid: remoteJid,
             text: outboundText,
             sender: AI_SENDER,
@@ -179,6 +180,7 @@ async function sendAutomatedReply(tenantId: string, remoteJid: string, text: str
     const timestamp = new Date().toISOString();
     await db.from('messages').insert({
         tenant_id: tenantId,
+        session_label: sessionLabel || 'workspace',
         remote_jid: remoteJid,
         text,
         sender: AI_SENDER,

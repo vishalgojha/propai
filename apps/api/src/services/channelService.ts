@@ -1090,6 +1090,7 @@ type AIParsedStreamItem = {
 
 type RawInboundMessage = {
     id: string;
+    session_label?: string | null;
     remote_jid?: string | null;
     sender?: string | null;
     text?: string | null;
@@ -1745,6 +1746,17 @@ private backfillInitiatedTenants = new Set<string>();
             return items;
         }
 
+        const directlyScoped = items.filter((item: any) => String(item.tenant_id || '') === tenantId && String(item.session_label || '') === sessionLabel);
+        if (directlyScoped.length > 0) {
+            return items.filter((item: any) => {
+                if (String(item.tenant_id || '') !== tenantId) {
+                    return true;
+                }
+
+                return String(item.session_label || '') === sessionLabel;
+            });
+        }
+
         let groupsQuery = this.db
             .from('whatsapp_groups')
             .select('group_jid')
@@ -2028,8 +2040,10 @@ private backfillInitiatedTenants = new Set<string>();
                 .from('stream_items')
                 .upsert({
                     tenant_id: tenantId,
+                    session_label: message.session_label || 'workspace',
                     message_id: parsed.messageId,
                     source_message_id: String(message.id),
+                    source_thread_jid: message.remote_jid || null,
                     source_group_id: parsed.sourceGroupId,
                     source_group_name: parsed.sourceGroupName,
                     source_phone: parsed.sourcePhone,

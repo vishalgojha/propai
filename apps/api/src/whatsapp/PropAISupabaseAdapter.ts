@@ -92,7 +92,7 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
             const timestamp = input.timestamp ?? new Date().toISOString();
             const { data: existingMessage } = await db
                 .from('messages')
-                .select('id, remote_jid, sender, text, timestamp')
+                .select('id, session_label, remote_jid, sender, text, timestamp')
                 .eq('tenant_id', input.tenantId)
                 .eq('remote_jid', input.remoteJid)
                 .eq('text', input.text)
@@ -105,16 +105,18 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                     .from('messages')
                     .insert({
                         tenant_id: input.tenantId,
+                        session_label: input.label || 'workspace',
                         remote_jid: input.remoteJid,
                         text: input.text,
                         sender: input.sender ?? undefined,
                         timestamp,
                     })
-                    .select('id, remote_jid, sender, text, timestamp')
+                    .select('id, session_label, remote_jid, sender, text, timestamp')
                     .single();
 
                 messageRecord = data || {
                     id: rawDumpId,
+                    session_label: input.label || 'workspace',
                     remote_jid: input.remoteJid,
                     sender: input.sender ?? undefined,
                     text: input.text,

@@ -1359,6 +1359,7 @@ export const sendMessage = async (req: Request, res: Response) => {
         });
         await getDbClient().from('messages').insert({
             tenant_id: tenantId,
+            session_label: resolvedSessionLabel || 'workspace',
             remote_jid: remoteJid,
             text: String(text).trim(),
             sender: 'Broker',
@@ -1428,6 +1429,7 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
                 });
                 await getDbClient().from('messages').insert({
                     tenant_id: tenantId,
+                    session_label: resolvedSessionLabel || 'workspace',
                     remote_jid: remoteJid,
                     text: String(text).trim(),
                     sender: 'Broker',
@@ -1504,6 +1506,7 @@ export const broadcastToGroups = async (req: Request, res: Response) => {
             const timestamp = new Date().toISOString();
             const rows = result.sent.map((groupJid: string) => ({
                 tenant_id: tenantId,
+                session_label: resolvedSessionLabel || 'workspace',
                 remote_jid: groupJid,
                 text: String(text).trim(),
                 sender: 'Broker',

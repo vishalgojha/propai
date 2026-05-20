@@ -58,6 +58,7 @@ export class AgentToolService {
                 });
                 await (supabaseAdmin ?? supabase).from('messages').insert({
                     tenant_id: tenantId,
+                    session_label: 'workspace',
                     remote_jid: destinationJid,
                     text: messageText,
                     sender: 'AI',
@@ -84,6 +85,7 @@ export class AgentToolService {
                     });
                     await (supabaseAdmin ?? supabase).from('messages').insert({
                         tenant_id: tenantId,
+                        session_label: 'workspace',
                         remote_jid: destinationJid,
                         text: messageText,
                         sender: 'AI',
