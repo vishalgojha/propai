@@ -980,25 +980,6 @@ export const Inbox: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {selectedPhone ? (
-                    <>
-                      <a
-                        href={buildCallLink(selectedPhone)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-medium text-emerald-100 hover:border-emerald-400/40"
-                      >
-                        <CallbackIcon className="h-3.5 w-3.5" />
-                        Call
-                      </a>
-                      <a
-                        href={buildWaLink(selectedPhone, selectedChatTitle)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-lg border border-[rgba(148,163,184,0.14)] bg-[#111723] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
-                      >
-                        Open WhatsApp
-                      </a>
-                    </>
-                  ) : null}
                   <button
                     type="button"
                     onClick={() => void setChatGovernance(selectedChat.id, 'allowed')}
@@ -1108,6 +1089,38 @@ export const Inbox: React.FC = () => {
                       </p>
 
                       <div className="mt-4 grid gap-3">
+                        {(selectedPhone || selectedIntel.contact.phone) ? (
+                          <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] p-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Personal outreach</p>
+                            <p className="mt-2 text-sm font-medium text-white">
+                              {formatPhoneLabel(selectedIntel.contact.phone) || formatPhoneLabel(selectedPhone) || 'Direct contact'}
+                            </p>
+                            <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                              Reach out from your own phone here when this private inbox thread should turn into a real conversation.
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {selectedPhone ? (
+                                <a
+                                  href={buildCallLink(selectedPhone)}
+                                  className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-medium text-emerald-100 hover:border-emerald-400/40"
+                                >
+                                  <CallbackIcon className="h-3.5 w-3.5" />
+                                  Call
+                                </a>
+                              ) : null}
+                              {selectedPhone ? (
+                                <a
+                                  href={buildWaLink(selectedPhone, selectedChatTitle)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="rounded-lg border border-[rgba(148,163,184,0.14)] bg-[#111723] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-[#7dd3fc]"
+                                >
+                                  Open WhatsApp
+                                </a>
+                              ) : null}
+                            </div>
+                          </div>
+                        ) : null}
                         <div className="rounded-xl border border-[rgba(148,163,184,0.1)] bg-[#151c28] p-3">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Contact role</p>
                           <p className="mt-2 text-sm font-medium text-white">{formatRoleLabel(selectedIntel.contact.role)}</p>
