@@ -2,8 +2,9 @@ import React from 'react';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
-import { AlertTriangleIcon, GroupsIcon, PlusIcon, RefreshIcon, ShieldIcon } from '../lib/icons';
+import { CheckIcon, GroupsIcon, ListingIcon, LoaderIcon, MailIcon, MapPinIcon, PlusIcon, RefreshIcon, SaveIcon, ShieldCheckIcon, ShieldIcon } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
+import { buildFullName, splitFullName } from '../lib/names';
 
 type WorkspaceSummary = {
   ownerId: string;
@@ -52,6 +53,20 @@ type WorkspaceActivity = {
   created_at: string;
 };
 
+type WorkspaceMetadata = {
+  agencyName: string | null;
+  primaryCity: string | null;
+  serviceAreas: Array<{ city: string; locality: string; priority: number }>;
+};
+
+type ProfileEditorState = {
+  firstName: string;
+  lastName: string;
+  agencyName: string;
+  primaryCity: string;
+  areasText: string;
+};
+
 const formatDate = (value?: string | null) =>
   value
     ? new Intl.DateTimeFormat('en-IN', {
@@ -62,9 +77,34 @@ const formatDate = (value?: string | null) =>
       }).format(new Date(value))
     : '—';
 
+const parseServiceAreas = (text: string, primaryCity: string) => {
+  const city = primaryCity.trim();
+  const areas = new Map<string, { city: string; locality: string; priority: number }>();
+
+  for (const token of text.split(',')) {
+    const locality = token.replace(/\s+/g, ' ').trim();
+    if (!locality) continue;
+
+    const key = `${city.toLowerCase()}::${locality.toLowerCase()}`;
+    if (!areas.has(key)) {
+      areas.set(key, { city, locality, priority: 0 });
+    }
+  }
+
+  return Array.from(areas.values()).slice(0, 30);
+};
+
+const formatPlanLabel = (plan?: string | null) => {
+  const normalized = String(plan || '').trim().toLowerCase();
+  if (normalized === 'trial' || normalized === 'free') return 'Trial';
+  if (normalized === 'solo' || normalized === 'pro') return 'Solo';
+  return plan || 'Team';
+};
+
 export const Team: React.FC = () => {
   const { user } = useAuth();
   const [workspace, setWorkspace] = React.useState<WorkspaceSummary | null>(null);
+  const [workspaceMetadata, setWorkspaceMetadata] = React.useState<WorkspaceMetadata | null>(null);
   const [members, setMembers] = React.useState<WorkspaceMember[]>([]);
   const [sessions, setSessions] = React.useState<WorkspaceSessionOption[]>([]);
   const [activity, setActivity] = React.useState<WorkspaceActivity[]>([]);
@@ -77,30 +117,58 @@ export const Team: React.FC = () => {
     phone: '',
     role: 'realtor',
   });
+  const [profileEditor, setProfileEditor] = React.useState<ProfileEditorState>({
+    firstName: '',
+    lastName: '',
+    agencyName: '',
+    primaryCity: 'Mumbai',
+    areasText: '',
+  });
+  const [isSavingProfile, setIsSavingProfile] = React.useState(false);
+  const [profileSaved, setProfileSaved] = React.useState(false);
+
+  const syncProfileEditor = React.useCallback((metadata?: WorkspaceMetadata | null) => {
+    const firstName = String(user?.first_name || '').trim();
+    const lastName = String(user?.last_name || '').trim();
+    const split = !firstName && !lastName ? splitFullName(user?.full_name) : { firstName, lastName };
+
+    setProfileEditor({
+      firstName: split.firstName || '',
+      lastName: split.lastName || '',
+      agencyName: metadata?.agencyName || '',
+      primaryCity: metadata?.primaryCity || 'Mumbai',
+      areasText: (metadata?.serviceAreas || []).map((area) => area.locality).join(', '),
+    });
+  }, [user?.first_name, user?.full_name, user?.last_name]);
 
   const loadTeamData = React.useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [teamResponse, activityResponse] = await Promise.all([
+      const [teamResponse, activityResponse, metadataResponse] = await Promise.all([
         backendApi.get(ENDPOINTS.workspace.team),
         backendApi.get(ENDPOINTS.workspace.activity),
+        backendApi.get<{ metadata: WorkspaceMetadata }>(ENDPOINTS.workspace.metadata),
       ]);
 
       setWorkspace(teamResponse.data?.workspace || null);
       setMembers(teamResponse.data?.members || []);
       setSessions(teamResponse.data?.sessions || []);
       setActivity(activityResponse.data?.activity || []);
+      const metadata = metadataResponse.data?.metadata || null;
+      setWorkspaceMetadata(metadata);
+      syncProfileEditor(metadata);
     } catch (err) {
       setError(handleApiError(err));
       setWorkspace(null);
+      setWorkspaceMetadata(null);
       setMembers([]);
       setSessions([]);
       setActivity([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [syncProfileEditor]);
 
   React.useEffect(() => {
     void loadTeamData();
@@ -147,12 +215,19 @@ export const Team: React.FC = () => {
     () => sessions.filter((session) => session.status === 'connected'),
     [sessions],
   );
-  const planLabel = React.useMemo(() => {
-    const normalized = String(user?.subscription?.plan || '').trim().toLowerCase();
-    if (normalized === 'trial' || normalized === 'free') return 'Trial';
-    if (normalized === 'solo' || normalized === 'pro') return 'Solo';
-    return user?.subscription?.plan || 'Team';
-  }, [user?.subscription?.plan]);
+  const planLabel = React.useMemo(() => formatPlanLabel(user?.subscription?.plan), [user?.subscription?.plan]);
+  const profileName = React.useMemo(
+    () => buildFullName(user?.first_name, user?.last_name) || user?.full_name || workspace?.ownerName || user?.email || 'Workspace owner',
+    [user?.email, user?.first_name, user?.full_name, user?.last_name, workspace?.ownerName],
+  );
+  const serviceAreas = React.useMemo(
+    () => parseServiceAreas(profileEditor.areasText, profileEditor.primaryCity || 'Mumbai'),
+    [profileEditor.areasText, profileEditor.primaryCity],
+  );
+
+  const updateProfileField = <K extends keyof ProfileEditorState>(key: K, value: ProfileEditorState[K]) => {
+    setProfileEditor((current) => ({ ...current, [key]: value }));
+  };
 
   const toggleAssignedSession = async (member: WorkspaceMember, sessionLabel: string) => {
     const assigned = new Set(member.assignedSessionLabels || []);
@@ -173,6 +248,67 @@ export const Team: React.FC = () => {
     });
   };
 
+  const saveProfile = async () => {
+    const firstName = profileEditor.firstName.trim();
+    const lastName = profileEditor.lastName.trim();
+    const fullName = buildFullName(firstName, lastName);
+    const agencyName = profileEditor.agencyName.trim();
+    const primaryCity = profileEditor.primaryCity.trim();
+
+    if (!firstName || !lastName) {
+      setError('First name and last name are required.');
+      return;
+    }
+
+    if (agencyName.length < 2) {
+      setError('Agency name must be at least 2 characters.');
+      return;
+    }
+
+    if (primaryCity.length < 2) {
+      setError('Primary city must be at least 2 characters.');
+      return;
+    }
+
+    if (serviceAreas.length === 0) {
+      setError('Add at least one service area.');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    setError(null);
+    try {
+      await Promise.all([
+        backendApi.post(ENDPOINTS.auth.me, { fullName }),
+        backendApi.post(ENDPOINTS.identity.onboarding, {
+          first_name: firstName,
+          last_name: lastName,
+          full_name: fullName,
+          agency_name: agencyName,
+          city: primaryCity,
+          localities: serviceAreas.map((area) => area.locality),
+        }),
+        backendApi.post(ENDPOINTS.workspace.metadata, {
+          agencyName,
+          primaryCity,
+          serviceAreas,
+        }),
+      ]);
+
+      setWorkspaceMetadata({
+        agencyName,
+        primaryCity,
+        serviceAreas,
+      });
+      setProfileSaved(true);
+      window.setTimeout(() => setProfileSaved(false), 1800);
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-[24px] border border-[color:var(--border)] bg-[linear-gradient(180deg,rgba(17,24,32,0.98),rgba(13,17,23,0.98))] p-6 md:p-8">
@@ -183,10 +319,10 @@ export const Team: React.FC = () => {
               Profile & team
             </div>
             <h2 className="mt-4 text-[28px] font-bold tracking-[-0.03em] text-[var(--text-primary)] md:text-[34px]">
-              Manage your profile, team access, and plan-controlled workspace lanes
+              Your workspace profile, roster, and operator access
             </h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              This page is the control surface for who is inside the workspace, which connected numbers they can operate, and what your current plan unlocks before you touch the rest of the product.
+              Keep account details current, show the right agency footprint, and control which teammates can work each connected WhatsApp lane.
             </p>
           </div>
           <button
@@ -209,13 +345,20 @@ export const Team: React.FC = () => {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Profile owner</p>
-          <p className="mt-3 text-lg font-bold text-[var(--text-primary)]">{workspace?.ownerName || workspace?.ownerEmail || 'Workspace'}</p>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">{workspace?.ownerEmail || '—'}</p>
+          <p className="mt-3 text-lg font-bold text-[var(--text-primary)]">{profileName}</p>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">{user?.email || workspace?.ownerEmail || '—'}</p>
+        </div>
+        <div className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Workspace profile</p>
+          <p className="mt-3 text-lg font-bold text-[var(--text-primary)]">{workspaceMetadata?.agencyName || 'Complete your profile'}</p>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            {workspaceMetadata?.primaryCity || 'Set agency name and city below'}
+          </p>
         </div>
         <div className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Current plan</p>
           <p className="mt-3 text-lg font-bold text-[var(--text-primary)]">{planLabel}</p>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">Plan controls connected devices, lane sharing, and who can operate this workspace.</p>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">Controls connected devices, lane sharing, and workspace access.</p>
         </div>
         <div className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Your role</p>
@@ -239,6 +382,87 @@ export const Team: React.FC = () => {
 
       <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
         <div className="space-y-6">
+          <div className="rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+            <div className="flex items-center gap-2">
+              <ShieldCheckIcon className="h-4 w-4 text-[var(--accent)]" />
+              <h3 className="text-lg font-bold text-[var(--text-primary)]">Workspace profile</h3>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+              This is the profile other parts of PropAI use for onboarding, workspace identity, and broker coverage.
+            </p>
+
+            <div className="mt-5 grid gap-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <input
+                  value={profileEditor.firstName}
+                  onChange={(event) => updateProfileField('firstName', event.target.value)}
+                  placeholder="First name"
+                  className="w-full rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-secondary)] focus:border-[color:var(--accent-border)]"
+                />
+                <input
+                  value={profileEditor.lastName}
+                  onChange={(event) => updateProfileField('lastName', event.target.value)}
+                  placeholder="Last name"
+                  className="w-full rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-secondary)] focus:border-[color:var(--accent-border)]"
+                />
+              </div>
+              <input
+                value={profileEditor.agencyName}
+                onChange={(event) => updateProfileField('agencyName', event.target.value)}
+                placeholder="Agency name"
+                className="w-full rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-secondary)] focus:border-[color:var(--accent-border)]"
+              />
+              <input
+                value={profileEditor.primaryCity}
+                onChange={(event) => updateProfileField('primaryCity', event.target.value)}
+                placeholder="Primary city"
+                className="w-full rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-secondary)] focus:border-[color:var(--accent-border)]"
+              />
+              <textarea
+                value={profileEditor.areasText}
+                onChange={(event) => updateProfileField('areasText', event.target.value)}
+                placeholder="Service areas, comma separated"
+                className="min-h-[96px] w-full rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-secondary)] focus:border-[color:var(--accent-border)]"
+              />
+            </div>
+
+            <div className="mt-4 grid gap-3 rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4 text-sm text-[var(--text-secondary)]">
+              <div className="flex items-center gap-2">
+                <MailIcon className="h-4 w-4 text-[var(--accent)]" />
+                <span>{user?.email || workspace?.ownerEmail || 'No account email'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <ListingIcon className="h-4 w-4 text-[var(--accent)]" />
+                <span>{profileEditor.agencyName.trim() || 'Agency name not set'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <MapPinIcon className="h-4 w-4 text-[var(--accent)]" />
+                <span>
+                  {profileEditor.primaryCity.trim() || 'City not set'} · {serviceAreas.length} service area{serviceAreas.length === 1 ? '' : 's'}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void saveProfile()}
+              disabled={isSavingProfile}
+              className={cn(
+                'mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] transition-all',
+                profileSaved ? 'bg-green-500 text-black' : 'bg-[var(--accent)] text-black hover:opacity-90',
+              )}
+            >
+              {isSavingProfile ? (
+                <LoaderIcon className="h-4 w-4 animate-spin" />
+              ) : profileSaved ? (
+                <CheckIcon className="h-4 w-4" />
+              ) : (
+                <SaveIcon className="h-4 w-4" />
+              )}
+              {profileSaved ? 'Saved' : 'Save profile'}
+            </button>
+          </div>
+
           {workspace?.canManageTeam ? (
             <div className="rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
               <div className="flex items-center gap-2">
@@ -451,7 +675,7 @@ export const Team: React.FC = () => {
         <div className="rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
           <h3 className="text-lg font-bold text-[var(--text-primary)]">Recent workspace activity</h3>
           <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-            This feed captures the actions already logged for the broker workspace: session connects, disconnects, direct sends, broadcasts, and team changes.
+            Review recent membership changes, session activity, and workspace operations in one place.
           </p>
 
           <div className="mt-5 space-y-3">
@@ -476,15 +700,6 @@ export const Team: React.FC = () => {
             ) : null}
           </div>
 
-          <div className="mt-6 rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-4 text-sm leading-6 text-[var(--text-secondary)]">
-            <div className="flex items-center gap-2 text-[var(--text-primary)]">
-              <AlertTriangleIcon className="h-4 w-4 text-[var(--amber)]" />
-              <span className="font-semibold">Current scope</span>
-            </div>
-            <p className="mt-2">
-              This production slice now covers team membership, lane assignment, and outbound guardrails by WhatsApp number. It still does not do thread ownership, approval chains, or team-by-team DM review queues yet.
-            </p>
-          </div>
         </div>
       </div>
     </div>
