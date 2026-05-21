@@ -467,3 +467,7 @@ export async function parseBroadcastMessage(args: BroadcastParseArgs): Promise<B
         })),
     };
 }
+
+export const broadcastParserService = {
+    parseBroadcast: parseBroadcastMessage,
+};

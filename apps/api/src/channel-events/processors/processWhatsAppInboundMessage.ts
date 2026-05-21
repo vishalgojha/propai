@@ -7,6 +7,7 @@ import { whatsappHealthService } from '../../services/whatsappHealthService';
 import { getWhatsAppGateway } from '../../channel-gateways/whatsapp/whatsappGatewayRegistry';
 import { getPhoneOwnership, markPhoneVerifiedForUser, normalizePhone as normalizePhoneValue } from '../../services/phoneOwnershipService';
 import { whatsappThreadService } from '../../services/whatsappThreadService';
+import { broadcastParserService } from '../../services/broadcastParserService';
 
 const db = supabaseAdmin || supabase;
 const AI_SENDER = 'AI';
@@ -536,6 +537,55 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
             'Group message stored for parsing only. AI did not auto-reply because there was no explicit PropAI mention.',
             { remoteJid },
         ).catch(() => undefined);
+
+        try {
+            const result = await broadcastParserService.parseBroadcast({
+                message: event.text,
+                senderPhone: normalizedRemoteJid,
+                senderName: (event as IncomingMessageRecord & { pushName?: string | null }).pushName || '',
+                tenantId,
+            });
+
+            if (result.success && result.parsed > 0) {
+                await whatsappHealthService.appendEvent(
+                    tenantId,
+                    label || 'default',
+                    'group_message_broadcast_parsed',
+                    'Group message broadcast parsed in the background.',
+                    {
+                        remoteJid,
+                        total: result.total,
+                        parsed: result.parsed,
+                        skipped_duplicates: result.skipped_duplicates,
+                        failed: result.failed,
+                        ignored_lines: result.ignored_lines,
+                        broker: result.broker,
+                    },
+                ).catch(() => undefined);
+            } else if (!result.success) {
+                await whatsappHealthService.appendEvent(
+                    tenantId,
+                    label || 'default',
+                    'group_message_broadcast_parse_failed',
+                    'Group message broadcast parser did not parse the message.',
+                    {
+                        remoteJid,
+                        reason: result.reason || 'unknown',
+                    },
+                ).catch(() => undefined);
+            }
+        } catch (error) {
+            await whatsappHealthService.appendEvent(
+                tenantId,
+                label || 'default',
+                'group_message_broadcast_parse_failed',
+                'Group message broadcast parser failed.',
+                {
+                    remoteJid,
+                    reason: error instanceof Error ? error.message : 'Unknown parsing error',
+                },
+            ).catch(() => undefined);
+        }
         return;
     }
 
