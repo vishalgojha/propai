@@ -211,7 +211,7 @@ export const Onboarding: React.FC = () => {
                 </div>
                 <h2 className="mb-2 text-3xl font-bold text-white">You're all set!</h2>
                 <p className="mb-10 text-[17px] text-gray-400">Your profile is ready. Let's find you some deals.</p>
-                <button onClick={() => navigate('/connect-whatsapp')} className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-8 py-4 text-[16px] font-semibold text-black transition hover:opacity-90">
+                <button onClick={() => navigate('/whatsapp')} className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-8 py-4 text-[16px] font-semibold text-black transition hover:opacity-90">
                     Go to Dashboard <ArrowRightIcon className="h-5 w-5" />
                 </button>
             </div>

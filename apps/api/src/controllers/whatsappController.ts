@@ -131,7 +131,8 @@ function formatProfileResponse(profile: Record<string, unknown> | null, fallback
 export const connectWhatsApp = async (req: Request, res: Response) => {
     const { phoneNumber, label, ownerName } = req.body;
     const connectMethod = req.body?.connectMethod === 'pairing' ? 'pairing' : 'qr';
-    const tenantId = getTenantId(req);
+    const context = await workspaceAccessService.resolveContext(req.user ?? {});
+    const tenantId = context.workspaceOwnerId;
     const sessionLabel = buildSessionLabel(ownerName || label, phoneNumber);
     const gateway = getWhatsAppGateway(tenantId);
 
@@ -265,7 +266,8 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
 
 
 export const forceRefreshQR = async (req: Request, res: Response) => {
-    const tenantId = getTenantId(req);
+    const context = await workspaceAccessService.resolveContext(req.user ?? {});
+    const tenantId = context.workspaceOwnerId;
     const { label } = req.body || {};
     const sessionKey = label || undefined;
     const gateway = getWhatsAppGateway(tenantId);
@@ -302,7 +304,8 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
 };
 
 export const getQR = async (req: Request, res: Response) => {
-    const tenantId = getTenantId(req);
+    const context = await workspaceAccessService.resolveContext(req.user ?? {});
+    const tenantId = context.workspaceOwnerId;
     const label = typeof req.query.label === 'string' ? req.query.label : undefined;
     const gateway = getWhatsAppGateway(tenantId);
 
@@ -411,13 +414,26 @@ export const getStatus = async (req: Request, res: Response) => {
             return new Date(String((b as Record<string, string | undefined>).lastSync || 0)).getTime() - new Date(String((a as Record<string, string | undefined>).lastSync || 0)).getTime();
         });
         const connectedSessions = sessions.filter((session) => (session as Record<string, string>).status === 'connected');
-        const connectingSessions = sessions.filter((session) => (session as Record<string, string>).status === 'connecting');
+        const reconnectingSessions = sessions.filter((session) => {
+            const row = session as Record<string, unknown>;
+            return row.status === 'reconnecting' || (row.status === 'connecting' && Boolean(row.isReconnecting));
+        });
+        const connectingSessions = sessions.filter((session) => {
+            const row = session as Record<string, unknown>;
+            return row.status === 'connecting' && !Boolean(row.isReconnecting);
+        });
         const plan = await subscriptionService.getSubscription(workspaceOwnerId, user?.email).catch(() => ({ plan: 'Trial' as const, status: 'active', renewal_date: null }));
         const limit = subscriptionService.getLimit(plan.plan, 'sessions');
         const primaryConnectedSession = connectedSessions[0] || null;
 
         res.json({
-            status: primaryConnectedSession ? 'connected' : connectingSessions.length > 0 ? 'connecting' : 'disconnected',
+            status: primaryConnectedSession
+                ? 'connected'
+                : reconnectingSessions.length > 0
+                    ? 'reconnecting'
+                    : connectingSessions.length > 0
+                        ? 'connecting'
+                        : 'disconnected',
             activeCount: connectedSessions.length,
             limit,
             plan: plan.plan,
@@ -426,11 +442,17 @@ export const getStatus = async (req: Request, res: Response) => {
             allowedOutboundSessionLabels: context.assignedSessionLabels,
             preferredOutboundSessionLabel: context.preferredSessionLabel,
             hasOutboundLaneRestriction: context.hasSessionRestriction,
-            sessions: sessions.map(s => ({
-                ...s,
-                reconnectAttempts: (s as Record<string, number | undefined>).reconnectAttempts || 0,
-                isReconnecting: (s as Record<string, boolean | undefined>).isReconnecting || false,
-            })),
+            sessions: sessions.map((session) => {
+                const row = session as Record<string, unknown>;
+                const isReconnecting = Boolean(row.isReconnecting);
+                const rawStatus = String(row.status || 'disconnected');
+                return {
+                    ...session,
+                    status: isReconnecting && rawStatus === 'connecting' ? 'reconnecting' : rawStatus,
+                    reconnectAttempts: Number(row.reconnectAttempts || 0),
+                    isReconnecting,
+                };
+            }),
         });
 };
 
@@ -619,7 +641,8 @@ export const saveInboxGovernance = async (req: Request, res: Response) => {
 };
 
 export const disconnectWhatsApp = async (req: Request, res: Response) => {
-    const tenantId = getTenantId(req);
+    const context = await workspaceAccessService.resolveContext(req.user ?? {});
+    const tenantId = context.workspaceOwnerId;
     const { label, sessionKey, phoneNumber } = req.body || {};
     const targetSessionKey = sessionKey || label || phoneNumber;
     const user = req.user;
@@ -1000,9 +1023,10 @@ export const submitSupportLogs = async (req: Request, res: Response) => {
 };
 
 export const getProfile = async (req: Request, res: Response) => {
-    const tenantId = getTenantId(req);
-
-    const { data, error } = await getDbClient()
+    const context = await workspaceAccessService.resolveContext(req.user ?? {});
+    const tenantId = context.workspaceOwnerId;
+    const dbClient = getDbClient();
+    const { data, error } = await dbClient
         .from('profiles')
         .select(profileSelectColumns)
         .eq('id', tenantId)
@@ -1013,7 +1037,39 @@ export const getProfile = async (req: Request, res: Response) => {
     }
 
     if (!data) {
-        return res.json({ profile: null });
+        const { data: identity, error: identityError } = await dbClient
+            .from('broker_identity')
+            .select('full_name')
+            .eq('broker_id', tenantId)
+            .maybeSingle();
+
+        if (identityError) {
+            return res.status(500).json({ error: identityError.message || 'Failed to load profile' });
+        }
+
+        const fallbackFullName = String(
+            identity?.full_name
+            || req.user?.full_name
+            || req.user?.name
+            || req.user?.user_metadata?.full_name
+            || ''
+        ).trim();
+        const fallbackPhone = context.isWorkspaceOwner
+            ? String(req.user?.user_metadata?.phone || '').replace(/\D/g, '')
+            : '';
+
+        if (!fallbackFullName && !fallbackPhone) {
+            return res.json({ profile: null });
+        }
+
+        return res.json({
+            profile: formatProfileResponse(null, {
+                id: tenantId,
+                fullName: fallbackFullName,
+                phone: fallbackPhone,
+                email: context.isWorkspaceOwner ? (req.user?.email || null) : null,
+            }),
+        });
     }
 
     res.json({
@@ -1022,7 +1078,8 @@ export const getProfile = async (req: Request, res: Response) => {
 };
 
 export const saveProfile = async (req: Request, res: Response) => {
-    const tenantId = getTenantId(req);
+    const context = await workspaceAccessService.resolveContext(req.user ?? {});
+    const tenantId = context.workspaceOwnerId;
     const { fullName, phone } = req.body || {};
     const user = req.user;
     const normalizedFullName = String(fullName || '').trim();
@@ -1036,17 +1093,26 @@ export const saveProfile = async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'Enter the WhatsApp number with country code only, digits only, no spaces or + sign.' });
     }
 
+    const dbClient = getDbClient();
+    const { data: existingProfile } = await dbClient
+        .from('profiles')
+        .select('email')
+        .eq('id', tenantId)
+        .maybeSingle();
+
     const payload: Record<string, unknown> = {
         id: tenantId,
         full_name: normalizedFullName,
         phone: normalizedPhone,
     };
 
-    if (user?.email) {
+    const existingEmail = String(existingProfile?.email || '').trim();
+    if (existingEmail) {
+        payload.email = existingEmail;
+    } else if (context.isWorkspaceOwner && user?.email) {
         payload.email = user.email;
     }
 
-    const dbClient = getDbClient();
     const { error: upsertError } = await dbClient
         .from('profiles')
         .upsert(payload, { onConflict: 'id' });
@@ -1064,6 +1130,14 @@ export const saveProfile = async (req: Request, res: Response) => {
     if (error) {
         return res.status(500).json({ error: error.message || 'Failed to load saved profile' });
     }
+
+    await dbClient
+        .from('broker_identity')
+        .upsert({
+            broker_id: tenantId,
+            full_name: normalizedFullName,
+            updated_at: new Date().toISOString(),
+        }, { onConflict: 'broker_id' });
 
     void pushRecentAction(tenantId, 'Updated profile name');
 

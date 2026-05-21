@@ -99,7 +99,7 @@ export const getWorkspaceMetadata = async (req: Request, res: Response) => {
             updatedAt: null,
         };
 
-        const [workspaceResult, areasResult] = await Promise.all([
+        const [workspaceResult, areasResult, identityResult] = await Promise.all([
             db
                 .from('workspaces')
                 .select('owner_id, agency_name, primary_city, created_at, updated_at')
@@ -111,13 +111,38 @@ export const getWorkspaceMetadata = async (req: Request, res: Response) => {
                 .eq('workspace_id', context.workspaceOwnerId)
                 .order('priority', { ascending: false })
                 .order('locality', { ascending: true }),
+            db
+                .from('broker_identity')
+                .select('agency_name, city, localities')
+                .eq('broker_id', context.workspaceOwnerId)
+                .maybeSingle(),
         ]);
 
         const workspaceMissing = isMissingWorkspaceMetadataRelationError(workspaceResult.error);
         const areasMissing = isMissingWorkspaceMetadataRelationError(areasResult.error);
+        const identityMissing = isMissingWorkspaceMetadataRelationError(identityResult.error);
 
         if (workspaceResult.error && !workspaceMissing) throw workspaceResult.error;
         if (areasResult.error && !areasMissing) throw areasResult.error;
+        if (identityResult.error && !identityMissing) throw identityResult.error;
+
+        const identityCity = String(identityResult.data?.city || '').trim();
+        const identityLocalities = Array.isArray(identityResult.data?.localities)
+            ? identityResult.data.localities
+                .map((value: unknown) => String(value || '').trim())
+                .filter(Boolean)
+            : [];
+        const identityMetadata = {
+            agencyName: String(identityResult.data?.agency_name || '').trim() || null,
+            primaryCity: identityCity || null,
+            serviceAreas: identityCity
+                ? identityLocalities.map((locality, index) => ({
+                    city: identityCity,
+                    locality,
+                    priority: Math.max(identityLocalities.length - index, 0),
+                }))
+                : [],
+        };
 
         if (workspaceMissing || areasMissing) {
             return res.json({
@@ -128,7 +153,12 @@ export const getWorkspaceMetadata = async (req: Request, res: Response) => {
                     canManageTeam: context.canManageTeam,
                     canSendOutbound: context.canSendOutbound,
                 },
-                metadata: fallback,
+                metadata: {
+                    agencyName: fallback.agencyName || identityMetadata.agencyName,
+                    primaryCity: fallback.primaryCity || identityMetadata.primaryCity,
+                    serviceAreas: fallback.serviceAreas.length > 0 ? fallback.serviceAreas : identityMetadata.serviceAreas,
+                    updatedAt: fallback.updatedAt,
+                },
                 legacyStorage: true,
             });
         }
@@ -145,9 +175,13 @@ export const getWorkspaceMetadata = async (req: Request, res: Response) => {
         };
 
         const metadata = {
-            agencyName: dbMetadata.agencyName || fallback.agencyName || null,
-            primaryCity: dbMetadata.primaryCity || fallback.primaryCity || null,
-            serviceAreas: dbMetadata.serviceAreas.length > 0 ? dbMetadata.serviceAreas : fallback.serviceAreas,
+            agencyName: dbMetadata.agencyName || fallback.agencyName || identityMetadata.agencyName || null,
+            primaryCity: dbMetadata.primaryCity || fallback.primaryCity || identityMetadata.primaryCity || null,
+            serviceAreas: dbMetadata.serviceAreas.length > 0
+                ? dbMetadata.serviceAreas
+                : fallback.serviceAreas.length > 0
+                    ? fallback.serviceAreas
+                    : identityMetadata.serviceAreas,
             updatedAt: dbMetadata.updatedAt || fallback.updatedAt || null,
         };
 

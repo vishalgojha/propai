@@ -68,6 +68,25 @@ vi.mock('../src/services/workspaceActivityService', () => ({
     },
 }));
 
+vi.mock('../src/services/workspaceAccessService', () => ({
+    workspaceAccessService: {
+        resolveContext: vi.fn(async (user: { id?: string; email?: string }) => ({
+            workspaceOwnerId: user?.id || 'user-1',
+            workspaceOwnerEmail: user?.email || null,
+            currentUserId: user?.id || 'user-1',
+            currentUserEmail: user?.email || null,
+            isWorkspaceOwner: true,
+            isSuperAdmin: false,
+            memberRole: 'owner',
+            canManageTeam: true,
+            canSendOutbound: true,
+            assignedSessionLabels: [],
+            preferredSessionLabel: null,
+            hasSessionRestriction: false,
+        })),
+    },
+}));
+
 vi.mock('../src/whatsapp/propaiRuntimeHooks', () => ({
     sendWhatsAppLifecycleEmail,
 }));
@@ -92,7 +111,9 @@ describe('whatsappController profile endpoints', () => {
         } as any;
         const res = createResponse();
 
-        mockDb.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+        mockDb.maybeSingle
+            .mockResolvedValueOnce({ data: null, error: null })
+            .mockResolvedValueOnce({ data: null, error: null });
 
         await getProfile(req, res as any);
 
@@ -115,20 +136,23 @@ describe('whatsappController profile endpoints', () => {
         const res = createResponse();
 
         mockDb.upsert.mockResolvedValueOnce({ error: null });
-        mockDb.maybeSingle.mockResolvedValueOnce({
-            data: {
-                id: 'user-1',
-                full_name: 'Vishal',
-                phone: '919820056180',
-                email: 'vishal@example.com',
-                phone_verified: false,
-            },
-            error: null,
-        });
+        mockDb.maybeSingle
+            .mockResolvedValueOnce({ data: null, error: null })
+            .mockResolvedValueOnce({
+                data: {
+                    id: 'user-1',
+                    full_name: 'Vishal',
+                    phone: '919820056180',
+                    email: 'vishal@example.com',
+                    phone_verified: false,
+                },
+                error: null,
+            });
 
         await saveProfile(req, res as any);
 
-        expect(mockDb.upsert).toHaveBeenCalledWith(
+        expect(mockDb.upsert).toHaveBeenNthCalledWith(
+            1,
             {
                 id: 'user-1',
                 full_name: 'Vishal',
@@ -162,7 +186,9 @@ describe('whatsappController profile endpoints', () => {
         } as any;
         const res = createResponse();
 
-        mockDb.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+        mockDb.maybeSingle
+            .mockResolvedValueOnce({ data: null, error: null })
+            .mockResolvedValueOnce({ data: null, error: null });
         mockDb.upsert.mockResolvedValueOnce({ error: null });
         connect.mockResolvedValueOnce({ artifact: { mode: 'qr', format: 'text', value: 'qr-payload' }, mode: 'qr' });
         getQRCode.mockResolvedValueOnce('qr-payload').mockResolvedValueOnce('qr-payload');
@@ -204,7 +230,9 @@ describe('whatsappController profile endpoints', () => {
         } as any;
         const res = createResponse();
 
-        mockDb.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+        mockDb.maybeSingle
+            .mockResolvedValueOnce({ data: null, error: null })
+            .mockResolvedValueOnce({ data: null, error: null });
         mockDb.upsert.mockResolvedValueOnce({ error: null });
         connect.mockResolvedValueOnce({ artifact: { mode: 'pairing', format: 'text', value: 'PAIR-1234' }, mode: 'pairing' });
         getQRCode.mockResolvedValueOnce('PAIR-1234').mockResolvedValueOnce('PAIR-1234');
@@ -273,7 +301,10 @@ describe('whatsappController profile endpoints', () => {
         const res = createResponse();
 
         mockDb.upsert.mockResolvedValueOnce({ error: null });
-        mockDb.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+        mockDb.upsert.mockResolvedValueOnce({ error: null });
+        mockDb.maybeSingle
+            .mockResolvedValueOnce({ data: null, error: null })
+            .mockResolvedValueOnce({ data: null, error: null });
 
         await saveProfile(req, res as any);
 

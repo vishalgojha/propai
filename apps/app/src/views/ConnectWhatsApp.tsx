@@ -13,7 +13,7 @@ type Session = {
     label: string;
     ownerName?: string | null;
     phoneNumber?: string | null;
-    status: 'connected' | 'connecting' | 'disconnected';
+    status: 'connected' | 'connecting' | 'reconnecting' | 'disconnected';
 };
 
 type StatusData = {
@@ -51,6 +51,7 @@ export const ConnectWhatsApp: React.FC = () => {
     const [qrSvg, setQrSvg] = useState<string | null>(null);
     const [qrGeneratedAt, setQrGeneratedAt] = useState<number | null>(null);
     const [mode, setMode] = useState<'qr' | 'pairing'>('qr');
+    const [activeSessionLabel, setActiveSessionLabel] = useState<string | null>(null);
 
     const QR_FRESHNESS = 90;
 
@@ -71,12 +72,65 @@ export const ConnectWhatsApp: React.FC = () => {
                     const nextNames = splitFullName(p.fullName);
                     setFirstName((current) => current || nextNames.firstName);
                     setLastName((current) => current || nextNames.lastName);
-                    setPhone(p.phone || phone);
+                    setPhone((current) => current || p.phone || '');
                 }
             } catch { }
             setLoading(false);
         })();
-    }, [fetchStatus, phone]);
+    }, [fetchStatus]);
+
+    useEffect(() => {
+        const shouldPoll = connecting
+            || status?.status === 'connecting'
+            || status?.status === 'reconnecting'
+            || artifact?.mode === 'qr'
+            || artifact?.mode === 'pairing';
+
+        if (!shouldPoll) {
+            return;
+        }
+
+        let cancelled = false;
+        const load = async () => {
+            try {
+                const resp = await backendApi.get(ENDPOINTS.whatsapp.status);
+                if (cancelled) return;
+                const nextStatus = resp.data;
+                setStatus(nextStatus);
+
+                const connected = nextStatus?.sessions?.some((session: Session) => session.status === 'connected');
+                if (connected) {
+                    setArtifact(null);
+                    setQrSvg(null);
+                    setQrGeneratedAt(null);
+                    setActiveSessionLabel(null);
+                    return;
+                }
+
+                if (activeSessionLabel) {
+                    const qrResp = await backendApi.get(ENDPOINTS.whatsapp.qr, {
+                        params: { label: activeSessionLabel },
+                    });
+                    if (cancelled) return;
+                    const nextArtifact = qrResp.data?.artifact || null;
+                    if (nextArtifact?.value) {
+                        setArtifact(nextArtifact);
+                        setQrGeneratedAt(Date.now());
+                    }
+                }
+            } catch { }
+        };
+
+        void load();
+        const interval = window.setInterval(() => {
+            void load();
+        }, 3000);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+        };
+    }, [activeSessionLabel, artifact?.mode, connecting, status?.status]);
 
     useEffect(() => {
         if (!artifact || artifact.mode !== 'qr' || !artifact.value) {
@@ -133,6 +187,7 @@ export const ConnectWhatsApp: React.FC = () => {
             const resp = await backendApi.post(ENDPOINTS.whatsapp.connect, {
                 phoneNumber: normPhone, ownerName: fullName, label: `device-${normPhone}`, connectMethod: mode,
             });
+            setActiveSessionLabel(resp.data?.label || null);
             if (resp.data?.connected) {
                 setArtifact(null);
             } else {
@@ -157,6 +212,7 @@ export const ConnectWhatsApp: React.FC = () => {
             setArtifact(null);
             setQrSvg(null);
             setQrGeneratedAt(null);
+            setActiveSessionLabel(null);
             await fetchStatus();
         } catch (err) {
             setError(handleApiError(err));

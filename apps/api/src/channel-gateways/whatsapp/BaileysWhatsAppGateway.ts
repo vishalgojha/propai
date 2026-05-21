@@ -28,6 +28,8 @@ type RuntimeSnapshot = {
     status?: string | null;
     phoneNumber?: string | null;
     ownerName?: string | null;
+    reconnectAttempts?: number | null;
+    isReconnecting?: boolean | null;
 };
 
 function buildArtifact(mode: WhatsAppConnectMode, value?: string | null): WhatsAppConnectionArtifact {
@@ -151,6 +153,8 @@ export class BaileysWhatsAppGateway implements WhatsAppGateway {
             status: String(snapshot.status || 'disconnected'),
             phoneNumber: snapshot.phoneNumber || null,
             ownerName: snapshot.ownerName || null,
+            reconnectAttempts: Number(snapshot.reconnectAttempts || 0),
+            isReconnecting: Boolean(snapshot.isReconnecting),
         }));
     }
 }

@@ -27,7 +27,7 @@ type WhatsappSession = {
   label: string;
   ownerName?: string | null;
   phoneNumber?: string | null;
-  status: 'connected' | 'connecting' | 'disconnected';
+  status: 'connected' | 'connecting' | 'reconnecting' | 'disconnected';
   sessionData?: {
     parseDirectMessages?: boolean;
     parse_direct_messages?: boolean;
@@ -40,7 +40,7 @@ type WhatsappSession = {
 };
 
 type WhatsappStatus = {
-  status: 'connected' | 'connecting' | 'disconnected';
+  status: 'connected' | 'connecting' | 'reconnecting' | 'disconnected';
   activeCount: number;
   limit: number;
   plan: string;
@@ -181,7 +181,9 @@ const normalizeWhatsappSession = (session: unknown): WhatsappSession | null => {
 
   const rawStatus = String(row.status || 'disconnected');
   const status: WhatsappSession['status'] =
-    rawStatus === 'connected' || rawStatus === 'connecting' ? rawStatus : 'disconnected';
+    rawStatus === 'connected' || rawStatus === 'connecting' || rawStatus === 'reconnecting'
+      ? rawStatus
+      : 'disconnected';
   const sessionData = row.sessionData && typeof row.sessionData === 'object'
     ? row.sessionData as WhatsappSession['sessionData']
     : null;
@@ -202,7 +204,9 @@ const normalizeWhatsappStatus = (payload: any): WhatsappStatus => {
     : [];
   const rawStatus = String(payload?.status || 'disconnected');
   const status: WhatsappStatus['status'] =
-    rawStatus === 'connected' || rawStatus === 'connecting' ? rawStatus : 'disconnected';
+    rawStatus === 'connected' || rawStatus === 'connecting' || rawStatus === 'reconnecting'
+      ? rawStatus
+      : 'disconnected';
 
   return {
     status,
@@ -531,8 +535,8 @@ export const Sources: React.FC = () => {
       if (profile) {
         const nextName = profile.fullName || '';
         const nextPhone = profile.phone || '';
-        setFullName(nextName);
-        setPhoneNumber(nextPhone);
+        setFullName((current) => current || nextName);
+        setPhoneNumber((current) => current || nextPhone);
         setDeviceOwnerName((current) => current || nextName);
         setDevicePhoneNumber((current) => current || nextPhone);
       }
@@ -793,7 +797,7 @@ export const Sources: React.FC = () => {
   }, [artifactValue, currentSessionStatus, qrGeneratedAt]);
 
   useEffect(() => {
-    if (!artifactValue && status.status !== 'connecting') {
+    if (!artifactValue && status.status !== 'connecting' && status.status !== 'reconnecting') {
       return undefined;
     }
 
@@ -1390,7 +1394,7 @@ export const Sources: React.FC = () => {
   const displaySelectedDeviceNumber = currentSession?.phoneNumber || pendingConnection?.phoneNumber || devicePhoneNumber || 'Not connected';
   const displaySelectedDeviceName = currentSession?.ownerName || pendingConnection?.ownerName || deviceOwnerName || 'Broker device';
   const isCurrentSessionConnected = currentSessionStatus === 'connected';
-  const isCurrentSessionConnecting = currentSessionStatus === 'connecting';
+  const isCurrentSessionConnecting = currentSessionStatus === 'connecting' || currentSessionStatus === 'reconnecting';
   const displayCurrentConnectionNumber = isCurrentSessionConnected ? displayConnectedNumber : displaySelectedDeviceNumber;
   const displayCurrentConnectionName = isCurrentSessionConnected ? displayConnectedName : displaySelectedDeviceName;
   const selectedOutboundSession = allowedConnectedSenderSessions.find((session) => session.label === outboundSessionKey) || null;
@@ -2386,6 +2390,8 @@ export const Sources: React.FC = () => {
                   <p className="mt-1 text-[18px] font-bold text-[var(--text-primary)]">
                     {currentSessionStatus === 'connected'
                       ? 'Connected'
+                      : currentSessionStatus === 'reconnecting'
+                        ? 'Reconnecting'
                       : currentSessionStatus === 'connecting'
                         ? 'Connecting'
                         : phoneNumber || devicePhoneNumber
@@ -2396,7 +2402,7 @@ export const Sources: React.FC = () => {
                   <p className="mt-1 text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{displayCurrentConnectionName}</p>
                   <p className="mt-2 text-[11px] text-[var(--text-secondary)]">{status.activeCount}/{status.limit} numbers connected on this workspace</p>
                 </div>
-                {disconnectTargetLabel && status.status === 'connected' && (
+                {disconnectTargetLabel && currentSessionStatus !== 'disconnected' && (
                   <button
                     onClick={() => handleDisconnect(disconnectTargetLabel)}
                     disabled={isConnecting}
@@ -2434,6 +2440,8 @@ export const Sources: React.FC = () => {
                         sourcePill,
                         session.status === 'connected'
                           ? 'bg-[rgba(62,232,138,0.12)] text-[var(--accent)]'
+                          : session.status === 'reconnecting'
+                            ? 'bg-[rgba(245,158,11,0.12)] text-amber-300'
                           : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
                       )}>
                         {session.status}

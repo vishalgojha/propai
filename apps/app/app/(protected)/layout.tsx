@@ -79,7 +79,7 @@ function ProtectedLayoutInner({ children }: { children: React.ReactNode }) {
     }
 
     if (user && onboardingCheck === "done" && pathname === "/onboarding") {
-      router.replace("/connect-whatsapp");
+      router.replace("/whatsapp");
     }
   }, [isLoading, onboardingCheck, pathname, router, searchParams, user]);
 

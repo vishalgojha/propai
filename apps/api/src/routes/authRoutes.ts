@@ -297,6 +297,18 @@ async function getProfileById(userId: string, accessToken?: string) {
     };
 }
 
+async function getBrokerIdentityById(userId: string, accessToken?: string) {
+    const client = getProfileClient(accessToken);
+    const result = await client
+        .from('broker_identity')
+        .select('broker_id, full_name')
+        .eq('broker_id', userId)
+        .maybeSingle();
+
+    if (result.error) throw result.error;
+    return result.data;
+}
+
 async function getLegacyUserSeed(userId: string) {
     if (!supabaseAdmin) return null;
 
@@ -648,11 +660,24 @@ router.get(ROUTE_PATHS.auth.referralPreview, async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
     const user = (req as any).user;
     const profile = await getProfileById(user.id).catch(() => null);
+    const identity = await getBrokerIdentityById(user.id).catch(() => null);
     const subscription = await subscriptionService.ensureTrialSubscription(user.id, user.email);
+    const resolvedFullName = profile?.full_name || identity?.full_name || user?.user_metadata?.full_name || null;
+    const resolvedProfile = profile || resolvedFullName
+        ? {
+            id: profile?.id || user.id,
+            full_name: resolvedFullName,
+            phone: profile?.phone || null,
+            email: profile?.email || user.email || null,
+            phone_verified: profile?.phone_verified || false,
+            app_role: profile?.app_role || null,
+            phone_ownership: (profile as any)?.phone_ownership || null,
+        }
+        : null;
     const referral = await referralService.getSummary(
         user.id,
         user.email,
-        profile?.full_name || user?.user_metadata?.full_name || null,
+        resolvedFullName,
     );
     res.json({
         success: true,
@@ -661,15 +686,15 @@ router.get('/me', authMiddleware, async (req, res) => {
             email: user.email,
             appRole: profile?.app_role || (isOwnerSuperAdminEmail(user.email) ? 'super_admin' : 'broker'),
         },
-        profile: profile
+        profile: resolvedProfile
             ? {
-                id: profile.id,
-                fullName: profile.full_name,
-                phone: profile.phone,
-                email: profile.email,
-                phoneVerified: profile.phone_verified,
-                appRole: profile.app_role || (isOwnerSuperAdminEmail(user.email) ? 'super_admin' : 'broker'),
-                phoneOwnership: (profile as any).phone_ownership || null,
+                id: resolvedProfile.id,
+                fullName: resolvedProfile.full_name,
+                phone: resolvedProfile.phone,
+                email: resolvedProfile.email,
+                phoneVerified: resolvedProfile.phone_verified,
+                appRole: resolvedProfile.app_role || (isOwnerSuperAdminEmail(user.email) ? 'super_admin' : 'broker'),
+                phoneOwnership: resolvedProfile.phone_ownership || null,
             }
             : null,
         subscription,
@@ -704,6 +729,18 @@ router.post('/me', authMiddleware, validate(updateProfileBodySchema), async (req
 
         if (profileError) {
             throw profileError;
+        }
+
+        const { error: identityError } = await client
+            .from('broker_identity')
+            .upsert({
+                broker_id: userId,
+                full_name: fullName,
+                updated_at: new Date().toISOString(),
+            }, { onConflict: 'broker_id' });
+
+        if (identityError) {
+            throw identityError;
         }
 
         const profile = await getProfileById(userId);
