@@ -22,11 +22,9 @@
 
 ### Current Remote State
 
-- Latest local commits on `main` were not pushed from this environment because `git push` is blocked here by `ssh` execution permissions.
-- Most recent local commits:
-  - `d7089291` — `Connect group messages to broadcast parser`
-  - `89de9a5a` — `Make agent chat capabilities production ready`
-- Treat local `main` as the latest source of truth until the next successful push or a fresh `git fetch` proves otherwise.
+- Latest local commits:
+  - `0446e200` — `Remove WaBro Android app and port Base44 parser prompts` (pushed)
+  - `d7089291` — `Connect group messages to broadcast parser` (pushed)
 
 ### Operational Rules
 

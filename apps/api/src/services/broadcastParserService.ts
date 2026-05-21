@@ -1,6 +1,8 @@
 import { aiService } from './aiService';
 import { supabaseAdmin } from '../config/supabase';
 import { classifyBrokerMessage } from '../utils/brokerMessageClassifier';
+import { canonicalizationService } from './canonicalizationService';
+import { embedText } from './embeddingService';
 
 const ADMIN_NUMBER = '9820056180';
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -559,14 +561,101 @@ Return ONLY valid JSON, no markdown, no explanation.`;
         source: 'whatsapp_broadcast',
     };
 
+    const listingPayload = insertPayload;
     const { data, error } = await admin
         .from('listings')
-        .insert(insertPayload)
+        .insert(listingPayload)
         .select('id')
         .single();
 
     if (error || !data) {
         throw new Error(`Failed to save listing: ${error?.message || 'Insert returned no row'}`);
+    }
+
+    // GAP 1: Sync to stream_items
+    const streamType = listingType === 'rent' ? 'Rent' : listingType === 'lease' ? 'Lease' : 'Sale';
+    const streamItemId = await upsertStreamItem({
+        tenantId,
+        messageId: `broadcast:${data.id}`,
+        sourcePhone: resolvedBrokerPhone,
+        rawText: line,
+        type: streamType,
+        recordType: 'listing',
+        locality: parsed.locality ?? null,
+        bhk: parsed.bhk ?? null,
+        priceNumeric: priceCr ? priceCr * 10000000 : rentMonthly,
+        priceLabel: priceCr ? `₹${priceCr} Cr` : rentMonthly ? `₹${(rentMonthly / 100000).toFixed(1)} L` : null,
+        dealType: listingType,
+        assetClass: propertyType === 'commercial' ? 'commercial' : 'residential',
+        confidenceScore: 0.8,
+        propertyCategory: propertyType,
+        areaSqft: areaSqft,
+        furnishing: extracted.furnishing || null,
+        floorNumber: extracted.floor || null,
+        parsedPayload: {
+            bhk: extracted.bhk,
+            propertyCategory: extracted.property_category,
+            price: extracted.price,
+            priceUnit: extracted.price_unit,
+            carpetArea: extracted.carpet_area,
+            builtUpArea: extracted.built_up_area,
+            furnishing: extracted.furnishing,
+            parking: extracted.parking,
+            possession: extracted.possession,
+            pocket: extracted.pocket,
+            amenities: extracted.amenities,
+            brokers: extracted.brokers,
+            aiTitle: extracted.ai_title,
+            aiDescription: extracted.ai_description,
+            buildingName: buildingName,
+            displayTitle: extracted.ai_title || `${parsed.bhk} in ${parsed.locality}`,
+            sourceLabel: resolvedBrokerName,
+            brokerPhone: resolvedBrokerPhone,
+            brokerAgency: resolvedBrokerAgency,
+        },
+    });
+
+    if (streamItemId) {
+        // GAP 3: Canonicalize
+        canonicalizationService.canonicalizeStreamItem({
+            id: streamItemId,
+            tenant_id: tenantId,
+            type: streamType,
+            record_type: 'listing',
+            deal_type: listingType,
+            asset_class: propertyType === 'commercial' ? 'commercial' : 'residential',
+            property_category: propertyType,
+            raw_text: line,
+            locality: parsed.locality ?? null,
+            city: null,
+            bhk: parsed.bhk ?? null,
+            price_label: priceCr ? `₹${priceCr} Cr` : rentMonthly ? `₹${(rentMonthly / 100000).toFixed(1)} L` : null,
+            price_numeric: priceCr ? priceCr * 10000000 : rentMonthly,
+            confidence_score: 0.8,
+            source_phone: resolvedBrokerPhone,
+            source_group_id: null,
+            source_group_name: null,
+            furnishing: extracted.furnishing || null,
+            floor_number: extracted.floor || null,
+            total_floors: null,
+            property_use: null,
+            area_sqft: areaSqft,
+            created_at: new Date().toISOString(),
+            parsed_payload: {
+                displayTitle: extracted.ai_title || `${parsed.bhk} in ${parsed.locality}`,
+                buildingName: buildingName,
+                microLocation: extracted.pocket || null,
+                sourceLabel: resolvedBrokerName,
+                brokerPhone: resolvedBrokerPhone,
+            },
+        }).catch(() => {});
+
+        // GAP 4: Update broker profile
+        await upsertBrokerContact(tenantId, resolvedBrokerPhone, resolvedBrokerName, parsed.locality, parsed.bhk, priceCr ? priceCr * 10000000 : rentMonthly);
+
+        // GAP 5: Generate embedding
+        const fingerprintParts = ['listing', streamType, listingType, propertyType, parsed.locality, parsed.bhk, priceCr ? `₹${priceCr} Cr` : rentMonthly ? `₹${(rentMonthly / 100000).toFixed(1)} L` : null, areaSqft, extracted.furnishing].filter(Boolean).join(' | ');
+        generateStreamEmbedding(streamItemId, fingerprintParts).catch(() => {});
     }
 
     return { success: true, id: data.id };
@@ -670,9 +759,10 @@ Return ONLY valid JSON, no markdown, no explanation.`;
         source: 'whatsapp_broadcast',
     };
 
+    const reqPayload = insertPayload;
     const { data, error } = await admin
         .from('requirements')
-        .insert(insertPayload)
+        .insert(reqPayload)
         .select('id')
         .single();
 
@@ -680,7 +770,222 @@ Return ONLY valid JSON, no markdown, no explanation.`;
         throw new Error(`Failed to save requirement: ${error?.message || 'Insert returned no row'}`);
     }
 
+    // GAP 1: Sync to stream_items
+    const streamType = listingType === 'rent' ? 'Rent' : listingType === 'lease' ? 'Lease' : 'Sale';
+    const priceNumeric = budgetMinCr ? budgetMinCr * 10000000 : rentBudgetMonthly;
+    const streamItemId = await upsertStreamItem({
+        tenantId,
+        messageId: `broadcast:req:${data.id}`,
+        sourcePhone: resolvedPhone,
+        rawText: line,
+        type: streamType,
+        recordType: 'requirement',
+        locality: extracted.preferred_locations?.[0] || null,
+        bhk: extracted.bhk_preference?.[0] || null,
+        priceNumeric: priceNumeric,
+        priceLabel: budgetMinCr ? `₹${budgetMinCr} Cr` : rentBudgetMonthly ? `₹${(rentBudgetMonthly / 100000).toFixed(1)} L` : null,
+        dealType: listingType,
+        assetClass: propertyType === 'commercial' ? 'commercial' : 'residential',
+        confidenceScore: 0.8,
+        propertyCategory: propertyType,
+        areaSqft: null,
+        furnishing: extracted.furnishing_preference || null,
+        floorNumber: null,
+        parsedPayload: {
+            bhkPreference: extracted.bhk_preference,
+            budgetMin: extracted.budget_min,
+            budgetMax: extracted.budget_max,
+            budgetUnit: extracted.budget_unit,
+            preferredLocations: extracted.preferred_locations,
+            pocket: extracted.pocket,
+            furnishingPreference: extracted.furnishing_preference,
+            parkingRequired: extracted.parking_required,
+            vegNonveg: extracted.veg_nonveg,
+            possessionTimeline: extracted.possession_timeline,
+            urgency: extracted.urgency,
+            amenitiesRequired: extracted.amenities_required,
+            notes: extracted.notes,
+            broker: extracted.broker,
+            displayTitle: `${extracted.bhk_preference?.[0] || 'Property'} wanted in ${extracted.preferred_locations?.[0] || 'Mumbai'}`,
+            sourceLabel: resolvedName,
+        },
+    });
+
+    if (streamItemId) {
+        // GAP 3: Canonicalize
+        canonicalizationService.canonicalizeStreamItem({
+            id: streamItemId,
+            tenant_id: tenantId,
+            type: streamType,
+            record_type: 'requirement',
+            deal_type: listingType,
+            asset_class: propertyType === 'commercial' ? 'commercial' : 'residential',
+            property_category: propertyType,
+            raw_text: line,
+            locality: extracted.preferred_locations?.[0] || null,
+            city: null,
+            bhk: extracted.bhk_preference?.[0] || null,
+            price_label: budgetMinCr ? `₹${budgetMinCr} Cr` : rentBudgetMonthly ? `₹${(rentBudgetMonthly / 100000).toFixed(1)} L` : null,
+            price_numeric: priceNumeric,
+            confidence_score: 0.8,
+            source_phone: resolvedPhone,
+            source_group_id: null,
+            source_group_name: null,
+            furnishing: extracted.furnishing_preference || null,
+            floor_number: null,
+            total_floors: null,
+            property_use: null,
+            area_sqft: null,
+            created_at: new Date().toISOString(),
+            parsed_payload: {
+                displayTitle: `${extracted.bhk_preference?.[0] || 'Property'} wanted in ${extracted.preferred_locations?.[0] || 'Mumbai'}`,
+                buildingName: null,
+                microLocation: extracted.pocket || null,
+                sourceLabel: resolvedName,
+            },
+        }).catch(() => {});
+
+        // GAP 4: Update broker profile
+        await upsertBrokerContact(tenantId, resolvedPhone, resolvedName, extracted.preferred_locations?.[0] || null, extracted.bhk_preference?.[0] || null, priceNumeric);
+
+        // GAP 5: Generate embedding
+        const fingerprintParts = ['requirement', streamType, listingType, propertyType, ...(extracted.preferred_locations || []), ...(extracted.bhk_preference || []), priceNumeric, extracted.furnishing_preference].filter(Boolean).join(' | ');
+        generateStreamEmbedding(streamItemId, fingerprintParts).catch(() => {});
+    }
+
     return { success: true, id: data.id };
+}
+
+async function upsertStreamItem(
+    params: {
+        tenantId: string;
+        messageId: string;
+        sourcePhone: string | null;
+        rawText: string;
+        type: string;
+        recordType: string;
+        locality: string | null;
+        bhk: string | null;
+        priceNumeric: number | null;
+        priceLabel: string | null;
+        dealType: string | null;
+        assetClass: string | null;
+        confidenceScore: number;
+        propertyCategory: string | null;
+        areaSqft: number | null;
+        furnishing: string | null;
+        floorNumber: string | null;
+        parsedPayload: Record<string, unknown>;
+    },
+): Promise<string | null> {
+    const admin = ensureAdminClient();
+    const streamRow: Record<string, any> = {
+        tenant_id: params.tenantId,
+        message_id: params.messageId,
+        source_phone: params.sourcePhone,
+        raw_text: params.rawText,
+        type: params.type,
+        record_type: params.recordType,
+        locality: params.locality,
+        bhk: params.bhk,
+        price_numeric: params.priceNumeric,
+        price_label: params.priceLabel,
+        deal_type: params.dealType,
+        asset_class: params.assetClass,
+        confidence_score: params.confidenceScore,
+        property_category: params.propertyCategory,
+        area_sqft: params.areaSqft,
+        furnishing: params.furnishing,
+        floor_number: params.floorNumber,
+        session_label: 'workspace',
+        ingestion_status: 'accepted',
+        parsed_payload: params.parsedPayload,
+    };
+
+    const { data, error } = await admin
+        .from('stream_items')
+        .upsert(streamRow, { onConflict: 'tenant_id,message_id' })
+        .select('id')
+        .single();
+
+    if (error || !data) {
+        console.error('[BroadcastParser] Failed to upsert stream_item', error?.message);
+        return null;
+    }
+
+    return data.id;
+}
+
+async function upsertBrokerContact(
+    tenantId: string,
+    phone: string | null | undefined,
+    name: string | null | undefined,
+    locality: string | null | undefined,
+    bhk: string | null | undefined,
+    priceNumeric: number | null | undefined,
+): Promise<void> {
+    if (!phone) return;
+    const admin = ensureAdminClient();
+
+    const { data: existing } = await admin
+        .from('broker_contacts')
+        .select('id, display_name, inferred_areas, listing_count, bhk_types, price_range_low, price_range_high')
+        .eq('tenant_id', tenantId)
+        .eq('phone', phone)
+        .maybeSingle();
+
+    if (existing) {
+        const areas = existing.inferred_areas || [];
+        if (locality && !areas.includes(locality)) areas.push(locality);
+
+        const bhkTypes: string[] = existing.bhk_types || [];
+        if (bhk && !bhkTypes.includes(bhk)) bhkTypes.push(bhk);
+
+        await admin
+            .from('broker_contacts')
+            .update({
+                display_name: name || existing.display_name,
+                inferred_areas: areas,
+                listing_count: (existing.listing_count || 0) + 1,
+                bhk_types: bhkTypes,
+                price_range_low: existing.price_range_low && priceNumeric
+                    ? Math.min(existing.price_range_low, priceNumeric) : priceNumeric || existing.price_range_low,
+                price_range_high: existing.price_range_high && priceNumeric
+                    ? Math.max(existing.price_range_high, priceNumeric) : priceNumeric || existing.price_range_high,
+                last_seen_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id);
+    } else {
+        await admin
+            .from('broker_contacts')
+            .insert({
+                tenant_id: tenantId,
+                phone,
+                display_name: name,
+                inferred_areas: locality ? [locality] : [],
+                listing_count: 1,
+                bhk_types: bhk ? [bhk] : [],
+                price_range_low: priceNumeric,
+                price_range_high: priceNumeric,
+                last_seen_at: new Date().toISOString(),
+            });
+    }
+}
+
+async function generateStreamEmbedding(streamItemId: string, fingerprintText: string): Promise<void> {
+    if (!fingerprintText || !process.env.LOCAL_AI_BASE_URL && !process.env.OLLAMA_URL) return;
+    try {
+        const embedding = await embedText(fingerprintText);
+        if (embedding && embedding.length > 0) {
+            const admin = ensureAdminClient();
+            await admin
+                .from('stream_items')
+                .update({ embedding } as any)
+                .eq('id', streamItemId);
+        }
+    } catch {
+        // Embedding is best-effort
+    }
 }
 
 export async function parseBroadcastMessage(args: BroadcastParseArgs): Promise<BroadcastParseResult> {

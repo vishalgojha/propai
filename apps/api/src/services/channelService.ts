@@ -1636,11 +1636,11 @@ private backfillInitiatedScopes = new Set<string>();
 
             const linkMap = new Map<string, any>(links.map((link: any) => [link.stream_item_id, link]));
             const filteredItems = await this.filterItemsBySession(tenantId, (items || []), sessionLabel, networkMode);
+            const mapped = Array.isArray(filteredItems)
+                ? filteredItems.map((item: any) => this.mapStreamItem(item, tenantId, linkMap.get(item.id)?.is_read))
+                : [];
             return this.enrichWithIgrTransactions(this.enrichSourcePhones(
-                Array.isArray(filteredItems) ? filteredItems
-                    .map((item: any) => this.mapStreamItem(item, tenantId, linkMap.get(item.id)?.is_read))
-                    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
-                : []
+                this.rankStreamItems(mapped)
             ));
         }
 
@@ -1676,8 +1676,9 @@ private backfillInitiatedScopes = new Set<string>();
         }
 
         const filteredItems = await this.filterItemsBySession(tenantId, data || [], sessionLabel, networkMode);
+        const mapped = Array.isArray(filteredItems) ? filteredItems.map((item: any) => this.mapStreamItem(item, tenantId)) : [];
         return this.enrichWithIgrTransactions(this.enrichSourcePhones(
-            Array.isArray(filteredItems) ? filteredItems.map((item: any) => this.mapStreamItem(item, tenantId)) : []
+            this.rankStreamItems(mapped)
         ));
     }
 
@@ -2273,33 +2274,33 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
          // Keep this path scoped and cheap. Reads should not synchronously depend on a full rebuild.
          let messagesQuery = this.db
              .from('messages')
-             .select('id')
-             .eq('tenant_id', tenantId)
-             .limit(1);
+             .select('id', { count: 'exact', head: true })
+             .eq('tenant_id', tenantId);
 
          if (sessionLabel) {
              messagesQuery = messagesQuery.eq('session_label', sessionLabel);
          }
 
-         const { data: anyMessage, error: messageError } = await messagesQuery.maybeSingle();
-
-         if (messageError || !anyMessage) {
+         const messageResult = await messagesQuery;
+         const totalMessages = typeof messageResult.count === 'number' ? messageResult.count : 0;
+         if (messageResult.error || totalMessages === 0) {
              return;
          }
 
          let streamQuery = this.db
              .from('stream_items')
-             .select('id')
-             .eq('tenant_id', tenantId)
-             .limit(1);
+             .select('id', { count: 'exact', head: true })
+             .eq('tenant_id', tenantId);
 
          if (sessionLabel) {
              streamQuery = streamQuery.eq('session_label', sessionLabel);
          }
 
-         const { data: existingStreamItem, error: streamError } = await streamQuery.maybeSingle();
+         const streamResult = await streamQuery;
+         const totalStreamItems = typeof streamResult.count === 'number' ? streamResult.count : 0;
 
-         if (streamError || existingStreamItem) {
+         // Only skip backfill if we have a meaningful portion already ingested
+         if (!streamResult.error && totalStreamItems >= Math.max(10, totalMessages * 0.5)) {
              return;
          }
 
@@ -2993,6 +2994,36 @@ ${rawText}
                 igrTransactions,
             };
         });
+    }
+
+    private rankStreamItems(items: StreamItemRecord[]): StreamItemRecord[] {
+        if (!Array.isArray(items) || items.length === 0) return items;
+
+        // Count how many items per source for source_count factor
+        const sourceCounts = new Map<string, number>();
+        for (const item of items) {
+            const key = item.sourcePhone || item.source || 'unknown';
+            sourceCounts.set(key, (sourceCounts.get(key) || 0) + 1);
+        }
+        const maxSourceCount = Math.max(1, ...sourceCounts.values());
+
+        const now = Date.now();
+        const ranked = items.map((item) => {
+            const confidence = Math.max(0, Math.min(1, (item.confidence || 0) / 100));
+            const sourceCount = sourceCounts.get(item.sourcePhone || item.source || 'unknown') || 1;
+            const sourceCountScore = Math.min(1, sourceCount / maxSourceCount);
+
+            const ageHours = (now - new Date(item.createdAt).getTime()) / (1000 * 60 * 60);
+            const recencyScore = Math.max(0, Math.min(1, 1 - (ageHours / 720)));
+
+            return {
+                item,
+                rank: (confidence * 0.4) + (sourceCountScore * 0.3) + (recencyScore * 0.3),
+            };
+        });
+
+        ranked.sort((a, b) => b.rank - a.rank);
+        return ranked.map((r) => r.item);
     }
 
     private enrichSourcePhones(items: StreamItemRecord[]) {
