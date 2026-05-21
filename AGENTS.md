@@ -40,3 +40,7 @@
 - Do not leave completed tasks listed as pending.
 - Keep only current branch context, active worktree state, and truly pending actions here.
 - Historical session detail belongs in git history, not in the active handoff.
+
+## Manual Supabase Dashboard Steps
+
+- **Leaked Password Protection**: Enable via Supabase Dashboard → Authentication → Settings → toggle "Leaked password protection" ON. One-click, no migration needed.
