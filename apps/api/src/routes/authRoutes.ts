@@ -30,6 +30,24 @@ const AUTH_OPTIONAL_WORK_TIMEOUT_MS = 2500;
 // for Supabase auth latency instead of failing fast with a 504.
 const AUTH_REQUIRED_WORK_TIMEOUT_MS = 25000;
 
+type DirectPasswordSession = {
+    access_token: string;
+    refresh_token: string;
+    expires_in?: number;
+    expires_at?: number;
+};
+
+type DirectPasswordUser = {
+    id: string;
+    email?: string | null;
+    user_metadata?: Record<string, unknown> | null;
+};
+
+type DirectPasswordAuthResult = {
+    session: DirectPasswordSession;
+    user: DirectPasswordUser;
+};
+
 function extractAuthErrorMessage(error: any, fallback = 'Authentication failed'): string {
     if (!error) return fallback;
     const raw = error?.message || error?.error_description || error?.msg || '';
@@ -85,6 +103,64 @@ async function withRequiredTimeout<T>(task: Promise<T>, timeoutMs: number, label
             clearTimeout(timeoutHandle);
         }
     }
+}
+
+async function signInWithPasswordDirect(email: string, password: string): Promise<DirectPasswordAuthResult> {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase URL or anon key is not configured');
+    }
+
+    const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${supabaseAnonKey}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+        },
+        body: JSON.stringify({
+            email,
+            password,
+        }),
+    });
+
+    const responseText = await response.text();
+    let payload: any = null;
+    if (responseText) {
+        try {
+            payload = JSON.parse(responseText);
+        } catch {
+            payload = null;
+        }
+    }
+
+    if (!response.ok) {
+        const message = payload?.error_description || payload?.msg || payload?.message || 'Authentication failed';
+        const error = new Error(message);
+        (error as any).status = response.status;
+        throw error;
+    }
+
+    if (!payload?.access_token || !payload?.refresh_token || !payload?.user?.id) {
+        throw new Error('Supabase password auth returned an incomplete session');
+    }
+
+    return {
+        session: {
+            access_token: payload.access_token,
+            refresh_token: payload.refresh_token,
+            expires_in: payload.expires_in,
+            expires_at: payload.expires_at,
+        },
+        user: {
+            id: payload.user.id,
+            email: payload.user.email,
+            user_metadata: payload.user.user_metadata || {},
+        },
+    };
 }
 
 async function findAuthUserByEmail(email: string) {
@@ -302,25 +378,26 @@ router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (
         }
 
         let authError: any = null;
-        let authData: any = null;
-        const authClient = createSupabaseAnonClient();
+        let authData: DirectPasswordAuthResult | null = null;
 
         for (let attempt = 0; attempt < 3; attempt += 1) {
-            const { data, error } = await withRequiredTimeout(
-                authClient.auth.signInWithPassword({
-                    email,
-                    password,
-                }),
-                AUTH_REQUIRED_WORK_TIMEOUT_MS,
-                'signInWithPassword',
-            );
+            try {
+                authData = await withRequiredTimeout(
+                    signInWithPasswordDirect(
+                        email,
+                        password,
+                    ),
+                    AUTH_REQUIRED_WORK_TIMEOUT_MS,
+                    'signInWithPassword',
+                );
+                authError = null;
+                if (authData?.session && authData?.user) break;
+            } catch (error: any) {
+                authError = error;
+                authData = null;
+            }
 
-            authError = error;
-            authData = data;
-
-            if (data?.session && data?.user) break;
-
-            const normalizedMessage = (error?.message || '').toLowerCase();
+            const normalizedMessage = String(authError?.message || '').toLowerCase();
             if (attempt < 2 && normalizedMessage.includes('invalid login credentials')) {
                 await sleep(500 * (attempt + 1));
                 continue;
