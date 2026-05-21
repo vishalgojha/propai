@@ -26,7 +26,9 @@ const PROFILE_BASE_SELECT = 'id, full_name, phone, email, phone_verified';
 const normalizePhone = (value?: string) => normalizePhoneValue(value);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const AUTH_OPTIONAL_WORK_TIMEOUT_MS = 2500;
-const AUTH_REQUIRED_WORK_TIMEOUT_MS = 10000;
+// Password auth is a hard dependency for sign-in; give production enough headroom
+// for Supabase auth latency instead of failing fast with a 504.
+const AUTH_REQUIRED_WORK_TIMEOUT_MS = 25000;
 
 function extractAuthErrorMessage(error: any, fallback = 'Authentication failed'): string {
     if (!error) return fallback;

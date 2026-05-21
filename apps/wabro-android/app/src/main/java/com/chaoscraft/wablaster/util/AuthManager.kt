@@ -3,6 +3,7 @@ package com.chaoscraft.wablaster.util
 import android.content.SharedPreferences
 import androidx.annotation.Keep
 import com.google.gson.Gson
+import com.google.gson.JsonSyntaxException
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -10,6 +11,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -65,10 +67,10 @@ class AuthManager @Inject constructor(
         private const val PREF_EXPIRES_AT = "auth_expires_at"
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 
-        private const val APP_API_ROOT = "https://app.propai.live/api"
-        private const val AUTH_API_URL = "$APP_API_ROOT/auth/password"
-
-        fun apiBaseUrl() = "$APP_API_ROOT/wabro/"
+        // Current production auth is routed through api.propai.live, while WaBro device/user
+        // routes have been migrated separately under app.propai.live.
+        private const val AUTH_API_ROOT = "https://api.propai.live/api"
+        private const val AUTH_API_URL = "$AUTH_API_ROOT/auth/password"
     }
 
     fun getSession(): AuthSession? {
@@ -97,21 +99,30 @@ class AuthManager @Inject constructor(
                     .url(AUTH_API_URL)
                     .post(json.toRequestBody(JSON_MEDIA_TYPE))
                     .addHeader("Content-Type", "application/json")
+                    .addHeader("Accept", "application/json")
                     .build()
 
                 val response = httpClient.newCall(httpRequest).execute()
                 val body = response.body?.string().orEmpty()
-                val authResp: AuthResponse? = gson.fromJson(body, AuthResponse::class.java)
+                val authResp = parseAuthResponse(body)
 
                 if (!response.isSuccessful) {
-                    throw Exception(authResp?.error ?: authResp?.message ?: "Authentication failed (HTTP ${response.code})")
+                    throw IOException(
+                        authResp?.error
+                            ?: authResp?.message
+                            ?: extractPlainError(body)
+                            ?: "Authentication failed (HTTP ${response.code})"
+                    )
                 }
 
                 val sessionDto = authResp?.session
-                    ?: throw Exception("No session returned from server")
+                    ?: throw IOException(
+                        extractPlainError(body)
+                            ?: "Unexpected response from server while signing in"
+                    )
 
                 val accessToken = sessionDto.accessToken
-                    ?: throw Exception("No access token returned")
+                    ?: throw IOException("No access token returned")
 
                 val email = authResp.user?.email ?: request.email
 
@@ -146,4 +157,23 @@ class AuthManager @Inject constructor(
     }
 
     fun getAuthToken(): String? = prefs.getString(PREF_TOKEN, null)
+
+    private fun parseAuthResponse(body: String): AuthResponse? {
+        val trimmed = body.trim()
+        if (!trimmed.startsWith("{")) return null
+        return try {
+            gson.fromJson(trimmed, AuthResponse::class.java)
+        } catch (_: JsonSyntaxException) {
+            null
+        }
+    }
+
+    private fun extractPlainError(body: String): String? {
+        val trimmed = body.trim()
+        if (trimmed.isBlank()) return null
+        if (trimmed.startsWith("<")) {
+            return "Server returned HTML instead of JSON. Check the WaBro auth endpoint or reverse proxy."
+        }
+        return trimmed.lineSequence().firstOrNull()?.take(200)
+    }
 }

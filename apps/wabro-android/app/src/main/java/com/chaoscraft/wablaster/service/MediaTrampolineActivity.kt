@@ -21,7 +21,11 @@ class MediaTrampolineActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val mimeType = intent.getStringExtra(EXTRA_MIME_TYPE) ?: "image/*"
+        val mimeType = intent.extras
+            ?.get(EXTRA_MIME_TYPE)
+            ?.toString()
+            ?.takeIf { it.isNotBlank() }
+            ?: "image/*"
         pickMedia.launch(arrayOf(mimeType))
     }
 
