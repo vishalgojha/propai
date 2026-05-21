@@ -2,7 +2,7 @@ import { aiService } from './aiService';
 import { supabaseAdmin } from '../config/supabase';
 import { classifyBrokerMessage } from '../utils/brokerMessageClassifier';
 import { canonicalizationService } from './canonicalizationService';
-import { embedText } from './embeddingService';
+import { generateEmbedding } from './embeddingService';
 
 const ADMIN_NUMBER = '9820056180';
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -973,18 +973,14 @@ async function upsertBrokerContact(
 }
 
 async function generateStreamEmbedding(streamItemId: string, fingerprintText: string): Promise<void> {
-    if (!fingerprintText || !process.env.LOCAL_AI_BASE_URL && !process.env.OLLAMA_URL) return;
-    try {
-        const embedding = await embedText(fingerprintText);
-        if (embedding && embedding.length > 0) {
-            const admin = ensureAdminClient();
-            await admin
-                .from('stream_items')
-                .update({ embedding } as any)
-                .eq('id', streamItemId);
-        }
-    } catch {
-        // Embedding is best-effort
+    if (!fingerprintText) return;
+    const embedding = await generateEmbedding(fingerprintText);
+    if (embedding && embedding.length > 0) {
+        const admin = ensureAdminClient();
+        await admin
+            .from('stream_items')
+            .update({ embedding } as any)
+            .eq('id', streamItemId);
     }
 }
 

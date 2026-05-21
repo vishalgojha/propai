@@ -629,17 +629,24 @@ export class BrokerWorkflowService {
 
     private async semanticSearchListings(tenantId: string, prompt: string): Promise<WorkflowResult> {
         try {
-            const { embedText, isEmbedderReady } = await import('../services/embeddingService');
-            const ready = await isEmbedderReady();
-            if (!ready) {
+            const { generateEmbedding, checkEmbeddingHealth } = await import('../services/embeddingService');
+            const health = await checkEmbeddingHealth();
+            if (!health.ok) {
                 return {
                     handled: true,
                     reply: 'Semantic search is wired, but the embedding service is not reachable right now. I can still search saved CRM records by keyword.',
-                    data: { type: 'semantic_search_unavailable', reason: 'embedder_unavailable' },
+                    data: { type: 'semantic_search_unavailable', reason: 'embedder_unavailable', detail: health.error },
                 };
             }
 
-            const embedding = await embedText(prompt);
+            const embedding = await generateEmbedding(prompt);
+            if (!embedding) {
+                return {
+                    handled: true,
+                    reply: 'Embedding generation failed. Try again or fall back to keyword search.',
+                    data: { type: 'semantic_search_unavailable', reason: 'embedding_failed' },
+                };
+            }
             const { data, error } = await this.admin.rpc('match_listings', {
                 query_embedding: embedding,
                 match_threshold: 0.55,
