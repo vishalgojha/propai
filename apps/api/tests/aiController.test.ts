@@ -5,6 +5,24 @@ import { keyService } from '../src/services/keyService';
 import { workspaceAccessService } from '../src/services/workspaceAccessService';
 import { conversationEngineService } from '../src/services/conversationEngineService';
 
+const { mockDbFrom } = vi.hoisted(() => ({
+    mockDbFrom: vi.fn(() => ({
+        select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                })),
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            })),
+        })),
+        update: vi.fn(() => ({
+            eq: vi.fn(() => ({
+                eq: vi.fn().mockResolvedValue({ error: null }),
+            })),
+        })),
+    })),
+}));
+
 vi.mock('../src/services/aiService', () => ({
     aiService: {
         chat: vi.fn(),
@@ -36,6 +54,23 @@ vi.mock('../src/services/keyService', () => ({
         testConnection: vi.fn(),
     },
     parseApiKeys: (value?: string | null) => String(value || '').split(/[\n,;]+/).map((entry) => entry.trim()).filter(Boolean),
+}));
+
+vi.mock('../src/services/aiUsageService', () => ({
+    aiUsageService: {
+        getUsageSummary: vi.fn(),
+        resetUsage: vi.fn(),
+    },
+}));
+
+vi.mock('../src/config/supabase', () => ({
+    supabase: {
+        from: mockDbFrom,
+    },
+    supabaseAdmin: {
+        from: mockDbFrom,
+    },
+    serverClientOptions: {},
 }));
 
 vi.mock('../src/services/unifiedAgentService', () => ({

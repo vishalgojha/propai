@@ -84,7 +84,10 @@ export class RuntimeStatusService {
             explicitDefaultModel || defaultModel,
         );
 
-        const liveSessions = await getWhatsAppGateway(tenantId).getSessions(tenantId);
+        const liveSessions = await getWhatsAppGateway(tenantId).getSessions(tenantId).catch((error) => {
+            console.warn('[runtimeStatusService] Failed to read WhatsApp sessions', error);
+            return [];
+        });
         const connectedSessions = liveSessions.filter((session) => session.status === 'connected');
         const connectingSessions = liveSessions.filter((session) => session.status === 'connecting');
         const primaryConnectedSession = connectedSessions[0] || null;

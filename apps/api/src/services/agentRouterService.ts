@@ -20,6 +20,8 @@ const AgentRoutePlanSchema = z.object({
         'search_web',
         'verify_rera',
         'fetch_property_listing',
+        'send_whatsapp_message',
+        'whatsapp_groups',
         'igr_last_transaction',
         'igr_locality_stats',
         'identity_question',

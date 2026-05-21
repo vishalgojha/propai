@@ -41,6 +41,12 @@ vi.mock('../src/config/supabase', () => ({
     serverClientOptions: {},
 }));
 
+vi.mock('../src/services/whatsappThreadService', () => ({
+    whatsappThreadService: {
+        upsertFromMessage: vi.fn().mockResolvedValue(undefined),
+    },
+}));
+
 import { agentToolService } from '../src/services/agentToolService';
 
 describe('AgentToolService transport boundary', () => {

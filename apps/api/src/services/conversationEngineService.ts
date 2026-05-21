@@ -20,6 +20,10 @@ import { parseAgentResponse, toAgentResponse, type AgentResponse } from '../type
 import { renderOutput } from '../whatsapp/formatter';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import type { ConversationEvent } from '../channel-events/conversationEvent';
+import {
+    executeConfirmedWhatsAppSend,
+    parsePendingWhatsAppSendReply,
+} from './agentWhatsAppActionService';
 
 const db = supabaseAdmin ?? supabase;
 
@@ -160,6 +164,11 @@ export class ConversationEngineService {
             if (attachmentContext) {
                 prompt = `${rawPrompt}\n\n---\nAttached context:\n${attachmentContext}\n---`;
             }
+        }
+
+        const confirmedWhatsAppSend = await this.tryHandlePendingWhatsAppSendConfirmation(input, history, rawPrompt);
+        if (confirmedWhatsAppSend) {
+            return confirmedWhatsAppSend;
         }
 
         const confirmedWorkflowResult = await this.tryHandlePendingWorkflowConfirmation(input, history, rawPrompt);
@@ -309,6 +318,65 @@ export class ConversationEngineService {
             capabilityHint: '',
             workflowData: sharedRouteResult.workflowData,
             data: sharedRouteResult.data,
+        };
+    }
+
+    private async tryHandlePendingWhatsAppSendConfirmation(
+        input: ConversationEngineInput,
+        history: Awaited<ReturnType<typeof getConversationHistory>>,
+        rawPrompt: string,
+    ): Promise<ConversationEngineResult | null> {
+        if (!brokerWorkflowService.isAffirmativeReply(rawPrompt) && !brokerWorkflowService.isNegativeReply(rawPrompt)) {
+            return null;
+        }
+
+        const lastAssistant = [...history].reverse().find((entry) => entry.role === 'assistant');
+        const pendingSend = parsePendingWhatsAppSendReply(lastAssistant?.content || '');
+        if (!pendingSend) {
+            return null;
+        }
+
+        if (brokerWorkflowService.isNegativeReply(rawPrompt)) {
+            const reply = 'Okay. I did not send the WhatsApp message.';
+            const agentResponse = toAgentResponse(reply);
+            await saveToHistory(input.event.conversation.key, rawPrompt, reply, input.sessionId);
+            return {
+                reply,
+                text: reply,
+                agentResponse,
+                route: {
+                    intent: 'send_whatsapp_message',
+                    confidence: 1,
+                    rationale: 'Broker declined the pending WhatsApp send confirmation.',
+                    args: {},
+                },
+                capabilityHint: '',
+                workflowData: {
+                    type: 'send_whatsapp_message_cancelled',
+                },
+            };
+        }
+
+        const result = await executeConfirmedWhatsAppSend(input.event.tenantId, pendingSend);
+        const reply = result.reply;
+        const agentResponse = toAgentResponse(reply);
+        await saveToHistory(input.event.conversation.key, rawPrompt, reply, input.sessionId);
+
+        return {
+            reply,
+            text: reply,
+            agentResponse,
+            route: {
+                intent: 'send_whatsapp_message',
+                confidence: 1,
+                rationale: 'Broker confirmed the pending WhatsApp send.',
+                args: {},
+            },
+            capabilityHint: '',
+            workflowData: {
+                type: result.success ? 'send_whatsapp_message_sent' : 'send_whatsapp_message_failed',
+                contact_number: pendingSend.contactNumber,
+            },
         };
     }
 }

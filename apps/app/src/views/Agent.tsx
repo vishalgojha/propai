@@ -276,6 +276,8 @@ export const Agent: React.FC = () => {
   const [sessions, setSessions] = useState<Array<{ id: string; title: string; created_at: string; updated_at: string }>>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [showMobileSessions, setShowMobileSessions] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -337,13 +339,16 @@ export const Agent: React.FC = () => {
       try {
         const resp = await backendApi.get<{ sessions: Array<{ id: string; title: string; created_at: string; updated_at: string }> }>(ENDPOINTS.ai.sessions);
         const sessionList = resp.data?.sessions;
+        if (mounted) setSessionError(null);
         if (mounted && Array.isArray(sessionList) && sessionList.length > 0) {
           setSessions(sessionList);
           if (!activeSessionId) {
             setActiveSessionId(sessionList[0].id);
           }
         }
-      } catch { /* sessions unavailable */ }
+      } catch (error) {
+        if (mounted) setSessionError(handleApiError(error));
+      }
       if (mounted) setSessionsLoaded(true);
     };
 
@@ -515,9 +520,12 @@ export const Agent: React.FC = () => {
       if (session?.id) {
         setSessions((prev) => [session, ...prev]);
         setActiveSessionId(session.id);
+        setSessionError(null);
         return session.id;
       }
-    } catch { /* ignore */ }
+    } catch (error) {
+      setSessionError(handleApiError(error));
+    }
     return null;
   };
 
@@ -721,13 +729,18 @@ export const Agent: React.FC = () => {
         setSessions((prev) => [session, ...prev]);
         setActiveSessionId(session.id);
         setMessages(starterMessages);
+        setSessionError(null);
+        setShowMobileSessions(false);
       }
-    } catch { /* ignore */ }
+    } catch (error) {
+      setSessionError(handleApiError(error));
+    }
   };
 
   const switchSession = async (sessionId: string) => {
     setActiveSessionId(sessionId);
     setMessages(starterMessages);
+    setShowMobileSessions(false);
     try {
       const resp = await backendApi.get<{ messages: { role: 'user' | 'ai'; content: string }[] }>(
         `${ENDPOINTS.ai.history}?session_id=${encodeURIComponent(sessionId)}`,
@@ -747,6 +760,7 @@ export const Agent: React.FC = () => {
   const handleDeleteSession = async (sessionId: string) => {
     try {
       await backendApi.delete(ENDPOINTS.ai.sessionById(sessionId));
+      setSessionError(null);
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
       if (activeSessionId === sessionId) {
         const remaining = sessions.filter((s) => s.id !== sessionId);
@@ -757,10 +771,49 @@ export const Agent: React.FC = () => {
           setMessages(starterMessages);
         }
       }
-    } catch { /* ignore */ }
+    } catch (error) {
+      setSessionError(handleApiError(error));
+    }
   };
 
   const showSessionSidebar = sessionsLoaded;
+
+  const renderSessionList = () => (
+    <div className="pulse-scrollbar flex-1 space-y-1 overflow-y-auto px-2 py-3">
+      {sessionError ? (
+        <div className="mb-2 rounded-[12px] border border-[color:rgba(239,68,68,0.28)] bg-[rgba(239,68,68,0.08)] px-3 py-2 text-[11px] leading-5 text-[var(--red)]">
+          {sessionError}
+        </div>
+      ) : null}
+      {sessions.length === 0 ? (
+        <p className="px-2 text-[11px] text-[var(--text-ghost)]">No chats yet</p>
+      ) : (
+        sessions.map((session) => (
+          <div
+            key={session.id}
+            className={cn(
+              'group flex cursor-pointer items-center gap-2 rounded-[12px] px-3 py-2 text-[12px] transition-colors',
+              activeSessionId === session.id
+                ? 'bg-[var(--accent-dim)] text-[var(--accent)]'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]',
+            )}
+            onClick={() => switchSession(session.id)}
+          >
+            <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+            <span className="min-w-0 flex-1 truncate">{session.title}</span>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
+              className="hidden h-5 w-5 shrink-0 items-center justify-center rounded-full text-[var(--text-ghost)] hover:bg-[rgba(239,68,68,0.15)] hover:text-[var(--red)] group-hover:flex"
+              title="Delete chat"
+            >
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+          </div>
+        ))
+      )}
+    </div>
+  );
 
   return (
     <div className="flex gap-4 sm:gap-6">
@@ -777,36 +830,39 @@ export const Agent: React.FC = () => {
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             </button>
           </div>
-          <div className="pulse-scrollbar flex-1 space-y-1 overflow-y-auto px-2 py-3">
-            {sessions.length === 0 ? (
-              <p className="px-2 text-[11px] text-[var(--text-ghost)]">No chats yet</p>
-            ) : (
-              sessions.map((session) => (
-                <div
-                  key={session.id}
-                  className={cn(
-                    'group flex cursor-pointer items-center gap-2 rounded-[12px] px-3 py-2 text-[12px] transition-colors',
-                    activeSessionId === session.id
-                      ? 'bg-[var(--accent-dim)] text-[var(--accent)]'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]',
-                  )}
-                  onClick={() => switchSession(session.id)}
-                >
-                  <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-                  <span className="min-w-0 flex-1 truncate">{session.title}</span>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
-                    className="hidden h-5 w-5 shrink-0 items-center justify-center rounded-full text-[var(--text-ghost)] hover:bg-[rgba(239,68,68,0.15)] hover:text-[var(--red)] group-hover:flex"
-                    title="Delete chat"
-                  >
-                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
+          {renderSessionList()}
         </aside>
+      ) : null}
+      {showMobileSessions ? (
+        <div className="fixed inset-0 z-50 bg-black/60 sm:hidden" onClick={() => setShowMobileSessions(false)}>
+          <aside
+            className="ml-auto flex h-full w-[min(88vw,340px)] flex-col overflow-hidden border-l border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.35)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[color:var(--border)] px-3 py-3">
+              <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Chats</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleNewChat}
+                  className="flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]"
+                  title="New chat"
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileSessions(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--border)] text-[var(--text-secondary)]"
+                  title="Close chats"
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+              </div>
+            </div>
+            {renderSessionList()}
+          </aside>
+        </div>
       ) : null}
       <section className="flex min-h-[calc(100dvh-11rem)] flex-1 flex-col overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.22)] md:min-h-[calc(100vh-160px)]">
         <div className="border-b border-[color:var(--border)] px-4 py-4 sm:px-6 sm:py-5">
@@ -900,6 +956,15 @@ export const Agent: React.FC = () => {
                   </div>
                 ) : (
                   <>
+                    <button
+                      type="button"
+                      onClick={() => setShowMobileSessions(true)}
+                      className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-ghost)] transition-colors hover:border-[color:var(--accent-border)] hover:bg-[var(--accent-dim)] hover:text-[var(--accent)] sm:hidden"
+                      title="Open chat sessions"
+                    >
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                      Chats
+                    </button>
                     <button
                       type="button"
                       onClick={handleNewChat}

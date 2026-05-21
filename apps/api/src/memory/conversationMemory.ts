@@ -79,6 +79,18 @@ export async function saveToHistory(phoneNumber: string, userMessage: string, as
 
     if (error) {
         console.error('[ConversationMemory] Failed to save history', error);
+        return;
+    }
+
+    if (sessionId) {
+        const { error: sessionError } = await getConversationClient()
+            .from('chat_sessions')
+            .update({ updated_at: new Date().toISOString() })
+            .eq('id', sessionId);
+
+        if (sessionError) {
+            console.error('[ConversationMemory] Failed to touch chat session', sessionError);
+        }
     }
 }
 

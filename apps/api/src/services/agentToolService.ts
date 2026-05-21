@@ -83,21 +83,29 @@ export class AgentToolService {
                         remoteJid: destinationJid,
                         text: messageText,
                     });
-                    await (supabaseAdmin ?? supabase).from('messages').insert({
-                        tenant_id: tenantId,
-                        session_label: 'workspace',
-                        remote_jid: destinationJid,
-                        text: messageText,
-                        sender: 'AI',
-                        timestamp,
-                    });
-                    await whatsappThreadService.upsertFromMessage({
-                        tenantId,
-                        remoteJid: destinationJid,
-                        text: messageText,
-                        sender: 'AI',
-                        timestamp,
-                    });
+                    try {
+                        await (supabaseAdmin ?? supabase).from('messages').insert({
+                            tenant_id: tenantId,
+                            session_label: 'workspace',
+                            remote_jid: destinationJid,
+                            text: messageText,
+                            sender: 'AI',
+                            timestamp,
+                        });
+                    } catch (persistError) {
+                        console.warn('[AgentToolService] WhatsApp message sent but message persistence failed', persistError);
+                    }
+                    try {
+                        await whatsappThreadService.upsertFromMessage({
+                            tenantId,
+                            remoteJid: destinationJid,
+                            text: messageText,
+                            sender: 'AI',
+                            timestamp,
+                        });
+                    } catch (threadError) {
+                        console.warn('[AgentToolService] WhatsApp message sent but thread persistence failed', threadError);
+                    }
                     return { success: true };
                 } catch (error: any) {
                     return { success: false, error: error?.message || 'Failed to send WhatsApp message' };

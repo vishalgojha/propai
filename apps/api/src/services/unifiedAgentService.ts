@@ -9,6 +9,12 @@ import { toAgentResponse } from '../types/agent';
 import { normalizeConversationPhoneNumber } from '../memory/conversationMemory';
 import { buildIstSystemContext } from '../utils/istTime';
 import { getPulseCapabilityHint } from './pulseCapabilities';
+import { productKnowledgeService, type KnowledgeIntent } from './productKnowledgeService';
+import { whatsappHealthService } from './whatsappHealthService';
+import {
+    buildWhatsAppSendConfirmationReply,
+    resolveWhatsAppSendRequest,
+} from './agentWhatsAppActionService';
 
 type BrokerProfile = {
     full_name: string;
@@ -36,9 +42,19 @@ const WORKFLOW_INTENTS = new Set<BrokerToolIntent>([
     'schedule_callback',
     'check_callbacks',
     'search_listings',
+    'semantic_search',
+    'market_insights',
     'get_my_listings',
     'get_my_requirements',
     'search_my_crm',
+]);
+
+const PRODUCT_KNOWLEDGE_INTENTS = new Set<KnowledgeIntent>([
+    'identity_question',
+    'runtime_status_question',
+    'privacy_or_limits_question',
+    'support_issue',
+    'market_advice',
 ]);
 
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
@@ -61,11 +77,69 @@ export function isRoutedToolIntent(intent: AgentRoutePlan['intent']) {
     ].includes(intent);
 }
 
+function isProductKnowledgeIntent(intent: AgentRoutePlan['intent']): intent is KnowledgeIntent {
+    return PRODUCT_KNOWLEDGE_INTENTS.has(intent as KnowledgeIntent);
+}
+
 export async function executeSharedRoute(
     tenantId: string,
     route: AgentRoutePlan,
     prompt: string,
 ): Promise<SharedRouteExecutionResult> {
+    if (isProductKnowledgeIntent(route.intent)) {
+        const answer = await productKnowledgeService.answer(tenantId, prompt, route.intent);
+        if (answer) {
+            return {
+                handled: true,
+                reply: answer.reply,
+                agentResponse: toAgentResponse(answer.reply),
+                capabilityHint: buildCapabilityHint(route.intent),
+                data: { type: answer.intent },
+            };
+        }
+    }
+
+    if (route.intent === 'whatsapp_groups') {
+        const reply = await renderWhatsAppGroups(tenantId);
+        return {
+            handled: true,
+            reply,
+            agentResponse: toAgentResponse(reply),
+            capabilityHint: buildCapabilityHint(route.intent),
+            data: { type: 'whatsapp_groups' },
+        };
+    }
+
+    if (route.intent === 'send_whatsapp_message') {
+        const resolved = resolveWhatsAppSendRequest(
+            route.args && typeof route.args === 'object' ? route.args : {},
+            prompt,
+        );
+
+        if (!resolved.ok) {
+            const missing = resolved.missing.includes('contact_number')
+                ? 'the WhatsApp number'
+                : 'the message text';
+            const reply = `I can send it, but I need ${missing} first. Please send the number and exact message in one line.`;
+            return {
+                handled: true,
+                reply,
+                agentResponse: toAgentResponse(reply),
+                capabilityHint: buildCapabilityHint(route.intent),
+                data: { type: 'send_whatsapp_message_missing_fields', missing: resolved.missing },
+            };
+        }
+
+        const reply = buildWhatsAppSendConfirmationReply(resolved.action);
+        return {
+            handled: true,
+            reply,
+            agentResponse: toAgentResponse(reply),
+            capabilityHint: '',
+            data: { type: 'send_whatsapp_message_confirmation_required' },
+        };
+    }
+
     if (isRoutedToolIntent(route.intent)) {
         return executeRoutedToolIntent(route, prompt);
     }
@@ -88,6 +162,34 @@ export async function executeSharedRoute(
     }
 
     return { handled: false };
+}
+
+async function renderWhatsAppGroups(tenantId: string) {
+    const health = await whatsappHealthService.getHealth(tenantId).catch(() => null);
+    const groups = await whatsappHealthService.getGroupHealth(tenantId).catch(() => []);
+    const groupCount = health?.summary?.groupCount || groups.length;
+
+    if (!groupCount) {
+        return 'I could not find synced WhatsApp groups for this workspace yet. Connect WhatsApp or run group sync, then ask again.';
+    }
+
+    const names = groups
+        .map((group) => String(group.groupName || group.groupId || '').trim())
+        .filter(Boolean)
+        .slice(0, 12);
+    const lines = [
+        `I found ${groupCount} WhatsApp group${groupCount === 1 ? '' : 's'} synced for this workspace.`,
+    ];
+
+    if (names.length) {
+        lines.push('', ...names.map((name, index) => `${index + 1}. ${name}`));
+    }
+
+    if (groupCount > names.length) {
+        lines.push('', `And ${groupCount - names.length} more.`);
+    }
+
+    return lines.join('\n');
 }
 
 export async function getBrokerProfile(tenantId: string): Promise<BrokerProfile> {

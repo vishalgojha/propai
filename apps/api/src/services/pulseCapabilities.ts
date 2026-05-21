@@ -177,11 +177,17 @@ const CAPABILITIES: PulseCapability[] = [
     key: 'send_whatsapp_message',
     promptBullet: 'send WhatsApp messages only when the broker explicitly asks for an outbound send',
     answerLine: 'Send WhatsApp messages only when you explicitly ask for an outbound send.',
+    routerIntent: 'send_whatsapp_message',
+    routerLine: '- send_whatsapp_message: broker explicitly asks Pulse to send a WhatsApp message to a phone number or contact',
+    hint: 'You can ask me to send a WhatsApp message, and I will ask for confirmation before sending.',
   },
   {
     key: 'whatsapp_groups',
     promptBullet: 'check WhatsApp group inventory for the connected workspace',
     answerLine: 'Check WhatsApp group inventory for the connected workspace.',
+    routerIntent: 'whatsapp_groups',
+    routerLine: '- whatsapp_groups: broker asks to list, count, or inspect WhatsApp groups connected to the workspace',
+    hint: 'You can ask me to list or count the WhatsApp groups connected to this workspace.',
   },
 ];
 

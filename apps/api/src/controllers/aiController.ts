@@ -15,6 +15,59 @@ import '../types/express';
 
 const db = supabaseAdmin ?? supabase;
 
+function deriveSessionTitle(prompt: string) {
+    const compact = String(prompt || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!compact) return 'New Chat';
+    return compact.length > 64 ? `${compact.slice(0, 61).trim()}...` : compact;
+}
+
+async function maybeAutoTitleSession(userId: string, sessionId: string, prompt: string) {
+    const { data, error } = await db
+        .from('chat_sessions')
+        .select('title')
+        .eq('id', sessionId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (error || !data) {
+        return;
+    }
+
+    if (String(data.title || '').trim() !== 'New Chat') {
+        return;
+    }
+
+    await db
+        .from('chat_sessions')
+        .update({
+            title: deriveSessionTitle(prompt),
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', sessionId)
+        .eq('user_id', userId);
+}
+
+function isMissingChatSessionsSchemaError(error: unknown) {
+    const candidate = error as { code?: string; message?: string; details?: string; hint?: string } | null;
+    const haystack = [
+        candidate?.message,
+        candidate?.details,
+        candidate?.hint,
+    ]
+        .map((value) => String(value || '').toLowerCase())
+        .join(' ');
+
+    return candidate?.code === '42P01'
+        || candidate?.code === '42703'
+        || candidate?.code === 'PGRST204'
+        || candidate?.code === 'PGRST205'
+        || haystack.includes('chat_sessions')
+        || haystack.includes('schema cache')
+        || haystack.includes('does not exist');
+}
+
 export const chat = async (req: Request, res: Response) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -53,6 +106,12 @@ export const chat = async (req: Request, res: Response) => {
             sessionId: sessionId || undefined,
         });
 
+        if (sessionId) {
+            await maybeAutoTitleSession(user.id, String(sessionId), String(rawPrompt)).catch((titleError) => {
+                console.warn('[aiController] Failed to auto-title chat session', titleError);
+            });
+        }
+
         res.json({
             reply: maybePersonalizeGreeting(result.reply, profile?.full_name, false),
             text: result.text,
@@ -90,11 +149,11 @@ export const getHistory = async (req: Request, res: Response) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     try {
         const profile = await getBrokerProfile(req.user.id);
-        const sessionId = req.query.session_id;
-        const rawHistory = await getConversationHistory(
-            resolveConversationKey(profile?.phone, req.user.id),
-            sessionId ? String(sessionId) : undefined,
-        );
+        const sessionId = req.query?.session_id;
+        const conversationKey = resolveConversationKey(profile?.phone, req.user.id);
+        const rawHistory = sessionId
+            ? await getConversationHistory(conversationKey, String(sessionId))
+            : await getConversationHistory(conversationKey);
         const history = Array.isArray(rawHistory) ? rawHistory : [];
         const messages = history.map((msg) => ({
             role: msg.role === 'assistant' ? 'ai' as const : 'user' as const,
@@ -216,6 +275,9 @@ export const listSessions = async (req: Request, res: Response) => {
             .limit(50);
 
         if (error) {
+            if (isMissingChatSessionsSchemaError(error)) {
+                return res.json({ sessions: [] });
+            }
             return res.status(500).json({ error: error.message });
         }
 

@@ -1,6 +1,9 @@
+import crypto from 'node:crypto';
 import { runtimeStatusService } from './runtimeStatusService';
 import { whatsappHealthService } from './whatsappHealthService';
 import { getPulseCapabilityAnswerText } from './pulseCapabilities';
+import { brokerWorkflowService } from './brokerWorkflowService';
+import { supabase, supabaseAdmin } from '../config/supabase';
 
 export type KnowledgeIntent =
     | 'identity_question'
@@ -13,6 +16,8 @@ type KnowledgeAnswer = {
     intent: KnowledgeIntent;
     reply: string;
 };
+
+const db = supabaseAdmin ?? supabase;
 
 function normalize(value: string) {
     return value.toLowerCase().trim();
@@ -97,8 +102,8 @@ export class ProductKnowledgeService {
         return null;
     }
 
-    async answer(tenantId: string, prompt: string): Promise<KnowledgeAnswer | null> {
-        const intent = this.detectIntent(prompt);
+    async answer(tenantId: string, prompt: string, forcedIntent?: KnowledgeIntent): Promise<KnowledgeAnswer | null> {
+        const intent = forcedIntent || this.detectIntent(prompt);
         if (!intent) {
             return null;
         }
@@ -107,7 +112,7 @@ export class ProductKnowledgeService {
             case 'identity_question':
                 return {
                     intent,
-                    reply: this.answerIdentity(prompt),
+                    reply: await this.answerIdentity(tenantId, prompt),
                 };
             case 'runtime_status_question':
                 return {
@@ -122,33 +127,61 @@ export class ProductKnowledgeService {
             case 'support_issue':
                 return {
                     intent,
-                    reply: 'Hey, this part of Pulse is still settling in. Please send a screenshot and what you tried to hello@propai.live so we can fix it quickly.',
+                    reply: await this.answerSupportIssue(tenantId, prompt),
+                };
+            case 'market_advice':
+                return {
+                    intent,
+                    reply: await this.answerMarketAdvice(tenantId, prompt),
                 };
             default:
                 return null;
         }
     }
 
-    private answerIdentity(prompt: string) {
+    private async answerIdentity(tenantId: string, prompt: string) {
         const text = normalize(prompt);
+        const [profile, workspace, snapshot] = await Promise.all([
+            (async () => {
+                const { data } = await db
+                    .from('profiles')
+                    .select('full_name, email, phone, app_role')
+                    .eq('id', tenantId)
+                    .maybeSingle();
+                return data;
+            })().catch(() => null),
+            (async () => {
+                const { data } = await db
+                    .from('workspaces')
+                    .select('agency_name')
+                    .eq('owner_id', tenantId)
+                    .maybeSingle();
+                return data;
+            })().catch(() => null),
+            runtimeStatusService.getSnapshot(tenantId).catch(() => null),
+        ]);
+
+        const brokerName = profile?.full_name ? ` for ${profile.full_name}` : '';
+        const agency = workspace?.agency_name ? ` at ${workspace.agency_name}` : '';
+        const plan = snapshot?.subscription?.plan ? ` Current plan: ${snapshot.subscription.plan}.` : '';
 
         if (text.includes('who built') || text.includes('who made') || text.includes('who created')) {
-            return 'PropAI was built as an AI workflow layer for real estate brokers, with Pulse as the assistant inside it.';
+            return 'PropAI was built by the PropAI team as an AI workflow layer for real estate brokers. Pulse is the assistant inside that workspace, wired to listings, requirements, follow-ups, Stream, WhatsApp status, and research tools.';
         }
 
         if (text.includes('are you ai') || text.includes('are you an ai')) {
-            return 'Yes, I’m Pulse, the AI assistant inside PropAI.';
+            return `Yes. I am Pulse, the AI assistant inside PropAI${brokerName}${agency}.${plan}`;
         }
 
         if (text.includes('are you human')) {
-            return 'No, I’m not human. I’m Pulse, the AI assistant inside PropAI.';
+            return `No. I am not human. I am Pulse, the AI assistant inside PropAI${brokerName}${agency}.`;
         }
 
         if (text.includes('what is pulse')) {
-            return 'Pulse is the AI inside PropAI that helps brokers save listings, capture requirements, track follow-ups, search saved data, and work through WhatsApp.';
+            return `Pulse is the AI inside PropAI that helps brokers save listings, capture requirements, track follow-ups, search saved data, and work through WhatsApp workspace context.${plan}`;
         }
 
-        return 'PropAI is built for real estate brokers, and Pulse is the AI assistant inside it.';
+        return `PropAI is built for real estate brokers, and Pulse is the AI assistant inside it${brokerName}${agency}.${plan}`;
     }
 
     private async answerRuntime(tenantId: string, prompt: string) {
@@ -231,7 +264,19 @@ export class ProductKnowledgeService {
             return 'Web tools are not available right now, but I can still help with your saved CRM and workspace data.';
         }
 
-        return 'I can check live workspace status like WhatsApp connection, active number, model setup, and browser tool availability.';
+        const whatsappLine = snapshot.whatsapp.status === 'connected'
+            ? `WhatsApp connected on ${snapshot.whatsapp.connectedPhoneNumber || 'the active workspace number'} (${snapshot.whatsapp.activeCount} active session${snapshot.whatsapp.activeCount === 1 ? '' : 's'}).`
+            : `WhatsApp status: ${snapshot.whatsapp.status}.`;
+        const browserLine = snapshot.browser.liveBrowser
+            ? 'Live browser tools are available.'
+            : snapshot.browser.available
+                ? 'Web tools are available in fallback mode.'
+                : 'Web tools are not available right now.';
+        const aiLine = snapshot.ai.configured
+            ? `AI is configured for ${snapshot.ai.provider} ${snapshot.ai.model}.`
+            : `AI is set to ${snapshot.ai.provider} ${snapshot.ai.model}, but the key is not configured.`;
+
+        return [aiLine, whatsappLine, browserLine, `Plan: ${snapshot.subscription.plan}, ${snapshot.subscription.sessionsLimit} WhatsApp session limit.`].join('\n');
     }
 
     private async answerPrivacyOrLimits(tenantId: string, prompt: string) {
@@ -255,6 +300,55 @@ export class ProductKnowledgeService {
         }
 
         return 'I can save and retrieve workspace data, but I should only act inside the limits of your current workspace setup and plan.';
+    }
+
+    private async answerSupportIssue(tenantId: string, prompt: string) {
+        const traceId = crypto.randomUUID();
+        try {
+            await db.from('agent_events').insert({
+                tenant_id: tenantId,
+                event_type: 'support_issue',
+                description: 'Broker reported a support issue in Pulse chat',
+                metadata: {
+                    traceId,
+                    prompt: String(prompt || '').slice(0, 1000),
+                },
+            });
+        } catch {
+            // The trace ID is still useful to the user even if support logging is temporarily unavailable.
+        }
+
+        return [
+            'I logged this as a support issue instead of pretending it worked.',
+            `Trace ID: ${traceId}`,
+            'Send a screenshot and what you tried to hello@propai.live, or paste the error here and I will narrow it down from workspace status.',
+        ].join('\n');
+    }
+
+    private async answerMarketAdvice(tenantId: string, prompt: string) {
+        const [crm, market] = await Promise.all([
+            brokerWorkflowService.executePlan(tenantId, { intent: 'search_my_crm', args: { query: prompt } }, prompt).catch(() => null),
+            brokerWorkflowService.executePlan(tenantId, { intent: 'market_insights', args: { query: prompt } }, prompt).catch(() => null),
+        ]);
+
+        const lines = ['Here is the grounded broker read from your workspace data:'];
+        const crmItems = crm?.handled && Array.isArray(crm.data?.items) ? crm.data.items : [];
+        const marketItems = market?.handled && Array.isArray(market.data?.items) ? market.data.items : [];
+
+        if (crmItems.length) {
+            lines.push('', `CRM signal: I found ${crmItems.length} related saved record${crmItems.length === 1 ? '' : 's'}. Start with the freshest, highest-fit lead before broad outreach.`);
+        } else {
+            lines.push('', 'CRM signal: I did not find a strong saved-record match, so treat this as directional advice unless you share a specific listing or buyer brief.');
+        }
+
+        if (marketItems.length) {
+            lines.push(`Market signal: ${marketItems.length} locality/stat row${marketItems.length === 1 ? '' : 's'} are available from recent Stream data.`);
+        } else {
+            lines.push('Market signal: I do not have enough recent Stream pricing data for a confident market-stat read.');
+        }
+
+        lines.push('', 'Suggested move: qualify urgency first, then send 2-3 tightly matched options rather than a broad dump. Ask for budget flexibility, possession timing, and decision-maker availability before pushing site visits.');
+        return lines.join('\n');
     }
 }
 

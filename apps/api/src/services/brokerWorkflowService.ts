@@ -629,7 +629,16 @@ export class BrokerWorkflowService {
 
     private async semanticSearchListings(tenantId: string, prompt: string): Promise<WorkflowResult> {
         try {
-            const { embedText } = await import('../services/embeddingService');
+            const { embedText, isEmbedderReady } = await import('../services/embeddingService');
+            const ready = await isEmbedderReady();
+            if (!ready) {
+                return {
+                    handled: true,
+                    reply: 'Semantic search is wired, but the embedding service is not reachable right now. I can still search saved CRM records by keyword.',
+                    data: { type: 'semantic_search_unavailable', reason: 'embedder_unavailable' },
+                };
+            }
+
             const embedding = await embedText(prompt);
             const { data, error } = await this.admin.rpc('match_listings', {
                 query_embedding: embedding,
@@ -651,7 +660,7 @@ export class BrokerWorkflowService {
         } catch (e: any) {
             return {
                 handled: true,
-                reply: `Semantic search failed: ${e.message}`,
+                reply: `Semantic search is wired, but it could not run right now: ${e.message}`,
                 data: { type: 'semantic_search_failed' },
             };
         }
@@ -671,9 +680,10 @@ export class BrokerWorkflowService {
                     data: { type: 'market_insights', items: [] },
                 };
             }
-            const lines = (data as any[]).slice(0, 10).map((r: any) =>
-                `${r.locality}: ${r.bhk || 'all'}BHK avg ₹${Number(r.avg_price_numeric || 0).toLocaleString('en-IN')} (${r.listing_count} listings)`
-            );
+            const lines = (data as any[]).slice(0, 10).map((r: any) => {
+                const avgPrice = Number(r.avg_price_numeric ?? r.avg_price ?? 0);
+                return `${r.locality}: avg ₹${avgPrice.toLocaleString('en-IN')} (${r.listing_count} listings)`;
+            });
             return {
                 handled: true,
                 reply: `Market insights (last 30 days):\n${lines.join('\n')}`,
