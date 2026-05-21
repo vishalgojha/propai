@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -349,7 +348,7 @@ fun AuthScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = Brand)
                     ) {
                         if (loading) {
-                            CircularProgressIndicator(color = Color.Black, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                            SafeLoadingIndicator(color = Color.Black, dotSize = 4.dp, modifier = Modifier.size(20.dp))
                         } else {
                             Text(
                                 if (isLogin) "SIGN IN" else "CREATE ACCOUNT",
@@ -368,7 +367,12 @@ fun AuthScreen(
                         color = Brand,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(8.dp)
+                        modifier = Modifier
+                            .clickable {
+                                isLogin = !isLogin
+                                error = ""
+                            }
+                            .padding(8.dp)
                     )
                 }
             }
