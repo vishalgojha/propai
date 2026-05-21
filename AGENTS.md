@@ -43,4 +43,4 @@
 
 ## Manual Supabase Dashboard Steps
 
-- **Leaked Password Protection**: Enable via Supabase Dashboard → Authentication → Settings → toggle "Leaked password protection" ON. One-click, no migration needed.
+- **Leaked Password Protection**: Requires Supabase **Pro Plan or higher** (free Plan does not include HaveIBeenPwned integration). Enable via Dashboard → Authentication → Settings → toggle ON.
