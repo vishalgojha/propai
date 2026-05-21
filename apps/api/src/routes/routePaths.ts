@@ -20,6 +20,11 @@ export const ROUTE_PATHS = {
     stream: '/api/stream-items',
     ingest: '/api/listings/ingest',
     intelligence: '/api/intelligence',
+    notifications: '/api/notifications',
+  },
+  notifications: {
+    subscribe: '/subscribe',
+    unsubscribe: '/unsubscribe',
   },
   channels: {
     root: '/',

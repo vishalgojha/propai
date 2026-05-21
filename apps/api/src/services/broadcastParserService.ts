@@ -3,6 +3,8 @@ import { supabaseAdmin } from '../config/supabase';
 import { classifyBrokerMessage } from '../utils/brokerMessageClassifier';
 import { canonicalizationService } from './canonicalizationService';
 import { generateEmbedding } from './embeddingService';
+import { getWorkspaceSettingsRecord } from './workspaceSettingsService';
+import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 
 const ADMIN_NUMBER = '9820056180';
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -911,6 +913,40 @@ async function upsertStreamItem(
     if (error || !data) {
         console.error('[BroadcastParser] Failed to upsert stream_item', error?.message);
         return null;
+    }
+
+    if ((params.confidenceScore ?? 0) >= 0.88 && params.sourcePhone) {
+        try {
+            const settingsRecord = await getWorkspaceSettingsRecord(params.tenantId);
+            if (settingsRecord.settings.highValueLeads) {
+                const gw = getWhatsAppGateway(params.tenantId);
+                const typeLabel = params.recordType === 'requirement' ? 'Requirement' : 'Listing';
+                const detailParts = [
+                    `*${typeLabel} — High Confidence Match*`,
+                    '',
+                    params.locality ? `📍 Locality: ${params.locality}` : null,
+                    params.bhk ? `🏠 BHK: ${params.bhk}` : null,
+                    params.priceLabel ? `💰 Price: ${params.priceLabel}` : null,
+                    `📊 Confidence: ${Math.round((params.confidenceScore ?? 0) * 100)}%`,
+                ].filter(Boolean).join('\n');
+
+                await gw.sendMessage({
+                    workspaceOwnerId: params.tenantId,
+                    remoteJid: params.sourcePhone,
+                    text: detailParts,
+                });
+
+                const { notificationService } = await import('./notificationService');
+                await notificationService.sendToTenant(params.tenantId, `${typeLabel} — High Confidence Match`, [
+                    params.locality && `📍 ${params.locality}`,
+                    params.bhk && `🏠 ${params.bhk}`,
+                    params.priceLabel && `💰 ${params.priceLabel}`,
+                    `${Math.round((params.confidenceScore ?? 0) * 100)}% confidence`,
+                ].filter(Boolean).join(' · '), { url: '/stream' });
+            }
+        } catch (err) {
+            console.error('[BroadcastParser] High-value lead notification failed', (err as Error).message);
+        }
     }
 
     return data.id;

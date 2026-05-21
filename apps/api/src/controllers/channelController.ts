@@ -44,6 +44,7 @@ export const listStreamItems = async (req: Request, res: Response) => {
             sessionLabel,
             networkMode,
             Number.isFinite(limit) ? Number(limit) : undefined,
+            req.user?.email,
         );
         res.json({
             items,

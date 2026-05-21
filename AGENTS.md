@@ -41,6 +41,23 @@
 - Keep only current branch context, active worktree state, and truly pending actions here.
 - Historical session detail belongs in git history, not in the active handoff.
 
-## Manual Supabase Dashboard Steps
+## Manual Setup Steps
+
+### VAPID Keys for Push Notifications
+
+Push notifications (FIX 4) require VAPID keys. Generate them once and add to Coolify env vars:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Add these env vars to both `apps/api` and `apps/app` (app needs only the public key):
+- `VAPID_PUBLIC_KEY` (app + api)
+- `VAPID_PRIVATE_KEY` (api only)
+- `VAPID_EMAIL` (api only, default: admin@propai.live)
+
+For local dev, add to `apps/api/.env` and `apps/app/.env.local`.
+
+### Supabase Dashboard
 
 - **Leaked Password Protection**: Requires Supabase **Pro Plan or higher** (free Plan does not include HaveIBeenPwned integration). Enable via Dashboard → Authentication → Settings → toggle ON.

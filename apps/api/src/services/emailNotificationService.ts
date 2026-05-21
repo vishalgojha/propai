@@ -192,6 +192,52 @@ class EmailNotificationService {
         });
     }
 
+    async sendDailyBriefing(to: string, tenantId: string, itemsCount: number, topItems: string[]): Promise<EmailSendResult> {
+        const greeting = `Good morning — here's your daily PropAI market briefing for today.\n\n`;
+        const summary = `You have ${itemsCount} new items in your stream today.\n\n`;
+        const itemsSection = topItems.length
+            ? `Top matches:\n${topItems.map((t, i) => `${i + 1}. ${t}`).join('\n')}\n\n`
+            : '';
+        const dashboardUrl = `${this.appUrl}/stream`;
+        const cta = `View your full stream: ${dashboardUrl}`;
+
+        const text = greeting + summary + itemsSection + cta;
+        const html = `
+            <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;line-height:1.6;color:#1a1a2e;max-width:560px;margin:0 auto">
+                <div style="background:#0d1117;border-radius:16px;padding:32px;border:1px solid #243040">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px">
+                        <div style="width:8px;height:8px;border-radius:50%;background:#3EE88A"></div>
+                        <span style="font-weight:600;font-size:15px;color:#e2e8f0">PropAI — Daily Briefing</span>
+                    </div>
+                    <p style="font-size:15px;margin:0 0 16px;color:#e2e8f0">Good morning — here's your daily PropAI market briefing.</p>
+                    <p style="font-size:14px;margin:0 0 16px;color:#94a3b8">You have <strong style="color:#3EE88A">${itemsCount}</strong> new items in your stream today.</p>
+                    ${topItems.length ? `
+                    <div style="background:#121a24;border-radius:12px;border:1px solid #243040;padding:16px;margin:20px 0">
+                        <p style="font-size:13px;font-weight:600;margin:0 0 12px;color:#e2e8f0">Top matches:</p>
+                        <ol style="font-size:13px;color:#94a3b8;line-height:1.6;margin:0;padding-left:16px">
+                            ${topItems.map(t => `<li style="margin-bottom:6px">${this.escapeHtml(t)}</li>`).join('')}
+                        </ol>
+                    </div>
+                    ` : ''}
+                    <a href="${dashboardUrl}" style="display:inline-block;background:#3EE88A;color:#000;text-decoration:none;font-weight:600;font-size:14px;padding:12px 24px;border-radius:12px;margin:8px 0 20px">
+                        View Full Stream →
+                    </a>
+                    <div style="border-top:1px solid #243040;padding-top:16px;margin-top:20px">
+                        <p style="font-size:12px;margin:0;color:#64748b">PropAI — Your Daily Market Pulse</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        return this.sendEmail({
+            to,
+            from: 'PropAI Daily Briefing <hello@propai.live>',
+            subject: 'Your PropAI Daily Market Briefing',
+            text,
+            html,
+        });
+    }
+
     private async sendEmail(payload: EmailPayload): Promise<EmailSendResult> {
         if (!this.isConfigured()) {
             console.warn('[EmailNotificationService] Email provider not configured (RESEND_API_KEY or EMAIL_FROM missing), skipping email:', payload.subject);

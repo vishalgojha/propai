@@ -17,6 +17,7 @@ import workspaceRoutes from './routes/workspaceRoutes';
 import fileRoutes from './routes/fileRoutes';
 import identityRoutes from './routes/identityRoutes';
 import waClickRoutes from './routes/waClickRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 import whatsappPresenceRoutes from './routes/whatsappPresenceRoutes';
 import fs from 'fs';
 import path from 'path';
@@ -115,6 +116,7 @@ app.use(ROUTE_PATHS.api.admin, authMiddleware, adminRoutes);
 app.use(ROUTE_PATHS.api.voice, authMiddleware, voiceRoutes);
 app.use(ROUTE_PATHS.api.identity, authMiddleware, identityRoutes);
 app.use('/api/wa-click', authMiddleware, waClickRoutes);
+app.use(ROUTE_PATHS.api.notifications, authMiddleware, notificationRoutes);
 
 app.get(ROUTE_PATHS.api.health, (req, res) => {
     res.json({

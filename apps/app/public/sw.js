@@ -17,6 +17,38 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+self.addEventListener("push", (event) => {
+  const data = event.data?.json() ?? {};
+  const title = data.title || "PropAI";
+  const body = data.body || "";
+  const options = {
+    body,
+    icon: "/icon-192",
+    badge: "/favicon.svg",
+    vibrate: [200, 100, 200],
+    data: data.data || {},
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(title, options).catch(() => undefined),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/stream";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (client.url === url && "focus" in client) {
+          return client.focus();
+        }
+      }
+      return clients.openWindow(url);
+    }),
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") {
     return;

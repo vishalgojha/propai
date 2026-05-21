@@ -3,6 +3,8 @@ import { aiService } from './aiService';
 import { canonicalizationService } from './canonicalizationService';
 import { igrQueryService, type IgrTransactionPreview } from './igrQueryService';
 import { extractIndianCity, extractIndianLocality, parseIndianLocation } from '../utils/locationParser';
+import { getWorkspaceSettingsRecord } from './workspaceSettingsService';
+import { emailNotificationService } from './emailNotificationService';
 
 type ChannelType = 'listing' | 'requirement' | 'mixed';
 type StreamType = 'Rent' | 'Sale' | 'Requirement' | 'Pre-leased';
@@ -1548,7 +1550,8 @@ export class ChannelService {
         return this.mapChannelRow(data as ChannelRow, counts.get(channelId));
     }
 
-private backfillInitiatedScopes = new Set<string>();
+private backfillInitiatedScopes = new Map<string, number>();
+private dailyBriefingSentKeys = new Set<string>();
 
     private getBackfillScopeKey(tenantId: string, sessionLabel?: string | null) {
         return `${tenantId}::${sessionLabel || 'all'}`;
@@ -1595,13 +1598,39 @@ private backfillInitiatedScopes = new Set<string>();
         sessionLabel?: string | null,
         networkMode = false,
         limit = 100,
+        email?: string | null,
     ): Promise<StreamItemRecord[]> {
-         // Only trigger backfill once and don't block the read on it
+         // FIX 3: Auto-sync period — re-trigger backfill if enough time has elapsed
          const backfillScopeKey = this.getBackfillScopeKey(tenantId, sessionLabel);
-         if (!this.backfillInitiatedScopes.has(backfillScopeKey)) {
-             this.backfillInitiatedScopes.add(backfillScopeKey);
-             // Fire-and-forget: ensureStreamBackfilled runs in the background
+         const lastBackfill = this.backfillInitiatedScopes.get(backfillScopeKey);
+         let shouldBackfill = false;
+         if (!lastBackfill) {
+             shouldBackfill = true;
+         } else {
+             try {
+                 const settingsRecord = await getWorkspaceSettingsRecord(tenantId);
+                 const period = settingsRecord.settings.autoSyncPeriod || 'Auto';
+                 let intervalMs = 24 * 60 * 60 * 1000;
+                 if (period === 'Hourly') intervalMs = 60 * 60 * 1000;
+                 else if (period === 'Daily') intervalMs = 24 * 60 * 60 * 1000;
+                 else if (period === 'Weekly') intervalMs = 7 * 24 * 60 * 60 * 1000;
+                 else if (period === 'Auto') intervalMs = 6 * 60 * 60 * 1000;
+                 shouldBackfill = (Date.now() - lastBackfill) > intervalMs;
+             } catch {
+                 shouldBackfill = (Date.now() - lastBackfill) > 24 * 60 * 60 * 1000;
+             }
+         }
+         if (shouldBackfill) {
+             this.backfillInitiatedScopes.set(backfillScopeKey, Date.now());
              void this.ensureStreamBackfilled(tenantId, sessionLabel);
+         }
+
+         // FIX 1: Daily market briefing — fire-and-forget on first load of day
+         const today = new Date().toISOString().slice(0, 10);
+         const briefingKey = `${tenantId}::${today}`;
+         if (!this.dailyBriefingSentKeys.has(briefingKey)) {
+             this.dailyBriefingSentKeys.add(briefingKey);
+             void this.maybeSendDailyBriefing(tenantId, email);
          }
 
          const readClient = accessToken ? createSupabaseAnonClient(accessToken) : this.db;
@@ -2315,8 +2344,51 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
                  sessionLabel: sessionLabel || null,
                  error,
              });
-         }
-     }
+          }
+      }
+
+    private async maybeSendDailyBriefing(tenantId: string, email?: string | null) {
+        if (!email) {
+            return;
+        }
+
+        try {
+            const settingsRecord = await getWorkspaceSettingsRecord(tenantId);
+            if (!settingsRecord.settings.dailyBriefing) {
+                return;
+            }
+
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const { data: items, error } = await this.db
+                .from('stream_items')
+                .select('id, raw_text, type, record_type, confidence_score, locality, bhk, price_label')
+                .eq('tenant_id', tenantId)
+                .gte('created_at', todayStart.toISOString())
+                .order('confidence_score', { ascending: false })
+                .limit(5);
+
+            if (error || !items || items.length === 0) {
+                return;
+            }
+
+            const topItems = items.map((item: any) => {
+                const parts = [
+                    item.type && `[${item.type}]`,
+                    item.record_type && `(${item.record_type})`,
+                    item.locality,
+                    item.bhk,
+                    item.price_label,
+                    item.confidence_score != null && `${Math.round(item.confidence_score * 100)}%`,
+                ].filter(Boolean);
+                return parts.join(' ') || item.raw_text?.slice(0, 80) || 'Stream item';
+            });
+
+            await emailNotificationService.sendDailyBriefing(email, tenantId, items.length, topItems);
+        } catch (err) {
+            console.error('[ChannelService] Daily briefing failed', (err as Error).message);
+        }
+    }
 
     private async parseMessage(tenantId: string, message: RawInboundMessage): Promise<ParsedStreamCandidate[]> {
         try {
