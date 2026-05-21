@@ -52,8 +52,6 @@ export const ENDPOINTS = {
     status: '/whatsapp/status',
     sessions: '/whatsapp/sessions',
     qr: '/whatsapp/qr',
-    inbox: '/whatsapp/inbox',
-    inboxGovernance: '/whatsapp/inbox/governance',
     monitorMessages: '/whatsapp/monitor/messages',
     health: '/whatsapp/health',
     healthLogs: '/whatsapp/health/logs',
@@ -104,16 +102,6 @@ export const ENDPOINTS = {
   },
   identity: {
     onboarding: '/identity/onboarding',
-  },
-  wabro: {
-    campaigns: '/wabro/campaigns',
-    campaignStatus: (campaignId: string) => `/wabro/campaigns/${encodeURIComponent(campaignId)}/status`,
-    contacts: '/wabro/contacts',
-    contactsByList: (listName: string) => `/wabro/contacts/${encodeURIComponent(listName)}`,
-    dashboardStats: '/wabro/dashboard/stats',
-    devices: '/wabro/devices',
-    deviceProvision: '/wabro/devices/provision',
-    appVersion: '/wabro/app-version',
   },
   dmContacts: {
     list: '/api/intelligence/dm-contacts',

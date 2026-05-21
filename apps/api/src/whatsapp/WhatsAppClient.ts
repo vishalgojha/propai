@@ -9,7 +9,6 @@ import { createSupabaseAuthState, type SupabaseAuthState } from './SupabaseAuthS
 import { CircuitBreaker } from './CircuitBreaker';
 import { PropAISupabaseAdapter } from './PropAISupabaseAdapter';
 import { sessionEventService } from '../services/sessionEventService';
-import { wabroMessageStatusService } from '../services/wabroMessageStatusService';
 import { whatsappGroupService } from '../services/whatsappGroupService';
 import { liveMonitorService } from '../services/liveMonitorService';
 import { supabase } from '../config/supabase';
@@ -104,18 +103,7 @@ export class WhatsAppClient {
         const timestamp = input.timestamp || new Date().toISOString();
         const eventId = `${input.source}:${this.tenantId}:${this.label}:${messageId}:${input.state}:${timestamp}`;
 
-        await wabroMessageStatusService.record({
-            eventId,
-            tenantId: this.tenantId,
-            sessionLabel: this.label,
-            messageId,
-            chatId,
-            state: input.state,
-            timestamp,
-            errorCode: input.errorCode || null,
-            errorMessage: input.errorMessage || null,
-            rawPayload: input.rawPayload || null,
-        });
+        // status recorded via session events
 
         void sessionEventService.log(this.tenantId, 'message_status', {
             label: this.label,

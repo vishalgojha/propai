@@ -1,4 +1,4 @@
--- Broker Contacts & Broadcast Lists for WaBro
+-- Broker Contacts & Broadcast Lists
 -- Extracted from WhatsApp group parsing
 
 -- Broker contacts extracted from group participants

@@ -23,55 +23,6 @@ export type WorkspaceSettings = {
     dailyBriefing: boolean;
     highValueLeads: boolean;
     performanceAnalytics: boolean;
-    inboxIntelligence?: InboxIntelligenceSettings;
-};
-
-export type InboxThreadState = 'allowed' | 'held' | 'ignored';
-
-export type InboxThreadOverride = {
-    state: InboxThreadState;
-    updatedAt: string;
-    reason?: string | null;
-};
-
-export type InboxThreadMemory = {
-    summary: string;
-    sourceHash?: string;
-    analysis?: {
-        state: InboxThreadState;
-        category: 'real_estate_lead' | 'inventory_blast' | 'newsletter' | 'junk' | 'personal' | 'unclear';
-        reason: string;
-        confidence: 'high' | 'medium';
-    };
-    contact: {
-        phone: string | null;
-        role: 'broker' | 'buyer' | 'seller' | 'tenant' | 'owner' | 'unknown';
-        confidence: 'high' | 'medium';
-        localities: string[];
-        propertyTypes: string[];
-        budgets: string[];
-    };
-    thread: {
-        inboundCount: number;
-        outboundCount: number;
-        lastInboundAt: string | null;
-        lastOutboundAt: string | null;
-        requirementSignals: string[];
-    };
-    updatedAt: string;
-};
-
-export type InboxSessionGovernance = {
-    threads: Record<string, InboxThreadOverride>;
-    memories?: Record<string, InboxThreadMemory>;
-};
-
-export type InboxIntelligenceSettings = {
-    mode: 'allow_relevant_only';
-    blockedDomains: string[];
-    filterEmojiHeavy: boolean;
-    filterLowSignal: boolean;
-    sessions: Record<string, InboxSessionGovernance>;
 };
 
 export type SettingsStore = Record<string, {
@@ -98,13 +49,6 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
     dailyBriefing: true,
     highValueLeads: true,
     performanceAnalytics: false,
-    inboxIntelligence: {
-        mode: 'allow_relevant_only',
-        blockedDomains: ['youtube.com', 'youtu.be', 'instagram.com', 'instagr.am', 'facebook.com', 'fb.watch', 'x.com', 'twitter.com'],
-        filterEmojiHeavy: true,
-        filterLowSignal: true,
-        sessions: {},
-    },
 };
 
 export function normalizeDefaultModel(value?: string | null) {
@@ -166,125 +110,12 @@ function isMissingRelationError(error: any) {
     return error?.code === '42P01' || message.includes('does not exist') || message.includes('schema cache');
 }
 
-function sanitizeInboxIntelligenceSettings(value: unknown): InboxIntelligenceSettings {
-    const fallback = DEFAULT_SETTINGS.inboxIntelligence as InboxIntelligenceSettings;
-    const input = value && typeof value === 'object' ? value as Record<string, unknown> : {};
-    const rawSessions = input.sessions && typeof input.sessions === 'object'
-        ? input.sessions as Record<string, unknown>
-        : {};
-
-    const sessions = Object.entries(rawSessions).reduce<Record<string, InboxSessionGovernance>>((acc, [sessionKey, sessionValue]) => {
-        if (!sessionValue || typeof sessionValue !== 'object') {
-            return acc;
-        }
-
-        const rawThreads = (sessionValue as Record<string, unknown>).threads;
-        const rawMemories = (sessionValue as Record<string, unknown>).memories;
-        const threads = rawThreads && typeof rawThreads === 'object'
-            ? Object.entries(rawThreads as Record<string, unknown>).reduce<Record<string, InboxThreadOverride>>((threadAcc, [threadId, threadValue]) => {
-                if (!threadValue || typeof threadValue !== 'object') {
-                    return threadAcc;
-                }
-
-                const candidate = threadValue as Record<string, unknown>;
-                const state = candidate.state;
-                if (state !== 'allowed' && state !== 'held' && state !== 'ignored') {
-                    return threadAcc;
-                }
-
-                threadAcc[threadId] = {
-                    state,
-                    updatedAt: typeof candidate.updatedAt === 'string' && candidate.updatedAt.trim()
-                        ? candidate.updatedAt
-                        : new Date(0).toISOString(),
-                    reason: typeof candidate.reason === 'string' ? candidate.reason : null,
-                };
-                return threadAcc;
-            }, {})
-            : {};
-
-        const memories = rawMemories && typeof rawMemories === 'object'
-            ? Object.entries(rawMemories as Record<string, unknown>).reduce<Record<string, InboxThreadMemory>>((memoryAcc, [threadId, memoryValue]) => {
-                if (!memoryValue || typeof memoryValue !== 'object') {
-                    return memoryAcc;
-                }
-
-                const candidate = memoryValue as Record<string, any>;
-                const contact = candidate.contact && typeof candidate.contact === 'object' ? candidate.contact : {};
-                const thread = candidate.thread && typeof candidate.thread === 'object' ? candidate.thread : {};
-                const summary = String(candidate.summary || '').trim();
-                if (!summary) {
-                    return memoryAcc;
-                }
-
-                memoryAcc[threadId] = {
-                    summary,
-                    sourceHash: typeof candidate.sourceHash === 'string' && candidate.sourceHash.trim()
-                        ? candidate.sourceHash.trim()
-                        : undefined,
-                    analysis: candidate.analysis && typeof candidate.analysis === 'object'
-                        ? {
-                            state: candidate.analysis.state === 'allowed' || candidate.analysis.state === 'held' || candidate.analysis.state === 'ignored'
-                                ? candidate.analysis.state
-                                : 'held',
-                            category: candidate.analysis.category === 'real_estate_lead'
-                                || candidate.analysis.category === 'inventory_blast'
-                                || candidate.analysis.category === 'newsletter'
-                                || candidate.analysis.category === 'junk'
-                                || candidate.analysis.category === 'personal'
-                                ? candidate.analysis.category
-                                : 'unclear',
-                            reason: typeof candidate.analysis.reason === 'string' ? candidate.analysis.reason : 'AI review pending.',
-                            confidence: candidate.analysis.confidence === 'high' ? 'high' : 'medium',
-                        }
-                        : undefined,
-                    contact: {
-                        phone: typeof contact.phone === 'string' ? contact.phone : null,
-                        role: contact.role === 'broker' || contact.role === 'buyer' || contact.role === 'seller' || contact.role === 'tenant' || contact.role === 'owner'
-                            ? contact.role
-                            : 'unknown',
-                        confidence: contact.confidence === 'high' ? 'high' : 'medium',
-                        localities: Array.isArray(contact.localities) ? contact.localities.map((entry: unknown) => String(entry || '').trim()).filter(Boolean) : [],
-                        propertyTypes: Array.isArray(contact.propertyTypes) ? contact.propertyTypes.map((entry: unknown) => String(entry || '').trim()).filter(Boolean) : [],
-                        budgets: Array.isArray(contact.budgets) ? contact.budgets.map((entry: unknown) => String(entry || '').trim()).filter(Boolean) : [],
-                    },
-                    thread: {
-                        inboundCount: Number(thread.inboundCount || 0),
-                        outboundCount: Number(thread.outboundCount || 0),
-                        lastInboundAt: typeof thread.lastInboundAt === 'string' ? thread.lastInboundAt : null,
-                        lastOutboundAt: typeof thread.lastOutboundAt === 'string' ? thread.lastOutboundAt : null,
-                        requirementSignals: Array.isArray(thread.requirementSignals) ? thread.requirementSignals.map((entry: unknown) => String(entry || '').trim()).filter(Boolean) : [],
-                    },
-                    updatedAt: typeof candidate.updatedAt === 'string' && candidate.updatedAt.trim()
-                        ? candidate.updatedAt
-                        : new Date(0).toISOString(),
-                };
-                return memoryAcc;
-            }, {})
-            : {};
-
-        acc[sessionKey] = { threads, memories };
-        return acc;
-    }, {});
-
-    return {
-        mode: input.mode === 'allow_relevant_only' ? 'allow_relevant_only' : fallback.mode,
-        blockedDomains: Array.isArray(input.blockedDomains)
-            ? input.blockedDomains.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
-            : fallback.blockedDomains,
-        filterEmojiHeavy: typeof input.filterEmojiHeavy === 'boolean' ? input.filterEmojiHeavy : fallback.filterEmojiHeavy,
-        filterLowSignal: typeof input.filterLowSignal === 'boolean' ? input.filterLowSignal : fallback.filterLowSignal,
-        sessions,
-    };
-}
-
 export function sanitizeSettings(settings: Partial<WorkspaceSettings> = {}): WorkspaceSettings {
     return {
         ...DEFAULT_SETTINGS,
         ...settings,
         defaultModel: normalizeDefaultModel(settings.defaultModel),
         elevenlabsKey: typeof settings.elevenlabsKey === 'string' ? settings.elevenlabsKey : DEFAULT_SETTINGS.elevenlabsKey,
-        inboxIntelligence: sanitizeInboxIntelligenceSettings(settings.inboxIntelligence),
     };
 }
 
@@ -338,7 +169,6 @@ export async function saveWorkspaceSettingsRecord(tenantId: string, settings: Pa
     const sanitizedSettings = sanitizeSettings({
         ...existingRecord.settings,
         ...settings,
-        inboxIntelligence: settings.inboxIntelligence ?? existingRecord.settings.inboxIntelligence,
     });
     const store = await readStore();
 

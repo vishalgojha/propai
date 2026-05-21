@@ -39,7 +39,7 @@ const capabilities = [
   {
     icon: FollowUpIcon,
     title: 'Broadcast when you need reach',
-    copy: 'WaBro gives you the outbound layer for broker campaigns and follow-up pushes without leaving the PropAI workflow.',
+    copy: 'Broadcast campaigns and follow-up pushes without leaving the PropAI workflow.',
   },
   {
     icon: SearchIcon,
@@ -78,12 +78,6 @@ const productHighlights = [
 
 const stackHighlights = [
   {
-    title: 'WaBro',
-    summary: 'WhatsApp broadcast software for real estate brokers.',
-    copy: 'WaBro is the part of PropAI that helps you send broker broadcasts, follow-up messages, and campaign pushes from one place. You do not need to juggle separate tools for outreach.',
-    seo: 'Useful if you are searching for a WhatsApp marketing tool for brokers, broker follow-up software, or a simple outbound workflow for real estate teams.',
-  },
-  {
     title: 'MCP',
     summary: 'The rules that help the AI understand your workspace properly.',
     copy: 'MCP helps PropAI pass the right context into the AI so it knows which listings, requirements, follow-ups, and workspace actions belong to you. Non-technical version: it helps the AI stay organized instead of guessing.',
@@ -98,7 +92,7 @@ const stackHighlights = [
   {
     title: 'Shared workspace',
     summary: 'One broker workspace instead of five disconnected apps.',
-    copy: 'Shared workspace means your WhatsApp intake, Stream, AI actions, and WaBro broadcasts live together. Listings, requirements, follow-ups, and outreach stay connected, so your team does not lose context between tools.',
+    copy: 'Shared workspace means your WhatsApp intake, Stream, AI actions, and broadcasts live together. Listings, requirements, follow-ups, and outreach stay connected, so your team does not lose context between tools.',
     seo: 'This is the operational benefit for teams looking for a real estate broker CRM, WhatsApp workspace, and AI-assisted broker operations in one system.',
   },
 ];
@@ -294,12 +288,12 @@ export const Login: React.FC = () => {
               </div>
               <div>
                 <p className="text-[13px] font-bold tracking-[0.06em]">PROPAI PULSE</p>
-                <p className="text-[11px] text-[var(--text-secondary)]">Work WhatsApp. Parse Stream. Broadcast with WaBro.</p>
+                <p className="text-[11px] text-[var(--text-secondary)]">Work WhatsApp. Parse Stream. Broadcast to contacts.</p>
               </div>
             </div>
             <div className="hidden md:flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">
               <ShieldCheckIcon className="h-3.5 w-3.5" />
-              <span>Email login | MCP | Stream ops | WaBro ready</span>
+              <span>Email login | MCP | Stream ops | Broadcast ready</span>
               <span className={cn('ml-2', authPill)}>
                 <span className={apiStatus === 'online' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : apiStatus === 'offline' ? 'h-2 w-2 rounded-full bg-[var(--red)]' : 'h-2 w-2 rounded-full bg-[var(--amber)]'} />
                 {apiStatus === 'online' ? 'API connected' : apiStatus === 'offline' ? 'API offline' : 'Checking API'}
@@ -347,7 +341,7 @@ export const Login: React.FC = () => {
                     <span className="block text-[var(--accent)]">finally works together.</span>
                   </h1>
                   <p className="mt-5 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                    PropAI gives you a WhatsApp workspace console, a parsed Stream for listings and requirements, and WaBro for outbound broker broadcasts. Keep your workflow private with Personal Parser, or move into PropAI Network when you want global market data.
+                    PropAI gives you a WhatsApp workspace console, a parsed Stream for listings and requirements, and outbound broker broadcasts. Keep your workflow private with Personal Parser, or move into PropAI Network when you want global market data.
                   </p>
                 </div>
 
@@ -414,7 +408,7 @@ export const Login: React.FC = () => {
                 <div className="mt-4 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">PropAI Assistant</p>
                   <p className="mt-2 text-[12px] leading-5 text-[var(--text-primary)]">
-                    Need help choosing between Personal Parser and PropAI Network, or setting up WaBro? Message the PropAI Assistant on WhatsApp at {PROPAI_ASSISTANT_NUMBER}.
+                    Need help choosing between Personal Parser and PropAI Network? Message the PropAI Assistant on WhatsApp at {PROPAI_ASSISTANT_NUMBER}.
                   </p>
                   <a href={PROPAI_ASSISTANT_WA_LINK} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07]">
                     Open WhatsApp
@@ -429,7 +423,7 @@ export const Login: React.FC = () => {
                 </div>
                 <div className="mt-4 space-y-4">
                   <div className="rounded-[14px] border border-[color:var(--border)] bg-[rgba(255,255,255,0.015)] p-4">
-                    <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">What do WaBro, MCP, BYOK, and shared workspace actually mean?</h2>
+                    <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">What do MCP, BYOK, and shared workspace actually mean?</h2>
                     <p className="mt-2 max-w-4xl text-[13px] leading-6 text-[var(--text-secondary)]">
                       If you are not technical, think of this page as a simple guide. PropAI is real estate broker software that connects WhatsApp intake, listing parsing, broker follow-up, team workflow, and AI assistance into one workspace.
                     </p>
@@ -489,7 +483,7 @@ export const Login: React.FC = () => {
                   <p className="mt-2 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
                     {mode === 'signup'
                       ? 'New brokers add their name and WhatsApp number once. Then they can run a private Personal Parser workflow or move into PropAI Network.'
-                      : 'Sign in to open Stream, Threads, and WaBro. First time here? Switch to Create account and get set up in under 5 minutes.'}
+                      : 'Sign in to open Stream and Threads. First time here? Switch to Create account and get set up in under 5 minutes.'}
                   </p>
                 </div>
 
@@ -825,7 +819,7 @@ export const Login: React.FC = () => {
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Workspace capability reminder</p>
                 </div>
                 <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-                  After login, Pulse helps you move between Threads, Stream, and WaBro without losing context. Add listings, save requirements, schedule follow-up, and open broker outreach from one workspace.
+                  After login, Pulse helps you move between Threads and Stream without losing context. Add listings, save requirements, schedule follow-up, and open broker outreach from one workspace.
                 </p>
               </AuthCard>
             </aside>

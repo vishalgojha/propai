@@ -6,17 +6,8 @@ PropAI Pulse is a high-performance workspace for real estate brokers to automate
 - `apps/api`: Node.js + Express + Baileys (the backend intelligence engine)
 - `apps/app`: React + Vite + Framer Motion (the inbox workspace)
 - `apps/www`: Next.js 14 public marketing + listings site
-- `apps/wabro-backend`: legacy WaBro prototype, not the live product surface
 - `packages/agent`: Extension and agent UI/tooling
 - `supabase/`: SQL schema and RLS policies
-
-## WaBro Production Ownership
-
-- Live WaBro UI belongs to `apps/app` at `/wabro/app`
-- Live WaBro API belongs to `apps/api` under `/api/wabro`
-- `apps/wabro-backend` is deprecated legacy code and must not be routed to `app.propai.live`
-- Do not expose `apps/wabro-backend` on `/wabro/app` or `/api/wabro/*` in Coolify or any reverse proxy
-- Do not run `apps/wabro-backend/baileys.js` as a second WhatsApp session owner for numbers already managed by `apps/api`
 
 ## Deployment (Coolify)
 

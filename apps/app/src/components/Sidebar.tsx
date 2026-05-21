@@ -5,13 +5,11 @@ import {
   ActivityIcon,
   ShieldIcon,
   BookOpenIcon,
-  BroadcastIcon,
   ChannelIcon,
   CreditCardIcon,
   ChevronLeftIcon,
   GroupsIcon,
   LogoutIcon,
-  MessageSquareTextIcon,
   ChevronRightIcon,
   RefreshIcon,
   PinIcon,
@@ -33,10 +31,8 @@ import { SidebarCard } from './ui/SidebarCard';
 
 const NAV_ITEMS = [
   { label: 'AI Agent', path: '/agent', icon: ActivityIcon },
-  { label: 'Inbox', path: '/inbox', icon: MessageSquareTextIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
-  { label: 'WaBro', path: '/wabro/app', icon: BroadcastIcon },
   { label: 'Profile & Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },
   { label: 'AI Usage', path: '/aiusage', icon: CreditCardIcon },
@@ -364,10 +360,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           <nav className="border-b-[0.5px] border-[color:var(--border)] px-3 py-3">
             <div className="space-y-1">
               {navItems.map((item) => {
-                const isActive =
-                  item.path === '/wabro/app'
-                    ? location.pathname === '/wabro' || location.pathname.startsWith('/wabro/app')
-                    : location.pathname === item.path;
+                const isActive = location.pathname === item.path;
                 const Icon = item.icon;
 
                 return (

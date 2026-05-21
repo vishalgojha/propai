@@ -30,7 +30,6 @@
 - `channelController.ts` — delegates analytics to `analyticsService`
 - `adminController.ts` — all `any` eliminated (strict TypeScript)
 - `whatsappController.ts` — all `any` eliminated
-- `wabroController.ts` — all `any` eliminated
 - `workspaceController.ts` — all `any` eliminated
 - `historyController.ts` — fixed `(req as any).user`, typed catch blocks
 - `adminRoutes.ts` — Zod validation wired

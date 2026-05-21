@@ -461,7 +461,7 @@ function incrementAreaMessageCount(stats: PhoneStats, area: string) {
 function parseArgs(argv: string[]): ScriptOptions {
   const options: ScriptOptions = {
     inputPaths: [path.resolve('/home/vishal/Downloads/wadata')],
-    outputDir: path.resolve(process.cwd(), 'reports', 'wabro-broker-context'),
+    outputDir: path.resolve(process.cwd(), 'reports', 'broker-context'),
     tenantId: null,
     upsertDb: false,
     dryRun: false,

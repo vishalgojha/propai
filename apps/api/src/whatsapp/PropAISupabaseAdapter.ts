@@ -11,6 +11,7 @@ import { aiService } from '../services/aiService';
 import { whatsappHealthService } from '../services/whatsappHealthService';
 import { sessionEventService } from '../services/sessionEventService';
 import { whatsappThreadService } from '../services/whatsappThreadService';
+import { classifyBrokerMessage } from '../utils/brokerMessageClassifier';
 
 const db = supabaseAdmin ?? supabase;
 
@@ -20,6 +21,22 @@ type PriceGateResult = {
     shouldParse: boolean;
     reason: string;
 };
+
+function isLikelyRealEstateDirectMessage(text: string) {
+    const lower = String(text || '').trim().toLowerCase();
+    if (!lower) {
+        return false;
+    }
+
+    const keywords = [
+        'bhk', 'flat', 'rent', 'rental', 'sale', 'resale', 'lease', 'buy', 'sell',
+        'property', 'properties', 'listing', 'requirement', 'client', 'budget', 'deposit',
+        'office', 'shop', 'warehouse', 'commercial', 'residential', 'broker', 'builder',
+        'carpet', 'sqft', 'sq ft', 'area', 'possession', 'furnished', 'parking', 'society',
+    ];
+
+    return keywords.some((keyword) => lower.includes(keyword));
+}
 
 export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
     async saveSessionStatus(input: SessionStatusUpdate): Promise<void> {
@@ -132,14 +149,17 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                 return { id: String(existingMessage.id || rawDumpId) };
             }
 
-            await whatsappThreadService.upsertFromMessage({
-                tenantId: input.tenantId,
-                sessionLabel: input.label,
-                remoteJid: input.remoteJid,
-                sender: input.sender ?? undefined,
-                text: input.text,
-                timestamp,
-            });
+            const isDirectChat = !String(input.remoteJid || '').endsWith('@g.us');
+            if (!isDirectChat || isLikelyRealEstateDirectMessage(input.text)) {
+                await whatsappThreadService.upsertFromMessage({
+                    tenantId: input.tenantId,
+                    sessionLabel: input.label,
+                    remoteJid: input.remoteJid,
+                    sender: input.sender ?? undefined,
+                    text: input.text,
+                    timestamp,
+                });
+            }
 
             const { error: rawDumpError } = await db
                 .from('raw_dump')
@@ -226,29 +246,36 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
     }
 
     private looksLikeRequirement(text: string) {
-        const normalized = String(text || '').toLowerCase();
-        const cues = [
-            'requirement',
-            'required',
-            'looking for',
-            'need ',
-            'needed',
-            'wanted',
-            'client wants',
-            'buyer wants',
-            'tenant wants',
-        ];
-
-        return cues.some((cue) => normalized.includes(cue));
+        return classifyBrokerMessage(text).intent === 'requirement';
     }
 
     private async runPriceGate(text: string, tenantId?: string): Promise<PriceGateResult> {
-        if (this.looksLikeRequirement(text)) {
+        const classified = classifyBrokerMessage(text);
+
+        if (classified.intent === 'ignore') {
             return {
                 hasPrice: false,
+                isRequirement: false,
+                shouldParse: false,
+                reason: classified.reasons[0] || 'ignored_message',
+            };
+        }
+
+        if (classified.intent === 'requirement') {
+            return {
+                hasPrice: classified.hasPrice,
                 isRequirement: true,
                 shouldParse: true,
                 reason: 'requirement_message',
+            };
+        }
+
+        if (classified.intent === 'listing' || (classified.intent === 'unknown' && !classified.shouldParse && !classified.hasPrice)) {
+            return {
+                hasPrice: classified.hasPrice,
+                isRequirement: false,
+                shouldParse: classified.shouldParse,
+                reason: classified.hasPrice ? 'priced_listing' : (classified.reasons[0] || 'no_price_detected'),
             };
         }
 

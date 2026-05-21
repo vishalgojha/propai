@@ -1454,7 +1454,7 @@ export const Sources: React.FC = () => {
           <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access model</p>
             <p className="mt-1 text-[14px] font-bold text-[var(--text-primary)]">{status.plan || 'Trial'}</p>
-            <p className="text-[11px] text-[var(--text-secondary)]">Trial 7 days free, Personal Parser ₹1499 bi-annual for 2 devices, PropAI Network ₹999/mo, Team ₹2999/mo for 5 devices, WaBro ₹499 bi-annual.</p>
+            <p className="text-[11px] text-[var(--text-secondary)]">Trial 7 days free, Personal Parser ₹1499 bi-annual for 2 devices, PropAI Network ₹999/mo, Team ₹2999/mo for 5 devices.</p>
             {isAtDeviceLimit ? (
               <div className="mt-2 space-y-2">
                 <p className="text-[11px] text-[var(--amber)]">Device limit reached for this workspace.</p>

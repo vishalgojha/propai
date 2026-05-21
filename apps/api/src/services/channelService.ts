@@ -1498,7 +1498,7 @@ export class ChannelService {
     }
 
     async listChannels(tenantId: string): Promise<PersonalChannelRecord[]> {
-        await this.ensureStreamBackfilled(tenantId);
+        void this.ensureStreamBackfilled(tenantId);
 
         const { data, error } = await this.db
             .from('broker_channels')
@@ -1509,6 +1509,9 @@ export class ChannelService {
             .order('updated_at', { ascending: false });
 
         if (error) {
+            if (isMissingSchemaEntityError(error.message)) {
+                return [];
+            }
             throw new Error(error.message);
         }
 
@@ -1531,6 +1534,9 @@ export class ChannelService {
             .maybeSingle();
 
         if (error) {
+            if (isMissingSchemaEntityError(error.message)) {
+                return null;
+            }
             throw new Error(error.message);
         }
 
@@ -2792,6 +2798,9 @@ ${rawText}
             .in('channel_id', channelIds);
 
         if (error) {
+            if (isMissingSchemaEntityError(error.message)) {
+                return new Map<string, { unreadCount: number; itemCount: number }>();
+            }
             throw new Error(error.message);
         }
 

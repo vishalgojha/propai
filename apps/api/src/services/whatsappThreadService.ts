@@ -60,6 +60,25 @@ function buildDirectTitle(remoteJid: string, sender?: string | null) {
     return phone ? `+${phone}` : 'Direct contact';
 }
 
+function shouldRefreshDirectTitle(existingTitle?: string | null, nextTitle?: string | null) {
+    const current = String(existingTitle || '').trim();
+    const incoming = String(nextTitle || '').trim();
+
+    if (!incoming) {
+        return false;
+    }
+
+    if (!current) {
+        return true;
+    }
+
+    const currentLower = current.toLowerCase();
+    return currentLower === 'direct contact'
+        || current.startsWith('+')
+        || currentLower === 'unknown'
+        || current === incoming;
+}
+
 function isMissingThreadsTableError(message?: string | null) {
     const normalized = String(message || '').toLowerCase();
     return normalized.includes('whatsapp_threads') && (normalized.includes('does not exist') || normalized.includes('schema cache'));
@@ -102,7 +121,13 @@ class WhatsAppThreadService {
             session_label: sessionKey,
             remote_jid: remoteJid,
             chat_type: direct ? 'direct' : 'group',
-            title: String(existing?.title || nextTitle || '').trim() || nextTitle,
+            title: direct
+                ? (
+                    shouldRefreshDirectTitle(existing?.title, nextTitle)
+                        ? nextTitle
+                        : String(existing?.title || nextTitle || '').trim() || nextTitle
+                )
+                : String(existing?.title || nextTitle || '').trim() || nextTitle,
             preview: nextPreview || null,
             message_count: Number(existing?.message_count || 0) + 1,
             inbound_count: Number(existing?.inbound_count || 0) + (isOutbound ? 0 : 1),

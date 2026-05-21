@@ -1,8 +1,22 @@
 import { aiService } from './aiService';
 import { supabaseAdmin } from '../config/supabase';
+import { classifyBrokerMessage } from '../utils/brokerMessageClassifier';
 
 const ADMIN_NUMBER = '9820056180';
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+const LOCATION_CODES: Record<string, string> = {
+    'bandra west': 'BND', 'bandra east': 'BND', 'bandra': 'BND',
+    'khar west': 'KHR', 'khar east': 'KHR', 'khar': 'KHR',
+    'santacruz west': 'SNT', 'santacruz east': 'SNT', 'santacruz': 'SNT',
+    'juhu': 'JUH', 'pali hill': 'PNL', 'andheri west': 'AND',
+    'andheri east': 'AND', 'andheri': 'AND', 'versova': 'VRS',
+    'worli': 'WRL', 'lower parel': 'LPR', 'dadar': 'DDR',
+    'mahim': 'MHM', 'prabhadevi': 'PRB', 'bandra kurla complex': 'BKC',
+    'bkc': 'BKC', 'powai': 'POW', 'goregaon': 'GOR', 'malad': 'MLD',
+    'borivali': 'BOR', 'kandivali': 'KND', 'chembur': 'CHM',
+    'vile parle': 'VPL', 'mumbai': 'MUM',
+};
 
 export interface SplitItem {
     text: string;
@@ -51,6 +65,56 @@ export interface RequirementParsed {
     notes?: string | null;
 }
 
+interface ListingExtracted {
+    bhk: string;
+    property_category: string;
+    price: number;
+    price_unit: string;
+    carpet_area: number | null;
+    built_up_area: number | null;
+    floor: string | null;
+    furnishing: string | null;
+    parking: string | null;
+    possession: string | null;
+    location: string;
+    pocket: string | null;
+    building_name: string | null;
+    listing_type: string;
+    amenities: string[] | null;
+    description: string | null;
+    brokers: Array<{
+        name: string;
+        phone: string;
+        agency: string | null;
+        role: string;
+    }>;
+    ai_title: string;
+    ai_description: string;
+}
+
+interface RequirementExtracted {
+    bhk_preference: string[];
+    budget_min: number | null;
+    budget_max: number | null;
+    budget_unit: string;
+    preferred_locations: string[];
+    pocket: string | null;
+    listing_type: string;
+    property_category: string;
+    furnishing_preference: string | null;
+    parking_required: boolean;
+    veg_nonveg: string | null;
+    possession_timeline: string | null;
+    urgency: string;
+    amenities_required: string[] | null;
+    notes: string | null;
+    broker: {
+        name: string;
+        phone: string;
+        agency: string | null;
+    } | null;
+}
+
 interface BroadcastParseArgs {
     message: string;
     senderPhone: string;
@@ -87,13 +151,11 @@ export interface BroadcastParseResult {
 }
 
 export function cleanMessage(message: string): string {
-    // Remove URLs (words starting with http:// or https://)
     const withoutUrls = message.split(' ').filter(word => {
         const lower = word.toLowerCase();
         return !lower.startsWith('http://') && !lower.startsWith('https://');
     }).join(' ');
-    
-    // Remove sequences of 3+ special characters: °•~_
+
     let withoutSpecial1 = '';
     let seq1 = '';
     for (const c of withoutUrls) {
@@ -101,7 +163,6 @@ export function cleanMessage(message: string): string {
             seq1 += c;
         } else {
             if (seq1.length >= 3) {
-                // Skip the sequence
             } else {
                 withoutSpecial1 += seq1;
             }
@@ -110,12 +171,10 @@ export function cleanMessage(message: string): string {
         }
     }
     if (seq1.length >= 3) {
-        // Skip the sequence
     } else {
         withoutSpecial1 += seq1;
     }
-    
-    // Remove sequences of 4+ special characters: -=*
+
     let result = '';
     let seq2 = '';
     for (const c of withoutSpecial1) {
@@ -123,7 +182,6 @@ export function cleanMessage(message: string): string {
             seq2 += c;
         } else {
             if (seq2.length >= 4) {
-                // Skip the sequence
             } else {
                 result += seq2;
             }
@@ -132,38 +190,16 @@ export function cleanMessage(message: string): string {
         }
     }
     if (seq2.length >= 4) {
-        // Skip the sequence
     } else {
         result += seq2;
     }
-    
+
     return result.trim();
 }
 
 export function isPropertyBroadcast(message: string): boolean {
-    const lower = message.toLowerCase();
-    
-    // Check for price indicators
-    const hasPrice = lower.includes('₹') || 
-                    lower.includes('cr') || 
-                    lower.includes('crore') || 
-                    lower.includes('lakh') || 
-                    lower.includes('/month') || 
-                    lower.includes('rent');
-    
-    // Check for property type indicators
-    const hasProperty = lower.includes('bhk') || 
-                       lower.includes('office') || 
-                       lower.includes('shop') || 
-                       lower.includes('commercial') || 
-                       lower.includes('outright') || 
-                       lower.includes('residential');
-    
-    // Check for location indicators
-    const locations = ['bandra', 'khar', 'santacruz', 'juhu', 'andheri', 'worli', 'dadar', 'powai', 'borivali', 'malad', 'goregaon', 'kandivali', 'chembur', 'parel', 'mahim', 'versova'];
-    const hasLocation = locations.some(loc => lower.includes(loc));
-    
-    return hasPrice && (hasProperty || hasLocation);
+    const classification = classifyBrokerMessage(message);
+    return classification.intent === 'listing' || classification.intent === 'requirement';
 }
 
 function resolvePhone(phone: string | null | undefined): string | null {
@@ -210,6 +246,51 @@ function ensureAdminClient() {
     }
 
     return supabaseAdmin;
+}
+
+function calculateSimilarity(str1: string, str2: string): number {
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+
+    if (longer.length === 0) return 1.0;
+
+    const editDistance = levenshteinDistance(longer, shorter);
+    return (longer.length - editDistance) / longer.length;
+}
+
+function levenshteinDistance(str1: string, str2: string): number {
+    const matrix: number[][] = [];
+
+    for (let i = 0; i <= str2.length; i++) {
+        matrix[i] = [i];
+    }
+
+    for (let j = 0; j <= str1.length; j++) {
+        matrix[0][j] = j;
+    }
+
+    for (let i = 1; i <= str2.length; i++) {
+        for (let j = 1; j <= str1.length; j++) {
+            if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1,
+                    matrix[i][j - 1] + 1,
+                    matrix[i - 1][j] + 1,
+                );
+            }
+        }
+    }
+
+    return matrix[str2.length][str1.length];
+}
+
+function normalizeBuildingName(name: string): string {
+    return name
+        .toLowerCase()
+        .trim()
+        .replace(/\s+(tower|building|apartments|residency|heights|complex|chs|society)$/i, '');
 }
 
 async function splitBroadcast(message: string, tenantId: string): Promise<SplitResult> {
@@ -268,45 +349,195 @@ async function parseListingLine(
     brokerAgency: string | null,
 ): Promise<ParsedItemResult> {
     const admin = ensureAdminClient();
-    const prompt = `Extract a structured property listing from this Mumbai broker message.
+    const prompt = `Extract property listing with ALL brokers mentioned (team detection).
 
-Return ONLY this JSON:
+Message:
+"""
+${line}
+"""
+
+Return this EXACT JSON structure:
 {
-  "bhk": "2 BHK",
-  "property_type": "residential" | "commercial" | "office" | "jodi" | "pre-leased",
-  "listing_type": "sale" | "rent" | "lease",
-  "locality": "string",
-  "building_name": "string or null",
-  "price_cr": number or null,
-  "rent_monthly": number or null,
-  "flags": ["TDR", "No OC", "New Bldg", "Stilt parking", "Only for Gujaratis"],
-  "area_sqft": number or null,
+  "bhk": "string (e.g., '2 BHK', '3 BHK', 'Office Space', 'Studio')",
+  "property_category": "Residential or Commercial",
+  "price": number (in lakhs),
+  "price_unit": "lakhs or crores",
+  "carpet_area": number or null,
+  "built_up_area": number or null,
   "floor": "string or null",
-  "possession": "Ready" | "New Bldg" | "Under Construction" | null
+  "furnishing": "Unfurnished|Semi-Furnished|Fully Furnished|Bare Shell|Warm Shell|Not Applicable or null",
+  "parking": "string or null",
+  "possession": "string or null",
+  "location": "string (e.g., 'Bandra West', 'BKC', 'Kandivali West')",
+  "pocket": "string or null (micro-area within location, e.g., 'Linking Road', 'Lokhandwala')",
+  "building_name": "string or null",
+  "listing_type": "Sale|Rent|Lease",
+  "amenities": ["array of strings"] or null,
+  "description": "string or null (keep original broker language)",
+  "brokers": [
+    {
+      "name": "string",
+      "phone": "string (with 91 prefix)",
+      "agency": "string or null",
+      "role": "primary or secondary"
+    }
+  ],
+  "ai_title": "string (10-15 word descriptive title)",
+  "ai_description": "string (EXACTLY 4-5 complete sentences, 60-80 words, no marketing fluff)"
 }
 
-Message: ${line}`;
+**MULTI-BROKER DETECTION RULES:**
+- Extract EVERY unique name + phone combination in the message
+- FIRST broker found = "primary" role
+- Additional brokers = "secondary" role
+- If only one name but multiple phones → one entry per phone, same name
+- If multiple names but one phone → primary broker only
+- Always add 91 country code prefix to phones
+- Same agency name for all brokers if mentioned once
+
+**Common co-broker patterns to detect:**
+1. "Contact Ramesh 9820056789 or Priya 9820094416"
+2. "Ramesh 9820056789 / Priya 9820094416"
+3. "Listed by Ramesh and Priya"
+4. "Lacasaa Real Estate - Ramesh 98200... / Priya 98201..."
+5. "Thanks, Ramesh (9820056789) & Priya (9820094416)"
+
+**If no brokers found:** return empty brokers array []
+
+Return ONLY valid JSON, no markdown, no explanation.`;
 
     const raw = await aiService.chat(prompt, 'Auto', 'parsing', tenantId);
-    const parsed = parseJson<ListingParsed>(raw.text, 'Failed to parse listing JSON');
+    const extracted = parseJson<ListingExtracted>(raw.text, 'Failed to parse listing JSON');
 
-    const duplicateSince = new Date(Date.now() - SEVEN_DAYS_MS).toISOString();
-    const { data: existing, error: duplicateError } = await admin
-        .from('listings')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('building_name', parsed.building_name ?? null)
-        .eq('bhk', parsed.bhk ?? null)
-        .eq('locality', parsed.locality ?? null)
-        .gte('created_at', duplicateSince)
-        .limit(1);
+    const listingType = extracted.listing_type ? extracted.listing_type.toLowerCase() as 'sale' | 'rent' | 'lease' : null;
 
-    if (duplicateError) {
-        throw new Error(`Listing duplicate check failed: ${duplicateError.message}`);
+    let priceCr: number | null = null;
+    let rentMonthly: number | null = null;
+    if (extracted.price) {
+        const priceInLakhs = extracted.price_unit === 'crores' ? extracted.price * 100 : extracted.price;
+        if (listingType === 'rent' || listingType === 'lease') {
+            rentMonthly = priceInLakhs * 100000;
+        } else {
+            priceCr = priceInLakhs / 100;
+        }
     }
 
-    if (existing?.length) {
-        return { skipped: true, reason: 'duplicate', id: existing[0].id };
+    let areaSqft: number | null = null;
+    if (extracted.carpet_area) {
+        areaSqft = extracted.carpet_area;
+    } else if (extracted.built_up_area) {
+        areaSqft = extracted.built_up_area;
+    }
+
+    let possession: string | null = null;
+    if (extracted.possession) {
+        const p = extracted.possession.toLowerCase();
+        if (p.includes('ready') || p === 'ready') possession = 'Ready';
+        else if (p.includes('new')) possession = 'New Bldg';
+        else if (p.includes('under construction') || p.includes('uct')) possession = 'Under Construction';
+        else possession = extracted.possession;
+    }
+
+    const primaryBroker = extracted.brokers?.find(b => b.role === 'primary') || extracted.brokers?.[0] || null;
+    const resolvedBrokerName = primaryBroker?.name || brokerName;
+    const resolvedBrokerPhone = primaryBroker?.phone || brokerPhone;
+    const resolvedBrokerAgency = primaryBroker?.agency || brokerAgency;
+
+    const propertyCategory = extracted.property_category?.toLowerCase() || null;
+    let propertyType: 'residential' | 'commercial' | null = null;
+    if (propertyCategory === 'residential') propertyType = 'residential';
+    else if (propertyCategory === 'commercial') propertyType = 'commercial';
+
+    const parsed: ListingParsed = {
+        bhk: extracted.bhk || null,
+        property_type: propertyType,
+        listing_type: listingType,
+        locality: extracted.location || null,
+        building_name: extracted.building_name || null,
+        price_cr: priceCr,
+        rent_monthly: rentMonthly,
+        area_sqft: areaSqft,
+        floor: extracted.floor || null,
+        possession: possession as ListingParsed['possession'],
+    };
+
+    // PART 3: Building deduplication
+    let buildingName = parsed.building_name;
+    if (buildingName) {
+        try {
+            const normalizedName = normalizeBuildingName(buildingName);
+            const { data: existingBuildings } = await admin
+                .from('listings')
+                .select('building_name, locality')
+                .eq('tenant_id', tenantId)
+                .not('building_name', 'is', null)
+                .limit(100);
+
+            if (existingBuildings) {
+                const uniqueBuildings = new Map<string, string>();
+                for (const row of existingBuildings) {
+                    const key = `${row.locality || ''}|${row.building_name || ''}`;
+                    if (!uniqueBuildings.has(key) && row.building_name) {
+                        uniqueBuildings.set(key, row.building_name);
+                    }
+                }
+
+                for (const [, existingName] of uniqueBuildings) {
+                    const existingNormalized = normalizeBuildingName(existingName);
+                    if (normalizedName === existingNormalized) {
+                        buildingName = existingName;
+                        break;
+                    }
+                    const similarity = calculateSimilarity(normalizedName, existingNormalized);
+                    if (similarity > 0.8) {
+                        buildingName = existingName;
+                        break;
+                    }
+                }
+            }
+        } catch {
+            // Building dedup is non-blocking, proceed with original name
+        }
+    }
+
+    // PART 4: Duplicate listing detection
+    try {
+        const activeListings = await admin
+            .from('listings')
+            .select('id, building_name, locality, bhk, price_cr, rent_monthly, floor, area_sqft')
+            .eq('tenant_id', tenantId)
+            .is('building_name', buildingName)
+            .eq('locality', parsed.locality)
+            .eq('bhk', parsed.bhk)
+            .limit(50);
+
+        if (activeListings.data && activeListings.data.length > 0) {
+            for (const existing of activeListings.data) {
+                if (
+                    existing.building_name === buildingName &&
+                    existing.locality === parsed.locality &&
+                    existing.bhk === parsed.bhk
+                ) {
+                    const existingPrice = existing.price_cr || (existing.rent_monthly ? existing.rent_monthly / 100000 / 100 : 0);
+                    const newPrice = priceCr || (rentMonthly ? rentMonthly / 100000 / 100 : 0);
+                    if (existingPrice > 0 && newPrice > 0) {
+                        const priceDiff = Math.abs(existingPrice - newPrice) / existingPrice;
+                        if (priceDiff > 0.10) continue;
+                    }
+
+                    if (parsed.floor && existing.floor && existing.floor !== parsed.floor) continue;
+
+                    if (areaSqft && existing.area_sqft) {
+                        const areaDiff = Math.abs(areaSqft - existing.area_sqft) / existing.area_sqft;
+                        if (areaDiff > 0.05) continue;
+                    }
+
+                    return { skipped: true, reason: 'duplicate', id: existing.id };
+                }
+            }
+        }
+    } catch {
+        // Duplicate check is non-blocking
     }
 
     const insertPayload = {
@@ -316,16 +547,15 @@ Message: ${line}`;
         property_type: parsed.property_type ?? null,
         listing_type: parsed.listing_type ?? null,
         locality: parsed.locality ?? null,
-        building_name: parsed.building_name ?? null,
+        building_name: buildingName,
         price_cr: parsed.price_cr ?? null,
         rent_monthly: parsed.rent_monthly ?? null,
-        flags: parsed.flags ?? [],
         area_sqft: parsed.area_sqft ?? null,
         floor: parsed.floor ?? null,
         possession: parsed.possession ?? null,
-        broker_name: brokerName,
-        broker_phone: brokerPhone,
-        broker_agency: brokerAgency,
+        broker_name: resolvedBrokerName,
+        broker_phone: resolvedBrokerPhone,
+        broker_agency: resolvedBrokerAgency,
         source: 'whatsapp_broadcast',
     };
 
@@ -350,43 +580,93 @@ async function parseRequirementLine(
     brokerAgency: string | null,
 ): Promise<ParsedItemResult> {
     const admin = ensureAdminClient();
-    const prompt = `Extract a structured property requirement from this Mumbai broker message.
+    const prompt = `Extract broker requirement from this WhatsApp group message.
 
-Return ONLY this JSON:
+Message:
+"""
+${line}
+"""
+
+Return this EXACT JSON structure:
 {
-  "bhk_preference": ["2 BHK", "3 BHK"],
-  "property_type": "residential" | "commercial" | "any",
-  "listing_type": "sale" | "rent" | "lease",
-  "preferred_localities": ["string"],
-  "budget_min_cr": number or null,
-  "budget_max_cr": number or null,
-  "rent_budget_monthly": number or null,
-  "urgency": "high" | "medium" | "low",
-  "possession_timeline": "string or null",
-  "notes": "string or null"
+  "bhk_preference": ["array of strings like '2 BHK', '3 BHK', 'Office Space'"],
+  "budget_min": number or null (in lakhs or crores per budget_unit),
+  "budget_max": number or null,
+  "budget_unit": "lakhs or crores",
+  "preferred_locations": ["array of Mumbai location strings"],
+  "pocket": "string or null (micro-area)",
+  "listing_type": "Sale|Rent|Lease",
+  "property_category": "Residential or Commercial",
+  "furnishing_preference": "Unfurnished|Semi-Furnished|Fully Furnished|Any or null",
+  "parking_required": boolean,
+  "veg_nonveg": "Veg Only|Non-Veg Allowed|Both or null",
+  "possession_timeline": "string or null (e.g., 'Immediate', 'Within 2 months')",
+  "urgency": "High|Medium|Low",
+  "amenities_required": ["array of strings"] or null,
+  "notes": "string or null",
+  "broker": {
+    "name": "string (broker name from message)",
+    "phone": "string (with 91 prefix)",
+    "agency": "string or null"
+  }
 }
 
-Message: ${line}`;
+**RULES:**
+- Extract broker name + phone from the message if present
+- If no broker name/phone found → set broker to null
+- Always add 91 country code prefix to phones
+
+Return ONLY valid JSON, no markdown, no explanation.`;
 
     const raw = await aiService.chat(prompt, 'Auto', 'parsing', tenantId);
-    const parsed = parseJson<RequirementParsed>(raw.text, 'Failed to parse requirement JSON');
+    const extracted = parseJson<RequirementExtracted>(raw.text, 'Failed to parse requirement JSON');
+
+    const listingType = extracted.listing_type ? extracted.listing_type.toLowerCase() as 'sale' | 'rent' | 'lease' : null;
+
+    let budgetMinCr: number | null = null;
+    let budgetMaxCr: number | null = null;
+    let rentBudgetMonthly: number | null = null;
+    if (extracted.budget_min || extracted.budget_max) {
+        const toCr = (val: number) => extracted.budget_unit === 'lakhs' ? val / 100 : val;
+        const toMonthly = (val: number) => extracted.budget_unit === 'lakhs' ? val * 100000 : val * 10000000;
+        if (listingType === 'rent' || listingType === 'lease') {
+            if (extracted.budget_min) rentBudgetMonthly = toMonthly(extracted.budget_min);
+            if (extracted.budget_max) rentBudgetMonthly = toMonthly(extracted.budget_max);
+        } else {
+            if (extracted.budget_min) budgetMinCr = toCr(extracted.budget_min);
+            if (extracted.budget_max) budgetMaxCr = toCr(extracted.budget_max);
+        }
+    }
+
+    const propertyCategory = extracted.property_category?.toLowerCase() || null;
+    let propertyType: 'residential' | 'commercial' | 'any' | null = null;
+    if (propertyCategory === 'residential') propertyType = 'residential';
+    else if (propertyCategory === 'commercial') propertyType = 'commercial';
+    else propertyType = 'any';
+
+    const urgency = extracted.urgency ? extracted.urgency.toLowerCase() as 'high' | 'medium' | 'low' : null;
+
+    const resolvedBroker = extracted.broker;
+    const resolvedName = resolvedBroker?.name || brokerName;
+    const resolvedPhone = resolvedBroker?.phone || brokerPhone;
+    const resolvedAgency = resolvedBroker?.agency || brokerAgency;
 
     const insertPayload = {
         tenant_id: tenantId,
         raw_text: line,
-        bhk_preference: parsed.bhk_preference ?? [],
-        property_type: parsed.property_type ?? null,
-        listing_type: parsed.listing_type ?? null,
-        preferred_localities: parsed.preferred_localities ?? [],
-        budget_min_cr: parsed.budget_min_cr ?? null,
-        budget_max_cr: parsed.budget_max_cr ?? null,
-        rent_budget_monthly: parsed.rent_budget_monthly ?? null,
-        urgency: parsed.urgency ?? null,
-        possession_timeline: parsed.possession_timeline ?? null,
-        notes: parsed.notes ?? null,
-        broker_name: brokerName,
-        broker_phone: brokerPhone,
-        broker_agency: brokerAgency,
+        bhk_preference: extracted.bhk_preference ?? [],
+        property_type: propertyType,
+        listing_type: listingType,
+        preferred_localities: extracted.preferred_locations ?? [],
+        budget_min_cr: budgetMinCr,
+        budget_max_cr: budgetMaxCr,
+        rent_budget_monthly: rentBudgetMonthly,
+        urgency: urgency,
+        possession_timeline: extracted.possession_timeline ?? null,
+        notes: extracted.notes ?? null,
+        broker_name: resolvedName,
+        broker_phone: resolvedPhone,
+        broker_agency: resolvedAgency,
         source: 'whatsapp_broadcast',
     };
 

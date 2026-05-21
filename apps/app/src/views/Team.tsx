@@ -378,7 +378,7 @@ export const Team: React.FC = () => {
               : workspace?.canSendOutbound
                 ? workspace?.hasSessionRestriction
                   ? `Can work only assigned lanes${workspace.preferredSessionLabel ? `, defaulting to ${workspace.preferredSessionLabel}` : ''}`
-                  : 'Can work the inbox, stream, and outbound flows'
+                  : 'Can work stream review and outbound flows'
                 : 'Read-only team access'}
           </p>
         </div>

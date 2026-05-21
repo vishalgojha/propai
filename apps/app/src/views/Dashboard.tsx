@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, ArrowRight, History, Inbox, MessageSquare, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { Activity, ArrowRight, History, MessageSquare, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
@@ -534,14 +534,6 @@ export const Dashboard: React.FC = () => {
           icon={<Activity className="h-5 w-5" />}
           onClick={() => navigate('/agent')}
           cta="Open agent"
-        />
-        <StatCard
-          title="Threads"
-          value="Conversation workspace"
-          hint="Work direct-message threads as an operational queue instead of a WhatsApp clone."
-          icon={<Inbox className="h-5 w-5" />}
-          onClick={() => navigate('/inbox')}
-          cta="Open Threads"
         />
         <StatCard
           title="Next actions"
