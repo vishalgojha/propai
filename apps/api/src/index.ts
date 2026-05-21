@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import dns from 'dns';
 import whatsappRoutes from './routes/whatsappRoutes';
 import intelligenceRouter from './intelligence/IntelligenceRouter';
 import channelRoutes from './routes/channelRoutes';
@@ -32,6 +33,10 @@ import { ROUTE_PATHS } from './routes/routePaths';
 const app = express();
 const PORT = process.env.PORT || 3001;
 const ENABLE_SYSTEM_WHATSAPP_SESSION = process.env.ENABLE_SYSTEM_WHATSAPP_SESSION === 'true';
+
+// Prefer IPv4 for outbound lookups. Several providers intermittently stall on IPv6
+// from containerized deployments, which can surface as long auth/network timeouts.
+dns.setDefaultResultOrder('ipv4first');
 
 function getSupabaseProjectRef() {
     const url = process.env.SUPABASE_URL;
