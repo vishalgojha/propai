@@ -6,7 +6,6 @@ import { generateEmbedding } from './embeddingService';
 import { getWorkspaceSettingsRecord } from './workspaceSettingsService';
 import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 
-const ADMIN_NUMBER = '9820056180';
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 const LOCATION_CODES: Record<string, string> = {
@@ -214,7 +213,7 @@ function resolvePhone(phone: string | null | undefined): string | null {
     const digits = phone.split('').filter(c => c >= '0' && c <= '9').join('');
     const last10 = digits.slice(-10);
 
-    if (!last10 || last10 === ADMIN_NUMBER) {
+    if (!last10) {
         return null;
     }
 

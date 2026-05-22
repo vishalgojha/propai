@@ -23,7 +23,7 @@ Important outbound safety rule:
 
 ## Admin accounts (exclude from broker detection, never send follow-up to)
 ```ts
-const ADMIN_PHONES = ['9820056180', '7021045254', '7021054254'];
+const ADMIN_PHONES = ['7021045254', '7021054254'];
 const ADMIN_EMAIL = 'vishal@chaoscraftlabs.com';
 ```
 
@@ -281,7 +281,7 @@ create index if not exists idx_follow_ups_broker on listing_follow_ups(tenant_id
 In `apps/api/src/config/supabase.ts` or a new `apps/api/src/config/constants.ts`:
 
 ```ts
-export const ADMIN_PHONES = ['9820056180', '7021045254', '7021054254'];
+export const ADMIN_PHONES = ['7021045254', '7021054254'];
 export const ADMIN_EMAILS = ['vishal@chaoscraftlabs.com'];
 export const FOLLOW_UP_SENDER_PHONE = '7021045254';
 export const MARKETING_AGENT_PHONE = '7021054254';
