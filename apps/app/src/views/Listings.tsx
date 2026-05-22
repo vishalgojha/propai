@@ -968,137 +968,139 @@ if (brokerOnly) {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[color:var(--border-strong)] bg-[var(--bg-base)] p-4">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Time</p>
-            <button
-              type="button"
-              onClick={() => setQuickTimeBands([])}
-              className={cn(
-                'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                quickTimeBands.length === 0
-                  ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                  : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-              )}
-            >
-              All
-            </button>
-            {(['1h', '4h', '1d', '7d'] as const).map((band) => (
+      <div className="hidden md:block">
+        <div className="rounded-2xl border border-[color:var(--border-strong)] bg-[var(--bg-base)] p-4">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Time</p>
               <button
-                key={band}
                 type="button"
-                onClick={() => setQuickTimeBands((current) => toggleSelection(current, band))}
+                onClick={() => setQuickTimeBands([])}
                 className={cn(
                   'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                  quickTimeBands.includes(band)
+                  quickTimeBands.length === 0
                     ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
                     : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
                 )}
               >
-                {band === '1h' ? '<1hr' : band === '4h' ? '<4hr' : band === '1d' ? '<1d' : '<7d'}
+                All
               </button>
-            ))}
-          </div>
+              {(['1h', '4h', '1d', '7d'] as const).map((band) => (
+                <button
+                  key={band}
+                  type="button"
+                  onClick={() => setQuickTimeBands((current) => toggleSelection(current, band))}
+                  className={cn(
+                    'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                    quickTimeBands.includes(band)
+                      ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                      : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
+                  )}
+                >
+                  {band === '1h' ? '<1hr' : band === '4h' ? '<4hr' : band === '1d' ? '<1d' : '<7d'}
+                </button>
+              ))}
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Type</p>
-            <button
-              type="button"
-              onClick={() => setQuickTypes([])}
-              className={cn(
-                'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                quickTypes.length === 0
-                  ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                  : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-              )}
-            >
-              All
-            </button>
-            {ALL_TYPES.map((type) => (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Type</p>
               <button
-                key={type}
                 type="button"
-                onClick={() => setQuickTypes((current) => toggleSelection(current, type))}
+                onClick={() => setQuickTypes([])}
                 className={cn(
                   'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                  quickTypes.includes(type)
+                  quickTypes.length === 0
                     ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
                     : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
                 )}
               >
-                {type}
+                All
               </button>
-            ))}
-          </div>
+              {ALL_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setQuickTypes((current) => toggleSelection(current, type))}
+                  className={cn(
+                    'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                    quickTypes.includes(type)
+                      ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                      : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
+                  )}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Confidence</p>
-            {([
-              ['high', 'High (>70%)'],
-              ['medium', 'Medium'],
-              ['low', 'Low'],
-            ] as const).map(([band, label]) => (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Confidence</p>
+              {([
+                ['high', 'High (>70%)'],
+                ['medium', 'Medium'],
+                ['low', 'Low'],
+              ] as const).map(([band, label]) => (
+                <button
+                  key={band}
+                  type="button"
+                  onClick={() => setQuickConfidenceBands((current) => toggleSelection(current, band))}
+                  className={cn(
+                    'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                    quickConfidenceBands.includes(band)
+                      ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                      : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
               <button
-                key={band}
                 type="button"
-                onClick={() => setQuickConfidenceBands((current) => toggleSelection(current, band))}
+                onClick={() => setQuickConfidenceBands([])}
                 className={cn(
                   'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                  quickConfidenceBands.includes(band)
+                  quickConfidenceBands.length === 0
                     ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
                     : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
                 )}
               >
-                {label}
+                All
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setQuickConfidenceBands([])}
-              className={cn(
-                'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                quickConfidenceBands.length === 0
-                  ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                  : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-              )}
-            >
-              All
-            </button>
-          </div>
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Freshness</p>
-            {([
-              ['1h', 'Last 1hr'],
-              ['6h', 'Last 6hr'],
-            ] as const).map(([band, label]) => (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Freshness</p>
+              {([
+                ['1h', 'Last 1hr'],
+                ['6h', 'Last 6hr'],
+              ] as const).map(([band, label]) => (
+                <button
+                  key={band}
+                  type="button"
+                  onClick={() => setQuickFreshnessBands((current) => toggleSelection(current, band))}
+                  className={cn(
+                    'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                    quickFreshnessBands.includes(band)
+                      ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                      : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
               <button
-                key={band}
                 type="button"
-                onClick={() => setQuickFreshnessBands((current) => toggleSelection(current, band))}
+                onClick={() => setQuickFreshnessBands([])}
                 className={cn(
                   'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                  quickFreshnessBands.includes(band)
+                  quickFreshnessBands.length === 0
                     ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
                     : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
                 )}
               >
-                {label}
+                All
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setQuickFreshnessBands([])}
-              className={cn(
-                'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                quickFreshnessBands.length === 0
-                  ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                  : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-              )}
-            >
-              All
-            </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1118,6 +1120,141 @@ if (brokerOnly) {
                     Clear
                   </button>
                 )}
+              </div>
+
+              <div className="md:hidden">
+                <div className="rounded-xl border border-[color:var(--border-strong)] bg-[var(--bg-base)] p-3 mb-4 space-y-2.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="mr-1.5 text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Time</p>
+                    <button
+                      type="button"
+                      onClick={() => setQuickTimeBands([])}
+                      className={cn(
+                        'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                        quickTimeBands.length === 0
+                          ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                          : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
+                      )}
+                    >
+                      All
+                    </button>
+                    {(['1h', '4h', '1d', '7d'] as const).map((band) => (
+                      <button
+                        key={band}
+                        type="button"
+                        onClick={() => setQuickTimeBands((current) => toggleSelection(current, band))}
+                        className={cn(
+                          'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                          quickTimeBands.includes(band)
+                            ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                            : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
+                        )}
+                      >
+                        {band === '1h' ? '<1hr' : band === '4h' ? '<4hr' : band === '1d' ? '<1d' : '<7d'}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="mr-1.5 text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Type</p>
+                    <button
+                      type="button"
+                      onClick={() => setQuickTypes([])}
+                      className={cn(
+                        'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                        quickTypes.length === 0
+                          ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                          : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
+                      )}
+                    >
+                      All
+                    </button>
+                    {ALL_TYPES.map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setQuickTypes((current) => toggleSelection(current, type))}
+                        className={cn(
+                          'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                          quickTypes.includes(type)
+                            ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                            : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
+                        )}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="mr-1.5 text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Confidence</p>
+                    {([
+                      ['high', 'High (>70%)'],
+                      ['medium', 'Medium'],
+                      ['low', 'Low'],
+                    ] as const).map(([band, label]) => (
+                      <button
+                        key={band}
+                        type="button"
+                        onClick={() => setQuickConfidenceBands((current) => toggleSelection(current, band))}
+                        className={cn(
+                          'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                          quickConfidenceBands.includes(band)
+                            ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                            : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setQuickConfidenceBands([])}
+                      className={cn(
+                        'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                        quickConfidenceBands.length === 0
+                          ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                          : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
+                      )}
+                    >
+                      All
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="mr-1.5 text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Freshness</p>
+                    {([
+                      ['1h', 'Last 1hr'],
+                      ['6h', 'Last 6hr'],
+                    ] as const).map(([band, label]) => (
+                      <button
+                        key={band}
+                        type="button"
+                        onClick={() => setQuickFreshnessBands((current) => toggleSelection(current, band))}
+                        className={cn(
+                          'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                          quickFreshnessBands.includes(band)
+                            ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                            : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setQuickFreshnessBands([])}
+                      className={cn(
+                        'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                        quickFreshnessBands.length === 0
+                          ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                          : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
+                      )}
+                    >
+                      All
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
