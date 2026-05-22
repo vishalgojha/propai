@@ -517,6 +517,24 @@ try {
                       } catch {
                           // Non-fatal: group sync may fail
                       }
+
+                      // Pulse: Welcome new members in groups (system session only)
+                      if (this.label === 'System' && payload.action === 'add' && Array.isArray(participants)) {
+                          for (const participantJid of participants) {
+                              const phone = String(participantJid || '').split('@')[0];
+                              try {
+                                  const groupMeta = await this.socket?.groupMetadata(groupJid).catch(() => null);
+                                  const participant = Array.isArray(groupMeta?.participants)
+                                      ? groupMeta.participants.find((p: any) => p.id === participantJid)
+                                      : null;
+                                  const name = participant?.name || participant?.notify || phone;
+                                  const welcomeText = `Welcome ${name}! Main hoon Pulse, PropAI ka AI agent. Mujhe save kar 917021045254 — message kar 'Hi Pulse' toh main tujhe private matches bhejta rehta hun. Koi bhi listing ya requirement daal, main dekh leta hun.`;
+                                  await this.sendText(groupJid, welcomeText).catch(() => {});
+                              } catch {
+                                  // Non-fatal: per-participant welcome may fail
+                              }
+                          }
+                      }
                   } catch (error) {
                       await this.hooks?.onError?.({
                           tenantId: this.tenantId,
