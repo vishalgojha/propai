@@ -250,7 +250,7 @@ export const Layout: React.FC = () => {
   const planLabel = React.useMemo(() => {
     const normalized = String(subscription?.plan || '').trim().toLowerCase();
     if (normalized === 'trial' || normalized === 'free') return 'Trial';
-    if (normalized === 'solo' || normalized === 'pro') return 'Solo';
+    if (normalized === 'solo' || normalized === 'pro') return 'Pro';
     return subscription?.plan || 'Team';
   }, [subscription?.plan]);
 

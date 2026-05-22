@@ -41,7 +41,7 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
       .filter(
         (row: any) =>
           (row.status === "active" || row.status === "trial") &&
-          (row.plan === "Solo" || row.plan === "Team" || row.plan === "Trial" || row.plan === "Pro")
+          (row.plan === "Pro" || row.plan === "Trial")
       )
       .map((row: any) => row.tenant_id)
   );

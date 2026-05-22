@@ -441,7 +441,7 @@ export const Sources: React.FC = () => {
   const [status, setStatus] = useState<WhatsappStatus>({
     status: 'disconnected',
     activeCount: 0,
-    limit: 2,
+    limit: 1,
     plan: 'Trial',
     allowedOutboundSessionLabels: [],
     preferredOutboundSessionLabel: null,

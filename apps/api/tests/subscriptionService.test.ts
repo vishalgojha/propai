@@ -35,9 +35,8 @@ describe('SubscriptionService', () => {
         expect(service.getLimit('Free', 'leads')).toBe(50);
     });
 
-    it('should return correct limit for Solo plan', () => {
-        expect(service.getLimit('Pro', 'sessions')).toBe(2);
-        expect(service.getLimit('Solo', 'sessions')).toBe(2);
+    it('should return correct limit for Pro plan', () => {
+        expect(service.getLimit('Pro', 'sessions')).toBe(1);
         expect(service.getLimit('Pro', 'leads')).toBe(Infinity);
     });
 
@@ -48,15 +47,15 @@ describe('SubscriptionService', () => {
         });
 
         const sub = await service.getSubscription('tenant-123');
-        expect(sub.plan).toBe('Solo');
+        expect(sub.plan).toBe('Pro');
         expect(supabase.from).toHaveBeenCalledWith('subscriptions');
     });
 
     it('should upgrade plan in Supabase', async () => {
         (supabase.upsert as any).mockResolvedValueOnce({ error: null });
-        await service.upgradePlan('tenant-123', 'Solo');
+        await service.upgradePlan('tenant-123', 'Pro');
         expect(supabase.upsert).toHaveBeenCalledWith(expect.objectContaining({
-            plan: 'Solo'
+            plan: 'Pro'
         }));
     });
 

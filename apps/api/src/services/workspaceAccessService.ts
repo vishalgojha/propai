@@ -5,6 +5,9 @@ const db = supabaseAdmin || supabase;
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
     'vishal@chaoscraftlabs.com',
     'vishal@chaoscraftslabs.com',
+    'makevishal@chaoscraftlabs.com',
+    'hello@chaoscraftlabs.com',
+    'ojha007@gmail.com',
 ]);
 
 export type WorkspaceMemberRole = 'owner' | 'admin' | 'realtor' | 'ops' | 'viewer';

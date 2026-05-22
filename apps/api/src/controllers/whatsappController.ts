@@ -40,6 +40,9 @@ function getTenantId(req: Request) {
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
     'vishal@chaoscraftlabs.com',
     'vishal@chaoscraftslabs.com',
+    'makevishal@chaoscraftlabs.com',
+    'hello@chaoscraftlabs.com',
+    'ojha007@gmail.com',
 ]);
 
 function isOwnerSuperAdminEmail(email?: string | null) {

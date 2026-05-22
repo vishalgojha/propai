@@ -870,7 +870,7 @@ export const Agent: React.FC = () => {
             <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2.5 text-[13px]">
               <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
                 <SmartphoneIcon className="h-3.5 w-3.5 text-[var(--accent)]" />
-                Devices: {(identityData as any).connected_devices ?? 0}/{(identityData as any).max_devices ?? 2}
+                Devices: {(identityData as any).connected_devices ?? 0}/{(identityData as any).max_devices ?? 1}
               </span>
               {(identityData as any).onboarding_completed ? (
                 <span className="flex items-center gap-1.5 text-[var(--accent)]">

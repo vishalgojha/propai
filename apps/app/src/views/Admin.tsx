@@ -380,8 +380,7 @@ export const Admin: React.FC = () => {
             >
               <option value="">All Plans</option>
               <option value="Trial">Trial</option>
-              <option value="Solo">Solo</option>
-              <option value="Team">Team</option>
+              <option value="Pro">Pro</option>
             </select>
             <select
               value={filterStatus}
@@ -443,7 +442,7 @@ export const Admin: React.FC = () => {
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-secondary)]">Billing Actions</p>
                         <div className="mt-2 grid grid-cols-3 gap-1.5">
-                          {['Trial', 'Solo', 'Team'].map((plan) => (
+                          {['Trial', 'Pro'].map((plan) => (
                             <button
                               key={plan}
                               onClick={() => void updateSubscription(workspace.id, { plan, status: plan === 'Trial' ? 'trial' : 'active' })}
