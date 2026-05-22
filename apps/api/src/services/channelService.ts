@@ -2334,18 +2334,39 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
          }
 
          try {
-             await this.rebuildStreamFromMessages(tenantId, {
-                 limit: sessionLabel ? 2000 : 500,
-                 sessionLabel: sessionLabel || null,
-             });
-         } catch (error) {
-             console.error('[ChannelService] Failed to backfill stream items from messages', {
-                 tenantId,
-                 sessionLabel: sessionLabel || null,
-                 error,
-             });
-          }
-      }
+              // Use cursor so each backfill processes messages after the latest stream item
+              const { data: latestItem } = sessionLabel
+                  ? await this.db
+                      .from('stream_items')
+                      .select('created_at')
+                      .eq('tenant_id', tenantId)
+                      .eq('session_label', sessionLabel)
+                      .order('created_at', { ascending: false })
+                      .limit(1)
+                      .maybeSingle()
+                  : await this.db
+                      .from('stream_items')
+                      .select('created_at')
+                      .eq('tenant_id', tenantId)
+                      .order('created_at', { ascending: false })
+                      .limit(1)
+                      .maybeSingle();
+
+              const from = latestItem?.created_at || null;
+
+              await this.rebuildStreamFromMessages(tenantId, {
+                  limit: sessionLabel ? 2000 : 500,
+                  sessionLabel: sessionLabel || null,
+                  from,
+              });
+          } catch (error) {
+              console.error('[ChannelService] Failed to backfill stream items from messages', {
+                  tenantId,
+                  sessionLabel: sessionLabel || null,
+                  error,
+              });
+           }
+       }
 
     private async maybeSendDailyBriefing(tenantId: string, email?: string | null) {
         if (!email) {
