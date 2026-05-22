@@ -573,91 +573,8 @@ Return ONLY valid JSON, no markdown, no explanation.`;
         throw new Error(`Failed to save listing: ${error?.message || 'Insert returned no row'}`);
     }
 
-    // GAP 1: Sync to stream_items
-    const streamType = listingType === 'rent' ? 'Rent' : listingType === 'lease' ? 'Lease' : 'Sale';
-    const streamItemId = await upsertStreamItem({
-        tenantId,
-        messageId: `broadcast:${data.id}`,
-        sourcePhone: resolvedBrokerPhone,
-        rawText: line,
-        type: streamType,
-        recordType: 'listing',
-        locality: parsed.locality ?? null,
-        bhk: parsed.bhk ?? null,
-        priceNumeric: priceCr ? priceCr * 10000000 : rentMonthly,
-        priceLabel: priceCr ? `₹${priceCr} Cr` : rentMonthly ? `₹${(rentMonthly / 100000).toFixed(1)} L` : null,
-        dealType: listingType,
-        assetClass: propertyType === 'commercial' ? 'commercial' : 'residential',
-        confidenceScore: 0.8,
-        propertyCategory: propertyType,
-        areaSqft: areaSqft,
-        furnishing: extracted.furnishing || null,
-        floorNumber: extracted.floor || null,
-        parsedPayload: {
-            bhk: extracted.bhk,
-            propertyCategory: extracted.property_category,
-            price: extracted.price,
-            priceUnit: extracted.price_unit,
-            carpetArea: extracted.carpet_area,
-            builtUpArea: extracted.built_up_area,
-            furnishing: extracted.furnishing,
-            parking: extracted.parking,
-            possession: extracted.possession,
-            pocket: extracted.pocket,
-            amenities: extracted.amenities,
-            brokers: extracted.brokers,
-            aiTitle: extracted.ai_title,
-            aiDescription: extracted.ai_description,
-            buildingName: buildingName,
-            displayTitle: extracted.ai_title || `${parsed.bhk} in ${parsed.locality}`,
-            sourceLabel: resolvedBrokerName,
-            brokerPhone: resolvedBrokerPhone,
-            brokerAgency: resolvedBrokerAgency,
-        },
-    });
-
-    if (streamItemId) {
-        // GAP 3: Canonicalize
-        canonicalizationService.canonicalizeStreamItem({
-            id: streamItemId,
-            tenant_id: tenantId,
-            type: streamType,
-            record_type: 'listing',
-            deal_type: listingType,
-            asset_class: propertyType === 'commercial' ? 'commercial' : 'residential',
-            property_category: propertyType,
-            raw_text: line,
-            locality: parsed.locality ?? null,
-            city: null,
-            bhk: parsed.bhk ?? null,
-            price_label: priceCr ? `₹${priceCr} Cr` : rentMonthly ? `₹${(rentMonthly / 100000).toFixed(1)} L` : null,
-            price_numeric: priceCr ? priceCr * 10000000 : rentMonthly,
-            confidence_score: 0.8,
-            source_phone: resolvedBrokerPhone,
-            source_group_id: null,
-            source_group_name: null,
-            furnishing: extracted.furnishing || null,
-            floor_number: extracted.floor || null,
-            total_floors: null,
-            property_use: null,
-            area_sqft: areaSqft,
-            created_at: new Date().toISOString(),
-            parsed_payload: {
-                displayTitle: extracted.ai_title || `${parsed.bhk} in ${parsed.locality}`,
-                buildingName: buildingName,
-                microLocation: extracted.pocket || null,
-                sourceLabel: resolvedBrokerName,
-                brokerPhone: resolvedBrokerPhone,
-            },
-        }).catch(() => {});
-
-        // GAP 4: Update broker profile
-        await upsertBrokerContact(tenantId, resolvedBrokerPhone, resolvedBrokerName, parsed.locality, parsed.bhk, priceCr ? priceCr * 10000000 : rentMonthly);
-
-        // GAP 5: Generate embedding
-        const fingerprintParts = ['listing', streamType, listingType, propertyType, parsed.locality, parsed.bhk, priceCr ? `₹${priceCr} Cr` : rentMonthly ? `₹${(rentMonthly / 100000).toFixed(1)} L` : null, areaSqft, extracted.furnishing].filter(Boolean).join(' | ');
-        generateStreamEmbedding(streamItemId, fingerprintParts).catch(() => {});
-    }
+    // GAP 4: Update broker profile
+    await upsertBrokerContact(tenantId, resolvedBrokerPhone, resolvedBrokerName, parsed.locality, parsed.bhk, priceCr ? priceCr * 10000000 : rentMonthly);
 
     return { success: true, id: data.id };
 }
@@ -771,88 +688,9 @@ Return ONLY valid JSON, no markdown, no explanation.`;
         throw new Error(`Failed to save requirement: ${error?.message || 'Insert returned no row'}`);
     }
 
-    // GAP 1: Sync to stream_items
-    const streamType = listingType === 'rent' ? 'Rent' : listingType === 'lease' ? 'Lease' : 'Sale';
+    // GAP 4: Update broker profile
     const priceNumeric = budgetMinCr ? budgetMinCr * 10000000 : rentBudgetMonthly;
-    const streamItemId = await upsertStreamItem({
-        tenantId,
-        messageId: `broadcast:req:${data.id}`,
-        sourcePhone: resolvedPhone,
-        rawText: line,
-        type: streamType,
-        recordType: 'requirement',
-        locality: extracted.preferred_locations?.[0] || null,
-        bhk: extracted.bhk_preference?.[0] || null,
-        priceNumeric: priceNumeric,
-        priceLabel: budgetMinCr ? `₹${budgetMinCr} Cr` : rentBudgetMonthly ? `₹${(rentBudgetMonthly / 100000).toFixed(1)} L` : null,
-        dealType: listingType,
-        assetClass: propertyType === 'commercial' ? 'commercial' : 'residential',
-        confidenceScore: 0.8,
-        propertyCategory: propertyType,
-        areaSqft: null,
-        furnishing: extracted.furnishing_preference || null,
-        floorNumber: null,
-        parsedPayload: {
-            bhkPreference: extracted.bhk_preference,
-            budgetMin: extracted.budget_min,
-            budgetMax: extracted.budget_max,
-            budgetUnit: extracted.budget_unit,
-            preferredLocations: extracted.preferred_locations,
-            pocket: extracted.pocket,
-            furnishingPreference: extracted.furnishing_preference,
-            parkingRequired: extracted.parking_required,
-            vegNonveg: extracted.veg_nonveg,
-            possessionTimeline: extracted.possession_timeline,
-            urgency: extracted.urgency,
-            amenitiesRequired: extracted.amenities_required,
-            notes: extracted.notes,
-            broker: extracted.broker,
-            displayTitle: `${extracted.bhk_preference?.[0] || 'Property'} wanted in ${extracted.preferred_locations?.[0] || 'Mumbai'}`,
-            sourceLabel: resolvedName,
-        },
-    });
-
-    if (streamItemId) {
-        // GAP 3: Canonicalize
-        canonicalizationService.canonicalizeStreamItem({
-            id: streamItemId,
-            tenant_id: tenantId,
-            type: streamType,
-            record_type: 'requirement',
-            deal_type: listingType,
-            asset_class: propertyType === 'commercial' ? 'commercial' : 'residential',
-            property_category: propertyType,
-            raw_text: line,
-            locality: extracted.preferred_locations?.[0] || null,
-            city: null,
-            bhk: extracted.bhk_preference?.[0] || null,
-            price_label: budgetMinCr ? `₹${budgetMinCr} Cr` : rentBudgetMonthly ? `₹${(rentBudgetMonthly / 100000).toFixed(1)} L` : null,
-            price_numeric: priceNumeric,
-            confidence_score: 0.8,
-            source_phone: resolvedPhone,
-            source_group_id: null,
-            source_group_name: null,
-            furnishing: extracted.furnishing_preference || null,
-            floor_number: null,
-            total_floors: null,
-            property_use: null,
-            area_sqft: null,
-            created_at: new Date().toISOString(),
-            parsed_payload: {
-                displayTitle: `${extracted.bhk_preference?.[0] || 'Property'} wanted in ${extracted.preferred_locations?.[0] || 'Mumbai'}`,
-                buildingName: null,
-                microLocation: extracted.pocket || null,
-                sourceLabel: resolvedName,
-            },
-        }).catch(() => {});
-
-        // GAP 4: Update broker profile
-        await upsertBrokerContact(tenantId, resolvedPhone, resolvedName, extracted.preferred_locations?.[0] || null, extracted.bhk_preference?.[0] || null, priceNumeric);
-
-        // GAP 5: Generate embedding
-        const fingerprintParts = ['requirement', streamType, listingType, propertyType, ...(extracted.preferred_locations || []), ...(extracted.bhk_preference || []), priceNumeric, extracted.furnishing_preference].filter(Boolean).join(' | ');
-        generateStreamEmbedding(streamItemId, fingerprintParts).catch(() => {});
-    }
+    await upsertBrokerContact(tenantId, resolvedPhone, resolvedName, extracted.preferred_locations?.[0] || null, extracted.bhk_preference?.[0] || null, priceNumeric);
 
     return { success: true, id: data.id };
 }

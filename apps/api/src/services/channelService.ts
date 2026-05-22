@@ -618,6 +618,11 @@ const extractBhk = (text: string) => {
     const words = text.split(/\s+/);
     for (let i = 0; i < words.length; i++) {
         const word = words[i].toLowerCase();
+        // Check for inline pattern like "2BHK", "3bhk", "1.5BHK"
+        const inlineMatch = word.match(/^(\d+(?:\.\d+)?)(BHK|bhk)$/);
+        if (inlineMatch) {
+            return `${inlineMatch[1]} ${inlineMatch[2].toUpperCase()}`;
+        }
         if (word.endsWith('bhk')) {
             // Check if there's a number before it
             if (i > 0) {
@@ -787,7 +792,7 @@ const extractMicroLocation = (text: string) => {
     return null;
 };
 
-const buildDisplayTitle = (buildingName: string | null, microLocation: string | null, locality: string) => {
+const buildDisplayTitle = (buildingName: string | null, microLocation: string | null, locality: string | null) => {
     if (buildingName && microLocation) {
         return `${buildingName}, ${microLocation}`;
     }
@@ -796,11 +801,10 @@ const buildDisplayTitle = (buildingName: string | null, microLocation: string | 
         return `${buildingName}, ${locality}`;
     }
 
-    if (microLocation && microLocation.toLowerCase() !== locality.toLowerCase()) {
-        return microLocation;
+    if (microLocation && locality && microLocation.toLowerCase() !== locality.toLowerCase()) {
+        return `${titleCase(microLocation)}, ${titleCase(locality)}`;
     }
-
-    return locality;
+    return locality ? titleCase(locality) : 'Property listing';
 };
 
 const extractDealType = (text: string) => {
@@ -1002,11 +1006,11 @@ const splitMessageIntoSegments = (rawText: string) => {
     return uniqueSegments.length > 1 ? uniqueSegments : [{ text: rawText, streamType: commonType }];
 };
 
-const calculateConfidence = (text: string, item: { location: string; price: string; bhk: string; buildingName?: string | null; microLocation?: string | null }) => {
+const calculateConfidence = (text: string, item: { location: string | null; price: string | null; bhk: string | null; buildingName?: string | null; microLocation?: string | null }) => {
     let score = 48;
-    if (item.location !== 'Location not parsed yet') score += 16;
-    if (item.price !== 'Unspecified') score += 14;
-    if (item.bhk !== 'N/A') score += 10;
+    if (item.location) score += 16;
+    if (item.price) score += 14;
+    if (item.bhk) score += 10;
     if (item.buildingName) score += 4;
     if (item.microLocation) score += 4;
     if (text.length > 80) score += 8;
@@ -1048,10 +1052,10 @@ type ParsedStreamCandidate = {
     sourceGroupName: string | null;
     streamType: StreamType;
     recordType: string;
-    locality: string;
-    city: string;
-    bhk: string;
-    priceLabel: string;
+    locality: string | null;
+    city: string | null;
+    bhk: string | null;
+    priceLabel: string | null;
     priceNumeric: number | null;
     dealType: string;
     assetClass: string;
@@ -2506,8 +2510,8 @@ ${rawText}
                     parseIndianLocation(candidateText) ||
                     (item.locality ? parseIndianLocation(String(item.locality)) : null) ||
                     commonResolution;
-                const locality = String(item.locality || resolution?.locality || commonLocation || 'Location not parsed yet').trim();
-                const city = String(item.city || resolution?.city || commonCity || 'Unknown').trim();
+                const locality = String(item.locality || resolution?.locality || commonLocation || '').trim() || null;
+                const city = String(item.city || resolution?.city || commonCity || '').trim() || null;
                 const buildingName = item.buildingName ? titleCase(String(item.buildingName).trim()) : extractBuildingName(candidateText);
                 const microLocation = item.microLocation ? titleCase(String(item.microLocation).trim()) : (extractMicroLocation(candidateText) || extractMicroLocation(rawText));
                 const title = String(item.title || '').trim() || buildDisplayTitle(buildingName, microLocation, locality);
@@ -2520,9 +2524,10 @@ ${rawText}
                         ? item.dealType
                         : extractDealType(candidateText);
                 const priceInfo = extractPriceInfo(candidateText, dealType);
-                const priceLabel = String(item.priceLabel || '').trim() || priceInfo.label;
+                const priceLabel = String(item.priceLabel || '').trim() || priceInfo.label || null;
                 const priceNumeric = typeof item.priceNumeric === 'number' && Number.isFinite(item.priceNumeric) ? item.priceNumeric : priceInfo.numeric;
                 const bhk = String(item.bhk || '').trim() || extractBhk(candidateText);
+                const normalizedBhk = bhk === 'N/A' ? null : bhk;
                 const assetClass =
                     item.assetClass === 'commercial' || item.assetClass === 'plot' || item.assetClass === 'unknown'
                         ? item.assetClass
@@ -2552,7 +2557,7 @@ ${rawText}
                     recordType: item.recordType === 'requirement' ? 'requirement' : 'listing',
                     locality,
                     city,
-                    bhk,
+                    bhk: normalizedBhk,
                     priceLabel,
                     priceNumeric,
                     dealType,
@@ -2615,10 +2620,11 @@ ${rawText}
         return segments.map((segment, index) => {
             const candidateText = segment.text.trim();
             const resolution = parseIndianLocation(candidateText) || commonResolution;
-            const location = resolution?.locality || commonLocation || 'Location not parsed yet';
+            const location = resolution?.locality || commonLocation || null;
             const dealType = extractDealType(candidateText);
             const price = extractPriceInfo(candidateText, dealType);
-            const bhk = extractBhk(candidateText);
+            const bhkRaw = extractBhk(candidateText);
+            const bhk = bhkRaw === 'N/A' ? null : bhkRaw;
             const buildingName = extractBuildingName(candidateText);
             const microLocation = extractMicroLocation(candidateText) || extractMicroLocation(rawText);
             const displayTitle = buildDisplayTitle(buildingName, microLocation, location);
@@ -2640,9 +2646,9 @@ ${rawText}
                 streamType: segment.streamType,
                 recordType: segment.streamType === 'Requirement' ? 'requirement' : 'listing',
                 locality: location,
-                city: resolution?.city || extractIndianCity(candidateText),
+                city: resolution?.city || extractIndianCity(candidateText) || null,
                 bhk,
-                priceLabel: price.label,
+                priceLabel: price.label || null,
                 priceNumeric: price.numeric,
                 dealType,
                 assetClass,
@@ -2653,9 +2659,9 @@ ${rawText}
                 totalFloors,
                 propertyUse,
                 confidenceScore: calculateConfidence(candidateText, {
-                    location,
+                    location: location || '',
                     price: price.label,
-                    bhk,
+                    bhk: bhk || '',
                     buildingName,
                     microLocation,
                 }),
