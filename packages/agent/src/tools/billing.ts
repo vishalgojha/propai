@@ -8,7 +8,7 @@ export const BillingTools = {
     upgrade_plan: {
         description: 'Initiate a plan upgrade. Returns a Razorpay payment link.',
         schema: z.object({
-            plan: z.enum(['Solo', 'Team']),
+            plan: z.enum(['Pro']).default('Pro'),
         }),
     },
     cancel_subscription: {

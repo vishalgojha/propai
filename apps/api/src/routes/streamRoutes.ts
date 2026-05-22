@@ -21,7 +21,7 @@ router.get('/', async (req, res) => {
     const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
 
     const subscription = await subscriptionService.getSubscription(tenantId, context.currentUserEmail);
-    const networkMode = ['Layer2', 'Team'].includes(String(subscription.plan));
+    const networkMode = String(subscription.plan) === 'Pro';
     const items = await channelService.listStreamItems(tenantId, accessToken, channelId, sessionLabel, networkMode, undefined, context.currentUserEmail);
     res.json({
       items,

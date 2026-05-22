@@ -1,7 +1,7 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { referralService } from './referralService';
 
-export type Plan = 'Trial' | 'Solo' | 'Team';
+export type Plan = 'Trial' | 'Pro';
 
 export interface Subscription {
     plan: Plan;
@@ -21,16 +21,14 @@ const DEFAULT_TRIAL_DAYS = 7;
 export function normalizePlanName(plan?: string | null): Plan {
     const normalized = String(plan || '').trim().toLowerCase();
     if (normalized === 'free' || normalized === 'trial') return 'Trial';
-    if (normalized === 'pro' || normalized === 'solo') return 'Solo';
-    return 'Team';
+    return 'Pro';
 }
 
 export class SubscriptionService {
     private db = supabaseAdmin ?? supabase;
     private planLimits = {
-        Trial: { sessions: 2, leads: 50, features: ['basic_parser'] },
-        Solo: { sessions: 2, leads: Infinity, features: ['basic_parser', 'portal_posting'] },
-        Team: { sessions: 5, leads: Infinity, features: ['basic_parser', 'portal_posting', 'priority_support'] }, // Scale
+        Trial: { sessions: 1, leads: 50, features: ['basic_parser'] },
+        Pro: { sessions: 1, leads: Infinity, features: ['basic_parser', 'portal_posting', 'unlimited_matches'] },
     };
 
     private addDays(date: Date, days: number) {
@@ -60,7 +58,7 @@ export class SubscriptionService {
             .from('subscriptions')
             .upsert({
                 tenant_id: tenantId,
-                plan: 'Team',
+                plan: 'Pro',
                 status: 'active',
                 created_at: createdAt,
                 renewal_date: null,
@@ -70,7 +68,7 @@ export class SubscriptionService {
 
         if (error || !data) {
             return {
-                plan: 'Team',
+                plan: 'Pro',
                 status: 'active',
                 created_at: createdAt,
                 renewal_date: null,

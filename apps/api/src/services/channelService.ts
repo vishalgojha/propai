@@ -1571,7 +1571,7 @@ private dailyBriefingSentKeys = new Set<string>();
         const { data, error } = await this.db
             .from('subscriptions')
             .select('tenant_id')
-            .in('plan', ['Layer2', 'Team'])
+            .in('plan', ['Pro', 'Pro'])
             .eq('status', 'active');
 
         if (error) {

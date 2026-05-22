@@ -44,7 +44,7 @@ const capabilities = [
   {
     icon: SearchIcon,
     title: 'Choose private or network intelligence',
-    copy: 'Run a private Personal Parser stack, or move to PropAI Network when you want market-wide data and global broker context.',
+    copy: 'Run a private Pulse agent on your own number, or add team members each with their own agent sharing workspace intelligence.',
   },
 ];
 
@@ -63,16 +63,16 @@ const examples = [
 
 const productHighlights = [
   {
-    title: 'Private Plan',
-    eyebrow: 'Personal Parser',
-    copy: 'Your own WhatsApp groups, your own parsed Stream, your own broker workflow. Keep the market graph private and run with your own keys.',
-    points: ['Private group coverage', 'Private Stream memory', 'Own API keys and workflow control'],
+    title: 'Pro',
+    eyebrow: '₹799 / month',
+    copy: 'Your own Pulse AI agent on your WhatsApp number. Parses your groups, matches listings to requirements, DMs you privately. One broker, one device.',
+    points: ['Private Pulse agent', 'Unlimited matches', 'Your own number, your own groups'],
   },
   {
-    title: 'Public Plan',
-    eyebrow: 'PropAI Network',
-    copy: 'Everything in the private stack, plus network-wide broker data, broader market visibility, and shared intelligence across the PropAI graph.',
-    points: ['Network-wide listings', 'Public market visibility', 'Shared intelligence layer'],
+    title: 'Team',
+    eyebrow: '₹799 / seat / month',
+    copy: 'Each team member gets their own Pulse agent on their own number. All members share workspace intelligence — like Google Drive for real estate teams.',
+    points: ['Each member = own number', 'Shared workspace Stream', 'Coordinated market intelligence'],
   },
 ];
 
@@ -341,7 +341,7 @@ export const Login: React.FC = () => {
                     <span className="block text-[var(--accent)]">finally works together.</span>
                   </h1>
                   <p className="mt-5 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                    PropAI gives you a WhatsApp workspace console, a parsed Stream for listings and requirements, and outbound broker broadcasts. Keep your workflow private with Personal Parser, or move into PropAI Network when you want global market data.
+                    PropAI gives you a WhatsApp workspace console, a parsed Stream for listings and requirements, and outbound broker broadcasts. Each account connects one WhatsApp number — Pro for solo brokers, Team for firms that need shared workspace intelligence.
                   </p>
                 </div>
 
@@ -408,7 +408,7 @@ export const Login: React.FC = () => {
                 <div className="mt-4 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">PropAI Assistant</p>
                   <p className="mt-2 text-[12px] leading-5 text-[var(--text-primary)]">
-                    Need help choosing between Personal Parser and PropAI Network? Message the PropAI Assistant on WhatsApp at {PROPAI_ASSISTANT_NUMBER}.
+                    Need help setting up? Message the PropAI Assistant on WhatsApp at {PROPAI_ASSISTANT_NUMBER}.
                   </p>
                   <a href={PROPAI_ASSISTANT_WA_LINK} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07]">
                     Open WhatsApp
@@ -482,7 +482,7 @@ export const Login: React.FC = () => {
                   </h2>
                   <p className="mt-2 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
                     {mode === 'signup'
-                      ? 'New brokers add their name and WhatsApp number once. Then they can run a private Personal Parser workflow or move into PropAI Network.'
+                      ? 'New brokers add their name and WhatsApp number once. Each account gets one Pulse agent on one device — Pro or Team.'
                       : 'Sign in to open Stream and Threads. First time here? Switch to Create account and get set up in under 5 minutes.'}
                   </p>
                 </div>

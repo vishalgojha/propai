@@ -36,7 +36,7 @@ export const listStreamItems = async (req: Request, res: Response) => {
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
         const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : null;
         const subscription = await subscriptionService.getSubscription(tenantId, req.user?.email);
-        const networkMode = ['Layer2', 'Team'].includes(String(subscription.plan));
+        const networkMode = String(subscription.plan) === 'Pro';
         const items = await channelService.listStreamItems(
             tenantId,
             accessToken,
@@ -62,7 +62,7 @@ export const listStreamSummary = async (req: Request, res: Response) => {
         const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : null;
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
         const subscription = await subscriptionService.getSubscription(tenantId, req.user?.email);
-        const networkMode = ['Layer2', 'Team'].includes(String(subscription.plan));
+        const networkMode = String(subscription.plan) === 'Pro';
         const summary = await channelService.getStreamSummary(tenantId, channelId, sessionLabel, networkMode);
         res.json({
             ...summary,

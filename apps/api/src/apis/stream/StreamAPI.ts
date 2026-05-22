@@ -21,7 +21,7 @@ export class StreamAPI {
       const { data: layer2Tenants } = await supabase
         .from('subscriptions')
         .select('tenant_id')
-        .in('plan', ['Layer2', 'Team'])
+        .in('plan', ['Pro'])
         .eq('status', 'active');
 
       tenantIds = Array.from(new Set([

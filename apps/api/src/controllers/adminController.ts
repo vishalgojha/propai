@@ -138,7 +138,7 @@ export const listAdminWorkspaces = async (req: Request, res: Response) => {
         createdAt: profile.created_at || null,
         role,
         subscription: {
-          plan: isOwnerSuperAdminEmail(profile.email) ? 'Team' : normalizePlanName(String((subscription as Record<string, unknown>)?.plan || 'Trial')),
+          plan: isOwnerSuperAdminEmail(profile.email) ? 'Pro' : normalizePlanName(String((subscription as Record<string, unknown>)?.plan || 'Trial')),
           status: isOwnerSuperAdminEmail(profile.email) ? 'active' : String((subscription as Record<string, unknown>)?.status || 'trial'),
           createdAt: (subscription as Record<string, unknown>)?.created_at || profile.created_at || null,
           renewalDate: isOwnerSuperAdminEmail(profile.email) ? null : (subscription as Record<string, unknown>)?.renewal_date || null,

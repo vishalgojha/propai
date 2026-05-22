@@ -75,8 +75,7 @@ type ReferralSummary = {
 const formatPlanLabel = (plan?: string | null) => {
   const normalized = String(plan || '').trim().toLowerCase();
   if (normalized === 'trial' || normalized === 'free') return 'Trial';
-  if (normalized === 'solo' || normalized === 'pro') return 'Solo';
-  return 'Team';
+  return 'Pro';
 };
 
 const EmptyState: React.FC = () => {
@@ -325,7 +324,7 @@ export const Dashboard: React.FC = () => {
   const subscription = user?.subscription;
   const planLabel = formatPlanLabel(subscription?.plan);
   const trialDaysLeft = subscription?.trial_days_remaining;
-  const deviceLimit = planLabel === 'Team' ? 5 : 2;
+  const deviceLimit = 1;
 
   const handleSaveMetadata = async (payload: { agencyName: string; primaryCity: string; serviceAreas: WorkspaceMetadata['serviceAreas'] }) => {
     setIsSavingMetadata(true);
