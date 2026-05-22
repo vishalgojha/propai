@@ -13,7 +13,6 @@ export interface Subscription {
 
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
     'vishal@chaoscraftlabs.com',
-    'vishal@chaoscraftslabs.com',
     'hello@chaoscraftlabs.com',
     'ojha007@gmail.com',
 ]);
