@@ -1,5 +1,10 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
-import { whatsappGroupService } from './whatsappGroupService';
+import {
+    countLikelyBrokerSignals,
+    countNoiseSignals,
+    GroupClassification,
+    whatsappGroupService,
+} from './whatsappGroupService';
 
 const db = supabaseAdmin || supabase;
 
@@ -30,6 +35,11 @@ function average(values: number[]) {
     return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 }
 
+function positiveOrDerived(value: unknown, derive: () => number) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : derive();
+}
+
 export class GroupAuditService {
     async getAudit(workspaceOwnerId: string, sessionLabel: string) {
         const groups = (await whatsappGroupService.listGroups(workspaceOwnerId, { includeArchived: false }))
@@ -53,9 +63,21 @@ export class GroupAuditService {
             );
             const duplicatePhones = phones.filter((phone) => (overlapMap.get(phone)?.size || 0) > 1);
             const overlapPercent = phones.length > 0 ? Math.round((duplicatePhones.length / phones.length) * 100) : 0;
-            const signalScore = Number((group as any).signalScore || 0);
-            const noiseScore = Number((group as any).noiseScore || 0);
-            const classification = String((group as any).classification || 'unknown');
+            const classification = String((group as any).classification || 'unknown') as GroupClassification;
+            const scoringInput = {
+                id: String(group.id || ''),
+                name: String(group.name || ''),
+                participantsCount: Number(group.participantsCount || 0),
+                participantJids,
+            };
+            const signalScore = positiveOrDerived(
+                (group as any).signalScore,
+                () => countLikelyBrokerSignals(scoringInput, group.locality, group.category),
+            );
+            const noiseScore = positiveOrDerived(
+                (group as any).noiseScore,
+                () => countNoiseSignals(scoringInput, classification, group.category),
+            );
             const recommendation: AuditDecision =
                 classification === 'business' && signalScore >= 55 && noiseScore <= 45
                     ? 'parse'

@@ -16,7 +16,7 @@ type GroupListFilters = {
     sessionLabel?: string;
 };
 
-type GroupClassification = 'business' | 'personal' | 'unknown';
+export type GroupClassification = 'business' | 'personal' | 'unknown';
 type GroupVisibilityStatus = 'visible' | 'hidden';
 
 const db = supabaseAdmin || supabase;
@@ -31,7 +31,7 @@ const PERSONAL_GROUP_KEYWORDS = [
 ];
 
 const BUSINESS_GROUP_KEYWORDS = [
-    'broker', 'brokers', 'realtor', 'realtors', 'estate', 'realty',
+    'broker', 'brokers', 'realtor', 'realtors', 'estate', 'realty', 'reality',
     'inventory', 'requirement', 'requirements', 'client', 'buyers',
     'seller', 'sellers', 'rent', 'rental', 'lease', 'sale', 'resale',
     'commercial', 'office', 'shop', 'warehouse', 'flat', 'flats',
@@ -39,10 +39,31 @@ const BUSINESS_GROUP_KEYWORDS = [
     'property', 'properties', 'channel partner', 'cp', 'deals',
 ];
 
+const COMPACT_BUSINESS_KEYWORDS = new Set([
+    'broker',
+    'brokers',
+    'realtor',
+    'realtors',
+    'estate',
+    'realty',
+    'reality',
+    'property',
+    'properties',
+]);
+
 function scoreKeywordHits(normalized: string, keywords: string[]) {
+    const compact = normalized.replace(/\s+/g, '');
+
     return keywords.reduce((score, keyword) => {
         const pattern = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-        return pattern.test(normalized) ? score + 1 : score;
+        if (pattern.test(normalized)) return score + 1;
+
+        const compactKeyword = keyword.replace(/\s+/g, '');
+        if (COMPACT_BUSINESS_KEYWORDS.has(keyword) && compact.includes(compactKeyword)) {
+            return score + 1;
+        }
+
+        return score;
     }, 0);
 }
 
@@ -128,7 +149,12 @@ function normalizeParticipantJid(value?: string | null) {
     return atIndex >= 0 ? raw : `${raw}@s.whatsapp.net`;
 }
 
-function countLikelyBrokerSignals(group: RawGroupInput, locality?: string | null, category?: string | null) {
+function storedPositiveNumber(value: unknown, fallback: number) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function countLikelyBrokerSignals(group: RawGroupInput, locality?: string | null, category?: string | null) {
     const normalized = normalizeName(group.name || '');
     let score = 0;
 
@@ -141,7 +167,7 @@ function countLikelyBrokerSignals(group: RawGroupInput, locality?: string | null
     return Math.min(100, score);
 }
 
-function countNoiseSignals(group: RawGroupInput, classification: GroupClassification, category?: string | null) {
+export function countNoiseSignals(group: RawGroupInput, classification: GroupClassification, category?: string | null) {
     const normalized = normalizeName(group.name || '');
     let score = 0;
 
@@ -242,8 +268,8 @@ export class WhatsAppGroupService {
                         ? existing.business_confidence
                         : autoClassification.confidence,
                     duplicate_overlap_score: Number(existing?.duplicate_overlap_score || 0),
-                    signal_score: Number(existing?.signal_score || signalScore),
-                    noise_score: Number(existing?.noise_score || noiseScore),
+                    signal_score: storedPositiveNumber(existing?.signal_score, signalScore),
+                    noise_score: storedPositiveNumber(existing?.noise_score, noiseScore),
                     audit_recommendation: String(existing?.audit_recommendation || recommendation),
                     last_message_at: now,
                     last_active_at: now,
