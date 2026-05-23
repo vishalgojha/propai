@@ -650,16 +650,30 @@ try {
             throw new Error('WhatsApp session is not connected');
         }
 
-        const groups = await this.socket.groupFetchAllParticipating?.();
-        if (groups) {
-            return Object.values(groups).map((group: any) => ({
-                id: group.id,
-                name: group.subject || group.name || group.id,
-                participantsCount: Array.isArray(group.participants) ? group.participants.length : undefined,
-                participantJids: Array.isArray(group.participants)
-                    ? group.participants.map((participant: any) => String(participant?.id || '').trim()).filter(Boolean)
-                    : [],
-            }));
+        const fetchPromise = this.socket.groupFetchAllParticipating?.();
+        if (!fetchPromise) {
+            return [];
+        }
+
+        const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Fetch participating groups timeout')), 5000)
+        );
+
+        try {
+            const groups = await Promise.race([fetchPromise, timeoutPromise]);
+            if (groups) {
+                return Object.values(groups).map((group: any) => ({
+                    id: group.id,
+                    name: group.subject || group.name || group.id,
+                    participantsCount: Array.isArray(group.participants) ? group.participants.length : undefined,
+                    participantJids: Array.isArray(group.participants)
+                        ? group.participants.map((participant: any) => String(participant?.id || '').trim()).filter(Boolean)
+                        : [],
+                }));
+            }
+        } catch (error) {
+            console.error('[WhatsAppClient] getParticipatingGroups error or timeout:', error);
+            return [];
         }
 
         return [];

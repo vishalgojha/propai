@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { supabase } from "./supabase.js";
-import { formatBudgetRange, formatCurrencyCr, formatPerSqft, igrSummary, listingLabel, toNumber } from "./format.js";
+import { formatBudgetRange, formatCurrencyCr, formatPerSqft, igrSummary, listingLabel, toNumber, formatDate } from "./format.js";
 import type { IgrTransaction, LocalityStats, PublicListing } from "./types.js";
 
 const PUBLIC_LISTING_COLUMNS =
