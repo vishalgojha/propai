@@ -30,6 +30,32 @@ function buildOverlapMap(groups: Array<{ id: string; participantJids?: string[] 
     return phoneToGroups;
 }
 
+function topOverlappingGroups(input: {
+    groupId: string;
+    phones: string[];
+    overlapMap: Map<string, Set<string>>;
+    groupNames: Map<string, string>;
+}) {
+    const sharedCounts = new Map<string, number>();
+
+    for (const phone of input.phones) {
+        const overlappingGroupIds = input.overlapMap.get(phone) || new Set<string>();
+        for (const overlappingGroupId of overlappingGroupIds) {
+            if (overlappingGroupId === input.groupId) continue;
+            sharedCounts.set(overlappingGroupId, (sharedCounts.get(overlappingGroupId) || 0) + 1);
+        }
+    }
+
+    return Array.from(sharedCounts.entries())
+        .map(([id, sharedMemberCount]) => ({
+            id,
+            name: input.groupNames.get(id) || id,
+            sharedMemberCount,
+        }))
+        .sort((left, right) => right.sharedMemberCount - left.sharedMemberCount)
+        .slice(0, 5);
+}
+
 function average(values: number[]) {
     if (!values.length) return 0;
     return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
@@ -49,6 +75,7 @@ export class GroupAuditService {
             id: String(group.id || ''),
             participantJids: Array.isArray((group as any).participantJids) ? ((group as any).participantJids as string[]) : [],
         })));
+        const groupNames = new Map(groups.map((group) => [String(group.id || ''), String(group.name || group.id || '')]));
 
         const enrichedGroups = groups.map((group) => {
             const participantJids: string[] = Array.isArray((group as any).participantJids)
@@ -97,7 +124,14 @@ export class GroupAuditService {
                 ...group,
                 participantPhoneCount: phones.length,
                 duplicateMemberCount: duplicatePhones.length,
+                overlappingMemberCount: duplicatePhones.length,
                 duplicateOverlapPercent: overlapPercent,
+                overlappingGroups: topOverlappingGroups({
+                    groupId: String(group.id || ''),
+                    phones,
+                    overlapMap,
+                    groupNames,
+                }),
                 signalScore,
                 noiseScore,
                 recommendation,
@@ -126,10 +160,12 @@ export class GroupAuditService {
                 recommendedParseGroups: enrichedGroups.filter((group) => group.recommendation === 'parse').length,
                 reviewGroups: enrichedGroups.filter((group) => group.recommendation === 'review').length,
                 ignoredGroups: enrichedGroups.filter((group) => group.recommendation === 'ignore').length,
-                realEstateGroups: enrichedGroups.filter((group) => String((group as any).classification || '') === 'business').length,
+                realEstateGroups: enrichedGroups.filter((group) => String((group as any).classification || '') === 'business' || group.signalScore >= 55).length,
                 uniqueParticipants: uniquePhones.size,
                 duplicateParticipants: duplicatePhonesWorkspace.size,
+                overlappingParticipants: duplicatePhonesWorkspace.size,
                 duplicateParticipantRate: uniquePhones.size > 0 ? Math.round((duplicatePhonesWorkspace.size / uniquePhones.size) * 100) : 0,
+                overlappingParticipantRate: uniquePhones.size > 0 ? Math.round((duplicatePhonesWorkspace.size / uniquePhones.size) * 100) : 0,
                 averageChaosScore: average(enrichedGroups.map((group) => group.chaosScore)),
                 averageSignalScore: average(enrichedGroups.map((group) => group.signalScore)),
             },

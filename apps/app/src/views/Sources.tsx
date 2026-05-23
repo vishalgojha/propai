@@ -272,7 +272,13 @@ type GroupAuditGroup = {
   participantsCount: number;
   participantPhoneCount: number;
   duplicateMemberCount: number;
+  overlappingMemberCount?: number;
   duplicateOverlapPercent: number;
+  overlappingGroups?: Array<{
+    id: string;
+    name: string;
+    sharedMemberCount: number;
+  }>;
   signalScore: number;
   noiseScore: number;
   chaosScore: number;
@@ -292,7 +298,9 @@ type GroupAuditResponse = {
     realEstateGroups: number;
     uniqueParticipants: number;
     duplicateParticipants: number;
+    overlappingParticipants?: number;
     duplicateParticipantRate: number;
+    overlappingParticipantRate?: number;
     averageChaosScore: number;
     averageSignalScore: number;
   };
@@ -1766,14 +1774,29 @@ export const Sources: React.FC = () => {
                 {[
                   { label: 'Total groups', value: groupAudit.summary.totalGroups, note: 'Synced from this number.' },
                   { label: 'Parsing by default', value: selectedAuditParseIds.length, note: 'Groups feeding Stream unless kept out.' },
-                  { label: 'Duplicate numbers', value: groupAudit.summary.duplicateParticipants, note: `${groupAudit.summary.duplicateParticipantRate}% of ${groupAudit.summary.uniqueParticipants} unique numbers appear in multiple groups.` },
-                  { label: 'Average chaos', value: groupAudit.summary.averageChaosScore, note: 'Higher means more overlap + more noise.' },
-                  { label: 'Business groups', value: groupAudit.summary.realEstateGroups, note: 'Likely real-estate groups detected.' },
+                  { label: 'Cross-group overlap', value: groupAudit.summary.overlappingParticipants ?? groupAudit.summary.duplicateParticipants, note: `${groupAudit.summary.overlappingParticipantRate ?? groupAudit.summary.duplicateParticipantRate}% of ${groupAudit.summary.uniqueParticipants} unique numbers appear in more than one group.` },
+                  { label: 'Average chaos', value: groupAudit.summary.averageChaosScore, note: 'Overlap pressure plus noisy/off-topic signals.' },
+                  { label: 'Likely real-estate groups', value: groupAudit.summary.realEstateGroups, note: 'Groups with broker/property signals or business classification.' },
                 ].map((item) => (
                   <div key={item.label} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
                     <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">{item.label}</p>
                     <p className="mt-2 text-[24px] font-bold text-[var(--text-primary)]">{item.value}</p>
                     <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">{item.note}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {groupAudit ? (
+              <div className="mt-3 grid gap-3 lg:grid-cols-3">
+                {[
+                  { label: 'Signal', copy: 'Real-estate intent from group name, locality, category, and member surface.' },
+                  { label: 'Noise', copy: 'Personal, promo, media, or off-topic naming patterns that reduce parsing confidence.' },
+                  { label: 'Chaos', copy: 'A combined risk score from cross-group member overlap and noise.' },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">{item.label}</p>
+                    <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">{item.copy}</p>
                   </div>
                 ))}
               </div>
@@ -1858,6 +1881,8 @@ export const Sources: React.FC = () => {
               ) : (
                 filteredAuditGroups.map((group) => {
                   const selected = selectedAuditParseIds.includes(group.id);
+                  const overlappingMemberCount = group.overlappingMemberCount ?? group.duplicateMemberCount;
+                  const topOverlappingGroups = Array.isArray(group.overlappingGroups) ? group.overlappingGroups.slice(0, 3) : [];
                   return (
                     <div key={group.id} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1884,7 +1909,7 @@ export const Sources: React.FC = () => {
                             </span>
                           </div>
                           <p className="mt-2 text-[12px] text-[var(--text-secondary)]">
-                            {[group.locality, group.city, group.category, `${group.participantsCount} members`, `${group.duplicateMemberCount} duplicate numbers`, `${group.duplicateOverlapPercent}% duplicate overlap`].filter(Boolean).join(' • ')}
+                            {[group.locality, group.city, group.category, `${group.participantsCount} members`, `${overlappingMemberCount} numbers also in other groups`, `${group.duplicateOverlapPercent}% cross-group overlap`].filter(Boolean).join(' • ')}
                           </p>
                           {group.reasons.length > 0 ? (
                             <div className="mt-3 flex flex-wrap gap-2">
@@ -1895,19 +1920,34 @@ export const Sources: React.FC = () => {
                               ))}
                             </div>
                           ) : null}
+                          {topOverlappingGroups.length > 0 ? (
+                            <div className="mt-3 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Overlaps with</p>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {topOverlappingGroups.map((overlap) => (
+                                  <span key={overlap.id} className="rounded-full border border-[color:var(--border)] px-2 py-0.5 text-[10px] text-[var(--text-secondary)]">
+                                    {overlap.name} · {overlap.sharedMemberCount} shared
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                         <div className="grid min-w-[240px] gap-2 sm:grid-cols-3 lg:w-[280px]">
                           <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
                             <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Signal</p>
                             <p className="mt-1 text-[18px] font-bold text-[var(--text-primary)]">{group.signalScore}</p>
+                            <p className="mt-1 text-[10px] leading-4 text-[var(--text-secondary)]">Property intent</p>
                           </div>
                           <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
                             <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Chaos</p>
                             <p className="mt-1 text-[18px] font-bold text-[var(--text-primary)]">{group.chaosScore}</p>
+                            <p className="mt-1 text-[10px] leading-4 text-[var(--text-secondary)]">Overlap + noise</p>
                           </div>
                           <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
                             <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">Noise</p>
                             <p className="mt-1 text-[18px] font-bold text-[var(--text-primary)]">{group.noiseScore}</p>
+                            <p className="mt-1 text-[10px] leading-4 text-[var(--text-secondary)]">Off-topic risk</p>
                           </div>
                         </div>
                       </div>
