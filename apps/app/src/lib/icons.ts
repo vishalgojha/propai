@@ -21,6 +21,7 @@ export {
   EyeOff as EyeOffIcon,
   Globe as GlobeIcon,
   Hash as ChannelIcon,
+  Inbox as InboxIcon,
   LayoutDashboard as DashboardIcon,
   Link as LinkIcon,
   Loader2 as LoaderIcon,

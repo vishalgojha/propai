@@ -20,8 +20,10 @@ import {
   XIcon,
   WorkflowIcon,
   UsersIcon,
+  InboxIcon,
 } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
+import { useInbox } from '../hooks/useInbox';
 import {
   createChannel,
   fetchChannels,
@@ -32,6 +34,7 @@ import { SidebarCard } from './ui/SidebarCard';
 
 const NAV_ITEMS = [
   { label: 'AI Agent', path: '/agent', icon: ActivityIcon },
+  { label: 'Inbox', path: '/inbox', icon: InboxIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
   { label: 'Broker Network', path: '/broker-network', icon: UsersIcon },
@@ -113,6 +116,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   const [localitiesText, setLocalitiesText] = React.useState('');
   const [keywordsText, setKeywordsText] = React.useState('');
   const [isChannelsLoading, setIsChannelsLoading] = React.useState(false);
+
+  const { unreadCount } = useInbox();
 
   const isSuperAdmin =
     user?.appRole === 'super_admin' ||
@@ -386,8 +391,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
                     aria-label={item.label}
                   >
                     <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]')} />
-                    <span className={cn('text-[12px] font-semibold tracking-[0.01em]', isCollapsed && 'lg:hidden')}>
+                    <span className={cn('flex items-center gap-2 text-[12px] font-semibold tracking-[0.01em]', isCollapsed && 'lg:hidden')}>
                       {item.label}
+                      {item.label === 'Inbox' && unreadCount > 0 ? (
+                        <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white leading-none">
+                          {unreadCount}
+                        </span>
+                      ) : null}
                     </span>
                   </button>
                 );
