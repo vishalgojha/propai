@@ -1962,10 +1962,10 @@ private dailyBriefingSentKeys = new Set<string>();
 
     async listInboxMatches(
         tenantId: string,
-        networkMode = false,
+        _networkMode = false,
         limit = 200,
     ): Promise<InboxMatchRecord[]> {
-        const accessibleTenantIds = await this.getNetworkTenantIds(tenantId, networkMode);
+        const accessibleTenantIds = [tenantId];
         const effectiveLimit = Math.max(50, Math.min(500, limit));
         const { data, error } = await this.readAcceptedStreamItems(this.db, accessibleTenantIds, {
             limit: effectiveLimit,

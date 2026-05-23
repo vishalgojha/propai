@@ -52,7 +52,7 @@ const TOUR_STEPS: TourStep[] = [
     element: '#tour-nav-inbox',
     popover: {
       title: 'Inbox',
-      description: 'Items that need review land here: ambiguous inquiries, unmatched requirements, or anything that needs a human decision.',
+      description: 'Your auto-match desk. Pulse pairs your workspace listings with your own buyer and tenant requirements so you can act on the best fits first.',
       side: 'right',
       align: 'start',
     },

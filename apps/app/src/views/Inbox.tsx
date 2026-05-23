@@ -122,6 +122,12 @@ function MiniItem({ item, label }: { item: StreamItem; label: string }) {
   );
 }
 
+function inboxLabel(item: StreamItem, side: 'source' | 'match') {
+  const isRequirement = item.type === 'Requirement' || item.recordType === 'requirement';
+  if (side === 'source') return isRequirement ? 'Your requirement' : 'Your listing';
+  return isRequirement ? 'Matching requirement' : 'Matching listing';
+}
+
 function AdminCorrectionPanel({ item }: { item: StreamItem }) {
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -236,17 +242,17 @@ function InboxMatchCard({ match, isSuperAdmin, onRead }: { match: InboxMatch; is
       </div>
 
       <div className="mt-4 grid gap-3 xl:grid-cols-2">
-        <MiniItem item={match.sourceItem} label="Your need/source" />
-        <MiniItem item={match.matchedItem} label="Matched opportunity" />
+        <MiniItem item={match.sourceItem} label={inboxLabel(match.sourceItem, 'source')} />
+        <MiniItem item={match.matchedItem} label={inboxLabel(match.matchedItem, 'match')} />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3">
         <div className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
           <MessageSquare className="h-4 w-4 text-[var(--accent)]" />
-          Contact the broker only after checking the raw message and match fit.
+          Review the fit, then contact the saved source or client from the matched record.
         </div>
         <a href={match.matchedItem.waLink || '#'} target="_blank" rel="noreferrer" className={cn('rounded-[10px] px-4 py-2 text-[12px] font-bold', match.matchedItem.waLink ? 'bg-[var(--accent)] text-[#061108]' : 'pointer-events-none bg-[var(--bg-elevated)] text-[var(--text-muted)]')}>
-          Contact on WhatsApp
+          Open WhatsApp
         </a>
       </div>
 
@@ -276,7 +282,7 @@ export function Inbox() {
           <InboxIcon className="h-6 w-6 text-[var(--accent)]" />
           <div>
             <h1 className="text-[22px] font-bold text-[var(--text-primary)]">Inbox</h1>
-            <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Matched listings and requirements that need a broker action.</p>
+            <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Auto-matched workspace listings and buyer or tenant requirements.</p>
           </div>
           {unreadCount > 0 ? <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">{unreadCount}</span> : null}
         </div>
@@ -311,7 +317,7 @@ export function Inbox() {
         <div className="flex flex-col items-center justify-center py-16">
           <CheckCircle className="mb-3 h-10 w-10 text-[var(--accent)]" />
           <p className="text-[15px] font-semibold text-[var(--text-primary)]">You&apos;re all caught up</p>
-          <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{tab === 'unread' ? 'No unread matches.' : 'Matches appear here when supply and requirements line up.'}</p>
+          <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{tab === 'unread' ? 'No unread listing-requirement matches.' : 'Matches appear here when your listings and requirements line up.'}</p>
         </div>
       ) : (
         <div className="space-y-4">

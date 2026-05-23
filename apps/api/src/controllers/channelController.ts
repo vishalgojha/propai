@@ -103,16 +103,14 @@ export const listInboxMatches = async (req: Request, res: Response) => {
     try {
         const tenantId = getTenantId(req);
         const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 200;
-        const subscription = await subscriptionService.getSubscription(tenantId, req.user?.email);
-        const networkMode = String(subscription.plan) === 'Pro';
         const matches = await channelService.listInboxMatches(
             tenantId,
-            networkMode,
+            false,
             Number.isFinite(limit) ? Number(limit) : 200,
         );
         res.json({
             items: matches,
-            network_mode: networkMode,
+            network_mode: false,
             total: matches.length,
         });
     } catch (error: unknown) {
