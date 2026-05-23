@@ -18,6 +18,7 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
 ]);
 
 const DEFAULT_TRIAL_DAYS = 7;
+const OWNER_SUPER_ADMIN_SESSION_LIMIT = 99;
 
 export function normalizePlanName(plan?: string | null): Plan {
     const normalized = String(plan || '').trim().toLowerCase();
@@ -51,6 +52,20 @@ export class SubscriptionService {
 
     private isOwnerSuperAdminEmail(email?: string | null) {
         return OWNER_SUPER_ADMIN_EMAILS.has(String(email || '').trim().toLowerCase());
+    }
+
+    async isOwnerSuperAdmin(tenantId: string, email?: string | null) {
+        if (this.isOwnerSuperAdminEmail(email)) {
+            return true;
+        }
+
+        const { data } = await this.db
+            .from('profiles')
+            .select('email, app_role')
+            .eq('id', tenantId)
+            .maybeSingle();
+
+        return data?.app_role === 'super_admin' || this.isOwnerSuperAdminEmail(data?.email);
     }
 
     private async ensureOwnerSubscription(tenantId: string): Promise<Subscription> {
@@ -206,6 +221,14 @@ export class SubscriptionService {
 
     getLimit(plan: Plan | string, feature: 'sessions' | 'leads') {
         return this.planLimits[normalizePlanName(plan)][feature];
+    }
+
+    async getLimitForTenant(tenantId: string, plan: Plan | string, feature: 'sessions' | 'leads', email?: string | null) {
+        if (feature === 'sessions' && await this.isOwnerSuperAdmin(tenantId, email)) {
+            return OWNER_SUPER_ADMIN_SESSION_LIMIT;
+        }
+
+        return this.getLimit(plan, feature);
     }
 
     hasFeature(plan: Plan | string, feature: string) {

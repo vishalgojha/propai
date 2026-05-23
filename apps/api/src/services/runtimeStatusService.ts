@@ -102,6 +102,7 @@ export class RuntimeStatusService {
                     : Boolean(doublewordKey || process.env.DOUBLEWORD_API_KEY);
 
         const normalizedPlan = normalizePlanName(subscription.plan);
+        const sessionsLimit = await subscriptionService.getLimitForTenant(tenantId, normalizedPlan, 'sessions');
         return {
             ai: {
                 provider: aiSelection.provider,
@@ -125,7 +126,7 @@ export class RuntimeStatusService {
             },
             subscription: {
                 plan: normalizedPlan,
-                sessionsLimit: subscriptionService.getLimit(normalizedPlan, 'sessions'),
+                sessionsLimit,
                 trialDaysRemaining: subscription.trial_days_remaining ?? null,
             },
         };

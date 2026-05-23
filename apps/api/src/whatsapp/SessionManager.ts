@@ -183,7 +183,7 @@ export class SessionManager {
             const sameTenantSessions = existingSessions.filter((session) => session.tenantId === tenantId);
             const otherSessions = sameTenantSessions.filter((session) => session.label !== sessionKey);
             const subscription = await subscriptionService.getSubscription(tenantId);
-            const limit = subscriptionService.getLimit(subscription.plan, 'sessions');
+            const limit = await subscriptionService.getLimitForTenant(tenantId, subscription.plan, 'sessions');
 
             if (otherSessions.length >= limit) {
                 throw new Error(`Plan limit reached. Your ${subscription.plan} plan allows max ${limit} sessions.`);

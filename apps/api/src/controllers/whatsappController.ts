@@ -469,7 +469,7 @@ export const getStatus = async (req: Request, res: Response) => {
             return row.status === 'connecting' && !Boolean(row.isReconnecting);
         });
         const plan = await subscriptionService.getSubscription(workspaceOwnerId, user?.email).catch(() => ({ plan: 'Trial' as const, status: 'active', renewal_date: null }));
-        const limit = subscriptionService.getLimit(plan.plan, 'sessions');
+        const limit = await subscriptionService.getLimitForTenant(workspaceOwnerId, plan.plan, 'sessions', user?.email);
         const primaryConnectedSession = connectedSessions[0] || null;
 
         res.json({
