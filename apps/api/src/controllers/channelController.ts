@@ -163,11 +163,13 @@ export const correctStreamItem = async (req: Request, res: Response) => {
              String(req.params.streamItemId || ''),
              {
                  type: req.body?.type,
+                 title: req.body?.title,
                  location: req.body?.location,
                  city: req.body?.city,
                  price: req.body?.price,
                  priceNumeric: typeof req.body?.priceNumeric === 'number' ? req.body.priceNumeric : null,
                  bhk: req.body?.bhk,
+                 rawText: req.body?.rawText,
                  source: req.body?.source,
                  sourcePhone: req.body?.sourcePhone,
                  recordType: req.body?.recordType,

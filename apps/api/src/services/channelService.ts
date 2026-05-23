@@ -1312,11 +1312,13 @@ type MessageQualityDecision = {
 
 type StreamCorrectionInput = {
     type?: StreamType;
+    title?: string;
     location?: string;
     city?: string;
     price?: string;
     priceNumeric?: number | null;
     bhk?: string;
+    rawText?: string;
     source?: string;
     sourcePhone?: string | null;
     recordType?: string;
@@ -2283,6 +2285,7 @@ private dailyBriefingSentKeys = new Set<string>();
 
         const nextPayload = {
             ...(existing.parsed_payload || {}),
+            displayTitle: input.title?.trim() || existing.parsed_payload?.displayTitle || existing.parsed_payload?.title || null,
             sourceLabel: input.source ?? existing.parsed_payload?.sourceLabel ?? null,
             sourcePhone: input.sourcePhone ?? existing.parsed_payload?.sourcePhone ?? existing.source_phone ?? null,
             parseNotes: input.parseNotes?.trim() || null,
@@ -2298,6 +2301,7 @@ private dailyBriefingSentKeys = new Set<string>();
             price_label: input.price?.trim() || existing.price_label,
             price_numeric: typeof input.priceNumeric === 'number' ? input.priceNumeric : existing.price_numeric,
             bhk: input.bhk?.trim() || existing.bhk,
+            raw_text: input.rawText?.trim() || existing.raw_text,
             source_phone: input.sourcePhone?.trim() || existing.source_phone,
             record_type: input.recordType?.trim() || existing.record_type,
             deal_type: input.dealType?.trim() || existing.deal_type,
@@ -2329,6 +2333,7 @@ private dailyBriefingSentKeys = new Set<string>();
                 price_label: existing.price_label,
                 price_numeric: existing.price_numeric,
                 bhk: existing.bhk,
+                raw_text: existing.raw_text,
                 source_phone: existing.source_phone,
                 record_type: existing.record_type,
                 deal_type: existing.deal_type,
@@ -2343,6 +2348,7 @@ private dailyBriefingSentKeys = new Set<string>();
                 price_label: corrected.price_label,
                 price_numeric: corrected.price_numeric,
                 bhk: corrected.bhk,
+                raw_text: corrected.raw_text,
                 source_phone: corrected.source_phone,
                 record_type: corrected.record_type,
                 deal_type: corrected.deal_type,
@@ -3510,7 +3516,7 @@ ${rawText}
         return {
             id: String(item.id),
             type: (item.type || 'Sale') as StreamType,
-            title: item.parsed_payload?.displayTitle || inferredTitle,
+            title: item.parsed_payload?.displayTitle || item.parsed_payload?.title || inferredTitle,
             location: locality || 'Mumbai market',
             buildingName: inferredBuildingName || null,
             microLocation: inferredMicroLocation || null,

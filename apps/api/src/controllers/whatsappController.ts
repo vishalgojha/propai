@@ -51,6 +51,11 @@ function shouldShowSessionInStatus(session: Record<string, unknown>, newestVisib
     return newestVisibleLabelByPhone.get(phone) === session.label;
 }
 
+function hasActiveSessionStatus(value?: unknown) {
+    const status = String(value || '').toLowerCase();
+    return status === 'connected' || status === 'connecting' || status === 'reconnecting';
+}
+
 function getTenantId(req: Request) {
     const user = req.user;
     return user?.id || 'system';
@@ -151,7 +156,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
     const connectMethod = req.body?.connectMethod === 'pairing' ? 'pairing' : 'qr';
     const context = await workspaceAccessService.resolveContext(req.user ?? {});
     const tenantId = context.workspaceOwnerId;
-    const sessionLabel = buildSessionLabel(ownerName || label, phoneNumber);
+    let sessionLabel = buildSessionLabel(ownerName || label, phoneNumber);
     const gateway = getWhatsAppGateway(tenantId);
 
     try {
@@ -159,8 +164,25 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Enter the WhatsApp number to request a pairing code.' });
         }
 
-        const existingSession = await gateway.getStatus({ workspaceOwnerId: tenantId, sessionLabel });
         const dbClient = getDbClient();
+        const normalizedRequestedPhone = normalizeRecipientPhone(phoneNumber);
+        if (normalizedRequestedPhone) {
+            const { data: samePhoneRows } = await dbClient
+                .from('whatsapp_sessions')
+                .select('label, status, session_data, last_sync')
+                .eq('tenant_id', tenantId)
+                .order('last_sync', { ascending: false });
+
+            const matchingRows = (samePhoneRows || []).filter((row: any) => (
+                normalizeRecipientPhone(row?.session_data?.phoneNumber) === normalizedRequestedPhone
+            ));
+            const preferredRow = matchingRows.find((row: any) => hasActiveSessionStatus(row?.status)) || matchingRows[0];
+            if (preferredRow?.label) {
+                sessionLabel = String(preferredRow.label);
+            }
+        }
+
+        const existingSession = await gateway.getStatus({ workspaceOwnerId: tenantId, sessionLabel });
         const { data: existingRow } = await dbClient
             .from('whatsapp_sessions')
             .select('status, session_data, creds, keys')
@@ -477,15 +499,33 @@ export const getStatus = async (req: Request, res: Response) => {
         const sessions = Array.from(sessionMap.values()).sort((a, b) => {
             return new Date(String((b as Record<string, string | undefined>).lastSync || 0)).getTime() - new Date(String((a as Record<string, string | undefined>).lastSync || 0)).getTime();
         });
+        const activePhones = new Set<string>();
+        for (const session of sessions) {
+            const row = session as Record<string, unknown>;
+            const phone = normalizePhone(row.phoneNumber as string | null | undefined);
+            if (phone && hasActiveSessionStatus(row.status)) {
+                activePhones.add(phone);
+            }
+        }
         const newestVisibleLabelByPhone = new Map<string, string>();
         for (const session of sessions) {
             const row = session as Record<string, unknown>;
             const phone = normalizePhone(row.phoneNumber as string | null | undefined);
+            if (phone && activePhones.has(phone) && !hasActiveSessionStatus(row.status)) {
+                continue;
+            }
             if (phone && !newestVisibleLabelByPhone.has(phone)) {
                 newestVisibleLabelByPhone.set(phone, String(row.label || ''));
             }
         }
-        const visibleSessions = sessions.filter((session) => shouldShowSessionInStatus(session as Record<string, unknown>, newestVisibleLabelByPhone));
+        const visibleSessions = sessions.filter((session) => {
+            const row = session as Record<string, unknown>;
+            const phone = normalizePhone(row.phoneNumber as string | null | undefined);
+            if (phone && activePhones.has(phone) && !hasActiveSessionStatus(row.status)) {
+                return false;
+            }
+            return shouldShowSessionInStatus(row, newestVisibleLabelByPhone);
+        });
         const connectedSessions = visibleSessions.filter((session) => (session as Record<string, string>).status === 'connected');
         const reconnectingSessions = visibleSessions.filter((session) => {
             const row = session as Record<string, unknown>;
