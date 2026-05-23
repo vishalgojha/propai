@@ -5,6 +5,8 @@ import { igrQueryService, type IgrTransactionPreview } from './igrQueryService';
 import { extractIndianCity, extractIndianLocality, parseIndianLocation } from '../utils/locationParser';
 import { getWorkspaceSettingsRecord } from './workspaceSettingsService';
 import { emailNotificationService } from './emailNotificationService';
+import { cleanNumber } from './broadcastParserService';
+
 
 type ChannelType = 'listing' | 'requirement' | 'mixed';
 type StreamType = 'Rent' | 'Sale' | 'Requirement' | 'Pre-leased';
@@ -510,8 +512,16 @@ const moneyUnitToInr = (amount: number, unit: string) => {
     return amount;
 };
 
-const formatMoneyLabel = (amount: number, unit: string, isRent: boolean) => {
+export const formatMoneyLabel = (amount: number, unit: string, isRent: boolean) => {
     const normalizedUnit = unit.toLowerCase();
+    
+    if (normalizedUnit === 'rupees' || normalizedUnit === 'rs' || normalizedUnit === '') {
+        if (amount >= 10000000) return isRent ? `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr/mo` : `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+        if (amount >= 100000) return isRent ? `₹${(amount / 100000).toFixed(1).replace(/\.0$/, '')} L/mo` : `₹${(amount / 100000).toFixed(1).replace(/\.0$/, '')} L`;
+        if (amount >= 1000) return isRent ? `₹${Math.round(amount / 1000)}K/mo` : `₹${Math.round(amount / 1000)}K`;
+        return isRent ? `₹${Math.round(amount)}/mo` : `₹${Math.round(amount)}`;
+    }
+
     const compact =
         normalizedUnit === 'cr' || normalizedUnit === 'crore'
             ? `${amount} Cr`
@@ -519,10 +529,10 @@ const formatMoneyLabel = (amount: number, unit: string, isRent: boolean) => {
                 ? `${amount} L`
                 : `${amount} K`;
 
-    return isRent ? `â‚¹${compact}/mo` : `â‚¹${compact}`;
+    return isRent ? `₹${compact}/mo` : `₹${compact}`;
 };
 
-const extractPriceInfo = (text: string, dealTypeHint?: string) => {
+export const extractPriceInfo = (text: string, dealTypeHint?: string) => {
     const lower = text.toLowerCase();
     
     // Check if it's rent
@@ -531,8 +541,8 @@ const extractPriceInfo = (text: string, dealTypeHint?: string) => {
         lower.includes('lease') || lower.includes(' pm') || lower.includes('/month') ||
         lower.includes('per month');
     
-    // Extract price tokens without regex
-    const words = text.split(/\s+/);
+    // Clean commas from raw numbers first
+    const words = text.replace(/,/g, '').split(/\s+/);
     const priceMatches: Array<{
         amount: number;
         unit: string;
@@ -546,11 +556,9 @@ const extractPriceInfo = (text: string, dealTypeHint?: string) => {
         const word = words[i];
         const lowerWord = word.toLowerCase();
         
-        // Check for price patterns
         let amount = '';
         let unit = '';
         
-        // Check if word starts with rs, inr, ₹
         let valuePart = lowerWord;
         if (valuePart.startsWith('rs') || valuePart.startsWith('inr') || valuePart.startsWith('₹')) {
             valuePart = valuePart.slice(2).trim();
@@ -571,7 +579,7 @@ const extractPriceInfo = (text: string, dealTypeHint?: string) => {
         amount = digits;
         const remaining = valuePart.slice(digits.length).trim();
         
-        // Check for unit in same word or next word
+        // Check for unit
         const units = ['cr', 'crore', 'l', 'lac', 'lakh', 'k', 'thousand', 'm', 'mn', 'million'];
         let foundUnit = '';
         
@@ -592,31 +600,37 @@ const extractPriceInfo = (text: string, dealTypeHint?: string) => {
             }
         }
         
-        if (foundUnit) {
-            unit = foundUnit;
-            const numAmount = Number(amount);
-            if (!Number.isNaN(numAmount)) {
-                const raw = word;
-                const start = text.indexOf(word);
-                const context = lower.slice(Math.max(0, start - 18), Math.min(lower.length, start + raw.length + 18));
-                
-                // Check context for rent/deposit
-                const rentContext = context.includes(' r') || context.includes('-r') || 
-                    context.includes('rent') || context.includes('pm') || 
-                    context.includes('per month') || context.includes('/month') || 
-                    context.includes('lease');
-                const depositContext = context.includes(' d') || context.includes('-d') || 
-                    context.includes('deposit') || context.includes('dep');
-                
-                priceMatches.push({
-                    amount: numAmount,
-                    unit: unit,
-                    index: start,
-                    raw: raw,
-                    numeric: moneyUnitToInr(numAmount, unit),
-                    score: (rentContext ? 4 : 0) + (depositContext ? -3 : 0)
-                });
+        const numAmount = Number(amount);
+        if (!Number.isNaN(numAmount)) {
+            let selectedUnit = foundUnit || 'rupees';
+            let numeric = moneyUnitToInr(numAmount, selectedUnit);
+
+            if (!foundUnit) {
+                if (numAmount >= 1000) {
+                    numeric = numAmount;
+                } else {
+                    continue; // Skip tiny raw numbers without units as they might be floor numbers or BHK
+                }
             }
+
+            const start = text.indexOf(word);
+            const context = lower.slice(Math.max(0, start - 18), Math.min(lower.length, start + word.length + 18));
+            
+            const rentContext = context.includes(' r') || context.includes('-r') || 
+                context.includes('rent') || context.includes('pm') || 
+                context.includes('per month') || context.includes('/month') || 
+                context.includes('lease');
+            const depositContext = context.includes(' d') || context.includes('-d') || 
+                context.includes('deposit') || context.includes('dep');
+            
+            priceMatches.push({
+                amount: numAmount,
+                unit: selectedUnit,
+                index: start,
+                raw: word,
+                numeric: numeric,
+                score: (rentContext ? 4 : 0) + (depositContext ? -3 : 0)
+            });
         }
     }
     
@@ -1102,6 +1116,8 @@ type AIParsedStreamItem = {
     bhk?: string | null;
     priceLabel?: string | null;
     priceNumeric?: number | null;
+    price?: number | string | null;
+    priceUnit?: string | null;
     buildingName?: string | null;
     microLocation?: string | null;
     propertyCategory?: 'residential' | 'commercial' | null;
@@ -2533,8 +2549,10 @@ Return ONLY this JSON:
       "locality": "string or null",
       "city": "string or null",
       "bhk": "string or null",
-      "priceLabel": "string or null",
-      "priceNumeric": number or null,
+      "priceLabel": "string or null (e.g. '45k', '3.5 Cr', '95 Lakhs')",
+      "priceNumeric": number or null (full absolute INR value, e.g. 45000, 35500000),
+      "price": "number or string or null (numeric value only, e.g. 45000, 3.5, 95)",
+      "priceUnit": "crores or lakhs or thousands or rupees or null",
       "buildingName": "string or null",
       "microLocation": "string or null",
       "propertyCategory": "residential" | "commercial" | null,
@@ -2595,10 +2613,55 @@ ${rawText}
                 const priceLabel = String(item.priceLabel || '').trim() || priceInfo.label || null;
                 const rawAiNumeric = typeof item.priceNumeric === 'number' && Number.isFinite(item.priceNumeric) ? item.priceNumeric : null;
                 const isRentType = streamType === 'Rent';
-                const priceNumeric = rawAiNumeric != null && (
-                    (isRentType && rawAiNumeric >= 1000 && rawAiNumeric <= 10000000) ||
-                    (!isRentType && rawAiNumeric >= 100000)
-                ) ? rawAiNumeric : priceInfo.numeric;
+                
+                let resolvedAiNumeric: number | null = null;
+                if (rawAiNumeric != null && rawAiNumeric > 0) {
+                    if (isRentType) {
+                        if (rawAiNumeric >= 1000 && rawAiNumeric <= 10000000) {
+                            resolvedAiNumeric = rawAiNumeric;
+                        } else if (rawAiNumeric < 1000) {
+                            resolvedAiNumeric = rawAiNumeric * 1000; // Assume thousands
+                        }
+                    } else {
+                        if (rawAiNumeric >= 100000) {
+                            resolvedAiNumeric = rawAiNumeric;
+                        } else if (rawAiNumeric < 100) {
+                            resolvedAiNumeric = rawAiNumeric * 10000000; // Assume crores
+                        } else {
+                            resolvedAiNumeric = rawAiNumeric * 100000; // Assume lakhs
+                        }
+                    }
+                } else if (item.price != null) {
+                    const priceVal = cleanNumber(item.price);
+                    if (priceVal > 0) {
+                        const unit = String(item.priceUnit || '').toLowerCase();
+                        if (isRentType) {
+                            if (unit.includes('crore')) {
+                                resolvedAiNumeric = priceVal * 10000000;
+                            } else if (unit.includes('lakh') || unit.includes('lac')) {
+                                resolvedAiNumeric = priceVal * 100000;
+                            } else if (unit.includes('thousand') || unit.includes('k')) {
+                                resolvedAiNumeric = priceVal * 1000;
+                            } else if (priceVal >= 1000) {
+                                resolvedAiNumeric = priceVal;
+                            } else {
+                                resolvedAiNumeric = priceVal * 1000; // Assume thousands
+                            }
+                        } else {
+                            if (unit.includes('crore')) {
+                                resolvedAiNumeric = priceVal * 10000000;
+                            } else if (unit.includes('lakh') || unit.includes('lac')) {
+                                resolvedAiNumeric = priceVal * 100000;
+                            } else if (priceVal >= 100) {
+                                resolvedAiNumeric = priceVal; // Assume absolute
+                            } else {
+                                resolvedAiNumeric = priceVal * 10000000; // Assume crores
+                            }
+                        }
+                    }
+                }
+
+                const priceNumeric = (resolvedAiNumeric != null) ? resolvedAiNumeric : priceInfo.numeric;
                 const bhk = String(item.bhk || '').trim() || extractBhk(candidateText);
                 const normalizedBhk = bhk === 'N/A' ? null : bhk;
                 const assetClass =

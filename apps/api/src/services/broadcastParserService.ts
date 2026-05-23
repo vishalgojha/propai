@@ -9,6 +9,15 @@ import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGateway
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
+export const cleanNumber = (val: any): number => {
+    if (typeof val === 'number') return val;
+    const str = String(val || '').toLowerCase().replace(/,/g, '').trim();
+    const cleanStr = str.replace(/[^\d.]/g, '');
+    const num = Number(cleanStr);
+    return Number.isFinite(num) ? num : 0;
+};
+
+
 const LOCATION_CODES: Record<string, string> = {
     'bandra west': 'BND', 'bandra east': 'BND', 'bandra': 'BND',
     'khar west': 'KHR', 'khar east': 'KHR', 'khar': 'KHR',
@@ -388,8 +397,8 @@ Return this EXACT JSON structure:
 {
   "bhk": "string (e.g., '2 BHK', '3 BHK', 'Office Space', 'Studio')",
   "property_category": "Residential or Commercial",
-  "price": number (in lakhs),
-  "price_unit": "lakhs or crores",
+  "price": number (numeric value only, e.g. 45000, 3.5, 95),
+  "price_unit": "crores or lakhs or thousands or rupees",
   "carpet_area": number or null,
   "built_up_area": number or null,
   "floor": "string or null",
@@ -455,11 +464,32 @@ Return ONLY valid JSON, no markdown, no explanation.`;
     let priceCr: number | null = null;
     let rentMonthly: number | null = null;
     if (extracted.price) {
-        const priceInLakhs = extracted.price_unit === 'crores' ? extracted.price * 100 : extracted.price;
+        const unit = String(extracted.price_unit || '').toLowerCase();
+        const priceVal = cleanNumber(extracted.price);
+        
         if (listingType === 'rent' || listingType === 'lease') {
-            rentMonthly = priceInLakhs * 100000;
+            if (unit.includes('crore')) {
+                rentMonthly = priceVal * 10000000;
+            } else if (unit.includes('lakh') || unit.includes('lac')) {
+                rentMonthly = priceVal * 100000;
+            } else if (unit.includes('thousand') || unit.includes('k')) {
+                rentMonthly = priceVal * 1000;
+            } else if (priceVal >= 1000) {
+                rentMonthly = priceVal;
+            } else {
+                rentMonthly = priceVal * 1000; // Default to thousands for rent if small raw number
+            }
         } else {
-            priceCr = priceInLakhs / 100;
+            // Sale / Outright
+            if (unit.includes('crore')) {
+                priceCr = priceVal;
+            } else if (unit.includes('lakh') || unit.includes('lac')) {
+                priceCr = priceVal / 100;
+            } else if (priceVal > 100000) {
+                priceCr = priceVal / 10000000;
+            } else {
+                priceCr = priceVal;
+            }
         }
     }
 
@@ -675,9 +705,9 @@ ${line}
 Return this EXACT JSON structure:
 {
   "bhk_preference": ["array of strings like '2 BHK', '3 BHK', 'Office Space'"],
-  "budget_min": number or null (in lakhs or crores per budget_unit),
+  "budget_min": number or null (numeric value only, e.g. 45000, 3.5, 95),
   "budget_max": number or null,
-  "budget_unit": "lakhs or crores",
+  "budget_unit": "crores or lakhs or thousands or rupees",
   "preferred_locations": ["array of Mumbai location strings"],
   "pocket": "string or null (micro-area)",
   "listing_type": "Sale|Rent|Lease",
@@ -712,14 +742,30 @@ Return ONLY valid JSON, no markdown, no explanation.`;
     let budgetMaxCr: number | null = null;
     let rentBudgetMonthly: number | null = null;
     if (extracted.budget_min || extracted.budget_max) {
-        const toCr = (val: number) => extracted.budget_unit === 'lakhs' ? val / 100 : val;
-        const toMonthly = (val: number) => extracted.budget_unit === 'lakhs' ? val * 100000 : val * 10000000;
+        const unit = String(extracted.budget_unit || '').toLowerCase();
+        
+        const parseValue = (rawVal: any) => {
+            const val = cleanNumber(rawVal);
+            if (listingType === 'rent' || listingType === 'lease') {
+                if (unit.includes('crore')) return val * 10000000;
+                if (unit.includes('lakh') || unit.includes('lac')) return val * 100000;
+                if (unit.includes('thousand') || unit.includes('k')) return val * 1000;
+                if (val >= 1000) return val;
+                return val * 1000; // Default to thousands for rent
+            } else {
+                if (unit.includes('crore')) return val;
+                if (unit.includes('lakh') || unit.includes('lac')) return val / 100;
+                if (val > 100000) return val / 10000000;
+                return val;
+            }
+        };
+
         if (listingType === 'rent' || listingType === 'lease') {
-            if (extracted.budget_min) rentBudgetMonthly = toMonthly(extracted.budget_min);
-            if (extracted.budget_max) rentBudgetMonthly = toMonthly(extracted.budget_max);
+            if (extracted.budget_max) rentBudgetMonthly = parseValue(extracted.budget_max);
+            else if (extracted.budget_min) rentBudgetMonthly = parseValue(extracted.budget_min);
         } else {
-            if (extracted.budget_min) budgetMinCr = toCr(extracted.budget_min);
-            if (extracted.budget_max) budgetMaxCr = toCr(extracted.budget_max);
+            if (extracted.budget_min) budgetMinCr = parseValue(extracted.budget_min);
+            if (extracted.budget_max) budgetMaxCr = parseValue(extracted.budget_max);
         }
     }
 
