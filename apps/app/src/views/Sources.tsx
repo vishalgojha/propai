@@ -1553,13 +1553,7 @@ export const Sources: React.FC = () => {
                       <MessageSquare className="h-3.5 w-3.5" />
                       Self chat with PropAI
                     </div>
-                    <h4 className="mt-3 text-[16px] font-semibold text-[var(--text-primary)]">Use this number's WhatsApp self chat as your field assistant.</h4>
-                    <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
-                      Most brokers are on the move. Enable self chat on this number and message yourself in WhatsApp whenever you want PropAI to extract a raw requirement, auto-match inventory, or recall your own old requirements and listings without opening the app.
-                    </p>
-                    <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
-                      Once enabled, open WhatsApp on this same number and send a message to your own chat. PropAI will treat that self chat as a private AI lane for this workspace.
-                    </p>
+
                   </div>
                   <div className="flex min-w-[240px] flex-col gap-3 rounded-[14px] border border-[color:var(--border)] bg-[rgba(5,10,8,0.78)] p-4">
                     <div className="flex items-center justify-between gap-3">
