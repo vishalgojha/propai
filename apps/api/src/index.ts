@@ -19,6 +19,7 @@ import identityRoutes from './routes/identityRoutes';
 import waClickRoutes from './routes/waClickRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import whatsappPresenceRoutes from './routes/whatsappPresenceRoutes';
+import brokerContactRoutes from './routes/brokerContactRoutes';
 import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
@@ -117,6 +118,7 @@ app.use(ROUTE_PATHS.api.voice, authMiddleware, voiceRoutes);
 app.use(ROUTE_PATHS.api.identity, authMiddleware, identityRoutes);
 app.use('/api/wa-click', authMiddleware, waClickRoutes);
 app.use(ROUTE_PATHS.api.notifications, authMiddleware, notificationRoutes);
+app.use(ROUTE_PATHS.api.brokerContacts, authMiddleware, brokerContactRoutes);
 
 app.get(ROUTE_PATHS.api.health, (req, res) => {
     res.json({

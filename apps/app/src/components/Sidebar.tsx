@@ -19,6 +19,7 @@ import {
   StreamIcon,
   XIcon,
   WorkflowIcon,
+  UsersIcon,
 } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { label: 'AI Agent', path: '/agent', icon: ActivityIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
+  { label: 'Broker Network', path: '/broker-network', icon: UsersIcon },
   { label: 'Profile & Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },
   { label: 'AI Usage', path: '/aiusage', icon: CreditCardIcon },

@@ -48,6 +48,7 @@ export {
   Sparkles as SparklesIcon,
   Trash2 as TrashIcon,
   Users as GroupsIcon,
+  Users as UsersIcon,
   Workflow as WorkflowIcon,
   X as XIcon,
   Zap as ZapIcon,

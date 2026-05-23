@@ -107,4 +107,7 @@ export const ENDPOINTS = {
     list: '/api/intelligence/dm-contacts',
     tag: '/api/intelligence/dm-contacts/tag',
   },
+  brokerContacts: {
+    list: '/broker-contacts',
+  },
 } as const;

@@ -17,6 +17,7 @@ export const ROUTE_PATHS = {
     propertiesSearch: '/api/properties/search',
     aiPropertySearch: '/api/ai/property-search',
     identity: '/api/identity',
+    brokerContacts: '/api/broker-contacts',
     stream: '/api/stream-items',
     ingest: '/api/listings/ingest',
     intelligence: '/api/intelligence',
