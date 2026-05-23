@@ -1502,15 +1502,7 @@ export const Sources: React.FC = () => {
               On a newly connected number, PropAI audits group quality before enabling parsing. After audit approval, only the selected groups parse into Stream. The AI assistant on this number and 1:1 direct messages stay off until you enable them for the current connected session.
               </p>
             </div>
-          <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
-            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Current session state</p>
-            <p className="mt-1 text-[13px] font-semibold text-[var(--text-primary)]">
-              Assistant {selfChatEnabled ? 'enabled' : 'off'} · Direct messages {parseDirectMessages ? 'enabled' : 'off'}
-            </p>
-            <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
-              Manage these controls in the audit workspace below for the selected connected number.
-            </p>
-          </div>
+
         </div>
       </div>
 
@@ -1653,9 +1645,13 @@ export const Sources: React.FC = () => {
                 <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
                   Building group intelligence audit...
                 </div>
-              ) : !groupAudit || groupAudit.groups.length === 0 ? (
+              ) : !groupAudit ? (
                 <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
-                  No group audit is available yet for this number.
+                  Failed to fetch group audit. Check the connection and try again.
+                </div>
+              ) : groupAudit.groups.length === 0 ? (
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
+                  Group sync in progress — groups appear here once Baileys fetches them from WhatsApp. This usually takes a few seconds after connecting.
                 </div>
               ) : (
                 groupAudit.groups.map((group) => {
