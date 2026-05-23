@@ -65,7 +65,7 @@ export class SubscriptionService {
             .eq('id', tenantId)
             .maybeSingle();
 
-        return data?.app_role === 'super_admin' || this.isOwnerSuperAdminEmail(data?.email);
+        return data?.app_role === 'super_admin' || data?.app_role === 'admin' || this.isOwnerSuperAdminEmail(data?.email);
     }
 
     private async ensureOwnerSubscription(tenantId: string): Promise<Subscription> {
