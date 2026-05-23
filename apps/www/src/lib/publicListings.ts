@@ -356,7 +356,7 @@ function parsePriceAmount(value: unknown, priceLabel: unknown, rawText: string, 
       if (amount >= 5000 && amount <= 100000000) score += 3;
       if (/sq\s*ft|sqft|sq|acres?|hectare/i.test(after)) score -= 10;
       if (/bhk|room|bed/i.test(after)) score -= 8;
-      if (/contact|call|whatsapp|phone|mobile/i.test(after)) score -= 10;
+      if (/contact|call|phone|mobile/i.test(after)) score -= 10;
 
       return { amount: Math.round(amount), score };
     });

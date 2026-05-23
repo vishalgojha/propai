@@ -22,7 +22,7 @@ export default function PrivacyPolicy() {
         <section className="space-y-4">
           <h2 className="text-[20px] font-bold text-[var(--text-primary)]">1. Information We Collect</h2>
           <p>
-            When you use PropAI Pulse, we collect certain information about your device, including information about your web browser, IP address, time zone, and some of the cookies that are installed on your device. Additionally, if you connect with a broker through our platform, we may collect your contact details such as name and WhatsApp number.
+            When you use PropAI Pulse, we collect certain information about your device, including information about your web browser, IP address, time zone, and some of the cookies that are installed on your device. Additionally, if you connect with a broker through our platform, we may collect your contact details such as name and phone number.
           </p>
         </section>
 
@@ -43,7 +43,7 @@ export default function PrivacyPolicy() {
         <section className="space-y-4">
           <h2 className="text-[20px] font-bold text-[var(--text-primary)]">3. Data Sharing</h2>
           <p>
-            We do not sell your personal data. We only share information with third parties (like individual brokers) when you explicitly request a connection or inquiry through our WhatsApp integration.
+            We do not sell your personal data. We only share information with third parties, such as individual brokers, when you explicitly request a connection or inquiry.
           </p>
         </section>
 

@@ -18,9 +18,9 @@ export default function MCP() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[
-          { t: 'Live Listings Tool', d: 'Query active WhatsApp-sourced listings based on any constraint.', i: Cpu },
+          { t: 'Live Listings Tool', d: 'Query active verified listings based on any constraint.', i: Cpu },
           { t: 'Area Insights Tool', d: 'Retrieve real-time supply and demand metrics for specific localities.', i: TrendingUp },
-          { t: 'Broker Connect Tool', d: 'Securely facilitate direct WhatsApp connections between agents.', i: MessageSquareIcon },
+          { t: 'Broker Connect Tool', d: 'Securely facilitate direct broker connections between agents.', i: MessageSquareIcon },
           { t: 'Authentication', d: 'Protocol-level security for high-value transactional data.', i: Shield }
         ].map((item, i) => (
            <div key={i} className="group p-8 rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)] transition-all">

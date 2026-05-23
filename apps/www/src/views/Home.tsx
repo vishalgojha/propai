@@ -53,7 +53,7 @@ export default function Home({ initialListings = [] }: { initialListings?: Publi
         <div className="mx-auto max-w-7xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-[rgba(62,232,138,0.12)] border border-[rgba(62,232,138,0.25)] rounded-full mb-6 animate-stream-in">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]"></span>
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">Live from broker WhatsApp groups</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">Live Mumbai market feed</span>
           </div>
           
           <h1 className="text-[56px] font-bold leading-[1.1] tracking-[-0.03em] max-w-4xl mb-4 text-[var(--text-primary)]">
@@ -64,7 +64,7 @@ export default function Home({ initialListings = [] }: { initialListings?: Publi
           </h1>
           
           <p className="text-[var(--text-secondary)] text-[15px] max-w-xl mb-10 mx-auto leading-relaxed">
-            Real-time AI parsing of thousands of listings shared in closed broker networks. Direct connects, zero stale data.
+            Real-time AI organization of verified property signals across Mumbai. Direct broker connects, zero stale data.
           </p>
 
           <div className="w-full max-w-2xl mx-auto bg-[var(--bg-elevated)] rounded-[20px] p-2 border border-[color:var(--border-strong)] shadow-[0_24px_80px_rgba(0,0,0,0.4)] flex items-center gap-2">
@@ -105,7 +105,7 @@ export default function Home({ initialListings = [] }: { initialListings?: Publi
           <div>
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Live Feed</span>
             <h2 className="text-[28px] font-bold text-[var(--text-primary)] mt-1">Just Posted by Brokers</h2>
-            <p className="text-sm text-[var(--text-secondary)] mt-1">Newest findings from verified real estate broadcasts.</p>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">Newest verified real estate signals from active Mumbai inventory.</p>
           </div>
           <Link href="/listings" className="text-[12px] font-bold text-[var(--accent)] hover:underline flex items-center gap-1 group">
             Browse All <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
@@ -128,8 +128,8 @@ export default function Home({ initialListings = [] }: { initialListings?: Publi
             <div className="space-y-6">
               {[
                 { t: 'Off-Market Before Anyone Else', d: 'Properties that never reach portals like MagicBricks — sourced directly from broker networks.' },
-                { t: "Inventory That's Seconds Old", d: "Not scraped from portals. Parsed directly from broker broadcasts the moment they're sent." },
-                { t: 'Direct Connection', d: 'One click to open WhatsApp conversation with the listing broker.' }
+                { t: "Inventory That's Seconds Old", d: "Not scraped from portals. Indexed as active market inventory changes." },
+                { t: 'Direct Connection', d: 'One click to request a direct conversation with the listing broker.' }
               ].map((v, i) => (
                 <div key={i} className="flex gap-4">
                   <div className="h-6 w-6 rounded-full bg-[var(--accent-dim)] border border-[color:var(--accent-border)] flex items-center justify-center shrink-0">
@@ -156,7 +156,7 @@ export default function Home({ initialListings = [] }: { initialListings?: Publi
                 <tbody className="text-[13px]">
                    {[
                       { f: 'Freshness', p: 'Seconds old', t: '24-48 hours' },
-                      { f: 'Direct WhatsApp', p: 'Native', t: 'Rarely' },
+                      { f: 'Direct broker connect', p: 'Native', t: 'Rarely' },
                       { f: 'Off-market', p: '100%', t: '0%' },
                       { f: 'Spam filters', p: 'AI Level', t: 'Manual' }
                    ].map((row, i) => (
@@ -188,7 +188,7 @@ export default function Home({ initialListings = [] }: { initialListings?: Publi
           </div>
           <h2 className="text-[48px] md:text-[64px] font-bold text-[var(--text-primary)] leading-[1] tracking-tighter">The Mumbai Network</h2>
           <p className="text-[17px] text-[var(--text-secondary)] mt-6 max-w-2xl mx-auto font-medium leading-relaxed">
-            PropAI segments thousands of real-time broker broadcasts daily across the city's primary micro-markets.
+            PropAI segments real-time broker-verified inventory across the city's primary micro-markets.
           </p>
         </div>
         

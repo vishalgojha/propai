@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     const title = `${listing.title} — ${dealType} in ${listing.locality} | PropAI Pulse`;
     const description = listing.bhk
       ? `${listing.bhk} in ${listing.locality}, Mumbai. ${listing.furnishing || ""} ${listing.area_sqft ? `· ${listing.area_sqft} sqft` : ""} · ₹${listing.price.toLocaleString()}`
-      : `Off-market property in ${listing.locality}, Mumbai. Sourced from real-time broker broadcasts.`;
+      : `Off-market property in ${listing.locality}, Mumbai. Updated with real-time market intelligence.`;
     return {
       title,
       description,

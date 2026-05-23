@@ -13,6 +13,7 @@ export type RawGroupInput = {
 type GroupListFilters = {
     onlyBroadcastEnabled?: boolean;
     includeArchived?: boolean;
+    sessionLabel?: string;
 };
 
 type GroupClassification = 'business' | 'personal' | 'unknown';
@@ -299,6 +300,10 @@ export class WhatsAppGroupService {
 
         if (filters.onlyBroadcastEnabled) {
             query = query.eq('broadcast_enabled', true);
+        }
+
+        if (filters.sessionLabel) {
+            query = query.eq('session_label', filters.sessionLabel);
         }
 
         const { data, error } = await query;

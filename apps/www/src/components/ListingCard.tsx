@@ -25,7 +25,7 @@ function buildDescription(listing: PublicListing): string {
   if (listing.area_sqft) parts.push(`${listing.area_sqft} sqft`);
   if (listing.availability) parts.push(`· ${listing.availability}`);
 
-  return parts.join(' ') || 'Property listing from broker broadcast';
+  return parts.join(' ') || 'Verified property listing';
 }
 
 export default function ListingCard({ listing }: ListingCardProps) {

@@ -29,14 +29,14 @@ export default function Terms() {
         <section className="space-y-4">
           <h2 className="text-[20px] font-bold text-[var(--text-primary)]">2. Intellectual Property</h2>
           <p>
-            The Service and its original content, features, and functionality are and will remain the exclusive property of PropAI Pulse and its licensors. Our AI-parsed broadcast intelligence is protected by copyright and trade secret laws.
+            The Service and its original content, features, and functionality are and will remain the exclusive property of PropAI Pulse and its licensors. Our AI-organized market intelligence is protected by copyright and trade secret laws.
           </p>
         </section>
 
         <section className="space-y-4">
           <h2 className="text-[20px] font-bold text-[var(--text-primary)]">3. Accuracy of Information</h2>
           <p>
-            While we use advanced AI to parse broker broadcasts, we do not warrant the accuracy, completeness, or usefulness of this information. Real estate transactions carry inherent risks, and you should verify all details independently.
+            While we use advanced AI to organize property information, we do not warrant the accuracy, completeness, or usefulness of this information. Real estate transactions carry inherent risks, and you should verify all details independently.
           </p>
         </section>
 

@@ -31,7 +31,7 @@ export default async function Footer() {
               <span className="text-[18px] font-bold tracking-tighter text-[var(--text-primary)]">Pulse</span>
             </div>
             <p className="text-[13px] leading-6 text-[var(--text-secondary)] max-w-xs">
-              Real-time off-market real estate parsed directly from broker WhatsApp networks.
+              Real-time off-market real estate intelligence across Mumbai micro-markets.
             </p>
           </div>
 

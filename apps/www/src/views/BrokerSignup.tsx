@@ -11,13 +11,13 @@ export default function BrokerSignup() {
               Get Your Listings on <span className="text-[var(--accent)]">PropAI Pulse</span>
             </h1>
             <p className="text-[18px] leading-8 text-[var(--text-secondary)] max-w-lg">
-              We parse your WhatsApp broadcasts and show them to thousands of qualified buyers. 100% automated. 100% direct connection to your phone.
+              We organize your active inventory and show it to qualified buyers. 100% streamlined. 100% direct connection to your phone.
             </p>
           </div>
 
           <div className="grid gap-8">
             {[
-              { t: 'Automated Feed', d: 'Connect your WhatsApp business account and we parse your broadcasts automatically.', i: Zap },
+              { t: 'Automated Feed', d: 'Connect your verified broker workflow and keep active inventory visible automatically.', i: Zap },
               { t: 'Direct Connections', d: 'Buyers contact you directly on your phone. We don\'t stand in between.', i: Target },
               { t: 'Market Insights', d: 'Get data on which of your listings are trending and where demand is peaking.', i: TrendingUp }
             ].map((feature, i) => (
@@ -44,7 +44,7 @@ export default function BrokerSignup() {
 
              <div className="space-y-6">
                 <div>
-                   <label className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-secondary)] mb-2 block">WhatsApp Number</label>
+                   <label className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-secondary)] mb-2 block">Phone Number</label>
                    <input 
                     type="tel" 
                     placeholder="+91 98XXX XXXXX"
@@ -55,7 +55,7 @@ export default function BrokerSignup() {
                 <div className="space-y-4">
                    <div className="flex gap-3 text-[12px] text-[var(--text-secondary)]">
                       <CheckCircle2 className="h-4 w-4 text-[var(--accent)] shrink-0" />
-                      <span>I agree to allow PropAI to parse my public broadcasts.</span>
+                      <span>I agree to allow PropAI to organize my active listing information.</span>
                    </div>
                    <div className="flex gap-3 text-[12px] text-[var(--text-secondary)]">
                       <CheckCircle2 className="h-4 w-4 text-[var(--accent)] shrink-0" />
@@ -70,7 +70,7 @@ export default function BrokerSignup() {
 
              <div className="mt-10 p-6 rounded-[16px] bg-[var(--bg-base)] border border-dashed border-[color:var(--border)] italic">
                 <p className="text-[13px] text-[var(--text-secondary)] text-center">
-                  "PropAI has increased my high-end rental leads by 40% without me doing any extra work. All I do is my usual broadcasts."
+                  "PropAI has increased my high-end rental leads by 40% without me doing any extra work."
                 </p>
                 <div className="text-[11px] font-bold text-center mt-3 uppercase tracking-widest text-[var(--text-muted)]">— Premium Mumbai Broker</div>
              </div>

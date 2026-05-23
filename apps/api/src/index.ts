@@ -29,6 +29,7 @@ import { authMiddleware } from './middleware/authMiddleware';
 import { sessionManager } from './whatsapp/SessionManager';
 import { historySyncWorker } from './services/historySyncWorker';
 import { syndicationSyncJob } from './jobs/syndicationSyncJob';
+import { generateMarketInsightsJob } from './jobs/generateMarketInsights';
 import { ROUTE_PATHS } from './routes/routePaths';
 
 const app = express();
@@ -186,6 +187,7 @@ app.listen(PORT, () => {
             await sessionManager.rehydratePersistedSessions();
             historySyncWorker.start();
             syndicationSyncJob.start();
+            generateMarketInsightsJob.start();
             if (ENABLE_SYSTEM_WHATSAPP_SESSION) {
                 await sessionManager.initSystemSession();
             } else {

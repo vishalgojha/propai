@@ -17,7 +17,7 @@ function buildDescription(listing: PublicListing): string {
   if (listing.furnishing) parts.push(`(${listing.furnishing})`);
   if (listing.area_sqft) parts.push(`${listing.area_sqft} sqft`);
   if (listing.availability) parts.push(`· ${listing.availability}`);
-  return parts.join(' ') || 'Property listing from broker broadcast';
+  return parts.join(' ') || 'Verified property listing';
 }
 
 export default function ListingDetail({ slug, initialListing = null }: { slug: string; initialListing?: PublicListing | null }) {
@@ -203,7 +203,7 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
                     className="w-full flex items-center justify-center gap-3 rounded-[16px] bg-[var(--accent)] py-4.5 text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--on-propai-green)] shadow-[0_12px_32px_rgba(62,232,138,0.25)] hover:scale-[1.02] active:scale-[0.98] transition-all"
                   >
                     <MessageCircle className="h-5 w-5" />
-                    Connect on WhatsApp
+                    Contact broker
                   </button>
                   <div className="grid grid-cols-2 gap-3">
                      <button className="flex items-center justify-center gap-2 rounded-[16px] bg-[var(--bg-elevated)] py-3.5 text-[11px] font-bold uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all">
@@ -227,7 +227,7 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
                      />
                      <input 
                       type="tel" 
-                      placeholder="WhatsApp Number"
+                      placeholder="Phone Number"
                       className="w-full rounded-[14px] bg-[var(--bg-base)] py-4 px-5 text-[13px] text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[var(--accent)]/20 transition-all placeholder:text-[var(--text-muted)]"
                      />
                      <button className="w-full rounded-[14px] border border-[var(--accent-border)] bg-[var(--accent-glow)] py-4 text-[12px] font-bold uppercase tracking-widest text-[var(--accent)] hover:bg-[var(--accent)] hover:text-[var(--on-propai-green)] transition-all">
@@ -246,7 +246,7 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
            <div className="flex items-baseline justify-between mb-8 border-b border-white/[0.03] pb-6">
               <div className="space-y-1">
                 <h3 className="text-[28px] font-bold text-[var(--text-primary)]">Similar Properties</h3>
-                <p className="text-[14px] text-[var(--text-muted)] font-medium">Off-market intelligence from the same micro-market</p>
+                <p className="text-[14px] text-[var(--text-muted)] font-medium">Fresh intelligence from the same micro-market</p>
               </div>
               <Link href="/listings" className="text-[12px] font-bold uppercase tracking-[0.2em] text-[var(--accent)] hover:brightness-110 transition-all">
                 View All Intelligence
