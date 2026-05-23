@@ -10,8 +10,10 @@ import {
   Power,
   QrCode,
   RefreshCw,
+  Search,
   Send,
   ShieldCheck,
+  SlidersHorizontal,
   Smartphone,
   UserRound,
   Users,
@@ -258,6 +260,7 @@ type WhatsappGroupOption = {
 };
 
 type GroupAuditRecommendation = 'parse' | 'review' | 'ignore';
+type GroupAuditFilter = 'all' | 'selected' | 'not_selected' | GroupAuditRecommendation;
 
 type GroupAuditGroup = {
   id: string;
@@ -321,6 +324,15 @@ const SOURCE_TABS: Array<{ id: SourcesTab; label: string }> = [
 const WHATSAPP_TABS: Array<{ id: SourcesTab; label: string }> = [
   { id: 'setup', label: 'Setup' },
   { id: 'outbound', label: 'Outbound' },
+];
+
+const GROUP_AUDIT_FILTERS: Array<{ id: GroupAuditFilter; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'selected', label: 'Selected' },
+  { id: 'not_selected', label: 'Not selected' },
+  { id: 'parse', label: 'Parse' },
+  { id: 'review', label: 'Review' },
+  { id: 'ignore', label: 'Ignore' },
 ];
 
 const isSourcesTab = (value: string | null): value is SourcesTab =>
@@ -479,6 +491,8 @@ export const Sources: React.FC = () => {
   const [isLoadingGroupAudit, setIsLoadingGroupAudit] = useState(false);
   const [isApplyingGroupAudit, setIsApplyingGroupAudit] = useState(false);
   const [selectedAuditParseIds, setSelectedAuditParseIds] = useState<string[]>([]);
+  const [groupAuditSearchTerm, setGroupAuditSearchTerm] = useState('');
+  const [groupAuditFilter, setGroupAuditFilter] = useState<GroupAuditFilter>('all');
   const [groupSearchTerm, setGroupSearchTerm] = useState('');
   const [outboundSessionKey, setOutboundSessionKey] = useState('');
   const [brokerRecipients, setBrokerRecipients] = useState<OutboundRecipient[]>([]);
@@ -1476,6 +1490,49 @@ export const Sources: React.FC = () => {
       return haystack.includes(query);
     });
   }, [groupSearchTerm, outboundGroups]);
+  const filteredAuditGroups = useMemo(() => {
+    const groups = groupAudit?.groups || [];
+    const query = groupAuditSearchTerm.trim().toLowerCase();
+
+    return groups.filter((group) => {
+      const selected = selectedAuditParseIds.includes(group.id);
+      const matchesFilter =
+        groupAuditFilter === 'all'
+        || (groupAuditFilter === 'selected' && selected)
+        || (groupAuditFilter === 'not_selected' && !selected)
+        || group.recommendation === groupAuditFilter;
+
+      if (!matchesFilter) return false;
+      if (!query) return true;
+
+      const haystack = [
+        group.name,
+        group.locality,
+        group.city,
+        group.category,
+        ...(group.tags || []),
+        ...(group.reasons || []),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [groupAudit?.groups, groupAuditFilter, groupAuditSearchTerm, selectedAuditParseIds]);
+  const auditFilterCounts = useMemo(() => {
+    const groups = groupAudit?.groups || [];
+    return groups.reduce<Record<GroupAuditFilter, number>>(
+      (counts, group) => {
+        const selected = selectedAuditParseIds.includes(group.id);
+        counts.all += 1;
+        counts[group.recommendation] += 1;
+        counts[selected ? 'selected' : 'not_selected'] += 1;
+        return counts;
+      },
+      { all: 0, selected: 0, not_selected: 0, parse: 0, review: 0, ignore: 0 },
+    );
+  }, [groupAudit?.groups, selectedAuditParseIds]);
   const disconnectTargetLabel = currentSession?.label || primaryConnectedSession?.label || null;
   const isQrExpired = Boolean(artifactValue) && qrTimeLeft === 0 && !isCurrentSessionConnected;
   const showConnectionArtifactPanel = Boolean(artifactValue) || (isConnecting && Boolean(artifactMode) && !isCurrentSessionConnected);
@@ -1703,6 +1760,51 @@ export const Sources: React.FC = () => {
               </div>
             </div>
 
+            {groupAudit && groupAudit.groups.length > 0 ? (
+              <div className="mt-4 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
+                <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_auto] lg:items-center">
+                  <label className="relative block">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
+                    <input
+                      value={groupAuditSearchTerm}
+                      onChange={(event) => setGroupAuditSearchTerm(event.target.value)}
+                      placeholder="Filter by group name, locality, category, reason, or tag"
+                      className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] py-2.5 pl-9 pr-3 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[color:var(--accent-border)]"
+                    />
+                  </label>
+                  <div className="flex items-center gap-2 overflow-x-auto">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
+                      <SlidersHorizontal className="h-4 w-4" />
+                    </div>
+                    <div className="flex shrink-0 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-1">
+                      {GROUP_AUDIT_FILTERS.map((filter) => {
+                        const active = groupAuditFilter === filter.id;
+                        return (
+                          <button
+                            key={filter.id}
+                            type="button"
+                            onClick={() => setGroupAuditFilter(filter.id)}
+                            className={cn(
+                              'whitespace-nowrap rounded-[8px] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                              active
+                                ? 'bg-[var(--accent)] text-[#020f07]'
+                                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+                            )}
+                          >
+                            {filter.label} {auditFilterCounts[filter.id]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
+                  Showing <span className="font-semibold text-[var(--text-primary)]">{filteredAuditGroups.length}</span> of{' '}
+                  <span className="font-semibold text-[var(--text-primary)]">{groupAudit.groups.length}</span> synced groups.
+                </p>
+              </div>
+            ) : null}
+
             <div className="mt-4 space-y-3">
               {isLoadingGroupAudit ? (
                 <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
@@ -1716,8 +1818,12 @@ export const Sources: React.FC = () => {
                 <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
                   Group sync in progress — groups appear here once Baileys fetches them from WhatsApp. This usually takes a few seconds after connecting.
                 </div>
+              ) : filteredAuditGroups.length === 0 ? (
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
+                  No groups match the current filter.
+                </div>
               ) : (
-                groupAudit.groups.map((group) => {
+                filteredAuditGroups.map((group) => {
                   const selected = selectedAuditParseIds.includes(group.id);
                   return (
                     <div key={group.id} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4">
