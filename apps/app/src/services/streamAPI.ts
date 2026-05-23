@@ -53,6 +53,22 @@ export interface StreamResponse {
   total: number;
 }
 
+export interface InboxMatch {
+  id: string;
+  sourceItem: StreamItem;
+  matchedItem: StreamItem;
+  matchScore: number;
+  matchReasons: string[];
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface InboxMatchesResponse {
+  items: InboxMatch[];
+  network_mode: boolean;
+  total: number;
+}
+
 export interface StreamSummaryResponse {
   oneHour: number;
   fourHours: number;
@@ -94,6 +110,15 @@ export async function fetchStreamItems(filters?: StreamFilters): Promise<StreamR
   const response = await backendApi.get(ENDPOINTS.channels.stream, { params, timeout: 60000 });
   return {
     items: Array.isArray(response.data?.items) ? response.data.items as StreamItem[] : [],
+    network_mode: Boolean(response.data?.network_mode),
+    total: Number(response.data?.total || 0),
+  };
+}
+
+export async function fetchInboxMatches(limit = 200): Promise<InboxMatchesResponse> {
+  const response = await backendApi.get(ENDPOINTS.channels.inbox, { params: { limit }, timeout: 60000 });
+  return {
+    items: Array.isArray(response.data?.items) ? response.data.items as InboxMatch[] : [],
     network_mode: Boolean(response.data?.network_mode),
     total: Number(response.data?.total || 0),
   };

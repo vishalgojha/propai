@@ -30,6 +30,7 @@ export const ROUTE_PATHS = {
   },
   channels: {
     root: '/',
+    inbox: '/inbox',
     stream: '/stream',
     streamSummary: '/stream/summary',
     rebuild: '/stream/rebuild',

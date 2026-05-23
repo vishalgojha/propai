@@ -77,6 +77,7 @@ export const ENDPOINTS = {
   channels: {
     list: '/channels',
     create: '/channels',
+    inbox: '/channels/inbox',
     stream: '/channels/stream',
     streamSummary: '/channels/stream/summary',
     analytics: '/channels/analytics',

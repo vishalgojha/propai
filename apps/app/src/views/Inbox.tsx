@@ -64,13 +64,13 @@ function NotificationBanner() {
 }
 
 export function Inbox() {
-  const { items, unreadCount, markRead, markAllRead, isLoading } = useInbox();
+  const { matches, unreadCount, markRead, markAllRead, isLoading } = useInbox();
   const [tab, setTab] = React.useState<'unread' | 'all'>('unread');
   const [page, setPage] = React.useState(1);
 
   const filtered = React.useMemo(
-    () => (tab === 'unread' ? items.filter((item) => !item.isRead) : items),
-    [items, tab],
+    () => (tab === 'unread' ? matches.filter((match) => !match.isRead && !match.matchedItem.isRead) : matches),
+    [matches, tab],
   );
 
   const paginated = React.useMemo(
@@ -80,8 +80,8 @@ export function Inbox() {
 
   const hasMore = paginated.length < filtered.length;
 
-  const handleToggle = (itemId: string) => {
-    markRead(itemId);
+  const handleToggle = (matchId: string) => {
+    markRead(matchId);
   };
 
   return (
@@ -145,7 +145,7 @@ export function Inbox() {
           )}
         >
           All
-          <span className="ml-1.5 text-[var(--text-muted)]">({items.length})</span>
+          <span className="ml-1.5 text-[var(--text-muted)]">({matches.length})</span>
         </button>
       </div>
 
@@ -161,18 +161,31 @@ export function Inbox() {
           <p className="text-[15px] font-semibold text-[var(--text-primary)]">You&apos;re all caught up</p>
           <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
             {tab === 'unread'
-              ? 'No new listings — check back later.'
-              : 'Your inbox is empty. Listings will appear here as they arrive.'}
+              ? 'No new matches - check back later.'
+              : 'Your inbox is empty. Matches will appear here when listings and requirements line up.'}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {paginated.map((item) => (
-            <div key={item.id} className={cn(!item.isRead && 'border-l-2 border-blue-500')}>
+          {paginated.map((match) => (
+            <div key={match.id} className={cn(!match.isRead && !match.matchedItem.isRead && 'border-l-2 border-blue-500')}>
+              <div className="mb-2 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2">
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-secondary)]">
+                  <span className="font-semibold text-[var(--text-primary)]">
+                    Match for {match.sourceItem.type.toLowerCase()} in {match.sourceItem.location || 'market'}
+                  </span>
+                  <span className="text-[var(--text-muted)]">Score {match.matchScore}</span>
+                  {match.matchReasons.slice(0, 3).map((reason) => (
+                    <span key={reason} className="rounded-full bg-[var(--bg-surface)] px-2 py-0.5 text-[10px] text-[var(--text-secondary)]">
+                      {reason}
+                    </span>
+                  ))}
+                </div>
+              </div>
               <ListingCard
-                listing={item}
+                listing={match.matchedItem}
                 isExpanded={false}
-                onToggle={() => handleToggle(item.id)}
+                onToggle={() => handleToggle(match.id)}
               />
             </div>
           ))}

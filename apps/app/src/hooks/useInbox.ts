@@ -1,62 +1,70 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { fetchStreamItems, markStreamItemRead as apiMarkRead, type StreamItem } from '../services/streamAPI';
-
-function mapRowToStreamItem(row: Record<string, any>): StreamItem {
-  return {
-    id: String(row.id || ''),
-    type: row.type || 'Rent',
-    title: row.parsed_payload?.displayTitle ?? undefined,
-    location: String(row.locality || ''),
-    city: row.city ?? undefined,
-    buildingName: row.building_name ?? row.parsed_payload?.buildingName ?? null,
-    bhk: String(row.bhk || ''),
-    price: String(row.price_label || ''),
-    priceNumeric: row.price_numeric ?? null,
-    areaSqft: row.area_sqft ?? null,
-    confidence: Number(row.confidence_score || 0),
-    source: String(row.parsed_payload?.contactName || row.parsed_payload?.sourceLabel || row.broker_name || row.parsed_payload?.brokerName || ''),
-    brokerName: row.broker_name ?? row.parsed_payload?.brokerName ?? null,
-    brokerCompany: row.parsed_payload?.brokerCompany ?? row.parsed_payload?.company ?? null,
-    waLink: row.source_phone ? `https://wa.me/${String(row.source_phone).replace(/\D/g, '')}` : null,
-    isRead: Boolean(row.is_read || false),
-    createdAt: String(row.created_at || new Date().toISOString()),
-  };
-}
+import { fetchInboxMatches, markStreamItemRead as apiMarkRead, type InboxMatch } from '../services/streamAPI';
 
 export function useInbox() {
   const { user } = useAuth();
-  const [items, setItems] = useState<StreamItem[]>([]);
+  const [matches, setMatches] = useState<InboxMatch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const supabaseRef = useRef<ReturnType<typeof import('../services/supabaseBrowser').createSupabaseBrowserClient> | null>(null);
-  const itemsRef = useRef<StreamItem[]>([]);
+  const matchesRef = useRef<InboxMatch[]>([]);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const unreadCount = items.filter((item) => !item.isRead).length;
+  const unreadCount = matches.filter((match) => !match.isRead && !match.matchedItem.isRead).length;
 
   useEffect(() => {
-    itemsRef.current = items;
-  }, [items]);
+    matchesRef.current = matches;
+  }, [matches]);
 
   useEffect(() => {
     if (!user?.token) {
+      setMatches([]);
       setIsLoading(false);
       return;
     }
 
     let mounted = true;
 
-    const init = async () => {
+    const loadMatches = async (showNotification = false) => {
       try {
-        const seed = await fetchStreamItems({ isRead: false, limit: 200 });
+        const previousIds = new Set(matchesRef.current.map((match) => match.id));
+        const response = await fetchInboxMatches(200);
         if (!mounted) return;
-        setItems(seed.items);
+
+        setMatches(response.items);
         setIsLoading(false);
+
+        const newMatch = response.items.find((match) => !previousIds.has(match.id));
+        if (
+          showNotification &&
+          newMatch &&
+          typeof Notification !== 'undefined' &&
+          Notification.permission === 'granted' &&
+          document.visibilityState === 'hidden'
+        ) {
+          new Notification('New PropAI Match', {
+            body: `${newMatch.matchedItem.type} - ${newMatch.matchedItem.bhk} in ${newMatch.matchedItem.location}${newMatch.matchedItem.price ? ' @ ' + newMatch.matchedItem.price : ''}`.trim(),
+            icon: '/logo.png',
+          });
+        }
       } catch {
         if (!mounted) return;
         setIsLoading(false);
       }
+    };
+
+    const scheduleRefresh = () => {
+      if (refreshTimerRef.current) return;
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = null;
+        void loadMatches(true);
+      }, 700);
+    };
+
+    const init = async () => {
+      await loadMatches(false);
 
       try {
         const { createSupabaseBrowserClient } = await import('../services/supabaseBrowser');
@@ -66,31 +74,16 @@ export function useInbox() {
         supabaseRef.current = client;
 
         const streamChannel = client
-          .channel('inbox-stream-items')
+          .channel('inbox-match-stream-items')
           .on(
             'postgres_changes',
             { event: 'INSERT', schema: 'public', table: 'stream_items' },
-            (payload) => {
-              const row = payload.new as Record<string, any>;
-              const item = mapRowToStreamItem(row);
-              setItems((prev) => [item, ...prev]);
-
-              if (
-                typeof Notification !== 'undefined' &&
-                Notification.permission === 'granted' &&
-                document.visibilityState === 'hidden'
-              ) {
-                new Notification('New PropAI Alert', {
-                  body: `${item.type} — ${item.bhk} in ${item.location}${item.price ? ' @ ' + item.price : ''}`.trim(),
-                  icon: '/logo.png',
-                });
-              }
-            },
+            scheduleRefresh,
           )
           .subscribe();
 
         const channelItemsChannel = client
-          .channel('inbox-channel-items')
+          .channel('inbox-match-channel-items')
           .on(
             'postgres_changes',
             {
@@ -99,38 +92,7 @@ export function useInbox() {
               table: 'channel_items',
               filter: `tenant_id=eq.${user.id}`,
             },
-            async (payload) => {
-              const streamItemId = (payload.new as Record<string, any>).stream_item_id as string;
-              if (!streamItemId) return;
-
-              const alreadyExists = itemsRef.current.some((existing) => existing.id === streamItemId);
-              if (alreadyExists) return;
-
-              try {
-                const { data } = await client
-                  .from('stream_items')
-                  .select('*')
-                  .eq('id', streamItemId)
-                  .single();
-
-                if (data) {
-                  const item = mapRowToStreamItem(data as Record<string, any>);
-                  setItems((prev) => [item, ...prev]);
-
-                  if (
-                    typeof Notification !== 'undefined' &&
-                    Notification.permission === 'granted' &&
-                    document.visibilityState === 'hidden'
-                  ) {
-                    new Notification('New PropAI Alert', {
-                      body: `${item.type} — ${item.bhk} in ${item.location}${item.price ? ' @ ' + item.price : ''}`.trim(),
-                      icon: '/logo.png',
-                    });
-                  }
-                }
-              } catch {
-              }
-            },
+            scheduleRefresh,
           )
           .subscribe();
 
@@ -145,27 +107,49 @@ export function useInbox() {
     const cleanup = init();
     return () => {
       mounted = false;
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
       const supabase = supabaseRef.current;
       if (supabase) {
-        supabase.removeChannel(supabase.channel('inbox-stream-items'));
-        supabase.removeChannel(supabase.channel('inbox-channel-items'));
+        supabase.removeChannel(supabase.channel('inbox-match-stream-items'));
+        supabase.removeChannel(supabase.channel('inbox-match-channel-items'));
         supabaseRef.current = null;
       }
       cleanup?.then((fn) => fn?.());
     };
   }, [user?.id, user?.token]);
 
-  const markRead = useCallback((id: string) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, isRead: true } : item)));
-    apiMarkRead(id);
+  const markRead = useCallback((matchId: string) => {
+    let streamItemId: string | null = null;
+    setMatches((prev) => prev.map((match) => {
+      if (match.id !== matchId) return match;
+      streamItemId = match.matchedItem.id;
+      return {
+        ...match,
+        isRead: true,
+        matchedItem: { ...match.matchedItem, isRead: true },
+      };
+    }));
+    if (streamItemId) {
+      void apiMarkRead(streamItemId);
+    }
   }, []);
 
   const markAllRead = useCallback(() => {
-    const unreadIds = itemsRef.current.filter((item) => !item.isRead).map((item) => item.id);
-    if (unreadIds.length === 0) return;
-    setItems((prev) => prev.map((item) => ({ ...item, isRead: true })));
-    unreadIds.forEach((id) => apiMarkRead(id));
+    const unreadMatches = matchesRef.current.filter((match) => !match.isRead && !match.matchedItem.isRead);
+    if (unreadMatches.length === 0) return;
+
+    setMatches((prev) => prev.map((match) => ({
+      ...match,
+      isRead: true,
+      matchedItem: { ...match.matchedItem, isRead: true },
+    })));
+
+    const streamItemIds = Array.from(new Set(unreadMatches.map((match) => match.matchedItem.id)));
+    streamItemIds.forEach((id) => { void apiMarkRead(id); });
   }, []);
 
-  return { items, unreadCount, markRead, markAllRead, isLoading };
+  return { matches, unreadCount, markRead, markAllRead, isLoading };
 }

@@ -88,6 +88,16 @@ export type StreamItemRecord = {
     igrTransactions?: IgrTransactionPreview[];
 };
 
+export type InboxMatchRecord = {
+    id: string;
+    sourceItem: StreamItemRecord;
+    matchedItem: StreamItemRecord;
+    matchScore: number;
+    matchReasons: string[];
+    isRead: boolean;
+    createdAt: string;
+};
+
 export type CreateChannelInput = {
     name?: string;
     channelType?: ChannelType;
@@ -1752,6 +1762,84 @@ private dailyBriefingSentKeys = new Set<string>();
         ));
     }
 
+    async listInboxMatches(
+        tenantId: string,
+        networkMode = false,
+        limit = 200,
+    ): Promise<InboxMatchRecord[]> {
+        const accessibleTenantIds = await this.getNetworkTenantIds(tenantId, networkMode);
+        const effectiveLimit = Math.max(50, Math.min(500, limit));
+        const { data, error } = await this.readAcceptedStreamItems(this.db, accessibleTenantIds, {
+            limit: effectiveLimit,
+            orderByCreatedAt: true,
+        });
+
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        const rows = Array.isArray(data) ? data : [];
+        const sourceRows = rows.filter((row: any) => String(row.tenant_id || '') === tenantId);
+        const matches: Array<{
+            source: any;
+            matched: any;
+            score: number;
+            reasons: string[];
+        }> = [];
+
+        for (const source of sourceRows) {
+            if (!this.isMatchableRecord(source)) {
+                continue;
+            }
+
+            for (const candidate of rows) {
+                if (String(candidate.id || '') === String(source.id || '')) {
+                    continue;
+                }
+                if (!this.isOppositeRecordType(source, candidate)) {
+                    continue;
+                }
+
+                const result = this.calculateItemMatchScore(source, candidate);
+                if (result.score <= 0) {
+                    continue;
+                }
+
+                matches.push({
+                    source,
+                    matched: candidate,
+                    score: result.score,
+                    reasons: result.reasons,
+                });
+            }
+        }
+
+        matches.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            return new Date(b.matched.created_at || 0).getTime() - new Date(a.matched.created_at || 0).getTime();
+        });
+
+        const selected = matches.slice(0, effectiveLimit);
+        const sourceMapped = this.enrichSourcePhones(
+            selected.map((match) => this.mapStreamItem(match.source, tenantId)),
+        );
+        const matchedMapped = this.enrichSourcePhones(
+            selected.map((match) => this.mapStreamItem(match.matched, tenantId, Boolean(match.matched.is_read))),
+        );
+
+        const enrichedMatched = await this.enrichWithIgrTransactions(matchedMapped);
+
+        return selected.map((match, index) => ({
+            id: `${match.source.id}:${match.matched.id}`,
+            sourceItem: sourceMapped[index],
+            matchedItem: enrichedMatched[index],
+            matchScore: match.score,
+            matchReasons: match.reasons,
+            isRead: Boolean(match.matched.is_read),
+            createdAt: match.matched.created_at || match.source.created_at || new Date().toISOString(),
+        }));
+    }
+
     async getStreamSummary(
         tenantId: string,
         channelId?: string | null,
@@ -2904,6 +2992,109 @@ ${rawText}
                     created_at: streamItem.created_at || new Date().toISOString(),
                 }, { onConflict: 'channel_id,stream_item_id' });
         }
+    }
+
+    private getRecordKind(item: any) {
+        const recordType = normalize(item?.record_type || '');
+        if (recordType === 'listing' || recordType === 'requirement') {
+            return recordType;
+        }
+
+        const streamType = normalize(item?.type || '');
+        return streamType === 'requirement' ? 'requirement' : 'listing';
+    }
+
+    private isMatchableRecord(item: any) {
+        const kind = this.getRecordKind(item);
+        return kind === 'listing' || kind === 'requirement';
+    }
+
+    private isOppositeRecordType(source: any, candidate: any) {
+        return this.getRecordKind(source) !== this.getRecordKind(candidate);
+    }
+
+    private calculateItemMatchScore(source: any, candidate: any): { score: number; reasons: string[] } {
+        const sourceKind = this.getRecordKind(source);
+        const candidateKind = this.getRecordKind(candidate);
+        if (sourceKind === candidateKind) {
+            return { score: 0, reasons: [] };
+        }
+
+        const sourceLocality = normalize(source.locality || source.parsed_payload?.locality || '');
+        const candidateLocality = normalize(candidate.locality || candidate.parsed_payload?.locality || '');
+        const sourceRaw = normalize(source.raw_text || '');
+        const candidateRaw = normalize(candidate.raw_text || '');
+        const reasons: string[] = [];
+        let score = 0;
+
+        if (sourceLocality && candidateLocality) {
+            if (sourceLocality === candidateLocality || sourceLocality.includes(candidateLocality) || candidateLocality.includes(sourceLocality)) {
+                score += 40;
+                reasons.push(`Locality: ${candidate.locality || source.locality}`);
+            } else if (!sourceRaw.includes(candidateLocality) && !candidateRaw.includes(sourceLocality)) {
+                return { score: 0, reasons: [] };
+            }
+        } else if (sourceLocality || candidateLocality) {
+            const term = sourceLocality || candidateLocality;
+            if (sourceRaw.includes(term) || candidateRaw.includes(term)) {
+                score += 20;
+                reasons.push('Locality mentioned');
+            }
+        }
+
+        const sourceDeal = normalize(source.deal_type || '');
+        const candidateDeal = normalize(candidate.deal_type || '');
+        if (sourceDeal && candidateDeal) {
+            if (sourceDeal !== candidateDeal) return { score: 0, reasons: [] };
+            score += 10;
+            reasons.push(`Deal: ${candidate.deal_type || source.deal_type}`);
+        }
+
+        const sourceCategory = normalize(source.property_category || '');
+        const candidateCategory = normalize(candidate.property_category || '');
+        if (sourceCategory && candidateCategory) {
+            if (sourceCategory !== candidateCategory) return { score: 0, reasons: [] };
+            score += 8;
+        }
+
+        const sourceAsset = normalize(source.asset_class || source.parsed_payload?.assetClass || '');
+        const candidateAsset = normalize(candidate.asset_class || candidate.parsed_payload?.assetClass || '');
+        if (sourceAsset && candidateAsset) {
+            if (sourceAsset !== candidateAsset) return { score: 0, reasons: [] };
+            score += 8;
+            reasons.push(`Asset: ${candidate.asset_class || source.asset_class}`);
+        }
+
+        const sourceBhk = normalize(source.bhk || '');
+        const candidateBhk = normalize(candidate.bhk || '');
+        if (sourceBhk && candidateBhk) {
+            if (sourceBhk !== candidateBhk) return { score: 0, reasons: [] };
+            score += 15;
+            reasons.push(`${candidate.bhk || source.bhk}`);
+        }
+
+        const listing = sourceKind === 'listing' ? source : candidate;
+        const requirement = sourceKind === 'requirement' ? source : candidate;
+        const listingPrice = Number(listing.price_numeric);
+        const requirementPrice = Number(requirement.price_numeric);
+        if (Number.isFinite(listingPrice) && listingPrice > 0 && Number.isFinite(requirementPrice) && requirementPrice > 0) {
+            if (listingPrice > requirementPrice * 1.1) {
+                return { score: 0, reasons: [] };
+            }
+
+            const ratio = Math.min(listingPrice, requirementPrice) / Math.max(listingPrice, requirementPrice);
+            score += ratio >= 0.85 ? 18 : 10;
+            reasons.push('Budget fit');
+        }
+
+        const confidence = Math.max(0, Math.min(100, Number(candidate.confidence_score || 0)));
+        score += Math.round(confidence / 10);
+
+        if (score < 35) {
+            return { score: 0, reasons: [] };
+        }
+
+        return { score, reasons: reasons.slice(0, 4) };
     }
 
     private calculateMatchScore(channel: ChannelRow, streamItem: any) {

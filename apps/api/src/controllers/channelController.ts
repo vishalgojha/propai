@@ -56,6 +56,27 @@ export const listStreamItems = async (req: Request, res: Response) => {
     }
 };
 
+export const listInboxMatches = async (req: Request, res: Response) => {
+    try {
+        const tenantId = getTenantId(req);
+        const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 200;
+        const subscription = await subscriptionService.getSubscription(tenantId, req.user?.email);
+        const networkMode = String(subscription.plan) === 'Pro';
+        const matches = await channelService.listInboxMatches(
+            tenantId,
+            networkMode,
+            Number.isFinite(limit) ? Number(limit) : 200,
+        );
+        res.json({
+            items: matches,
+            network_mode: networkMode,
+            total: matches.length,
+        });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load inbox matches') });
+    }
+};
+
 export const listStreamSummary = async (req: Request, res: Response) => {
     try {
         const tenantId = getTenantId(req);
