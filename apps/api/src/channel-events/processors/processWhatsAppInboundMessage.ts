@@ -232,7 +232,7 @@ async function isSelfChatEnabled(tenantId: string, sessionLabel?: string) {
         ? data.session_data as Record<string, any>
         : {};
 
-    return sessionData.selfChatEnabled === true || sessionData.self_chat_enabled === true;
+    return sessionData.selfChatEnabled === true || sessionData.self_chat_enabled === true || sessionData.self_chat_enabled == null;
 }
 
 async function handleVerificationReply(remoteJid: string) {

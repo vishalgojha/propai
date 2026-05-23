@@ -1208,6 +1208,16 @@ export const getGroupsAudit = async (req: Request, res: Response) => {
         }
 
         const audit = await groupAuditService.getAudit(context.workspaceOwnerId, sessionLabel);
+        if (audit.groups.length === 0 && groups.length === 0) {
+            const dbGroups = await whatsappGroupService.listGroups(context.workspaceOwnerId, {
+                sessionLabel,
+                includeArchived: false,
+            });
+            if (dbGroups.length > 0) {
+                const fallbackAudit = await groupAuditService.getAudit(context.workspaceOwnerId, sessionLabel);
+                return res.json({ success: true, ...fallbackAudit });
+            }
+        }
         res.json({ success: true, ...audit });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to build WhatsApp group audit') });

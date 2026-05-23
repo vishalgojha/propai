@@ -488,9 +488,8 @@ export const Sources: React.FC = () => {
   const currentSessionParseDirectMessages = Boolean(
     currentSession?.sessionData?.parseDirectMessages ?? currentSession?.sessionData?.parse_direct_messages,
   );
-  const currentSessionSelfChatEnabled = Boolean(
-    currentSession?.sessionData?.selfChatEnabled ?? currentSession?.sessionData?.self_chat_enabled,
-  );
+  const currentSessionSelfChatEnabled =
+    currentSession?.sessionData?.selfChatEnabled ?? currentSession?.sessionData?.self_chat_enabled ?? true;
   const isAtDeviceLimit = status.activeCount >= status.limit && !currentSession;
   const primaryConnectedSession = useMemo(
     () => status.sessions.find((session) => session.status === 'connected') || null,
