@@ -308,6 +308,19 @@ type OutboundRecipient = {
   latestAt?: string | null;
 };
 
+type SourcesTab = 'setup' | 'audit' | 'outbound' | 'pricing' | 'logs';
+
+const SOURCE_TABS: Array<{ id: SourcesTab; label: string }> = [
+  { id: 'setup', label: 'Setup' },
+  { id: 'audit', label: 'Audit' },
+  { id: 'outbound', label: 'Outbound' },
+  { id: 'pricing', label: 'Pricing' },
+  { id: 'logs', label: 'Logs' },
+];
+
+const isSourcesTab = (value: string | null): value is SourcesTab =>
+  Boolean(value && SOURCE_TABS.some((tab) => tab.id === value));
+
 const whatsappCapabilities = [
   {
     title: 'Broadcast to groups, brokers, and leads',
@@ -391,19 +404,19 @@ export const Sources: React.FC = () => {
 
   const tabParam = searchParams.get('tab');
   const initialTab = useMemo(() => {
-    if (tabParam && ['setup', 'audit', 'outbound', 'pricing', 'logs'].includes(tabParam)) {
-      return tabParam as 'setup' | 'audit' | 'outbound' | 'pricing' | 'logs';
+    if (isSourcesTab(tabParam)) {
+      return tabParam;
     }
     return location.pathname === '/pricing' ? 'pricing' : 'setup';
   }, [tabParam, location.pathname]);
 
-  const [activeTab, setActiveTab] = useState<'setup' | 'audit' | 'outbound' | 'pricing' | 'logs'>(initialTab);
+  const [activeTab, setActiveTab] = useState<SourcesTab>(initialTab);
 
   // Sync state from query parameters if they change
   useEffect(() => {
     const currentTab = searchParams.get('tab');
-    if (currentTab && ['setup', 'audit', 'outbound', 'pricing', 'logs'].includes(currentTab)) {
-      setActiveTab(currentTab as any);
+    if (isSourcesTab(currentTab)) {
+      setActiveTab(currentTab);
     }
   }, [searchParams]);
 
@@ -832,15 +845,10 @@ export const Sources: React.FC = () => {
     return () => window.clearInterval(interval);
   }, [artifactValue, currentSessionStatus, fetchStatus, status.status]);
 
-  const selectTab = (tab: 'setup' | 'audit' | 'outbound' | 'pricing' | 'logs') => {
+  const selectTab = (tab: SourcesTab) => {
     setActiveTab(tab);
-    if (tab === 'pricing') {
-      navigate('/pricing');
-      return;
-    }
-
-    if (location.pathname === '/pricing') {
-      navigate('/whatsapp');
+    if (location.pathname !== '/whatsapp') {
+      navigate(`/whatsapp?tab=${tab}`);
     }
   };
 
@@ -1492,14 +1500,9 @@ export const Sources: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-1">
-        {[
-          { id: 'setup' as const, label: 'Setup' },
-          { id: 'audit' as const, label: 'Audit' },
-          { id: 'outbound' as const, label: 'Outbound' },
-          { id: 'pricing' as const, label: 'Pricing' },
-          { id: 'logs' as const, label: 'Logs' },
-        ].map((tab) => (
+        {SOURCE_TABS.map((tab) => (
           <button
+            type="button"
             key={tab.id}
             onClick={() => selectTab(tab.id)}
             className={cn(
@@ -1567,60 +1570,50 @@ export const Sources: React.FC = () => {
             ) : null}
 
             {currentSession?.label ? (
-              <div className="mt-5 rounded-[16px] border border-[color:var(--accent-border)] bg-[linear-gradient(135deg,rgba(62,232,138,0.12),rgba(8,15,11,0.92))] p-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="max-w-3xl">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.12)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      Self chat with PropAI
-                    </div>
-
-                  </div>
-                  <div className="flex min-w-[240px] flex-col gap-3 rounded-[14px] border border-[color:var(--border)] bg-[rgba(5,10,8,0.78)] p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Self chat</p>
-                        <p className="mt-1 text-[14px] font-semibold text-[var(--text-primary)]">{selfChatEnabled ? 'Enabled on this number' : 'Off on this number'}</p>
+              <div className="mt-5 rounded-[14px] border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] p-4">
+                <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.12)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        Self chat
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void handleSelfChatAuditToggle()}
-                        disabled={isSavingParsingPrefs || !currentSession?.label}
-                        className={cn(
-                          'relative h-6 w-11 rounded-full border transition-colors disabled:opacity-50',
-                          selfChatEnabled
-                            ? 'border-[color:var(--accent-border)] bg-[var(--accent)]'
-                            : 'border-[color:var(--border)] bg-[var(--bg-base)]',
-                        )}
-                        aria-pressed={selfChatEnabled}
-                        aria-label="Toggle self chat on this number"
-                      >
-                        <span
-                          className={cn(
-                            'absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform',
-                            selfChatEnabled ? 'translate-x-5' : 'translate-x-0.5',
-                          )}
-                        />
-                      </button>
+                      <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                        {selfChatEnabled ? 'Enabled' : 'Off'}
+                      </span>
                     </div>
-                    <p className="text-[11px] leading-5 text-[var(--text-secondary)]">
+                    <h4 className="mt-3 text-[15px] font-semibold text-[var(--text-primary)]">Private PropAI lane on this number</h4>
+                    <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--text-secondary)]">
                       {selfChatEnabled
-                        ? 'You can now use your own WhatsApp chat on this number for requirement extraction, matching, and recall.'
-                        : 'Keep direct parsing off if you want. This only opens your own self chat as a private AI lane.'}
+                        ? 'Your own chat can feed requirements, matching, and recall without enabling every direct message.'
+                        : 'Turn this on when you want your own chat to work as a private AI lane.'}
                     </p>
-                    <div className="rounded-[12px] border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-3">
-                      <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">How to start</p>
-                      <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
-                        Open WhatsApp on this number, open your own self chat, and send:
-                      </p>
-                      <div className="mt-2 inline-flex rounded-[8px] border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.12)] px-3 py-1.5 text-[12px] font-semibold text-[var(--accent)]">
-                        Hi
-                      </div>
-                      <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
-                        PropAI will reply inside your self chat and help with matching, context recall, and the next move when needed.
-                      </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-secondary)]">
+                      <span className="rounded-[8px] border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.12)] px-2.5 py-1 font-semibold text-[var(--accent)]">Send "Hi"</span>
+                      <span>from your self chat to start.</span>
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleSelfChatAuditToggle()}
+                    disabled={isSavingParsingPrefs || !currentSession?.label}
+                    className={cn(
+                      'relative h-7 w-12 rounded-full border transition-colors disabled:opacity-50',
+                      selfChatEnabled
+                        ? 'border-[color:var(--accent-border)] bg-[var(--accent)]'
+                        : 'border-[color:var(--border)] bg-[var(--bg-base)]',
+                    )}
+                    aria-pressed={selfChatEnabled}
+                    aria-label="Toggle self chat on this number"
+                  >
+                    <span
+                      className={cn(
+                        'absolute top-0.5 h-6 w-6 rounded-full bg-white transition-transform',
+                        selfChatEnabled ? 'translate-x-5' : 'translate-x-0.5',
+                      )}
+                    />
+                  </button>
                 </div>
               </div>
             ) : null}
@@ -2228,50 +2221,11 @@ export const Sources: React.FC = () => {
             </div>
           )}
 
-          <div className="mt-5 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-            <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Group coverage</p>
-                <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{groupHealth.length} known groups</span>
-              </div>
-              <div className="pulse-scrollbar mt-3 max-h-[420px] space-y-3 overflow-y-auto pr-1">
-                {groupHealth.length === 0 ? (
-                  <div className="rounded-[10px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
-                    No WhatsApp groups have been synced yet. Once the session is connected and Pulse fetches the group list, they will appear here.
-                  </div>
-                ) : (
-                  groupHealth.map((group) => (
-                    <div key={group.id} className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{group.groupName}</p>
-                        <span className={cn('rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]', getHealthTone(group.status))}>
-                          {group.status}
-                        </span>
-                      </div>
-                      <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Last message</p>
-                          <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{formatDateTime(group.lastMessageAt)}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Received today</p>
-                          <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{group.messagesReceived24h}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Parsed today</p>
-                          <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{group.messagesParsed24h}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
+          <div className="mt-5 grid gap-4 xl:grid-cols-2">
             <div className="space-y-4">
               <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
                 <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Recent session events</p>
-                <div className="pulse-scrollbar mt-3 max-h-[200px] space-y-3 overflow-y-auto pr-1">
+                <div className="pulse-scrollbar mt-3 max-h-[360px] space-y-3 overflow-y-auto pr-1">
                   {eventLogs.length === 0 ? (
                     <div className="rounded-[10px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
                       No lifecycle events yet. Connection, group sync, and disconnect events will show up here.
@@ -2290,28 +2244,29 @@ export const Sources: React.FC = () => {
                 </div>
               </div>
 
-              <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Recent parsed messages</p>
-                <div className="pulse-scrollbar mt-3 max-h-[280px] space-y-3 overflow-y-auto pr-1">
-                  {logs.length === 0 ? (
-                    <div className="rounded-[10px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
-                      No recent WhatsApp messages yet. Once inbound traffic lands, you will see the raw intake here.
-                    </div>
-                  ) : (
-                    logs.map((log) => (
-                      <div key={log.id} className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{log.sender}</p>
-                          <p className="shrink-0 text-[10px] text-[var(--text-secondary)]">
-                            {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'Unknown time'}
-                          </p>
-                        </div>
-                        <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">{log.message}</p>
-                        <p className="mt-2 truncate text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{log.remoteJid || 'No remote JID'}</p>
+            </div>
+
+            <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Recent parsed messages</p>
+              <div className="pulse-scrollbar mt-3 max-h-[360px] space-y-3 overflow-y-auto pr-1">
+                {logs.length === 0 ? (
+                  <div className="rounded-[10px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
+                    No recent WhatsApp messages yet. Once inbound traffic lands, you will see the raw intake here.
+                  </div>
+                ) : (
+                  logs.map((log) => (
+                    <div key={log.id} className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{log.sender}</p>
+                        <p className="shrink-0 text-[10px] text-[var(--text-secondary)]">
+                          {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'Unknown time'}
+                        </p>
                       </div>
-                    ))
-                  )}
-                </div>
+                      <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">{log.message}</p>
+                      <p className="mt-2 truncate text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{log.remoteJid || 'No remote JID'}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
