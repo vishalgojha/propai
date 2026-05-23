@@ -90,6 +90,10 @@ export const Layout: React.FC = () => {
       case '/sources':
       case '/whatsapp':
         return 'WhatsApp';
+      case '/group-audit':
+        return 'Group Audit';
+      case '/wa-logs':
+        return 'WA Logs';
       case '/pricing':
         return 'Pricing';
       case '/docs':

@@ -21,6 +21,7 @@ import {
   WorkflowIcon,
   UsersIcon,
   InboxIcon,
+  MessageSquareIcon,
 } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
 import { useInbox } from '../hooks/useInbox';
@@ -38,6 +39,8 @@ const NAV_ITEMS = [
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'Intelligence', path: '/analytics', icon: ActivityIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
+  { label: 'Group Audit', path: '/group-audit', icon: ShieldIcon },
+  { label: 'WA Logs', path: '/wa-logs', icon: MessageSquareIcon },
   { label: 'Broker Network', path: '/broker-network', icon: UsersIcon },
   { label: 'Profile & Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },

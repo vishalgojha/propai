@@ -318,8 +318,27 @@ const SOURCE_TABS: Array<{ id: SourcesTab; label: string }> = [
   { id: 'logs', label: 'Logs' },
 ];
 
+const WHATSAPP_TABS: Array<{ id: SourcesTab; label: string }> = [
+  { id: 'setup', label: 'Setup' },
+  { id: 'outbound', label: 'Outbound' },
+];
+
 const isSourcesTab = (value: string | null): value is SourcesTab =>
   Boolean(value && SOURCE_TABS.some((tab) => tab.id === value));
+
+const tabForPath = (pathname: string): SourcesTab | null => {
+  if (pathname === '/pricing') return 'pricing';
+  if (pathname === '/group-audit') return 'audit';
+  if (pathname === '/wa-logs') return 'logs';
+  return null;
+};
+
+const pathForTab = (tab: SourcesTab) => {
+  if (tab === 'audit') return '/group-audit';
+  if (tab === 'pricing') return '/pricing';
+  if (tab === 'logs') return '/wa-logs';
+  return `/whatsapp?tab=${tab}`;
+};
 
 const whatsappCapabilities = [
   {
@@ -398,37 +417,47 @@ const sourceFieldClassName =
   'w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]';
 
 export const Sources: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
 
   const tabParam = searchParams.get('tab');
   const initialTab = useMemo(() => {
+    const pathTab = tabForPath(location.pathname);
+    if (pathTab) {
+      return pathTab;
+    }
     if (isSourcesTab(tabParam)) {
       return tabParam;
     }
-    return location.pathname === '/pricing' ? 'pricing' : 'setup';
+    return 'setup';
   }, [tabParam, location.pathname]);
 
   const [activeTab, setActiveTab] = useState<SourcesTab>(initialTab);
 
-  // Sync state from query parameters if they change
+  // Sync state from dedicated routes and legacy query parameters.
   useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    if (isSourcesTab(currentTab)) {
-      setActiveTab(currentTab);
+    const pathTab = tabForPath(location.pathname);
+    if (pathTab) {
+      setActiveTab(pathTab);
+      return;
     }
-  }, [searchParams]);
 
-  // Sync state to query parameters
-  useEffect(() => {
     const currentTab = searchParams.get('tab');
-    if (currentTab !== activeTab) {
-      const nextParams = new URLSearchParams(searchParams.toString());
-      nextParams.set('tab', activeTab);
-      setSearchParams(nextParams, { replace: true });
+    if (currentTab === 'audit' || currentTab === 'pricing' || currentTab === 'logs') {
+      navigate(pathForTab(currentTab), { replace: true });
+      return;
     }
-  }, [activeTab, searchParams, setSearchParams]);
+
+    if (currentTab === 'setup' || currentTab === 'outbound') {
+      setActiveTab(currentTab);
+      return;
+    }
+
+    if (location.pathname === '/whatsapp') {
+      setActiveTab('setup');
+    }
+  }, [location.pathname, navigate, searchParams]);
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [deviceOwnerName, setDeviceOwnerName] = useState('');
@@ -554,16 +583,6 @@ export const Sources: React.FC = () => {
     currentSession?.sessionData?.groupAuditPending
     && !currentSession?.sessionData?.groupAuditCompletedAt,
   );
-
-  useEffect(() => {
-    setActiveTab((current) => {
-      if (location.pathname === '/pricing') {
-        return 'pricing';
-      }
-
-      return current === 'pricing' ? 'setup' : current;
-    });
-  }, [location.pathname]);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -847,9 +866,7 @@ export const Sources: React.FC = () => {
 
   const selectTab = (tab: SourcesTab) => {
     setActiveTab(tab);
-    if (location.pathname !== '/whatsapp') {
-      navigate(`/whatsapp?tab=${tab}`);
-    }
+    navigate(pathForTab(tab));
   };
 
   useEffect(() => {
@@ -865,7 +882,7 @@ export const Sources: React.FC = () => {
   }, [activeTab, fetchHealthLogs]);
 
   const ensureConnectUiVisible = useCallback(() => {
-    if (location.pathname === '/pricing') {
+    if (location.pathname !== '/whatsapp') {
       navigate('/whatsapp');
     }
     if (activeTab !== 'setup') {
@@ -949,11 +966,18 @@ export const Sources: React.FC = () => {
       return;
     }
 
-    if (searchParams.get('audit') === '1' || currentSessionAuditPending) {
+    if (searchParams.get('audit') === '1') {
+      navigate('/group-audit', { replace: true });
+      void fetchGroupAudit(currentSession.label);
+      return;
+    }
+
+    if (location.pathname === '/whatsapp' && currentSessionAuditPending) {
+      navigate('/group-audit', { replace: true });
       setActiveTab('audit');
       void fetchGroupAudit(currentSession.label);
     }
-  }, [currentSession?.label, currentSessionAuditPending, currentSessionStatus, fetchGroupAudit, searchParams]);
+  }, [currentSession?.label, currentSessionAuditPending, currentSessionStatus, fetchGroupAudit, location.pathname, navigate, searchParams]);
 
   useEffect(() => {
     if (currentSessionStatus !== 'connected' || !currentSession?.label) {
@@ -1461,6 +1485,33 @@ export const Sources: React.FC = () => {
   const qrMarkup = artifactMode === 'qr' ? renderedQrMarkup : null;
 
   const planCards = PROPAI_PLAN_CARDS;
+  const pageMeta = {
+    setup: {
+      eyebrow: 'WhatsApp',
+      title: 'Connect and manage WhatsApp ingestion.',
+      copy: 'Connect broker WhatsApp numbers so PropAI can ingest chats, parse groups into Stream, run the assistant, and handle deliberate outbound outreach from the same workspace.',
+    },
+    outbound: {
+      eyebrow: 'WhatsApp outbound',
+      title: 'Send controlled WhatsApp outreach from approved lanes.',
+      copy: 'Select a connected sender, choose groups or contacts, and send deliberate outbound messages without turning the ingestion setup into a logging console.',
+    },
+    audit: {
+      eyebrow: 'Group Audit',
+      title: 'Review synced WhatsApp groups before they feed Stream.',
+      copy: 'Score group signal, overlap, and noise in a dedicated audit surface, then decide exactly which groups PropAI should parse.',
+    },
+    pricing: {
+      eyebrow: 'Pricing',
+      title: 'Plan access for PropAI WhatsApp and Stream.',
+      copy: 'Review device limits, team pricing, and referral terms without mixing billing decisions into the WhatsApp operations page.',
+    },
+    logs: {
+      eyebrow: 'WA Logs',
+      title: 'Monitor WhatsApp health, lifecycle events, and parsing coverage.',
+      copy: 'Use this dedicated log view for ingestion health, recent session events, support bundles, and parsed message checks.',
+    },
+  }[activeTab];
 
   return (
     <div className="space-y-8">
@@ -1469,13 +1520,13 @@ export const Sources: React.FC = () => {
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
               <Smartphone className="h-3.5 w-3.5" />
-              WhatsApp
+              {pageMeta.eyebrow}
             </div>
             <h2 className="mt-4 text-[28px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">
-              WhatsApp is the ingestion engine that powers Stream.
+              {pageMeta.title}
             </h2>
             <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              Connect broker WhatsApp numbers here so PropAI can ingest chats, parse groups into Stream, run the assistant, and handle deliberate outbound outreach from the same workspace.
+              {pageMeta.copy}
             </p>
           </div>
 
@@ -1499,8 +1550,9 @@ export const Sources: React.FC = () => {
         </div>
       </div>
 
+      {activeTab === 'setup' || activeTab === 'outbound' ? (
       <div className="flex items-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-1">
-        {SOURCE_TABS.map((tab) => (
+        {WHATSAPP_TABS.map((tab) => (
           <button
             type="button"
             key={tab.id}
@@ -1516,7 +1568,9 @@ export const Sources: React.FC = () => {
           </button>
         ))}
       </div>
+      ) : null}
 
+      {activeTab === 'setup' || activeTab === 'audit' ? (
       <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="max-w-3xl">
@@ -1529,6 +1583,7 @@ export const Sources: React.FC = () => {
 
         </div>
       </div>
+      ) : null}
 
       {activeTab === 'audit' ? (
         <div className="space-y-6">
