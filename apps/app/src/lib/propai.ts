@@ -3,6 +3,8 @@ export const PROPAI_ASSISTANT_PHONE_DIGITS = '7021045254';
 export const PROPAI_ASSISTANT_PREFILL =
   'Hi PropAI Assistant, I need help with my Pulse agent setup.';
 export const PROPAI_ASSISTANT_WA_LINK = `https://wa.me/917021045254?text=${encodeURIComponent(PROPAI_ASSISTANT_PREFILL)}`;
+export const PROPAI_CONNECT_PREFILL = 'Hi PropAI Assistant, I want to connect my WhatsApp number to start receiving property leads.';
+export const PROPAI_CONNECT_WA_LINK = `https://wa.me/917021045254?text=${encodeURIComponent(PROPAI_CONNECT_PREFILL)}`;
 export const PROPAI_PLAN_CARDS = [
   {
     name: 'Trial',

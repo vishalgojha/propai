@@ -508,7 +508,7 @@ const extractPriceInfo = (text: string, dealTypeHint?: string) => {
     const isRent = dealTypeHint === 'rent' || 
         lower.includes('rent') || lower.includes('rental') ||
         lower.includes('lease') || lower.includes(' pm') || lower.includes('/month') ||
-        lower.includes('per month') || lower.includes(' r') || lower.includes('-r');
+        lower.includes('per month');
     
     // Extract price tokens without regex
     const words = text.split(/\s+/);
@@ -2560,7 +2560,12 @@ ${rawText}
                         : extractDealType(candidateText);
                 const priceInfo = extractPriceInfo(candidateText, dealType);
                 const priceLabel = String(item.priceLabel || '').trim() || priceInfo.label || null;
-                const priceNumeric = typeof item.priceNumeric === 'number' && Number.isFinite(item.priceNumeric) ? item.priceNumeric : priceInfo.numeric;
+                const rawAiNumeric = typeof item.priceNumeric === 'number' && Number.isFinite(item.priceNumeric) ? item.priceNumeric : null;
+                const isRentType = streamType === 'Rent';
+                const priceNumeric = rawAiNumeric != null && (
+                    (isRentType && rawAiNumeric >= 1000 && rawAiNumeric <= 10000000) ||
+                    (!isRentType && rawAiNumeric >= 100000)
+                ) ? rawAiNumeric : priceInfo.numeric;
                 const bhk = String(item.bhk || '').trim() || extractBhk(candidateText);
                 const normalizedBhk = bhk === 'N/A' ? null : bhk;
                 const assetClass =
@@ -2992,7 +2997,6 @@ ${rawText}
         const inferredBuildingName = String(item.parsed_payload?.buildingName || '').trim() || extractBuildingName(rawText);
         const inferredMicroLocation = String(item.parsed_payload?.microLocation || '').trim() || extractMicroLocation(rawText);
         const inferredTitle = buildDisplayTitle(inferredBuildingName, inferredMicroLocation, locality || 'Mumbai market');
-        const inferredPrice = extractPriceInfo(rawText, dealType);
         const propertyCategory = item.property_category === 'commercial' ? 'commercial' : 'residential';
         const areaSqft = item.area_sqft != null && Number.isFinite(Number(item.area_sqft))
             ? Number(item.area_sqft)
@@ -3028,7 +3032,7 @@ ${rawText}
             buildingName: inferredBuildingName || null,
             microLocation: inferredMicroLocation || null,
             city: item.city || undefined,
-            price: String(item.price_label || '').trim() || inferredPrice.label || '',
+            price: String(item.price_label || '').trim() || '',
             priceNumeric: item.price_numeric != null ? Number(item.price_numeric) : null,
             bhk: inferredBhk,
             propertyCategory,

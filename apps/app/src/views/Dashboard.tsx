@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
-import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_PLAN_CARDS } from '../lib/propai';
+import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_CONNECT_WA_LINK, PROPAI_PLAN_CARDS } from '../lib/propai';
 
 const DASHBOARD_CACHE_KEY = 'propai.dashboard_cache';
 
@@ -118,15 +118,16 @@ const EmptyState: React.FC = () => {
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/whatsapp')}
-              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[12px] font-semibold text-[#020f07] transition hover:brightness-95"
-            >
-              <Sparkles className="h-4 w-4" />
-              Connect WhatsApp
-              <ArrowRight className="h-4 w-4" />
-            </button>
+              <a
+                href={PROPAI_CONNECT_WA_LINK}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[12px] font-semibold text-[#020f07] transition hover:brightness-95"
+              >
+                <Sparkles className="h-4 w-4" />
+                Connect WhatsApp
+                <ArrowRight className="h-4 w-4" />
+              </a>
             <button
               type="button"
               onClick={() => navigate('/history-sync')}
@@ -500,7 +501,13 @@ export const Dashboard: React.FC = () => {
           hint={whatsappHint}
           icon={<Activity className="h-5 w-5" />}
           tone={whatsapp?.status === 'connected' ? 'good' : whatsapp?.status === 'connecting' ? 'warn' : 'neutral'}
-          onClick={() => navigate('/whatsapp')}
+          onClick={() => {
+            if (whatsapp?.status === 'connected') {
+              navigate('/whatsapp');
+            } else {
+              window.open(PROPAI_CONNECT_WA_LINK, '_blank', 'noopener');
+            }
+          }}
           cta={whatsapp?.status === 'connected' ? 'Manage sources' : 'Connect now'}
         />
         <StatCard
@@ -542,7 +549,13 @@ export const Dashboard: React.FC = () => {
             : 'Connect WhatsApp to start live group parsing and auto-capture.'}
           icon={<ArrowRight className="h-5 w-5" />}
           tone={isConnected ? (unread > 0 ? 'warn' : 'good') : 'warn'}
-          onClick={() => navigate(isConnected ? (unread > 0 ? '/stream' : '/agent') : '/whatsapp')}
+          onClick={() => {
+            if (isConnected) {
+              navigate(unread > 0 ? '/stream' : '/agent');
+            } else {
+              window.open(PROPAI_CONNECT_WA_LINK, '_blank', 'noopener');
+            }
+          }}
           cta="Go"
         />
       </div>
