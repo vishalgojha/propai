@@ -10,7 +10,7 @@
   --color-propai-green-dim: rgba(62, 232, 138, 0.12);
   --color-on-propai-green: #0D1A12;
 
-  --color-bg-base: #090d12;
+  --color-bg-base: #000;
   --color-bg-surface: #0d1117;
   --color-bg-elevated: #111820;
   --color-bg-hover: #141c26;
@@ -49,15 +49,48 @@
 
 @layer base {
   body {
-    background: 
-      radial-gradient(circle at top left, rgba(62, 232, 138, 0.08), transparent 28%),
-      radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.05), transparent 30%),
-      linear-gradient(180deg, #090d12 0%, #090d12 100%);
+    background: #000;
     color: var(--color-text-primary);
     min-height: 100vh;
     scrollbar-width: thin;
     scrollbar-color: rgba(71, 85, 105, 0.46) transparent;
   }
+}
+
+[data-theme="light"] {
+  --color-bg-base: #f8f9fa;
+  --color-bg-surface: #ffffff;
+  --color-bg-elevated: #f0f2f5;
+  --color-bg-hover: #e8eaed;
+
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-strong: rgba(0, 0, 0, 0.15);
+
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #64748b;
+  --color-text-ghost: #9ca3af;
+
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+  --text-ghost: var(--color-text-ghost);
+
+  --color-accent-dim: #e5f7ed;
+  --accent-dim: var(--color-accent-dim);
+  --color-accent-border: #b8e6cd;
+  --accent-border: var(--color-accent-border);
+  --color-accent-glow: rgba(62, 232, 138, 0.12);
+  --accent-glow: var(--color-accent-glow);
+
+  --color-red-dim: rgba(239, 68, 68, 0.08);
+  --color-amber-dim: rgba(245, 158, 11, 0.08);
+  --color-blue-dim: rgba(59, 130, 246, 0.08);
+  --color-purple-dim: rgba(168, 85, 247, 0.08);
+}
+
+[data-theme="light"] body {
+  background: #f8f9fa;
 }
 
 @keyframes pulse-stream-in {
