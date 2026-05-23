@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CheckCircle2,
@@ -432,6 +432,7 @@ export const Sources: React.FC = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const connectIntentConsumedRef = useRef(false);
 
   const tabParam = searchParams.get('tab');
   const initialTab = useMemo(() => {
@@ -903,10 +904,22 @@ export const Sources: React.FC = () => {
   }, [activeTab, location.pathname, navigate]);
 
   useEffect(() => {
-    if (searchParams.get('connect') === '1') {
-      ensureConnectUiVisible();
-      void handleConnect();
+    if (searchParams.get('connect') !== '1') {
+      connectIntentConsumedRef.current = false;
+      return;
     }
+
+    if (connectIntentConsumedRef.current) {
+      return;
+    }
+
+    connectIntentConsumedRef.current = true;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('connect');
+    const nextSearch = nextParams.toString();
+    setActiveTab('setup');
+    navigate(`/whatsapp${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
+    void handleConnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
