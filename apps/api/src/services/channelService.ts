@@ -2143,17 +2143,27 @@ private dailyBriefingSentKeys = new Set<string>();
                 continue;
             }
 
-            if (parsed.recordType === 'requirement' && parsed.sourcePhone && parsed.locality) {
-                const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-                const { data: dupe } = await this.db
+            if (['listing', 'requirement'].includes(parsed.recordType) && parsed.locality) {
+                const windowMinutes = parsed.recordType === 'requirement' ? 24 * 60 : 10;
+                const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
+                const query = this.db
                     .from('stream_items')
                     .select('id, ingestion_status')
                     .eq('tenant_id', tenantId)
-                    .eq('source_phone', parsed.sourcePhone)
                     .eq('locality', parsed.locality)
-                    .eq('raw_text', parsed.rawText)
-                    .eq('record_type', 'requirement')
-                    .gte('created_at', cutoff)
+                    .eq('record_type', parsed.recordType)
+                    .gte('created_at', cutoff);
+
+                if (parsed.recordType === 'listing') {
+                    if (parsed.bhk) query.eq('bhk', parsed.bhk);
+                    if (parsed.priceNumeric != null) query.eq('price_numeric', parsed.priceNumeric);
+                    if (parsed.sourcePhone) query.eq('source_phone', parsed.sourcePhone);
+                } else {
+                    if (parsed.sourcePhone) query.eq('source_phone', parsed.sourcePhone);
+                    if (parsed.rawText) query.eq('raw_text', parsed.rawText);
+                }
+
+                const { data: dupe } = await query
                     .order('created_at', { ascending: false })
                     .limit(1)
                     .maybeSingle();
