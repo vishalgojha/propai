@@ -1845,7 +1845,7 @@ export const Sources: React.FC = () => {
                               'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
                               selected
                                 ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
-                                : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)]',
+                                : 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
                             )}>
                               {selected ? 'Parsing after audit' : 'Won’t parse'}
                             </span>
@@ -1893,7 +1893,10 @@ export const Sources: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setSelectedAuditParseIds((current) => current.filter((id) => id !== group.id))}
-                          className={sourceSecondaryButton}
+                          className={cn(
+                            sourceSecondaryButton,
+                            !selected && 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)] hover:bg-[rgba(239,68,68,0.12)]',
+                          )}
                         >
                           Keep out of Stream
                         </button>
