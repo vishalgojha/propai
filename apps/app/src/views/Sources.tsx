@@ -842,16 +842,6 @@ export const Sources: React.FC = () => {
     if (location.pathname === '/pricing') {
       navigate('/whatsapp');
     }
-
-    if (tab === 'logs') {
-      setSupportLogsFeedback(null);
-      void fetchLogs();
-      void fetchHealth();
-      void fetchHealthLogs();
-    }
-    if (tab === 'audit') {
-      void fetchGroupAudit();
-    }
   };
 
   useEffect(() => {
@@ -938,7 +928,13 @@ export const Sources: React.FC = () => {
     if (activeTab === 'audit') {
       void fetchGroupAudit();
     }
-  }, [activeTab, fetchGroupAudit, fetchOutboundWorkspace]);
+    if (activeTab === 'logs') {
+      setSupportLogsFeedback(null);
+      void fetchLogs();
+      void fetchHealth();
+      void fetchHealthLogs();
+    }
+  }, [activeTab, fetchGroupAudit, fetchOutboundWorkspace, fetchLogs, fetchHealth, fetchHealthLogs]);
 
   useEffect(() => {
     if (currentSessionStatus !== 'connected' || !currentSession?.label) {
