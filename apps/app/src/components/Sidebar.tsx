@@ -36,6 +36,7 @@ const NAV_ITEMS = [
   { label: 'AI Agent', path: '/agent', icon: ActivityIcon },
   { label: 'Inbox', path: '/inbox', icon: InboxIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
+  { label: 'Intelligence', path: '/analytics', icon: ActivityIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
   { label: 'Broker Network', path: '/broker-network', icon: UsersIcon },
   { label: 'Profile & Team', path: '/team', icon: ShieldIcon },

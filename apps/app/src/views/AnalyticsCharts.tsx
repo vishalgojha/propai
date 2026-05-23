@@ -13,6 +13,7 @@ import {
   Title,
   Tooltip,
 } from 'chart.js';
+import { formatPriceNumeric } from '../lib/formatPrice';
 
 ChartJS.register(
   CategoryScale,
@@ -27,15 +28,7 @@ ChartJS.register(
   Filler,
 );
 
-type AnalyticsTab = 'volume' | 'demandsupply' | 'locations' | 'brokers';
-
-type AnalyticsChartsProps = {
-  activeTab: AnalyticsTab;
-  data: any;
-};
-
-const DAYS7 = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const TT = {
+export const TT = {
   backgroundColor: '#1e1e22',
   titleColor: '#e8e6e0',
   bodyColor: '#a09d96',
@@ -46,133 +39,287 @@ const TT = {
   titleFont: { family: 'Syne', size: 11 },
   bodyFont: { family: 'DM Mono', size: 10 },
 };
-const SC = {
-  x: { grid: { color: 'rgba(255,255,255,0.05)', drawTicks: false }, ticks: { color: '#3a3835', font: { family: 'DM Mono', size: 9 }, maxRotation: 0 }, border: { display: false } },
-  y: { grid: { color: 'rgba(255,255,255,0.05)', drawTicks: false }, ticks: { color: '#3a3835', font: { family: 'DM Mono', size: 9 } }, border: { display: false } },
+
+export const SC = {
+  x: {
+    grid: { color: 'rgba(255,255,255,0.05)', drawTicks: false },
+    ticks: { color: '#7c7972', font: { family: 'DM Mono', size: 9 }, maxRotation: 0 },
+    border: { display: false },
+  },
+  y: {
+    grid: { color: 'rgba(255,255,255,0.05)', drawTicks: false },
+    ticks: { color: '#7c7972', font: { family: 'DM Mono', size: 9 } },
+    border: { display: false },
+  },
 };
 
-const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ activeTab, data }) => {
-  const dailyVolumeData = {
-    labels: data.dailyVolume.map((d: any) => DAYS7[new Date(d.date).getDay()]),
+type DailyVolume = { date: string; supply: number; demand: number };
+type BhkDemand = { bhk: string; listings: number; requirements: number; gap: number };
+type PriceRange = { locality: string; bhk: string; minPrice: number; maxPrice: number; avgPrice: number; count: number };
+type VelocityPoint = { date: string; newListings: number; newRequirements: number; netDemand: number };
+
+const legend = {
+  labels: {
+    color: '#a09d96',
+    font: { family: 'DM Mono', size: 9 },
+    boxWidth: 8,
+    usePointStyle: true,
+    padding: 12,
+  },
+};
+
+const dateLabel = (date: string) => {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+};
+
+export function DailySupplyDemandChart({ rows }: { rows: DailyVolume[] }) {
+  const data = {
+    labels: rows.map((row) => dateLabel(row.date)),
     datasets: [
-      { label: 'Supply', data: data.dailyVolume.map((d: any) => d.supply), backgroundColor: 'rgba(106,176,232,0.5)', borderRadius: 3, stack: 's' },
-      { label: 'Demand', data: data.dailyVolume.map((d: any) => d.demand), backgroundColor: 'rgba(232,201,122,0.75)', borderRadius: 3, stack: 's' },
+      {
+        label: 'Supply',
+        data: rows.map((row) => row.supply),
+        backgroundColor: 'rgba(106,176,232,0.5)',
+        borderRadius: 4,
+        stack: 'volume',
+      },
+      {
+        label: 'Demand',
+        data: rows.map((row) => row.demand),
+        backgroundColor: 'rgba(232,201,122,0.75)',
+        borderRadius: 4,
+        stack: 'volume',
+      },
     ],
   };
 
-  const hourlyData = {
-    labels: data.hourlyActivity.map((h: any) => h.hour),
-    datasets: [{
-      data: data.hourlyActivity.map((h: any) => h.count),
-      borderColor: '#e8c97a',
-      backgroundColor: 'rgba(232,201,122,0.07)',
-      borderWidth: 1.5,
-      fill: true,
-      tension: 0.4,
-      pointRadius: 0,
-    }],
-  };
+  return (
+    <Bar
+      data={data}
+      options={{
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'top', ...legend }, tooltip: TT },
+        scales: { x: { ...SC.x, stacked: true }, y: { ...SC.y, stacked: true, beginAtZero: true } },
+      }}
+    />
+  );
+}
 
-  const typeDistData = {
-    labels: Object.keys(data.typeDistribution || {}),
-    datasets: [{
-      data: Object.values(data.typeDistribution || {}),
-      backgroundColor: ['rgba(107,207,143,0.7)', 'rgba(106,176,232,0.7)', 'rgba(232,201,122,0.8)'],
-      borderColor: '#0c0c0e',
-      borderWidth: 3,
-    }],
+export function BhkGapChart({ rows }: { rows: BhkDemand[] }) {
+  const data = {
+    labels: rows.map((row) => row.bhk),
+    datasets: [
+      {
+        label: 'Gap',
+        data: rows.map((row) => row.gap),
+        backgroundColor: rows.map((row) => row.gap >= 0 ? 'rgba(62,232,138,0.68)' : 'rgba(224,112,112,0.68)'),
+        borderColor: rows.map((row) => row.gap >= 0 ? 'rgba(62,232,138,0.9)' : 'rgba(224,112,112,0.9)'),
+        borderWidth: 1,
+        borderRadius: 4,
+      },
+    ],
   };
 
   return (
-    <>
-      {activeTab === 'volume' && (
-        <div className="tab-content">
-          <div className="grid grid-cols-2 gap-2.5 mb-2.5">
-            <div className="panel bg-[#141416] border border-[rgba(255,255,255,0.05)] rounded-[10px] p-4">
-              <div className="panel-label font-mono text-[9px] text-[#3a3835] uppercase tracking-[0.1em] mb-3.5">Daily volume - 7 days</div>
-              <div className="chart-wrap relative h-[180px]">
-                <Bar data={dailyVolumeData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top', labels: { color: '#a09d96', font: { family: 'DM Mono', size: 9 }, boxWidth: 8, usePointStyle: true, padding: 12 } }, tooltip: TT }, scales: SC }} />
-              </div>
-            </div>
-            <div className="panel bg-[#141416] border border-[rgba(255,255,255,0.05)] rounded-[10px] p-4">
-              <div className="panel-label font-mono text-[9px] text-[#3a3835] uppercase tracking-[0.1em] mb-3.5">Hourly activity today</div>
-              <div className="chart-wrap relative h-[180px]">
-                <Line data={hourlyData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: TT }, scales: SC }} />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'demandsupply' && (
-        <div className="tab-content">
-          <div className="grid grid-cols-2 gap-2.5 mb-2.5">
-            <div className="panel bg-[#141416] border border-[rgba(255,255,255,0.05)] rounded-[10px] p-4">
-              <div className="panel-label font-mono text-[9px] text-[#3a3835] uppercase tracking-[0.1em] mb-3.5">Listing type split</div>
-              <div className="chart-wrap relative h-[180px]">
-                <Doughnut data={typeDistData} options={{ responsive: true, maintainAspectRatio: false, cutout: '68%', plugins: { legend: { display: true, position: 'bottom', labels: { color: '#a09d96', font: { family: 'DM Mono', size: 9 }, boxWidth: 8, usePointStyle: true, padding: 10 } }, tooltip: TT } }} />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'locations' && (
-        <div className="tab-content">
-          <div className="panel bg-[#141416] border border-[rgba(255,255,255,0.05)] rounded-[10px] p-4 mb-2.5">
-            <div className="panel-label font-mono text-[9px] text-[#3a3835] uppercase tracking-[0.1em] mb-3.5">Supply vs Demand by Location</div>
-            {data.topLocations.map((loc: any) => (
-              <div key={loc.name} className="loc-row flex items-center gap-2 py-2 border-b border-[rgba(255,255,255,0.03)] last:border-none">
-                <div className="loc-name text-[11px] text-[#a09d96] w-24 flex-shrink-0">{loc.name}</div>
-                <div className="loc-bars flex-1 flex flex-col gap-0.5">
-                  <div className="loc-bar-row flex items-center gap-1.5">
-                    <div className="loc-dot w-1.5 h-1.5 rounded-full flex-shrink-0 bg-[#6ab0e8]"></div>
-                    <div className="loc-track flex-1 h-1 bg-[rgba(255,255,255,0.04)] rounded-sm overflow-hidden">
-                      <div className="loc-fill h-full rounded-sm bg-[#6ab0e8] opacity-60" style={{ width: `${Math.min(100, (loc.supply / (data.topLocations[0]?.supply || 1)) * 100)}%` }}></div>
-                    </div>
-                    <div className="loc-num font-mono text-[9px] text-[#3a3835] w-6 text-right">{loc.supply}</div>
-                  </div>
-                  <div className="loc-bar-row flex items-center gap-1.5">
-                    <div className="loc-dot w-1.5 h-1.5 rounded-full flex-shrink-0 bg-[#e8c97a]"></div>
-                    <div className="loc-track flex-1 h-1 bg-[rgba(255,255,255,0.04)] rounded-sm overflow-hidden">
-                      <div className="loc-fill h-full rounded-sm bg-[#e8c97a] opacity-80" style={{ width: `${Math.min(100, (loc.demand / (data.topLocations[0]?.supply || 1)) * 100)}%` }}></div>
-                    </div>
-                    <div className="loc-num font-mono text-[9px] text-[#3a3835] w-6 text-right">{loc.demand}</div>
-                  </div>
-                </div>
-                <div className={`badge font-mono text-[9px] px-1.5 py-0.5 rounded-[10px] flex-shrink-0 ${
-                  loc.gap === 'hot' ? 'bg-[rgba(107,207,143,0.12)] text-[#6bcf8f]' :
-                  loc.gap === 'balanced' ? 'bg-[rgba(232,201,122,0.12)] text-[#e8c97a]' :
-                  'bg-[rgba(224,112,112,0.12)] text-[#e07070]'
-                }`}>{loc.gap}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'brokers' && (
-        <div className="tab-content">
-          <div className="panel bg-[#141416] border border-[rgba(255,255,255,0.05)] rounded-[10px] p-4 mb-2.5">
-            <div className="panel-label font-mono text-[9px] text-[#3a3835] uppercase tracking-[0.1em] mb-3.5">Top Brokers by Volume</div>
-            {data.topBrokers.map((b: any, i: number) => (
-              <div key={b.phone} className="broker-row flex items-center gap-2 py-1.5 border-b border-[rgba(255,255,255,0.03)] last:border-none">
-                <div className="bav w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-semibold flex-shrink-0" style={{
-                  background: i === 0 ? 'rgba(107,207,143,0.12)' : i === 1 ? 'rgba(232,201,122,0.12)' : 'rgba(106,176,232,0.12)',
-                  color: i === 0 ? '#6bcf8f' : i === 1 ? '#e8c97a' : '#6ab0e8',
-                }}>{b.phone.slice(-2)}</div>
-                <div className="bname flex-1 text-[11px] text-[#a09d96]">{b.phone}</div>
-                <div className="btrack w-14 h-1 bg-[rgba(255,255,255,0.04)] rounded-sm overflow-hidden">
-                  <div className="bfill h-full rounded-sm bg-[#e8c97a] opacity-50" style={{ width: `${(b.count / (data.topBrokers[0]?.count || 1)) * 100}%` }}></div>
-                </div>
-                <div className="bcount font-mono text-[10px] text-[#4a4845] w-6 text-right">{b.count}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </>
+    <Bar
+      data={data}
+      options={{
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            ...TT,
+            callbacks: {
+              afterLabel: (context: any) => {
+                const row = rows[context.dataIndex];
+                return row ? `Listings: ${row.listings} / Requirements: ${row.requirements}` : '';
+              },
+            },
+          },
+        },
+        scales: {
+          x: { ...SC.x, beginAtZero: true },
+          y: SC.y,
+        },
+      }}
+    />
   );
-};
+}
 
-export default AnalyticsCharts;
+export function TypeDistributionChart({ values }: { values: Record<string, number> }) {
+  const labels = Object.keys(values || {});
+  const data = {
+    labels,
+    datasets: [
+      {
+        data: labels.map((label) => values[label]),
+        backgroundColor: [
+          'rgba(62,232,138,0.72)',
+          'rgba(106,176,232,0.7)',
+          'rgba(232,201,122,0.8)',
+          'rgba(224,112,112,0.68)',
+          'rgba(167,139,250,0.68)',
+        ],
+        borderColor: '#0c0c0e',
+        borderWidth: 3,
+      },
+    ],
+  };
+
+  return (
+    <Doughnut
+      data={data}
+      options={{
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '68%',
+        plugins: { legend: { display: true, position: 'bottom', ...legend }, tooltip: TT },
+      }}
+    />
+  );
+}
+
+export function PriceByLocalityChart({ rows }: { rows: PriceRange[] }) {
+  const chartRows = rows.slice(0, 14);
+  const data = {
+    labels: chartRows.map((row) => row.locality),
+    datasets: [
+      {
+        label: 'Avg price',
+        data: chartRows.map((row) => row.avgPrice),
+        backgroundColor: 'rgba(62,232,138,0.58)',
+        borderColor: 'rgba(62,232,138,0.88)',
+        borderWidth: 1,
+        borderRadius: 4,
+      },
+    ],
+  };
+
+  return (
+    <Bar
+      data={data}
+      options={{
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            ...TT,
+            callbacks: {
+              label: (context: any) => ` Avg: ${formatPriceNumeric(Number(context.raw || 0))}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            ...SC.x,
+            ticks: {
+              ...SC.x.ticks,
+              callback: (value: string | number) => formatPriceNumeric(Number(value)),
+            },
+          },
+          y: SC.y,
+        },
+      }}
+    />
+  );
+}
+
+export function VelocityLineChart({ rows }: { rows: VelocityPoint[] }) {
+  const data = {
+    labels: rows.map((row) => dateLabel(row.date)),
+    datasets: [
+      {
+        label: 'New listings',
+        data: rows.map((row) => row.newListings),
+        borderColor: 'rgba(106,176,232,0.95)',
+        backgroundColor: 'rgba(106,176,232,0.14)',
+        fill: true,
+        tension: 0.36,
+        pointRadius: 2,
+        pointHoverRadius: 4,
+      },
+      {
+        label: 'New requirements',
+        data: rows.map((row) => row.newRequirements),
+        borderColor: 'rgba(232,201,122,0.95)',
+        backgroundColor: 'rgba(232,201,122,0.16)',
+        fill: true,
+        tension: 0.36,
+        pointRadius: 2,
+        pointHoverRadius: 4,
+      },
+    ],
+  };
+
+  return (
+    <Line
+      data={data}
+      options={{
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'top', ...legend }, tooltip: TT },
+        scales: { x: SC.x, y: { ...SC.y, beginAtZero: true } },
+      }}
+    />
+  );
+}
+
+export function NetDemandChart({ rows }: { rows: VelocityPoint[] }) {
+  const positive = rows.map((row) => Math.max(0, row.netDemand));
+  const negative = rows.map((row) => Math.min(0, row.netDemand));
+  const data = {
+    labels: rows.map((row) => dateLabel(row.date)),
+    datasets: [
+      {
+        label: 'Demand exceeding supply',
+        data: positive,
+        borderColor: 'rgba(62,232,138,0.95)',
+        backgroundColor: 'rgba(62,232,138,0.16)',
+        fill: 'origin',
+        tension: 0.35,
+        pointRadius: 0,
+      },
+      {
+        label: 'Supply exceeding demand',
+        data: negative,
+        borderColor: 'rgba(224,112,112,0.95)',
+        backgroundColor: 'rgba(224,112,112,0.16)',
+        fill: 'origin',
+        tension: 0.35,
+        pointRadius: 0,
+      },
+    ],
+  };
+
+  return (
+    <Line
+      data={data}
+      options={{
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'top', ...legend }, tooltip: TT },
+        scales: {
+          x: SC.x,
+          y: {
+            ...SC.y,
+            grid: {
+              color: (context: any) => context.tick.value === 0 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.05)',
+              drawTicks: false,
+            },
+          },
+        },
+      }}
+    />
+  );
+}
+
+export default function AnalyticsCharts() {
+  return null;
+}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { MessageSquare, Clock, ExternalLink, ChevronUp, ChevronDown, Copy, Save, MapPin, Check, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { formatPriceNumeric } from '../../lib/formatPrice';
 import { logWaClick, fetchWaClickListingLog, type WaClickListingLog } from '../../services/waClickAPI';
 import { PROPAI_ASSISTANT_PHONE_DIGITS } from '../../lib/propai';
 import type { StreamItem } from '../../services/streamAPI';
@@ -21,17 +22,7 @@ function formatPriceDisplay(item: StreamItem): string | null {
     if (numeric == null || !Number.isFinite(numeric)) {
         return item.price || null;
     }
-
-    if (item.type === 'Rent') {
-        if (numeric >= 100000) return `₹${(numeric / 100000).toFixed(1).replace(/\.0$/, '')}L/mo`;
-        if (numeric >= 1000) return `₹${Math.round(numeric / 1000)}K/mo`;
-        return `₹${Math.round(numeric)}/mo`;
-    }
-
-    if (numeric >= 10000000) return `₹${(numeric / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-    if (numeric >= 100000) return `₹${(numeric / 100000).toFixed(1).replace(/\.0$/, '')} L`;
-    if (numeric >= 1000) return `₹${Math.round(numeric / 1000)}K`;
-    return `₹${Math.round(numeric).toLocaleString('en-IN')}`;
+    return formatPriceNumeric(numeric, item.type);
 }
 
 function formatPricePerSqft(item: StreamItem): string | null {
