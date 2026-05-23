@@ -149,7 +149,7 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
                     <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-[var(--accent-glow)]">
                       <Zap className="h-3 w-3 text-[var(--accent)] fill-[var(--accent)] animate-pulse" />
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[var(--accent)]">Encrypted Broadcast Stream</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[var(--accent)]">Direct Broker Listing</span>
                   </div>
                   <div className="text-[10px] font-mono text-[var(--text-muted)] opacity-50">
                     ID: {listing.id.slice(0, 8)} | SYNC_OK

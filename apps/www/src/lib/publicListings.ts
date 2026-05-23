@@ -175,15 +175,15 @@ function slugifyBhk(bhk: string) {
   return match ? `${match[1]}-bhk` : bhk.toLowerCase().replace(/\s+/g, "-");
 }
 
-function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; fullName: string | null }>): PublicListing {
+function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; fullName: string | null }>): PublicListing | null {
   const data = (row.structured_data || {}) as Record<string, unknown>;
   const rawText = String(row.raw_text || "");
   const title = pickString(data.title, data.name, data.displayTitle) || inferTitle(rawText) || "Property Listing";
   const location =
     pickString(data.location, data.locality, data.locality_canonical, data.address, data.area) ||
-    inferLocation(rawText) ||
-    "Unknown locality";
-  const locality = normalizeLocality(location);
+    inferLocation(rawText);
+  const locality = normalizeLocality(location || "");
+  if (!isListableLocation(locality)) return null;
   const bhk = pickString(data.bhk, data.layout, data.property_type) || inferBhk(rawText) || "Flexible";
   const type = normalizeType(pickString(data.type, data.deal_type, data.intent, data.category), rawText);
   const priceAmount = parsePriceAmount(data.price_numeric, data.price, rawText, type);
@@ -220,7 +220,7 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
   };
 }
 
-function normalizeStreamListing(row: any, paidBrokerMap: Map<string, { phone: string; fullName: string | null }>): PublicListing {
+function normalizeStreamListing(row: any, paidBrokerMap: Map<string, { phone: string; fullName: string | null }>): PublicListing | null {
   const data = (row.parsed_payload || {}) as Record<string, unknown>;
   const rawText = String(row.raw_text || "");
   const title =
@@ -229,9 +229,9 @@ function normalizeStreamListing(row: any, paidBrokerMap: Map<string, { phone: st
     "Property Listing";
   const location =
     pickString(row.locality, data.locality, data.microLocation, data.buildingName, row.city) ||
-    inferLocation(rawText) ||
-    "Unknown locality";
-  const locality = normalizeLocality(location);
+    inferLocation(rawText);
+  const locality = normalizeLocality(location || "");
+  if (!isListableLocation(locality)) return null;
   const bhk = pickString(row.bhk, data.bhk) || inferBhk(rawText) || "Flexible";
   const type = normalizeType(pickString(row.type, row.deal_type, data.type, data.deal_type), rawText);
   const priceAmount = parsePriceAmount(row.price_numeric, row.price_label, rawText, type);
@@ -276,23 +276,36 @@ function inferTitle(rawText: string) {
 }
 
 function inferLocation(rawText: string) {
-  const match = rawText.match(/\b(?:in\s+|at\s+)?(bandra|powai|andheri|worli|thane|juhu|goregaon|malad|chembur|dadar)/i);
-  if (match) {
-    const name = match[1];
-    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  const LOCALITIES = [
+    "bandra", "powai", "andheri", "worli", "thane", "juhu", "goregaon", "malad",
+    "chembur", "dadar", "khar", "colaba", "marine lines", "churchgate", "nariman point",
+    "fort", "kalbadevi", "byculla", "mahim", "matunga", "sion", "kings circle",
+    "wadala", "parel", "lower parel", "prabhadevi", "santacruz", "vile parle",
+    "versova", "jogeshwari", "kandivali", "borivali", "dahisar", "mulund",
+    "bhandup", "vikhroli", "kanjurmarg", "ghatkopar", "powai", "nerul",
+    "vashi", "sanpada", "ghansoli", "koparkhairane", "airoli", "panvel",
+    "kharghar", "kamothe", "kalamboli", "taloja", "dombivli", "kalyan",
+    "ulhasnagar", "ambarnath", "badlapur", "mira road", "bhayandar",
+    "vasai", "nalasopara", "virar", "palghar", "lonavala", "khandala",
+  ];
+  const lower = rawText.toLowerCase();
+  const matched = LOCALITIES.find((loc) => lower.includes(loc));
+  if (matched) {
+    return matched.replace(/\b\w/g, (c) => c.toUpperCase());
   }
-
-  const line = rawText
-    .split("\n")
-    .map((text) => text.trim())
-    .find((entry) => /bandra|powai|andheri|worli|thane|juhu|goregaon|malad|chembur|dadar/i.test(entry));
-  return line || null;
+  return null;
 }
 
 function normalizeLocality(value: string) {
   const trimmed = value.split(",")[0]?.trim() || value.trim();
-  if (!trimmed) return "Unknown Locality";
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  if (/not parsed|unknown|n\/?a|location|undefined|null/.test(lower)) return null;
   return trimmed.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function isListableLocation(locality: string | null): locality is string {
+  return locality !== null && locality.length >= 3;
 }
 
 function inferBhk(rawText: string) {
