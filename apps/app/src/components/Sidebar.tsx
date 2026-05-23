@@ -377,6 +377,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
                 return (
                   <button
                     key={item.path}
+                    id={`tour-nav-${item.path.replace(/^\//, '').replace(/[^a-z0-9-]/gi, '-')}`}
                     onClick={() => {
                         if (item.path.startsWith('http')) {
                             window.open(item.path, '_blank');

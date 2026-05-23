@@ -3,6 +3,7 @@ import { cn } from '../lib/utils';
 import {
   AlertTriangleIcon,
   BellIcon,
+  BookOpenIcon,
   CheckCircleIcon,
   CheckIcon,
   CopyIcon,
@@ -377,6 +378,10 @@ export const Settings: React.FC = () => {
     setAiKeys((prev) => ({ ...prev, [provider]: value }));
   };
 
+  const replayTour = () => {
+    window.__propai_start_tour?.();
+  };
+
   const toggleKeyVisibility = (key: string) => {
     setShowKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -512,6 +517,23 @@ export const Settings: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-6">
+          <SurfaceSection title="Help & Onboarding" subtitle="Replay the product walkthrough for this workspace." icon={BookOpenIcon}>
+            <div className="flex flex-col gap-4 rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[13px] font-semibold text-[var(--text-primary)]">Product tour</p>
+                <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">Restart the guided walkthrough across Agent, Stream, Inbox, WhatsApp, Group Audit, Broker Network, and Settings.</p>
+              </div>
+              <button
+                type="button"
+                onClick={replayTour}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[#020f07]"
+              >
+                <BookOpenIcon className="h-4 w-4" />
+                Replay tour
+              </button>
+            </div>
+          </SurfaceSection>
+
           <SurfaceSection title="Workspace Profile" subtitle="Update the broker name, agency, city, and localities after onboarding." icon={ShieldIcon}>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block">

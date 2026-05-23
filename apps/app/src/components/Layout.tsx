@@ -2,10 +2,12 @@ import React from 'react';
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { LegalFooter } from './LegalFooter';
+import { PropAITour } from './PropAITour';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
-import { MenuIcon, PowerIcon, LogoutIcon } from '../lib/icons';
+import { BookOpenIcon, MenuIcon, PowerIcon, LogoutIcon } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
+import { useTour } from '../hooks/useTour';
 import { PROPAI_ASSISTANT_WA_LINK } from '../lib/propai';
 
 type WhatsAppSessionSummary = {
@@ -259,6 +261,11 @@ export const Layout: React.FC = () => {
     if (normalized === 'solo' || normalized === 'pro') return 'Pro';
     return subscription?.plan || 'Team';
   }, [subscription?.plan]);
+  const { isCompleted: isTourCompleted, markCompleted: markTourCompleted } = useTour(user?.id || user?.email || null);
+
+  const startTour = React.useCallback(() => {
+    window.__propai_start_tour?.();
+  }, []);
 
   const handleDisconnectSelectedSession = React.useCallback(async () => {
     if (!selectedSession?.label) {
@@ -308,6 +315,8 @@ export const Layout: React.FC = () => {
           className="fixed inset-0 z-30 bg-black/70 backdrop-blur-sm transition-opacity duration-200 lg:hidden"
         />
       ) : null}
+
+      <PropAITour autoStart={!isTourCompleted} onComplete={markTourCompleted} />
 
       <Sidebar
         isOpen={isSidebarOpen}
@@ -411,6 +420,14 @@ export const Layout: React.FC = () => {
                 {isReconnectingSession || selectedSession.status === 'reconnecting' ? 'Reconnecting' : selectedSession.status === 'connecting' ? 'Connecting' : 'Reconnect'}
               </button>
             ) : null}
+            <button
+              type="button"
+              onClick={startTour}
+              className="inline-flex items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
+            >
+              <BookOpenIcon className="h-3.5 w-3.5" />
+              Take a tour
+            </button>
             <div className="h-6 w-px bg-[color:var(--border)] mx-1" />
             <button
               type="button"
