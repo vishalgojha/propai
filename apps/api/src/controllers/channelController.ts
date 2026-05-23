@@ -34,7 +34,7 @@ export const listStreamItems = async (req: Request, res: Response) => {
         const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
         const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : null;
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
-        const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : null;
+        const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 500;
         const subscription = await subscriptionService.getSubscription(tenantId, req.user?.email);
         const networkMode = String(subscription.plan) === 'Pro';
         const items = await channelService.listStreamItems(
@@ -43,7 +43,7 @@ export const listStreamItems = async (req: Request, res: Response) => {
             channelId,
             sessionLabel,
             networkMode,
-            Number.isFinite(limit) ? Number(limit) : undefined,
+            Number.isFinite(limit) ? Number(limit) : 500,
             req.user?.email,
         );
         res.json({

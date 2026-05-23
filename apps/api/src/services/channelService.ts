@@ -1698,7 +1698,7 @@ private dailyBriefingSentKeys = new Set<string>();
             ));
         }
 
-        const effectiveLimit = Math.max(20, Math.min(200, limit));
+        const effectiveLimit = Math.max(20, Math.min(500, limit));
         let data: any[] | null = null;
         let error: any = null;
 

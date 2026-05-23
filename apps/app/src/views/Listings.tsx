@@ -35,7 +35,7 @@ import { fetchWaClickStats, getWaClickExportUrl, type WaClickStats } from '../se
 
 const formatChannelTitle = (name: string) => `#${name}`;
 const PAGE_SIZE = 20;
-const STREAM_FETCH_LIMIT = 100;
+const STREAM_FETCH_LIMIT = 500;
 const ALL_TYPES = ['Rent', 'Sale', 'Requirement', 'Pre-leased', 'Lease'] as const;
 const ALL_BHK = ['1 BHK', '2 BHK', '3 BHK', '4+ BHK'] as const;
 const ALL_PROPERTY_CATEGORIES = ['residential', 'commercial'] as const;
@@ -778,24 +778,25 @@ if (brokerOnly) {
   }, []);
 
   const summaryCards = React.useMemo(() => {
+    const server = streamSummary;
     const summary = {
-      oneHour: visibleStream.filter((item) => {
+      oneHour: server?.oneHour ?? visibleStream.filter((item) => {
         const minutes = computeMinutes(item);
         return minutes != null && minutes < 60;
       }).length,
-      fourHours: visibleStream.filter((item) => {
+      fourHours: server?.fourHours ?? visibleStream.filter((item) => {
         const minutes = computeMinutes(item);
         return minutes != null && minutes < 240;
       }).length,
-      oneDay: visibleStream.filter((item) => {
+      oneDay: server?.oneDay ?? visibleStream.filter((item) => {
         const minutes = computeMinutes(item);
         return minutes != null && minutes < 1440;
       }).length,
-      sevenDays: visibleStream.filter((item) => {
+      sevenDays: server?.sevenDays ?? visibleStream.filter((item) => {
         const minutes = computeMinutes(item);
         return minutes != null && minutes < 10080;
       }).length,
-      allTime: visibleStream.length,
+      allTime: server?.allTime ?? visibleStream.length,
       network_mode: streamNetworkMode,
     };
     const scopeLabel = activeChannel
@@ -811,7 +812,7 @@ if (brokerOnly) {
       { label: 'Parsed last 7 days', value: summary.sevenDays, hint: scopeLabel },
       { label: 'Parsed all time', value: summary.allTime, hint: scopeLabel },
     ];
-  }, [activeChannel, streamNetworkMode, visibleStream, computeMinutes]);
+  }, [activeChannel, streamNetworkMode, visibleStream, computeMinutes, streamSummary]);
 
   return (
     <>
@@ -1204,22 +1205,23 @@ if (brokerOnly) {
               const isExpanded = expandedListingId === listing.id;
               const waCount = waClickStats?.by_listing[listing.id]?.count || 0;
               return (
-                <ListingCard
-                  key={listing.id}
-                  listing={listing}
-                  networkMode={streamNetworkMode}
-                  isExpanded={isExpanded}
-                  onToggle={() => {
-                    setExpandedListingId(isExpanded ? null : listing.id);
-                    if (!isExpanded && editingListingId && editingListingId !== listing.id) {
-                      setEditingListingId(null);
-                      setCorrectionDraft(null);
-                    }
-                  }}
-                  waClickCount={waCount}
-                  channels={channels}
-                  onSaveToChannel={handleAttachStreamItemToChannel}
-                />
+                <div key={listing.id} className={isExpanded ? 'col-span-full' : ''}>
+                  <ListingCard
+                    listing={listing}
+                    networkMode={streamNetworkMode}
+                    isExpanded={isExpanded}
+                    onToggle={() => {
+                      setExpandedListingId(isExpanded ? null : listing.id);
+                      if (!isExpanded && editingListingId && editingListingId !== listing.id) {
+                        setEditingListingId(null);
+                        setCorrectionDraft(null);
+                      }
+                    }}
+                    waClickCount={waCount}
+                    channels={channels}
+                    onSaveToChannel={handleAttachStreamItemToChannel}
+                  />
+                </div>
               );
             })
           )}

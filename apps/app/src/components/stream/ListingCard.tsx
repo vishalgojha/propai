@@ -16,10 +16,10 @@ type ListingCardProps = {
     onSaveToChannel?: (channelId: string, streamItemId: string) => void;
 };
 
-function formatPriceDisplay(item: StreamItem): string {
+function formatPriceDisplay(item: StreamItem): string | null {
     const numeric = item.priceNumeric;
     if (numeric == null || !Number.isFinite(numeric)) {
-        return item.price || 'Unspecified';
+        return item.price || null;
     }
 
     if (item.type === 'Rent') {
@@ -427,7 +427,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                     <div className="space-y-1">
                         <div className="text-[22px] font-bold tracking-tight text-[var(--text-primary)] sm:text-[26px]">
                             {priceLabel || 'Price on request'}
-                            {listing.type === 'Rent' && <span className="text-[14px] ml-1 text-[var(--text-muted)] font-medium">/mo</span>}
+                            {priceLabel && listing.type === 'Rent' && <span className="text-[14px] ml-1 text-[var(--text-muted)] font-medium">/mo</span>}
                         </div>
                         {rateLabel ? (
                             <div className="text-[11px] text-[var(--text-muted)]">{rateLabel}</div>
