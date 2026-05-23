@@ -45,6 +45,15 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'vishal@chaoscraftslabs.com',
 ]);
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
+type StreamPresetId = 'fresh' | 'rental' | 'sale' | 'pre_leased' | 'requirements' | 'high_confidence';
+const STREAM_PRESETS: Array<{ id: StreamPresetId; label: string }> = [
+  { id: 'fresh', label: '🔴 Fresh' },
+  { id: 'rental', label: '🏠 Rental' },
+  { id: 'sale', label: '💰 Sale' },
+  { id: 'pre_leased', label: '🏢 Pre-Leased' },
+  { id: 'requirements', label: '📋 Requirements' },
+  { id: 'high_confidence', label: '⭐ High Confidence' },
+];
 
 const stripSnippetNoise = (raw: string) => {
   const lines = raw
@@ -263,6 +272,13 @@ const toggleSelection = <T,>(current: T[], value: T) => (
   current.includes(value) ? current.filter((item) => item !== value) : [...current, value]
 );
 
+const normalizeSearchText = (value: string) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const isConfidenceInBand = (confidence: number, band: 'low' | 'medium' | 'high') => {
   if (band === 'high') return confidence >= 70;
   if (band === 'medium') return confidence >= 40 && confidence < 70;
@@ -362,6 +378,18 @@ export const Listings: React.FC = () => {
   const [showScrollTop, setShowScrollTop] = React.useState(false);
   const [waStatus, setWaStatus] = React.useState<string>('loading');
 
+  const serverFilters = React.useMemo(() => ({
+    search: search.trim() || undefined,
+    type: quickTypes,
+    category: filterPropertyCategory === 'all' ? undefined : filterPropertyCategory as 'residential' | 'commercial',
+    bhk: filterBhk === 'all' ? undefined : filterBhk,
+    confidenceBand: quickConfidenceBands,
+    timeBand: quickTimeBands,
+    freshnessBand: quickFreshnessBands,
+    source: filterSource,
+    brokerOnly,
+  }), [brokerOnly, filterBhk, filterPropertyCategory, filterSource, quickConfidenceBands, quickFreshnessBands, quickTimeBands, quickTypes, search]);
+
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -372,6 +400,7 @@ export const Listings: React.FC = () => {
         fetchStreamItems({
           channelId: channelId || undefined,
           sessionLabel: targetSessionLabel,
+          ...serverFilters,
           limit: STREAM_FETCH_LIMIT,
         }),
       ]);
@@ -436,7 +465,7 @@ export const Listings: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [channelId, selectedSessionLabel]);
+  }, [channelId, selectedSessionLabel, serverFilters]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -599,6 +628,7 @@ React.useEffect(() => {
     let filtered = streamItems;
 
     if (query) {
+      const queryTokens = normalizeSearchText(query).split(' ').filter(Boolean);
       filtered = filtered.filter((listing) => {
         const haystack = [
           listing.id,
@@ -613,8 +643,9 @@ React.useEffect(() => {
           listing.brokerCompany || '',
           listing.description,
           listing.rawText || '',
-        ].join(' ').toLowerCase();
-        return haystack.includes(query);
+        ].join(' ');
+        const normalizedHaystack = normalizeSearchText(haystack);
+        return queryTokens.every((token) => normalizedHaystack.includes(token));
       });
     }
 
@@ -709,9 +740,48 @@ if (brokerOnly) {
     setFilterPropertyCategory('all');
   };
 
+  const applyPreset = (preset: StreamPresetId) => {
+    if (preset === 'fresh') {
+      setQuickTimeBands((current) => current.includes('1h') ? current.filter((band) => band !== '1h') : ['1h']);
+      return;
+    }
+
+    if (preset === 'rental') {
+      setQuickTypes((current) => toggleSelection(current, 'Rent'));
+      return;
+    }
+
+    if (preset === 'sale') {
+      setQuickTypes((current) => toggleSelection(current, 'Sale'));
+      return;
+    }
+
+    if (preset === 'pre_leased') {
+      setQuickTypes((current) => toggleSelection(current, 'Pre-leased'));
+      setFilterPropertyCategory('commercial');
+      return;
+    }
+
+    if (preset === 'requirements') {
+      setQuickTypes((current) => toggleSelection(current, 'Requirement'));
+      return;
+    }
+
+    setQuickConfidenceBands((current) => toggleSelection(current, 'high'));
+  };
+
+  const isPresetActive = (preset: StreamPresetId) => {
+    if (preset === 'fresh') return quickTimeBands.includes('1h');
+    if (preset === 'rental') return quickTypes.includes('Rent');
+    if (preset === 'sale') return quickTypes.includes('Sale');
+    if (preset === 'pre_leased') return quickTypes.includes('Pre-leased');
+    if (preset === 'requirements') return quickTypes.includes('Requirement');
+    return quickConfidenceBands.includes('high');
+  };
+
   React.useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [activeChannel?.id, search, quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly]);
+  }, [activeChannel?.id, search, quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory]);
 
   React.useEffect(() => {
     const fetch = async () => {
@@ -969,6 +1039,28 @@ if (brokerOnly) {
       <div className="block">
         <div className="rounded-2xl border border-[color:var(--border-strong)] bg-[var(--bg-base)] p-4">
           <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Presets</p>
+              {STREAM_PRESETS.map((preset) => {
+                const active = isPresetActive(preset.id);
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyPreset(preset.id)}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                      active
+                        ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                        : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
+                    )}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="flex flex-wrap items-center gap-2">
               <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Time</p>
               <button

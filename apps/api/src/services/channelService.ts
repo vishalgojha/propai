@@ -9,7 +9,24 @@ import { cleanNumber } from './broadcastParserService';
 
 
 type ChannelType = 'listing' | 'requirement' | 'mixed';
-type StreamType = 'Rent' | 'Sale' | 'Requirement' | 'Pre-leased';
+type StreamType = 'Rent' | 'Sale' | 'Requirement' | 'Pre-leased' | 'Lease';
+type StreamConfidenceBand = 'low' | 'medium' | 'high';
+type StreamTimeBand = '1h' | '4h' | '1d' | '7d';
+type StreamFreshnessBand = '1h' | '6h';
+
+export type StreamListFilters = {
+    search?: string | null;
+    types?: StreamType[];
+    category?: 'residential' | 'commercial' | null;
+    locality?: string | null;
+    bhk?: string | null;
+    minConfidence?: number | null;
+    confidenceBands?: StreamConfidenceBand[];
+    timeBands?: StreamTimeBand[];
+    freshnessBands?: StreamFreshnessBand[];
+    source?: string | null;
+    brokerOnly?: boolean;
+};
 
 type ChannelRow = {
     id: string;
@@ -129,6 +146,113 @@ const normalize = (value: string) => {
     }
     return result.trim();
 };
+
+function escapePostgrestPattern(value: string) {
+    return String(value || '').replace(/,/g, ' ').replace(/[%_]/g, (match) => `\\${match}`);
+}
+
+function uniqueNonEmpty(values: Array<string | null | undefined>) {
+    return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
+}
+
+function parseSearchBhk(value?: string | null) {
+    const match = String(value || '').match(/\b([1-9])\s*(?:\+)?\s*(?:bhk|bed|beds|bedroom|br)\b/i);
+    return match?.[1] ? `${match[1]} BHK` : null;
+}
+
+function searchMentionsPreLeased(value?: string | null) {
+    return /\bpre\s*-?\s*leased\b|\bpreleased\b/i.test(String(value || ''));
+}
+
+function searchMentionsRequirement(value?: string | null) {
+    return /\b(requirement|requirements|wanted|need|buyer|tenant)\b/i.test(String(value || ''));
+}
+
+function searchMentionsRent(value?: string | null) {
+    return /\b(rent|rental)\b/i.test(String(value || ''));
+}
+
+function searchMentionsLease(value?: string | null) {
+    return /\b(lease|l&l)\b/i.test(String(value || ''));
+}
+
+function searchMentionsSale(value?: string | null) {
+    return /\b(sale|sell|resale|outright|buy)\b/i.test(String(value || ''));
+}
+
+function getLargestTimeWindow(
+    timeBands?: StreamTimeBand[] | null,
+    freshnessBands?: StreamFreshnessBand[] | null,
+) {
+    const selected = [
+        ...(timeBands || []),
+        ...(freshnessBands || []),
+    ];
+    const hours = selected.map((band) => {
+        if (band === '1h') return 1;
+        if (band === '4h') return 4;
+        if (band === '6h') return 6;
+        if (band === '1d') return 24;
+        if (band === '7d') return 24 * 7;
+        return 0;
+    }).filter((value) => value > 0);
+
+    if (hours.length === 0) {
+        return null;
+    }
+
+    return new Date(Date.now() - Math.max(...hours) * 60 * 60 * 1000).toISOString();
+}
+
+function getConfidenceRange(filters?: StreamListFilters | null) {
+    const bands = filters?.confidenceBands || [];
+    let min = typeof filters?.minConfidence === 'number' && Number.isFinite(filters.minConfidence)
+        ? filters.minConfidence
+        : null;
+    let max: number | null = null;
+
+    if (bands.length > 0) {
+        const ranges = bands.map((band) => {
+            if (band === 'high') return { min: 70, max: 100 };
+            if (band === 'medium') return { min: 40, max: 69.999 };
+            return { min: 0, max: 39.999 };
+        });
+        min = Math.min(...ranges.map((range) => range.min), min ?? 100);
+        max = Math.max(...ranges.map((range) => range.max));
+    }
+
+    return { min, max };
+}
+
+function buildSearchParts(filters?: StreamListFilters | null) {
+    const rawSearch = String(filters?.search || '').trim();
+    const parsedLocation = rawSearch ? parseIndianLocation(rawSearch) : null;
+    const explicitBhk = String(filters?.bhk || '').trim();
+    const searchBhk = parseSearchBhk(rawSearch);
+    const searchTypes: StreamType[] = [];
+
+    if (searchMentionsPreLeased(rawSearch)) searchTypes.push('Pre-leased');
+    else if (searchMentionsRequirement(rawSearch)) searchTypes.push('Requirement');
+    else if (searchMentionsLease(rawSearch)) searchTypes.push('Lease');
+    else if (searchMentionsRent(rawSearch)) searchTypes.push('Rent');
+    else if (searchMentionsSale(rawSearch)) searchTypes.push('Sale');
+
+    const cleanedSearch = rawSearch
+        .replace(/\b[1-9]\s*(?:\+)?\s*(?:bhk|bed|beds|bedroom|br)\b/ig, ' ')
+        .replace(/\bpre\s*-?\s*leased\b|\bpreleased\b/ig, ' ')
+        .replace(/\b(requirement|requirements|wanted|need|buyer|tenant|rent|rental|lease|l&l|sale|sell|resale|outright|buy)\b/ig, ' ')
+        .replace(parsedLocation?.matchedAlias ? new RegExp(parsedLocation.matchedAlias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig') : /$a/, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    return {
+        rawSearch,
+        fullTextSearch: cleanedSearch || rawSearch,
+        locality: String(filters?.locality || parsedLocation?.locality || '').trim(),
+        bhk: explicitBhk || searchBhk || '',
+        inferredTypes: searchTypes,
+    };
+}
 
 const titleCase = (value: string) => {
     return value.split(' ').map(word => {
@@ -855,9 +979,11 @@ const buildDisplayTitle = (buildingName: string | null, microLocation: string | 
 const extractDealType = (text: string) => {
     const lower = text.toLowerCase();
     if (lower.includes('pre leased') || lower.includes('pre-leased')) return 'pre-leased';
-    if (lower.includes('rent') || lower.includes('lease') || 
-        lower.includes('leave and license') || lower.includes('leave & license') ||
+    if (lower.includes('lease') || lower.includes('leave and license') || lower.includes('leave & license') ||
         lower.includes('l&l') || lower.includes(' ll') || lower.endsWith(' ll')) {
+        return 'lease';
+    }
+    if (lower.includes('rent')) {
         return 'rent';
     }
     return 'sale';
@@ -874,7 +1000,8 @@ const extractAssetClass = (text: string) => {
 const SECTION_TYPE_KEYWORDS: Array<{ keywords: string[]; type: StreamType }> = [
     { keywords: ['pre leased', 'pre-leased'], type: 'Pre-leased' },
     { keywords: ['requirement'], type: 'Requirement' },
-    { keywords: ['rent', 'rental', 'lease', 'l&l', ' ll', 'll '], type: 'Rent' },
+    { keywords: ['lease', 'l&l', ' ll', 'll '], type: 'Lease' },
+    { keywords: ['rent', 'rental'], type: 'Rent' },
     { keywords: ['sale', 'outright'], type: 'Sale' },
 ];
 
@@ -1209,7 +1336,16 @@ export class ChannelService {
         limit?: number;
         orderByCreatedAt?: boolean;
         sessionLabel?: string | null;
+        filters?: StreamListFilters | null;
     }) {
+        const searchParts = buildSearchParts(options?.filters);
+        const typeFilters = uniqueNonEmpty([
+            ...(options?.filters?.types || []),
+            ...searchParts.inferredTypes,
+        ]) as StreamType[];
+        const createdAfter = getLargestTimeWindow(options?.filters?.timeBands, options?.filters?.freshnessBands);
+        const confidenceRange = getConfidenceRange(options?.filters);
+
         const buildQuery = (acceptedOnly: boolean) => {
             let query = readClient
                 .from('stream_items')
@@ -1226,6 +1362,62 @@ export class ChannelService {
 
             if (options?.sessionLabel) {
                 query = query.eq('session_label', options.sessionLabel);
+            }
+
+            if (typeFilters.length > 0) {
+                query = query.in('type', typeFilters);
+            }
+
+            if (options?.filters?.category) {
+                query = query.eq('property_category', options.filters.category);
+            }
+
+            if (searchParts.bhk) {
+                if (searchParts.bhk === '4+ BHK') {
+                    query = query.or('bhk.ilike.%4 BHK%,bhk.ilike.%4+ BHK%,bhk.ilike.%5 BHK%,bhk.ilike.%6 BHK%');
+                } else {
+                    const digit = searchParts.bhk.match(/\d/)?.[0] || searchParts.bhk;
+                    query = query.ilike('bhk', `%${escapePostgrestPattern(digit)}%`);
+                }
+            }
+
+            if (searchParts.locality) {
+                const locality = escapePostgrestPattern(searchParts.locality);
+                query = query.or(`locality.ilike.%${locality}%,raw_text.ilike.%${locality}%`);
+            }
+
+            if (searchParts.fullTextSearch && searchParts.fullTextSearch !== searchParts.locality) {
+                const pattern = escapePostgrestPattern(searchParts.fullTextSearch);
+                query = query.or([
+                    `raw_text.ilike.%${pattern}%`,
+                    `locality.ilike.%${pattern}%`,
+                    `city.ilike.%${pattern}%`,
+                    `price_label.ilike.%${pattern}%`,
+                    `asset_class.ilike.%${pattern}%`,
+                    `deal_type.ilike.%${pattern}%`,
+                    `source_group_name.ilike.%${pattern}%`,
+                ].join(','));
+            }
+
+            if (confidenceRange.min != null) {
+                query = query.gte('confidence_score', confidenceRange.min);
+            }
+
+            if (confidenceRange.max != null && confidenceRange.max < 100) {
+                query = query.lte('confidence_score', confidenceRange.max);
+            }
+
+            if (createdAfter) {
+                query = query.gte('created_at', createdAfter);
+            }
+
+            if (options?.filters?.source && options.filters.source !== 'all') {
+                const sourcePattern = escapePostgrestPattern(options.filters.source);
+                query = query.or(`source_phone.ilike.%${sourcePattern}%,raw_text.ilike.%${sourcePattern}%`);
+            }
+
+            if (options?.filters?.brokerOnly) {
+                query = query.or('raw_text.ilike.%broker%,raw_text.ilike.%broking%,raw_text.ilike.%agent%,raw_text.ilike.%agnt%');
             }
 
             if (options?.orderByCreatedAt) {
@@ -1650,6 +1842,7 @@ private dailyBriefingSentKeys = new Set<string>();
         networkMode = false,
         limit = 100,
         email?: string | null,
+        filters?: StreamListFilters | null,
     ): Promise<StreamItemRecord[]> {
          // FIX 3: Auto-sync period — re-trigger backfill if enough time has elapsed
          const backfillScopeKey = this.getBackfillScopeKey(tenantId, sessionLabel);
@@ -1708,6 +1901,7 @@ private dailyBriefingSentKeys = new Set<string>();
             const streamIds = links.map((link: any) => link.stream_item_id);
             const { data: items, error: itemsError } = await this.readAcceptedStreamItems(readClient, accessibleTenantIds, {
                 streamIds,
+                filters,
             });
 
             if (itemsError) {
@@ -1733,6 +1927,7 @@ private dailyBriefingSentKeys = new Set<string>();
                 limit: effectiveLimit,
                 orderByCreatedAt: true,
                 sessionLabel,
+                filters,
             });
 
             if (!scopedResult.error && Array.isArray(scopedResult.data) && scopedResult.data.length > 0) {
@@ -1746,6 +1941,7 @@ private dailyBriefingSentKeys = new Set<string>();
             const result = await this.readAcceptedStreamItems(readClient, accessibleTenantIds, {
                 limit: effectiveLimit,
                 orderByCreatedAt: true,
+                filters,
             });
             data = result.data || null;
             error = result.error;

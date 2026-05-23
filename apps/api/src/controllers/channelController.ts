@@ -1,9 +1,50 @@
 import { Request, Response } from 'express';
 import { channelService } from '../services/channelService';
+import type { StreamListFilters } from '../services/channelService';
 import { getAnalytics as getAnalyticsData } from '../services/analyticsService';
 import { getTenantId, requireSuperAdmin, getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { subscriptionService } from '../services/subscriptionService';
 import '../types/express';
+
+const VALID_STREAM_TYPES = new Set(['Rent', 'Sale', 'Requirement', 'Pre-leased', 'Lease']);
+const VALID_CONFIDENCE_BANDS = new Set(['low', 'medium', 'high']);
+const VALID_TIME_BANDS = new Set(['1h', '4h', '1d', '7d']);
+const VALID_FRESHNESS_BANDS = new Set(['1h', '6h']);
+
+function readCsvParam(value: unknown) {
+    if (typeof value !== 'string') {
+        return [];
+    }
+
+    return value.split(',').map((entry) => entry.trim()).filter(Boolean);
+}
+
+function parseStreamFilters(query: Request['query']): StreamListFilters {
+    const types = readCsvParam(query.type).filter((type) => VALID_STREAM_TYPES.has(type)) as StreamListFilters['types'];
+    const confidenceBands = readCsvParam(query.confidenceBand).filter((band) => VALID_CONFIDENCE_BANDS.has(band)) as StreamListFilters['confidenceBands'];
+    const timeBands = readCsvParam(query.timeBand).filter((band) => VALID_TIME_BANDS.has(band)) as StreamListFilters['timeBands'];
+    const freshnessBands = readCsvParam(query.freshnessBand).filter((band) => VALID_FRESHNESS_BANDS.has(band)) as StreamListFilters['freshnessBands'];
+    const category = typeof query.category === 'string' && (query.category === 'residential' || query.category === 'commercial')
+        ? query.category
+        : null;
+    const minConfidence = typeof query.minConfidence === 'string' && Number.isFinite(Number(query.minConfidence))
+        ? Number(query.minConfidence)
+        : null;
+
+    return {
+        search: typeof query.search === 'string' ? query.search.trim() || null : null,
+        types,
+        category,
+        locality: typeof query.locality === 'string' ? query.locality.trim() || null : null,
+        bhk: typeof query.bhk === 'string' ? query.bhk.trim() || null : null,
+        minConfidence,
+        confidenceBands,
+        timeBands,
+        freshnessBands,
+        source: typeof query.source === 'string' ? query.source.trim() || null : null,
+        brokerOnly: query.brokerOnly === 'true',
+    };
+}
 
 export const listChannels = async (req: Request, res: Response) => {
     try {
@@ -35,6 +76,7 @@ export const listStreamItems = async (req: Request, res: Response) => {
         const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : null;
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
         const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 500;
+        const filters = parseStreamFilters(req.query);
         const subscription = await subscriptionService.getSubscription(tenantId, req.user?.email);
         const networkMode = String(subscription.plan) === 'Pro';
         const items = await channelService.listStreamItems(
@@ -45,6 +87,7 @@ export const listStreamItems = async (req: Request, res: Response) => {
             networkMode,
             Number.isFinite(limit) ? Number(limit) : 500,
             req.user?.email,
+            filters,
         );
         res.json({
             items,

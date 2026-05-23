@@ -83,11 +83,16 @@ export interface StreamFilters {
   category?: 'residential' | 'commercial';
   locality?: string;
   minConfidence?: number;
+  confidenceBand?: Array<'low' | 'medium' | 'high'>;
+  timeBand?: Array<'1h' | '4h' | '1d' | '7d'>;
+  freshnessBand?: Array<'1h' | '6h'>;
   source?: string;
   sessionLabel?: string;
   channelId?: string;
   isRead?: boolean;
   search?: string;
+  bhk?: string;
+  brokerOnly?: boolean;
   limit?: number;
 }
 
@@ -99,12 +104,17 @@ export async function fetchStreamItems(filters?: StreamFilters): Promise<StreamR
   }
   if (filters?.category) params.category = filters.category;
   if (filters?.locality) params.locality = filters.locality;
+  if (filters?.bhk && filters.bhk !== 'all') params.bhk = filters.bhk;
   if (filters?.minConfidence) params.minConfidence = filters.minConfidence;
+  if (filters?.confidenceBand && filters.confidenceBand.length > 0) params.confidenceBand = filters.confidenceBand.join(',');
+  if (filters?.timeBand && filters.timeBand.length > 0) params.timeBand = filters.timeBand.join(',');
+  if (filters?.freshnessBand && filters.freshnessBand.length > 0) params.freshnessBand = filters.freshnessBand.join(',');
   if (filters?.source && filters.source !== 'all') params.source = filters.source;
   if (filters?.sessionLabel && filters.sessionLabel !== 'all') params.sessionLabel = filters.sessionLabel;
   if (filters?.channelId) params.channelId = filters.channelId;
   if (filters?.isRead !== undefined) params.isRead = filters.isRead;
   if (filters?.search) params.search = filters.search;
+  if (filters?.brokerOnly) params.brokerOnly = 'true';
   if (filters?.limit) params.limit = filters.limit;
 
   const response = await backendApi.get(ENDPOINTS.channels.stream, { params, timeout: 60000 });
