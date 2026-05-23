@@ -15,7 +15,7 @@ export type BrokerContact = {
   created_at: string;
   updated_at: string;
   listing_count: number;
-  bhk_types: string[];
+  asset_types: string[];
   price_range_low: number | null;
   price_range_high: number | null;
 };

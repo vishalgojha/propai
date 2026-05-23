@@ -4,6 +4,13 @@ import { cn } from '../lib/utils';
 import { fetchBrokerContacts, type BrokerContact } from '../services/brokerContactApi';
 import { handleApiError } from '../services/api';
 
+const formatPhone = (phone: string): string => {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 10) return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  if (digits.length === 12 && digits.startsWith('91')) return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
+  return phone;
+};
+
 const formatPrice = (value: number | null | undefined): string => {
   if (value == null || !Number.isFinite(value)) return '—';
   if (value >= 10000000) return `₹${(value / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
@@ -123,7 +130,7 @@ export const BrokerNetwork: React.FC = () => {
                         </div>
                         <div>
                           <p className="font-semibold text-[var(--text-primary)]">
-                            {contact.display_name || 'Unknown broker'}
+                            {contact.display_name || formatPhone(contact.phone)}
                           </p>
                           {contact.source_groups.length > 0 ? (
                             <p className="mt-0.5 flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
@@ -137,7 +144,7 @@ export const BrokerNetwork: React.FC = () => {
                     <td className="px-5 py-4">
                       <span className="inline-flex items-center gap-1 text-[13px] text-[var(--text-secondary)]">
                         <Phone className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-                        {contact.phone}
+                        {formatPhone(contact.phone)}
                       </span>
                     </td>
                     <td className="px-5 py-4">
@@ -164,22 +171,22 @@ export const BrokerNetwork: React.FC = () => {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex flex-wrap gap-1">
-                        {contact.bhk_types.length > 0 ? (
-                          contact.bhk_types.slice(0, 3).map((bhk) => (
+                        {contact.asset_types.length > 0 ? (
+                          contact.asset_types.slice(0, 3).map((asset) => (
                             <span
-                              key={bhk}
+                              key={asset}
                               className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]"
                             >
                               <Hash className="h-3 w-3" />
-                              {bhk}
+                              {asset}
                             </span>
                           ))
                         ) : (
                           <span className="text-[12px] text-[var(--text-muted)]">—</span>
                         )}
-                        {contact.bhk_types.length > 3 ? (
+                        {contact.asset_types.length > 3 ? (
                           <span className="text-[10px] text-[var(--text-muted)]">
-                            +{contact.bhk_types.length - 3}
+                            +{contact.asset_types.length - 3}
                           </span>
                         ) : null}
                       </div>

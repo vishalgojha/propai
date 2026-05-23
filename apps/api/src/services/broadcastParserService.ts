@@ -908,7 +908,7 @@ async function upsertBrokerContact(
 
     const { data: existing } = await admin
         .from('broker_contacts')
-        .select('id, display_name, inferred_areas, listing_count, bhk_types, price_range_low, price_range_high')
+        .select('id, display_name, inferred_areas, listing_count, asset_types, price_range_low, price_range_high')
         .eq('tenant_id', tenantId)
         .eq('phone', phone)
         .maybeSingle();
@@ -917,8 +917,8 @@ async function upsertBrokerContact(
         const areas = existing.inferred_areas || [];
         if (locality && !areas.includes(locality)) areas.push(locality);
 
-        const bhkTypes: string[] = existing.bhk_types || [];
-        if (bhk && !bhkTypes.includes(bhk)) bhkTypes.push(bhk);
+        const assetTypes: string[] = existing.asset_types || [];
+        if (bhk && !assetTypes.includes(bhk)) assetTypes.push(bhk);
 
         await admin
             .from('broker_contacts')
@@ -926,7 +926,7 @@ async function upsertBrokerContact(
                 display_name: name || existing.display_name,
                 inferred_areas: areas,
                 listing_count: (existing.listing_count || 0) + 1,
-                bhk_types: bhkTypes,
+                asset_types: assetTypes,
                 price_range_low: existing.price_range_low && priceNumeric
                     ? Math.min(existing.price_range_low, priceNumeric) : priceNumeric || existing.price_range_low,
                 price_range_high: existing.price_range_high && priceNumeric
@@ -943,7 +943,7 @@ async function upsertBrokerContact(
                 display_name: name,
                 inferred_areas: locality ? [locality] : [],
                 listing_count: 1,
-                bhk_types: bhk ? [bhk] : [],
+                asset_types: bhk ? [bhk] : [],
                 price_range_low: priceNumeric,
                 price_range_high: priceNumeric,
                 last_seen_at: new Date().toISOString(),

@@ -37,9 +37,26 @@ export function extractAreas(groupName: string): string[] {
   return Array.from(matched);
 }
 
+/**
+ * Returns true only for valid Indian mobile numbers.
+ * Accepts:
+ *   - 10 digits starting with 6-9  (e.g. 9820056180)
+ *   - 12 digits starting with 91 followed by 6-9  (e.g. 919820056180)
+ * Rejects international numbers, group JIDs, and any non-mobile strings.
+ */
 function isValidBrokerPhone(phone: string): boolean {
-  if (!/^\d{10,15}$/.test(phone)) return false;
-  return true;
+  if (/^[6-9]\d{9}$/.test(phone)) return true;
+  if (/^91[6-9]\d{9}$/.test(phone)) return true;
+  return false;
+}
+
+/**
+ * Normalises a valid Indian mobile to a consistent 10-digit string.
+ * Strips the leading "91" country code if present.
+ */
+function normalizeIndianPhone(phone: string): string {
+  if (phone.startsWith('91') && phone.length === 12) return phone.slice(2);
+  return phone;
 }
 
 function uniqueMerge<T>(a: T[], b: T[]): T[] {
@@ -85,8 +102,9 @@ export async function parseGroupsForContacts(tenantId: string): Promise<{
       if (!metadata?.participants?.length) continue;
 
       for (const participant of metadata.participants) {
-        const phone = (participant.id || '').split('@')[0];
-        if (!isValidBrokerPhone(phone)) continue;
+        const rawPhone = (participant.id || '').split('@')[0];
+        if (!isValidBrokerPhone(rawPhone)) continue;
+        const phone = normalizeIndianPhone(rawPhone);
         seenPhones.add(phone);
 
         const { data: existing } = await db!
@@ -118,7 +136,7 @@ export async function parseGroupsForContacts(tenantId: string): Promise<{
             .insert({
               tenant_id: tenantId,
               phone,
-              display_name: participant.name || participant.notify || null,
+              display_name: participant.notify || participant.name || null,
               inferred_areas: areas,
               source_groups: [group.id],
               group_count: 1,
