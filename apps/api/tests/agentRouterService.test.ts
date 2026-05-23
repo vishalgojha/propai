@@ -31,4 +31,15 @@ describe('AgentRouterService', () => {
             []
         );
     });
+
+    it('routes explicit CRM searches without falling through to the model', async () => {
+        const service = new AgentRouterService();
+        const route = await service.route('tenant-1', 'Search my CRM for 2BHK buyer requirements in Powai under 70k.');
+
+        expect(route).toMatchObject({
+            intent: 'search_my_crm',
+            confidence: 1,
+        });
+        expect(aiService.chat).not.toHaveBeenCalled();
+    });
 });

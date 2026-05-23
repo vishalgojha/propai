@@ -1194,29 +1194,141 @@ export class BrokerWorkflowService {
     }
 
     private filterListings(listings: any[], prompt: string) {
-        const queryText = prompt.toLowerCase().trim();
-        if (!queryText) {
+        const criteria = this.buildSearchCriteria(prompt);
+        if (!criteria.normalized) {
             return listings;
         }
 
         return listings.filter((listing) => {
             const haystack = JSON.stringify(listing.structured_data || {}).toLowerCase() + ' ' + String(listing.raw_text || '').toLowerCase();
-            return haystack.includes(queryText)
-                || queryText.split(/\s+/).filter(Boolean).every((token) => haystack.includes(token));
+            if (criteria.wantsRequirementOnly) {
+                return false;
+            }
+            if (criteria.location && !haystack.includes(criteria.location)) {
+                return false;
+            }
+            if (criteria.bhk && !haystack.includes(criteria.bhk)) {
+                return false;
+            }
+            if (criteria.budget != null) {
+                const listingBudget = this.extractBudgetNumeric(haystack);
+                if (listingBudget != null && listingBudget > criteria.budget * 1.05) {
+                    return false;
+                }
+            }
+            return this.hasMeaningfulTokenMatch(haystack, criteria.tokens)
+                || Boolean(criteria.location || criteria.bhk || criteria.budget != null);
         });
     }
 
     private filterLeadRecords(records: any[], prompt: string) {
-        const queryText = prompt.toLowerCase().trim();
-        if (!queryText) {
+        const criteria = this.buildSearchCriteria(prompt);
+        if (!criteria.normalized) {
             return records;
         }
 
         return records.filter((record) => {
             const haystack = JSON.stringify(record || {}).toLowerCase();
-            return haystack.includes(queryText)
-                || queryText.split(/\s+/).filter(Boolean).every((token) => haystack.includes(token));
+            if (criteria.wantsRequirementOnly && record.record_type !== 'buyer_requirement') {
+                return false;
+            }
+            if (criteria.wantsListingOnly && record.record_type === 'buyer_requirement') {
+                return false;
+            }
+            if (criteria.location && !haystack.includes(criteria.location)) {
+                return false;
+            }
+            if (criteria.bhk && !haystack.includes(criteria.bhk)) {
+                return false;
+            }
+            if (criteria.budget != null) {
+                const recordBudget = Number(record.budget);
+                if (Number.isFinite(recordBudget) && recordBudget > criteria.budget * 1.05) {
+                    return false;
+                }
+            }
+            return this.hasMeaningfulTokenMatch(haystack, criteria.tokens)
+                || Boolean(criteria.location || criteria.bhk || criteria.budget != null || criteria.wantsRequirementOnly || criteria.wantsListingOnly);
         });
+    }
+
+    private buildSearchCriteria(prompt: string) {
+        const normalized = String(prompt || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9+\s.]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        const location = this.extractLocation(normalized).toLowerCase();
+        const bhk = this.extractBhk(normalized).toLowerCase();
+        const budget = this.extractBudgetNumeric(normalized);
+        const wantsRequirementOnly = /\b(buyer|tenant|requirement|requirements|lead|leads)\b/i.test(normalized);
+        const wantsListingOnly = /\b(listing|listings|inventory|property|properties)\b/i.test(normalized) && !wantsRequirementOnly;
+        const ignored = new Set([
+            'search',
+            'find',
+            'show',
+            'pull',
+            'get',
+            'lookup',
+            'look',
+            'up',
+            'my',
+            'crm',
+            'for',
+            'in',
+            'at',
+            'under',
+            'below',
+            'less',
+            'than',
+            'max',
+            'maximum',
+            'upto',
+            'up',
+            'to',
+            'buyer',
+            'tenant',
+            'requirement',
+            'requirements',
+            'lead',
+            'leads',
+            'listing',
+            'listings',
+            'inventory',
+            'property',
+            'properties',
+            'records',
+            'saved',
+            'data',
+        ]);
+        const locationTokens = new Set(location.split(/\s+/).filter(Boolean));
+        const bhkTokens = new Set(bhk.split(/\s+/).filter(Boolean));
+        const tokens = normalized
+            .split(/\s+/)
+            .map((token) => token.trim())
+            .filter((token) => token.length >= 2)
+            .filter((token) => !ignored.has(token))
+            .filter((token) => !locationTokens.has(token))
+            .filter((token) => !bhkTokens.has(token))
+            .filter((token) => !/^\d+(?:\.\d+)?(?:k|l|lac|lakh|cr|crore)?$/.test(token));
+
+        return {
+            normalized,
+            location,
+            bhk,
+            budget,
+            wantsRequirementOnly,
+            wantsListingOnly,
+            tokens,
+        };
+    }
+
+    private hasMeaningfulTokenMatch(haystack: string, tokens: string[]) {
+        if (tokens.length === 0) {
+            return false;
+        }
+
+        return tokens.every((token) => haystack.includes(token));
     }
 
     private describeListing(listing: any) {

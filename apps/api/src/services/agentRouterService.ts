@@ -58,6 +58,11 @@ export class AgentRouterService {
     ].join(' ');
 
     async route(tenantId: string, prompt: string, history: ConversationMessage[] = []): Promise<AgentRoutePlan> {
+        const deterministicRoute = this.detectDeterministicRoute(prompt);
+        if (deterministicRoute) {
+            return deterministicRoute;
+        }
+
         try {
             const response = await aiService.chat(
                 prompt,
@@ -84,6 +89,32 @@ export class AgentRouterService {
                 args: {},
             };
         }
+    }
+
+    private detectDeterministicRoute(prompt: string): AgentRoutePlan | null {
+        const normalized = String(prompt || '')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        if (!normalized) {
+            return null;
+        }
+
+        const asksToSearch = /\b(search|find|show|pull|get|lookup|look up)\b/.test(normalized);
+        const mentionsCrm = /\b(my\s+)?crm\b/.test(normalized)
+            || /\bsaved\s+(records|data|listings|requirements|leads)\b/.test(normalized);
+
+        if (asksToSearch && mentionsCrm) {
+            return {
+                intent: 'search_my_crm',
+                confidence: 1,
+                rationale: 'Deterministic CRM search guard',
+                args: {},
+            };
+        }
+
+        return null;
     }
 
     private parsePlan(text: string) {
