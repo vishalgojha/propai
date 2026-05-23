@@ -498,6 +498,7 @@ export const Sources: React.FC = () => {
   const [outboundGroups, setOutboundGroups] = useState<WhatsappGroupOption[]>([]);
   const [groupAudit, setGroupAudit] = useState<GroupAuditResponse | null>(null);
   const [isLoadingGroupAudit, setIsLoadingGroupAudit] = useState(false);
+  const [groupAuditError, setGroupAuditError] = useState<string | null>(null);
   const [isApplyingGroupAudit, setIsApplyingGroupAudit] = useState(false);
   const [selectedAuditParseIds, setSelectedAuditParseIds] = useState<string[]>([]);
   const [groupAuditSearchTerm, setGroupAuditSearchTerm] = useState('');
@@ -606,6 +607,7 @@ export const Sources: React.FC = () => {
     currentSession?.sessionData?.groupAuditPending
     && !currentSession?.sessionData?.groupAuditCompletedAt,
   );
+  const auditSessionLabel = currentSession?.label || primaryConnectedSession?.label || pendingConnection?.label || '';
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -746,16 +748,19 @@ export const Sources: React.FC = () => {
   }, []);
 
   const fetchGroupAudit = useCallback(async (sessionLabel?: string | null) => {
-    const targetSessionLabel = sessionLabel || currentSession?.label || pendingConnection?.label || '';
+    const targetSessionLabel = sessionLabel || auditSessionLabel;
     if (!targetSessionLabel) {
       setGroupAudit(null);
+      setGroupAuditError(null);
       return;
     }
 
     setIsLoadingGroupAudit(true);
+    setGroupAuditError(null);
     try {
       const response = await backendApi.get<GroupAuditResponse>(ENDPOINTS.whatsapp.groupsAudit, {
         params: { sessionLabel: targetSessionLabel },
+        timeout: 60000,
       });
       const payload = response.data;
       setGroupAudit(payload);
@@ -765,12 +770,13 @@ export const Sources: React.FC = () => {
           : [],
       );
     } catch (err) {
-      console.error(handleApiError(err));
-      setGroupAudit(null);
+      const message = handleApiError(err);
+      console.error(message);
+      setGroupAuditError(message);
     } finally {
       setIsLoadingGroupAudit(false);
     }
-  }, [currentSession?.label, pendingConnection?.label]);
+  }, [auditSessionLabel]);
 
   useEffect(() => {
     fetchProfile();
@@ -995,30 +1001,30 @@ export const Sources: React.FC = () => {
   }, [activeTab, fetchGroupAudit, fetchOutboundWorkspace, fetchLogs, fetchHealth, fetchHealthLogs]);
 
   useEffect(() => {
-    if (currentSessionStatus !== 'connected' || !currentSession?.label) {
+    if (!auditSessionLabel) {
       return;
     }
 
     if (searchParams.get('audit') === '1') {
       navigate('/group-audit', { replace: true });
-      void fetchGroupAudit(currentSession.label);
+      void fetchGroupAudit(auditSessionLabel);
       return;
     }
 
     if (location.pathname === '/whatsapp' && currentSessionAuditPending) {
       navigate('/group-audit', { replace: true });
       setActiveTab('audit');
-      void fetchGroupAudit(currentSession.label);
+      void fetchGroupAudit(auditSessionLabel);
     }
-  }, [currentSession?.label, currentSessionAuditPending, currentSessionStatus, fetchGroupAudit, location.pathname, navigate, searchParams]);
+  }, [auditSessionLabel, currentSessionAuditPending, fetchGroupAudit, location.pathname, navigate, searchParams]);
 
   useEffect(() => {
-    if (currentSessionStatus !== 'connected' || !currentSession?.label) {
+    if (!auditSessionLabel) {
       return;
     }
 
-    void fetchGroupAudit(currentSession.label);
-  }, [currentSession?.label, currentSessionStatus, fetchGroupAudit]);
+    void fetchGroupAudit(auditSessionLabel);
+  }, [auditSessionLabel, fetchGroupAudit]);
 
 
   const handleConnectWrapper = async (event: React.FormEvent) => {
@@ -1353,7 +1359,7 @@ export const Sources: React.FC = () => {
   };
 
   const handleApplyGroupAudit = async () => {
-    if (!currentSession?.label || !groupAudit) {
+    if (!auditSessionLabel || !groupAudit) {
       setError('Connect a WhatsApp session first.');
       return;
     }
@@ -1367,7 +1373,7 @@ export const Sources: React.FC = () => {
         .map((group) => group.id);
 
       await backendApi.post(ENDPOINTS.whatsapp.groupsAudit, {
-        sessionLabel: currentSession.label,
+        sessionLabel: auditSessionLabel,
         parseGroupIds,
         ignoreGroupIds,
       });
@@ -1375,7 +1381,7 @@ export const Sources: React.FC = () => {
       await Promise.all([
         fetchStatus(),
         fetchOutboundWorkspace(),
-        fetchGroupAudit(currentSession.label),
+        fetchGroupAudit(auditSessionLabel),
         fetchHealth(),
       ]);
       setOutboundFeedback({
@@ -1706,7 +1712,7 @@ export const Sources: React.FC = () => {
                   type="button"
                   onClick={() => void fetchGroupAudit()}
                   className={sourceSecondaryButton}
-                  disabled={isLoadingGroupAudit || !currentSession?.label}
+                  disabled={isLoadingGroupAudit || !auditSessionLabel}
                 >
                   <RefreshCw className={cn('h-4 w-4', isLoadingGroupAudit && 'animate-spin')} />
                   Refresh audit
@@ -1715,7 +1721,7 @@ export const Sources: React.FC = () => {
                   type="button"
                   onClick={() => void handleApplyGroupAudit()}
                   className={sourcePrimaryButton}
-                  disabled={isApplyingGroupAudit || !currentSession?.label || !groupAudit}
+                  disabled={isApplyingGroupAudit || !auditSessionLabel || !groupAudit}
                 >
                   <Zap className="h-4 w-4" />
                   {isApplyingGroupAudit ? 'Applying...' : 'Apply audit decisions'}
@@ -1723,13 +1729,13 @@ export const Sources: React.FC = () => {
               </div>
             </div>
 
-            {!currentSession?.label ? (
+            {!auditSessionLabel ? (
               <div className="mt-4 rounded-[10px] border border-[color:rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.08)] px-4 py-3 text-[12px] text-[var(--amber)]">
                 Connect a WhatsApp number first. Audit becomes available as soon as the group sync completes.
               </div>
             ) : null}
 
-            {currentSession?.label ? (
+            {auditSessionLabel ? (
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">
                 <div className="flex min-w-0 items-center gap-2">
                   <MessageSquare className="h-4 w-4 shrink-0 text-[var(--accent)]" />
@@ -1860,7 +1866,9 @@ export const Sources: React.FC = () => {
                 </div>
               ) : !groupAudit ? (
                 <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
-                  Failed to fetch group audit. Check the connection and try again.
+                  {currentSession?.label || primaryConnectedSession?.label
+                    ? `Group audit is not available yet. ${groupAuditError ? `Last attempt: ${groupAuditError}` : 'Refresh once WhatsApp group sync finishes.'}`
+                    : 'Connect a WhatsApp number first. Audit becomes available after the first group sync.'}
                 </div>
               ) : groupAudit.groups.length === 0 ? (
                 <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
