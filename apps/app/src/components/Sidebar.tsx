@@ -485,8 +485,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           </div>
         </div>
 
-        <div className={cn('shrink-0 space-y-3 border-t-[0.5px] border-[color:var(--border)] px-3 py-3', isCollapsed && 'lg:hidden')}>
-          <SidebarCard className="flex items-center gap-3 px-3 py-2">
+        <div className={cn('shrink-0 space-y-2 border-t-[0.5px] border-[color:var(--border)] px-3 py-2', isCollapsed && 'lg:hidden')}>
+          <SidebarCard className="hidden items-center gap-3 px-3 py-2 lg:flex">
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[rgba(255,255,255,0.04)]">
               <div
                 className={cn('h-full rounded-full transition-all duration-300 ease-out', uplinkBarClassName, uplinkFillClassName)}
@@ -495,18 +495,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             <span className={cn('text-[9px] font-bold uppercase tracking-[0.22em]', uplinkTextClassName)}>{uplinkLabel}</span>
           </SidebarCard>
 
-          <SidebarCard className="p-3">
+          <SidebarCard className="p-2.5 lg:p-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[11px] font-bold text-[var(--accent)]">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[11px] font-bold text-[var(--accent)] lg:h-9 lg:w-9">
                 {getInitial(user?.email)}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{user?.email || 'Signed in broker'}</p>
-                <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                <p className="truncate text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">
                   {activeChannel ? `#${activeChannel.name}` : 'Personal channels'}
                 </p>
                 {whatsappStatus.connectedPhoneNumber ? (
-                  <p className="mt-1 truncate text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                  <p className="mt-1 hidden truncate text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)] lg:block">
                     Active number {whatsappStatus.connectedPhoneNumber}
                   </p>
                 ) : null}
@@ -514,7 +514,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             </div>
 
             {subscription ? (
-              <SidebarCard variant="accent" className="mt-3 px-3 py-2">
+              <SidebarCard variant="accent" className="mt-3 hidden px-3 py-2 lg:block">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">
                     {isTrial ? '7-day trial' : planLabel}
@@ -532,7 +532,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             <button
               type="button"
               onClick={showLogout}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-[8px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-[11px] font-semibold text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-[8px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-[11px] font-semibold text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)] lg:mt-3"
             >
               <LogoutIcon className="h-3.5 w-3.5" />
               Sign out
