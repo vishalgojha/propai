@@ -231,7 +231,7 @@ export class WhatsAppGroupService {
 
                 const { data: existing, error: existingError } = await db
                     .from('whatsapp_groups')
-                    .select('locality, city, category, tags, broadcast_enabled, is_archived, is_parsing, classification, visibility_status, business_confidence, participant_jids, duplicate_overlap_score, signal_score, noise_score, audit_recommendation')
+                    .select('locality, city, category, tags, broadcast_enabled, is_archived, is_parsing, classification, visibility_status, business_confidence, participant_count, member_count, participant_jids, duplicate_overlap_score, signal_score, noise_score, audit_recommendation')
                     .eq('workspace_id', tenantId)
                     .eq('group_jid', group.id)
                     .maybeSingle();
@@ -241,6 +241,13 @@ export class WhatsAppGroupService {
                     failedCount++;
                     continue;
                 }
+
+                const hasLiveParticipantCount = typeof group.participantsCount === 'number' && Number.isFinite(group.participantsCount);
+                const participantCount = hasLiveParticipantCount
+                    ? Number(group.participantsCount)
+                    : Number(existing?.member_count || existing?.participant_count || participantJids.length || 0);
+                const storedParticipantJids = Array.isArray(existing?.participant_jids) ? existing.participant_jids : [];
+                const nextParticipantJids = participantJids.length > 0 ? participantJids : storedParticipantJids;
 
                 const payload = {
                     workspace_id: tenantId,
@@ -254,9 +261,9 @@ export class WhatsAppGroupService {
                     city: existing?.city || inferredCity,
                     category: existing?.category || inferredCategory,
                     tags: uniqueStrings([...(existing?.tags || []), ...inferredTags]),
-                    participant_count: Number(group.participantsCount || 0),
-                    member_count: Number(group.participantsCount || 0),
-                    participant_jids: participantJids,
+                    participant_count: participantCount,
+                    member_count: participantCount,
+                    participant_jids: nextParticipantJids,
                     is_parsing: typeof existing?.is_parsing === 'boolean'
                         ? existing.is_parsing
                         : true,

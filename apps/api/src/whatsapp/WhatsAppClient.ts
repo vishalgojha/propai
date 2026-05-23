@@ -30,6 +30,18 @@ type WhatsAppClientOptions = {
     hooks?: WhatsAppRuntimeHooks;
 } & SessionCreateOptions;
 
+function extractParticipantJids(participants: unknown): string[] {
+    const rows = Array.isArray(participants)
+        ? participants
+        : participants && typeof participants === 'object'
+            ? Object.values(participants as Record<string, unknown>)
+            : [];
+
+    return rows
+        .map((participant: any) => String(participant?.id || participant?.jid || participant || '').trim())
+        .filter(Boolean);
+}
+
 export interface BroadcastOptions {
     batchSize?: number;
     delayBetweenMessages?: number;
@@ -675,14 +687,15 @@ try {
         try {
             const groups = await Promise.race([fetchPromise, timeoutPromise]);
             if (groups) {
-                return Object.values(groups).map((group: any) => ({
-                    id: group.id,
-                    name: group.subject || group.name || group.id,
-                    participantsCount: Array.isArray(group.participants) ? group.participants.length : undefined,
-                    participantJids: Array.isArray(group.participants)
-                        ? group.participants.map((participant: any) => String(participant?.id || '').trim()).filter(Boolean)
-                        : [],
-                }));
+                return Object.values(groups).map((group: any) => {
+                    const participantJids = extractParticipantJids(group.participants);
+                    return {
+                        id: group.id,
+                        name: group.subject || group.name || group.id,
+                        participantsCount: participantJids.length > 0 ? participantJids.length : undefined,
+                        participantJids,
+                    };
+                });
             }
         } catch (error) {
             console.error('[WhatsAppClient] getParticipatingGroups error or timeout:', error);
