@@ -1194,30 +1194,24 @@ export const getGroupsAudit = async (req: Request, res: Response) => {
         const gateway = getWhatsAppGateway(context.workspaceOwnerId);
         let groups: Awaited<ReturnType<typeof gateway.listGroups>> = [];
 
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-            groups = await gateway.listGroups({ workspaceOwnerId: context.workspaceOwnerId, sessionLabel });
-            if (groups.length > 0) {
-                break;
+        try {
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+                groups = await gateway.listGroups({ workspaceOwnerId: context.workspaceOwnerId, sessionLabel });
+                if (groups.length > 0) {
+                    break;
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 1200));
             }
 
-            await new Promise((resolve) => setTimeout(resolve, 1200));
-        }
-
-        if (groups.length > 0) {
-            await whatsappGroupService.syncGroups(context.workspaceOwnerId, sessionLabel, groups);
+            if (groups.length > 0) {
+                await whatsappGroupService.syncGroups(context.workspaceOwnerId, sessionLabel, groups);
+            }
+        } catch (syncError) {
+            console.warn(`[getGroupsAudit] Failed to load or sync live groups for session ${sessionLabel}:`, syncError);
         }
 
         const audit = await groupAuditService.getAudit(context.workspaceOwnerId, sessionLabel);
-        if (audit.groups.length === 0 && groups.length === 0) {
-            const dbGroups = await whatsappGroupService.listGroups(context.workspaceOwnerId, {
-                sessionLabel,
-                includeArchived: false,
-            });
-            if (dbGroups.length > 0) {
-                const fallbackAudit = await groupAuditService.getAudit(context.workspaceOwnerId, sessionLabel);
-                return res.json({ success: true, ...fallbackAudit });
-            }
-        }
         res.json({ success: true, ...audit });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to build WhatsApp group audit') });

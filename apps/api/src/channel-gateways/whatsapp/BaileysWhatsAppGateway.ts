@@ -122,20 +122,25 @@ export class BaileysWhatsAppGateway implements WhatsAppGateway {
     }
 
     async listGroups(input: { workspaceOwnerId: string; sessionLabel: string }): Promise<WhatsAppGroupRecord[]> {
-        const client = await sessionManager.getSession(input.workspaceOwnerId, input.sessionLabel);
-        if (!client) {
+        try {
+            const client = await sessionManager.getSession(input.workspaceOwnerId, input.sessionLabel);
+            if (!client) {
+                return [];
+            }
+
+            const groups = await client.getGroups();
+            return (groups as RuntimeGroup[]).map((group) => ({
+                id: String(group.id || ''),
+                name: String(group.name || group.id || ''),
+                participantsCount: typeof group.participantsCount === 'number' ? group.participantsCount : undefined,
+                participantJids: Array.isArray(group.participantJids)
+                    ? group.participantJids.map((participant: string) => String(participant || '').trim()).filter(Boolean)
+                    : [],
+            }));
+        } catch (error) {
+            console.error(`[BaileysWhatsAppGateway] Failed to list groups for session ${input.sessionLabel}:`, error);
             return [];
         }
-
-        const groups = await client.getGroups();
-        return (groups as RuntimeGroup[]).map((group) => ({
-            id: String(group.id || ''),
-            name: String(group.name || group.id || ''),
-            participantsCount: typeof group.participantsCount === 'number' ? group.participantsCount : undefined,
-            participantJids: Array.isArray(group.participantJids)
-                ? group.participantJids.map((participant: string) => String(participant || '').trim()).filter(Boolean)
-                : [],
-        }));
     }
 
     async forceReconnect(input: WhatsAppReconnectInput): Promise<WhatsAppReconnectResult> {

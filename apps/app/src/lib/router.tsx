@@ -73,13 +73,34 @@ export function useLocation() {
 }
 
 export function useSearchParams() {
+  const router = useRouter();
+  const pathname = usePathname();
   const nextSearchParams = useNextSearchParams();
+
   const stableParams = React.useMemo(
     () => new URLSearchParams(nextSearchParams?.toString() || ""),
     [nextSearchParams]
   );
 
-  return [stableParams, () => {}] as const;
+  const setSearchParams = React.useCallback(
+    (
+      nextInit: URLSearchParams | ((prev: URLSearchParams) => URLSearchParams),
+      options?: NavigateOptions
+    ) => {
+      const nextParams = typeof nextInit === "function" ? nextInit(stableParams) : nextInit;
+      const searchString = nextParams.toString();
+      const newUrl = searchString ? `${pathname}?${searchString}` : pathname;
+
+      if (options?.replace) {
+        router.replace(newUrl);
+      } else {
+        router.push(newUrl);
+      }
+    },
+    [router, pathname, stableParams]
+  );
+
+  return [stableParams, setSearchParams] as const;
 }
 
 export function useParams<T extends Record<string, string>>() {

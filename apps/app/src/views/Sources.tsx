@@ -385,12 +385,37 @@ const sourceFieldClassName =
   'w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]';
 
 export const Sources: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'setup' | 'audit' | 'outbound' | 'pricing' | 'logs'>(
-    location.pathname === '/pricing' ? 'pricing' : 'setup',
-  );
+
+  const tabParam = searchParams.get('tab');
+  const initialTab = useMemo(() => {
+    if (tabParam && ['setup', 'audit', 'outbound', 'pricing', 'logs'].includes(tabParam)) {
+      return tabParam as 'setup' | 'audit' | 'outbound' | 'pricing' | 'logs';
+    }
+    return location.pathname === '/pricing' ? 'pricing' : 'setup';
+  }, [tabParam, location.pathname]);
+
+  const [activeTab, setActiveTab] = useState<'setup' | 'audit' | 'outbound' | 'pricing' | 'logs'>(initialTab);
+
+  // Sync state from query parameters if they change
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab && ['setup', 'audit', 'outbound', 'pricing', 'logs'].includes(currentTab)) {
+      setActiveTab(currentTab as any);
+    }
+  }, [searchParams]);
+
+  // Sync state to query parameters
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab !== activeTab) {
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.set('tab', activeTab);
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [activeTab, searchParams, setSearchParams]);
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [deviceOwnerName, setDeviceOwnerName] = useState('');
