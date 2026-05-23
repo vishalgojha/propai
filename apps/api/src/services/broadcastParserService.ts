@@ -1,5 +1,6 @@
 import { aiService } from './aiService';
 import { supabaseAdmin } from '../config/supabase';
+import { parseIndianLocation } from '../utils/locationParser';
 import { classifyBrokerMessage } from '../utils/brokerMessageClassifier';
 import { canonicalizationService } from './canonicalizationService';
 import { generateEmbedding } from './embeddingService';
@@ -490,11 +491,14 @@ Return ONLY valid JSON, no markdown, no explanation.`;
 
     const assetClass = (extracted as any).asset_class || deriveAssetClass(extracted);
 
+    const resolvedLoc = extracted.location ? parseIndianLocation(extracted.location) : null;
+    const parsedLocality = resolvedLoc ? resolvedLoc.locality : null;
+
     const parsed: ListingParsed = {
         bhk: extracted.bhk || null,
         property_type: propertyType,
         listing_type: listingType,
-        locality: extracted.location || null,
+        locality: parsedLocality,
         building_name: extracted.building_name || null,
         price_cr: priceCr,
         rent_monthly: rentMonthly,
@@ -732,13 +736,17 @@ Return ONLY valid JSON, no markdown, no explanation.`;
     const resolvedPhone = resolvedBroker?.phone || brokerPhone;
     const resolvedAgency = resolvedBroker?.agency || brokerAgency;
 
+    const preferredLocations = (extracted.preferred_locations ?? [])
+        .map((loc) => parseIndianLocation(loc)?.locality)
+        .filter((loc): loc is string => !!loc);
+
     const insertPayload = {
         tenant_id: tenantId,
         raw_text: line,
         bhk_preference: extracted.bhk_preference ?? [],
         property_type: propertyType,
         listing_type: listingType,
-        preferred_localities: extracted.preferred_locations ?? [],
+        preferred_localities: preferredLocations,
         budget_min_cr: budgetMinCr,
         budget_max_cr: budgetMaxCr,
         rent_budget_monthly: rentBudgetMonthly,
@@ -764,7 +772,7 @@ Return ONLY valid JSON, no markdown, no explanation.`;
 
     // GAP 4: Update broker profile
     const priceNumeric = budgetMinCr ? budgetMinCr * 10000000 : rentBudgetMonthly;
-    await upsertBrokerContact(tenantId, resolvedPhone, resolvedName, extracted.preferred_locations?.[0] || null, extracted.bhk_preference?.[0] || null, priceNumeric);
+    await upsertBrokerContact(tenantId, resolvedPhone, resolvedName, preferredLocations[0] || null, extracted.bhk_preference?.[0] || null, priceNumeric);
 
     // Push to stream_items so it appears in the live feed
     const streamPriceLabel = rentBudgetMonthly ? `₹${Math.round(rentBudgetMonthly / 1000)}K/mo` : budgetMinCr ? `₹${budgetMinCr} Cr` : null;
@@ -775,7 +783,7 @@ Return ONLY valid JSON, no markdown, no explanation.`;
       rawText: line,
       type: 'Requirement',
       recordType: 'requirement',
-      locality: extracted.preferred_locations?.[0] || null,
+      locality: preferredLocations[0] || null,
       bhk: extracted.bhk_preference?.[0] || null,
       priceNumeric,
       priceLabel: streamPriceLabel,
@@ -793,7 +801,7 @@ Return ONLY valid JSON, no markdown, no explanation.`;
         brokerPhone: resolvedPhone,
         brokerAgency: resolvedAgency,
         bhkPreferences: extracted.bhk_preference || [],
-        preferredLocalities: extracted.preferred_locations || [],
+        preferredLocalities: preferredLocations,
         isSyndicated: false,
       },
     });

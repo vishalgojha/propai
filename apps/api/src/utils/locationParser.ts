@@ -146,14 +146,18 @@ function findLocationFromText(text: string): ParsedLocation | null {
 
     const commaMatch = normalizedText.match(/\b([a-z][a-z\s]{2,30}),\s*([a-z][a-z\s]{2,30})\b/);
     if (commaMatch) {
-        return {
-            locality: titleCase(commaMatch[1].trim()),
-            city: titleCase(commaMatch[2].trim()) as SupportedCity,
-            matchedAlias: commaMatch[0],
-            confidence: 72,
-            resolvedVia: 'heuristic',
-            pincode: null,
-        };
+        const potentialCity = titleCase(commaMatch[2].trim());
+        const validCities: SupportedCity[] = ['Mumbai', 'Pune', 'Thane', 'Navi Mumbai'];
+        if (validCities.includes(potentialCity as SupportedCity)) {
+            return {
+                locality: titleCase(commaMatch[1].trim()),
+                city: potentialCity as SupportedCity,
+                matchedAlias: commaMatch[0],
+                confidence: 72,
+                resolvedVia: 'heuristic',
+                pincode: null,
+            };
+        }
     }
 
     return null;

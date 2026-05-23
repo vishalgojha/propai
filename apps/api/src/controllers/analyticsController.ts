@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { getErrorMessage, getErrorStatus, getTenantId } from '../utils/controllerHelpers';
+import { parseIndianLocation } from '../utils/locationParser';
 import '../types/express';
 
 const db = supabaseAdmin || supabase;
@@ -217,9 +218,18 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
 
         for (const row of rows) {
             const type = cleanLabel(row.type, 'Unknown');
-            const locality = normalizeLocality(row.locality);
+
+            // Validate and canonicalize locality
+            const resolvedLoc = row.locality ? parseIndianLocation(row.locality) : null;
+            if (!resolvedLoc) continue;
+            const locality = resolvedLoc.locality;
+
             const bhk = normalizeBhk(row.bhk);
-            const price = toNumber(row.price_numeric);
+            const rawPrice = toNumber(row.price_numeric);
+
+            // Ignore extreme price outliers (> 50 Crore or > 50 Lakhs rent are considered corrupt)
+            const price = (rawPrice != null && rawPrice > 0 && rawPrice < 500_000_000) ? rawPrice : null;
+
             const createdAt = row.created_at || new Date(0).toISOString();
             const requirement = isRequirement(type);
 
