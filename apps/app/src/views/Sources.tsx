@@ -1594,8 +1594,8 @@ export const Sources: React.FC = () => {
     },
     audit: {
       eyebrow: 'Group Audit',
-      title: 'Review synced WhatsApp groups before they feed Stream.',
-      copy: 'Score group signal, overlap, and noise in a dedicated audit surface, then keep noisy groups out of Stream.',
+      title: 'Group audit',
+      copy: '',
     },
     pricing: {
       eyebrow: 'Pricing',
@@ -1610,26 +1610,39 @@ export const Sources: React.FC = () => {
   }[activeTab];
 
   return (
-    <div className="space-y-8">
-      <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6 md:p-8">
+    <div className={cn(activeTab === 'audit' ? 'space-y-4' : 'space-y-8')}>
+      <div className={cn(
+        'rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)]',
+        activeTab === 'audit' ? 'p-4' : 'p-6 md:p-8',
+      )}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
               <Smartphone className="h-3.5 w-3.5" />
               {pageMeta.eyebrow}
             </div>
-            <h2 className="mt-4 text-[28px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">
+            <h2 className={cn(
+              'font-bold tracking-[-0.03em] text-[var(--text-primary)]',
+              activeTab === 'audit' ? 'mt-2 text-[22px]' : 'mt-4 text-[28px]',
+            )}>
               {pageMeta.title}
             </h2>
-            <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              {pageMeta.copy}
-            </p>
+            {pageMeta.copy ? (
+              <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
+                {pageMeta.copy}
+              </p>
+            ) : null}
           </div>
 
-          <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
+          <div className={cn(
+            'rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)]',
+            activeTab === 'audit' ? 'px-3 py-2' : 'px-4 py-3',
+          )}>
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access model</p>
             <p className="mt-1 text-[14px] font-bold text-[var(--text-primary)]">{status.plan || 'Trial'}</p>
-            <p className="text-[11px] text-[var(--text-secondary)]">Trial 7 days free, Pro ₹999/mo for 1 device, Team ₹999/seat/mo — each member links their own account.</p>
+            {activeTab === 'audit' ? null : (
+              <p className="text-[11px] text-[var(--text-secondary)]">Trial 7 days free, Pro ₹999/mo for 1 device, Team ₹999/seat/mo — each member links their own account.</p>
+            )}
             {isAtDeviceLimit ? (
               <div className="mt-2 space-y-2">
                 <p className="text-[11px] text-[var(--amber)]">Device limit reached for this workspace.</p>
@@ -1666,7 +1679,7 @@ export const Sources: React.FC = () => {
       </div>
       ) : null}
 
-      {activeTab === 'setup' || activeTab === 'audit' ? (
+      {activeTab === 'setup' ? (
       <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="max-w-3xl">
@@ -1682,16 +1695,12 @@ export const Sources: React.FC = () => {
       ) : null}
 
       {activeTab === 'audit' ? (
-        <div className="space-y-6">
-          <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="max-w-3xl">
-                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Group intelligence audit</p>
-                <h3 className="mt-1 text-[18px] font-semibold text-[var(--text-primary)]">See the WhatsApp network before it starts feeding Stream</h3>
-                <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
-                  PropAI scores every synced group for signal, overlap, and chaos. Groups parse automatically; use the audit to keep noisy or private groups out of Stream.
-                </p>
-              </div>
+        <div className="space-y-4">
+          <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[12px] font-medium text-[var(--text-secondary)]">
+                Groups parse by default. Keep noisy or private groups out before Stream fills.
+              </p>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -1721,56 +1730,39 @@ export const Sources: React.FC = () => {
             ) : null}
 
             {currentSession?.label ? (
-              <div className="mt-5 rounded-[14px] border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] p-4">
-                <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.12)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        Self chat
-                      </div>
-                      <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                        {selfChatEnabled ? 'Enabled' : 'Off'}
-                      </span>
-                    </div>
-                    <h4 className="mt-3 text-[15px] font-semibold text-[var(--text-primary)]">Private PropAI lane on this number</h4>
-                    <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--text-secondary)]">
-                      {selfChatEnabled
-                        ? 'Your own chat can feed requirements, matching, and recall without enabling every direct message.'
-                        : 'Turn this on when you want your own chat to work as a private AI lane.'}
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-secondary)]">
-                      <span className="rounded-[8px] border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.12)] px-2.5 py-1 font-semibold text-[var(--accent)]">Send "Hi"</span>
-                      <span>from your self chat to start.</span>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => void handleSelfChatAuditToggle()}
-                    disabled={isSavingParsingPrefs || !currentSession?.label}
-                    className={cn(
-                      'relative h-7 w-12 rounded-full border transition-colors disabled:opacity-50',
-                      selfChatEnabled
-                        ? 'border-[color:var(--accent-border)] bg-[var(--accent)]'
-                        : 'border-[color:var(--border)] bg-[var(--bg-base)]',
-                    )}
-                    aria-pressed={selfChatEnabled}
-                    aria-label="Toggle self chat on this number"
-                  >
-                    <span
-                      className={cn(
-                        'absolute top-0.5 h-6 w-6 rounded-full bg-white transition-transform',
-                        selfChatEnabled ? 'translate-x-5' : 'translate-x-0.5',
-                      )}
-                    />
-                  </button>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <MessageSquare className="h-4 w-4 shrink-0 text-[var(--accent)]" />
+                  <span className="text-[12px] font-semibold text-[var(--text-primary)]">Self chat</span>
+                  <span className="text-[11px] text-[var(--text-secondary)]">
+                    {selfChatEnabled ? 'Private lane on. Send "Hi" to start.' : 'Private lane off.'}
+                  </span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => void handleSelfChatAuditToggle()}
+                  disabled={isSavingParsingPrefs || !currentSession?.label}
+                  className={cn(
+                    'relative h-6 w-11 rounded-full border transition-colors disabled:opacity-50',
+                    selfChatEnabled
+                      ? 'border-[color:var(--accent-border)] bg-[var(--accent)]'
+                      : 'border-[color:var(--border)] bg-[var(--bg-elevated)]',
+                  )}
+                  aria-pressed={selfChatEnabled}
+                  aria-label="Toggle self chat on this number"
+                >
+                  <span
+                    className={cn(
+                      'absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform',
+                      selfChatEnabled ? 'translate-x-5' : 'translate-x-0.5',
+                    )}
+                  />
+                </button>
               </div>
             ) : null}
 
             {groupAudit ? (
-              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
                 {[
                   { label: 'Total groups', value: groupAudit.summary.totalGroups, note: 'Synced from this number.' },
                   { label: 'Parsing by default', value: selectedAuditParseIds.length, note: 'Groups feeding Stream unless kept out.' },
@@ -1778,25 +1770,25 @@ export const Sources: React.FC = () => {
                   { label: 'Average chaos', value: groupAudit.summary.averageChaosScore, note: 'Overlap pressure plus noisy/off-topic signals.' },
                   { label: 'Likely real-estate groups', value: groupAudit.summary.realEstateGroups, note: 'Groups with broker/property signals or business classification.' },
                 ].map((item) => (
-                  <div key={item.label} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+                  <div key={item.label} className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
                     <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">{item.label}</p>
-                    <p className="mt-2 text-[24px] font-bold text-[var(--text-primary)]">{item.value}</p>
-                    <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">{item.note}</p>
+                    <p className="mt-1 text-[22px] font-bold text-[var(--text-primary)]">{item.value}</p>
+                    <p className="mt-1 text-[10px] leading-4 text-[var(--text-secondary)]">{item.note}</p>
                   </div>
                 ))}
               </div>
             ) : null}
 
             {groupAudit ? (
-              <div className="mt-3 grid gap-3 lg:grid-cols-3">
+              <div className="mt-2 grid gap-2 lg:grid-cols-3">
                 {[
                   { label: 'Signal', copy: 'Real-estate intent from group name, locality, category, and member surface.' },
                   { label: 'Noise', copy: 'Personal, promo, media, or off-topic naming patterns that reduce parsing confidence.' },
                   { label: 'Chaos', copy: 'A combined risk score from cross-group member overlap and noise.' },
                 ].map((item) => (
-                  <div key={item.label} className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3">
+                  <div key={item.label} className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">{item.label}</p>
-                    <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">{item.copy}</p>
+                    <p className="mt-1 text-[10px] leading-4 text-[var(--text-secondary)]">{item.copy}</p>
                   </div>
                 ))}
               </div>
