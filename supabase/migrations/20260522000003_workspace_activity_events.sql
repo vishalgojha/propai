@@ -22,8 +22,19 @@ create index if not exists idx_workspace_activity_owner_created
 
 alter table workspace_activity_events enable row level security;
 
--- Basic RLS: workspace owner sees their own events
-create policy if not exists workspace_activity_owner_access
-  on workspace_activity_events
-  for all
-  using (workspace_owner_id = auth.uid());
+-- Basic RLS: workspace owner sees their own events.
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'workspace_activity_events'
+      and policyname = 'workspace_activity_owner_access'
+  ) then
+    create policy workspace_activity_owner_access
+      on workspace_activity_events
+      for all
+      using (workspace_owner_id = auth.uid());
+  end if;
+end $$;
