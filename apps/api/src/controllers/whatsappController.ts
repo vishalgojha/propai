@@ -56,6 +56,26 @@ function hasActiveSessionStatus(value?: unknown) {
     return status === 'connected' || status === 'connecting' || status === 'reconnecting';
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T, label: string): Promise<T> {
+    let timeoutHandle: NodeJS.Timeout | null = null;
+
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<T>((resolve) => {
+                timeoutHandle = setTimeout(() => {
+                    console.warn(`[whatsappController] ${label} timed out after ${timeoutMs}ms`);
+                    resolve(fallback);
+                }, timeoutMs);
+            }),
+        ]);
+    } finally {
+        if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+        }
+    }
+}
+
 function getTenantId(req: Request) {
     const user = req.user;
     return user?.id || 'system';
@@ -1306,10 +1326,18 @@ export const getGroupsAudit = async (req: Request, res: Response) => {
         const context = await workspaceAccessService.resolveContext(req.user ?? {});
         const gateway = getWhatsAppGateway(context.workspaceOwnerId);
         let groups: Awaited<ReturnType<typeof gateway.listGroups>> = [];
+        let audit = await groupAuditService.getAudit(context.workspaceOwnerId, sessionLabel);
 
         try {
-            for (let attempt = 0; attempt < 3; attempt += 1) {
-                groups = await gateway.listGroups({ workspaceOwnerId: context.workspaceOwnerId, sessionLabel });
+            const maxAttempts = audit.groups.length > 0 ? 1 : 3;
+
+            for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                groups = await withTimeout(
+                    gateway.listGroups({ workspaceOwnerId: context.workspaceOwnerId, sessionLabel }),
+                    4000,
+                    [],
+                    `List groups for audit session ${sessionLabel}`,
+                );
                 if (groups.length > 0) {
                     break;
                 }
@@ -1324,7 +1352,10 @@ export const getGroupsAudit = async (req: Request, res: Response) => {
             console.warn(`[getGroupsAudit] Failed to load or sync live groups for session ${sessionLabel}:`, syncError);
         }
 
-        const audit = await groupAuditService.getAudit(context.workspaceOwnerId, sessionLabel);
+        if (groups.length > 0) {
+            audit = await groupAuditService.getAudit(context.workspaceOwnerId, sessionLabel);
+        }
+
         res.json({ success: true, ...audit });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to build WhatsApp group audit') });
