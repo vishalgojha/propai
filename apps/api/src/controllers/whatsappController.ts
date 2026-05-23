@@ -33,6 +33,24 @@ function getConnectedSessionLabels(sessions: LiveSessionRecord[]) {
         .filter(Boolean);
 }
 
+function normalizePhone(value?: string | null) {
+    return String(value || '').split('').filter(c => c >= '0' && c <= '9').join('');
+}
+
+function shouldShowSessionInStatus(session: Record<string, unknown>, newestVisibleLabelByPhone: Map<string, string>) {
+    const status = String(session.status || 'disconnected');
+    if (status !== 'disconnected') {
+        return true;
+    }
+
+    const phone = normalizePhone(session.phoneNumber as string | null | undefined);
+    if (!phone) {
+        return false;
+    }
+
+    return newestVisibleLabelByPhone.get(phone) === session.label;
+}
+
 function getTenantId(req: Request) {
     const user = req.user;
     return user?.id || 'system';
@@ -459,12 +477,21 @@ export const getStatus = async (req: Request, res: Response) => {
         const sessions = Array.from(sessionMap.values()).sort((a, b) => {
             return new Date(String((b as Record<string, string | undefined>).lastSync || 0)).getTime() - new Date(String((a as Record<string, string | undefined>).lastSync || 0)).getTime();
         });
-        const connectedSessions = sessions.filter((session) => (session as Record<string, string>).status === 'connected');
-        const reconnectingSessions = sessions.filter((session) => {
+        const newestVisibleLabelByPhone = new Map<string, string>();
+        for (const session of sessions) {
+            const row = session as Record<string, unknown>;
+            const phone = normalizePhone(row.phoneNumber as string | null | undefined);
+            if (phone && !newestVisibleLabelByPhone.has(phone)) {
+                newestVisibleLabelByPhone.set(phone, String(row.label || ''));
+            }
+        }
+        const visibleSessions = sessions.filter((session) => shouldShowSessionInStatus(session as Record<string, unknown>, newestVisibleLabelByPhone));
+        const connectedSessions = visibleSessions.filter((session) => (session as Record<string, string>).status === 'connected');
+        const reconnectingSessions = visibleSessions.filter((session) => {
             const row = session as Record<string, unknown>;
             return row.status === 'reconnecting' || (row.status === 'connecting' && Boolean(row.isReconnecting));
         });
-        const connectingSessions = sessions.filter((session) => {
+        const connectingSessions = visibleSessions.filter((session) => {
             const row = session as Record<string, unknown>;
             return row.status === 'connecting' && !Boolean(row.isReconnecting);
         });
@@ -488,7 +515,7 @@ export const getStatus = async (req: Request, res: Response) => {
             allowedOutboundSessionLabels: context.assignedSessionLabels,
             preferredOutboundSessionLabel: context.preferredSessionLabel,
             hasOutboundLaneRestriction: context.hasSessionRestriction,
-            sessions: sessions.map((session) => {
+            sessions: visibleSessions.map((session) => {
                 const row = session as Record<string, unknown>;
                 const isReconnecting = Boolean(row.isReconnecting);
                 const rawStatus = String(row.status || 'disconnected');
