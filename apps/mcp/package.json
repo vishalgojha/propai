@@ -8,7 +8,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "node --loader ts-node/esm src/server.ts"
+    "dev": "node --loader ts-node/esm src/server.ts",
+    "stdio": "node dist/stdio.js",
+    "dev:stdio": "node --loader ts-node/esm src/stdio.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "latest",
