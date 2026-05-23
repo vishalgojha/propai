@@ -747,13 +747,14 @@ if (brokerOnly) {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
 
+    const root = document.getElementById('main-scroll-container');
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0]?.isIntersecting) return;
         setVisibleCount((current) => Math.min(current + PAGE_SIZE, visibleStream.length));
       },
       {
-        root: null,
+        root,
         rootMargin: '240px',
         threshold: 0,
       },
@@ -768,37 +769,33 @@ if (brokerOnly) {
     [visibleStream, visibleCount],
   );
   const hasMore = visibleCount < visibleStream.length;
+  const computeMinutes = React.useCallback((item: StreamItem): number | null => {
+    const createdAt = item.createdAt ? new Date(item.createdAt) : null;
+    if (createdAt && !Number.isNaN(createdAt.getTime())) {
+      return Math.max(0, Math.round((Date.now() - createdAt.getTime()) / 60000));
+    }
+    return parseRecencyMinutes(item.posted);
+  }, []);
+
   const summaryCards = React.useMemo(() => {
-    const summary = streamSummary || {
+    const summary = {
       oneHour: visibleStream.filter((item) => {
-        const createdAt = item.createdAt ? new Date(item.createdAt) : null;
-        const minutes = createdAt && !Number.isNaN(createdAt.getTime())
-          ? Math.max(0, Math.round((Date.now() - createdAt.getTime()) / 60000))
-          : parseRecencyMinutes(item.posted);
+        const minutes = computeMinutes(item);
         return minutes != null && minutes < 60;
       }).length,
       fourHours: visibleStream.filter((item) => {
-        const createdAt = item.createdAt ? new Date(item.createdAt) : null;
-        const minutes = createdAt && !Number.isNaN(createdAt.getTime())
-          ? Math.max(0, Math.round((Date.now() - createdAt.getTime()) / 60000))
-          : parseRecencyMinutes(item.posted);
+        const minutes = computeMinutes(item);
         return minutes != null && minutes < 240;
       }).length,
       oneDay: visibleStream.filter((item) => {
-        const createdAt = item.createdAt ? new Date(item.createdAt) : null;
-        const minutes = createdAt && !Number.isNaN(createdAt.getTime())
-          ? Math.max(0, Math.round((Date.now() - createdAt.getTime()) / 60000))
-          : parseRecencyMinutes(item.posted);
+        const minutes = computeMinutes(item);
         return minutes != null && minutes < 1440;
       }).length,
       sevenDays: visibleStream.filter((item) => {
-        const createdAt = item.createdAt ? new Date(item.createdAt) : null;
-        const minutes = createdAt && !Number.isNaN(createdAt.getTime())
-          ? Math.max(0, Math.round((Date.now() - createdAt.getTime()) / 60000))
-          : parseRecencyMinutes(item.posted);
+        const minutes = computeMinutes(item);
         return minutes != null && minutes < 10080;
       }).length,
-      allTime: streamTotal || visibleStream.length,
+      allTime: visibleStream.length,
       network_mode: streamNetworkMode,
     };
     const scopeLabel = activeChannel
@@ -814,7 +811,7 @@ if (brokerOnly) {
       { label: 'Parsed last 7 days', value: summary.sevenDays, hint: scopeLabel },
       { label: 'Parsed all time', value: summary.allTime, hint: scopeLabel },
     ];
-  }, [activeChannel, streamNetworkMode, streamSummary, streamTotal, visibleStream]);
+  }, [activeChannel, streamNetworkMode, visibleStream, computeMinutes]);
 
   return (
     <>
@@ -862,12 +859,12 @@ if (brokerOnly) {
             <div className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">
               {activeChannel ? formatChannelTitle(activeChannel.name) : 'All inventory'}
             </div>
-            <div className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-              {activeChannel ? visibleStream.length : streamTotal || visibleStream.length} items
+              <div className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                {visibleStream.length} items
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
       <div className="flex items-center gap-3 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-2.5 text-[11px]">
         <Signal className={cn(
@@ -963,12 +960,12 @@ if (brokerOnly) {
           </button>
           <div className="hidden h-6 w-px bg-[var(--bg-elevated)] md:block" />
           <p className="px-2 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
-            {activeChannel ? visibleStream.length : streamTotal || visibleStream.length} feed items
+            {activeChannel ? visibleStream.length : visibleStream.length} feed items
           </p>
         </div>
       </div>
 
-      <div className="hidden md:block">
+      <div className="block">
         <div className="rounded-2xl border border-[color:var(--border-strong)] bg-[var(--bg-base)] p-4">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -1122,141 +1119,6 @@ if (brokerOnly) {
                 )}
               </div>
 
-              <div className="md:hidden">
-                <div className="rounded-xl border border-[color:var(--border-strong)] bg-[var(--bg-base)] p-3 mb-4 space-y-2.5">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <p className="mr-1.5 text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Time</p>
-                    <button
-                      type="button"
-                      onClick={() => setQuickTimeBands([])}
-                      className={cn(
-                        'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                        quickTimeBands.length === 0
-                          ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                          : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
-                      )}
-                    >
-                      All
-                    </button>
-                    {(['1h', '4h', '1d', '7d'] as const).map((band) => (
-                      <button
-                        key={band}
-                        type="button"
-                        onClick={() => setQuickTimeBands((current) => toggleSelection(current, band))}
-                        className={cn(
-                          'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                          quickTimeBands.includes(band)
-                            ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                            : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
-                        )}
-                      >
-                        {band === '1h' ? '<1hr' : band === '4h' ? '<4hr' : band === '1d' ? '<1d' : '<7d'}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <p className="mr-1.5 text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Type</p>
-                    <button
-                      type="button"
-                      onClick={() => setQuickTypes([])}
-                      className={cn(
-                        'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                        quickTypes.length === 0
-                          ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                          : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
-                      )}
-                    >
-                      All
-                    </button>
-                    {ALL_TYPES.map((type) => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => setQuickTypes((current) => toggleSelection(current, type))}
-                        className={cn(
-                          'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                          quickTypes.includes(type)
-                            ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                            : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
-                        )}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <p className="mr-1.5 text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Confidence</p>
-                    {([
-                      ['high', 'High (>70%)'],
-                      ['medium', 'Medium'],
-                      ['low', 'Low'],
-                    ] as const).map(([band, label]) => (
-                      <button
-                        key={band}
-                        type="button"
-                        onClick={() => setQuickConfidenceBands((current) => toggleSelection(current, band))}
-                        className={cn(
-                          'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                          quickConfidenceBands.includes(band)
-                            ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                            : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
-                        )}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setQuickConfidenceBands([])}
-                      className={cn(
-                        'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                        quickConfidenceBands.length === 0
-                          ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                          : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
-                      )}
-                    >
-                      All
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <p className="mr-1.5 text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Freshness</p>
-                    {([
-                      ['1h', 'Last 1hr'],
-                      ['6h', 'Last 6hr'],
-                    ] as const).map(([band, label]) => (
-                      <button
-                        key={band}
-                        type="button"
-                        onClick={() => setQuickFreshnessBands((current) => toggleSelection(current, band))}
-                        className={cn(
-                          'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                          quickFreshnessBands.includes(band)
-                            ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                            : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
-                        )}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setQuickFreshnessBands([])}
-                      className={cn(
-                        'rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                        quickFreshnessBands.length === 0
-                          ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                          : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)]',
-                      )}
-                    >
-                      All
-                    </button>
-                  </div>
-                </div>
-              </div>
-
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-[var(--text-secondary)]">Category</label>
@@ -1323,7 +1185,7 @@ if (brokerOnly) {
       ) : null}
 
       <div className="glass-panel overflow-hidden rounded-2xl border-[color:var(--border)]">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:hidden">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {isLoading ? (
             <div className="flex items-center justify-center gap-3 px-5 py-12 text-sm text-[var(--text-secondary)]">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1362,46 +1224,6 @@ if (brokerOnly) {
             })
           )}
         </div>
-
-        <div className="hidden lg:grid lg:grid-cols-3 gap-4">
-          {isLoading ? (
-              <div className="flex items-center justify-center gap-3 px-5 py-12 text-sm text-[var(--text-secondary)]">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading inventory feed...
-              </div>
-            ) : error ? (
-              <div className="px-5 py-12 text-center text-sm text-red-400">
-                {error}
-              </div>
-            ) : renderedStream.length === 0 ? (
-              <div className="px-5 py-12 text-center text-sm text-[var(--text-secondary)]">
-                No parsed inventory or buyer records are available yet.
-              </div>
-            ) : (
-              renderedStream.map((listing) => {
-                const isExpanded = expandedListingId === listing.id;
-                const waCount = waClickStats?.by_listing[listing.id]?.count || 0;
-                return (
-                  <ListingCard
-                    key={listing.id}
-                    listing={listing}
-                    networkMode={streamNetworkMode}
-                    isExpanded={isExpanded}
-                    onToggle={() => {
-                      setExpandedListingId(isExpanded ? null : listing.id);
-                      if (!isExpanded && editingListingId && editingListingId !== listing.id) {
-                        setEditingListingId(null);
-                        setCorrectionDraft(null);
-                    }
-                  }}
-                  waClickCount={waCount}
-                  channels={channels}
-                  onSaveToChannel={handleAttachStreamItemToChannel}
-                />
-              );
-            })
-            )}
-          </div>
 
           <div ref={sentinelRef} className="px-6 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
           {hasMore ? `${renderedStream.length} of ${visibleStream.length} loaded. More items appear as you scroll.` : 'End of feed'}

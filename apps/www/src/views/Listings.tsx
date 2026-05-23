@@ -40,7 +40,7 @@ export default function Listings() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {['All', 'Rent', 'Sale', 'Requirement'].map(type => (
+        {['All', 'Rent', 'Sale'].map(type => (
           <button 
             key={type}
             onClick={() => setFilters(prev => ({ ...prev, type }))}

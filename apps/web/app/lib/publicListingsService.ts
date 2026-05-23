@@ -102,6 +102,7 @@ export async function listPublicListings({
   let query = supabase
     .from('public_listings')
     .select('*', { count: 'exact' })
+    .neq('listing_type', 'requirement')
     .order('message_timestamp', { ascending: false })
     .limit(limit);
 
@@ -156,7 +157,8 @@ export async function listPublicAreas(): Promise<PublicAreasResponse> {
 
   const { data, error } = await supabase
     .from('public_listings')
-    .select('area, sub_area');
+    .select('area, sub_area')
+    .neq('listing_type', 'requirement');
 
   if (error) {
     console.error('Error fetching public areas:', error);
@@ -180,6 +182,7 @@ export async function getPublicSitemapFeed(limit = 500): Promise<PublicSitemapFe
     supabase
       .from('public_listings')
       .select('source_message_id')
+      .neq('listing_type', 'requirement')
       .order('message_timestamp', { ascending: false })
       .limit(limit),
   ]);

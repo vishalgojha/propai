@@ -308,6 +308,9 @@ Rules:
   - "listing" = broker HAS a property (have/available/outright/for sale/for rent/pre-leased/offices)
   - "requirement" = broker NEEDS a property (need/required/looking/wanted/client ready)
   - "ignore" = headers, separators, greetings, footers, thank you lines
+- A message describing a property's floor, furnishing, condition, building name, or address is always "listing", never "requirement"
+- Examples of "listing" even without explicit "for rent/sale": "Semi Furnished 2BHK in Khar West, 14th Road", "Fully Furnished flat at Dr Ambedkar Road", "Floor condition: good, building: XYZ, locality: Bandra"
+- Only classify as "requirement" if the sender is explicitly looking to BUY or RENT (uses words like "wanted", "looking for", "need", "require", "client wants")
 - Lines with no price AND no BHK → "ignore"
 - Office/commercial lines with price → "listing"
 - Pre-leased properties → "listing"

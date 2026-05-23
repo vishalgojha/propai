@@ -360,19 +360,40 @@ const extractPropertyUse = (text: string) => {
 const inferType = (text: string): StreamType => {
     const normalized = text.toLowerCase();
     
-    // Check for pre-leased (with or without hyphen/space)
     if (normalized.includes('pre leased') || normalized.includes('pre-leased') || 
         normalized.includes('yield') || normalized.includes('tenant in place')) {
         return 'Pre-leased';
     }
     
-    // Check for requirement keywords
-    const requirementWords = ['requirement', 'looking for', 'need ', 'wanted', 'client wants', 'tenant wants', 'buyer wants'];
-    if (requirementWords.some(w => normalized.includes(w))) {
+    const listingIndicators = [
+        'floor', 'furnished', 'furnishing', 'condition', 'building ',
+        'sqft', 'sq ft', 'carpet area', 'super area', 'built-up', 'possession',
+        'balcony', 'parking', 'amenities', ' facing', 'road', 'wing', 'tower',
+        'apartment', 'phase', 'project', 'society', 'complex', 'heights',
+    ];
+    const hasListingFeatures = listingIndicators.some(w => normalized.includes(w));
+    
+    const explicitRequirement = [
+        'looking for', 'wanted', 'need ', 'require', 'searching',
+        'client needs', 'buyer needs', 'tenant needs', 'requirement for',
+        'client wants', 'tenant wants', 'buyer wants', 'requirement:',
+        'looking to buy', 'looking to rent', 'urgently require',
+    ];
+    const isExplicitRequirement = explicitRequirement.some(w => normalized.includes(w));
+    
+    if (hasListingFeatures && !isExplicitRequirement) {
+        if (normalized.includes('rent') || normalized.includes('lease') || 
+            normalized.includes('leave and license') || normalized.includes('leave & license') ||
+            normalized.includes('l&l') || normalized.includes(' ll') || normalized.endsWith(' ll')) {
+            return 'Rent';
+        }
+        return 'Sale';
+    }
+    
+    if (isExplicitRequirement) {
         return 'Requirement';
     }
     
-    // Check for rent keywords
     if (normalized.includes('rent') || normalized.includes('lease') || 
         normalized.includes('leave and license') || normalized.includes('leave & license') ||
         normalized.includes('l&l') || normalized.includes(' ll') || normalized.endsWith(' ll')) {
@@ -2476,7 +2497,7 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
             return [];
         }
 
-        const createdAt = String(message.timestamp || message.created_at || new Date().toISOString());
+        const createdAt = new Date().toISOString();
         const sourcePhone = extractContactPhoneFromBody(rawText) || extractPhoneNumber(message.sender) || extractPhoneNumber(message.remote_jid);
         const bodyContactName = extractContactNameFromBody(rawText);
         const sourceLabel = bodyContactName || senderLabel || null;
@@ -2524,6 +2545,8 @@ Rules:
 - Inherit top-level locality or section header into child listings when needed
 - Detect building/project names and road/landmark references
 - Normalize rent vs sale vs pre-leased correctly
+- streamType "Requirement" means the sender is explicitly SEARCHING for a property (e.g. "looking for", "wanted", "need", "require", "client needs", "buyer wants")
+- Messages describing a property's floor, furnishing, condition, building name, address, or amenities are listings (Rent/Sale), NOT Requirements
 - priceNumeric must be full INR integer
 - If price is not clearly present, return null for priceNumeric and priceLabel
 - Use null instead of guessing
@@ -2655,7 +2678,7 @@ ${rawText}
         const segments = splitMessageIntoSegments(rawText);
         const commonResolution = parseIndianLocation(rawText);
         const commonLocation = commonResolution?.locality || '';
-        const createdAt = String(message.timestamp || message.created_at || new Date().toISOString());
+        const createdAt = new Date().toISOString();
         const sourcePhone = extractContactPhoneFromBody(rawText) || extractPhoneNumber(message.sender) || extractPhoneNumber(message.remote_jid);
         const bodyContactName = extractContactNameFromBody(rawText);
         const sourceLabel = bodyContactName || String(message.sender || '').trim() || null;
