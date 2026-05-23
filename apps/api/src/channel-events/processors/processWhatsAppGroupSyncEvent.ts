@@ -7,6 +7,7 @@ type GroupRecord = {
     id: string;
     name: string;
     participantsCount?: number;
+    participantJids?: string[];
 };
 
 export async function processWhatsAppGroupSyncEvent(input: {

@@ -147,10 +147,11 @@ export class GroupAuditService {
         const ignoreIds = new Set((input.ignoreGroupIds || []).map((id) => String(id || '').trim()).filter(Boolean));
         const groups = (await whatsappGroupService.listGroups(input.workspaceOwnerId, { includeArchived: false }))
             .filter((group) => String(group.sessionLabel || '') === input.sessionLabel);
+        const useOptOut = ignoreIds.size > 0 || parseIds.length === groups.length || parseIds.length === 0;
 
         const upserts = groups.map((group) => {
             const id = String(group.id || '');
-            const shouldParse = parseIds.includes(id);
+            const shouldParse = useOptOut ? !ignoreIds.has(id) : parseIds.includes(id);
             return {
                 tenant_id: input.workspaceOwnerId,
                 group_id: id,
@@ -165,7 +166,7 @@ export class GroupAuditService {
 
         await Promise.all(groups.map((group) => {
             const id = String(group.id || '');
-            const shouldParse = parseIds.includes(id);
+            const shouldParse = useOptOut ? !ignoreIds.has(id) : parseIds.includes(id);
             return whatsappGroupService.updateGroup(input.workspaceOwnerId, id, {
                 isParsing: shouldParse,
                 visibilityStatus: ignoreIds.has(id) ? 'hidden' : 'visible',
@@ -202,7 +203,10 @@ export class GroupAuditService {
         if (updateError) throw updateError;
 
         return {
-            parsedGroups: parseIds.length,
+            parsedGroups: groups.filter((group) => {
+                const id = String(group.id || '');
+                return useOptOut ? !ignoreIds.has(id) : parseIds.includes(id);
+            }).length,
             ignoredGroups: ignoreIds.size,
             totalGroups: groups.length,
         };

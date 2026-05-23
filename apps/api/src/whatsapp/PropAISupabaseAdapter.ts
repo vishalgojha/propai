@@ -191,6 +191,7 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                         sessionLabel: input.label,
                         remoteJid: input.remoteJid,
                         parsed: false,
+                        countReceived: false,
                         timestamp: input.timestamp,
                     });
                 }
@@ -220,6 +221,7 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                     sessionLabel: input.label,
                     remoteJid: input.remoteJid,
                     parsed: options.ingestStream ? Boolean(streamItem) : true,
+                    countReceived: false,
                     timestamp: input.timestamp,
                 });
             }
@@ -238,6 +240,7 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
                     remoteJid: input.remoteJid,
                     parsed: false,
                     failed: true,
+                    countReceived: false,
                     timestamp: input.timestamp,
                 });
             }

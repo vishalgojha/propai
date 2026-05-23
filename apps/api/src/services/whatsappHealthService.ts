@@ -22,6 +22,7 @@ type MessageMetricsInput = {
     remoteJid: string;
     parsed: boolean;
     failed?: boolean;
+    countReceived?: boolean;
     timestamp?: string | null;
 };
 
@@ -296,7 +297,8 @@ export class WhatsAppHealthService {
             existingHealth = null;
         }
 
-        const nextReceived = Number(existingHealth?.messages_received_24h || 0) + 1;
+        const shouldCountReceived = input.countReceived !== false;
+        const nextReceived = Number(existingHealth?.messages_received_24h || 0) + (shouldCountReceived ? 1 : 0);
         const nextParsed = Number(existingHealth?.messages_parsed_24h || 0) + (input.parsed ? 1 : 0);
         const nextFailed = Number(existingHealth?.messages_failed_24h || 0) + (input.failed ? 1 : 0);
 
@@ -355,7 +357,7 @@ export class WhatsAppHealthService {
             existingGroup = null;
         }
 
-        const groupReceived = Number(existingGroup?.messages_received_24h || 0) + 1;
+        const groupReceived = Number(existingGroup?.messages_received_24h || 0) + (shouldCountReceived ? 1 : 0);
         const groupParsed = Number(existingGroup?.messages_parsed_24h || 0) + (input.parsed ? 1 : 0);
         const groupFailed = Number(existingGroup?.messages_failed_24h || 0) + (input.failed ? 1 : 0);
         const nextStatus = deriveGroupStatus(timestamp, groupFailed);

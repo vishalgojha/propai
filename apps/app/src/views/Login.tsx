@@ -64,13 +64,13 @@ const examples = [
 const productHighlights = [
   {
     title: 'Pro',
-    eyebrow: '₹799 / month',
+    eyebrow: '₹999 / month',
     copy: 'Your own Pulse AI agent on your WhatsApp number. Parses your groups, matches listings to requirements, DMs you privately. One broker, one device.',
     points: ['Private Pulse agent', 'Unlimited matches', 'Your own number, your own groups'],
   },
   {
     title: 'Team',
-    eyebrow: '₹799 / seat / month',
+    eyebrow: '₹999 / seat / month',
     copy: 'Each team member gets their own Pulse agent on their own number. All members share workspace intelligence — like Google Drive for real estate teams.',
     points: ['Each member = own number', 'Shared workspace Stream', 'Coordinated market intelligence'],
   },

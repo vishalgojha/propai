@@ -177,7 +177,7 @@ export class AgentToolService {
                 const planName = 'Pro';
                 const paymentLink = `https://rzp.io/i/propai_${planName}_${tenantId}`;
                 await subscriptionService.upgradePlan(tenantId, planName);
-                return { payment_link: paymentLink, message: `Please complete payment at ${paymentLink} to activate your Pro plan — ₹799/mo, 1 device.` };
+                return { payment_link: paymentLink, message: `Please complete payment at ${paymentLink} to activate your Pro plan — ₹999/mo, 1 device.` };
             }
             case 'cancel_subscription':
                 await subscriptionService.cancelSubscription(tenantId);

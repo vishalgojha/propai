@@ -259,9 +259,7 @@ export class WhatsAppGroupService {
                     participant_jids: participantJids,
                     is_parsing: typeof existing?.is_parsing === 'boolean'
                         ? existing.is_parsing
-                        : auditState.isPending
-                            ? false
-                            : autoClassification.classification === 'business',
+                        : true,
                     classification: String(existing?.classification || '').trim() || autoClassification.classification,
                     visibility_status: String(existing?.visibility_status || '').trim() || autoClassification.visibilityStatus,
                     business_confidence: typeof existing?.business_confidence === 'number'
@@ -292,7 +290,7 @@ export class WhatsAppGroupService {
                     seededGroupConfigs.push({
                         group_id: group.id,
                         tenant_id: tenantId,
-                        behavior: 'Off',
+                        behavior: 'Listen',
                     });
                 }
 

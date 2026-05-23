@@ -14,13 +14,13 @@ export const PROPAI_PLAN_CARDS = [
   },
   {
     name: 'Pro',
-    price: '₹799 / month',
+    price: '₹999 / month',
     devices: '1 WhatsApp device',
     blurb: 'Your own private WhatsApp agent. One broker, one phone number, unlimited matches.',
   },
   {
     name: 'Team',
-    price: '₹799 / seat / month',
+    price: '₹999 / seat / month',
     devices: 'Each member links their own account',
     blurb: 'Multiple brokers, each with their own number and Pulse agent, sharing workspace intelligence — like Google Drive for real estate teams.',
   },

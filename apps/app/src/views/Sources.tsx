@@ -328,8 +328,8 @@ const WHATSAPP_TABS: Array<{ id: SourcesTab; label: string }> = [
 
 const GROUP_AUDIT_FILTERS: Array<{ id: GroupAuditFilter; label: string }> = [
   { id: 'all', label: 'All' },
-  { id: 'selected', label: 'Selected' },
-  { id: 'not_selected', label: 'Not selected' },
+  { id: 'selected', label: 'Parsing' },
+  { id: 'not_selected', label: 'Kept out' },
   { id: 'parse', label: 'Parse' },
   { id: 'review', label: 'Review' },
   { id: 'ignore', label: 'Ignore' },
@@ -752,9 +752,7 @@ export const Sources: React.FC = () => {
       setGroupAudit(payload);
       setSelectedAuditParseIds(
         Array.isArray(payload?.groups)
-          ? payload.groups
-              .filter((group) => group.recommendation === 'parse')
-              .map((group) => group.id)
+          ? payload.groups.map((group) => group.id)
           : [],
       );
     } catch (err) {
@@ -1344,7 +1342,7 @@ export const Sources: React.FC = () => {
     try {
       const parseGroupIds = selectedAuditParseIds;
       const ignoreGroupIds = groupAudit.groups
-        .filter((group) => group.recommendation === 'ignore' && !parseGroupIds.includes(group.id))
+        .filter((group) => !parseGroupIds.includes(group.id))
         .map((group) => group.id);
 
       await backendApi.post(ENDPOINTS.whatsapp.groupsAudit, {
@@ -1361,7 +1359,7 @@ export const Sources: React.FC = () => {
       ]);
       setOutboundFeedback({
         tone: 'success',
-        message: `Applied audit decisions for ${parseGroupIds.length} parsing group${parseGroupIds.length === 1 ? '' : 's'}.`,
+        message: `Applied audit decisions. ${parseGroupIds.length} group${parseGroupIds.length === 1 ? '' : 's'} parsing, ${ignoreGroupIds.length} kept out.`,
       });
       setActiveTab('outbound');
     } catch (err) {
@@ -1536,9 +1534,29 @@ export const Sources: React.FC = () => {
   const disconnectTargetLabel = currentSession?.label || primaryConnectedSession?.label || null;
   const isQrExpired = Boolean(artifactValue) && qrTimeLeft === 0 && !isCurrentSessionConnected;
   const showConnectionArtifactPanel = Boolean(artifactValue) || (isConnecting && Boolean(artifactMode) && !isCurrentSessionConnected);
-  const primaryHealthSession = health.sessions[0];
-  const staleGroupCount = groupHealth.filter((group) => group.status === 'stale').length;
-  const activeGroupCount = groupHealth.filter((group) => group.status === 'active').length;
+  const selectedHealthSession = useMemo(() => {
+    const targetLabel = currentSession?.label || primaryConnectedSession?.label || '';
+    return health.sessions.find((session) => session.sessionLabel === targetLabel) || health.sessions[0] || null;
+  }, [currentSession?.label, health.sessions, primaryConnectedSession?.label]);
+  const scopedGroupHealth = useMemo(() => {
+    if (!selectedHealthSession?.sessionLabel) return groupHealth;
+    return groupHealth.filter((group) => group.sessionLabel === selectedHealthSession.sessionLabel);
+  }, [groupHealth, selectedHealthSession?.sessionLabel]);
+  const selectedHealthSummary = useMemo<WhatsappHealthSummary>(() => {
+    if (!selectedHealthSession) return health.summary;
+    return {
+      groupCount: Math.max(selectedHealthSession.groupCount || 0, scopedGroupHealth.length),
+      activeGroups24h: Math.max(selectedHealthSession.activeGroups24h || 0, scopedGroupHealth.filter((group) => group.status === 'active').length),
+      messagesReceived24h: selectedHealthSession.messagesReceived24h,
+      messagesParsed24h: selectedHealthSession.messagesParsed24h,
+      messagesFailed24h: selectedHealthSession.messagesFailed24h,
+      parserSuccessRate: selectedHealthSession.parserSuccessRate,
+      healthState: selectedHealthSession.healthState,
+    };
+  }, [health.summary, scopedGroupHealth, selectedHealthSession]);
+  const primaryHealthSession = selectedHealthSession;
+  const staleGroupCount = scopedGroupHealth.filter((group) => group.status === 'stale').length;
+  const activeGroupCount = scopedGroupHealth.filter((group) => group.status === 'active').length;
   const qrMarkup = artifactMode === 'qr' ? renderedQrMarkup : null;
 
   const planCards = PROPAI_PLAN_CARDS;
@@ -1556,7 +1574,7 @@ export const Sources: React.FC = () => {
     audit: {
       eyebrow: 'Group Audit',
       title: 'Review synced WhatsApp groups before they feed Stream.',
-      copy: 'Score group signal, overlap, and noise in a dedicated audit surface, then decide exactly which groups PropAI should parse.',
+      copy: 'Score group signal, overlap, and noise in a dedicated audit surface, then keep noisy groups out of Stream.',
     },
     pricing: {
       eyebrow: 'Pricing',
@@ -1590,7 +1608,7 @@ export const Sources: React.FC = () => {
           <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access model</p>
             <p className="mt-1 text-[14px] font-bold text-[var(--text-primary)]">{status.plan || 'Trial'}</p>
-            <p className="text-[11px] text-[var(--text-secondary)]">Trial 7 days free, Pro ₹799/mo for 1 device, Team ₹799/seat/mo — each member links their own account.</p>
+            <p className="text-[11px] text-[var(--text-secondary)]">Trial 7 days free, Pro ₹999/mo for 1 device, Team ₹999/seat/mo — each member links their own account.</p>
             {isAtDeviceLimit ? (
               <div className="mt-2 space-y-2">
                 <p className="text-[11px] text-[var(--amber)]">Device limit reached for this workspace.</p>
@@ -1634,7 +1652,7 @@ export const Sources: React.FC = () => {
               <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Broker-controlled privacy</p>
               <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">First scan goes through a group audit. Direct chats stay off until you enable them.</h3>
               <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-              On a newly connected number, PropAI audits group quality before enabling parsing. After audit approval, only the selected groups parse into Stream. The AI assistant on this number and 1:1 direct messages stay off until you enable them for the current connected session.
+              On a newly connected number, PropAI audits group quality and parses synced groups by default. Keep noisy groups out of Stream during audit. The AI assistant on this number and 1:1 direct messages stay off until you enable them for the current connected session.
               </p>
             </div>
 
@@ -1650,7 +1668,7 @@ export const Sources: React.FC = () => {
                 <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Group intelligence audit</p>
                 <h3 className="mt-1 text-[18px] font-semibold text-[var(--text-primary)]">See the WhatsApp network before it starts feeding Stream</h3>
                 <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
-                  PropAI scores every synced group for signal, overlap, and chaos so you can decide what deserves parsing. Recommended groups are pre-selected, but you stay in control.
+                  PropAI scores every synced group for signal, overlap, and chaos. Groups parse automatically; use the audit to keep noisy or private groups out of Stream.
                 </p>
               </div>
               <div className="flex gap-2">
@@ -1734,8 +1752,8 @@ export const Sources: React.FC = () => {
               <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 {[
                   { label: 'Total groups', value: groupAudit.summary.totalGroups, note: 'Synced from this number.' },
-                  { label: 'Recommended parse', value: groupAudit.summary.recommendedParseGroups, note: 'High-signal groups selected by PropAI.' },
-                  { label: 'Duplicate members', value: `${groupAudit.summary.duplicateParticipantRate}%`, note: `${groupAudit.summary.duplicateParticipants} repeated numbers across groups.` },
+                  { label: 'Parsing by default', value: selectedAuditParseIds.length, note: 'Groups feeding Stream unless kept out.' },
+                  { label: 'Duplicate numbers', value: groupAudit.summary.duplicateParticipants, note: `${groupAudit.summary.duplicateParticipantRate}% of ${groupAudit.summary.uniqueParticipants} unique numbers appear in multiple groups.` },
                   { label: 'Average chaos', value: groupAudit.summary.averageChaosScore, note: 'Higher means more overlap + more noise.' },
                   { label: 'Business groups', value: groupAudit.summary.realEstateGroups, note: 'Likely real-estate groups detected.' },
                 ].map((item) => (
@@ -1753,10 +1771,12 @@ export const Sources: React.FC = () => {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Per-group decisions</p>
-                <h4 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Review what PropAI wants to parse</h4>
+                <h4 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Review groups kept in or out of Stream</h4>
               </div>
               <div className="text-[11px] text-[var(--text-secondary)]">
-                Selected for parsing: <span className="font-semibold text-[var(--text-primary)]">{selectedAuditParseIds.length}</span>
+                Parsing: <span className="font-semibold text-[var(--text-primary)]">{selectedAuditParseIds.length}</span>
+                <span className="mx-2">·</span>
+                Kept out: <span className="font-semibold text-[var(--text-primary)]">{(groupAudit?.groups.length || 0) - selectedAuditParseIds.length}</span>
               </div>
             </div>
 
@@ -1847,11 +1867,11 @@ export const Sources: React.FC = () => {
                                 ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
                                 : 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
                             )}>
-                              {selected ? 'Parsing after audit' : 'Won’t parse'}
+                              {selected ? 'Parsing' : 'Kept out of Stream'}
                             </span>
                           </div>
                           <p className="mt-2 text-[12px] text-[var(--text-secondary)]">
-                            {[group.locality, group.city, group.category, `${group.participantsCount} members`, `${group.duplicateOverlapPercent}% duplicate overlap`].filter(Boolean).join(' • ')}
+                            {[group.locality, group.city, group.category, `${group.participantsCount} members`, `${group.duplicateMemberCount} duplicate numbers`, `${group.duplicateOverlapPercent}% duplicate overlap`].filter(Boolean).join(' • ')}
                           </p>
                           {group.reasons.length > 0 ? (
                             <div className="mt-3 flex flex-wrap gap-2">
@@ -1880,16 +1900,15 @@ export const Sources: React.FC = () => {
                       </div>
 
                       <div className="mt-4 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedAuditParseIds((current) => current.includes(group.id) ? current : [...current, group.id])}
-                          className={cn(
-                            sourceSecondaryButton,
-                            selected && 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]',
-                          )}
-                        >
-                          Parse this group
-                        </button>
+                        {!selected ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAuditParseIds((current) => current.includes(group.id) ? current : [...current, group.id])}
+                            className={sourceSecondaryButton}
+                          >
+                            Allow in Stream
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => setSelectedAuditParseIds((current) => current.filter((id) => id !== group.id))}
@@ -2318,10 +2337,10 @@ export const Sources: React.FC = () => {
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             {[
               { label: 'Connected number', value: primaryHealthSession?.phoneNumber || status.connectedPhoneNumber || 'Not connected' },
-              { label: 'Groups detected', value: String(health.summary.groupCount) },
-              { label: 'Active groups today', value: String(activeGroupCount || health.summary.activeGroups24h) },
-              { label: 'Messages received', value: String(health.summary.messagesReceived24h) },
-              { label: 'Parsed into Pulse', value: `${health.summary.messagesParsed24h} (${health.summary.parserSuccessRate}%)` },
+              { label: 'Groups detected', value: String(selectedHealthSummary.groupCount) },
+              { label: 'Active groups today', value: String(activeGroupCount || selectedHealthSummary.activeGroups24h) },
+              { label: 'Messages received', value: String(selectedHealthSummary.messagesReceived24h) },
+              { label: 'Parsed into Pulse', value: `${selectedHealthSummary.messagesParsed24h} (${selectedHealthSummary.parserSuccessRate}%)` },
             ].map((card) => (
               <div key={card.label} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
                 <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">{card.label}</p>
@@ -2335,15 +2354,15 @@ export const Sources: React.FC = () => {
               <div>
                 <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Health summary</p>
                 <h4 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">
-                  {health.summary.healthState === 'healthy'
+                  {selectedHealthSummary.healthState === 'healthy'
                     ? 'Healthy: Pulse is reading and parsing your WhatsApp activity.'
-                    : health.summary.healthState === 'critical'
+                    : selectedHealthSummary.healthState === 'critical'
                       ? 'Attention: WhatsApp is disconnected or ingestion is stalled.'
                       : 'Warning: Pulse is connected, but some ingestion signals need attention.'}
                 </h4>
               </div>
-              <span className={cn('rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]', getHealthTone(health.summary.healthState))}>
-                {health.summary.healthState}
+              <span className={cn('rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]', getHealthTone(selectedHealthSummary.healthState))}>
+                {selectedHealthSummary.healthState}
               </span>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">

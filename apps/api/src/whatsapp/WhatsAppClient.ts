@@ -13,6 +13,7 @@ import { whatsappGroupService } from '../services/whatsappGroupService';
 import { liveMonitorService } from '../services/liveMonitorService';
 import { supabase } from '../config/supabase';
 import { type RawGroupInput } from '../services/whatsappGroupService';
+import { whatsappHealthService } from '../services/whatsappHealthService';
 import type {
     ConnectionStatus,
     GroupInfo,
@@ -418,6 +419,17 @@ this.socket.ev.on('messages.upsert', async (payload: any) => {
                              rawMessage: msg,
                          };
 
+                         try {
+                             await whatsappHealthService.recordMessageMetrics({
+                                 tenantId: this.tenantId,
+                                 sessionLabel: this.label,
+                                 remoteJid,
+                                 parsed: false,
+                                 timestamp: event.timestamp,
+                             });
+                         } catch (metricsError) {
+                             console.error('[WhatsAppClient] Failed to record inbound receipt metrics:', metricsError);
+                         }
                          await this.storage.saveInboundMessage(event);
                          await this.hooks?.onMessage?.(event);
                      }
@@ -512,6 +524,7 @@ try {
                               id: g.id || g,
                               name: g.name || '',
                               participantsCount: g.participantsCount || 0,
+                              participantJids: Array.isArray(g.participantJids) ? g.participantJids : [],
                           }));
                           await whatsappGroupService.syncGroups(this.tenantId, this.label, groupInfos);
                       } catch {
@@ -965,13 +978,22 @@ try {
     }
 
     private extractMessageText(message: any): string {
-        return (
-            message?.conversation ||
-            message?.extendedTextMessage?.text ||
-            message?.imageMessage?.caption ||
-            message?.videoMessage?.caption ||
-            ''
+        const unwrapped = (
+            message?.ephemeralMessage?.message ||
+            message?.viewOnceMessage?.message ||
+            message?.viewOnceMessageV2?.message ||
+            message?.documentWithCaptionMessage?.message ||
+            message
         );
+
+        return String(
+            unwrapped?.conversation ||
+            unwrapped?.extendedTextMessage?.text ||
+            unwrapped?.imageMessage?.caption ||
+            unwrapped?.videoMessage?.caption ||
+            unwrapped?.documentMessage?.caption ||
+            '',
+        ).trim();
     }
 
     private resolveStoredSender(msg: any) {
