@@ -1407,19 +1407,19 @@ export class ChannelService {
         let status: MessageIngestionStatus = 'accepted';
         let suppressionReason: string | null = null;
 
-        if (candidateCount >= 10 && actionableRate < 0.4 && (lowEffortRate >= 0.35 || avgConfidence < 72 || unresolvedRate >= 0.25)) {
+        if (candidateCount >= 15 && actionableRate < 0.3 && (lowEffortRate >= 0.4 || avgConfidence < 60 || unresolvedRate >= 0.3)) {
             status = 'suppressed_bulk_spam';
             suppressionReason = `Suppressed ${candidateCount}-item broker blast due to weak structure and low-actionability.`;
-        } else if (candidateCount >= 6 && lowEffortRate >= 0.6 && actionableRate < 0.35) {
+        } else if (candidateCount >= 10 && lowEffortRate >= 0.7 && actionableRate < 0.25) {
             status = 'suppressed_bulk_spam';
             suppressionReason = `Suppressed multi-listing broker blast because most extracted records are low-effort.`;
-        } else if (!groupContext?.locality && candidateCount >= 3 && unresolvedRate >= 0.6 && actionableRate < 0.25) {
+        } else if (!groupContext?.locality && candidateCount >= 5 && unresolvedRate >= 0.75 && actionableRate < 0.15) {
             status = 'suppressed_unresolved_context';
             suppressionReason = 'Suppressed message because locality context remained unresolved across most extracted records.';
-        } else if (candidateCount >= 2 && lowEffortRate >= 0.75 && avgConfidence < 68 && actionableCount === 0) {
+        } else if (candidateCount >= 2 && lowEffortRate >= 0.85 && avgConfidence < 60 && actionableCount === 0) {
             status = 'suppressed_low_effort';
             suppressionReason = 'Suppressed message because most extracted records are too vague to be actionable.';
-        } else if (candidateCount === 1 && lowEffortRate === 1 && avgConfidence < 55 && !this.hasActionableCore(candidates[0])) {
+        } else if (candidateCount === 1 && lowEffortRate === 1 && avgConfidence < 40 && !this.hasActionableCore(candidates[0])) {
             status = 'suppressed_low_effort';
             suppressionReason = 'Suppressed single low-effort listing with insufficient actionable detail.';
         }
@@ -2122,6 +2122,36 @@ private dailyBriefingSentKeys = new Set<string>();
                 continue;
             }
 
+            if (parsed.recordType === 'requirement' && parsed.sourcePhone && parsed.locality) {
+                const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+                const { data: dupe } = await this.db
+                    .from('stream_items')
+                    .select('id, ingestion_status')
+                    .eq('tenant_id', tenantId)
+                    .eq('source_phone', parsed.sourcePhone)
+                    .eq('locality', parsed.locality)
+                    .eq('raw_text', parsed.rawText)
+                    .eq('record_type', 'requirement')
+                    .gte('created_at', cutoff)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (dupe) {
+                    await this.db
+                        .from('stream_items')
+                        .update({
+                            created_at: parsed.createdAt,
+                            ingestion_status: 'accepted',
+                            suppressed_at: null,
+                            suppression_reason: null,
+                        })
+                        .eq('id', dupe.id);
+                    ingestedCount += 1;
+                    continue;
+                }
+            }
+
             const parsedPayload = {
                 ...(parsed.parsedPayload || {}),
                 ingestionStatus: qualityDecision.status,
@@ -2323,7 +2353,8 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
          let streamQuery = this.db
              .from('stream_items')
              .select('id', { count: 'exact', head: true })
-             .eq('tenant_id', tenantId);
+             .eq('tenant_id', tenantId)
+             .eq('ingestion_status', 'accepted');
 
          if (sessionLabel) {
              streamQuery = streamQuery.eq('session_label', sessionLabel);
@@ -2438,6 +2469,10 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
         const senderLabel = String(message.sender || '').trim();
 
         if (!rawText || senderLabel.toUpperCase() === 'AI') {
+            return [];
+        }
+
+        if (/^[^a-zA-Z0-9]/.test(rawText)) {
             return [];
         }
 
@@ -2605,6 +2640,10 @@ ${rawText}
         const senderLabel = String(message.sender || '').toUpperCase();
 
         if (!rawText || senderLabel === 'AI') {
+            return [];
+        }
+
+        if (/^[^a-zA-Z0-9]/.test(rawText)) {
             return [];
         }
 
