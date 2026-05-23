@@ -1,6 +1,6 @@
 export interface StreamItem {
   id: string;
-  type: 'property' | 'stream' | 'commercial';
+  type: 'Rent' | 'Sale' | 'Lease' | 'Requirement' | 'Pre-leased';
   title?: string;
   location: string;
   buildingName?: string | null;
@@ -16,7 +16,14 @@ export interface StreamItem {
   brokerName: string | null;
   brokerCompany: string | null;
   waLink: string | null;
+  assetClass?: string | null;
+  description?: string | null;
+  rawText?: string | null;
+  furnishing?: string | null;
   isNetworkItem?: boolean;
+  isSyndicated?: boolean;
+  sourceWorkspaceId?: string;
+  sourceWorkspaceName?: string;
   isRead: boolean;
   createdAt: string;
   igrTransactions?: IgrTransactionPreview[];

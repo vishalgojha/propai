@@ -20,13 +20,13 @@ function buildDescription(listing: PublicListing): string {
   return parts.join(' ') || 'Property listing from broker broadcast';
 }
 
-export default function ListingDetail({ slug }: { slug: string }) {
-  const [listing, setListing] = useState<PublicListing | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function ListingDetail({ slug, initialListing = null }: { slug: string; initialListing?: PublicListing | null }) {
+  const [listing, setListing] = useState<PublicListing | null>(initialListing);
+  const [loading, setLoading] = useState(!initialListing);
   const [related, setRelated] = useState<PublicListing[]>([]);
 
   useEffect(() => {
-    if (slug) {
+    if (slug && !initialListing) {
       setLoading(true);
       getListingBySlug(slug).then(data => {
         setListing(data);
@@ -38,6 +38,12 @@ export default function ListingDetail({ slug }: { slug: string }) {
           });
         }
         setLoading(false);
+      });
+    } else if (listing) {
+      getListings().then(all => {
+         const others = all.filter(l => l.id !== listing.id);
+         const sameLocality = others.filter(l => l.locality === listing.locality);
+         setRelated(sameLocality.length >= 3 ? sameLocality.slice(0, 3) : others.slice(0, 3));
       });
     }
   }, [slug]);

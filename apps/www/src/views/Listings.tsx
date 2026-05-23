@@ -6,12 +6,14 @@ import { getListings, type PublicListing } from '@/lib/listings';
 import ListingCard from '@/components/ListingCard';
 import { cn } from '@/lib/utils';
 
-export default function Listings() {
-  const [listings, setListings] = useState<PublicListing[]>([]);
+export default function Listings({ initialListings = [] }: { initialListings?: PublicListing[] }) {
+  const [listings, setListings] = useState<PublicListing[]>(initialListings);
   const [filters, setFilters] = useState({ locality: '', type: 'All', sort: 'Newest' });
 
   useEffect(() => {
-    getListings().then(setListings);
+    if (initialListings.length === 0) {
+      getListings().then(setListings);
+    }
   }, []);
 
   const filteredListings = listings.filter(l => {

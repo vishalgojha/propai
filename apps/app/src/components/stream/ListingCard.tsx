@@ -130,9 +130,10 @@ function buildDisplayTitle(listing: StreamItem): string {
     const location = String(listing.location || '').trim();
     const cleanedBhk = String(listing.bhk || '').trim();
     const usableBhk = cleanedBhk && !/^n\/?a$/i.test(cleanedBhk) ? cleanedBhk : '';
-    const category = listing.propertyCategory ? toTitleCase(String(listing.propertyCategory)) : '';
     const furnishing = inferFurnishing(listing.rawText || listing.description || '');
     const buildingName = String(listing.buildingName || '').trim();
+    const area = listing.areaSqft ? `${listing.areaSqft.toLocaleString('en-IN')} sqft` : '';
+    const assetClass = listing.assetClass || '';
 
     const purposeMap: Record<string, string> = {
         Rent: 'for Rent',
@@ -146,35 +147,66 @@ function buildDisplayTitle(listing: StreamItem): string {
     const skip = (v: string) => !v || /^n\/?a$/i.test(v);
 
     if (listing.type === 'Requirement') {
-        const parts = [usableBhk, category, 'Wanted in', location].filter((v) => !skip(v));
-        if (parts.length > 1) return parts.join(' ');
+        const parts = [usableBhk, toTitleCase(assetClass || 'property'), 'Wanted in', location].filter((v) => !skip(v));
+        if (parts.length > 1) return truncateTitle(parts.join(' '), 60);
         const raw = listing.title || listing.location || '';
         if (raw) return raw.length > 80 ? raw.slice(0, 80) + '…' : raw;
         return 'Broker-sourced property';
     }
 
-    const parts = [usableBhk, category, furnishing, purpose].filter((v) => !skip(v));
+    // Asset-class-aware title generation
+    const ac = assetClass.toLowerCase();
+    const isResidential = ['residential', 'studio', 'villa', 'bungalow', 'penthouse', 'farmhouse', 'pg'].includes(ac);
+    const hasBhk = !skip(usableBhk);
 
-    const structuredParts = parts.filter((p) => p !== purpose);
+    let title: string;
 
-    if (structuredParts.length === 0) {
-        const raw = listing.title || listing.location || '';
-        if (raw) return raw.length > 80 ? raw.slice(0, 80) + '…' : raw;
-        return 'Broker-sourced property';
+    if (ac === 'office') {
+        title = [area || usableBhk, 'Office', purpose].filter((v) => !skip(v)).join(' ');
+    } else if (ac === 'retail' || ac === 'shop') {
+        title = [area || usableBhk, 'Shop', purpose].filter((v) => !skip(v)).join(' ');
+    } else if (ac === 'warehouse' || ac === 'godown') {
+        title = [area || usableBhk, 'Warehouse', purpose].filter((v) => !skip(v)).join(' ');
+    } else if (ac === 'industrial') {
+        title = [area || usableBhk, 'Industrial', purpose].filter((v) => !skip(v)).join(' ');
+    } else if (ac === 'plot' || ac === 'land') {
+        title = [area, 'Plot', purpose].filter((v) => !skip(v)).join(' ');
+    } else if (ac === 'pre-leased') {
+        title = ['Pre-leased', usableBhk || area, purpose].filter((v) => !skip(v)).join(' ');
+    } else if (ac === 'pg') {
+        title = [`${usableBhk || ''} PG`, purpose].filter((v) => !skip(v)).join(' ');
+    } else if (ac === 'studio') {
+        title = ['Studio', purpose].filter((v) => !skip(v)).join(' ');
+    } else if (ac === 'villa') {
+        title = ['Villa', purpose].filter((v) => !skip(v)).join(' ');
+    } else if (ac === 'bungalow') {
+        title = ['Bungalow', purpose].filter((v) => !skip(v)).join(' ');
+    } else if (ac === 'penthouse') {
+        title = ['Penthouse', purpose].filter((v) => !skip(v)).join(' ');
+    } else if (ac === 'farmhouse') {
+        title = ['Farmhouse', purpose].filter((v) => !skip(v)).join(' ');
+    } else {
+        // Default residential
+        title = [usableBhk, furnishing, purpose].filter((v) => !skip(v)).join(' ');
     }
-
-    let title = parts.join(' ');
 
     const usableLocation = !skip(location) ? location : '';
     if (usableLocation) {
         title += ` — ${usableLocation}`;
     }
 
-    if (!skip(buildingName) && usableLocation && buildingName.toLowerCase() !== usableLocation.toLowerCase()) {
+    if (isResidential && !skip(buildingName) && usableLocation && buildingName.toLowerCase() !== usableLocation.toLowerCase()) {
         title += ` · ${buildingName}`;
     }
 
-    return title.trim();
+    return truncateTitle(title.trim(), 60);
+}
+
+function truncateTitle(title: string, maxLen: number): string {
+    if (title.length <= maxLen) return title;
+    const truncated = title.slice(0, maxLen);
+    const lastSpace = truncated.lastIndexOf(' ');
+    return lastSpace > 0 ? truncated.slice(0, lastSpace) + '…' : truncated + '…';
 }
 
 function buildDescription(listing: StreamItem): string {
@@ -229,7 +261,11 @@ export const ListingCard: React.FC<ListingCardProps> = ({
     const displayTitle = buildDisplayTitle(listing);
     const chips = buildChips(listing);
     const description = buildDescription(listing);
-    const sourceLabel = networkMode && listing.isNetworkItem ? 'Shared network feed' : 'Private workspace feed';
+    const sourceLabel = listing.isSyndicated
+      ? `Via ${listing.sourceWorkspaceName || 'partner network'}`
+      : networkMode && listing.isNetworkItem
+        ? 'Shared network feed'
+        : 'Private workspace feed';
     const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
 
     const handleOpenWa = async (e: React.MouseEvent) => {

@@ -71,6 +71,7 @@ export interface RequirementParsed {
 interface ListingExtracted {
     bhk: string;
     property_category: string;
+    asset_class?: string;
     price: number;
     price_unit: string;
     carpet_area: number | null;
@@ -347,6 +348,26 @@ ${message}
     };
 }
 
+function deriveAssetClass(extracted: ListingExtracted): string {
+  const bhk = String(extracted.bhk || '').toLowerCase();
+  const category = String(extracted.property_category || '').toLowerCase();
+
+  if (bhk.includes('office') || bhk.includes('cabin')) return 'office';
+  if (bhk.includes('shop') || bhk.includes('showroom')) return 'retail';
+  if (bhk.includes('warehouse') || bhk.includes('godown')) return 'warehouse';
+  if (bhk.includes('plot') || bhk.includes('land')) return 'plot';
+  if (bhk.includes('studio')) return 'studio';
+  if (bhk.includes('villa')) return 'villa';
+  if (bhk.includes('bungalow') || bhk.includes('row house')) return 'bungalow';
+  if (bhk.includes('penthouse')) return 'penthouse';
+  if (bhk.includes('pg') || bhk.includes('paying guest')) return 'pg';
+  if (bhk.includes('pre-leased') || bhk.includes('preleased')) return 'pre-leased';
+  if (bhk.includes('farmhouse')) return 'farmhouse';
+  if (bhk.includes('industrial') || bhk.includes('shed')) return 'industrial';
+  if (category === 'commercial') return 'office';
+  return 'residential';
+}
+
 async function parseListingLine(
     line: string,
     tenantId: string,
@@ -378,6 +399,7 @@ Return this EXACT JSON structure:
   "pocket": "string or null (micro-area within location, e.g., 'Linking Road', 'Lokhandwala')",
   "building_name": "string or null",
   "listing_type": "Sale|Rent|Lease",
+  "asset_class": "residential|office|retail|shop|showroom|warehouse|industrial|plot|pre-leased|pg|villa|bungalow|penthouse|studio|farmhouse|other",
   "amenities": ["array of strings"] or null,
   "description": "string or null (keep original broker language)",
   "brokers": [
@@ -391,6 +413,18 @@ Return this EXACT JSON structure:
   "ai_title": "string (10-15 word descriptive title)",
   "ai_description": "string (EXACTLY 4-5 complete sentences, 60-80 words, no marketing fluff)"
 }
+
+**ASSET CLASS INFERENCE RULES:**
+- Infer asset_class from property description
+- "residential" for normal apartments/flats (bhk contains '2 BHK', '3 BHK' etc.)
+- "office" for office spaces/cabins/co-working
+- "retail" or "shop" for shops/showrooms
+- "warehouse" for storage/godowns
+- "pre-leased" if property is currently tenanted and being sold with yield
+- "plot" for land/plots
+- "studio" for studio apartments
+- "villa" / "bungalow" / "penthouse" / "farmhouse" as appropriate
+- "pg" for paying guest accommodations
 
 **MULTI-BROKER DETECTION RULES:**
 - Extract EVERY unique name + phone combination in the message
@@ -453,6 +487,8 @@ Return ONLY valid JSON, no markdown, no explanation.`;
     let propertyType: 'residential' | 'commercial' | null = null;
     if (propertyCategory === 'residential') propertyType = 'residential';
     else if (propertyCategory === 'commercial') propertyType = 'commercial';
+
+    const assetClass = (extracted as any).asset_class || deriveAssetClass(extracted);
 
     const parsed: ListingParsed = {
         bhk: extracted.bhk || null,
@@ -579,6 +615,41 @@ Return ONLY valid JSON, no markdown, no explanation.`;
     // GAP 4: Update broker profile
     await upsertBrokerContact(tenantId, resolvedBrokerPhone, resolvedBrokerName, parsed.locality, parsed.bhk, priceCr ? priceCr * 10000000 : rentMonthly);
 
+    // Push to stream_items so it appears in the live feed
+    const listingTypeLabel = parsed.listing_type ? parsed.listing_type.charAt(0).toUpperCase() + parsed.listing_type.slice(1) : 'Sale';
+    const streamPriceLabel = priceCr ? `₹${priceCr} Cr` : rentMonthly ? `₹${Math.round(rentMonthly / 1000)}K/mo` : null;
+    await upsertStreamItem({
+      tenantId,
+      messageId: data.id,
+      sourcePhone: resolvedBrokerPhone || null,
+      rawText: line,
+      type: listingTypeLabel,
+      recordType: 'listing',
+      locality: parsed.locality || null,
+      bhk: parsed.bhk || null,
+      priceNumeric: priceCr ? priceCr * 10000000 : rentMonthly || null,
+      priceLabel: streamPriceLabel,
+      dealType: parsed.listing_type || null,
+      assetClass,
+      confidenceScore: 0.88,
+      propertyCategory: propertyType,
+      areaSqft: parsed.area_sqft || null,
+      furnishing: extracted.furnishing || null,
+      floorNumber: extracted.floor || null,
+      parsedPayload: {
+        displayTitle: extracted.ai_title || null,
+        description: extracted.ai_description || null,
+        brokerName: resolvedBrokerName,
+        brokerPhone: resolvedBrokerPhone,
+        brokerAgency: resolvedBrokerAgency,
+        buildingName,
+        pocket: extracted.pocket || null,
+        amenities: extracted.amenities || null,
+        assetClass,
+        isSyndicated: false,
+      },
+    });
+
     return { success: true, id: data.id };
 }
 
@@ -694,6 +765,38 @@ Return ONLY valid JSON, no markdown, no explanation.`;
     // GAP 4: Update broker profile
     const priceNumeric = budgetMinCr ? budgetMinCr * 10000000 : rentBudgetMonthly;
     await upsertBrokerContact(tenantId, resolvedPhone, resolvedName, extracted.preferred_locations?.[0] || null, extracted.bhk_preference?.[0] || null, priceNumeric);
+
+    // Push to stream_items so it appears in the live feed
+    const streamPriceLabel = rentBudgetMonthly ? `₹${Math.round(rentBudgetMonthly / 1000)}K/mo` : budgetMinCr ? `₹${budgetMinCr} Cr` : null;
+    await upsertStreamItem({
+      tenantId,
+      messageId: data.id,
+      sourcePhone: resolvedPhone || null,
+      rawText: line,
+      type: 'Requirement',
+      recordType: 'requirement',
+      locality: extracted.preferred_locations?.[0] || null,
+      bhk: extracted.bhk_preference?.[0] || null,
+      priceNumeric,
+      priceLabel: streamPriceLabel,
+      dealType: listingType || null,
+      assetClass: null,
+      confidenceScore: 0.88,
+      propertyCategory: propertyType,
+      areaSqft: null,
+      furnishing: extracted.furnishing_preference || null,
+      floorNumber: null,
+      parsedPayload: {
+        displayTitle: extracted.notes || null,
+        description: extracted.notes || null,
+        brokerName: resolvedName,
+        brokerPhone: resolvedPhone,
+        brokerAgency: resolvedAgency,
+        bhkPreferences: extracted.bhk_preference || [],
+        preferredLocalities: extracted.preferred_locations || [],
+        isSyndicated: false,
+      },
+    });
 
     return { success: true, id: data.id };
 }

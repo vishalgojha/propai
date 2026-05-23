@@ -392,7 +392,7 @@ export const Layout: React.FC = () => {
           </div>
         </header>
 
-        <div className="pulse-scrollbar flex-1 overflow-y-auto">
+        <div id="main-scroll-container" className="pulse-scrollbar flex-1 overflow-y-auto">
           <div key={location.pathname} className="p-4 sm:p-6 lg:p-8">
             <Outlet />
           </div>

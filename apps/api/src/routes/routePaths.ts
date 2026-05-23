@@ -22,6 +22,7 @@ export const ROUTE_PATHS = {
     ingest: '/api/listings/ingest',
     intelligence: '/api/intelligence',
     notifications: '/api/notifications',
+    syndication: '/api/syndication',
   },
   notifications: {
     subscribe: '/subscribe',

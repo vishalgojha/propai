@@ -110,4 +110,11 @@ export const ENDPOINTS = {
   brokerContacts: {
     list: '/broker-contacts',
   },
+  syndication: {
+    invite: '/syndication/invite',
+    accept: '/syndication/accept',
+    feed: '/syndication/feed',
+    list: '/syndication/list',
+    revoke: (id: string) => `/syndication/${encodeURIComponent(id)}`,
+  },
 } as const;

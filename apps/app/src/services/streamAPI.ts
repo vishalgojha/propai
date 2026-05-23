@@ -19,6 +19,7 @@ export interface StreamItem {
   recordType?: string;
   dealType?: string;
   assetClass?: string;
+  furnishing?: string;
   propertyCategory?: 'residential' | 'commercial';
   areaSqft?: number | null;
   confidence: number;
@@ -27,6 +28,9 @@ export interface StreamItem {
   brokerCompany?: string | null;
   waLink?: string | null;
   isNetworkItem?: boolean;
+  isSyndicated?: boolean;
+  sourceWorkspaceId?: string;
+  sourceWorkspaceName?: string;
   isRead?: boolean;
   createdAt: string;
   igrTransactions?: IgrTransactionPreview[];

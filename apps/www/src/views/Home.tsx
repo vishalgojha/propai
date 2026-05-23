@@ -9,8 +9,9 @@ import { cn } from '@/lib/utils';
 
 const locales = ['Bandra West', 'Powai', 'Andheri West', 'Worli', 'Thane', 'Juhu', 'Goregaon', 'Malad'];
 
-export default function Home() {
-  const [listings, setListings] = useState<PublicListing[]>([]);
+export default function Home({ initialListings = [] }: { initialListings?: PublicListing[] }) {
+  const [listings, setListings] = useState<PublicListing[]>(initialListings.slice(0, 3));
+  const [allListings, setAllListings] = useState<PublicListing[]>(initialListings);
   const [rotatingWord, setRotatingWord] = useState('Rentals');
   const words = ['Rentals', 'Homes', 'Offices', 'Penthouses', 'Villas'];
 
@@ -21,10 +22,29 @@ export default function Home() {
       setRotatingWord(words[i]);
     }, 2500);
     
-    getListings().then(data => setListings(data.slice(0, 3)));
+    if (initialListings.length === 0) {
+      getListings().then(data => {
+        setAllListings(data);
+        setListings(data.slice(0, 3));
+      });
+    }
     
     return () => clearInterval(interval);
   }, []);
+
+  const liveCount = allListings.length;
+  const todayCount = allListings.filter(l => {
+    const d = new Date(l.created_at);
+    const now = new Date();
+    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).length;
+  const avgAgeMinutes = allListings.length > 0
+    ? Math.round(allListings.reduce((sum, l) => {
+        const ms = Date.now() - new Date(l.created_at).getTime();
+        return sum + ms / 60000;
+      }, 0) / allListings.length)
+    : 0;
+  const avgAgeDisplay = avgAgeMinutes < 60 ? `${avgAgeMinutes} Mins` : `${Math.round(avgAgeMinutes / 60)} Hrs`;
 
   return (
     <div className="space-y-24 pb-24">
@@ -68,9 +88,9 @@ export default function Home() {
       {/* Stats Bar */}
       <section className="px-8 grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 max-w-7xl mx-auto">
         {[
-          { label: 'Live Listings', value: '12,482' },
-          { label: 'Parsed Today', value: '1,894', color: 'text-[var(--accent)]' },
-          { label: 'Avg Listing Age', value: '42 Mins' }
+          { label: 'Live Listings', value: liveCount.toLocaleString() },
+          { label: 'Parsed Today', value: todayCount.toLocaleString(), color: 'text-[var(--accent)]' },
+          { label: 'Avg Listing Age', value: avgAgeDisplay }
         ].map((stat, i) => (
           <div key={i} className="bg-[var(--bg-surface)] border border-[color:var(--border)] rounded-[16px] p-6 shadow-sm hover:border-[color:var(--border-strong)] transition-all">
             <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-1">{stat.label}</div>

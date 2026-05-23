@@ -20,6 +20,7 @@ import waClickRoutes from './routes/waClickRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import whatsappPresenceRoutes from './routes/whatsappPresenceRoutes';
 import brokerContactRoutes from './routes/brokerContactRoutes';
+import syndicationRoutes from './routes/syndicationRoutes';
 import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
@@ -27,6 +28,7 @@ import { authMiddleware } from './middleware/authMiddleware';
 
 import { sessionManager } from './whatsapp/SessionManager';
 import { historySyncWorker } from './services/historySyncWorker';
+import { syndicationSyncJob } from './jobs/syndicationSyncJob';
 import { ROUTE_PATHS } from './routes/routePaths';
 
 const app = express();
@@ -119,6 +121,7 @@ app.use(ROUTE_PATHS.api.identity, authMiddleware, identityRoutes);
 app.use('/api/wa-click', authMiddleware, waClickRoutes);
 app.use(ROUTE_PATHS.api.notifications, authMiddleware, notificationRoutes);
 app.use(ROUTE_PATHS.api.brokerContacts, authMiddleware, brokerContactRoutes);
+app.use(ROUTE_PATHS.api.syndication, authMiddleware, syndicationRoutes);
 
 app.get(ROUTE_PATHS.api.health, (req, res) => {
     res.json({
@@ -182,6 +185,7 @@ app.listen(PORT, () => {
         try {
             await sessionManager.rehydratePersistedSessions();
             historySyncWorker.start();
+            syndicationSyncJob.start();
             if (ENABLE_SYSTEM_WHATSAPP_SESSION) {
                 await sessionManager.initSystemSession();
             } else {

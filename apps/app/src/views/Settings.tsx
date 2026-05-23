@@ -5,15 +5,19 @@ import {
   BellIcon,
   CheckCircleIcon,
   CheckIcon,
+  CopyIcon,
   EyeIcon,
   EyeOffIcon,
+  LinkIcon,
   LoaderIcon,
   RefreshIcon,
   SaveIcon,
   ShieldIcon,
   SmartphoneIcon,
   TrashIcon,
+  UsersIcon,
   WorkflowIcon,
+  XCircleIcon,
 } from '../lib/icons';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
@@ -22,6 +26,13 @@ import { track } from '../services/analytics';
 import { SurfaceSection } from '../components/ui/SurfaceSection';
 import { ProviderLogo } from '../components/ui/ProviderLogo';
 import { buildFullName, splitFullName } from '../lib/names';
+import {
+  createSyndicationInvite,
+  acceptSyndicationInvite,
+  listSyndicationPartners,
+  revokeSyndication,
+  type SyndicationPartner,
+} from '../services/syndicationApi';
 
 interface AIConfig {
   gemini?: string;
@@ -215,6 +226,77 @@ export const Settings: React.FC = () => {
     highValueLeads: true,
     performanceAnalytics: false,
   });
+
+  const [syndicationPartners, setSyndicationPartners] = useState<SyndicationPartner[]>([]);
+  const [syndicationLoading, setSyndicationLoading] = useState(false);
+  const [syndicationError, setSyndicationError] = useState<string | null>(null);
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const [acceptToken, setAcceptToken] = useState('');
+  const [acceptResult, setAcceptResult] = useState<string | null>(null);
+
+  const loadSyndicationPartners = React.useCallback(async () => {
+    setSyndicationLoading(true);
+    setSyndicationError(null);
+    try {
+      const data = await listSyndicationPartners();
+      setSyndicationPartners([...data.outgoing, ...data.incoming]);
+    } catch (err) {
+      setSyndicationError(handleApiError(err));
+    } finally {
+      setSyndicationLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSyndicationPartners();
+  }, [loadSyndicationPartners]);
+
+  const handleCreateInvite = async () => {
+    setSyndicationError(null);
+    setInviteLink(null);
+    try {
+      const result = await createSyndicationInvite(['rent', 'sale']);
+      setInviteLink(result.inviteLink);
+      setShowInviteForm(true);
+      await loadSyndicationPartners();
+    } catch (err) {
+      setSyndicationError(handleApiError(err));
+    }
+  };
+
+  const handleAcceptInvite = async () => {
+    if (!acceptToken.trim()) return;
+    setSyndicationError(null);
+    setAcceptResult(null);
+    try {
+      const result = await acceptSyndicationInvite(acceptToken.trim());
+      setAcceptResult(`Connected with ${result.partnerName}`);
+      setAcceptToken('');
+      await loadSyndicationPartners();
+    } catch (err) {
+      setSyndicationError(handleApiError(err));
+    }
+  };
+
+  const handleRevoke = async (id: string) => {
+    setSyndicationError(null);
+    try {
+      await revokeSyndication(id);
+      await loadSyndicationPartners();
+    } catch (err) {
+      setSyndicationError(handleApiError(err));
+    }
+  };
+
+  const copyInviteLink = () => {
+    if (inviteLink) {
+      navigator.clipboard.writeText(inviteLink);
+      setInviteCopied(true);
+      setTimeout(() => setInviteCopied(false), 2000);
+    }
+  };
 
   const [aiKeys, setAiKeys] = useState<AIConfig>({
     gemini: '',
@@ -689,6 +771,137 @@ export const Settings: React.FC = () => {
               value={settings.performanceAnalytics}
               onToggle={() => updateSetting('performanceAnalytics', !settings.performanceAnalytics)}
             />
+          </SurfaceSection>
+
+          <SurfaceSection
+            title="Network &amp; Syndication"
+            subtitle="Share listings with trusted broker partners. Your feed stays independent — this opts into bi-directional feed sharing only."
+            icon={UsersIcon}
+          >
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+                <div>
+                  <p className="text-[13px] font-semibold text-[var(--text-primary)]">Invite a broker partner</p>
+                  <p className="mt-1 text-[11px] text-[var(--text-secondary)]">Generate a shareable invite link to send to a trusted broker.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCreateInvite}
+                  className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] hover:brightness-95 transition-all"
+                >
+                  <LinkIcon className="h-4 w-4" />
+                  Generate invite
+                </button>
+              </div>
+
+              {inviteLink ? (
+                <div className="rounded-[18px] border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.06)] p-5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)] mb-2">Share this link with your partner</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 truncate rounded-[10px] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] font-mono text-[var(--text-primary)]">
+                      {inviteLink}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={copyInviteLink}
+                      className="inline-flex items-center gap-1.5 rounded-[10px] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] font-bold text-[var(--accent)] hover:bg-[var(--bg-hover)] transition-all"
+                    >
+                      {inviteCopied ? <CheckIcon className="h-3.5 w-3.5" /> : <CopyIcon className="h-3.5 w-3.5" />}
+                      {inviteCopied ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+                <div className="flex-1">
+                  <p className="text-[13px] font-semibold text-[var(--text-primary)]">Accept an invite</p>
+                  <p className="mt-1 text-[11px] text-[var(--text-secondary)]">Paste an invite link or token from a partner broker.</p>
+                </div>
+                <div className="flex w-full sm:w-auto items-center gap-2">
+                  <input
+                    type="text"
+                    value={acceptToken}
+                    onChange={(e) => setAcceptToken(e.target.value)}
+                    placeholder="Paste token or link"
+                    className="flex-1 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)] sm:w-48"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAcceptInvite}
+                    disabled={!acceptToken.trim()}
+                    className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] hover:brightness-95 transition-all disabled:opacity-40"
+                  >
+                    <CheckIcon className="h-4 w-4" />
+                    Accept
+                  </button>
+                </div>
+              </div>
+
+              {acceptResult ? (
+                <div className="rounded-[14px] bg-[var(--accent-dim)] px-4 py-3 text-[12px] text-[var(--accent)] border border-[color:var(--accent-border)]">
+                  {acceptResult}
+                </div>
+              ) : null}
+
+              {syndicationError ? (
+                <div className="rounded-[14px] bg-red-500/10 px-4 py-3 text-[12px] text-red-200 border border-red-500/20">
+                  {syndicationError}
+                </div>
+              ) : null}
+
+              {syndicationLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <LoaderIcon className="h-6 w-6 animate-spin text-[var(--accent)]" />
+                </div>
+              ) : syndicationPartners.length > 0 ? (
+                <div className="space-y-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                    Connected partners ({syndicationPartners.length})
+                  </p>
+                  {syndicationPartners.map((partner) => (
+                    <div
+                      key={partner.id}
+                      className="flex items-center justify-between gap-4 rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-5 py-4"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent-dim)] text-[13px] font-bold text-[var(--accent)]">
+                          {partner.partnerName[0].toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
+                            {partner.partnerName}
+                          </p>
+                          <p className="text-[10px] text-[var(--text-muted)]">
+                            {partner.direction === 'outgoing' ? 'You invited them' : 'They invited you'}
+                            <span className="mx-1.5">·</span>
+                            {partner.status}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-[10px] font-medium text-[var(--text-secondary)]">
+                          {partner.scope.join(', ')}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRevoke(partner.id)}
+                          className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-red-500 hover:bg-red-500 hover:text-black transition-all"
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-[16px] border border-dashed border-[color:var(--border)] px-4 py-10 text-center">
+                  <UsersIcon className="mx-auto h-8 w-8 mb-3 opacity-40 text-[var(--text-muted)]" />
+                  <p className="text-[13px] text-[var(--text-secondary)]">No syndication partners yet.</p>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-1">Invite a trusted broker to start sharing listings.</p>
+                </div>
+              )}
+            </div>
           </SurfaceSection>
 
           <section className="rounded-[24px] border border-red-500/20 bg-red-500/5 p-6">

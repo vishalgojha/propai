@@ -14,6 +14,7 @@ export {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
   ClipboardList as RequirementIcon,
+  Copy as CopyIcon,
   Cpu as CpuIcon,
   CreditCard as CreditCardIcon,
   Eye as EyeIcon,
@@ -21,6 +22,7 @@ export {
   Globe as GlobeIcon,
   Hash as ChannelIcon,
   LayoutDashboard as DashboardIcon,
+  Link as LinkIcon,
   Loader2 as LoaderIcon,
   LogOut as LogoutIcon,
   Mail as MailIcon,
@@ -51,5 +53,6 @@ export {
   Users as UsersIcon,
   Workflow as WorkflowIcon,
   X as XIcon,
+  XCircle as XCircleIcon,
   Zap as ZapIcon,
 } from 'lucide-react';

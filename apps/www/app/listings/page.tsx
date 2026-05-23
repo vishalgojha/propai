@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { fetchPublicListings } from "@/lib/publicListings";
 import Listings from "@/pages/Listings";
 
 export const metadata: Metadata = {
@@ -7,6 +8,12 @@ export const metadata: Metadata = {
     "Browse real-time off-market properties in Mumbai. Filter by locality, price, and typology. Sourced directly from broker broadcasts.",
 };
 
-export default function Page() {
-  return <Listings />;
+export default async function Page() {
+  let initialListings: Awaited<ReturnType<typeof fetchPublicListings>> = [];
+  try {
+    initialListings = await fetchPublicListings();
+  } catch {
+    // Fallback to client-side fetch on error
+  }
+  return <Listings initialListings={initialListings} />;
 }

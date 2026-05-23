@@ -110,7 +110,11 @@ export const ingestListings = async (req: Request, res: Response) => {
                 price_label: item.price_label || null,
                 price_numeric: item.price_numeric || null,
                 confidence_score: item.confidence_score ?? 0.8,
-                parsed_payload: item.parsed_payload || {},
+                broker_name: item.contact_name || null,
+                parsed_payload: {
+                    ...(item.parsed_payload || {}),
+                    buildingName: item.building_name || null,
+                },
             };
             if (item.embedding && Array.isArray(item.embedding)) {
                 streamRow.embedding = item.embedding;
