@@ -269,11 +269,58 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
     const context = await workspaceAccessService.resolveContext(req.user ?? {});
     const tenantId = context.workspaceOwnerId;
     const { label } = req.body || {};
-    const sessionKey = label || undefined;
+    let sessionKey = label || undefined;
     const gateway = getWhatsAppGateway(tenantId);
 
     try {
-        const result = await gateway.forceReconnect({ workspaceOwnerId: tenantId, sessionLabel: sessionKey });
+        const dbClient = getDbClient();
+        const { data: sessionRow } = sessionKey
+            ? await dbClient
+                .from('whatsapp_sessions')
+                .select('label, owner_name, session_data')
+                .eq('tenant_id', tenantId)
+                .eq('label', sessionKey)
+                .maybeSingle()
+            : await dbClient
+                .from('whatsapp_sessions')
+                .select('label, owner_name, session_data')
+                .eq('tenant_id', tenantId)
+                .order('last_sync', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+        sessionKey = sessionKey || sessionRow?.label || undefined;
+
+        let result: { label: string; message?: string };
+        try {
+            result = await gateway.forceReconnect({ workspaceOwnerId: tenantId, sessionLabel: sessionKey });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : '';
+            const canRevivePersistedSession =
+                sessionRow?.label &&
+                (message.includes('No active session') || message.includes('Session client not found'));
+
+            if (!canRevivePersistedSession) {
+                throw error;
+            }
+
+            const sessionData = sessionRow.session_data && typeof sessionRow.session_data === 'object'
+                ? sessionRow.session_data as Record<string, unknown>
+                : {};
+            const phoneNumber = typeof sessionData.phoneNumber === 'string' ? sessionData.phoneNumber : undefined;
+
+            await gateway.connect({
+                workspaceOwnerId: tenantId,
+                sessionLabel: sessionRow.label,
+                ownerName: sessionRow.owner_name || undefined,
+                phoneNumber,
+                mode: 'qr',
+            });
+            result = {
+                label: sessionRow.label,
+                message: 'Persisted session revived, QR regenerating...',
+            };
+        }
         
         setTimeout(() => {
             void gateway.getQRCode({ workspaceOwnerId: tenantId as string, sessionLabel: result.label });
@@ -381,7 +428,6 @@ export const getStatus = async (req: Request, res: Response) => {
         .from('whatsapp_sessions')
         .select('label, owner_name, status, session_data, last_sync')
         .eq('tenant_id', workspaceOwnerId)
-        .in('status', ['connecting', 'connected'])
         .order('last_sync', { ascending: false });
 
     if (error) return res.status(500).json({ error: error.message });

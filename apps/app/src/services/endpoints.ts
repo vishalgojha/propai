@@ -60,6 +60,7 @@ export const ENDPOINTS = {
     supportLogs: '/whatsapp/support-logs',
     profile: '/whatsapp/profile',
     config: '/whatsapp/config',
+    reconnect: '/whatsapp/qr/force-refresh',
     qrForceRefresh: '/whatsapp/qr/force-refresh',
     historyImport: '/whatsapp/history/import',
     historyImports: '/whatsapp/history/imports',

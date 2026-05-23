@@ -12,12 +12,12 @@ type WhatsAppSessionSummary = {
   label: string;
   ownerName?: string | null;
   phoneNumber?: string | null;
-  status: 'connected' | 'connecting' | 'disconnected';
+  status: 'connected' | 'connecting' | 'reconnecting' | 'disconnected';
   lastSync?: string | null;
 };
 
 type WhatsAppStatusSummary = {
-  status: 'connected' | 'connecting' | 'disconnected';
+  status: 'connected' | 'connecting' | 'reconnecting' | 'disconnected';
   connectedPhoneNumber?: string | null;
   connectedOwnerName?: string | null;
   activeCount: number;
@@ -39,7 +39,7 @@ const normalizeWhatsAppSession = (session: unknown): WhatsAppSessionSummary | nu
 
   const rawStatus = String(row.status || 'disconnected');
   const status: WhatsAppSessionSummary['status'] =
-    rawStatus === 'connected' || rawStatus === 'connecting' ? rawStatus : 'disconnected';
+    rawStatus === 'connected' || rawStatus === 'connecting' || rawStatus === 'reconnecting' ? rawStatus : 'disconnected';
 
   return {
     label,
@@ -66,6 +66,7 @@ export const Layout: React.FC = () => {
     }
   });
   const [isDisconnectingSession, setIsDisconnectingSession] = React.useState(false);
+  const [isReconnectingSession, setIsReconnectingSession] = React.useState(false);
   const [selectedSessionLabel, setSelectedSessionLabel] = React.useState<string | null>(() => {
     try {
       return window.localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
@@ -279,6 +280,24 @@ export const Layout: React.FC = () => {
     }
   }, [loadWhatsappStatus, selectedSession?.label, selectedSessionLabel, syncSelectedSession]);
 
+  const handleReconnectSelectedSession = React.useCallback(async () => {
+    if (!selectedSession?.label) {
+      navigate('/whatsapp');
+      return;
+    }
+
+    setIsReconnectingSession(true);
+    try {
+      await backendApi.post(ENDPOINTS.whatsapp.reconnect, { label: selectedSession.label });
+      await loadWhatsappStatus(false);
+      navigate('/whatsapp');
+    } catch (error) {
+      console.error(handleApiError(error));
+    } finally {
+      setIsReconnectingSession(false);
+    }
+  }, [loadWhatsappStatus, navigate, selectedSession?.label]);
+
   return (
     <div className="flex min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] lg:h-screen lg:overflow-hidden">
       {isSidebarOpen ? (
@@ -351,7 +370,7 @@ export const Layout: React.FC = () => {
               </div>
             ) : null}
             <div className="flex min-w-0 items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1">
-              <span className={selectedSession?.status === 'connected' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : selectedSession?.status === 'connecting' ? 'h-2 w-2 rounded-full bg-[var(--amber)]' : 'h-2 w-2 rounded-full bg-[var(--red)]'} />
+              <span className={selectedSession?.status === 'connected' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : selectedSession?.status === 'connecting' || selectedSession?.status === 'reconnecting' ? 'h-2 w-2 rounded-full bg-[var(--amber)]' : 'h-2 w-2 rounded-full bg-[var(--red)]'} />
               <span className="hidden text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)] sm:inline">WhatsApp</span>
               {connectedSessions.length > 1 ? (
                 <select
@@ -380,6 +399,16 @@ export const Layout: React.FC = () => {
               >
                 <PowerIcon className="h-3.5 w-3.5" />
                 {isDisconnectingSession ? 'Disconnecting' : 'Disconnect'}
+              </button>
+            ) : selectedSession ? (
+              <button
+                type="button"
+                onClick={() => void handleReconnectSelectedSession()}
+                disabled={isReconnectingSession || selectedSession.status === 'connecting' || selectedSession.status === 'reconnecting'}
+                className="inline-flex items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-colors hover:brightness-95 disabled:opacity-50"
+              >
+                <PowerIcon className="h-3.5 w-3.5" />
+                {isReconnectingSession || selectedSession.status === 'reconnecting' ? 'Reconnecting' : selectedSession.status === 'connecting' ? 'Connecting' : 'Reconnect'}
               </button>
             ) : null}
             <div className="h-6 w-px bg-[color:var(--border)] mx-1" />

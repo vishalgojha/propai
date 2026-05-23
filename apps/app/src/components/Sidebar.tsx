@@ -99,7 +99,7 @@ type SidebarProps = {
   isCollapsed: boolean;
   onToggleCollapsed: () => void;
   whatsappStatus: {
-    status: 'connected' | 'connecting' | 'disconnected';
+    status: 'connected' | 'connecting' | 'reconnecting' | 'disconnected';
     connectedPhoneNumber?: string | null;
     connectedOwnerName?: string | null;
     activeCount: number;
@@ -251,25 +251,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   const uplinkLabel =
     whatsappStatus.status === 'connected'
       ? 'Uplink active'
-      : whatsappStatus.status === 'connecting'
+      : whatsappStatus.status === 'connecting' || whatsappStatus.status === 'reconnecting'
         ? 'Uplink connecting'
         : 'Uplink offline';
   const uplinkBarClassName =
     whatsappStatus.status === 'connected'
       ? 'bg-[var(--accent)]'
-      : whatsappStatus.status === 'connecting'
+      : whatsappStatus.status === 'connecting' || whatsappStatus.status === 'reconnecting'
         ? 'bg-[var(--amber)]'
         : 'bg-[var(--red)]';
   const uplinkTextClassName =
     whatsappStatus.status === 'connected'
       ? 'text-[var(--accent)]'
-      : whatsappStatus.status === 'connecting'
+      : whatsappStatus.status === 'connecting' || whatsappStatus.status === 'reconnecting'
         ? 'text-[var(--amber)]'
         : 'text-[var(--red)]';
   const uplinkFillClassName =
     whatsappStatus.status === 'connected'
       ? 'w-[82%] animate-pulse'
-      : whatsappStatus.status === 'connecting'
+      : whatsappStatus.status === 'connecting' || whatsappStatus.status === 'reconnecting'
         ? 'w-[55%] animate-pulse'
         : 'w-[12%]';
 
