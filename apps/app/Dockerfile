@@ -10,7 +10,7 @@ COPY apps/app/package.json ./apps/app/
 
 # Install dependencies
 RUN corepack enable && \
-    NODE_ENV=development pnpm install --filter react-example... --no-frozen-lockfile && \
+    NODE_ENV=development pnpm install --filter propai-app... --no-frozen-lockfile && \
     echo "pnpm install completed"
 
 # Build-time args for Next public environment variables
