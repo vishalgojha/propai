@@ -2,6 +2,7 @@ import React from 'react';
 import { MessageSquare, Clock, ExternalLink, ChevronUp, ChevronDown, Copy, Save, MapPin, Check, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { logWaClick, fetchWaClickListingLog, type WaClickListingLog } from '../../services/waClickAPI';
+import { PROPAI_ASSISTANT_PHONE_DIGITS } from '../../lib/propai';
 import type { StreamItem } from '../../services/streamAPI';
 import type { PersonalChannel } from '../../services/channelApi';
 
@@ -47,6 +48,20 @@ function formatTimeAgo(createdAt: string): string {
     const hours = Math.round(mins / 60);
     if (hours < 24) return `${hours}h ago`;
     return `${Math.round(hours / 24)}d ago`;
+}
+
+function buildWaMessage(listing: StreamItem): string {
+    const parts: string[] = [];
+    parts.push('Hi PropAI Assistant, I need help with:');
+    if (listing.type) parts.push(`• Type: ${listing.type}`);
+    if (listing.location) parts.push(`• Location: ${listing.location}`);
+    if (listing.bhk) parts.push(`• ${listing.bhk}`);
+    if (listing.areaSqft) parts.push(`• ${listing.areaSqft.toLocaleString('en-IN')} sqft`);
+    if (listing.price) parts.push(`• Price: ${listing.price}`);
+    if (listing.source) parts.push(`• Source: ${listing.source}`);
+    parts.push('');
+    parts.push('Can you assist me with this?');
+    return parts.join('\n');
 }
 
 function formatCurrency(value?: number | null): string {
@@ -112,19 +127,54 @@ function inferFeatureChips(text: string): string[] {
 }
 
 function buildDisplayTitle(listing: StreamItem): string {
-    const explicit = String(listing.title || '').trim();
-    if (explicit) return explicit;
     const location = String(listing.location || '').trim();
     const cleanedBhk = String(listing.bhk || '').trim();
     const usableBhk = cleanedBhk && !/^n\/?a$/i.test(cleanedBhk) ? cleanedBhk : '';
-    const inferredUse = inferFurnishing(listing.rawText || listing.description || '');
-    const parts = [
-        usableBhk || null,
-        listing.propertyCategory ? toTitleCase(String(listing.propertyCategory)) : null,
-        inferredUse || null,
-        location ? `in ${location}` : null,
-    ].filter(Boolean);
-    return parts.join(' ') || location || 'Broker-sourced property';
+    const category = listing.propertyCategory ? toTitleCase(String(listing.propertyCategory)) : '';
+    const furnishing = inferFurnishing(listing.rawText || listing.description || '');
+    const buildingName = String(listing.buildingName || '').trim();
+
+    const purposeMap: Record<string, string> = {
+        Rent: 'for Rent',
+        Sale: 'for Sale',
+        Requirement: 'Wanted',
+        'Pre-leased': 'Pre-leased',
+        Lease: 'for Lease',
+    };
+    const purpose = purposeMap[listing.type] || '';
+
+    const skip = (v: string) => !v || /^n\/?a$/i.test(v);
+
+    if (listing.type === 'Requirement') {
+        const parts = [usableBhk, category, 'Wanted in', location].filter((v) => !skip(v));
+        if (parts.length > 1) return parts.join(' ');
+        const raw = listing.title || listing.location || '';
+        if (raw) return raw.length > 80 ? raw.slice(0, 80) + '…' : raw;
+        return 'Broker-sourced property';
+    }
+
+    const parts = [usableBhk, category, furnishing, purpose].filter((v) => !skip(v));
+
+    const structuredParts = parts.filter((p) => p !== purpose);
+
+    if (structuredParts.length === 0) {
+        const raw = listing.title || listing.location || '';
+        if (raw) return raw.length > 80 ? raw.slice(0, 80) + '…' : raw;
+        return 'Broker-sourced property';
+    }
+
+    let title = parts.join(' ');
+
+    const usableLocation = !skip(location) ? location : '';
+    if (usableLocation) {
+        title += ` — ${usableLocation}`;
+    }
+
+    if (!skip(buildingName) && usableLocation && buildingName.toLowerCase() !== usableLocation.toLowerCase()) {
+        title += ` · ${buildingName}`;
+    }
+
+    return title.trim();
 }
 
 function buildDescription(listing: StreamItem): string {
@@ -186,14 +236,13 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         e.stopPropagation();
         if (isOpening) return;
         setIsOpening(true);
-        const result = await logWaClick(listing.id, 'stream', 'web');
-        if (!result) {
-            setToast('Failed to open WhatsApp');
-            setIsOpening(false);
-            return;
-        }
-        setLocalClickCount((c) => c + 1);
         setToast('Opening WhatsApp');
+
+        const message = buildWaMessage(listing);
+        const url = `https://wa.me/${PROPAI_ASSISTANT_PHONE_DIGITS}?text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank', 'noopener');
+
+        setLocalClickCount((c) => c + 1);
         if (clickLog) {
             setClickLog({
                 ...clickLog,
@@ -201,7 +250,9 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                 events: [{ clicked_at: new Date().toISOString(), source: 'stream', device: 'web' }, ...clickLog.events],
             });
         }
-        window.open(result.redirect_url, '_blank', 'noopener');
+
+        logWaClick(listing.id, 'stream', 'web').catch(() => {});
+
         setIsOpening(false);
         window.setTimeout(() => setToast(null), 1800);
     };
@@ -220,13 +271,26 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         }
     }, [isExpanded, clickLog, loadClickLog]);
 
+    const handleCardKeyDown = React.useCallback((e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggle();
+        }
+    }, [onToggle]);
+
     return (
-        <div className={cn(
-            'group relative rounded-[22px] bg-[var(--bg-surface)] p-4 transition-all duration-500 sm:rounded-[28px] sm:p-7',
-            isExpanded
-                ? 'border border-[color:var(--accent-border)] shadow-[0_32px_64px_rgba(0,0,0,0.3)]'
-                : 'border border-white/[0.02] shadow-[0_8px_40px_rgba(0,0,0,0.15)] hover:-translate-y-2 hover:shadow-[0_32px_64px_rgba(0,0,0,0.3)] hover:bg-[var(--bg-hover)]'
-        )}>
+        <div
+            onClick={onToggle}
+            onKeyDown={handleCardKeyDown}
+            role="button"
+            tabIndex={0}
+            className={cn(
+                'group relative rounded-[22px] bg-[var(--bg-surface)] p-4 transition-all duration-500 sm:rounded-[28px] sm:p-7 cursor-pointer',
+                isExpanded
+                    ? 'border border-[color:var(--accent-border)] shadow-[0_32px_64px_rgba(0,0,0,0.3)]'
+                    : 'border border-white/[0.02] shadow-[0_8px_40px_rgba(0,0,0,0.15)] hover:-translate-y-2 hover:shadow-[0_32px_64px_rgba(0,0,0,0.3)] hover:bg-[var(--bg-hover)]'
+            )}
+        >
             {/* Background glow on hover */}
             <div className="absolute -top-32 -right-32 h-64 w-64 bg-[var(--accent)]/3 blur-[100px] rounded-full group-hover:bg-[var(--accent)]/8 transition-all duration-700 pointer-events-none" />
 
@@ -346,7 +410,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                         </button>
                         <button
                             type="button"
-                            onClick={onToggle}
+                            onClick={(e) => { e.stopPropagation(); onToggle(); }}
                             className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] transition-all hover:text-white"
                         >
                             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -357,7 +421,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
 
             {/* Expanded Section */}
             {isExpanded ? (
-                <div className="mt-6 pt-5 border-t border-white/[0.03] relative z-10">
+                <div className="mt-6 pt-5 border-t border-white/[0.03] relative z-10" onClick={(e) => e.stopPropagation()}>
                     <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -413,7 +477,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                 <div className="relative">
                                     <button
                                         type="button"
-                                        onClick={() => setShowChannelPicker((v) => !v)}
+                                        onClick={(e) => { e.stopPropagation(); setShowChannelPicker((v) => !v); }}
                                         className="flex items-center gap-1.5 rounded-xl border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-[11px] text-[var(--text-secondary)] hover:text-white"
                                     >
                                         <Save className="h-3.5 w-3.5" />
@@ -431,7 +495,8 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                                             key={channel.id}
                                                             type="button"
                                                             disabled={savingChannelId === channel.id}
-                                                            onClick={() => {
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
                                                                 setSavingChannelId(channel.id);
                                                                 onSaveToChannel?.(channel.id, listing.id);
                                                                 setShowChannelPicker(false);
@@ -448,7 +513,8 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                        e.stopPropagation();
                                         navigator.clipboard.writeText(description).then(() => {
                                             setCopied(true);
                                             window.setTimeout(() => setCopied(false), 1600);
