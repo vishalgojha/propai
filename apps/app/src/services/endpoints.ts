@@ -111,6 +111,7 @@ export const ENDPOINTS = {
   },
   brokerContacts: {
     list: '/broker-contacts',
+    overlaps: '/broker-contacts/overlaps',
   },
   syndication: {
     invite: '/syndication/invite',

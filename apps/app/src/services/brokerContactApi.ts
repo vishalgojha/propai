@@ -20,7 +20,23 @@ export type BrokerContact = {
   price_range_high: number | null;
 };
 
+export type BrokerContactOverlap = Omit<BrokerContact, 'tenant_id' | 'source_groups' | 'last_seen_at' | 'created_at' | 'updated_at'> & {
+  source_groups: Array<{
+    id: string;
+    name: string;
+    locality: string | null;
+    category: string | null;
+    sessionLabel: string | null;
+  }>;
+  last_seen_at: string | null;
+};
+
 export async function fetchBrokerContacts(): Promise<BrokerContact[]> {
   const response = await backendApi.get(ENDPOINTS.brokerContacts.list);
   return Array.isArray(response.data) ? (response.data as BrokerContact[]) : [];
+}
+
+export async function fetchBrokerContactOverlaps(): Promise<BrokerContactOverlap[]> {
+  const response = await backendApi.get(ENDPOINTS.brokerContacts.overlaps);
+  return Array.isArray(response.data) ? (response.data as BrokerContactOverlap[]) : [];
 }

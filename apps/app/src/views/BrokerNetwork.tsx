@@ -1,7 +1,7 @@
 import React from 'react';
-import { Loader2, RefreshCw, Phone, MapPin, Hash, BadgeIndianRupee, Clock, Building2, UserRound } from 'lucide-react';
+import { Loader2, RefreshCw, Phone, MapPin, Hash, BadgeIndianRupee, Clock, Building2, UserRound, UsersRound } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { fetchBrokerContacts, type BrokerContact } from '../services/brokerContactApi';
+import { fetchBrokerContactOverlaps, fetchBrokerContacts, type BrokerContact, type BrokerContactOverlap } from '../services/brokerContactApi';
 import { handleApiError } from '../services/api';
 
 const formatPhone = (phone: string): string => {
@@ -33,6 +33,8 @@ const formatDate = (value?: string | null): string => {
 
 export const BrokerNetwork: React.FC = () => {
   const [contacts, setContacts] = React.useState<BrokerContact[]>([]);
+  const [overlaps, setOverlaps] = React.useState<BrokerContactOverlap[]>([]);
+  const [activeView, setActiveView] = React.useState<'contacts' | 'overlaps'>('contacts');
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -40,8 +42,12 @@ export const BrokerNetwork: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fetchBrokerContacts();
-      setContacts(data);
+      const [contactData, overlapData] = await Promise.all([
+        fetchBrokerContacts(),
+        fetchBrokerContactOverlaps(),
+      ]);
+      setContacts(contactData);
+      setOverlaps(overlapData);
     } catch (err) {
       setError(handleApiError(err));
     } finally {
@@ -54,6 +60,7 @@ export const BrokerNetwork: React.FC = () => {
   }, [load]);
 
   const totalListings = contacts.reduce((sum, c) => sum + c.listing_count, 0);
+  const overlappingGroupLinks = overlaps.reduce((sum, contact) => sum + contact.group_count, 0);
 
   return (
     <div className="space-y-6">
@@ -68,7 +75,7 @@ export const BrokerNetwork: React.FC = () => {
               Your broker network
             </h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              Brokers extracted from WhatsApp group broadcasts and participant lists — {contacts.length} contact{contacts.length === 1 ? '' : 's'}, {totalListings} listing{totalListings === 1 ? '' : 's'} parsed.
+              Brokers extracted from WhatsApp group broadcasts and participant lists — {contacts.length} contact{contacts.length === 1 ? '' : 's'}, {overlaps.length} overlapping contact{overlaps.length === 1 ? '' : 's'}, {totalListings} listing{totalListings === 1 ? '' : 's'} parsed.
             </p>
           </div>
           <button
@@ -89,17 +96,53 @@ export const BrokerNetwork: React.FC = () => {
         </div>
       ) : null}
 
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="inline-flex w-full rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-1 md:w-auto">
+          <button
+            type="button"
+            onClick={() => setActiveView('contacts')}
+            className={cn(
+              'inline-flex flex-1 items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors md:flex-none',
+              activeView === 'contacts'
+                ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+            )}
+          >
+            <UserRound className="h-4 w-4" />
+            All contacts
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveView('overlaps')}
+            className={cn(
+              'inline-flex flex-1 items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors md:flex-none',
+              activeView === 'overlaps'
+                ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+            )}
+          >
+            <UsersRound className="h-4 w-4" />
+            Overlaps
+          </button>
+        </div>
+        {activeView === 'overlaps' ? (
+          <div className="text-[12px] text-[var(--text-secondary)]">
+            {overlaps.length} contact{overlaps.length === 1 ? '' : 's'} across {overlappingGroupLinks} group membership link{overlappingGroupLinks === 1 ? '' : 's'}
+          </div>
+        ) : null}
+      </div>
+
       {isLoading ? (
         <div className="flex items-center justify-center gap-3 px-5 py-20 text-sm text-[var(--text-secondary)]">
           <Loader2 className="h-5 w-5 animate-spin" />
           Loading broker contacts...
         </div>
-      ) : contacts.length === 0 ? (
+      ) : activeView === 'contacts' && contacts.length === 0 ? (
         <div className="rounded-[18px] border border-dashed border-[color:var(--border)] px-4 py-16 text-center text-sm text-[var(--text-secondary)]">
           <UserRound className="mx-auto h-8 w-8 mb-3 opacity-40" />
           No broker contacts yet. They will appear as WhatsApp group messages are parsed.
         </div>
-      ) : (
+      ) : activeView === 'contacts' ? (
         <div className="overflow-hidden rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)]">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -203,6 +246,126 @@ export const BrokerNetwork: React.FC = () => {
                       ) : (
                         <span className="text-[12px] text-[var(--text-muted)]">—</span>
                       )}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--accent)]">
+                        {contact.listing_count}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className="inline-flex items-center gap-1 text-[12px] text-[var(--text-secondary)]">
+                        <Clock className="h-3 w-3 text-[var(--text-muted)]" />
+                        {formatDate(contact.last_seen_at)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : overlaps.length === 0 ? (
+        <div className="rounded-[18px] border border-dashed border-[color:var(--border)] px-4 py-16 text-center text-sm text-[var(--text-secondary)]">
+          <UsersRound className="mx-auto mb-3 h-8 w-8 opacity-40" />
+          No overlapping contacts yet. They will appear once the same number is seen in two or more synced groups.
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)]">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-white/[0.04] text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
+                  <th className="px-5 py-4">Contact</th>
+                  <th className="px-5 py-4">Shared groups</th>
+                  <th className="px-5 py-4">Areas</th>
+                  <th className="px-5 py-4">BHK</th>
+                  <th className="px-5 py-4">Listings</th>
+                  <th className="px-5 py-4">Last seen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overlaps.map((contact, index) => (
+                  <tr
+                    key={contact.id}
+                    className={cn(
+                      'border-b border-white/[0.02] transition-colors hover:bg-[var(--bg-elevated)]',
+                      index === overlaps.length - 1 && 'border-b-0',
+                    )}
+                  >
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent-dim)] text-[13px] font-bold text-[var(--accent)]">
+                          {(contact.display_name || contact.phone)[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-[var(--text-primary)]">
+                            {contact.display_name || formatPhone(contact.phone)}
+                          </p>
+                          <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
+                            <Phone className="h-3 w-3" />
+                            {formatPhone(contact.phone)}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 min-w-[260px]">
+                      <div className="flex flex-col gap-1.5">
+                        <span className="inline-flex w-fit items-center gap-1 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--accent)]">
+                          <UsersRound className="h-3 w-3" />
+                          {contact.group_count} groups
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {contact.source_groups.slice(0, 4).map((group) => (
+                            <span
+                              key={group.id}
+                              className="inline-flex max-w-[220px] items-center gap-1 truncate rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]"
+                              title={group.name}
+                            >
+                              <Building2 className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{group.name}</span>
+                            </span>
+                          ))}
+                          {contact.source_groups.length > 4 ? (
+                            <span className="text-[10px] text-[var(--text-muted)]">
+                              +{contact.source_groups.length - 4}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {contact.inferred_areas.length > 0 ? (
+                          contact.inferred_areas.slice(0, 3).map((area) => (
+                            <span
+                              key={area}
+                              className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]"
+                            >
+                              <MapPin className="h-3 w-3" />
+                              {area}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[12px] text-[var(--text-muted)]">—</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {contact.asset_types.length > 0 ? (
+                          contact.asset_types.slice(0, 3).map((asset) => (
+                            <span
+                              key={asset}
+                              className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]"
+                            >
+                              <Hash className="h-3 w-3" />
+                              {asset}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[12px] text-[var(--text-muted)]">—</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-4">
                       <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--accent)]">
