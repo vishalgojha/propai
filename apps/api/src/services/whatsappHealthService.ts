@@ -30,6 +30,10 @@ const DAY_MS = 86_400_000;
 const STALE_MS = DAY_MS * 7;
 
 const db = supabaseAdmin || supabase;
+const HIDDEN_EVENT_TYPES = new Set([
+    'group_message_parse_only',
+    'group_message_broadcast_parse_failed',
+]);
 
 type EventLogSessionField = 'session_label' | 'session_id';
 
@@ -491,14 +495,16 @@ export class WhatsAppHealthService {
             throw error;
         }
 
-        return (data || []).map((row: any) => ({
-            id: row.id,
-            sessionLabel: row.session_label || row.session_id || null,
-            eventType: row.event_type,
-            message: row.message,
-            metadata: row.metadata || {},
-            createdAt: row.created_at,
-        }));
+        return (data || [])
+            .filter((row: any) => !HIDDEN_EVENT_TYPES.has(String(row.event_type || '')))
+            .map((row: any) => ({
+                id: row.id,
+                sessionLabel: row.session_label || row.session_id || null,
+                eventType: row.event_type,
+                message: row.message,
+                metadata: row.metadata || {},
+                createdAt: row.created_at,
+            }));
     }
 
     async appendEvent(tenantId: string, sessionLabel: string, eventType: string, message: string, metadata: Record<string, unknown> = {}) {

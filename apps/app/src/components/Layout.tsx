@@ -110,6 +110,7 @@ export const Layout: React.FC = () => {
         return 'AI Usage';
       case '/agent': return 'PropAI Agent';
       case '/analytics': return 'Intelligence';
+      case '/parsing-terminal': return 'Parsing Terminal';
       case '/settings': return 'Studio Settings';
       default: return 'PropAI Pulse';
     }

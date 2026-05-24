@@ -22,6 +22,7 @@ import {
   UsersIcon,
   InboxIcon,
   MessageSquareIcon,
+  TerminalIcon,
 } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
 import { useInbox } from '../hooks/useInbox';
@@ -38,6 +39,7 @@ const NAV_ITEMS = [
   { label: 'Inbox', path: '/inbox', icon: InboxIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'Intelligence', path: '/analytics', icon: ActivityIcon },
+  { label: 'Parsing Terminal', path: '/parsing-terminal', icon: TerminalIcon },
   { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
   { label: 'Group Audit', path: '/group-audit', icon: ShieldIcon },
   { label: 'WA Logs', path: '/wa-logs', icon: MessageSquareIcon },

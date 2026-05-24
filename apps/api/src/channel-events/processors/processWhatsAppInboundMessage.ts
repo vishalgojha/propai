@@ -530,14 +530,6 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
             return;
         }
 
-        await whatsappHealthService.appendEvent(
-            tenantId,
-            label || 'default',
-            'group_message_parse_only',
-            'Group message stored for parsing only. AI did not auto-reply because there was no explicit PropAI mention.',
-            { remoteJid },
-        ).catch(() => undefined);
-
         try {
             const result = await broadcastParserService.parseBroadcast({
                 message: event.text,
@@ -562,29 +554,14 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
                         broker: result.broker,
                     },
                 ).catch(() => undefined);
-            } else if (!result.success) {
-                await whatsappHealthService.appendEvent(
-                    tenantId,
-                    label || 'default',
-                    'group_message_broadcast_parse_failed',
-                    'Group message broadcast parser did not parse the message.',
-                    {
-                        remoteJid,
-                        reason: result.reason || 'unknown',
-                    },
-                ).catch(() => undefined);
             }
         } catch (error) {
-            await whatsappHealthService.appendEvent(
+            console.warn('[GroupBroadcastParser] Background parse failed:', {
                 tenantId,
-                label || 'default',
-                'group_message_broadcast_parse_failed',
-                'Group message broadcast parser failed.',
-                {
-                    remoteJid,
-                    reason: error instanceof Error ? error.message : 'Unknown parsing error',
-                },
-            ).catch(() => undefined);
+                label,
+                remoteJid,
+                reason: error instanceof Error ? error.message : 'Unknown parsing error',
+            });
         }
         return;
     }
