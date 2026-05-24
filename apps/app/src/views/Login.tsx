@@ -8,6 +8,7 @@ import { buildSessionFromSupabase } from '../services/authSession';
 import { track } from '../services/analytics';
 import { cn } from '../lib/utils';
 import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_PLAN_CARDS } from '../lib/propai';
+import { buildFullName } from '../lib/names';
 import {
   ArrowRightIcon,
   ActivityIcon,
@@ -123,7 +124,8 @@ const resolveAppRole = (email?: string | null, appRole?: string) => {
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [isLoading, setIsLoading] = useState(false);
@@ -200,6 +202,7 @@ export const Login: React.FC = () => {
     setError(null);
 
     try {
+      const fullName = buildFullName(firstName, lastName);
       const response = await backendApi.post(ENDPOINTS.auth.password, {
         mode,
         email,
@@ -315,7 +318,8 @@ export const Login: React.FC = () => {
                 onClick={() => {
                   logout();
                   setPassword('');
-                  setFullName('');
+                  setFirstName('');
+                  setLastName('');
                   setPhoneNumber('');
                   setMode('signin');
                 }}
@@ -708,19 +712,37 @@ export const Login: React.FC = () => {
                   ) : (
                     <div key="signup-form">
                       <form onSubmit={handlePasswordAuth} className="space-y-4">
-                        <label className="block">
-                          <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                            Full name
-                          </span>
-                          <input
-                            type="text"
-                            required
-                            value={fullName}
-                            onChange={(e) => setFullName(e.target.value)}
-                            placeholder="Your full name"
-                            className={authFieldClassName}
-                          />
-                        </label>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <label className="block">
+                            <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                              First name
+                            </span>
+                            <input
+                              type="text"
+                              required
+                              autoComplete="given-name"
+                              value={firstName}
+                              onChange={(e) => setFirstName(e.target.value)}
+                              placeholder="First name"
+                              className={authFieldClassName}
+                            />
+                          </label>
+
+                          <label className="block">
+                            <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                              Last name
+                            </span>
+                            <input
+                              type="text"
+                              required
+                              autoComplete="family-name"
+                              value={lastName}
+                              onChange={(e) => setLastName(e.target.value)}
+                              placeholder="Last name"
+                              className={authFieldClassName}
+                            />
+                          </label>
+                        </div>
 
                         <label className="block">
                           <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
