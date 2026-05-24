@@ -27,6 +27,7 @@ const PROFILE_BASE_SELECT = 'id, full_name, phone, email, phone_verified';
 const normalizePhone = (value?: string) => normalizePhoneValue(value);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const AUTH_OPTIONAL_WORK_TIMEOUT_MS = 2500;
+const AUTH_SUPABASE_FETCH_TIMEOUT_MS = 8000;
 // Password auth is a hard dependency for sign-in; give production enough headroom
 // for Supabase auth latency instead of failing fast with a 504.
 const AUTH_REQUIRED_WORK_TIMEOUT_MS = 25000;
@@ -114,19 +115,35 @@ async function signInWithPasswordDirect(email: string, password: string): Promis
         throw new Error('Supabase URL or anon key is not configured');
     }
 
-    const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
-        method: 'POST',
-        headers: {
-            apikey: supabaseAnonKey,
-            Authorization: `Bearer ${supabaseAnonKey}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-        },
-        body: JSON.stringify({
-            email,
-            password,
-        }),
-    });
+    const controller = new AbortController();
+    const timeoutHandle = setTimeout(() => controller.abort(), AUTH_SUPABASE_FETCH_TIMEOUT_MS);
+    let response: Response;
+
+    try {
+        response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+            method: 'POST',
+            headers: {
+                apikey: supabaseAnonKey,
+                Authorization: `Bearer ${supabaseAnonKey}`,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+            },
+            body: JSON.stringify({
+                email,
+                password,
+            }),
+            signal: controller.signal,
+        });
+    } catch (error: any) {
+        if (error?.name === 'AbortError') {
+            const timeoutError = new Error('Supabase password auth request timed out');
+            (timeoutError as any).status = 504;
+            throw timeoutError;
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutHandle);
+    }
 
     const responseText = await response.text();
     let payload: any = null;
@@ -438,7 +455,12 @@ router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (
             if (normalizedMessage.includes('invalid login credentials') || normalizedMessage.includes('invalid email') || normalizedMessage.includes('email or password')) {
                 return res.status(401).json({ error: 'Email or password is incorrect' });
             }
-            return res.status(400).json({ error: rawMessage });
+            if (normalizedMessage.includes('timed out')) {
+                return res.status(504).json({
+                    error: 'Sign in is taking too long right now. Please try again in a moment.',
+                });
+            }
+            return res.status(Number(authError?.status || 400)).json({ error: rawMessage });
         }
 
         const accessToken = authData.session.access_token;
@@ -596,17 +618,33 @@ router.post(ROUTE_PATHS.auth.refresh, validate(refreshTokenBodySchema), async (r
             return res.status(503).json({ error: 'Supabase URL or anon key is not configured' });
         }
 
-        const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
-            method: 'POST',
-            headers: {
-                apikey: supabaseAnonKey,
-                Authorization: `Bearer ${supabaseAnonKey}`,
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-                refresh_token: refreshToken,
-            }).toString(),
-        });
+        const controller = new AbortController();
+        const timeoutHandle = setTimeout(() => controller.abort(), AUTH_SUPABASE_FETCH_TIMEOUT_MS);
+        let response: Response;
+
+        try {
+            response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+                method: 'POST',
+                headers: {
+                    apikey: supabaseAnonKey,
+                    Authorization: `Bearer ${supabaseAnonKey}`,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    refresh_token: refreshToken,
+                }).toString(),
+                signal: controller.signal,
+            });
+        } catch (error: any) {
+            if (error?.name === 'AbortError') {
+                return res.status(504).json({
+                    error: 'Session refresh is taking too long right now. Please sign in again.',
+                });
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutHandle);
+        }
 
         if (!response.ok) {
             const payload = await response.json().catch(() => null);
