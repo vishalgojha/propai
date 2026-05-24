@@ -154,6 +154,14 @@ function storedPositiveNumber(value: unknown, fallback: number) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function chunkArray<T>(values: T[], size: number) {
+    const chunks: T[][] = [];
+    for (let index = 0; index < values.length; index += size) {
+        chunks.push(values.slice(index, index + size));
+    }
+    return chunks;
+}
+
 export function countLikelyBrokerSignals(group: RawGroupInput, locality?: string | null, category?: string | null) {
     const normalized = normalizeName(group.name || '');
     let score = 0;
@@ -208,10 +216,41 @@ export class WhatsAppGroupService {
         let syncedCount = 0;
         let failedCount = 0;
         const auditState = await getSessionAuditState(tenantId, sessionLabel);
-        const seededGroupConfigs: Array<{ group_id: string; tenant_id: string; behavior: string }> = [];
+        const existingByGroupJid = new Map<string, any>();
+        const groupIds = uniqueGroups.map((group) => group.id).filter(Boolean);
+        const skippedExistingLookupGroupIds = new Set<string>();
+
+        for (const chunk of chunkArray(groupIds, 200)) {
+            const { data: existingRows, error: existingError } = await db
+                .from('whatsapp_groups')
+                .select('group_jid,locality, city, category, tags, broadcast_enabled, is_archived, is_parsing, classification, visibility_status, business_confidence, participant_count, member_count, participant_jids, duplicate_overlap_score, signal_score, noise_score, audit_recommendation')
+                .eq('workspace_id', tenantId)
+                .in('group_jid', chunk);
+
+            if (existingError) {
+                console.error('[WhatsAppGroupService] Failed to fetch existing groups for sync batch', existingError);
+                failedCount += chunk.length;
+                chunk.forEach((groupId) => skippedExistingLookupGroupIds.add(groupId));
+                continue;
+            }
+
+            for (const row of existingRows || []) {
+                existingByGroupJid.set(String(row.group_jid || ''), row);
+            }
+        }
+
+        const payloads: Array<{
+            groupId: string;
+            payload: Record<string, unknown>;
+            seedConfig: boolean;
+        }> = [];
 
         for (const group of uniqueGroups) {
             try {
+                if (skippedExistingLookupGroupIds.has(group.id)) {
+                    continue;
+                }
+
                 const parsedLocation = parseIndianLocation(group.name || '');
                 const inferredLocality = parsedLocation?.locality || null;
                 const inferredCity = parsedLocation?.city && parsedLocation.city !== 'Unknown' ? parsedLocation.city : null;
@@ -228,19 +267,7 @@ export class WhatsAppGroupService {
                     : autoClassification.classification === 'personal' || noiseScore >= 70
                         ? 'ignore'
                         : 'review';
-
-                const { data: existing, error: existingError } = await db
-                    .from('whatsapp_groups')
-                    .select('locality, city, category, tags, broadcast_enabled, is_archived, is_parsing, classification, visibility_status, business_confidence, participant_count, member_count, participant_jids, duplicate_overlap_score, signal_score, noise_score, audit_recommendation')
-                    .eq('workspace_id', tenantId)
-                    .eq('group_jid', group.id)
-                    .maybeSingle();
-
-                if (existingError) {
-                    console.error('[WhatsAppGroupService] Failed to fetch existing group', group.id, existingError);
-                    failedCount++;
-                    continue;
-                }
+                const existing = existingByGroupJid.get(group.id) || null;
 
                 const hasLiveParticipantCount = typeof group.participantsCount === 'number' && Number.isFinite(group.participantsCount);
                 const participantCount = hasLiveParticipantCount
@@ -283,35 +310,49 @@ export class WhatsAppGroupService {
                     updated_at: now,
                 };
 
-                const { error } = await db
-                    .from('whatsapp_groups')
-                    .upsert(payload, { onConflict: 'workspace_id,group_jid' });
-
-                if (error) {
-                    console.error('[WhatsAppGroupService] Failed to upsert group', group.id, error);
-                    failedCount++;
-                    continue;
-                }
-
-                if (auditState.isPending && !existing) {
-                    seededGroupConfigs.push({
-                        group_id: group.id,
-                        tenant_id: tenantId,
-                        behavior: 'Listen',
-                    });
-                }
-
-                syncedCount++;
+                payloads.push({
+                    groupId: group.id,
+                    payload,
+                    seedConfig: auditState.isPending && !existing,
+                });
             } catch (groupError: unknown) {
                 console.error('[WhatsAppGroupService] Unexpected error syncing group', group.id, groupError);
                 failedCount++;
             }
         }
 
-        if (seededGroupConfigs.length > 0) {
-            await db
+        const seededGroupConfigs: Array<{ group_id: string; tenant_id: string; behavior: string }> = [];
+        for (const chunk of chunkArray(payloads, 200)) {
+            const { error } = await db
+                .from('whatsapp_groups')
+                .upsert(chunk.map((entry) => entry.payload), { onConflict: 'workspace_id,group_jid' });
+
+            if (error) {
+                console.error('[WhatsAppGroupService] Failed to upsert group sync batch', error);
+                failedCount += chunk.length;
+                continue;
+            }
+
+            syncedCount += chunk.length;
+            for (const entry of chunk) {
+                if (entry.seedConfig) {
+                    seededGroupConfigs.push({
+                        group_id: entry.groupId,
+                        tenant_id: tenantId,
+                        behavior: 'Listen',
+                    });
+                }
+            }
+        }
+
+        for (const chunk of chunkArray(seededGroupConfigs, 200)) {
+            const { error } = await db
                 .from('group_configs')
-                .upsert(seededGroupConfigs, { onConflict: 'tenant_id,group_id' });
+                .upsert(chunk, { onConflict: 'tenant_id,group_id' });
+
+            if (error) {
+                console.error('[WhatsAppGroupService] Failed to seed group config sync batch', error);
+            }
         }
 
         return { total: uniqueGroups.length, synced: syncedCount, failed: failedCount };
