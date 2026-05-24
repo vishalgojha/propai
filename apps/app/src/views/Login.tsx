@@ -353,7 +353,7 @@ export const Login: React.FC = () => {
                     <span className="block text-[var(--accent)]">finally works together.</span>
                   </h1>
                   <p className="mt-5 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                    PropAI gives you a WhatsApp workspace console, a parsed Stream for listings and requirements, and outbound broker broadcasts. Each account connects one WhatsApp number — Pro for solo brokers, Team for firms that need shared workspace intelligence.
+                    PropAI gives you a WhatsApp workspace console and a parsed Stream for listings and requirements. Each account connects one WhatsApp number, with brokers deciding directly inside WhatsApp which permissions to allow on that device.
                   </p>
                 </div>
 

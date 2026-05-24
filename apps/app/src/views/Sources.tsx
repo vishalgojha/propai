@@ -320,19 +320,17 @@ type OutboundRecipient = {
   latestAt?: string | null;
 };
 
-type SourcesTab = 'setup' | 'audit' | 'outbound' | 'pricing' | 'logs';
+type SourcesTab = 'setup' | 'audit' | 'pricing' | 'logs';
 
 const SOURCE_TABS: Array<{ id: SourcesTab; label: string }> = [
   { id: 'setup', label: 'Setup' },
   { id: 'audit', label: 'Audit' },
-  { id: 'outbound', label: 'Outbound' },
   { id: 'pricing', label: 'Pricing' },
   { id: 'logs', label: 'Logs' },
 ];
 
 const WHATSAPP_TABS: Array<{ id: SourcesTab; label: string }> = [
   { id: 'setup', label: 'Setup' },
-  { id: 'outbound', label: 'Outbound' },
 ];
 
 const GROUP_AUDIT_FILTERS: Array<{ id: GroupAuditFilter; label: string }> = [
@@ -363,16 +361,16 @@ const pathForTab = (tab: SourcesTab) => {
 
 const whatsappCapabilities = [
   {
-    title: 'Broadcast to groups, brokers, and leads',
-    copy: 'Run one message across named WhatsApp groups, broker contacts, and buyer follow-ups from a single control surface.',
+    title: 'Parse and structure broker WhatsApp flow',
+    copy: 'Turn WhatsApp group traffic into a clean Stream of listings and requirements without manual copy-paste.',
   },
   {
-    title: 'Send with pace controls and live status',
-    copy: 'Choose a safe sending mode, watch the live progress counters, and see success or failure before the batch finishes.',
+    title: 'Monitor live health and group quality',
+    copy: 'Track which groups are active, what is being parsed, and where ingestion quality drops.',
   },
   {
     title: 'Work from saved lists instead of raw phone books',
-    copy: 'Filter by locality, tags, and contact buckets so outreach stays intentional instead of messy.',
+    copy: 'Use audit and parsing controls to keep noisy groups out and preserve only useful market data.',
   },
   {
     title: 'Stay inside the PropAI workspace',
@@ -471,7 +469,12 @@ export const Sources: React.FC = () => {
       return;
     }
 
-    if (currentTab === 'setup' || currentTab === 'outbound') {
+    if (currentTab === 'outbound') {
+      navigate('/whatsapp?tab=setup', { replace: true });
+      return;
+    }
+
+    if (currentTab === 'setup') {
       setActiveTab(currentTab);
       return;
     }
@@ -990,9 +993,6 @@ export const Sources: React.FC = () => {
   }, [artifactMode, artifactValue]);
 
   useEffect(() => {
-    if (activeTab === 'outbound') {
-      void fetchOutboundWorkspace();
-    }
     if (activeTab === 'audit') {
       void fetchGroupAudit();
     }
@@ -1384,15 +1384,10 @@ export const Sources: React.FC = () => {
 
       await Promise.all([
         fetchStatus(),
-        fetchOutboundWorkspace(),
         fetchGroupAudit(auditSessionLabel),
         fetchHealth(),
       ]);
-      setOutboundFeedback({
-        tone: 'success',
-        message: `Applied audit decisions. ${parseGroupIds.length} group${parseGroupIds.length === 1 ? '' : 's'} parsing, ${ignoreGroupIds.length} kept out.`,
-      });
-      setActiveTab('outbound');
+      setActiveTab('setup');
     } catch (err) {
       setError(handleApiError(err));
     } finally {
@@ -1595,12 +1590,7 @@ export const Sources: React.FC = () => {
     setup: {
       eyebrow: 'WhatsApp',
       title: 'Connect and manage WhatsApp ingestion.',
-      copy: 'Connect broker WhatsApp numbers so PropAI can ingest chats, parse groups into Stream, run the assistant, and handle deliberate outbound outreach from the same workspace.',
-    },
-    outbound: {
-      eyebrow: 'WhatsApp outbound',
-      title: 'Send controlled WhatsApp outreach from approved lanes.',
-      copy: 'Select a connected sender, choose groups or contacts, and send deliberate outbound messages without turning the ingestion setup into a logging console.',
+      copy: 'Connect broker WhatsApp numbers so PropAI can ingest chats, parse groups into Stream, and run the assistant from the same workspace.',
     },
     audit: {
       eyebrow: 'Group Audit',
@@ -1669,7 +1659,7 @@ export const Sources: React.FC = () => {
         </div>
       </div>
 
-      {activeTab === 'setup' || activeTab === 'outbound' ? (
+      {activeTab === 'setup' ? (
       <div className="flex items-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-1">
         {WHATSAPP_TABS.map((tab) => (
           <button
@@ -1984,333 +1974,6 @@ export const Sources: React.FC = () => {
             </div>
           </div>
         </div>
-      ) : activeTab === 'outbound' ? (
-        <div className="space-y-6">
-          <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Manual outbound center</p>
-                <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Groups, brokers, and leads</h3>
-                <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--text-secondary)]">
-                  Use the same PropAI WhatsApp workspace for manual outbound sends: select recipients, choose a sender lane, and send at a human pace with nothing auto-posted.
-                </p>
-              </div>
-              <button
-                onClick={() => void fetchOutboundWorkspace()}
-                className="rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-2 text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
-                aria-label="Refresh outbound data"
-              >
-                <RefreshCw className={cn('h-4 w-4', isLoadingOutbound && 'animate-spin')} />
-              </button>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                <div className="flex items-center gap-2 text-[var(--accent)]">
-                  <Users className="h-4 w-4" />
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Groups</p>
-                </div>
-                <p className="mt-2 text-[24px] font-bold text-[var(--text-primary)]">{outboundGroups.length}</p>
-                <p className="text-[11px] text-[var(--text-secondary)]">Connected group targets</p>
-              </div>
-              <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                <div className="flex items-center gap-2 text-[var(--accent)]">
-                  <Building2 className="h-4 w-4" />
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Brokers</p>
-                </div>
-                <p className="mt-2 text-[24px] font-bold text-[var(--text-primary)]">{brokerRecipients.length}</p>
-                <p className="text-[11px] text-[var(--text-secondary)]">Inventory-side contacts with saved numbers</p>
-              </div>
-              <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                <div className="flex items-center gap-2 text-[var(--accent)]">
-                  <UserRound className="h-4 w-4" />
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Leads</p>
-                </div>
-                <p className="mt-2 text-[24px] font-bold text-[var(--text-primary)]">{leadRecipients.length}</p>
-                <p className="text-[11px] text-[var(--text-secondary)]">Buyer and follow-up contacts ready for outreach</p>
-              </div>
-            </div>
-
-            {!isCurrentSessionConnected && (
-              <div className="mt-4 flex flex-col gap-3 rounded-[10px] border border-[color:rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.08)] px-4 py-3 text-[12px] text-[var(--amber)] md:flex-row md:items-center md:justify-between">
-                <span>
-                  Connect WhatsApp first. The assistant, 1:1 message controls, and group sync all stay locked until the live session is connected.
-                </span>
-                <button
-                  type="button"
-                  onClick={ensureConnectUiVisible}
-                  className="inline-flex items-center justify-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95"
-                >
-                  <QrCode className="h-3.5 w-3.5" />
-                  Open setup
-                </button>
-              </div>
-            )}
-
-            {isCurrentSessionConnected && (
-              <div className="mt-4 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Sender lane</p>
-                    <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">Choose the WhatsApp number that sends outbound</h4>
-                    <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
-                      This broker workspace can hold multiple numbers. Assign operators to specific lanes in Team when you want to stop two teammates from sending from the same number.
-                    </p>
-                  </div>
-                  <div className="w-full md:max-w-[360px]">
-                    <select
-                      value={outboundSessionKey}
-                      onChange={(event) => setOutboundSessionKey(event.target.value)}
-                      className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[12px] text-[var(--text-primary)]"
-                    >
-                      <option value="">Select sender</option>
-                      {allowedConnectedSenderSessions.map((session) => {
-                        const normalized = normalizePhoneNumber(session.phoneNumber || '');
-                        const isMarketingLane = normalized === MARKETING_AGENT_PHONE;
-                        return (
-                          <option key={session.label} value={session.label}>
-                            {(session.ownerName || session.label)} • {session.phoneNumber || 'No number'}{isMarketingLane ? ' • Marketing agent' : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                    <p className="mt-2 text-[11px] text-[var(--text-secondary)]">{outboundSenderDescription}</p>
-                    {status.hasOutboundLaneRestriction ? (
-                      <p className="mt-2 text-[11px] text-[var(--amber)]">
-                        Your role can send only from assigned lanes{status.preferredOutboundSessionLabel ? `, defaulting to ${status.preferredOutboundSessionLabel}` : ''}.
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {outboundFeedback && (
-              <div className={cn(
-                'mt-4 rounded-[10px] border px-4 py-3 text-[12px]',
-                outboundFeedback.tone === 'success'
-                  ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
-                  : 'border-[color:rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
-              )}>
-                {outboundFeedback.message}
-              </div>
-            )}
-          </div>
-
-          <div className="grid gap-6 xl:grid-cols-3">
-            <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
-                  <Users className="h-5 w-5 text-[var(--accent)]" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Connected WhatsApp groups</p>
-                  <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">Groups synced from this number</h4>
-                </div>
-              </div>
-              <p className="mt-3 text-[12px] leading-5 text-[var(--text-secondary)]">
-                These are the WhatsApp groups synced from the connected number. Select the ones you want to message, or pause parsing for specific groups if you want them excluded from Pulse.
-              </p>
-              <input
-                value={groupSearchTerm}
-                onChange={(event) => setGroupSearchTerm(event.target.value)}
-                placeholder="Search by group name, locality, category, or tag"
-                className="mt-4 w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
-              />
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => void handleBulkSetGroupParsing(true)}
-                  disabled={!isCurrentSessionConnected || isLoadingOutbound || filteredOutboundGroups.length === 0}
-                  className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-base)] disabled:opacity-50"
-                >
-                  <Power className="h-3.5 w-3.5" />
-                  Enable parsing (filtered)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleBulkSetGroupParsing(false)}
-                  disabled={!isCurrentSessionConnected || isLoadingOutbound || filteredOutboundGroups.length === 0}
-                  className="inline-flex items-center gap-2 rounded-full border border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] px-3 py-1.5 text-[11px] font-semibold text-[var(--red)] transition-colors hover:bg-[rgba(239,68,68,0.12)] disabled:opacity-50"
-                >
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Pause parsing (filtered)
-                </button>
-              </div>
-              <div className="mt-4 max-h-[240px] space-y-2 overflow-y-auto pr-1">
-                {filteredOutboundGroups.length === 0 ? (
-                  <div className="rounded-[10px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
-                    No groups have synced from this connected number yet. Hit Refresh after WhatsApp is fully connected, or reconnect the number and wait for the group sync to finish.
-                  </div>
-                ) : (
-                  filteredOutboundGroups.map((group) => (
-                    <label key={group.id} className="flex cursor-pointer items-start gap-3 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedGroupIds.includes(group.id)}
-                        onChange={() => setSelectedGroupIds((current) => toggleSelection(current, group.id))}
-                        className="mt-0.5 h-4 w-4 rounded border-[color:var(--border-strong)] bg-[var(--bg-base)] text-[var(--accent)] accent-[var(--accent)]"
-                      />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{group.name}</p>
-                          <span className={cn(
-                            'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
-                            isGroupParsingEnabled(group.behavior)
-                              ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
-                              : 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
-                          )}>
-                            {isGroupParsingEnabled(group.behavior) ? 'Parsing on' : 'Paused'}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
-                          {[group.locality, group.category, `${group.participantsCount || 0} members`].filter(Boolean).join(' • ')}
-                        </p>
-                        {group.tags && group.tags.length > 0 ? (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {group.tags.slice(0, 4).map((tag) => (
-                              <span key={tag} className="rounded-full border border-[color:var(--border)] px-2 py-0.5 text-[10px] uppercase tracking-[0.06em] text-[var(--text-secondary)]">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    </label>
-                  ))
-                )}
-              </div>
-              <textarea
-                value={groupOutboundText}
-                onChange={(event) => setGroupOutboundText(event.target.value)}
-                placeholder="Write the message to send into the selected groups"
-                className="mt-4 min-h-[120px] w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[color:var(--accent)]"
-              />
-              <button
-                onClick={() => void handleSendGroups()}
-                disabled={!isCurrentSessionConnected || !outboundSessionKey || sendState.groups}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-[18px] py-[11px] text-[11px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
-              >
-                {sendState.groups ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                <span>Send to selected groups</span>
-              </button>
-            </div>
-
-            <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
-                  <Building2 className="h-5 w-5 text-[var(--accent)]" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Outbound to brokers</p>
-                  <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">Direct inventory contacts</h4>
-                </div>
-              </div>
-              <p className="mt-3 text-[12px] leading-5 text-[var(--text-secondary)]">
-                Built from saved inventory-side contacts with real phone numbers in your workspace data. Send to brokers with a natural cadence and per-session sender control.
-              </p>
-              <div className="mt-4 max-h-[240px] space-y-2 overflow-y-auto pr-1">
-                {brokerRecipients.length === 0 ? (
-                  <div className="rounded-[10px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
-                    No broker contacts with saved WhatsApp numbers yet.
-                  </div>
-                ) : (
-                  brokerRecipients.map((recipient) => (
-                    <label key={recipient.id} className="flex cursor-pointer items-start gap-3 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedBrokerIds.includes(recipient.id)}
-                        onChange={() => setSelectedBrokerIds((current) => toggleSelection(current, recipient.id))}
-                        className="mt-0.5 h-4 w-4 rounded border-[color:var(--border-strong)] bg-[var(--bg-base)] text-[var(--accent)] accent-[var(--accent)]"
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{recipient.name}</p>
-                        <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{recipient.phone}</p>
-                        <p className="mt-1 text-[11px] text-[var(--text-muted)]">{recipient.locality || recipient.source || 'Broker contact'}</p>
-                      </div>
-                    </label>
-                  ))
-                )}
-              </div>
-              <textarea
-                value={brokerOutboundText}
-                onChange={(event) => setBrokerOutboundText(event.target.value)}
-                placeholder="Write the message to send to selected brokers"
-                className="mt-4 min-h-[120px] w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[color:var(--accent)]"
-              />
-              <button
-                onClick={() => void handleSendDirect('brokers')}
-                disabled={!isCurrentSessionConnected || !outboundSessionKey || sendState.brokers}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-[18px] py-[11px] text-[11px] font-bold uppercase tracking-[0.06em] text-[#020f07] transition-colors duration-150 hover:brightness-95 disabled:opacity-50"
-              >
-                {sendState.brokers ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                <span>Send to selected brokers</span>
-              </button>
-            </div>
-
-            <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
-                  <UserRound className="h-5 w-5 text-[var(--accent)]" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Outbound to leads</p>
-                  <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">Buyer and callback contacts</h4>
-                </div>
-              </div>
-              <p className="mt-3 text-[12px] leading-5 text-[var(--text-secondary)]">
-                Built from buyer requirements and the pending callback queue so you can reach back out intentionally. The tool keeps your follow-up list ready for human-paced outreach.
-              </p>
-              <div className="mt-4 max-h-[240px] space-y-2 overflow-y-auto pr-1">
-                {leadRecipients.length === 0 ? (
-                  <div className="rounded-[10px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
-                    No lead contacts with saved WhatsApp numbers yet.
-                  </div>
-                ) : (
-                  leadRecipients.map((recipient) => (
-                    <label key={recipient.id} className="flex cursor-pointer items-start gap-3 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedLeadIds.includes(recipient.id)}
-                        onChange={() => setSelectedLeadIds((current) => toggleSelection(current, recipient.id))}
-                        className="mt-0.5 h-4 w-4 rounded border-[color:var(--border-strong)] bg-[var(--bg-base)] text-[var(--accent)] accent-[var(--accent)]"
-                      />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{recipient.name}</p>
-                          {recipient.priorityBucket ? (
-                            <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                              {recipient.priorityBucket}
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{recipient.phone}</p>
-                        <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-                          {recipient.locality || recipient.source || 'Lead contact'}
-                          {recipient.dueAt ? ` · due ${new Date(recipient.dueAt).toLocaleDateString()}` : ''}
-                        </p>
-                      </div>
-                    </label>
-                  ))
-                )}
-              </div>
-              <textarea
-                value={leadOutboundText}
-                onChange={(event) => setLeadOutboundText(event.target.value)}
-                placeholder="Write the message to send to selected leads"
-                className="mt-4 min-h-[120px] w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[color:var(--accent)]"
-              />
-              <button
-                onClick={() => void handleSendDirect('leads')}
-                disabled={!isCurrentSessionConnected || !outboundSessionKey || sendState.leads}
-                className={cn(sourcePrimaryButton, 'mt-4 w-full')}
-              >
-                {sendState.leads ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                <span>Send to selected leads</span>
-              </button>
-            </div>
-          </div>
-        </div>
       ) : activeTab === 'pricing' ? (
         <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
             <div className="flex items-center gap-3">
@@ -2319,7 +1982,7 @@ export const Sources: React.FC = () => {
               </div>
               <div>
                 <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plan caps</p>
-                <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">Core PropAI pricing for WhatsApp ingestion, outbound, and Stream.</h3>
+                <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">Core PropAI pricing for WhatsApp ingestion and Stream.</h3>
               </div>
             </div>
 
@@ -2336,7 +1999,7 @@ export const Sources: React.FC = () => {
 
           <div className="mt-5 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
             <p className="text-[12px] leading-6 text-[var(--text-secondary)]">
-              WhatsApp here is the main ingestion engine for PropAI. It connects broker numbers, reads inbound activity, feeds Stream, gives the AI assistant live message context, and supports controlled outbound sends from the same workspace.
+              WhatsApp here is the main ingestion engine for PropAI. It connects broker numbers, reads inbound activity, feeds Stream, and gives the AI assistant live message context inside the same workspace.
             </p>
           </div>
 

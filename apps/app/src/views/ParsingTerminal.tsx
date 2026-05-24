@@ -39,9 +39,23 @@ export default function ParsingTerminal() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = React.useState<Date | null>(null);
+  const [isConnected, setIsConnected] = React.useState(false);
 
   const refresh = React.useCallback(async () => {
     try {
+      const statusResponse = await backendApi.get(ENDPOINTS.whatsapp.status, { timeout: 15000 });
+      const rawStatus = String(statusResponse.data?.status || 'disconnected');
+      const nextConnected = rawStatus === 'connected' || rawStatus === 'connecting' || rawStatus === 'reconnecting';
+      setIsConnected(nextConnected);
+
+      if (!nextConnected) {
+        setGroups([]);
+        setEvents([]);
+        setError(null);
+        setLastRefresh(new Date());
+        return;
+      }
+
       const [groupResponse, eventResponse] = await Promise.all([
         backendApi.get(ENDPOINTS.whatsapp.groupsHealth),
         backendApi.get(ENDPOINTS.whatsapp.events),
@@ -90,9 +104,9 @@ export default function ParsingTerminal() {
     void refresh();
     const timer = window.setInterval(() => {
       void refresh();
-    }, 5000);
+    }, isConnected ? 5000 : 15000);
     return () => window.clearInterval(timer);
-  }, [refresh]);
+  }, [isConnected, refresh]);
 
   const totals = React.useMemo(
     () =>
@@ -167,7 +181,7 @@ export default function ParsingTerminal() {
             {loading ? (
               <TerminalEmpty text="Loading parser state" />
             ) : groups.length === 0 ? (
-              <TerminalEmpty text="No groups detected yet" />
+              <TerminalEmpty text={isConnected ? 'No groups detected yet' : 'WhatsApp is disconnected'} />
             ) : (
               groups.map((group, index) => (
                 <GroupRow key={`${group.sessionLabel}-${group.groupId}`} group={group} rowIndex={index} />
@@ -183,11 +197,11 @@ export default function ParsingTerminal() {
               right={events.length > 0 ? `${events.length} visible` : 'Awaiting events'}
             />
             <div className="pulse-scrollbar max-h-[calc(50vh-120px)] space-y-0 overflow-y-auto">
-              {events.length === 0 ? (
-                <TerminalEmpty text="Waiting for parsed broadcast items" />
-              ) : (
-                events.map((event, index) => (
-                  <ParseEvent key={event.id} event={event} groups={groups} index={index} />
+            {events.length === 0 ? (
+              <TerminalEmpty text={isConnected ? 'Waiting for parsed broadcast items' : 'Connect WhatsApp to start parser monitoring'} />
+            ) : (
+              events.map((event, index) => (
+                <ParseEvent key={event.id} event={event} groups={groups} index={index} />
                 ))
               )}
             </div>
