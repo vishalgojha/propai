@@ -13,7 +13,6 @@ import {
   Title,
   Tooltip,
 } from 'chart.js';
-import { formatPriceNumeric } from '../lib/formatPrice';
 
 ChartJS.register(
   CategoryScale,
@@ -55,7 +54,6 @@ export const SC = {
 
 type DailyVolume = { date: string; supply: number; demand: number };
 type BhkDemand = { bhk: string; listings: number; requirements: number; gap: number };
-type PriceRange = { locality: string; bhk: string; minPrice: number; maxPrice: number; avgPrice: number; count: number };
 type VelocityPoint = { date: string; newListings: number; newRequirements: number; netDemand: number };
 
 const legend = {
@@ -179,53 +177,6 @@ export function TypeDistributionChart({ values }: { values: Record<string, numbe
         maintainAspectRatio: false,
         cutout: '68%',
         plugins: { legend: { display: true, position: 'bottom', ...legend }, tooltip: TT },
-      }}
-    />
-  );
-}
-
-export function PriceByLocalityChart({ rows }: { rows: PriceRange[] }) {
-  const chartRows = rows.slice(0, 14);
-  const data = {
-    labels: chartRows.map((row) => row.locality),
-    datasets: [
-      {
-        label: 'Avg price',
-        data: chartRows.map((row) => row.avgPrice),
-        backgroundColor: 'rgba(62,232,138,0.58)',
-        borderColor: 'rgba(62,232,138,0.88)',
-        borderWidth: 1,
-        borderRadius: 4,
-      },
-    ],
-  };
-
-  return (
-    <Bar
-      data={data}
-      options={{
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            ...TT,
-            callbacks: {
-              label: (context: any) => ` Avg: ${formatPriceNumeric(Number(context.raw || 0))}`,
-            },
-          },
-        },
-        scales: {
-          x: {
-            ...SC.x,
-            ticks: {
-              ...SC.x.ticks,
-              callback: (value: string | number) => formatPriceNumeric(Number(value)),
-            },
-          },
-          y: SC.y,
-        },
       }}
     />
   );

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase, supabaseAdmin } from '../config/supabase';
-import { getErrorMessage, getErrorStatus, getTenantId } from '../utils/controllerHelpers';
+import { getErrorMessage, getErrorStatus, getTenantId, isOwnerSuperAdminEmail } from '../utils/controllerHelpers';
 import { parseIndianLocation } from '../utils/locationParser';
 import '../types/express';
 
@@ -15,7 +15,6 @@ type StreamInsightRow = {
     type: string | null;
     locality: string | null;
     bhk: string | null;
-    price_numeric: number | string | null;
     broker_name?: string | null;
     source_phone: string | null;
     confidence_score: number | string | null;
@@ -56,9 +55,24 @@ function parseDays(value: unknown) {
     return VALID_PERIODS.has(parsed) ? parsed : 30;
 }
 
-async function queryStreamItems(tenantId: string, periodStart: string) {
-    const baseSelect = 'id, type, locality, bhk, price_numeric, broker_name, source_phone, confidence_score, created_at, is_read';
-    const safeSelect = 'id, type, locality, bhk, price_numeric, source_phone, confidence_score, created_at';
+async function canReadAllAccounts(req: Request) {
+    const email = String(req.user?.email || '').trim().toLowerCase();
+    if (isOwnerSuperAdminEmail(email)) return true;
+    if (!supabaseAdmin || !req.user?.id) return false;
+
+    const { data, error } = await supabaseAdmin
+        .from('profiles')
+        .select('app_role')
+        .eq('id', req.user.id)
+        .maybeSingle();
+
+    if (error) throw error;
+    return data?.app_role === 'super_admin' || data?.app_role === 'admin';
+}
+
+async function queryStreamItems(tenantId: string, periodStart: string, allAccounts: boolean) {
+    const baseSelect = 'id, type, locality, bhk, broker_name, source_phone, confidence_score, created_at, is_read';
+    const safeSelect = 'id, type, locality, bhk, source_phone, confidence_score, created_at';
     const withMatchesSelect = `${baseSelect}, channel_items(id, tenant_id)`;
     const safeWithMatchesSelect = `${safeSelect}, channel_items(id, tenant_id)`;
 
@@ -66,10 +80,13 @@ async function queryStreamItems(tenantId: string, periodStart: string) {
         let query = db
             .from('stream_items')
             .select(safeColumns ? (includeMatches ? safeWithMatchesSelect : safeSelect) : (includeMatches ? withMatchesSelect : baseSelect))
-            .eq('tenant_id', tenantId)
             .gte('created_at', periodStart)
             .order('created_at', { ascending: false })
             .limit(10000);
+
+        if (!allAccounts) {
+            query = query.eq('tenant_id', tenantId);
+        }
 
         if (acceptedOnly) {
             query = query.eq('ingestion_status', 'accepted');
@@ -108,8 +125,16 @@ async function queryStreamItems(tenantId: string, periodStart: string) {
     return ((result.data || []) as unknown) as StreamInsightRow[];
 }
 
-function isRequirement(type?: string | null) {
-    return String(type || '').toLowerCase().includes('requirement');
+function getStreamKind(type?: string | null): 'listing' | 'requirement' | null {
+    const normalized = String(type || '').toLowerCase();
+    if (!normalized) return null;
+    if (normalized.includes('requirement') || normalized.includes('wanted') || normalized.includes('demand')) {
+        return 'requirement';
+    }
+    if (normalized.includes('listing') || normalized.includes('sale') || normalized.includes('rent') || normalized.includes('supply')) {
+        return 'listing';
+    }
+    return null;
 }
 
 function toNumber(value: unknown) {
@@ -120,10 +145,6 @@ function toNumber(value: unknown) {
 function cleanLabel(value: unknown, fallback: string) {
     const text = String(value || '').replace(/\s+/g, ' ').trim();
     return text || fallback;
-}
-
-function normalizeLocality(value: unknown) {
-    return cleanLabel(value, 'Unknown locality');
 }
 
 function normalizeBhk(value: unknown) {
@@ -172,24 +193,15 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
     const periodStart = new Date(Date.now() - days * DAY_MS).toISOString();
 
     try {
-        const rows = await queryStreamItems(tenantId, periodStart);
+        const allAccounts = await canReadAllAccounts(req);
+        const rows = await queryStreamItems(tenantId, periodStart, allAccounts);
 
         const localityMap = new Map<string, {
             listings: number;
             requirements: number;
-            priceTotal: number;
-            priceCount: number;
             bhkCounts: Map<string, number>;
         }>();
         const bhkMap = new Map<string, { listings: number; requirements: number }>();
-        const priceMap = new Map<string, {
-            locality: string;
-            bhk: string;
-            minPrice: number;
-            maxPrice: number;
-            totalPrice: number;
-            count: number;
-        }>();
         const velocityMap = new Map<string, { newListings: number; newRequirements: number }>();
         const brokerMap = new Map<string, {
             brokerName: string;
@@ -202,7 +214,6 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
                 type: string;
                 locality: string;
                 bhk: string | null;
-                priceNumeric: number | null;
                 createdAt: string;
             }[];
         }>();
@@ -218,20 +229,17 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
 
         for (const row of rows) {
             const type = cleanLabel(row.type, 'Unknown');
+            const kind = getStreamKind(type);
+            if (!kind) continue;
 
-            // Validate and canonicalize locality
+            // Only count rows whose core parsed fields are strong enough to support intelligence.
             const resolvedLoc = row.locality ? parseIndianLocation(row.locality) : null;
             if (!resolvedLoc) continue;
             const locality = resolvedLoc.locality;
 
             const bhk = normalizeBhk(row.bhk);
-            const rawPrice = toNumber(row.price_numeric);
-
-            // Ignore extreme price outliers (> 50 Crore or > 50 Lakhs rent are considered corrupt)
-            const price = (rawPrice != null && rawPrice > 0 && rawPrice < 500_000_000) ? rawPrice : null;
-
             const createdAt = row.created_at || new Date(0).toISOString();
-            const requirement = isRequirement(type);
+            const requirement = kind === 'requirement';
 
             if (requirement) {
                 totalRequirements += 1;
@@ -255,18 +263,12 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
             const localityStats = localityMap.get(locality) || {
                 listings: 0,
                 requirements: 0,
-                priceTotal: 0,
-                priceCount: 0,
                 bhkCounts: new Map<string, number>(),
             };
             if (requirement) {
                 localityStats.requirements += 1;
             } else {
                 localityStats.listings += 1;
-                if (price != null && price > 0) {
-                    localityStats.priceTotal += price;
-                    localityStats.priceCount += 1;
-                }
             }
             if (bhk) {
                 localityStats.bhkCounts.set(bhk, (localityStats.bhkCounts.get(bhk) || 0) + 1);
@@ -281,23 +283,6 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
                     bhkStats.listings += 1;
                 }
                 bhkMap.set(bhk, bhkStats);
-            }
-
-            if (!requirement && bhk && price != null && price > 0) {
-                const key = `${locality}::${bhk}`;
-                const current = priceMap.get(key) || {
-                    locality,
-                    bhk,
-                    minPrice: price,
-                    maxPrice: price,
-                    totalPrice: 0,
-                    count: 0,
-                };
-                current.minPrice = Math.min(current.minPrice, price);
-                current.maxPrice = Math.max(current.maxPrice, price);
-                current.totalPrice += price;
-                current.count += 1;
-                priceMap.set(key, current);
             }
 
             const dateKey = getDateKey(row.created_at);
@@ -335,14 +320,13 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
                     type,
                     locality,
                     bhk,
-                    priceNumeric: price,
                     createdAt,
                 });
             }
             brokerMap.set(phone, broker);
 
             const matches = Array.isArray(row.channel_items)
-                ? row.channel_items.filter((item) => !item.tenant_id || item.tenant_id === tenantId)
+                ? row.channel_items.filter((item) => allAccounts || !item.tenant_id || item.tenant_id === tenantId)
                 : [];
             if (requirement && matches.length > 0) {
                 matchedRequirementIds.add(row.id);
@@ -355,7 +339,6 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
                 listings: stats.listings,
                 requirements: stats.requirements,
                 demandSignal: getDemandSignal(stats.listings, stats.requirements),
-                avgPriceNumeric: stats.priceCount > 0 ? Math.round(stats.priceTotal / stats.priceCount) : null,
                 topBhk: getTopBhk(stats.bhkCounts),
             }))
             .sort((left, right) => (right.listings + right.requirements) - (left.listings + left.requirements));
@@ -370,17 +353,6 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
                 gap: stats.requirements - stats.listings,
             };
         });
-
-        const priceRanges = [...priceMap.values()]
-            .map((entry) => ({
-                locality: entry.locality,
-                bhk: entry.bhk,
-                minPrice: Math.round(entry.minPrice),
-                maxPrice: Math.round(entry.maxPrice),
-                avgPrice: Math.round(entry.totalPrice / Math.max(1, entry.count)),
-                count: entry.count,
-            }))
-            .sort((left, right) => right.avgPrice - left.avgPrice);
 
         const velocity = dateKeysForPeriod(days).map((date) => {
             const stats = velocityMap.get(date) || { newListings: 0, newRequirements: 0 };
@@ -407,9 +379,10 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
 
         res.json({
             success: true,
+            scope: allAccounts ? 'all_accounts' : 'workspace',
+            validRows: totalListings + totalRequirements,
             marketPulse,
             bhkDemand,
-            priceRanges,
             velocity,
             brokerLeaderboard,
             myInventory: {
