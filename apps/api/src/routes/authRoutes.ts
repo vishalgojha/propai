@@ -350,7 +350,10 @@ router.post(ROUTE_PATHS.auth.requestVerification, validate(requestVerificationBo
 });
 
 router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (req, res) => {
-    const { mode, email, password, fullName, phone, referralCode } = req.body || {};
+    const { mode, email, password, phone, referralCode } = req.body || {};
+    const firstName = typeof req.body?.firstName === 'string' ? req.body.firstName.trim() : '';
+    const lastName = typeof req.body?.lastName === 'string' ? req.body.lastName.trim() : '';
+    const fullName = String(req.body?.fullName || [firstName, lastName].filter(Boolean).join(' ')).replace(/\s+/g, ' ').trim();
 
     const loginMode = mode === 'signup' ? 'signup' : 'signin';
 
@@ -383,6 +386,16 @@ router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (
 
                 if (createError) {
                     const message = createError.message || 'Could not create account';
+                    const normalizedMessage = message.toLowerCase();
+                    if (
+                        normalizedMessage.includes('already registered')
+                        || normalizedMessage.includes('already exists')
+                        || normalizedMessage.includes('already been registered')
+                    ) {
+                        return res.status(409).json({
+                            error: 'An account with this email already exists. Use Login instead of Create account.',
+                        });
+                    }
                     return res.status(400).json({ error: message });
                 }
             }
@@ -504,7 +517,7 @@ router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (
                     referralService.getSummary(
                         authData.user.id,
                         authData.user.email || email,
-                        profile?.full_name || fullName || null,
+                        String(profile?.full_name || fullName || '').trim() || null,
                     ),
                     AUTH_OPTIONAL_WORK_TIMEOUT_MS,
                     'referral getSummary',

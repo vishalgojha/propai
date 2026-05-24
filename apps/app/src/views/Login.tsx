@@ -203,11 +203,19 @@ export const Login: React.FC = () => {
 
     try {
       const fullName = buildFullName(firstName, lastName);
+      if (mode === 'signup' && (!firstName.trim() || !lastName.trim())) {
+        setError('First name and last name are required.');
+        setIsLoading(false);
+        return;
+      }
+
       const response = await backendApi.post(ENDPOINTS.auth.password, {
         mode,
-        email,
+        email: email.trim(),
         password,
         fullName,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         phone: phoneNumber,
         referralCode: mode === 'signup' ? referralCode || undefined : undefined,
       });

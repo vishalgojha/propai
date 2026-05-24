@@ -9,6 +9,8 @@ export const passwordAuthBodySchema = z.object({
     email: z.string().email('A valid email is required'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     fullName: z.string().optional(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
     phone: z.string().optional(),
     referralCode: z.string().optional(),
 });
