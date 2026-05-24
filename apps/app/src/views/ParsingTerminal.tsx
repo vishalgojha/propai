@@ -30,7 +30,8 @@ type ParserEvent = {
   createdAt: string;
 };
 
-const terminalPanelClass = 'terminal-panel rounded-none border border-[rgba(255,179,71,0.28)] bg-[rgba(5,8,10,0.94)]';
+const terminalPanelClass =
+  'terminal-panel rounded-none border border-[color:var(--accent-border)] bg-[rgba(9,13,18,0.94)]';
 
 export default function ParsingTerminal() {
   const [groups, setGroups] = React.useState<GroupHealth[]>([]);
@@ -112,23 +113,23 @@ export default function ParsingTerminal() {
   return (
     <main className="terminal-shell relative flex min-h-[calc(100vh-96px)] flex-col gap-4 overflow-hidden pb-6">
       <div className="terminal-grid absolute inset-0 opacity-60" aria-hidden="true" />
-      <header className="terminal-panel relative overflow-hidden border border-[rgba(255,179,71,0.3)] bg-[linear-gradient(180deg,rgba(22,28,30,0.98),rgba(7,9,11,0.96))] px-4 py-4 shadow-[0_0_0_1px_rgba(255,179,71,0.08),0_18px_50px_rgba(0,0,0,0.32)]">
-        <div className="absolute inset-x-0 top-0 h-[2px] bg-[linear-gradient(90deg,transparent,rgba(255,179,71,0.95),transparent)]" />
+      <header className="terminal-panel relative overflow-hidden border border-[color:var(--accent-border)] bg-[linear-gradient(180deg,rgba(17,24,32,0.98),rgba(9,13,18,0.96))] px-4 py-4 shadow-[0_0_0_1px_var(--accent-glow),0_18px_50px_rgba(0,0,0,0.32)]">
+        <div className="absolute inset-x-0 top-0 h-[2px] bg-[linear-gradient(90deg,transparent,var(--accent),transparent)]" />
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#ffb347]">
-              <span className="inline-flex items-center gap-2 rounded-none border border-[rgba(255,179,71,0.28)] bg-[rgba(255,179,71,0.08)] px-2 py-1">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-[#ffb347]" />
+            <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--accent)]">
+              <span className="inline-flex items-center gap-2 rounded-none border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-1">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--accent)]" />
                 Live Feed
               </span>
-              <span className="text-[rgba(255,226,184,0.72)]">
+              <span className="text-[var(--text-secondary)]">
                 {lastRefresh ? `Last poll ${formatTime(lastRefresh.toISOString())}` : 'Booting feed'}
               </span>
             </div>
-            <h1 className="mt-3 font-mono text-[30px] font-bold uppercase tracking-[0.08em] text-[#f7d39a]">
+            <h1 className="mt-3 font-mono text-[30px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)]">
               Parsing Terminal
             </h1>
-            <p className="mt-2 max-w-3xl font-mono text-[11px] uppercase tracking-[0.12em] text-[rgba(255,226,184,0.62)]">
+            <p className="mt-2 max-w-3xl font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">
               Group ingest health, parser throughput, and broadcast extraction wins in one live console.
             </p>
           </div>
@@ -143,7 +144,7 @@ export default function ParsingTerminal() {
       </header>
 
       {error && (
-        <div className="terminal-panel relative border border-[rgba(255,107,61,0.42)] bg-[rgba(48,14,8,0.9)] px-4 py-3 font-mono text-[11px] uppercase tracking-[0.1em] text-[#ff8a5c]">
+        <div className="terminal-panel relative border border-[rgba(239,68,68,0.34)] bg-[var(--red-dim)] px-4 py-3 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--red)]">
           Feed fault: {error}
         </div>
       )}
@@ -154,7 +155,7 @@ export default function ParsingTerminal() {
             left="Group matrix"
             right={`${totals.failed.toLocaleString('en-IN')} failures / 24h`}
           />
-          <div className="terminal-table-header grid grid-cols-[minmax(0,1.35fr)_90px_90px_90px_90px_110px] gap-3 px-4 py-2 font-mono text-[9px] uppercase tracking-[0.16em] text-[rgba(255,226,184,0.62)]">
+          <div className="terminal-table-header grid grid-cols-[minmax(0,1.35fr)_90px_90px_90px_90px_110px] gap-3 px-4 py-2 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
             <span>Group</span>
             <span>Rx 24h</span>
             <span>Parsed</span>
@@ -229,9 +230,9 @@ export default function ParsingTerminal() {
 
 function PanelHeader({ left, right }: { left: string; right: string }) {
   return (
-    <div className="flex items-center justify-between border-b border-[rgba(255,179,71,0.22)] bg-[rgba(255,179,71,0.04)] px-4 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-[#ffcf85]">
+    <div className="flex items-center justify-between border-b border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--accent)]">
       <p>{left}</p>
-      <p className="text-[rgba(255,226,184,0.62)]">{right}</p>
+      <p className="text-[var(--text-secondary)]">{right}</p>
     </div>
   );
 }
@@ -239,30 +240,30 @@ function PanelHeader({ left, right }: { left: string; right: string }) {
 function GroupRow({ group, rowIndex }: { group: GroupHealth; rowIndex: number }) {
   const live = isLiveGroup(group);
   const parsedRatio = group.messagesReceived24h > 0 ? Math.round((group.messagesParsed24h / group.messagesReceived24h) * 100) : 0;
-  const toneClass = parsedRatio >= 60 ? 'text-[#86efac]' : parsedRatio >= 30 ? 'text-[#ffcf85]' : 'text-[#ff8a5c]';
+  const toneClass = parsedRatio >= 60 ? 'text-[var(--accent)]' : parsedRatio >= 30 ? 'text-[var(--text-primary)]' : 'text-[var(--red)]';
 
   return (
     <article
       className={cn(
-        'grid grid-cols-[minmax(0,1.35fr)_90px_90px_90px_90px_110px] gap-3 border-b border-[rgba(255,179,71,0.12)] px-4 py-3 font-mono text-[11px] transition-colors',
-        rowIndex % 2 === 0 ? 'bg-[rgba(255,179,71,0.03)]' : 'bg-transparent',
-        live ? 'hover:bg-[rgba(255,179,71,0.08)]' : 'hover:bg-[rgba(255,179,71,0.05)]',
+        'grid grid-cols-[minmax(0,1.35fr)_90px_90px_90px_90px_110px] gap-3 border-b border-[color:var(--border)] px-4 py-3 font-mono text-[11px] transition-colors',
+        rowIndex % 2 === 0 ? 'bg-[rgba(62,232,138,0.02)]' : 'bg-transparent',
+        live ? 'hover:bg-[rgba(62,232,138,0.06)]' : 'hover:bg-[var(--bg-hover)]',
       )}
     >
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className={cn('h-2 w-2 rounded-full', live ? 'bg-[#ffb347] shadow-[0_0_10px_rgba(255,179,71,0.75)]' : 'bg-[rgba(255,226,184,0.35)]')} />
-          <h2 className="truncate text-[12px] font-bold uppercase tracking-[0.04em] text-[#f7d39a]">{group.groupName}</h2>
+          <span className={cn('h-2 w-2 rounded-full', live ? 'bg-[var(--accent)] shadow-[0_0_10px_rgba(62,232,138,0.6)]' : 'bg-[var(--text-muted)]')} />
+          <h2 className="truncate text-[12px] font-bold uppercase tracking-[0.04em] text-[var(--text-primary)]">{group.groupName}</h2>
           <span className={cn(
             'shrink-0 border px-1.5 py-0.5 text-[8px] uppercase tracking-[0.12em]',
             live
-              ? 'border-[rgba(255,179,71,0.32)] bg-[rgba(255,179,71,0.1)] text-[#ffcf85]'
-              : 'border-[rgba(255,226,184,0.14)] bg-transparent text-[rgba(255,226,184,0.44)]',
+              ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+              : 'border-[color:var(--border)] bg-transparent text-[var(--text-muted)]',
           )}>
             {live ? 'Live' : 'Idle'}
           </span>
         </div>
-        <p className="mt-1 truncate text-[10px] text-[rgba(255,226,184,0.5)]">{group.sessionLabel} · {group.groupId}</p>
+        <p className="mt-1 truncate text-[10px] text-[var(--text-muted)]">{group.sessionLabel} · {group.groupId}</p>
       </div>
       <Cell value={group.messagesReceived24h} align="right" />
       <Cell value={group.messagesParsed24h} align="right" tone="positive" />
@@ -283,20 +284,20 @@ function ParseEvent({ event, groups, index }: { event: ParserEvent; groups: Grou
   return (
     <div
       className={cn(
-        'border-b border-[rgba(255,179,71,0.12)] px-4 py-3 font-mono',
-        index % 2 === 0 ? 'bg-[rgba(255,179,71,0.03)]' : 'bg-transparent',
+        'border-b border-[color:var(--border)] px-4 py-3 font-mono',
+        index % 2 === 0 ? 'bg-[rgba(62,232,138,0.02)]' : 'bg-transparent',
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-[11px] font-bold uppercase tracking-[0.06em] text-[#f7d39a]">
+          <p className="truncate text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--text-primary)]">
             {group?.groupName || remoteJid || 'Unknown group'}
           </p>
-          <p className="mt-1 truncate text-[10px] text-[rgba(255,226,184,0.5)]">
+          <p className="mt-1 truncate text-[10px] text-[var(--text-muted)]">
             {(event.sessionLabel || 'default').toUpperCase()} · {formatStamp(event.createdAt)}
           </p>
         </div>
-        <span className="border border-[rgba(134,239,172,0.28)] bg-[rgba(134,239,172,0.08)] px-2 py-1 text-[9px] uppercase tracking-[0.14em] text-[#86efac]">
+        <span className="border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-1 text-[9px] uppercase tracking-[0.14em] text-[var(--accent)]">
           Parsed
         </span>
       </div>
@@ -305,7 +306,7 @@ function ParseEvent({ event, groups, index }: { event: ParserEvent; groups: Grou
         <MiniStat label="Total" value={total} tone="neutral" />
         <MiniStat label="Ignored" value={ignored} tone={ignored > 0 ? 'warning' : 'neutral'} />
       </div>
-      <p className="mt-3 text-[10px] uppercase tracking-[0.08em] text-[rgba(255,226,184,0.62)]">
+      <p className="mt-3 text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">
         {event.message || `${parsed} items extracted`} · {formatRelative(event.createdAt)} ago
       </p>
     </div>
@@ -326,7 +327,7 @@ function Metric({
       <div className="font-mono text-[18px] font-bold tabular-nums uppercase tracking-[0.04em]">
         {typeof value === 'number' ? value.toLocaleString('en-IN') : value}
       </div>
-      <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[rgba(255,226,184,0.6)]">{label}</div>
+      <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">{label}</div>
     </div>
   );
 }
@@ -344,9 +345,9 @@ function StatusBlock({
 }) {
   return (
     <div className={cn('border px-3 py-3 font-mono', toneBoxStyles[tone])}>
-      <p className="text-[9px] uppercase tracking-[0.16em] text-[rgba(255,226,184,0.56)]">{label}</p>
+      <p className="text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">{label}</p>
       <p className="mt-2 text-[20px] font-bold uppercase tracking-[0.04em]">{value}</p>
-      <p className="mt-1 text-[10px] uppercase tracking-[0.1em] text-[rgba(255,226,184,0.62)]">{detail}</p>
+      <p className="mt-1 text-[10px] uppercase tracking-[0.1em] text-[var(--text-secondary)]">{detail}</p>
     </div>
   );
 }
@@ -363,7 +364,7 @@ function MiniStat({
   return (
     <div className={cn('border px-2 py-2', toneBoxStyles[tone])}>
       <div className="text-[12px] font-bold tabular-nums">{value.toLocaleString('en-IN')}</div>
-      <div className="mt-1 text-[8px] uppercase tracking-[0.16em] text-[rgba(255,226,184,0.58)]">{label}</div>
+      <div className="mt-1 text-[8px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">{label}</div>
     </div>
   );
 }
@@ -395,24 +396,24 @@ function Cell({
 
 function TerminalEmpty({ text }: { text: string }) {
   return (
-    <div className="px-4 py-8 font-mono text-[11px] uppercase tracking-[0.12em] text-[rgba(255,226,184,0.52)]">
+    <div className="px-4 py-8 font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">
       &gt; {text}
     </div>
   );
 }
 
 const toneStyles = {
-  positive: 'text-[#86efac]',
-  warning: 'text-[#ffcf85]',
-  danger: 'text-[#ff8a5c]',
-  neutral: 'text-[#f7d39a]',
+  positive: 'text-[var(--accent)]',
+  warning: 'text-[var(--text-primary)]',
+  danger: 'text-[var(--red)]',
+  neutral: 'text-[var(--text-primary)]',
 } as const;
 
 const toneBoxStyles = {
-  positive: 'border-[rgba(134,239,172,0.24)] bg-[rgba(134,239,172,0.06)] text-[#86efac]',
-  warning: 'border-[rgba(255,207,133,0.24)] bg-[rgba(255,207,133,0.06)] text-[#ffcf85]',
-  danger: 'border-[rgba(255,138,92,0.24)] bg-[rgba(255,138,92,0.06)] text-[#ff8a5c]',
-  neutral: 'border-[rgba(255,179,71,0.2)] bg-[rgba(255,179,71,0.04)] text-[#f7d39a]',
+  positive: 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]',
+  warning: 'border-[color:var(--border-strong)] bg-[var(--bg-elevated)] text-[var(--text-primary)]',
+  danger: 'border-[rgba(239,68,68,0.24)] bg-[var(--red-dim)] text-[var(--red)]',
+  neutral: 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-primary)]',
 } as const;
 
 function isLiveGroup(group: GroupHealth) {
