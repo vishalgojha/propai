@@ -1,8 +1,33 @@
 import React from 'react';
-import { Loader2, RefreshCw, Phone, MapPin, Hash, BadgeIndianRupee, Clock, Building2, UserRound, UsersRound } from 'lucide-react';
+import {
+  BadgeIndianRupee,
+  Building2,
+  Check,
+  Clock,
+  Copy,
+  Hash,
+  Link as LinkIcon,
+  Loader2,
+  MapPin,
+  Phone,
+  RefreshCw,
+  ShieldCheck,
+  UserRound,
+  UsersRound,
+} from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useSearchParams } from '../lib/router';
 import { fetchBrokerContactOverlaps, fetchBrokerContacts, type BrokerContact, type BrokerContactOverlap } from '../services/brokerContactApi';
+import {
+  acceptSyndicationInvite,
+  createSyndicationInvite,
+  listSyndicationPartners,
+  revokeSyndication,
+  type SyndicationPartner,
+} from '../services/syndicationApi';
 import { handleApiError } from '../services/api';
+
+type BrokerNetworkView = 'contacts' | 'overlaps' | 'partners';
 
 const formatPhone = (phone: string): string => {
   const digits = phone.replace(/\D/g, '');
@@ -31,12 +56,33 @@ const formatDate = (value?: string | null): string => {
   return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
+const extractToken = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.searchParams.get('token')?.trim() || trimmed;
+  } catch {
+    return trimmed;
+  }
+};
+
 export const BrokerNetwork: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [contacts, setContacts] = React.useState<BrokerContact[]>([]);
   const [overlaps, setOverlaps] = React.useState<BrokerContactOverlap[]>([]);
-  const [activeView, setActiveView] = React.useState<'contacts' | 'overlaps'>('contacts');
+  const initialView = searchParams.get('tab') === 'partners' ? 'partners' : searchParams.get('tab') === 'overlaps' ? 'overlaps' : 'contacts';
+  const [activeView, setActiveView] = React.useState<BrokerNetworkView>(initialView);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [partners, setPartners] = React.useState<SyndicationPartner[]>([]);
+  const [isLoadingPartners, setIsLoadingPartners] = React.useState(false);
+  const [partnerError, setPartnerError] = React.useState<string | null>(null);
+  const [inviteLink, setInviteLink] = React.useState<string | null>(null);
+  const [inviteCopied, setInviteCopied] = React.useState(false);
+  const [acceptToken, setAcceptToken] = React.useState('');
+  const [acceptResult, setAcceptResult] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     setIsLoading(true);
@@ -59,8 +105,106 @@ export const BrokerNetwork: React.FC = () => {
     void load();
   }, [load]);
 
+  const loadPartners = React.useCallback(async () => {
+    setIsLoadingPartners(true);
+    setPartnerError(null);
+    try {
+      const data = await listSyndicationPartners();
+      setPartners([...data.outgoing, ...data.incoming]);
+    } catch (err) {
+      setPartnerError(handleApiError(err));
+    } finally {
+      setIsLoadingPartners(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void loadPartners();
+  }, [loadPartners]);
+
+  React.useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'partners' || tab === 'overlaps') {
+      setActiveView(tab);
+    } else {
+      setActiveView('contacts');
+    }
+
+    const token = searchParams.get('token');
+    if (token) {
+      setAcceptToken(token);
+      setActiveView('partners');
+    }
+  }, [searchParams]);
+
+  const selectView = React.useCallback((view: BrokerNetworkView) => {
+    setActiveView(view);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (view === 'contacts') {
+        next.delete('tab');
+      } else {
+        next.set('tab', view);
+      }
+      return next;
+    });
+  }, [setSearchParams]);
+
+  const handleCreateInvite = React.useCallback(async () => {
+    setPartnerError(null);
+    setInviteLink(null);
+    try {
+      const result = await createSyndicationInvite(['rent', 'sale']);
+      setInviteLink(result.inviteLink);
+      await loadPartners();
+    } catch (err) {
+      setPartnerError(handleApiError(err));
+    }
+  }, [loadPartners]);
+
+  const handleAcceptInvite = React.useCallback(async () => {
+    const token = extractToken(acceptToken);
+    if (!token) return;
+
+    setPartnerError(null);
+    setAcceptResult(null);
+    try {
+      const result = await acceptSyndicationInvite(token);
+      setAcceptResult(`Connected with ${result.partnerName}`);
+      setAcceptToken('');
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set('tab', 'partners');
+        next.delete('token');
+        return next;
+      }, { replace: true });
+      await loadPartners();
+    } catch (err) {
+      setPartnerError(handleApiError(err));
+    }
+  }, [acceptToken, loadPartners, setSearchParams]);
+
+  const handleRevoke = React.useCallback(async (id: string) => {
+    setPartnerError(null);
+    try {
+      await revokeSyndication(id);
+      await loadPartners();
+    } catch (err) {
+      setPartnerError(handleApiError(err));
+    }
+  }, [loadPartners]);
+
+  const copyInviteLink = React.useCallback(() => {
+    if (!inviteLink) return;
+    void navigator.clipboard.writeText(inviteLink);
+    setInviteCopied(true);
+    window.setTimeout(() => setInviteCopied(false), 2000);
+  }, [inviteLink]);
+
   const totalListings = contacts.reduce((sum, c) => sum + c.listing_count, 0);
   const overlappingGroupLinks = overlaps.reduce((sum, contact) => sum + contact.group_count, 0);
+  const activePartners = partners.filter((partner) => partner.status === 'active').length;
+  const pendingPartners = partners.filter((partner) => partner.status === 'pending').length;
 
   return (
     <div className="space-y-6">
@@ -80,11 +224,11 @@ export const BrokerNetwork: React.FC = () => {
           </div>
           <button
             type="button"
-            onClick={() => void load()}
-            disabled={isLoading}
+            onClick={() => activeView === 'partners' ? void loadPartners() : void load()}
+            disabled={activeView === 'partners' ? isLoadingPartners : isLoading}
             className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)] disabled:opacity-50"
           >
-            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
+            <RefreshCw className={cn('h-4 w-4', (activeView === 'partners' ? isLoadingPartners : isLoading) && 'animate-spin')} />
             Refresh
           </button>
         </div>
@@ -100,7 +244,7 @@ export const BrokerNetwork: React.FC = () => {
         <div className="inline-flex w-full rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-1 md:w-auto">
           <button
             type="button"
-            onClick={() => setActiveView('contacts')}
+            onClick={() => selectView('contacts')}
             className={cn(
               'inline-flex flex-1 items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors md:flex-none',
               activeView === 'contacts'
@@ -113,7 +257,7 @@ export const BrokerNetwork: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => setActiveView('overlaps')}
+            onClick={() => selectView('overlaps')}
             className={cn(
               'inline-flex flex-1 items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors md:flex-none',
               activeView === 'overlaps'
@@ -124,18 +268,205 @@ export const BrokerNetwork: React.FC = () => {
             <UsersRound className="h-4 w-4" />
             Overlaps
           </button>
+          <button
+            type="button"
+            onClick={() => selectView('partners')}
+            className={cn(
+              'inline-flex flex-1 items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors md:flex-none',
+              activeView === 'partners'
+                ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+            )}
+          >
+            <ShieldCheck className="h-4 w-4" />
+            Partners
+          </button>
         </div>
         {activeView === 'overlaps' ? (
           <div className="text-[12px] text-[var(--text-secondary)]">
             {overlaps.length} contact{overlaps.length === 1 ? '' : 's'} across {overlappingGroupLinks} group membership link{overlappingGroupLinks === 1 ? '' : 's'}
           </div>
+        ) : activeView === 'partners' ? (
+          <div className="text-[12px] text-[var(--text-secondary)]">
+            {activePartners} active partner{activePartners === 1 ? '' : 's'}
+            {pendingPartners > 0 ? `, ${pendingPartners} pending` : ''}
+          </div>
         ) : null}
       </div>
 
-      {isLoading ? (
+      {activeView !== 'partners' && isLoading ? (
         <div className="flex items-center justify-center gap-3 px-5 py-20 text-sm text-[var(--text-secondary)]">
           <Loader2 className="h-5 w-5 animate-spin" />
           Loading broker contacts...
+        </div>
+      ) : activeView === 'partners' ? (
+        <div className="space-y-4">
+          {partnerError ? (
+            <div className="rounded-[16px] border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {partnerError}
+            </div>
+          ) : null}
+
+          {acceptResult ? (
+            <div className="rounded-[16px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 text-sm text-[var(--accent)]">
+              {acceptResult}
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[13px] font-semibold text-[var(--text-primary)]">Invite a partner</p>
+                  <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">Generate a private link for a trusted broker. Active partners can pull your shared listing feed.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCreateInvite}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-all hover:brightness-95"
+                >
+                  <LinkIcon className="h-4 w-4" />
+                  Generate
+                </button>
+              </div>
+
+              {inviteLink ? (
+                <div className="mt-4 rounded-[12px] border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.06)] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">Share invite</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] text-[var(--text-primary)]">
+                      {inviteLink}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={copyInviteLink}
+                      className="inline-flex items-center gap-1.5 rounded-[10px] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] font-bold text-[var(--accent)] transition-all hover:bg-[var(--bg-hover)]"
+                    >
+                      {inviteCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      {inviteCopied ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+              <p className="text-[13px] font-semibold text-[var(--text-primary)]">Accept a partner invite</p>
+              <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">Paste a full invite link or token from another broker workspace.</p>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="text"
+                  value={acceptToken}
+                  onChange={(event) => setAcceptToken(event.target.value)}
+                  placeholder="Paste token or invite link"
+                  className="min-w-0 flex-1 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                />
+                <button
+                  type="button"
+                  onClick={handleAcceptInvite}
+                  disabled={!extractToken(acceptToken)}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-all hover:brightness-95 disabled:opacity-40"
+                >
+                  <Check className="h-4 w-4" />
+                  Accept
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {isLoadingPartners ? (
+            <div className="flex items-center justify-center gap-3 px-5 py-16 text-sm text-[var(--text-secondary)]">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Loading syndication partners...
+            </div>
+          ) : partners.length === 0 ? (
+            <div className="rounded-[18px] border border-dashed border-[color:var(--border)] px-4 py-16 text-center text-sm text-[var(--text-secondary)]">
+              <ShieldCheck className="mx-auto mb-3 h-8 w-8 opacity-40" />
+              No syndication partners yet. Invite a trusted broker or accept an invite to start sharing listings.
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)]">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-white/[0.04] text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
+                      <th className="px-5 py-4">Partner</th>
+                      <th className="px-5 py-4">Direction</th>
+                      <th className="px-5 py-4">Scope</th>
+                      <th className="px-5 py-4">Status</th>
+                      <th className="px-5 py-4">Connected</th>
+                      <th className="px-5 py-4"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partners.map((partner, index) => (
+                      <tr
+                        key={partner.id}
+                        className={cn(
+                          'border-b border-white/[0.02] transition-colors hover:bg-[var(--bg-elevated)]',
+                          index === partners.length - 1 && 'border-b-0',
+                        )}
+                      >
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent-dim)] text-[13px] font-bold text-[var(--accent)]">
+                              {(partner.partnerName || 'P')[0].toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-[var(--text-primary)]">{partner.partnerName || 'Partner'}</p>
+                              <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">{partner.id}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className="text-[13px] text-[var(--text-secondary)]">
+                            {partner.direction === 'outgoing' ? 'You invited them' : 'They invited you'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex flex-wrap gap-1">
+                            {partner.scope.map((scope) => (
+                              <span key={scope} className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--text-secondary)]">
+                                {scope}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className={cn(
+                            'rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]',
+                            partner.status === 'active'
+                              ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                              : partner.status === 'pending'
+                                ? 'border-[color:rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.08)] text-[var(--amber)]'
+                                : 'border-red-500/30 bg-red-500/10 text-red-300',
+                          )}>
+                            {partner.status}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className="text-[12px] text-[var(--text-secondary)]">
+                            {formatDate(partner.acceptedAt || partner.createdAt)}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          {partner.status !== 'revoked' ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleRevoke(partner.id)}
+                              className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-red-300 transition-all hover:bg-red-500 hover:text-black"
+                            >
+                              Revoke
+                            </button>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       ) : activeView === 'contacts' && contacts.length === 0 ? (
         <div className="rounded-[18px] border border-dashed border-[color:var(--border)] px-4 py-16 text-center text-sm text-[var(--text-secondary)]">
