@@ -60,6 +60,7 @@ type Profile = {
   phone: string;
   email?: string;
   phoneVerified?: boolean;
+  phoneLocked?: boolean;
 };
 
 type HealthLogsResponse = {
@@ -546,6 +547,9 @@ export const Sources: React.FC = () => {
 
   const normalizedPhone = useMemo(() => normalizePhoneNumber(phoneNumber), [phoneNumber]);
   const normalizedDevicePhone = useMemo(() => normalizePhoneNumber(devicePhoneNumber), [devicePhoneNumber]);
+  const lockedWorkspacePhone = normalizedPhone;
+  const isWorkspacePhoneLocked = profileLoaded && lockedWorkspacePhone.length >= 10;
+  const connectPhoneValue = isWorkspacePhoneLocked ? lockedWorkspacePhone : (devicePhoneNumber || phoneNumber);
   const expectedSessionLabel = useMemo(
     () => buildSessionLabel(deviceOwnerName || 'Owner', normalizedDevicePhone || 'device'),
     [deviceOwnerName, normalizedDevicePhone],
@@ -615,7 +619,7 @@ export const Sources: React.FC = () => {
       const profile = response.data?.profile as Profile | undefined;
       if (profile) {
         const nextName = profile.fullName || '';
-        const nextPhone = profile.phone || '';
+        const nextPhone = normalizePhoneNumber(profile.phone || '');
         setFullName((current) => current || nextName);
         setPhoneNumber((current) => current || nextPhone);
         setDeviceOwnerName((current) => current || nextName);
@@ -1033,7 +1037,7 @@ export const Sources: React.FC = () => {
     ensureConnectUiVisible();
 
     const nameToUse = deviceOwnerName || fullName;
-    const phoneToUse = devicePhoneNumber || phoneNumber;
+    const phoneToUse = isWorkspacePhoneLocked ? lockedWorkspacePhone : (devicePhoneNumber || phoneNumber);
     const normalizedPhone = normalizePhoneNumber(phoneToUse);
 
     if (!nameToUse.trim() || normalizedPhone.length < 10 || normalizedPhone.length > 15) {
@@ -2537,14 +2541,19 @@ export const Sources: React.FC = () => {
                 <div className="relative">
                   <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
                   <input
-                    value={devicePhoneNumber || phoneNumber}
+                    value={connectPhoneValue}
                     onChange={(e) => { setDevicePhoneNumber(e.target.value); setPhoneNumber(e.target.value); }}
                     placeholder="919876543210"
                     className={cn(sourceFieldClassName, 'pl-9')}
+                    disabled={isWorkspacePhoneLocked}
                   />
                 </div>
                 <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
-                  Enter your WhatsApp number with country code (digits only). Example: <span className="text-[var(--text-primary)]">919876543210</span>
+                  {isWorkspacePhoneLocked ? (
+                    <>This workspace is locked to <span className="text-[var(--text-primary)]">{lockedWorkspacePhone}</span>. Use this number for WhatsApp connection.</>
+                  ) : (
+                    <>Enter your WhatsApp number with country code (digits only). Example: <span className="text-[var(--text-primary)]">919876543210</span></>
+                  )}
                 </p>
               </label>
 

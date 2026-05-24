@@ -118,6 +118,22 @@ function normalizeRecipientPhone(value?: string | null) {
     return String(value || '').split('').filter(c => c >= '0' && c <= '9').join('');
 }
 
+async function getLockedWorkspacePhone(tenantId: string, fallbackPhone?: string | null) {
+    const dbClient = getDbClient();
+    const { data: profile } = await dbClient
+        .from('profiles')
+        .select('phone')
+        .eq('id', tenantId)
+        .maybeSingle();
+
+    const profilePhone = normalizeRecipientPhone(profile?.phone);
+    if (profilePhone) {
+        return profilePhone;
+    }
+
+    return normalizeRecipientPhone(fallbackPhone);
+}
+
 function toWhatsAppJid(phoneOrJid?: string | null) {
     const value = String(phoneOrJid || '').trim();
     if (!value) return null;
@@ -184,8 +200,20 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Enter the WhatsApp number to request a pairing code.' });
         }
 
+        const requestedPhone = normalizeRecipientPhone(phoneNumber);
+        const lockedWorkspacePhone = await getLockedWorkspacePhone(
+            tenantId,
+            context.isWorkspaceOwner ? String(req.user?.user_metadata?.phone || '') : null,
+        );
+
+        if (lockedWorkspacePhone && requestedPhone && requestedPhone !== lockedWorkspacePhone) {
+            return res.status(409).json({
+                error: `This workspace is locked to WhatsApp number ${lockedWorkspacePhone}. Use that number for connection.`,
+            });
+        }
+
         const dbClient = getDbClient();
-        const normalizedRequestedPhone = normalizeRecipientPhone(phoneNumber);
+        const normalizedRequestedPhone = requestedPhone || lockedWorkspacePhone;
         if (normalizedRequestedPhone) {
             const { data: samePhoneRows } = await dbClient
                 .from('whatsapp_sessions')
@@ -1153,14 +1181,23 @@ export const saveProfile = async (req: Request, res: Response) => {
     const dbClient = getDbClient();
     const { data: existingProfile } = await dbClient
         .from('profiles')
-        .select('email')
+        .select('email, phone')
         .eq('id', tenantId)
         .maybeSingle();
+
+    const lockedWorkspacePhone = normalizeRecipientPhone(existingProfile?.phone)
+        || normalizeRecipientPhone(context.isWorkspaceOwner ? String(req.user?.user_metadata?.phone || '') : null);
+
+    if (lockedWorkspacePhone && lockedWorkspacePhone !== normalizedPhone) {
+        return res.status(409).json({
+            error: `This workspace is locked to WhatsApp number ${lockedWorkspacePhone}. It cannot be changed here.`,
+        });
+    }
 
     const payload: Record<string, unknown> = {
         id: tenantId,
         full_name: normalizedFullName,
-        phone: normalizedPhone,
+        phone: lockedWorkspacePhone || normalizedPhone,
     };
 
     const existingEmail = String(existingProfile?.email || '').trim();
@@ -1202,7 +1239,7 @@ export const saveProfile = async (req: Request, res: Response) => {
         profile: formatProfileResponse(data, {
             id: tenantId,
             fullName: normalizedFullName,
-            phone: normalizedPhone,
+            phone: lockedWorkspacePhone || normalizedPhone,
             email: user?.email || null,
         }),
     });
