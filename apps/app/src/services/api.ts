@@ -6,13 +6,15 @@ export { backendApiUrl } from './apiBase';
 
 const SESSION_EXPIRED_MESSAGE = 'Session expired. Please sign in again.';
 const SESSION_EXPIRED_EVENT = 'propai:session-expired';
+const DEFAULT_API_TIMEOUT_MS = 30000;
+const PUBLIC_AUTH_TIMEOUT_MS = 45000;
 
 const backendApi = axios.create({
   baseURL: backendApiUrl,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000,
+  timeout: DEFAULT_API_TIMEOUT_MS,
 });
 
 let refreshInFlight: Promise<Awaited<ReturnType<typeof refreshSupabaseSession>>> | null = null;
@@ -71,6 +73,9 @@ backendApi.interceptors.request.use(async (config) => {
   // Skip session validation for public auth endpoints
   const url = config.url || '';
   const isPublicAuth = PUBLIC_AUTH_PATHS.some((path) => url.includes(path));
+  if (isPublicAuth && !config.timeout) {
+    config.timeout = PUBLIC_AUTH_TIMEOUT_MS;
+  }
   if (isPublicAuth) {
     return config;
   }
