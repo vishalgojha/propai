@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabaseAdmin, createSupabaseServiceClient } from '../config/supabase';
+import { igrEnrichmentService } from '../services/igrEnrichmentService';
 import { isOwnerSuperAdminEmail, HttpError, getErrorMessage } from '../utils/controllerHelpers';
 
 function parseBhk(bhk: string | null | undefined): number | null {
@@ -86,6 +87,7 @@ export const ingestListings = async (req: Request, res: Response) => {
         let streamErr = 0;
 
         for (const item of listings) {
+            const buildingName = String(item?.parsed_payload?.buildingName || item.building_name || '').trim();
             const listingRow = {
                 tenant_id,
                 source_group_id: item.source_group_id || null,
@@ -113,15 +115,33 @@ export const ingestListings = async (req: Request, res: Response) => {
                 broker_name: item.contact_name || null,
                 parsed_payload: {
                     ...(item.parsed_payload || {}),
-                    buildingName: item.building_name || null,
+                    buildingName: buildingName || null,
                 },
             };
             if (item.embedding && Array.isArray(item.embedding)) {
                 streamRow.embedding = item.embedding;
             }
-            const { error: se } = await admin.from('stream_items').insert(streamRow);
+            const { data: insertedStreamItem, error: se } = await admin
+                .from('stream_items')
+                .insert(streamRow)
+                .select('id')
+                .maybeSingle();
             if (se) streamErr++;
-            else streamOk++;
+            else {
+                streamOk++;
+                if (buildingName && insertedStreamItem?.id) {
+                    void igrEnrichmentService
+                        .queueIfStale(buildingName, item.locality || null, insertedStreamItem.id)
+                        .catch((error) => {
+                            console.error('[Ingest] Failed to queue IGR enrichment', {
+                                streamItemId: insertedStreamItem.id,
+                                buildingName,
+                                locality: item.locality || null,
+                                error: error instanceof Error ? error.message : error,
+                            });
+                        });
+                }
+            }
 
             const listingType = toListingType(item.type);
             const phone = item.source_phone || extractPhoneFromText(item.raw_text || '');

@@ -29,11 +29,8 @@
 ### Operational Rules
 
 - Prefer selective staging when unrelated work is present.
-- Use the user's normal terminal for:
-  - `git push`
-  - `pnpm build`
-  - tests
-  - redeploys
+- `git push`, builds, tests, and redeploys may be run by the agent when explicitly requested by the user.
+- If those steps are not explicitly requested, prefer leaving them to the user's normal terminal.
 
 ### Handoff Hygiene
 

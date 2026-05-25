@@ -31,6 +31,7 @@ import { sessionManager } from './whatsapp/SessionManager';
 import { historySyncWorker } from './services/historySyncWorker';
 import { syndicationSyncJob } from './jobs/syndicationSyncJob';
 import { generateMarketInsightsJob } from './jobs/generateMarketInsights';
+import { igrEnrichmentJob } from './jobs/igrEnrichmentJob';
 import { ROUTE_PATHS } from './routes/routePaths';
 
 const app = express();
@@ -190,6 +191,7 @@ app.listen(PORT, () => {
             historySyncWorker.start();
             syndicationSyncJob.start();
             generateMarketInsightsJob.start();
+            igrEnrichmentJob.start();
             if (ENABLE_SYSTEM_WHATSAPP_SESSION) {
                 await sessionManager.initSystemSession();
             } else {
