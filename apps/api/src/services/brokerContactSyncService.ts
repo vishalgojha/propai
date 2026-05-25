@@ -78,8 +78,7 @@ export class BrokerContactSyncService {
       }
     }
 
-    const candidates = Array.from(phoneGroups.entries())
-      .filter(([, sourceGroups]) => sourceGroups.size >= minOverlap)
+    const contacts = Array.from(phoneGroups.entries())
       .map(([phone, sourceGroups]) => {
         const groupRows = Array.from(sourceGroups.values());
         return {
@@ -91,8 +90,10 @@ export class BrokerContactSyncService {
         };
       });
 
+    const overlappingContacts = contacts.filter((contact) => contact.groupCount >= minOverlap).length;
+
     let contactsUpserted = 0;
-    for (const contact of candidates) {
+    for (const contact of contacts) {
       const { data: existing, error: existingError } = await db
         .from('broker_contacts')
         .select('id, display_name, inferred_areas, source_groups, group_count')
@@ -146,7 +147,7 @@ export class BrokerContactSyncService {
 
     return {
       groupsScanned: Array.isArray(groups) ? groups.length : 0,
-      overlappingContacts: candidates.length,
+      overlappingContacts,
       contactsUpserted,
       listsGenerated,
       minOverlap,

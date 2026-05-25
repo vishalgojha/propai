@@ -13,6 +13,24 @@ function requireAdminClient(res: any) {
   return true;
 }
 
+function isMissingSyndicationSchemaError(error: unknown) {
+  const candidate = error as { code?: string; message?: string; details?: string; hint?: string } | null;
+  const haystack = [
+    candidate?.message,
+    candidate?.details,
+    candidate?.hint,
+  ]
+    .map((value) => String(value || '').toLowerCase())
+    .join(' ');
+
+  return candidate?.code === '42P01'
+    || candidate?.code === '42703'
+    || haystack.includes('broker_syndications')
+    || haystack.includes('requester_label')
+    || haystack.includes('acceptor_label')
+    || haystack.includes('schema cache');
+}
+
 // ── POST /invite — generate a syndication invite token ────────────────────
 router.post('/invite', async (req, res) => {
   try {
@@ -232,22 +250,28 @@ router.get('/list', async (req, res) => {
 
     const { data: asRequester, error: reqErr } = await supabaseAdmin!
       .from('broker_syndications')
-      .select('id, acceptor_workspace_id, acceptor_label, status, scope, created_at, accepted_at')
+      .select('*')
       .eq('requester_workspace_id', workspaceId)
       .order('created_at', { ascending: false });
 
     if (reqErr) {
+      if (isMissingSyndicationSchemaError(reqErr)) {
+        return res.json({ outgoing: [], incoming: [] });
+      }
       console.error('[Syndication] List requester query failed:', reqErr);
       return res.status(500).json({ error: 'Failed to list syndications' });
     }
 
     const { data: asAcceptor, error: accErr } = await supabaseAdmin!
       .from('broker_syndications')
-      .select('id, requester_workspace_id, requester_label, status, scope, created_at, accepted_at')
+      .select('*')
       .eq('acceptor_workspace_id', workspaceId)
       .order('created_at', { ascending: false });
 
     if (accErr) {
+      if (isMissingSyndicationSchemaError(accErr)) {
+        return res.json({ outgoing: [], incoming: [] });
+      }
       console.error('[Syndication] List acceptor query failed:', accErr);
       return res.status(500).json({ error: 'Failed to list syndications' });
     }
