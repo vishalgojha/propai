@@ -38,6 +38,18 @@ const WHATSAPP_BROKER_FORMATTING_PROMPT = [
     '- Never mention AgentResponse or any internal response schema.',
 ].join('\n');
 
+const WEB_BROKER_FORMATTING_PROMPT = [
+    'Channel rules:',
+    '- You are replying inside the PropAI web app.',
+    '- Use clean markdown-style formatting when it helps readability.',
+    '- Prefer short paragraphs or simple bullet lists using "-" for lists.',
+    '- Use "**bold**" for the most important values like locality, budget, or contact status.',
+    '- Do not use WhatsApp-style emphasis like "*bold*" unless the user explicitly asks for WhatsApp copy.',
+    '- Do not use code fences unless the content is actually code or structured data.',
+    '- Never invent inventory, availability, contact numbers, or property facts.',
+    '- If Stream has no match, say so directly.',
+].join('\n');
+
 type ConversationEngineInput = {
     event: ConversationEvent;
     profileLookupTenantId: string;
@@ -208,7 +220,7 @@ export class ConversationEngineService {
 
         const finalSystemPrompt = event.channel === 'whatsapp'
             ? `${systemPrompt}\n\n${WHATSAPP_BROKER_FORMATTING_PROMPT}`
-            : systemPrompt;
+            : `${systemPrompt}\n\n${WEB_BROKER_FORMATTING_PROMPT}`;
 
         const response = await aiService.chat(
             prompt,

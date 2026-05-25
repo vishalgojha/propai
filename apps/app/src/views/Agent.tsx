@@ -85,6 +85,82 @@ type RichBlock =
   | { type: 'code'; language: string | null; code: string }
   | { type: 'table'; headers: string[]; rows: string[][] };
 
+function renderInlineMarkdown(text: string, keyPrefix: string) {
+  const normalized = String(text || '');
+  const pattern = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  const parts = normalized.split(pattern).filter(Boolean);
+
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={`${keyPrefix}-strong-${index}`}>{part.slice(2, -2)}</strong>;
+    }
+
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code
+          key={`${keyPrefix}-code-${index}`}
+          className="rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[12px] text-[var(--text-primary)]"
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+
+    return <React.Fragment key={`${keyPrefix}-text-${index}`}>{part}</React.Fragment>;
+  });
+}
+
+function renderParagraphBlock(text: string, blockIndex: number) {
+  const lines = String(text || '').split('\n');
+  const nodes: React.ReactNode[] = [];
+  let listBuffer: Array<{ ordered: boolean; text: string }> = [];
+
+  const flushList = () => {
+    if (!listBuffer.length) return;
+    const ordered = listBuffer[0].ordered;
+    const items = listBuffer;
+    listBuffer = [];
+    const ListTag = ordered ? 'ol' : 'ul';
+    nodes.push(
+      <ListTag key={`list-${blockIndex}-${nodes.length}`} className="ml-5 list-outside space-y-1">
+        {items.map((item, itemIndex) => (
+          <li key={`item-${blockIndex}-${itemIndex}`}>{renderInlineMarkdown(item.text, `list-${blockIndex}-${itemIndex}`)}</li>
+        ))}
+      </ListTag>,
+    );
+  };
+
+  lines.forEach((line) => {
+    const bulletMatch = line.match(/^\s*[-*•]\s+(.+)$/);
+    const orderedMatch = line.match(/^\s*(\d+)\.\s+(.+)$/);
+
+    if (bulletMatch) {
+      listBuffer.push({ ordered: false, text: bulletMatch[1] });
+      return;
+    }
+
+    if (orderedMatch) {
+      listBuffer.push({ ordered: true, text: orderedMatch[2] });
+      return;
+    }
+
+    flushList();
+
+    if (!line.trim()) {
+      return;
+    }
+
+    nodes.push(
+      <p key={`p-${blockIndex}-${nodes.length}`}>
+        {renderInlineMarkdown(line, `p-${blockIndex}-${nodes.length}`)}
+      </p>,
+    );
+  });
+
+  flushList();
+  return nodes;
+}
+
 function splitRichBlocks(content: string): RichBlock[] {
   const lines = String(content || '').replace(/\r\n/g, '\n').split('\n');
   const blocks: RichBlock[] = [];
@@ -250,8 +326,8 @@ const RichMessage: React.FC<{ content: string }> = ({ content }) => {
         }
 
         return (
-          <div key={index} className="whitespace-pre-wrap">
-            {block.text}
+          <div key={index} className="space-y-2">
+            {renderParagraphBlock(block.text, index)}
           </div>
         );
       })}

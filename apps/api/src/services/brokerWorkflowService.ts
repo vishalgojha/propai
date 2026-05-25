@@ -543,34 +543,94 @@ export class BrokerWorkflowService {
     }
 
     private async searchListings(tenantId: string, prompt: string): Promise<WorkflowResult> {
+        const criteria = this.buildSearchCriteria(prompt);
         const { data, error } = await this.admin
-            .from('listings')
-            .select('id,source_group_id,structured_data,raw_text,created_at')
+            .from('stream_items')
+            .select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status')
             .eq('tenant_id', tenantId)
-            .eq('status', 'Active')
-            .limit(10);
+            .eq('record_type', 'listing')
+            .not('ingestion_status', 'in', '("suppressed","expired")')
+            .order('created_at', { ascending: false })
+            .limit(250);
 
         if (error) {
             return {
                 handled: true,
-                reply: `I couldn't search listings right now: ${error.message}`,
+                reply: `I couldn't search Stream right now: ${error.message}`,
                 data: { type: 'search_failed' },
             };
         }
 
-        const queryText = prompt.toLowerCase().trim();
         const matches = (data || []).filter((listing: any) => {
-            const text = JSON.stringify(listing.structured_data || {}).toLowerCase();
-            return queryText.length < 3 || text.includes(queryText);
-        });
+            const payload = listing?.parsed_payload && typeof listing.parsed_payload === 'object'
+                ? listing.parsed_payload
+                : {};
+            const haystack = [
+                listing?.locality,
+                listing?.city,
+                listing?.bhk,
+                listing?.price_label,
+                listing?.property_category,
+                listing?.type,
+                listing?.raw_text,
+                JSON.stringify(payload || {}),
+            ]
+                .filter(Boolean)
+                .map((value: unknown) => String(value).toLowerCase())
+                .join(' ');
+
+            if (criteria.wantsRequirementOnly) {
+                return false;
+            }
+            if (criteria.location && !haystack.includes(criteria.location)) {
+                return false;
+            }
+            if (criteria.bhk && !haystack.includes(criteria.bhk)) {
+                return false;
+            }
+            if (criteria.budget != null) {
+                const listingBudget = Number(listing?.price_numeric);
+                if (Number.isFinite(listingBudget) && listingBudget > criteria.budget * 1.05) {
+                    return false;
+                }
+            }
+
+            return this.hasMeaningfulTokenMatch(haystack, criteria.tokens)
+                || Boolean(criteria.location || criteria.bhk || criteria.budget != null);
+        }).slice(0, 10);
 
         return {
             handled: true,
             reply: matches.length
-                ? `I found ${matches.length} matching listing(s).`
-                : 'I did not find any matching listings.',
-            data: { type: 'listing_search', items: matches },
+                ? `I found ${matches.length} matching listing${matches.length === 1 ? '' : 's'} in Stream.`
+                : 'I could not find any matching inventory in Stream.',
+            data: {
+                type: 'listing_search',
+                output_format: 'bullet_list',
+                items: matches.map((listing: any) => ({
+                    title: this.describeStreamListing(listing),
+                    snippet: this.formatCreatedAt(listing.created_at),
+                })),
+            },
         };
+    }
+
+    private describeStreamListing(listing: any) {
+        const payload = listing?.parsed_payload && typeof listing.parsed_payload === 'object'
+            ? listing.parsed_payload as Record<string, unknown>
+            : {};
+
+        const title = String(payload.displayTitle || payload.title || '').trim();
+        const bits = [
+            title,
+            listing?.bhk,
+            listing?.locality,
+            listing?.city,
+            listing?.price_label,
+            listing?.area_sqft ? `${Math.round(Number(listing.area_sqft))} sqft` : '',
+        ].filter(Boolean).map((value: unknown) => String(value).trim());
+
+        return bits.length ? bits.join(' | ') : String(listing?.raw_text || 'Stream listing').trim();
     }
 
     private isDraftConfirmed(draft: Record<string, unknown>) {
