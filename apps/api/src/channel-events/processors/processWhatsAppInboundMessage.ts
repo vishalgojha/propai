@@ -7,7 +7,7 @@ import { whatsappHealthService } from '../../services/whatsappHealthService';
 import { getWhatsAppGateway } from '../../channel-gateways/whatsapp/whatsappGatewayRegistry';
 import { getPhoneOwnership, markPhoneVerifiedForUser, normalizePhone as normalizePhoneValue } from '../../services/phoneOwnershipService';
 import { whatsappThreadService } from '../../services/whatsappThreadService';
-import { broadcastParserService } from '../../services/broadcastParserService';
+import { channelService } from '../../services/channelService';
 
 const db = supabaseAdmin || supabase;
 const AI_SENDER = 'AI';
@@ -531,27 +531,26 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
         }
 
         try {
-            const result = await broadcastParserService.parseBroadcast({
-                message: event.text,
-                senderPhone: normalizedRemoteJid,
-                senderName: (event as IncomingMessageRecord & { pushName?: string | null }).pushName || '',
-                tenantId,
+            const rawMessage = (event.rawMessage || {}) as { key?: { id?: string | null } } | undefined;
+            const ingestedCount = await channelService.ingestMessage(tenantId, {
+                id: String(rawMessage?.key?.id || `${tenantId}:${label || 'workspace'}:${remoteJid}:${event.timestamp || Date.now()}`),
+                session_label: label || 'workspace',
+                remote_jid: remoteJid,
+                sender: (event as IncomingMessageRecord & { pushName?: string | null }).pushName || normalizedRemoteJid || null,
+                text: event.text,
+                timestamp: event.timestamp || new Date().toISOString(),
+                created_at: new Date().toISOString(),
             });
 
-            if (result.success && result.parsed > 0) {
+            if (ingestedCount > 0) {
                 await whatsappHealthService.appendEvent(
                     tenantId,
                     label || 'default',
                     'group_message_broadcast_parsed',
-                    'Group message broadcast parsed in the background.',
+                    'Group message parsed through the unified stream parser.',
                     {
                         remoteJid,
-                        total: result.total,
-                        parsed: result.parsed,
-                        skipped_duplicates: result.skipped_duplicates,
-                        failed: result.failed,
-                        ignored_lines: result.ignored_lines,
-                        broker: result.broker,
+                        parsed: ingestedCount,
                     },
                 ).catch(() => undefined);
             }

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { parseBroadcastMessage } from '../services/broadcastParserService';
+import { channelService } from '../services/channelService';
 
 export const parseBroadcast = async (req: Request, res: Response) => {
     try {
@@ -8,6 +8,7 @@ export const parseBroadcast = async (req: Request, res: Response) => {
         const message = String(req.body?.message || '').trim();
         const senderPhone = String(req.body?.sender_phone || '').trim();
         const senderName = String(req.body?.sender_name || '').trim();
+        const remoteJid = String(req.body?.remote_jid || '').trim() || (senderPhone ? `${senderPhone}@s.whatsapp.net` : null);
 
         if (!tenantId) {
             return res.status(400).json({ success: false, error: 'Tenant ID is required' });
@@ -17,22 +18,21 @@ export const parseBroadcast = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, error: 'Message is required' });
         }
 
-        if (!senderPhone) {
-            return res.status(400).json({ success: false, error: 'Sender phone is required' });
-        }
-
-        if (!senderName) {
-            return res.status(400).json({ success: false, error: 'Sender name is required' });
-        }
-
-        const result = await parseBroadcastMessage({
-            message,
-            senderPhone,
-            senderName,
-            tenantId,
+        const items = await channelService.previewMessageParse(tenantId, {
+            id: `preview:${Date.now()}`,
+            session_label: 'preview',
+            remote_jid: remoteJid,
+            sender: senderName || senderPhone || 'preview',
+            text: message,
+            timestamp: new Date().toISOString(),
+            created_at: new Date().toISOString(),
         });
 
-        return res.json(result);
+        return res.json({
+            success: true,
+            total: items.length,
+            items,
+        });
     } catch (error: any) {
         return res.status(500).json({
             success: false,

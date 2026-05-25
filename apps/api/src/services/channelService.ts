@@ -5,7 +5,7 @@ import { igrQueryService, type IgrTransactionPreview } from './igrQueryService';
 import { extractIndianCity, extractIndianLocality, parseIndianLocation } from '../utils/locationParser';
 import { getWorkspaceSettingsRecord } from './workspaceSettingsService';
 import { emailNotificationService } from './emailNotificationService';
-import { cleanNumber } from './broadcastParserService';
+import { cleanNumber } from '../utils/number';
 
 
 type ChannelType = 'listing' | 'requirement' | 'mixed';
@@ -2567,6 +2567,12 @@ private dailyBriefingSentKeys = new Set<string>();
         }
 
         return ingestedCount;
+    }
+
+    async previewMessageParse(tenantId: string, message: RawInboundMessage) {
+        const groupContext = await this.loadGroupIngestionContext(tenantId, message.remote_jid);
+        return (await this.parseMessage(tenantId, message))
+            .map((candidate) => this.applyGroupContextToCandidate(candidate, groupContext));
     }
 
     private async upsertPublicListing(tenantId: string, parsed: ParsedStreamCandidate, message: RawInboundMessage): Promise<void> {
