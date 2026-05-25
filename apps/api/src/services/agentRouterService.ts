@@ -114,6 +114,22 @@ export class AgentRouterService {
             };
         }
 
+        const inventorySearchIntent = (
+            /\b(any|find|show|search|looking|available|mil\s*gaya|mila|hai kya|kya hai)\b/.test(normalized)
+            || normalized.includes('?')
+        ) && (
+            /\b(1bhk|2bhk|3bhk|4bhk|bhk|flat|apartment|listing|listings|inventory|property|properties|rent|rental|lease|sale|buy)\b/.test(normalized)
+        );
+
+        if (inventorySearchIntent) {
+            return {
+                intent: 'search_listings',
+                confidence: 1,
+                rationale: 'Deterministic inventory search guard',
+                args: {},
+            };
+        }
+
         return null;
     }
 

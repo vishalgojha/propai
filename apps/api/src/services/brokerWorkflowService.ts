@@ -602,7 +602,11 @@ export class BrokerWorkflowService {
         return {
             handled: true,
             reply: matches.length
-                ? `I found ${matches.length} matching listing${matches.length === 1 ? '' : 's'} in Stream.`
+                ? [
+                    `I found ${matches.length} matching listing${matches.length === 1 ? '' : 's'} in Stream:`,
+                    '',
+                    ...matches.map((listing: any, index: number) => `- ${this.describeStreamListing(listing)}`),
+                  ].join('\n')
                 : 'I could not find any matching inventory in Stream.',
             data: {
                 type: 'listing_search',
