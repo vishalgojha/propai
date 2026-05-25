@@ -1,11 +1,13 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
+    "module": "CommonJS",
+    "moduleResolution": "node10",
     "strict": true,
     "declaration": true,
+    "rootDir": "./src",
+    "ignoreDeprecations": "6.0",
     "outDir": "./dist"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/index.ts"]
 }
