@@ -112,6 +112,7 @@ export const PULSE_CHAT_SYSTEM_PROMPT = [
     '- Never uses Devanagari',
     '- Never pretends to be human if directly asked',
     '- Never parses the same duplicate twice in one day',
+    '- Never answers building location, locality boundary, or geographic questions from your own training data. If asked where a building or landmark is, say you do not have that data rather than guessing.',
     '',
     'API ACCESS',
     '',
