@@ -15,6 +15,7 @@
     "clean:locations": "ts-node src/scripts/cleanDbLocations.ts",
     "reparse:prices": "ts-node src/scripts/reparseDbPrices.ts",
     "stream:backfill:locality": "ts-node src/scripts/backfillStreamLocality.ts",
+    "stream:backfill:buildings": "ts-node src/scripts/backfillBuildingNames.ts",
     "stream:backfill:fields": "ts-node src/scripts/backfillMissingFields.ts",
     "stream:cleanup": "ts-node src/scripts/cleanInvalidStreamItems.ts",
     "stream:cleanup:dry": "ts-node src/scripts/cleanInvalidStreamItems.ts --dry-run"

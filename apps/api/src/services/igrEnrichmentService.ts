@@ -53,6 +53,9 @@ export class IgrEnrichmentService {
     const normalizedLocality = normalizeValue(locality);
 
     if (!normalizedBuildingName) {
+      if (normalizedLocality) {
+        await this.logLocalityBuildingHints(normalizedLocality);
+      }
       return;
     }
 
@@ -202,6 +205,41 @@ export class IgrEnrichmentService {
       transactions,
       localityStats,
     };
+  }
+
+  private async logLocalityBuildingHints(locality: string) {
+    const { data, error } = await this.getAdmin()
+      .from('igr_transactions')
+      .select('building_name')
+      .ilike('locality', `%${locality}%`)
+      .not('building_name', 'is', null)
+      .limit(200);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const counts = new Map<string, number>();
+    for (const row of data || []) {
+      const buildingName = normalizeValue((row as { building_name?: string | null }).building_name);
+      if (!buildingName) {
+        continue;
+      }
+
+      counts.set(buildingName, (counts.get(buildingName) || 0) + 1);
+    }
+
+    const topBuildings = [...counts.entries()]
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .slice(0, 3)
+      .map(([buildingName]) => buildingName);
+
+    if (topBuildings.length > 0) {
+      console.log('[IGREnrichment] Locality-only enrichment hint', {
+        locality,
+        topBuildings,
+      });
+    }
   }
 }
 

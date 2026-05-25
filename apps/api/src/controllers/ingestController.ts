@@ -1,7 +1,10 @@
 import { Request, Response } from 'express';
 import { supabaseAdmin, createSupabaseServiceClient } from '../config/supabase';
+import { buildingResolverService } from '../services/buildingResolverService';
 import { igrEnrichmentService } from '../services/igrEnrichmentService';
 import { isOwnerSuperAdminEmail, HttpError, getErrorMessage } from '../utils/controllerHelpers';
+
+type AdminClient = NonNullable<ReturnType<typeof createSupabaseServiceClient>>;
 
 function parseBhk(bhk: string | null | undefined): number | null {
     if (!bhk) return null;
@@ -35,6 +38,74 @@ function extractPhone(raw: string | null | undefined): string | null {
 function extractPhoneFromText(text: string): string | null {
     const m = text.match(/(?:\+?91)?[6-9]\d{9}/);
     return m ? m[0] : null;
+}
+
+function shouldReplaceLocality(value: string | null | undefined) {
+    const normalized = String(value || '').trim();
+    return !normalized || /^unknown$/i.test(normalized);
+}
+
+async function resolveAndUpdateBuildingMetadata(params: {
+    admin: AdminClient;
+    rawText: string;
+    streamItemId: string;
+    messageId: string;
+    buildingName?: string | null;
+    locality?: string | null;
+}) {
+    const { admin, rawText, streamItemId, messageId } = params;
+    const initialBuildingName = String(params.buildingName || '').trim() || null;
+    const currentLocality = String(params.locality || '').trim() || null;
+
+    const resolved = await buildingResolverService.resolveStreamItemMetadata(rawText, initialBuildingName);
+    const resolvedBuildingName = resolved.buildingName;
+    const resolvedLocality = resolved.locality;
+
+    if (!resolvedBuildingName && !resolvedLocality) {
+        return;
+    }
+
+    const streamUpdate: Record<string, string> = {};
+    const publicListingUpdate: Record<string, string> = {};
+
+    if (resolvedBuildingName && resolvedBuildingName !== initialBuildingName) {
+        streamUpdate.building_name = resolvedBuildingName;
+        publicListingUpdate.building_name = resolvedBuildingName;
+    }
+
+    if (resolvedLocality && shouldReplaceLocality(currentLocality)) {
+        streamUpdate.locality = resolvedLocality;
+    }
+
+    if (Object.keys(streamUpdate).length > 0) {
+        const { error: streamUpdateError } = await admin
+            .from('stream_items')
+            .update(streamUpdate)
+            .eq('id', streamItemId);
+
+        if (streamUpdateError) {
+            throw new Error(streamUpdateError.message);
+        }
+    }
+
+    if (Object.keys(publicListingUpdate).length > 0) {
+        const { error: publicListingUpdateError } = await admin
+            .from('public_listings')
+            .update(publicListingUpdate)
+            .eq('source_message_id', messageId);
+
+        if (publicListingUpdateError) {
+            throw new Error(publicListingUpdateError.message);
+        }
+    }
+
+    if (resolvedBuildingName) {
+        await igrEnrichmentService.queueIfStale(
+            resolvedBuildingName,
+            resolvedLocality || currentLocality,
+            streamItemId,
+        );
+    }
 }
 
 export const ingestListings = async (req: Request, res: Response) => {
@@ -113,6 +184,7 @@ export const ingestListings = async (req: Request, res: Response) => {
                 price_numeric: item.price_numeric || null,
                 confidence_score: item.confidence_score ?? 0.8,
                 broker_name: item.contact_name || null,
+                building_name: buildingName || null,
                 parsed_payload: {
                     ...(item.parsed_payload || {}),
                     buildingName: buildingName || null,
@@ -158,6 +230,7 @@ export const ingestListings = async (req: Request, res: Response) => {
                 size_sqft: item.area_sqft || null,
                 furnishing: item.furnishing || null,
                 bhk: parseBhk(item.bhk),
+                building_name: buildingName || null,
                 property_type: null,
                 title: toTitle(item),
                 description: item.raw_text || '',
@@ -174,6 +247,23 @@ export const ingestListings = async (req: Request, res: Response) => {
             };
             const { error: pe } = await admin.from('public_listings').insert(publicRow);
             if (pe) console.error('[Ingest] public_listings insert failed:', pe.message, 'for', item.message_id);
+
+            if (insertedStreamItem?.id && (!buildingName || shouldReplaceLocality(item.locality || null))) {
+                void resolveAndUpdateBuildingMetadata({
+                    admin,
+                    rawText: item.raw_text || '',
+                    streamItemId: insertedStreamItem.id,
+                    messageId: String(item.message_id || streamRow.message_id),
+                    buildingName,
+                    locality: item.locality || null,
+                }).catch((error) => {
+                    console.error('[Ingest] Failed to resolve building/locality metadata', {
+                        streamItemId: insertedStreamItem.id,
+                        messageId: String(item.message_id || streamRow.message_id),
+                        error: error instanceof Error ? error.message : error,
+                    });
+                });
+            }
         }
 
         res.json({
