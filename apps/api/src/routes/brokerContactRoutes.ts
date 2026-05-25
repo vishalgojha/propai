@@ -17,6 +17,19 @@ function normalizePhoneFromJid(value?: string | null) {
   return '';
 }
 
+function normalizeBrokerContact(contact: any) {
+  const assetTypes = Array.isArray(contact?.asset_types)
+    ? contact.asset_types
+    : Array.isArray(contact?.bhk_types)
+      ? contact.bhk_types
+      : [];
+
+  return {
+    ...contact,
+    asset_types: assetTypes,
+  };
+}
+
 router.get('/overlaps', async (req, res) => {
   try {
     const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
@@ -82,7 +95,7 @@ router.get('/overlaps', async (req, res) => {
       ]));
       const { data: contacts, error: contactsError } = await supabaseAdmin
         .from('broker_contacts')
-        .select('id, phone, display_name, inferred_areas, source_groups, group_count, unsubscribed, last_seen_at, listing_count, asset_types, price_range_low, price_range_high')
+        .select('id, phone, display_name, inferred_areas, source_groups, group_count, unsubscribed, last_seen_at, listing_count, bhk_types, price_range_low, price_range_high')
         .eq('tenant_id', tenantId)
         .in('phone', contactLookupPhones);
 
@@ -91,7 +104,10 @@ router.get('/overlaps', async (req, res) => {
         return res.status(500).json({ error: 'Failed to fetch overlapping contacts', details: contactsError.message });
       }
 
-      contactsByPhone = new Map((contacts || []).map((contact: any) => [normalizePhoneFromJid(contact.phone), contact]));
+      contactsByPhone = new Map((contacts || []).map((contact: any) => {
+        const normalized = normalizeBrokerContact(contact);
+        return [normalizePhoneFromJid(normalized.phone), normalized];
+      }));
     }
 
     const overlaps = Array.from(phoneGroups.entries())
@@ -154,7 +170,7 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch broker contacts', details: error.message });
     }
 
-    res.json(contacts || []);
+    res.json((contacts || []).map((contact: any) => normalizeBrokerContact(contact)));
   } catch (error: unknown) {
     console.error('[BrokerContacts] Unexpected error:', error);
     res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load broker contacts') });
