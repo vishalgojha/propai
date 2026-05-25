@@ -23,9 +23,9 @@
 ### Current Remote State
 
 - Latest local commits:
-  - `fd1aa6e3` — `Add IGR enrichment queue and background trigger` (local, pending push)
+  - `2484df4d` — `Refresh repo handoff instructions` (pushed)
+  - `fd1aa6e3` — `Add IGR enrichment queue and background trigger` (pushed)
   - `0446e200` — `Remove WaBro Android app and port Base44 parser prompts` (pushed)
-  - `d7089291` — `Connect group messages to broadcast parser` (pushed)
 
 ### Operational Rules
 
