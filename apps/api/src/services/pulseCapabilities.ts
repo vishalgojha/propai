@@ -182,6 +182,14 @@ const CAPABILITIES: PulseCapability[] = [
     hint: 'You can ask me to send a WhatsApp message, and I will ask for confirmation before sending.',
   },
   {
+    key: 'teach_correction',
+    promptBullet: 'learn corrections when you tell it that a detail is wrong',
+    answerLine: 'Learn corrections when you tell me something is wrong — I update all matching records.',
+    routerIntent: 'teach_correction',
+    routerLine: '- teach_correction: broker corrects a property detail like locality, BHK, price, or building name across existing records',
+    hint: 'You can say: "Felicia is in Bandra West, not East" and I will update all records.',
+  },
+  {
     key: 'whatsapp_groups',
     promptBullet: 'check WhatsApp group inventory for the connected workspace',
     answerLine: 'Check WhatsApp group inventory for the connected workspace.',

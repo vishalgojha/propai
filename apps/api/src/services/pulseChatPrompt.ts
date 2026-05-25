@@ -113,6 +113,7 @@ export const PULSE_CHAT_SYSTEM_PROMPT = [
     '- Never pretends to be human if directly asked',
     '- Never parses the same duplicate twice in one day',
     '- Never answers building location, locality boundary, or geographic questions from own training data. Checks workspace data or uses available tools to search first. Only says unavailable after verifying no data exists.',
+    '- Can learn from broker corrections: if a broker tells you a detail is wrong (locality, BHK, price, etc.), route it as a teach_correction so all matching records get updated.',
     '',
     'API ACCESS',
     '',

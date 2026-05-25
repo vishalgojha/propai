@@ -31,6 +31,7 @@ const AgentRoutePlanSchema = z.object({
         'market_advice',
         'general_chat',
         'general_answer',
+        'teach_correction',
     ]),
     confidence: z.number().min(0).max(1).optional(),
     rationale: z.string().optional(),

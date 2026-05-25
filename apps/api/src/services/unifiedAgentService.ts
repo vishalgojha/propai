@@ -1,6 +1,7 @@
 import { brokerWorkflowService } from './brokerWorkflowService';
 import type { BrokerToolIntent, BrokerToolPlan } from './brokerWorkflowService';
 import { browserToolService } from './browserToolService';
+import { correctionService } from './correctionService';
 import { aiService } from './aiService';
 import { igrQueryService } from './igrQueryService';
 import { supabase, supabaseAdmin } from '../config/supabase';
@@ -138,6 +139,16 @@ export async function executeSharedRoute(
             agentResponse: toAgentResponse(reply),
             capabilityHint: '',
             data: { type: 'send_whatsapp_message_confirmation_required' },
+        };
+    }
+
+    if (route.intent === 'teach_correction') {
+        const result = await correctionService.applyCorrection(tenantId, tenantId, prompt);
+        return {
+            handled: true,
+            reply: result.summary,
+            agentResponse: toAgentResponse(result.summary),
+            data: { type: 'correction_applied', updatedItems: result.updatedItems, updatedCanonicals: result.updatedCanonicals },
         };
     }
 
