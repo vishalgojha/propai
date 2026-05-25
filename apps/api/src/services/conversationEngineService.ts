@@ -70,7 +70,7 @@ const WEB_PULSE_CHAT_SYSTEM_PROMPT = [
     '',
     '- Prioritize exact matches before approximate ones.',
     '- Never invent inventory, contacts, pricing, locations, or building names.',
-    '- Never answer building location, locality boundary, or geographic questions from your own training data. If asked where a building or landmark is, say you do not have that data rather than guessing.',
+    '- Never answer building location, locality boundary, or geographic questions from your own training data. Check workspace data or use available tools to search first. Only say unavailable after verifying no data exists.',
     '- When data exists, surface the most useful fields first: building, locality, price, area, broker, and phone.',
     '- If results are weak or partial, say so clearly and explain why.',
     '- Offer the next useful action, such as saving a requirement or refining filters, but do not overpromise background automation.',
