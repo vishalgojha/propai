@@ -6,9 +6,15 @@ import { supabaseAdmin } from '../config/supabase';
 const router = Router();
 
 function normalizePhoneFromJid(value?: string | null) {
-  const digits = String(value || '').split('').filter((char) => char >= '0' && char <= '9').join('');
-  if (digits.startsWith('91') && digits.length === 12) return digits.slice(2);
-  return digits.length >= 10 ? digits.slice(-10) : '';
+  const jid = String(value || '').trim().toLowerCase();
+  if (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@c.us')) {
+    return '';
+  }
+
+  const digits = jid.split('@')[0]?.replace(/\D/g, '') || '';
+  if (/^91[6-9]\d{9}$/.test(digits)) return digits.slice(2);
+  if (/^[6-9]\d{9}$/.test(digits)) return digits;
+  return '';
 }
 
 router.get('/overlaps', async (req, res) => {
@@ -31,7 +37,7 @@ router.get('/overlaps', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch overlapping contacts', details: groupsError.message });
     }
 
-    const phoneGroups = new Map<string, Array<{
+    const phoneGroups = new Map<string, Map<string, {
       id: string;
       name: string;
       locality: string | null;
@@ -43,8 +49,17 @@ router.get('/overlaps', async (req, res) => {
       const participants: string[] = Array.isArray((group as any).participant_jids) ? (group as any).participant_jids : [];
       const phones: string[] = Array.from(new Set(participants.map((jid) => normalizePhoneFromJid(jid)).filter(Boolean)));
       for (const phone of phones) {
-        const existing = phoneGroups.get(phone) || [];
-        existing.push({
+        const existing = phoneGroups.get(phone) || new Map<string, {
+          id: string;
+          name: string;
+          locality: string | null;
+          category: string | null;
+          sessionLabel: string | null;
+        }>();
+        const groupJid = String((group as any).group_jid || '').trim();
+        if (!groupJid) continue;
+
+        existing.set(groupJid, {
           id: String((group as any).group_jid || ''),
           name: String((group as any).group_name || (group as any).group_jid || ''),
           locality: (group as any).locality || null,
@@ -56,7 +71,7 @@ router.get('/overlaps', async (req, res) => {
     }
 
     const overlappingPhones = Array.from(phoneGroups.entries())
-      .filter(([, sourceGroups]) => sourceGroups.length > 1)
+      .filter(([, sourceGroups]) => sourceGroups.size > 1)
       .map(([phone]) => phone);
 
     let contactsByPhone = new Map<string, any>();
@@ -80,8 +95,10 @@ router.get('/overlaps', async (req, res) => {
     }
 
     const overlaps = Array.from(phoneGroups.entries())
-      .filter(([, sourceGroups]) => sourceGroups.length > 1)
-      .map(([phone, sourceGroups]) => {
+      .filter(([, sourceGroups]) => sourceGroups.size > 1)
+      .map(([phone, sourceGroupsMap]) => {
+        const sourceGroups = Array.from(sourceGroupsMap.values())
+          .sort((left, right) => left.name.localeCompare(right.name));
         const contact = contactsByPhone.get(phone) || null;
         const inferredAreas = Array.from(new Set([
           ...((Array.isArray(contact?.inferred_areas) ? contact.inferred_areas : []) as string[]),
