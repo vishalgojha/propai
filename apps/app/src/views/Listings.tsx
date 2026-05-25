@@ -3,15 +3,11 @@ import {
   ArrowUpFromLine,
   ChevronDown,
   Filter,
-  IndianRupee,
-  Layers,
   Loader2,
-  MapPin,
-  MessageSquare,
   Search,
-  ShieldCheck,
   Sparkles,
   X,
+  Copy,
   Download,
   Phone,
   Activity,
@@ -30,7 +26,6 @@ import { handleApiError, default as backendApi } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { fetchStreamItems, fetchStreamStats, fetchStreamSummary, correctStreamItem, type StreamItem, type StreamSummaryResponse } from '../services/streamAPI';
 import { rebuildStreamFromSavedMessages } from '../services/streamService';
-import { ListingCard } from '../components/stream/ListingCard';
 import { fetchWaClickStats, getWaClickExportUrl, type WaClickStats } from '../services/waClickAPI';
 
 const formatChannelTitle = (name: string) => `#${name}`;
@@ -302,6 +297,117 @@ const formatLayoutLabel = (value: string) => {
   return trimmed
     .replace(/(\d)(bedroom)/gi, '$1 bedroom')
     .replace(/\bbhk\b/gi, 'bedroom');
+};
+
+const redactPhoneNumbers = (value?: string | null) =>
+  String(value || '')
+    .replace(/(?:\+?91[-\s]?)?[6-9]\d{9}\b/g, '[hidden]')
+    .trim();
+
+const formatPostedCell = (value?: string | null) => {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '—';
+
+  const now = new Date();
+  const isToday =
+    parsed.getFullYear() === now.getFullYear() &&
+    parsed.getMonth() === now.getMonth() &&
+    parsed.getDate() === now.getDate();
+
+  return isToday
+    ? parsed.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })
+    : parsed.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+};
+
+const formatAreaCell = (value?: number | null) =>
+  typeof value === 'number' && Number.isFinite(value) ? `${Math.round(value).toLocaleString('en-IN')} sqft` : '—';
+
+const formatFurnishingCell = (value?: string | null) => {
+  const text = String(value || '').trim().toLowerCase();
+  if (!text) return '—';
+  if (text.includes('fully')) return 'Fully';
+  if (text.includes('semi')) return 'Semi';
+  if (text.includes('unfurnished')) return 'Unfurn';
+  if (text.includes('furnished')) return 'Fully';
+  return '—';
+};
+
+const formatFloorCell = (item: StreamItem) => {
+  const floorNumber = String(item.floorNumber || '').trim();
+  const totalFloors = String(item.totalFloors || '').trim();
+  if (floorNumber && totalFloors) return `${floorNumber}/${totalFloors}`;
+  if (floorNumber) return floorNumber;
+  if (totalFloors) return `/${totalFloors}`;
+  return '—';
+};
+
+const getRecordLabel = (item: StreamItem) =>
+  item.type === 'Requirement' || String(item.recordType || '').trim().toLowerCase() === 'requirement'
+    ? 'REQUIREMENT'
+    : 'LISTING';
+
+const getTypeLabel = (item: StreamItem) => {
+  const direct = String(item.type || '').trim();
+  if (direct && direct !== 'Requirement') return direct.toUpperCase();
+
+  const dealType = String(item.dealType || '').trim().toLowerCase();
+  if (dealType === 'rent') return 'RENT';
+  if (dealType === 'sale') return 'SALE';
+  if (dealType === 'pre-leased' || dealType === 'pre leased') return 'PRE-LEASED';
+  if (dealType === 'lease') return 'LEASE';
+  return '—';
+};
+
+const getDealBadgeClass = (label: string) => {
+  if (label === 'RENT' || label === 'LEASE') {
+    return 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]';
+  }
+  if (label === 'SALE') {
+    return 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--amber)]';
+  }
+  if (label === 'PRE-LEASED') {
+    return 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-sky-300';
+  }
+  return 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-muted)]';
+};
+
+const getRecordBadgeClass = (label: string) =>
+  label === 'REQUIREMENT'
+    ? 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-sky-300'
+    : 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]';
+
+const formatIgrCompact = (transaction: StreamItem['igrTransactions'][number]) => {
+  const price = transaction?.consideration != null && Number.isFinite(transaction.consideration)
+    ? formatPriceValue(Number(transaction.consideration) / 10000000, 'cr')
+    : 'Price N/A';
+  const date = transaction?.reg_date
+    ? new Date(transaction.reg_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })
+    : 'Date N/A';
+  const rate = transaction?.price_per_sqft != null && Number.isFinite(transaction.price_per_sqft)
+    ? `₹${Math.round(transaction.price_per_sqft).toLocaleString('en-IN')}/sqft`
+    : 'Rate N/A';
+  return `${price} · ${date} · ${rate}`;
+};
+
+const buildCopyText = (item: StreamItem) => {
+  const lines = [
+    getRecordLabel(item),
+    getTypeLabel(item),
+    item.location || '—',
+    item.bhk || '—',
+    normalizePriceDisplay(item).label || 'Price on request',
+    redactPhoneNumbers(item.rawText || item.description || ''),
+  ].filter(Boolean);
+  return lines.join('\n');
+};
+
+type StreamLocalityGroup = {
+  locality: string;
+  items: StreamItem[];
+  listingCount: number;
+  requirementCount: number;
+  latestTimestamp: number;
 };
 
 const isBrokerTagged = (item: StreamItem) =>
@@ -838,6 +944,41 @@ if (brokerOnly) {
     () => visibleStream.slice(0, visibleCount),
     [visibleStream, visibleCount],
   );
+  const renderedGroups = React.useMemo<StreamLocalityGroup[]>(() => {
+    const groups = new Map<string, StreamLocalityGroup>();
+
+    for (const item of renderedStream) {
+      const locality = String(item.location || '').trim();
+      if (!locality) continue;
+
+      const timestamp = item.createdAt ? new Date(item.createdAt).getTime() : 0;
+      const existing = groups.get(locality);
+      if (existing) {
+        existing.items.push(item);
+        existing.latestTimestamp = Math.max(existing.latestTimestamp, timestamp);
+        if (getRecordLabel(item) === 'REQUIREMENT') {
+          existing.requirementCount += 1;
+        } else {
+          existing.listingCount += 1;
+        }
+      } else {
+        groups.set(locality, {
+          locality,
+          items: [item],
+          listingCount: getRecordLabel(item) === 'REQUIREMENT' ? 0 : 1,
+          requirementCount: getRecordLabel(item) === 'REQUIREMENT' ? 1 : 0,
+          latestTimestamp: timestamp,
+        });
+      }
+    }
+
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        items: [...group.items].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()),
+      }))
+      .sort((left, right) => right.latestTimestamp - left.latestTimestamp);
+  }, [renderedStream]);
   const hasMore = visibleCount < visibleStream.length;
   const computeMinutes = React.useCallback((item: StreamItem): number | null => {
     const createdAt = item.createdAt ? new Date(item.createdAt) : null;
@@ -1278,7 +1419,7 @@ if (brokerOnly) {
       ) : null}
 
       <div className="glass-panel overflow-hidden rounded-2xl border-[color:var(--border)]">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="overflow-x-auto">
           {isLoading ? (
             <div className="flex items-center justify-center gap-3 px-5 py-12 text-sm text-[var(--text-secondary)]">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1293,36 +1434,211 @@ if (brokerOnly) {
               No parsed inventory or buyer records are available yet.
             </div>
           ) : (
-            renderedStream.map((listing) => {
-              const isExpanded = expandedListingId === listing.id;
-              const waCount = waClickStats?.by_listing[listing.id]?.count || 0;
-              return (
-                <div key={listing.id} className={isExpanded ? 'col-span-full' : ''}>
-                  <ListingCard
-                    listing={listing}
-                    networkMode={streamNetworkMode}
-                    isExpanded={isExpanded}
-                    onToggle={() => {
-                      setExpandedListingId(isExpanded ? null : listing.id);
-                      if (!isExpanded && editingListingId && editingListingId !== listing.id) {
-                        setEditingListingId(null);
-                        setCorrectionDraft(null);
-                      }
-                    }}
-                    waClickCount={waCount}
-                    channels={channels}
-                    onSaveToChannel={handleAttachStreamItemToChannel}
-                  />
-                </div>
-              );
-            })
+            <table className="min-w-[1080px] w-full border-separate border-spacing-0 text-left">
+              <thead>
+                <tr className="border-b border-[color:var(--border)] bg-[var(--bg-surface)]">
+                  {['Record', 'Type', 'BHK', 'Area', 'Price', 'Furnishing', 'Floor', 'Posted', 'WA'].map((header) => (
+                    <th
+                      key={header}
+                      className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]"
+                    >
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              {renderedGroups.map((group) => (
+                <tbody key={group.locality}>
+                  <tr className="sticky top-0 z-10">
+                    <td
+                      colSpan={9}
+                      className="border-y border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 text-[12px] font-semibold text-[var(--text-primary)] backdrop-blur"
+                    >
+                      {group.locality} · {group.listingCount} listing{group.listingCount === 1 ? '' : 's'} · {group.requirementCount} requirement{group.requirementCount === 1 ? '' : 's'}
+                    </td>
+                  </tr>
+                  {group.items.map((listing) => {
+                    const isExpanded = expandedListingId === listing.id;
+                    const recordLabel = getRecordLabel(listing);
+                    const typeLabel = getTypeLabel(listing);
+                    const rawNote = redactPhoneNumbers(listing.rawText || listing.description || '');
+                    const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
+
+                    return (
+                      <React.Fragment key={listing.id}>
+                        <tr
+                          onClick={() => {
+                            setExpandedListingId(isExpanded ? null : listing.id);
+                            if (!isExpanded && editingListingId && editingListingId !== listing.id) {
+                              setEditingListingId(null);
+                              setCorrectionDraft(null);
+                            }
+                          }}
+                          className={cn(
+                            'cursor-pointer border-b border-[color:var(--border)] transition-colors',
+                            isExpanded ? 'bg-[var(--bg-surface)]' : 'hover:bg-[var(--bg-elevated)]/60',
+                          )}
+                        >
+                          <td className="px-4 py-3">
+                            <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em]', getRecordBadgeClass(recordLabel))}>
+                              {recordLabel}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em]', getDealBadgeClass(typeLabel))}>
+                              {typeLabel}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{listing.bhk || '—'}</td>
+                          <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{formatAreaCell(listing.areaSqft)}</td>
+                          <td className="px-4 py-3 text-[13px] font-semibold text-[var(--text-primary)]">{normalizePriceDisplay(listing).label || 'Price on request'}</td>
+                          <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{formatFurnishingCell(listing.furnishing)}</td>
+                          <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{formatFloorCell(listing)}</td>
+                          <td className="px-4 py-3 text-[13px] text-[var(--text-secondary)]">{formatPostedCell(listing.createdAt)}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (!listing.waLink) return;
+                                window.open(listing.waLink, '_blank', 'noopener,noreferrer');
+                              }}
+                              disabled={!listing.waLink}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] text-[16px] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                              aria-label="Open WhatsApp"
+                            >
+                              📲
+                            </button>
+                          </td>
+                        </tr>
+                        {isExpanded ? (
+                          <tr className="border-b border-[color:var(--border)] bg-[var(--bg-surface)]">
+                            <td colSpan={9} className="px-4 pb-5 pt-1">
+                              <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4">
+                                <div className="grid gap-3 md:grid-cols-2">
+                                  <div className="space-y-3">
+                                    {listing.microLocation ? (
+                                      <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Micro Location</p>
+                                        <p className="mt-1 text-[13px] text-[var(--text-primary)]">{listing.microLocation}</p>
+                                      </div>
+                                    ) : null}
+                                    {listing.propertyUse ? (
+                                      <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Property Use</p>
+                                        <p className="mt-1 text-[13px] text-[var(--text-primary)]">{listing.propertyUse}</p>
+                                      </div>
+                                    ) : null}
+                                    <div>
+                                      <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Broker Note</p>
+                                      <pre className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-6 text-[var(--text-primary)]">{rawNote || '—'}</pre>
+                                    </div>
+                                    {listing.parseNotes ? (
+                                      <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Parse Notes</p>
+                                        <p className="mt-1 text-[12px] leading-6 text-[var(--text-secondary)]">{listing.parseNotes}</p>
+                                      </div>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="space-y-3">
+                                    {igrTransactions.length > 0 ? (
+                                      <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">IGR Transactions</p>
+                                        <div className="mt-2 space-y-2">
+                                          {igrTransactions.map((transaction) => (
+                                            <div
+                                              key={`${transaction.doc_number || 'txn'}-${transaction.reg_date || ''}`}
+                                              className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[12px] text-[var(--text-primary)]"
+                                            >
+                                              {formatIgrCompact(transaction)}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : null}
+
+                                    <div>
+                                      <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Actions</p>
+                                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            if (!listing.waLink) return;
+                                            window.open(listing.waLink, '_blank', 'noopener,noreferrer');
+                                          }}
+                                          disabled={!listing.waLink}
+                                          className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                          <Phone className="h-3.5 w-3.5" />
+                                          Contact on WhatsApp
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            setOpenActionMenuId((current) => current === listing.id ? null : listing.id);
+                                          }}
+                                          className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)]"
+                                        >
+                                          Save to Channel
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            void navigator.clipboard.writeText(buildCopyText(listing));
+                                            setInfoMessage('Copied listing note.');
+                                          }}
+                                          className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)]"
+                                        >
+                                          <Copy className="h-3.5 w-3.5" />
+                                          Copy
+                                        </button>
+                                      </div>
+                                      {openActionMenuId === listing.id ? (
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                          {channels.length === 0 ? (
+                                            <div className="text-[12px] text-[var(--text-secondary)]">No channels available.</div>
+                                          ) : (
+                                            channels.map((channel) => (
+                                              <button
+                                                key={channel.id}
+                                                type="button"
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  void handleAttachStreamItemToChannel(channel.id, listing.id);
+                                                }}
+                                                disabled={savingChannelItemId === listing.id}
+                                                className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] text-[var(--text-primary)] disabled:opacity-60"
+                                              >
+                                                {savingChannelItemId === listing.id ? 'Saving...' : formatChannelTitle(channel.name)}
+                                              </button>
+                                            ))
+                                          )}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : null}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              ))}
+            </table>
           )}
         </div>
 
-          <div ref={sentinelRef} className="px-6 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+        <div ref={sentinelRef} className="px-6 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
           {hasMore ? `${renderedStream.length} of ${visibleStream.length} loaded. More items appear as you scroll.` : 'End of feed'}
         </div>
-    </div>
+      </div>
       {showScrollTop && (
         <button
           type="button"

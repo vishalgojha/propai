@@ -85,6 +85,10 @@ export type StreamItemRecord = {
     bhk: string;
     propertyCategory?: 'residential' | 'commercial';
     areaSqft?: number | null;
+    furnishing?: string | null;
+    floorNumber?: string | null;
+    totalFloors?: string | null;
+    propertyUse?: string | null;
     posted: string;
     rawText?: string;
     source: string;
@@ -459,7 +463,7 @@ const extractContactNameFromBody = (text: string) => {
     return null;
 };
 
-const normalizeFurnishing = (value?: string | null) => {
+export const normalizeFurnishing = (value?: string | null) => {
     const text = String(value || '').trim().toLowerCase();
     if (!text) return null;
     if (text.includes('semi')) return 'semi-furnished';
@@ -473,17 +477,17 @@ const extractAreaSqft = (text: string) => {
     return match ? Number(match[1]) : null;
 };
 
-const extractFloorNumber = (text: string) => {
+export const extractFloorNumber = (text: string) => {
     const match = text.match(/\b(\d{1,2}(?:st|nd|rd|th)?|\w+)\s*floor\b/i);
     return match?.[1] ? String(match[1]).trim() : null;
 };
 
-const extractTotalFloors = (text: string) => {
+export const extractTotalFloors = (text: string) => {
     const match = text.match(/\b(?:out of|\/)\s*(\d{1,2})\s*floors?\b/i) || text.match(/\b(\d{1,2})\s*storey\b/i);
     return match?.[1] ? String(match[1]).trim() : null;
 };
 
-const extractPropertyUse = (text: string) => {
+export const extractPropertyUse = (text: string) => {
     if (/showroom/i.test(text)) return 'showroom';
     if (/office/i.test(text)) return 'office';
     if (/shop|retail/i.test(text)) return 'retail';
@@ -3532,6 +3536,10 @@ ${rawText}
             bhk: inferredBhk,
             propertyCategory,
             areaSqft,
+            furnishing: normalizeFurnishing(item.furnishing) || normalizeFurnishing(item.parsed_payload?.furnishing) || normalizeFurnishing(rawText),
+            floorNumber: String(item.floor_number || '').trim() || extractFloorNumber(rawText),
+            totalFloors: String(item.total_floors || '').trim() || extractTotalFloors(rawText),
+            propertyUse: String(item.property_use || '').trim() || extractPropertyUse(rawText),
             posted: formatPostedTime(item.created_at),
             createdAt: item.created_at,
             source,

@@ -11,6 +11,10 @@ export interface StreamItem {
   bhk: string;
   propertyCategory: 'residential' | 'commercial';
   areaSqft?: number;
+  furnishing?: string | null;
+  floorNumber?: string | null;
+  totalFloors?: string | null;
+  propertyUse?: string | null;
   confidence: number;
   source: string;
   brokerName: string | null;
@@ -19,7 +23,7 @@ export interface StreamItem {
   assetClass?: string | null;
   description?: string | null;
   rawText?: string | null;
-  furnishing?: string | null;
+  parseNotes?: string | null;
   isNetworkItem?: boolean;
   isSyndicated?: boolean;
   sourceWorkspaceId?: string;

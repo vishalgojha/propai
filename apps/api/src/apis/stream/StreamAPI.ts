@@ -158,6 +158,10 @@ export class StreamAPI {
       bhk: data.bhk || '',
       propertyCategory: data.property_category || 'residential',
       areaSqft: data.area_sqft || undefined,
+      furnishing: data.furnishing || data.parsed_payload?.furnishing || null,
+      floorNumber: data.floor_number || null,
+      totalFloors: data.total_floors || null,
+      propertyUse: data.property_use || data.parsed_payload?.propertyUse || null,
       confidence: data.confidence_score || 0,
       source,
       brokerName,
@@ -166,7 +170,7 @@ export class StreamAPI {
       assetClass: data.asset_class || data.parsed_payload?.assetClass || null,
       description: data.parsed_payload?.description || null,
       rawText: data.raw_text || null,
-      furnishing: data.furnishing || data.parsed_payload?.furnishing || null,
+      parseNotes: data.parsed_payload?.parseNotes || null,
       buildingName: data.building_name || data.parsed_payload?.buildingName || null,
       isNetworkItem: String(data.tenant_id || '') !== currentTenantId,
       isSyndicated: data.is_syndicated || false,
@@ -174,6 +178,7 @@ export class StreamAPI {
       sourceWorkspaceName: data.parsed_payload?.sourceWorkspaceName || null,
       isRead: data.is_read || false,
       createdAt: data.created_at,
+      igrTransactions: Array.isArray(data.igr_transactions) ? data.igr_transactions : undefined,
     };
   }
 

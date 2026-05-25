@@ -13,7 +13,11 @@
     "run:scraper:all": "ts-node src/scripts/runGrasScraper.ts all",
     "run:broker-lists": "ts-node src/scripts/buildBrokerListsFromExports.ts",
     "clean:locations": "ts-node src/scripts/cleanDbLocations.ts",
-    "reparse:prices": "ts-node src/scripts/reparseDbPrices.ts"
+    "reparse:prices": "ts-node src/scripts/reparseDbPrices.ts",
+    "stream:backfill:locality": "ts-node src/scripts/backfillStreamLocality.ts",
+    "stream:backfill:fields": "ts-node src/scripts/backfillMissingFields.ts",
+    "stream:cleanup": "ts-node src/scripts/cleanInvalidStreamItems.ts",
+    "stream:cleanup:dry": "ts-node src/scripts/cleanInvalidStreamItems.ts --dry-run"
   },
   "keywords": [],
   "author": "",

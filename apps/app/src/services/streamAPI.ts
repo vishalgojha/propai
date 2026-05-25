@@ -20,6 +20,9 @@ export interface StreamItem {
   dealType?: string;
   assetClass?: string;
   furnishing?: string;
+  floorNumber?: string | null;
+  totalFloors?: string | null;
+  propertyUse?: string | null;
   propertyCategory?: 'residential' | 'commercial';
   areaSqft?: number | null;
   confidence: number;
