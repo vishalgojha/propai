@@ -30,8 +30,7 @@
 ### Operational Rules
 
 - Prefer selective staging when unrelated work is present.
-- `git push`, builds, tests, and redeploys may be run by the agent when explicitly requested by the user.
-- If those steps are not explicitly requested, prefer leaving them to the user's normal terminal.
+- After each completed task, the agent should push the relevant branch/commit and redeploy the affected Coolify service(s) by default.
 
 ### Handoff Hygiene
 

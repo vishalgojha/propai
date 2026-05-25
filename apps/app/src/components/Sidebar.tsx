@@ -38,15 +38,15 @@ const NAV_ITEMS = [
   { label: 'AI Agent', path: '/agent', icon: ActivityIcon },
   { label: 'Inbox', path: '/inbox', icon: InboxIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
-  { label: 'Intelligence', path: '/analytics', icon: ActivityIcon },
+  { label: 'Intelligence', path: '/intelligence', icon: ActivityIcon },
   { label: 'Parsing Terminal', path: '/parsing-terminal', icon: TerminalIcon },
-  { label: 'WhatsApp', path: '/whatsapp', icon: GroupsIcon },
+  { label: 'WhatsApp', path: '/whatsapp/setup', icon: GroupsIcon },
   { label: 'Group Audit', path: '/group-audit', icon: ShieldIcon },
   { label: 'WA Logs', path: '/wa-logs', icon: MessageSquareIcon },
-  { label: 'Broker Network', path: '/broker-network', icon: UsersIcon },
+  { label: 'Broker Network', path: '/broker-network/contacts', icon: UsersIcon },
   { label: 'Profile & Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },
-  { label: 'AI Usage', path: '/aiusage', icon: CreditCardIcon },
+  { label: 'AI Usage', path: '/ai-usage', icon: CreditCardIcon },
   { label: 'Pricing', path: '/pricing', icon: CreditCardIcon },
   { label: 'Docs', path: '/docs', icon: BookOpenIcon },
   { label: 'Settings', path: '/settings', icon: SettingsIcon },
@@ -373,7 +373,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           <nav className="border-b-[0.5px] border-[color:var(--border)] px-3 py-3">
             <div className="space-y-1">
               {navItems.map((item) => {
-                const isActive = location.pathname === item.path;
+                const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
                 const Icon = item.icon;
 
                 return (

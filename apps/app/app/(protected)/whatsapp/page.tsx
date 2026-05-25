@@ -1,7 +1,5 @@
-"use client";
-
-import { Sources } from "@/pages/Sources";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <Sources />;
+  redirect("/whatsapp/setup");
 }

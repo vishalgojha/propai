@@ -1,7 +1,5 @@
-"use client";
-
-import { AiUsage } from "@/pages/AiUsage";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <AiUsage />;
+  redirect("/ai-usage");
 }

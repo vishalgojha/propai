@@ -346,6 +346,7 @@ const isSourcesTab = (value: string | null): value is SourcesTab =>
   Boolean(value && SOURCE_TABS.some((tab) => tab.id === value));
 
 const tabForPath = (pathname: string): SourcesTab | null => {
+  if (pathname === '/whatsapp' || pathname === '/whatsapp/setup') return 'setup';
   if (pathname === '/pricing') return 'pricing';
   if (pathname === '/group-audit') return 'audit';
   if (pathname === '/wa-logs') return 'logs';
@@ -356,7 +357,7 @@ const pathForTab = (tab: SourcesTab) => {
   if (tab === 'audit') return '/group-audit';
   if (tab === 'pricing') return '/pricing';
   if (tab === 'logs') return '/wa-logs';
-  return `/whatsapp?tab=${tab}`;
+  return '/whatsapp/setup';
 };
 
 const whatsappCapabilities = [
@@ -470,12 +471,12 @@ export const Sources: React.FC = () => {
     }
 
     if (currentTab === 'outbound') {
-      navigate('/whatsapp?tab=setup', { replace: true });
+      navigate('/whatsapp/setup', { replace: true });
       return;
     }
 
     if (currentTab === 'setup') {
-      setActiveTab(currentTab);
+      navigate('/whatsapp/setup', { replace: true });
       return;
     }
 

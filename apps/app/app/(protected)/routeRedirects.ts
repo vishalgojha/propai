@@ -1,6 +1,6 @@
 export const protectedRouteRedirects = {
-  aiUsage: "/aiusage",
+  aiUsage: "/ai-usage",
   agent: "/agent",
   stream: "/stream",
-  whatsapp: "/whatsapp",
+  whatsapp: "/whatsapp/setup",
 } as const;

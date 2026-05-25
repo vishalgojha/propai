@@ -87,14 +87,17 @@ export const Layout: React.FC = () => {
   });
 
   const getPageTitle = (path: string) => {
+    if (path.startsWith('/broker-network')) return 'Broker Network';
+    if (path.startsWith('/whatsapp')) return 'WhatsApp';
+    if (path.startsWith('/intelligence') || path === '/analytics') return 'Intelligence';
+    if (path.startsWith('/ai-usage') || path === '/aiusage') return 'AI Usage';
+
     switch (path) {
       case '/listings':
       case '/stream': return 'Stream';
       case '/sources':
-      case '/whatsapp':
-        return 'WhatsApp';
       case '/group-audit':
-        return 'Group Audit';
+        return path === '/group-audit' ? 'Group Audit' : 'WhatsApp';
       case '/wa-logs':
         return 'WA Logs';
       case '/pricing':
@@ -105,11 +108,7 @@ export const Layout: React.FC = () => {
         return 'Profile & Team';
       case '/admin':
         return 'Admin';
-      case '/aiusage':
-      case '/ai-usage':
-        return 'AI Usage';
       case '/agent': return 'PropAI Agent';
-      case '/analytics': return 'Intelligence';
       case '/parsing-terminal': return 'Parsing Terminal';
       case '/settings': return 'Studio Settings';
       default: return 'PropAI Pulse';

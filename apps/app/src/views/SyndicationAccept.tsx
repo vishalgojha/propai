@@ -25,7 +25,7 @@ export const SyndicationAccept: React.FC = () => {
         setStatus('success');
         setMessage(`Connected with ${result.partnerName}.`);
         window.setTimeout(() => {
-          if (!cancelled) navigate('/broker-network?tab=partners', { replace: true });
+          if (!cancelled) navigate('/broker-network/partners', { replace: true });
         }, 1200);
       } catch (err) {
         if (cancelled) return;
@@ -58,7 +58,7 @@ export const SyndicationAccept: React.FC = () => {
         {status === 'error' ? (
           <button
             type="button"
-            onClick={() => navigate('/broker-network?tab=partners', { replace: true })}
+            onClick={() => navigate('/broker-network/partners', { replace: true })}
             className="mt-6 inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-all hover:brightness-95"
           >
             Open partners

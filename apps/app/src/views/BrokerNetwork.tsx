@@ -16,7 +16,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { useSearchParams } from '../lib/router';
+import { useLocation, useNavigate, useSearchParams } from '../lib/router';
 import { fetchBrokerContactOverlaps, fetchBrokerContacts, type BrokerContact, type BrokerContactOverlap } from '../services/brokerContactApi';
 import {
   acceptSyndicationInvite,
@@ -28,6 +28,14 @@ import {
 import { handleApiError } from '../services/api';
 
 type BrokerNetworkView = 'contacts' | 'overlaps' | 'partners';
+
+const brokerNetworkPathForView = (view: BrokerNetworkView) => `/broker-network/${view}`;
+
+const brokerNetworkViewFromPath = (pathname: string): BrokerNetworkView => {
+  if (pathname.endsWith('/partners')) return 'partners';
+  if (pathname.endsWith('/overlaps')) return 'overlaps';
+  return 'contacts';
+};
 
 const formatPhone = (phone: string): string => {
   const digits = phone.replace(/\D/g, '');
@@ -69,10 +77,12 @@ const extractToken = (value: string): string => {
 };
 
 export const BrokerNetwork: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [contacts, setContacts] = React.useState<BrokerContact[]>([]);
   const [overlaps, setOverlaps] = React.useState<BrokerContactOverlap[]>([]);
-  const initialView = searchParams.get('tab') === 'partners' ? 'partners' : searchParams.get('tab') === 'overlaps' ? 'overlaps' : 'contacts';
+  const initialView = brokerNetworkViewFromPath(location.pathname);
   const [activeView, setActiveView] = React.useState<BrokerNetworkView>(initialView);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -123,32 +133,21 @@ export const BrokerNetwork: React.FC = () => {
   }, [loadPartners]);
 
   React.useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (tab === 'partners' || tab === 'overlaps') {
-      setActiveView(tab);
-    } else {
-      setActiveView('contacts');
-    }
+    setActiveView(brokerNetworkViewFromPath(location.pathname));
 
     const token = searchParams.get('token');
     if (token) {
       setAcceptToken(token);
       setActiveView('partners');
     }
-  }, [searchParams]);
+  }, [location.pathname, searchParams]);
 
   const selectView = React.useCallback((view: BrokerNetworkView) => {
     setActiveView(view);
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
-      if (view === 'contacts') {
-        next.delete('tab');
-      } else {
-        next.set('tab', view);
-      }
-      return next;
-    });
-  }, [setSearchParams]);
+    const nextSearch = searchParams.toString();
+    const nextUrl = nextSearch ? `${brokerNetworkPathForView(view)}?${nextSearch}` : brokerNetworkPathForView(view);
+    navigate(nextUrl);
+  }, [navigate, searchParams]);
 
   const handleCreateInvite = React.useCallback(async () => {
     setPartnerError(null);
@@ -174,15 +173,15 @@ export const BrokerNetwork: React.FC = () => {
       setAcceptToken('');
       setSearchParams((current) => {
         const next = new URLSearchParams(current);
-        next.set('tab', 'partners');
         next.delete('token');
         return next;
       }, { replace: true });
+      navigate('/broker-network/partners', { replace: true });
       await loadPartners();
     } catch (err) {
       setPartnerError(handleApiError(err));
     }
-  }, [acceptToken, loadPartners, setSearchParams]);
+  }, [acceptToken, loadPartners, navigate, setSearchParams]);
 
   const handleRevoke = React.useCallback(async (id: string) => {
     setPartnerError(null);
