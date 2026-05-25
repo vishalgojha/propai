@@ -51,6 +51,31 @@ type ParsedIntake = {
     };
 };
 
+type SearchCriteria = {
+    normalized: string;
+    location: string;
+    bhk: string;
+    budget: number | null;
+    wantsRequirementOnly: boolean;
+    wantsListingOnly: boolean;
+    tokens: string[];
+};
+
+type RankedStreamListing = {
+    item: any;
+    title: string;
+    buildingName: string | null;
+    locality: string | null;
+    city: string | null;
+    bhk: string | null;
+    priceLabel: string | null;
+    priceNumeric: number | null;
+    areaSqft: number | null;
+    brokerName: string | null;
+    brokerPhone: string | null;
+    score: number;
+};
+
 export type BrokerToolIntent =
     | 'save_listing'
     | 'save_requirement'
@@ -546,7 +571,7 @@ export class BrokerWorkflowService {
         const criteria = this.buildSearchCriteria(prompt);
         const { data, error } = await this.admin
             .from('stream_items')
-            .select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status')
+            .select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status, building_name, broker_name')
             .eq('tenant_id', tenantId)
             .eq('record_type', 'listing')
             .not('ingestion_status', 'in', '("suppressed","expired")')
@@ -561,59 +586,48 @@ export class BrokerWorkflowService {
             };
         }
 
-        const matches = (data || []).filter((listing: any) => {
-            const payload = listing?.parsed_payload && typeof listing.parsed_payload === 'object'
-                ? listing.parsed_payload
-                : {};
-            const haystack = [
-                listing?.locality,
-                listing?.city,
-                listing?.bhk,
-                listing?.price_label,
-                listing?.property_category,
-                listing?.type,
-                listing?.raw_text,
-                JSON.stringify(payload || {}),
-            ]
-                .filter(Boolean)
-                .map((value: unknown) => String(value).toLowerCase())
-                .join(' ');
+        const ranked = (data || [])
+            .map((listing: any) => this.rankStreamListing(listing, criteria))
+            .filter((listing): listing is RankedStreamListing => Boolean(listing))
+            .sort((a, b) => b.score - a.score || (new Date(b.item?.created_at || 0).getTime() - new Date(a.item?.created_at || 0).getTime()));
 
-            if (criteria.wantsRequirementOnly) {
-                return false;
+        const uniqueMatches: RankedStreamListing[] = [];
+        const seen = new Set<string>();
+        for (const match of ranked) {
+            const dedupeKey = [
+                this.normalizeText(match.buildingName || match.title || ''),
+                this.normalizeText(match.brokerPhone || ''),
+                this.normalizeText(match.priceLabel || ''),
+            ].join('|');
+            if (seen.has(dedupeKey)) {
+                continue;
             }
-            if (criteria.location && !haystack.includes(criteria.location)) {
-                return false;
-            }
-            if (criteria.bhk && !haystack.includes(criteria.bhk)) {
-                return false;
-            }
-            if (criteria.budget != null) {
-                const listingBudget = Number(listing?.price_numeric);
-                if (Number.isFinite(listingBudget) && listingBudget > criteria.budget * 1.05) {
-                    return false;
-                }
-            }
+            seen.add(dedupeKey);
+            uniqueMatches.push(match);
+        }
 
-            return this.hasMeaningfulTokenMatch(haystack, criteria.tokens)
-                || Boolean(criteria.location || criteria.bhk || criteria.budget != null);
-        }).slice(0, 10);
+        const matches = uniqueMatches.slice(0, 8);
+        const querySummary = this.describeSearchIntent(criteria, prompt);
 
         return {
             handled: true,
             reply: matches.length
                 ? [
-                    `I found ${matches.length} matching listing${matches.length === 1 ? '' : 's'} in Stream:`,
+                    `I found **${uniqueMatches.length}** matching listing${uniqueMatches.length === 1 ? '' : 's'} in Stream for **${querySummary}**.`,
                     '',
-                    ...matches.map((listing: any, index: number) => `- ${this.describeStreamListing(listing)}`),
+                    ...matches.map((listing, index) => this.renderSearchListing(listing, index + 1)),
+                    uniqueMatches.length > matches.length
+                        ? `Showing the best **${matches.length}** results first. Ask for "more" if you want the next set.`
+                        : '',
+                    'If you want, I can also save this as a requirement so fresh Stream inventory can be matched against it.',
                   ].join('\n')
-                : 'I could not find any matching inventory in Stream.',
+                : `I could not find an exact Stream match for **${querySummary}** right now.\n\nIf you want, I can save this as a requirement and keep it ready for future matching as new inventory is parsed.`,
             data: {
                 type: 'listing_search',
                 output_format: 'bullet_list',
-                items: matches.map((listing: any) => ({
-                    title: this.describeStreamListing(listing),
-                    snippet: this.formatCreatedAt(listing.created_at),
+                items: matches.map((listing) => ({
+                    title: this.describeStreamListing(listing.item),
+                    snippet: this.formatCreatedAt(listing.item.created_at),
                 })),
             },
         };
@@ -635,6 +649,54 @@ export class BrokerWorkflowService {
         ].filter(Boolean).map((value: unknown) => String(value).trim());
 
         return bits.length ? bits.join(' | ') : String(listing?.raw_text || 'Stream listing').trim();
+    }
+
+    private renderSearchListing(listing: RankedStreamListing, index: number) {
+        const lines = [
+            `${index}. **${listing.bhk || 'Listing'}**${listing.locality ? ` in **${listing.locality}**` : ''}${listing.city ? `, ${listing.city}` : ''}`,
+        ];
+
+        if (listing.buildingName) {
+            lines.push(`- Building: **${listing.buildingName}**`);
+        }
+        if (listing.priceLabel) {
+            lines.push(`- Price: **${listing.priceLabel}**`);
+        }
+        if (listing.areaSqft) {
+            lines.push(`- Area: **${Math.round(listing.areaSqft)} sqft**`);
+        }
+        if (listing.brokerName) {
+            lines.push(`- Broker: **${listing.brokerName}**`);
+        }
+        if (listing.brokerPhone) {
+            lines.push(`- Contact: **${this.formatBrokerPhone(listing.brokerPhone)}**`);
+        }
+        if (listing.title && this.normalizeText(listing.title) !== this.normalizeText(listing.buildingName || '')) {
+            lines.push(`- Notes: ${listing.title}`);
+        }
+
+        return lines.join('\n');
+    }
+
+    private formatBrokerPhone(value: string) {
+        const digits = String(value || '').replace(/\D/g, '');
+        if (digits.length === 10) {
+            return digits;
+        }
+        if (digits.length === 12 && digits.startsWith('91')) {
+            return digits.slice(2);
+        }
+        return value.trim();
+    }
+
+    private describeSearchIntent(criteria: SearchCriteria, prompt: string) {
+        const parts = [
+            criteria.bhk ? criteria.bhk.toUpperCase() : '',
+            /\b(rent|lease|rental)\b/i.test(prompt) ? 'rent' : /\b(sale|buy|purchase|outright)\b/i.test(prompt) ? 'sale' : '',
+            criteria.location || '',
+        ].filter(Boolean);
+
+        return parts.length ? parts.join(' ') : String(prompt || 'your request').trim();
     }
 
     private isDraftConfirmed(draft: Record<string, unknown>) {
@@ -1316,7 +1378,7 @@ export class BrokerWorkflowService {
         });
     }
 
-    private buildSearchCriteria(prompt: string) {
+    private buildSearchCriteria(prompt: string): SearchCriteria {
         const normalized = String(prompt || '')
             .toLowerCase()
             .replace(/[^a-z0-9+\s.]/g, ' ')
@@ -1393,6 +1455,106 @@ export class BrokerWorkflowService {
         }
 
         return tokens.every((token) => haystack.includes(token));
+    }
+
+    private normalizeText(value: string | null | undefined) {
+        return String(value || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9+\s]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    private normalizeBhk(value: string | null | undefined) {
+        const normalized = this.normalizeText(value);
+        const match = normalized.match(/\b(\d+)\s*\+?\s*bhk\b/);
+        return match ? `${match[1]} bhk` : '';
+    }
+
+    private rankStreamListing(item: any, criteria: SearchCriteria): RankedStreamListing | null {
+        if (criteria.wantsRequirementOnly) {
+            return null;
+        }
+
+        const payload = item?.parsed_payload && typeof item.parsed_payload === 'object'
+            ? item.parsed_payload as Record<string, unknown>
+            : {};
+        const title = String(payload.displayTitle || payload.title || item?.raw_text || 'Listing').trim();
+        const buildingName = String(item?.building_name || payload.buildingName || '').trim() || null;
+        const locality = String(item?.locality || payload.locality || payload.microLocation || '').trim() || null;
+        const city = String(item?.city || payload.city || '').trim() || null;
+        const bhk = String(item?.bhk || payload.bhk || '').trim() || null;
+        const priceLabel = String(item?.price_label || payload.priceLabel || payload.price || '').trim() || null;
+        const priceNumeric = Number.isFinite(Number(item?.price_numeric)) ? Number(item.price_numeric) : null;
+        const areaSqft = Number.isFinite(Number(item?.area_sqft)) ? Number(item.area_sqft) : null;
+        const brokerName = String(item?.broker_name || payload.contactName || payload.sourceLabel || payload.brokerName || payload.sender_name || '').trim() || null;
+        const brokerPhone = String(item?.source_phone || payload.sourcePhone || payload.contactPhone || '').trim() || null;
+        const searchHaystack = this.normalizeText([
+            title,
+            buildingName,
+            locality,
+            city,
+            bhk,
+            priceLabel,
+            item?.property_category,
+            item?.type,
+            item?.raw_text,
+            JSON.stringify(payload || {}),
+        ].filter(Boolean).join(' '));
+
+        if (criteria.location && !searchHaystack.includes(criteria.location)) {
+            return null;
+        }
+
+        const requestedBhk = this.normalizeBhk(criteria.bhk);
+        const listingBhk = this.normalizeBhk(bhk || title || item?.raw_text);
+        if (requestedBhk && listingBhk && listingBhk !== requestedBhk) {
+            return null;
+        }
+        if (requestedBhk && !listingBhk) {
+            return null;
+        }
+
+        if (criteria.budget != null && priceNumeric != null && priceNumeric > criteria.budget * 1.05) {
+            return null;
+        }
+
+        const tokenHits = criteria.tokens.reduce((count, token) => count + (searchHaystack.includes(token) ? 1 : 0), 0);
+        if (criteria.tokens.length > 0 && tokenHits === 0 && !criteria.location && !requestedBhk) {
+            return null;
+        }
+
+        let score = tokenHits;
+        if (criteria.location) {
+            score += 8;
+        }
+        if (requestedBhk && listingBhk === requestedBhk) {
+            score += 6;
+        }
+        if (priceNumeric != null && criteria.budget != null) {
+            score += 3;
+        }
+        if (buildingName) {
+            score += 1.5;
+        }
+        if (brokerPhone) {
+            score += 1.5;
+        }
+
+        return {
+            item,
+            title,
+            buildingName,
+            locality,
+            city,
+            bhk,
+            priceLabel,
+            priceNumeric,
+            areaSqft,
+            brokerName,
+            brokerPhone,
+            score,
+        };
     }
 
     private describeListing(listing: any) {
