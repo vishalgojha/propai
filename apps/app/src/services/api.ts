@@ -180,10 +180,13 @@ export const handleApiError = (error: any) => {
       ? `${repaired}: ${detailMessage}`
       : `${repaired}. ${detailMessage}`
     : repaired;
-  return withDetails === 'Missing or invalid authorization header'
-    || withDetails === 'Invalid or expired token'
-    ? SESSION_EXPIRED_MESSAGE
+  const cleaned = withDetails === '{}' || withDetails === '[object Object]'
+    ? 'An unexpected error occurred.'
     : withDetails;
+  return cleaned === 'Missing or invalid authorization header'
+    || cleaned === 'Invalid or expired token'
+    ? SESSION_EXPIRED_MESSAGE
+    : cleaned;
 };
 
 export default backendApi;

@@ -62,6 +62,9 @@ router.post('/invite', async (req, res) => {
       .single();
 
     if (error) {
+      if (isMissingSyndicationSchemaError(error)) {
+        return res.status(503).json({ error: 'Syndication feature is not yet available', details: 'The database schema is still being provisioned.' });
+      }
       console.error('[Syndication] Invite insert failed:', error);
       return res.status(500).json({ error: 'Failed to create syndication invite', details: error.message });
     }

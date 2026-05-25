@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -9,29 +9,26 @@ export const isSupabaseBrowserConfigured = Boolean(
   supabaseUrl && supabaseAnonKey,
 );
 
+let singletonClient: SupabaseClient | null = null;
+
 export function createSupabaseBrowserClient(accessToken?: string | null) {
   if (!isSupabaseBrowserConfigured) {
     throw new Error('NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be configured');
   }
 
-  const client = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-    global: accessToken
-      ? {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      : undefined,
-  });
-
-  if (accessToken) {
-    client.realtime.setAuth(accessToken);
+  if (!singletonClient) {
+    singletonClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    });
   }
 
-  return client;
+  if (accessToken) {
+    singletonClient.realtime.setAuth(accessToken);
+  }
+
+  return singletonClient;
 }
