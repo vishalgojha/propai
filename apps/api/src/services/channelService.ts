@@ -1,5 +1,5 @@
 import { createSupabaseAnonClient, supabase, supabaseAdmin } from '../config/supabase';
-import { parsePrice } from '@propai/price-parser';
+import { parsePrice, splitMultiListing } from '@propai/price-parser';
 import { aiService } from './aiService';
 import { canonicalizationService } from './canonicalizationService';
 import { igrQueryService, type IgrTransactionPreview } from './igrQueryService';
@@ -979,17 +979,24 @@ const splitMessageIntoSegments = (rawText: string) => {
     let currentLocalityHint = '';
 
     const flush = () => {
-        let text = currentLines.map(sanitizeLine).filter(Boolean).join(' ');
+        let text = currentLines.map(sanitizeLine).filter(Boolean).join('\n');
         if (text && currentLocalityHint) {
-            // Check if locality is already in text
             const normalizedText = normalize(text);
             const normalizedLocality = normalize(currentLocalityHint);
             if (!normalizedText.includes(normalizedLocality)) {
-                text = `${currentLocalityHint} — ${text}`;
+                text = `${currentLocalityHint}\n${text}`;
             }
         }
         if (text) {
-            segments.push({ text, streamType: currentType });
+            const splitTexts = splitMultiListing(text);
+            for (const splitText of splitTexts) {
+                const normalizedText = splitText.trim();
+                if (!normalizedText) {
+                    continue;
+                }
+                const inferredType = inferType(normalizedText);
+                segments.push({ text: normalizedText, streamType: inferredType || currentType });
+            }
         }
         currentLines = [];
     };
@@ -2077,7 +2084,7 @@ private dailyBriefingSentKeys = new Set<string>();
             .from('messages')
             .select('id, session_label, remote_jid, sender, text, timestamp, created_at')
             .eq('tenant_id', tenantId)
-            .order('timestamp', { ascending: true })
+            .order('timestamp', { ascending: false })
             .limit(limit);
 
         if (options.sessionLabel) {
@@ -2102,8 +2109,16 @@ private dailyBriefingSentKeys = new Set<string>();
             throw new Error(error.message);
         }
 
+        const orderedMessages = Array.isArray(messages)
+            ? [...messages].sort((left: any, right: any) => {
+                const leftTime = new Date(String(left?.timestamp || left?.created_at || 0)).getTime();
+                const rightTime = new Date(String(right?.timestamp || right?.created_at || 0)).getTime();
+                return leftTime - rightTime;
+            })
+            : [];
+
         let ingestedCount = 0;
-        for (const message of (Array.isArray(messages) ? messages : [])) {
+        for (const message of orderedMessages) {
             try {
                 ingestedCount += await this.ingestMessage(tenantId, message);
             } catch (error) {
@@ -2114,7 +2129,7 @@ private dailyBriefingSentKeys = new Set<string>();
         const { count } = await this.countAcceptedStreamItems([tenantId]);
 
         return {
-            scanned: (messages || []).length,
+            scanned: orderedMessages.length,
             ingested: ingestedCount,
             totalStreamItems: count || 0,
             filters: {
@@ -2728,6 +2743,20 @@ Return ONLY this JSON:
 
 Rules:
 - Split multi-listing broker blasts into separate items
+- splitMultiListing() must handle ALL these patterns found in Mumbai broker groups:
+  - PATTERN 1: Block separated with blank line between units, e.g. @ Building, Locality followed by 2 BHK - 781 sqft, Semi Furnished, Rent: 2L and another unit after a blank line
+  - PATTERN 2: Inline CSV style, e.g. Andheri West followed by 2bhk 650sqft 95L | 3bhk 900sqft 1.4cr | 4bhk 1200sqft 2.1cr
+  - PATTERN 3: Numbered list, e.g. 1) 2BHK 850sqft @1.2cr, 2) 3BHK 1100sqft @1.8cr, 3) 4BHK 1400sqft @2.5cr
+  - PATTERN 4: Repeated BHK keyword without blank line separator, e.g. 2BHK sale 1.2cr Andheri, 3BHK sale 1.8cr Andheri, 4BHK sale 2.5cr Andheri
+  - PATTERN 5: Dual deal type in the same message, e.g. Lease & Outright listing @ BKC-X and 2BHK Rent: 2L | Outright: 2.5cr; split into TWO records per unit, one rent and one sale
+  - PATTERN 6: Floor-wise listing, e.g. Raheja Classique, Andheri West followed by 4th floor 2BHK 1.2cr, 8th floor 2BHK 1.35cr, 12th floor 3BHK 1.9cr
+- Detection rule: treat a message as multi-listing if ANY of these are true:
+  - Contains 2 or more BHK mentions
+  - Contains 2 or more price mentions with different amounts
+  - Contains a numbered list pattern such as 1. or 1) or bullet markers
+  - Contains pipe | separators between property details
+  - Contains multiple options or various options in the header
+- Single listing messages must pass through unchanged as a single item using the original rawText
 - Inherit top-level locality or section header into child listings when needed
 - Detect building/project names and road/landmark references
 - Normalize rent vs sale vs pre-leased correctly

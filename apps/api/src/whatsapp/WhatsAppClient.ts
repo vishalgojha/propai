@@ -884,15 +884,15 @@ try {
 
             if (count === 0) {
                 console.log(`[WhatsAppClient] No broker contacts for ${this.tenantId}, auto-syncing from groups...`);
-                const { parseGroupsForContacts } = require('../services/groupContactParser');
-                const result = await parseGroupsForContacts(this.tenantId);
-                console.log(`[WhatsAppClient] Auto-sync complete: ${result.contacts_upserted} contacts from ${result.groups_parsed} groups`);
+                const { brokerContactSyncService } = require('../services/brokerContactSyncService');
+                const result = await brokerContactSyncService.syncFromStoredGroups(this.tenantId, { minOverlap: 2 });
+                console.log(`[WhatsAppClient] Auto-sync complete: ${result.contactsUpserted} contacts from ${result.groupsScanned} stored groups`);
             }
 
             this.autoSyncInterval = setInterval(async () => {
                 try {
-                    const { parseGroupsForContacts } = require('../services/groupContactParser');
-                    await parseGroupsForContacts(this.tenantId);
+                    const { brokerContactSyncService } = require('../services/brokerContactSyncService');
+                    await brokerContactSyncService.syncFromStoredGroups(this.tenantId, { minOverlap: 2 });
                 } catch (e) {
                     console.error('[WhatsAppClient] Scheduled broker contact sync failed:', e);
                 }

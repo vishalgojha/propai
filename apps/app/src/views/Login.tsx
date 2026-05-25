@@ -7,7 +7,7 @@ import { ENDPOINTS } from '../services/endpoints';
 import { buildSessionFromSupabase } from '../services/authSession';
 import { track } from '../services/analytics';
 import { cn } from '../lib/utils';
-import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_PLAN_CARDS } from '../lib/propai';
+import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK } from '../lib/propai';
 import { buildFullName } from '../lib/names';
 import {
   ArrowRightIcon,
@@ -29,30 +29,30 @@ import { AuthCard } from '../components/ui/AuthCard';
 const capabilities = [
   {
     icon: MessageSquareTextIcon,
-    title: 'Work the right WhatsApp groups',
-    copy: 'PropAI turns WhatsApp into a cleaner real-estate workspace so brokers stay inside the workflow instead of scrolling irrelevant chat noise.',
+    title: 'WhatsApp intake',
+    copy: 'Keep group messages in one place.',
   },
   {
     icon: WorkflowIcon,
-    title: 'Stream parses what matters',
-    copy: 'Stream captures listings and requirements from your groups, structures them, and keeps your market feed searchable and usable.',
+    title: 'Parsed stream',
+    copy: 'Listings and requirements are structured automatically.',
   },
   {
     icon: FollowUpIcon,
-    title: 'Broadcast when you need reach',
-    copy: 'Broadcast campaigns and follow-up pushes without leaving the PropAI workflow.',
+    title: 'Follow-up',
+    copy: 'Track callbacks and next actions.',
   },
   {
     icon: SearchIcon,
-    title: 'Choose private or network intelligence',
-    copy: 'Run a private Pulse agent on your own number, or add team members each with their own agent sharing workspace intelligence.',
+    title: 'Shared workspace',
+    copy: 'Work solo or with a team on the same workspace.',
   },
 ];
 
 const proofPoints = [
-  { label: 'Built for real estate partners', value: '100%' },
-  { label: 'Workflows automated', value: '8+' },
-  { label: 'Setup time', value: '<5 min' },
+  { label: 'Setup', value: '<5 min' },
+  { label: 'Workflows', value: '8+' },
+  { label: 'Device', value: '1 per account' },
 ];
 
 const examples = [
@@ -60,42 +60,6 @@ const examples = [
   '2BHK Powai requirement, budget 70 lakh',
   'Remind me to call Rahul tomorrow 10am',
   'Show me hot leads from this week',
-];
-
-const productHighlights = [
-  {
-    title: 'Pro',
-    eyebrow: '₹999 / month',
-    copy: 'Your own Pulse AI agent on your WhatsApp number. Parses your groups, matches listings to requirements, DMs you privately. One broker, one device.',
-    points: ['Private Pulse agent', 'Unlimited matches', 'Your own number, your own groups'],
-  },
-  {
-    title: 'Team',
-    eyebrow: '₹999 / seat / month',
-    copy: 'Each team member gets their own Pulse agent on their own number. All members share workspace intelligence — like Google Drive for real estate teams.',
-    points: ['Each member = own number', 'Shared workspace Stream', 'Coordinated market intelligence'],
-  },
-];
-
-const stackHighlights = [
-  {
-    title: 'MCP',
-    summary: 'The rules that help the AI understand your workspace properly.',
-    copy: 'MCP helps PropAI pass the right context into the AI so it knows which listings, requirements, follow-ups, and workspace actions belong to you. Non-technical version: it helps the AI stay organized instead of guessing.',
-    seo: 'This matters for cleaner AI answers, better CRM actions, and more reliable real estate workflow automation.',
-  },
-  {
-    title: 'BYOK',
-    summary: 'Bring Your Own Keys for more control.',
-    copy: 'BYOK means you can use your own AI API keys instead of depending fully on ours. That gives you more control over model choice, spending, privacy boundaries, and how your team wants to run AI.',
-    seo: 'Helpful for people comparing private AI deployment, own API key AI tools, and cost-controlled AI CRM software.',
-  },
-  {
-    title: 'Shared workspace',
-    summary: 'One broker workspace instead of five disconnected apps.',
-    copy: 'Shared workspace means your WhatsApp intake, Stream, AI actions, and broadcasts live together. Listings, requirements, follow-ups, and outreach stay connected, so your team does not lose context between tools.',
-    seo: 'This is the operational benefit for teams looking for a real estate broker CRM, WhatsApp workspace, and AI-assisted broker operations in one system.',
-  },
 ];
 
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
@@ -375,12 +339,12 @@ export const Login: React.FC = () => {
               </div>
               <div>
                 <p className="text-[13px] font-bold tracking-[0.06em]">PROPAI PULSE</p>
-                <p className="text-[11px] text-[var(--text-secondary)]">Work WhatsApp. Parse Stream. Broadcast to contacts.</p>
+                <p className="text-[11px] text-[var(--text-secondary)]">WhatsApp workspace for brokers.</p>
               </div>
             </div>
             <div className="hidden md:flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">
               <ShieldCheckIcon className="h-3.5 w-3.5" />
-              <span>Email login | MCP | Stream ops | Broadcast ready</span>
+              <span>Email login | Stream | Follow-up</span>
               <span className={cn('ml-2', authPill)}>
                 <span className={apiStatus === 'online' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : apiStatus === 'offline' ? 'h-2 w-2 rounded-full bg-[var(--red)]' : 'h-2 w-2 rounded-full bg-[var(--amber)]'} />
                 {apiStatus === 'online' ? 'API connected' : apiStatus === 'offline' ? 'API offline' : 'Checking API'}
@@ -394,7 +358,7 @@ export const Login: React.FC = () => {
                 <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Session active</p>
                 <p className="text-[12px] text-[var(--text-primary)]">{user.email}</p>
                 <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
-                  Remembered on this device. Pulse will open the workspace when this session checks out.
+                  This device already has an active session.
                 </p>
               </div>
               <button
@@ -419,17 +383,17 @@ export const Login: React.FC = () => {
               <AuthCard className="p-6 md:p-8">
                 <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
                   <WorkflowIcon className="h-3.5 w-3.5" />
-                  Broker workflow. Parsing. Broadcast. Just talk.
+                  WhatsApp workspace
                 </div>
 
                 <div className="mt-6 max-w-3xl">
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">PropAI Pulse</p>
                   <h1 className="mt-3 text-3xl font-bold leading-tight tracking-[-0.02em] text-[var(--text-primary)] sm:text-4xl md:text-5xl">
-                    Your broker stack
-                    <span className="block text-[var(--accent)]">finally works together.</span>
+                    Sign in to
+                    <span className="block text-[var(--accent)]">PropAI Pulse.</span>
                   </h1>
                   <p className="mt-5 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                    PropAI gives you a WhatsApp workspace console and a parsed Stream for listings and requirements. Each account connects one WhatsApp number, with brokers deciding directly inside WhatsApp which permissions to allow on that device.
+                    Open your workspace, stream, and follow-up tools.
                   </p>
                 </div>
 
@@ -478,80 +442,20 @@ export const Login: React.FC = () => {
                 </div>
               </AuthCard>
 
-              <AuthCard className="p-5">
-                <div className="flex items-center gap-2">
-                  <ShieldCheckIcon className="h-4 w-4 text-[var(--accent)]" />
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plans and onboarding</p>
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                  {PROPAI_PLAN_CARDS.map((plan) => (
-                    <div key={plan.name} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">{plan.name}</p>
-                      <p className="mt-2 text-[22px] font-bold text-[var(--text-primary)]">{plan.price}</p>
-                      <p className="text-[12px] text-[var(--text-secondary)]">{plan.devices}</p>
-                      <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">{plan.blurb}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">PropAI Assistant</p>
-                  <p className="mt-2 text-[12px] leading-5 text-[var(--text-primary)]">
-                    Need help setting up? Message the PropAI Assistant on WhatsApp at {PROPAI_ASSISTANT_NUMBER}.
-                  </p>
-                  <a href={PROPAI_ASSISTANT_WA_LINK} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07]">
-                    Open WhatsApp
-                  </a>
-                </div>
-              </AuthCard>
-
               <AuthCard className="p-5 md:p-6">
                 <div className="flex items-center gap-2">
                   <WorkflowIcon className="h-4 w-4 text-[var(--accent)]" />
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plain-English product docs</p>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Help</p>
                 </div>
                 <div className="mt-4 space-y-4">
                   <div className="rounded-[14px] border border-[color:var(--border)] bg-[rgba(255,255,255,0.015)] p-4">
-                    <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">What do MCP, BYOK, and shared workspace actually mean?</h2>
+                    <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">Need help setting up?</h2>
                     <p className="mt-2 max-w-4xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                      If you are not technical, think of this page as a simple guide. PropAI is real estate broker software that connects WhatsApp intake, listing parsing, broker follow-up, team workflow, and AI assistance into one workspace.
+                      Message the PropAI Assistant on WhatsApp at {PROPAI_ASSISTANT_NUMBER}.
                     </p>
-                  </div>
-
-                  <div className="grid gap-4 xl:grid-cols-2">
-                    {productHighlights.map((item) => (
-                      <div
-                        key={item.title}
-                        className="rounded-[16px] border border-[color:var(--accent-border)] bg-[linear-gradient(180deg,rgba(17,24,32,0.96),rgba(10,14,19,0.98))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.3)]"
-                      >
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">{item.eyebrow}</p>
-                        <h3 className="mt-3 text-[26px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">{item.title}</h3>
-                        <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">{item.copy}</p>
-                        <div className="mt-5 flex flex-wrap gap-2">
-                          {item.points.map((point) => (
-                            <span
-                              key={point}
-                              className="rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]"
-                            >
-                              {point}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    {stackHighlights.map((item) => (
-                      <div
-                        key={item.title}
-                        className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
-                      >
-                        <h3 className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">{item.title}</h3>
-                        <p className="mt-2 text-[13px] font-medium leading-5 text-[var(--text-primary)]">{item.summary}</p>
-                        <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">{item.copy}</p>
-                        <p className="mt-3 text-[11px] leading-5 text-[var(--text-muted)]">{item.seo}</p>
-                      </div>
-                    ))}
+                    <a href={PROPAI_ASSISTANT_WA_LINK} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07]">
+                      Open WhatsApp
+                    </a>
                   </div>
                 </div>
               </AuthCard>
@@ -570,8 +474,8 @@ export const Login: React.FC = () => {
                   </h2>
                   <p className="mt-2 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
                     {mode === 'signup'
-                      ? 'New brokers add their name and WhatsApp number once. Each account gets one Pulse agent on one device — Pro or Team.'
-                      : 'Sign in to open Stream and Threads. First time here? Switch to Create account and get set up in under 5 minutes.'}
+                      ? 'Add your name, WhatsApp number, email, and password once.'
+                      : 'Sign in to open your workspace.'}
                   </p>
                 </div>
 
@@ -708,6 +612,7 @@ export const Login: React.FC = () => {
                         </div>
                         <p className="mt-2 text-[12px] leading-5 text-[var(--text-primary)]">
                           Use this if your account is already set up. New brokers can switch to Create account.
+                          
                         </p>
                       </div>
 
@@ -925,7 +830,7 @@ export const Login: React.FC = () => {
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Workspace capability reminder</p>
                 </div>
                 <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-                  After login, Pulse helps you move between Threads and Stream without losing context. Add listings, save requirements, schedule follow-up, and open broker outreach from one workspace.
+                  After login you can work in Threads, Stream, and follow-up.
                 </p>
               </AuthCard>
             </aside>

@@ -140,9 +140,11 @@ export const rebuildStream = async (req: Request, res: Response) => {
         const tenantId = getTenantId(req);
         const limit = typeof req.body?.limit === 'number' ? Math.max(1, Math.min(2000, req.body.limit)) : 500;
         const sessionLabel = typeof req.body?.sessionLabel === 'string' ? req.body.sessionLabel.trim() || null : null;
+        const remoteJid = typeof req.body?.remoteJid === 'string' ? req.body.remoteJid.trim() || null : null;
         const result = await channelService.rebuildStreamFromMessages(tenantId, {
             limit,
             sessionLabel,
+            remoteJid,
         });
         res.json({ success: true, ...result });
     } catch (error: unknown) {

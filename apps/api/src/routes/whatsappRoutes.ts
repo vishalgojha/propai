@@ -109,6 +109,15 @@ router.patch('/groups/:groupJid/toggle-parsing', async (req: Request, res: Respo
             return res.status(400).json({ error: 'isParsing boolean is required' });
         }
 
+        const behavior = isParsing ? 'Listen' : 'Off';
+        const { error: configError } = await supabase
+            .from('group_configs')
+            .upsert({ group_id: groupJid, tenant_id: tenantId, behavior }, { onConflict: 'tenant_id,group_id' });
+
+        if (configError) {
+            return res.status(500).json({ error: configError.message });
+        }
+
         const result = await whatsappGroupService.updateGroup(tenantId, groupJid, { isParsing });
         res.json({ success: true, group: result });
     } catch (error: unknown) {

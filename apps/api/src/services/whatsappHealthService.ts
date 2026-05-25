@@ -473,7 +473,45 @@ export class WhatsAppHealthService {
             throw error;
         }
 
-        return (data || []).map((row: any) => ({
+        const groupIds = (data || []).map((row: any) => String(row.group_id || '')).filter(Boolean);
+        const parsingMap = new Map<string, { isParsing: boolean; behavior: string | null }>();
+
+        if (groupIds.length > 0) {
+            const { data: configs } = await db
+                .from('group_configs')
+                .select('group_id, behavior')
+                .eq('tenant_id', tenantId)
+                .in('group_id', groupIds);
+
+            const { data: groupRows } = await db
+                .from('whatsapp_groups')
+                .select('group_jid, is_parsing')
+                .eq('workspace_id', tenantId)
+                .in('group_jid', groupIds);
+
+            for (const row of groupRows || []) {
+                parsingMap.set(String(row.group_jid || ''), {
+                    isParsing: Boolean(row.is_parsing),
+                    behavior: null,
+                });
+            }
+
+            for (const row of configs || []) {
+                const groupId = String(row.group_id || '');
+                const current = parsingMap.get(groupId) || { isParsing: false, behavior: null };
+                parsingMap.set(groupId, {
+                    isParsing: row.behavior === 'Listen' || row.behavior === 'AutoReply',
+                    behavior: String(row.behavior || ''),
+                });
+                if (current.isParsing && !row.behavior) {
+                    parsingMap.set(groupId, current);
+                }
+            }
+        }
+
+        return (data || []).map((row: any) => {
+            const parsingState = parsingMap.get(String(row.group_id || '')) || { isParsing: true, behavior: 'Listen' };
+            return ({
             id: row.id,
             sessionLabel: row.session_label,
             groupId: row.group_id,
@@ -485,7 +523,10 @@ export class WhatsAppHealthService {
             messagesParsed24h: Number(row.messages_parsed_24h || 0),
             messagesFailed24h: Number(row.messages_failed_24h || 0),
             status: row.status || 'unknown',
-        }));
+            isParsing: parsingState.isParsing,
+            behavior: parsingState.behavior,
+        });
+        });
     }
 
     async getEvents(tenantId: string, limit = 30) {

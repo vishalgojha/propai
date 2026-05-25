@@ -2,6 +2,7 @@ import React from 'react';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
+import { rebuildStreamFromSavedMessages } from '../services/streamService';
 
 type GroupHealth = {
   id: string;
@@ -14,6 +15,8 @@ type GroupHealth = {
   messagesParsed24h: number;
   messagesFailed24h: number;
   status: string;
+  isParsing?: boolean;
+  behavior?: string | null;
 };
 
 type ParserEvent = {
@@ -40,6 +43,9 @@ export default function ParsingTerminal() {
   const [error, setError] = React.useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = React.useState<Date | null>(null);
   const [isConnected, setIsConnected] = React.useState(false);
+  const [actionGroupId, setActionGroupId] = React.useState<string | null>(null);
+  const [dismissedPromptIds, setDismissedPromptIds] = React.useState<string[]>([]);
+  const [infoMessage, setInfoMessage] = React.useState<string | null>(null);
 
   const refresh = React.useCallback(async () => {
     try {
@@ -73,6 +79,8 @@ export default function ParsingTerminal() {
             messagesParsed24h: Number(row.messagesParsed24h || 0),
             messagesFailed24h: Number(row.messagesFailed24h || 0),
             status: String(row.status || 'unknown'),
+            isParsing: typeof row.isParsing === 'boolean' ? row.isParsing : true,
+            behavior: typeof row.behavior === 'string' ? row.behavior : null,
           }))
         : [];
 
@@ -92,6 +100,7 @@ export default function ParsingTerminal() {
       setGroups(nextGroups.sort(sortGroups));
       setEvents(nextEvents);
       setError(null);
+      setInfoMessage(null);
       setLastRefresh(new Date());
     } catch (err) {
       setError(handleApiError(err));
@@ -123,6 +132,31 @@ export default function ParsingTerminal() {
     [groups],
   );
   const parseRate = totals.received > 0 ? Math.round((totals.parsed / totals.received) * 100) : 0;
+  const promptGroup = React.useMemo(
+    () => groups.find((group) => shouldPromptForParsing(group) && !dismissedPromptIds.includes(group.groupId)) || null,
+    [dismissedPromptIds, groups],
+  );
+
+  const handleSetGroupParsing = React.useCallback(async (group: GroupHealth, enabled: boolean) => {
+    setActionGroupId(group.groupId);
+    setError(null);
+    setInfoMessage(null);
+    try {
+      await backendApi.patch(ENDPOINTS.whatsapp.toggleGroupParsing(group.groupId), { isParsing: enabled });
+      if (enabled) {
+        const result = await rebuildStreamFromSavedMessages(200, group.sessionLabel, group.groupId);
+        setInfoMessage(`Parsing enabled for ${group.groupName}. Replayed ${result.scanned} saved messages and mapped ${result.ingested}.`);
+      } else {
+        setInfoMessage(`Parsing paused for ${group.groupName}.`);
+      }
+      setDismissedPromptIds((current) => [...new Set([...current, group.groupId])]);
+      await refresh();
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setActionGroupId(null);
+    }
+  }, [refresh]);
 
   return (
     <main className="terminal-shell relative flex min-h-[calc(100vh-96px)] flex-col gap-4 overflow-hidden pb-6">
@@ -161,6 +195,53 @@ export default function ParsingTerminal() {
         <div className="terminal-panel relative border border-[rgba(239,68,68,0.34)] bg-[var(--red-dim)] px-4 py-3 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--red)]">
           Feed fault: {error}
         </div>
+      )}
+
+      {infoMessage && (
+        <div className="terminal-panel relative border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--accent)]">
+          {infoMessage}
+        </div>
+      )}
+
+      {promptGroup && (
+        <section className="terminal-panel relative overflow-hidden border border-[rgba(245,158,11,0.34)] bg-[rgba(30,24,10,0.94)] px-4 py-4 shadow-[0_0_0_1px_rgba(245,158,11,0.08)]">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--text-secondary)]">Parsing alert</p>
+              <h2 className="mt-2 font-mono text-[16px] font-bold uppercase tracking-[0.06em] text-[var(--text-primary)]">
+                {promptGroup.groupName} is not parsing
+              </h2>
+              <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                {describePromptReason(promptGroup)}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleSetGroupParsing(promptGroup, true)}
+                disabled={actionGroupId === promptGroup.groupId}
+                className="border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--accent)] disabled:opacity-60"
+              >
+                {actionGroupId === promptGroup.groupId ? 'Parsing...' : 'Parse now'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSetGroupParsing(promptGroup, false)}
+                disabled={actionGroupId === promptGroup.groupId}
+                className="border border-[rgba(239,68,68,0.3)] bg-[var(--red-dim)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--red)] disabled:opacity-60"
+              >
+                Don&apos;t parse
+              </button>
+              <button
+                type="button"
+                onClick={() => setDismissedPromptIds((current) => [...new Set([...current, promptGroup.groupId])])}
+                className="border border-[color:var(--border)] bg-transparent px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--text-secondary)]"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </section>
       )}
 
       <section className="relative grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(360px,0.7fr)]">
@@ -481,4 +562,26 @@ function formatStamp(value?: string | null) {
     second: '2-digit',
     hour12: false,
   }).format(new Date(value));
+}
+
+function shouldPromptForParsing(group: GroupHealth) {
+  const recentMessage = group.lastMessageAt ? new Date(group.lastMessageAt).getTime() : 0;
+  const recentThreshold = Date.now() - (6 * 60 * 60 * 1000);
+  if (!Number.isFinite(recentMessage) || recentMessage <= 0 || recentMessage < recentThreshold) {
+    return false;
+  }
+
+  if (group.isParsing === false) {
+    return true;
+  }
+
+  return group.messagesReceived24h > 0 && group.messagesParsed24h === 0;
+}
+
+function describePromptReason(group: GroupHealth) {
+  if (group.isParsing === false || group.behavior === 'Off') {
+    return 'Recent messages are landing, but this group is currently paused. Enable parsing and replay the saved backlog now.';
+  }
+
+  return 'Recent messages were received from this group but none were parsed into the stream yet. Replay this group now or explicitly leave it off.';
 }

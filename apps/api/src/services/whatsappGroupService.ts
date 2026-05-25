@@ -1,5 +1,6 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { parseIndianLocation } from '../utils/locationParser';
+import { brokerContactSyncService } from './brokerContactSyncService';
 
 type SupportedCategory = 'broker' | 'rental' | 'sale' | 'commercial' | 'mixed' | 'other';
 
@@ -352,6 +353,17 @@ export class WhatsAppGroupService {
 
             if (error) {
                 console.error('[WhatsAppGroupService] Failed to seed group config sync batch', error);
+            }
+        }
+
+        if (syncedCount > 0) {
+            try {
+                await brokerContactSyncService.syncFromStoredGroups(tenantId, {
+                    sessionLabel,
+                    minOverlap: 2,
+                });
+            } catch (syncError) {
+                console.error('[WhatsAppGroupService] Failed to sync broker contacts from stored groups', syncError);
             }
         }
 

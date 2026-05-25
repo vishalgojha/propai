@@ -542,6 +542,16 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
                 created_at: new Date().toISOString(),
             });
 
+            await whatsappHealthService.recordMessageMetrics({
+                tenantId,
+                sessionLabel: label || 'default',
+                remoteJid,
+                parsed: ingestedCount > 0,
+                failed: ingestedCount <= 0,
+                countReceived: false,
+                timestamp: event.timestamp || new Date().toISOString(),
+            }).catch(() => undefined);
+
             if (ingestedCount > 0) {
                 await whatsappHealthService.appendEvent(
                     tenantId,
@@ -555,6 +565,15 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
                 ).catch(() => undefined);
             }
         } catch (error) {
+            await whatsappHealthService.recordMessageMetrics({
+                tenantId,
+                sessionLabel: label || 'default',
+                remoteJid,
+                parsed: false,
+                failed: true,
+                countReceived: false,
+                timestamp: event.timestamp || new Date().toISOString(),
+            }).catch(() => undefined);
             console.warn('[GroupBroadcastParser] Background parse failed:', {
                 tenantId,
                 label,

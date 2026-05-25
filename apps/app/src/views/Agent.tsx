@@ -39,20 +39,20 @@ type RuntimeStatusPayload = {
 
 const quickActions = [
   {
-    label: 'Show callbacks',
-    prompt: 'Show my pending callback queue and tell me who I should call first.',
+    label: 'Urgent follow-ups',
+    prompt: 'Show me the highest priority follow-ups due today and tell me who I should call first.',
   },
   {
-    label: 'Search my CRM',
-    prompt: 'Search my CRM for 2BHK buyer requirements in Powai under 70k.',
+    label: 'Fresh buyers',
+    prompt: 'Show fresh buyer requirements from today for 2BHK and 3BHK rentals in Andheri, Powai, and Bandra.',
   },
   {
-    label: 'Create channel',
-    prompt: 'Create a channel for Bandra West rental listings and urgent buyer requirements.',
+    label: 'Match inventory',
+    prompt: 'Match today’s fresh listings against active buyer requirements and show the best opportunities to close.',
   },
   {
-    label: 'Web fetch listing',
-    prompt: 'Extract the structured details from this property URL: ',
+    label: 'Broker network',
+    prompt: 'Show overlapping broker contacts across groups and highlight the strongest brokers by area coverage.',
   },
 ] as const;
 const runtimeProviderOrder = ['Google', 'Groq', 'OpenRouter', 'Doubleword'] as const;
