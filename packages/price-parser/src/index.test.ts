@@ -45,4 +45,21 @@ describe('parsePrice', () => {
       confidence: 'high',
     });
   });
+
+  it('normalizes corrupted rupee symbol variants before parsing', () => {
+    expect(parsePrice('Rent â¼4 L/mo', 'rent')).toMatchObject({
+      numeric: 400000,
+      label: '₹4L/mo',
+      basis: 'monthly_rent',
+    });
+  });
+
+  it('keeps crore prices stable for negotiable sale messages', () => {
+    expect(parsePrice('2.35cr Negotiable')).toMatchObject({
+      numeric: 23500000,
+      label: '₹2.35 Cr',
+      basis: 'total',
+      confidence: 'high',
+    });
+  });
 });

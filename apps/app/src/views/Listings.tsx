@@ -1346,11 +1346,11 @@ if (brokerOnly) {
           ) : (
             <table className="min-w-[1080px] w-full border-separate border-spacing-0 text-left">
               <thead>
-                <tr className="border-b border-[color:var(--border)] bg-[var(--bg-surface)]">
+                <tr className="border-b border-[color:var(--accent-border)] bg-[color:var(--propai-green-dim)]">
                   {['Record', 'Type', 'BHK', 'Area', 'Price', 'Furnishing', 'Floor', 'Posted', 'WA'].map((header) => (
                     <th
                       key={header}
-                      className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]"
+                      className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--propai-green)]"
                     >
                       {header}
                     </th>

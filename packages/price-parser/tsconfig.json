@@ -6,8 +6,9 @@
     "strict": true,
     "declaration": true,
     "rootDir": "./src",
-    "ignoreDeprecations": "5.0",
+    "ignoreDeprecations": "6.0",
     "outDir": "./dist"
   },
-  "include": ["src/index.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
 }

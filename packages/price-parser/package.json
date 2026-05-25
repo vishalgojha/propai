@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run src/index.test.ts"
+    "test": "vitest run src/index.test.ts src/splitter.test.ts"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabaseAdmin, createSupabaseServiceClient } from '../config/supabase';
+import { parsePrice, splitMultiListing } from '@propai/price-parser';
 import { buildingResolverService } from '../services/buildingResolverService';
 import { igrEnrichmentService } from '../services/igrEnrichmentService';
 import { isOwnerSuperAdminEmail, HttpError, getErrorMessage } from '../utils/controllerHelpers';
@@ -38,6 +39,19 @@ function extractPhone(raw: string | null | undefined): string | null {
 function extractPhoneFromText(text: string): string | null {
     const m = text.match(/(?:\+?91)?[6-9]\d{9}/);
     return m ? m[0] : null;
+}
+
+function extractBhkFromText(text: string): string | null {
+    const match = String(text || '').match(/\b(\d+(?:\.\d+)?)\s*bhk\b|\b(\d+(?:\.\d+)?)bhk\b/i);
+    const value = match?.[1] || match?.[2];
+    return value ? `${value} BHK` : null;
+}
+
+function buildSplitMessageId(baseMessageId: string, index: number, total: number) {
+    if (total <= 1) {
+        return baseMessageId;
+    }
+    return `${baseMessageId}__part_${index + 1}`;
 }
 
 function shouldReplaceLocality(value: string | null | undefined) {
@@ -159,110 +173,125 @@ export const ingestListings = async (req: Request, res: Response) => {
 
         for (const item of listings) {
             const buildingName = String(item?.parsed_payload?.buildingName || item.building_name || '').trim();
-            const listingRow = {
-                tenant_id,
-                source_group_id: item.source_group_id || null,
-                structured_data: item.structured_data || {},
-                raw_text: item.raw_text || '',
-                status: 'Active',
-            };
-            const { error: le } = await admin.from('listings').insert(listingRow);
-            if (le) listingsErr++;
-            else listingsOk++;
+            const splitRawTexts = splitMultiListing(String(item.raw_text || ''));
+            const baseMessageId = String(item.message_id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+            const createdAt = item.created_at || item.message_timestamp || new Date().toISOString();
 
-            const streamRow: Record<string, any> = {
-                tenant_id,
-                message_id: item.message_id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-                source_group_id: item.source_group_id || null,
-                source_group_name: item.source_group_name || null,
-                source_phone: item.source_phone || null,
-                raw_text: item.raw_text || '',
-                type: item.type || 'Sale',
-                locality: item.locality || null,
-                bhk: item.bhk || null,
-                price_label: item.price_label || null,
-                price_numeric: item.price_numeric || null,
-                confidence_score: item.confidence_score ?? 0.8,
-                broker_name: item.contact_name || null,
-                building_name: buildingName || null,
-                parsed_payload: {
-                    ...(item.parsed_payload || {}),
-                    buildingName: buildingName || null,
-                },
-            };
-            if (item.embedding && Array.isArray(item.embedding)) {
-                streamRow.embedding = item.embedding;
-            }
-            const { data: insertedStreamItem, error: se } = await admin
-                .from('stream_items')
-                .insert(streamRow)
-                .select('id')
-                .maybeSingle();
-            if (se) streamErr++;
-            else {
-                streamOk++;
-                if (buildingName && insertedStreamItem?.id) {
-                    void igrEnrichmentService
-                        .queueIfStale(buildingName, item.locality || null, insertedStreamItem.id)
-                        .catch((error) => {
-                            console.error('[Ingest] Failed to queue IGR enrichment', {
-                                streamItemId: insertedStreamItem.id,
-                                buildingName,
-                                locality: item.locality || null,
-                                error: error instanceof Error ? error.message : error,
-                            });
-                        });
-                }
-            }
+            for (const [index, rawText] of splitRawTexts.entries()) {
+                const splitMessageId = buildSplitMessageId(baseMessageId, index, splitRawTexts.length);
+                const price = parsePrice(rawText, item.type || item.deal_type || undefined);
+                const bhk = extractBhkFromText(rawText) || item.bhk || null;
+                const listingRow = {
+                    tenant_id,
+                    source_group_id: item.source_group_id || null,
+                    structured_data: item.structured_data || {},
+                    raw_text: rawText,
+                    status: 'Active',
+                    created_at: createdAt,
+                };
+                const { error: le } = await admin.from('listings').insert(listingRow);
+                if (le) listingsErr++;
+                else listingsOk++;
 
-            const listingType = toListingType(item.type);
-            const phone = item.source_phone || extractPhoneFromText(item.raw_text || '');
-            const publicRow = {
-                source_message_id: item.message_id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-                source_group_id: item.source_group_id || null,
-                source_group_name: item.source_group_name || null,
-                listing_type: listingType,
-                area: item.locality || null,
-                sub_area: null,
-                location: item.locality || 'Unknown',
-                price: item.price_numeric || null,
-                price_type: item.type === 'Rent' ? 'monthly' : item.type === 'Sale' ? 'total' : null,
-                size_sqft: item.area_sqft || null,
-                furnishing: item.furnishing || null,
-                bhk: parseBhk(item.bhk),
-                building_name: buildingName || null,
-                property_type: null,
-                title: toTitle(item),
-                description: item.raw_text || '',
-                raw_message: item.raw_text || null,
-                cleaned_message: null,
-                sender_number: phone,
-                primary_contact_name: item.contact_name || null,
-                primary_contact_number: phone,
-                primary_contact_wa: phone ? `91${phone.replace(/^\+?91/, '')}` : null,
-                contacts: item.contacts || [],
-                confidence: item.confidence_score ?? 0.8,
-                message_timestamp: item.message_timestamp || new Date().toISOString(),
-                search_text: [item.raw_text, item.locality, item.bhk, item.type].filter(Boolean).join(' '),
-            };
-            const { error: pe } = await admin.from('public_listings').insert(publicRow);
-            if (pe) console.error('[Ingest] public_listings insert failed:', pe.message, 'for', item.message_id);
-
-            if (insertedStreamItem?.id && (!buildingName || shouldReplaceLocality(item.locality || null))) {
-                void resolveAndUpdateBuildingMetadata({
-                    admin,
-                    rawText: item.raw_text || '',
-                    streamItemId: insertedStreamItem.id,
-                    messageId: String(item.message_id || streamRow.message_id),
-                    buildingName,
+                const streamRow: Record<string, any> = {
+                    tenant_id,
+                    message_id: splitMessageId,
+                    source_message_id: baseMessageId,
+                    source_group_id: item.source_group_id || null,
+                    source_group_name: item.source_group_name || null,
+                    source_phone: item.source_phone || null,
+                    raw_text: rawText,
+                    type: item.type || 'Sale',
                     locality: item.locality || null,
-                }).catch((error) => {
-                    console.error('[Ingest] Failed to resolve building/locality metadata', {
+                    bhk,
+                    price_label: price.label || item.price_label || null,
+                    price_numeric: price.numeric ?? item.price_numeric ?? null,
+                    confidence_score: item.confidence_score ?? 0.8,
+                    broker_name: item.contact_name || null,
+                    building_name: buildingName || null,
+                    created_at: createdAt,
+                    parsed_payload: {
+                        ...(item.parsed_payload || {}),
+                        buildingName: buildingName || null,
+                        sourceMessageId: baseMessageId,
+                        splitIndex: splitRawTexts.length > 1 ? index : undefined,
+                        splitCount: splitRawTexts.length > 1 ? splitRawTexts.length : undefined,
+                    },
+                };
+                if (item.embedding && Array.isArray(item.embedding) && splitRawTexts.length === 1) {
+                    streamRow.embedding = item.embedding;
+                }
+                const { data: insertedStreamItem, error: se } = await admin
+                    .from('stream_items')
+                    .insert(streamRow)
+                    .select('id')
+                    .maybeSingle();
+                if (se) streamErr++;
+                else {
+                    streamOk++;
+                    if (buildingName && insertedStreamItem?.id) {
+                        void igrEnrichmentService
+                            .queueIfStale(buildingName, item.locality || null, insertedStreamItem.id)
+                            .catch((error) => {
+                                console.error('[Ingest] Failed to queue IGR enrichment', {
+                                    streamItemId: insertedStreamItem.id,
+                                    buildingName,
+                                    locality: item.locality || null,
+                                    error: error instanceof Error ? error.message : error,
+                                });
+                            });
+                    }
+                }
+
+                const listingType = toListingType(item.type);
+                const phone = item.source_phone || extractPhoneFromText(rawText);
+                const publicRow = {
+                    source_message_id: splitMessageId,
+                    source_group_id: item.source_group_id || null,
+                    source_group_name: item.source_group_name || null,
+                    listing_type: listingType,
+                    area: item.locality || null,
+                    sub_area: null,
+                    location: item.locality || 'Unknown',
+                    price: price.numeric ?? item.price_numeric ?? null,
+                    price_type: price.basis === 'monthly_rent' ? 'monthly' : item.type === 'Sale' ? 'total' : null,
+                    size_sqft: item.area_sqft || null,
+                    furnishing: item.furnishing || null,
+                    bhk: parseBhk(bhk),
+                    building_name: buildingName || null,
+                    property_type: null,
+                    title: toTitle({ ...item, bhk }),
+                    description: rawText,
+                    raw_message: rawText,
+                    cleaned_message: null,
+                    sender_number: phone,
+                    primary_contact_name: item.contact_name || null,
+                    primary_contact_number: phone,
+                    primary_contact_wa: phone ? `91${phone.replace(/^\+?91/, '')}` : null,
+                    contacts: item.contacts || [],
+                    confidence: item.confidence_score ?? 0.8,
+                    message_timestamp: createdAt,
+                    search_text: [rawText, item.locality, bhk, item.type].filter(Boolean).join(' '),
+                };
+                const { error: pe } = await admin.from('public_listings').insert(publicRow);
+                if (pe) console.error('[Ingest] public_listings insert failed:', pe.message, 'for', splitMessageId);
+
+                if (insertedStreamItem?.id && (!buildingName || shouldReplaceLocality(item.locality || null))) {
+                    void resolveAndUpdateBuildingMetadata({
+                        admin,
+                        rawText,
                         streamItemId: insertedStreamItem.id,
-                        messageId: String(item.message_id || streamRow.message_id),
-                        error: error instanceof Error ? error.message : error,
+                        messageId: splitMessageId,
+                        buildingName,
+                        locality: item.locality || null,
+                    }).catch((error) => {
+                        console.error('[Ingest] Failed to resolve building/locality metadata', {
+                            streamItemId: insertedStreamItem.id,
+                            messageId: splitMessageId,
+                            error: error instanceof Error ? error.message : error,
+                        });
                     });
-                });
+                }
             }
         }
 

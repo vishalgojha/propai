@@ -12,14 +12,18 @@ async function reparseDatabasePrices() {
     }
 
     console.log('🏁 Starting Database Historical Price Reparser...\n');
+    const reparseAll = process.argv.includes('--all');
 
     // 1. Reparse stream_items
     console.log('--- Processing [stream_items] ---');
     try {
-        const { data: items, error } = await supabaseAdmin
+        let streamQuery = supabaseAdmin
             .from('stream_items')
-            .select('id, raw_text, type, deal_type, price_label, price_numeric')
-            .or('price_numeric.is.null,price_label.eq.Unspecified,price_label.is.null');
+            .select('id, raw_text, type, deal_type, price_label, price_numeric');
+        if (!reparseAll) {
+            streamQuery = streamQuery.or('price_numeric.is.null,price_label.eq.Unspecified,price_label.is.null,price_label.ilike.%â¼%');
+        }
+        const { data: items, error } = await streamQuery;
 
         if (error) throw error;
 
@@ -58,10 +62,13 @@ async function reparseDatabasePrices() {
     // 2. Reparse listings
     console.log('--- Processing [listings] ---');
     try {
-        const { data: listings, error } = await supabaseAdmin
+        let listingsQuery = supabaseAdmin
             .from('listings')
-            .select('id, raw_text, listing_type, price_cr, rent_monthly')
-            .or('price_cr.is.null,rent_monthly.is.null');
+            .select('id, raw_text, listing_type, price_cr, rent_monthly');
+        if (!reparseAll) {
+            listingsQuery = listingsQuery.or('price_cr.is.null,rent_monthly.is.null');
+        }
+        const { data: listings, error } = await listingsQuery;
 
         if (error) throw error;
 

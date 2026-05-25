@@ -8,6 +8,8 @@ export type ParsedPrice = {
   confidence: PriceConfidence;
 };
 
+export { splitMultiListing } from './splitter';
+
 type Candidate = {
   absoluteAmount: number;
   basis: PriceBasis;
@@ -24,9 +26,13 @@ const PER_SQFT_CONTEXT_PATTERN = /\b(psf|per\s+sq\s*ft|per\s+sqft)\b|\/sqft/i;
 const AREA_FOLLOW_PATTERN = /^(sq\s*ft|sqft|floor|room)\b/i;
 const BHK_FOLLOW_PATTERN = /^bhk\b/i;
 const CONTACT_FOLLOW_PATTERN = /^(contact|call|mobile)\b/i;
+const RUPEE_SYMBOL_VARIANT_PATTERN = /(?:\u20b9|â¼|rs\.?|inr)\s*/gi;
 
 function normalizeText(text: string) {
-  return text.replace(/,/g, ' ');
+  return text
+    .replace(RUPEE_SYMBOL_VARIANT_PATTERN, '₹')
+    .replace(/(?<=\d),(?=\d)/g, '')
+    .replace(/\u00a0/g, ' ');
 }
 
 function normalizeUnit(unit: string) {
