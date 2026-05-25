@@ -1,4 +1,5 @@
 import { createSupabaseAnonClient, supabase, supabaseAdmin } from '../config/supabase';
+import { parsePrice } from '@propai/price-parser';
 import { aiService } from './aiService';
 import { canonicalizationService } from './canonicalizationService';
 import { igrQueryService, type IgrTransactionPreview } from './igrQueryService';
@@ -633,155 +634,10 @@ const extractPriceNumeric = (text: string) => {
 
 // Removed PRICE_TOKEN_PATTERN regex - using string methods instead
 
-const moneyUnitToInr = (amount: number, unit: string) => {
-    const normalizedUnit = String(unit || '').toLowerCase();
-    if (normalizedUnit === 'cr' || normalizedUnit === 'crore') {
-        return amount * 10000000;
-    }
-    if (normalizedUnit === 'l' || normalizedUnit === 'lac' || normalizedUnit === 'lakh') {
-        return amount * 100000;
-    }
-    if (normalizedUnit === 'k' || normalizedUnit === 'thousand') {
-        return amount * 1000;
-    }
-    if (normalizedUnit === 'm' || normalizedUnit === 'mn' || normalizedUnit === 'million') {
-        return amount * 1000000;
-    }
-    return amount;
-};
-
-export const formatMoneyLabel = (amount: number, unit: string, isRent: boolean) => {
-    const normalizedUnit = unit.toLowerCase();
-    
-    if (normalizedUnit === 'rupees' || normalizedUnit === 'rs' || normalizedUnit === '') {
-        if (amount >= 10000000) return isRent ? `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr/mo` : `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-        if (amount >= 100000) return isRent ? `₹${(amount / 100000).toFixed(1).replace(/\.0$/, '')} L/mo` : `₹${(amount / 100000).toFixed(1).replace(/\.0$/, '')} L`;
-        if (amount >= 1000) return isRent ? `₹${Math.round(amount / 1000)}K/mo` : `₹${Math.round(amount / 1000)}K`;
-        return isRent ? `₹${Math.round(amount)}/mo` : `₹${Math.round(amount)}`;
-    }
-
-    const compact =
-        normalizedUnit === 'cr' || normalizedUnit === 'crore'
-            ? `${amount} Cr`
-            : normalizedUnit === 'l' || normalizedUnit === 'lac' || normalizedUnit === 'lakh'
-                ? `${amount} L`
-                : `${amount} K`;
-
-    return isRent ? `₹${compact}/mo` : `₹${compact}`;
-};
-
 export const extractPriceInfo = (text: string, dealTypeHint?: string) => {
-    const lower = text.toLowerCase();
-    
-    // Check if it's rent
-    const isRent = dealTypeHint === 'rent' || 
-        lower.includes('rent') || lower.includes('rental') ||
-        lower.includes('lease') || lower.includes(' pm') || lower.includes('/month') ||
-        lower.includes('per month');
-    
-    // Clean commas from raw numbers first
-    const words = text.replace(/,/g, '').split(/\s+/);
-    const priceMatches: Array<{
-        amount: number;
-        unit: string;
-        index: number;
-        raw: string;
-        numeric: number | null;
-        score: number;
-    }> = [];
-    
-    for (let i = 0; i < words.length; i++) {
-        const word = words[i];
-        const lowerWord = word.toLowerCase();
-        
-        let amount = '';
-        let unit = '';
-        
-        let valuePart = lowerWord;
-        if (valuePart.startsWith('rs') || valuePart.startsWith('inr') || valuePart.startsWith('₹')) {
-            valuePart = valuePart.slice(2).trim();
-        }
-        
-        // Extract digits and decimal
-        let digits = '';
-        for (const c of valuePart) {
-            if (c >= '0' && c <= '9' || c === '.') {
-                digits += c;
-            } else {
-                break;
-            }
-        }
-        
-        if (digits.length === 0) continue;
-        
-        amount = digits;
-        const remaining = valuePart.slice(digits.length).trim();
-        
-        // Check for unit
-        const units = ['cr', 'crore', 'l', 'lac', 'lakh', 'k', 'thousand', 'm', 'mn', 'million'];
-        let foundUnit = '';
-        
-        for (const u of units) {
-            if (remaining.startsWith(u)) {
-                foundUnit = u;
-                break;
-            }
-        }
-        
-        if (!foundUnit && i + 1 < words.length) {
-            const nextWord = words[i + 1].toLowerCase();
-            for (const u of units) {
-                if (nextWord === u || nextWord.startsWith(u)) {
-                    foundUnit = u;
-                    break;
-                }
-            }
-        }
-        
-        const numAmount = Number(amount);
-        if (!Number.isNaN(numAmount)) {
-            let selectedUnit = foundUnit || 'rupees';
-            let numeric = moneyUnitToInr(numAmount, selectedUnit);
-
-            if (!foundUnit) {
-                if (numAmount >= 1000) {
-                    numeric = numAmount;
-                } else {
-                    continue; // Skip tiny raw numbers without units as they might be floor numbers or BHK
-                }
-            }
-
-            const start = text.indexOf(word);
-            const context = lower.slice(Math.max(0, start - 18), Math.min(lower.length, start + word.length + 18));
-            
-            const rentContext = context.includes(' r') || context.includes('-r') || 
-                context.includes('rent') || context.includes('pm') || 
-                context.includes('per month') || context.includes('/month') || 
-                context.includes('lease');
-            const depositContext = context.includes(' d') || context.includes('-d') || 
-                context.includes('deposit') || context.includes('dep');
-            
-            priceMatches.push({
-                amount: numAmount,
-                unit: selectedUnit,
-                index: start,
-                raw: word,
-                numeric: numeric,
-                score: (rentContext ? 4 : 0) + (depositContext ? -3 : 0)
-            });
-        }
-    }
-    
-    if (priceMatches.length === 0) {
-        return { label: 'Unspecified', numeric: null };
-    }
-    
-    const chosen = priceMatches
-        .sort((left, right) => (isRent ? right.score - left.score : 0) || ((right.numeric || 0) - (left.numeric || 0)))
-        .find((entry) => !isRent || entry.score >= 0) || priceMatches[0];
-    
+    const chosen = parsePrice(text, dealTypeHint);
     return {
-        label: formatMoneyLabel(chosen.amount, chosen.unit, isRent),
+        label: chosen.label || 'Unspecified',
         numeric: chosen.numeric,
     };
 };

@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { parsePrice } from "@propai/price-parser";
 import { supabaseAdmin } from "@/lib/supabase.server";
 
 export interface PublicListing {
@@ -332,38 +333,7 @@ function normalizeType(value: string | null, rawText: string): string {
 
 function parsePriceAmount(value: unknown, priceLabel: unknown, rawText: string, type: string) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
-
-  const merged = `${String(priceLabel || "")} ${rawText}`;
-  const candidates = [...merged.matchAll(/₹?\s*(\d+(?:\.\d+)?)\s*(cr|crore|l|lac|lakh|k|thousand)?/gi)]
-    .filter((match) => Number.isFinite(Number(match[1])))
-    .map((match) => {
-      let amount = Number(match[1]);
-      const unit = String(match[2] || "").toLowerCase();
-      if (unit === "cr" || unit === "crore") amount *= 10000000;
-      else if (unit === "l" || unit === "lac" || unit === "lakh") amount *= 100000;
-      else if (unit === "k" || unit === "thousand") amount *= 1000;
-      else if (type === "Sale" && amount < 1000) amount *= 100000;
-
-      const idx = match.index || 0;
-      const before = merged.slice(Math.max(0, idx - 25), idx).toLowerCase();
-      const after = merged.slice(idx + match[0].length, idx + match[0].length + 15).toLowerCase();
-
-      let score = 0;
-      if (unit) score += 8;
-      if (/₹/.test(before)) score += 7;
-      if (/rent|price|lease|sale|deposit|advance|cost/i.test(before)) score += 6;
-      if (amount > 500) score += 2;
-      if (amount >= 5000 && amount <= 100000000) score += 3;
-      if (/sq\s*ft|sqft|sq|acres?|hectare/i.test(after)) score -= 10;
-      if (/bhk|room|bed/i.test(after)) score -= 8;
-      if (/contact|call|phone|mobile/i.test(after)) score -= 10;
-
-      return { amount: Math.round(amount), score };
-    });
-
-  const best = candidates.reduce((a, b) => (b.score > a.score ? b : a), { amount: 0, score: -999 });
-  if (best.score < 0) return null;
-  return best.amount;
+  return parsePrice(`${String(priceLabel || "")} ${rawText}`, type).numeric;
 }
 
 function pickString(...values: unknown[]) {

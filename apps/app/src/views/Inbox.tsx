@@ -3,6 +3,7 @@
 import React from 'react';
 import { Bell, CheckCircle, Clock, InboxIcon, MapPin, MessageSquare, Pencil, Save, X } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { getStreamPriceLabel } from '../lib/streamPrice';
 import { useInbox } from '../hooks/useInbox';
 import { useAuth } from '../context/AuthContext';
 import { correctStreamItem, type InboxMatch, type StreamItem } from '../services/streamAPI';
@@ -80,8 +81,7 @@ function itemTitle(item: StreamItem) {
 }
 
 function priceLabel(item: StreamItem) {
-  const price = String(item.price || '').trim();
-  return price || 'Price not parsed';
+  return getStreamPriceLabel(item);
 }
 
 function typeTone(type: StreamItem['type']) {

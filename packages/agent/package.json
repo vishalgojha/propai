@@ -4,6 +4,7 @@
   "description": "PropAI Agent - Intelligent Workspace Assistant for Real Estate Brokers",
   "main": "src/index.ts",
   "dependencies": {
+    "@propai/price-parser": "workspace:*",
     "framer-motion": "latest",
     "lucide-react": "latest",
     "zod": "^4.3.6"

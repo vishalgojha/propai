@@ -1,7 +1,7 @@
 import React from 'react';
 import { MessageSquare, Clock, ExternalLink, ChevronUp, ChevronDown, Copy, Save, MapPin, Check, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { formatPriceNumeric } from '../../lib/formatPrice';
+import { getStreamPriceLabel } from '../../lib/streamPrice';
 import { logWaClick, fetchWaClickListingLog, type WaClickListingLog } from '../../services/waClickAPI';
 import { PROPAI_ASSISTANT_PHONE_DIGITS } from '../../lib/propai';
 import type { StreamItem } from '../../services/streamAPI';
@@ -18,11 +18,8 @@ type ListingCardProps = {
 };
 
 function formatPriceDisplay(item: StreamItem): string | null {
-    const numeric = item.priceNumeric;
-    if (numeric == null || !Number.isFinite(numeric)) {
-        return item.price || null;
-    }
-    return formatPriceNumeric(numeric, item.type);
+    const label = getStreamPriceLabel(item);
+    return label === '—' ? null : label;
 }
 
 function formatPricePerSqft(item: StreamItem): string | null {

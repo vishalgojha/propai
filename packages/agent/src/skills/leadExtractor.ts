@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { parsePrice } from '@propai/price-parser'
 
 import type { ParsedMessage } from './messageParser'
 
@@ -253,19 +254,8 @@ function inferPropertyType(text: string) {
 }
 
 function inferBudget(text: string) {
-	const moneyMatch = text.match(/(\d+(?:\.\d+)?)\s*(cr|crore|crores|lakh|lakhs|lac|lacs|k|thousand|psf|sqft|sq ft|per sq ft|per sqft)\b/i)
-	if (!moneyMatch) {
-		return undefined
-	}
-
-	const amount = Number(moneyMatch[1])
-	const unit = moneyMatch[2].toLowerCase()
-	if (Number.isNaN(amount)) return undefined
-
-	if (unit === 'cr' || unit === 'crore' || unit === 'crores') return amount * 10000000
-	if (unit === 'lakh' || unit === 'lakhs' || unit === 'lac' || unit === 'lacs') return amount * 100000
-	if (unit === 'k' || unit === 'thousand') return amount * 1000
-	return amount
+	const parsed = parsePrice(text, inferDealType(text))
+	return parsed.numeric ?? undefined
 }
 
 function inferDealType(text: string): ExtractedLead['deal_type'] {

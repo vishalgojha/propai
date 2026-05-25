@@ -24,6 +24,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@propai/price-parser": "workspace:*",
     "@hapi/boom": "^10.0.1",
     "@supabase/supabase-js": "^2.103.3",
     "@vishalgojha/whatsapp-baileys-runtime": "https://codeload.github.com/vishalgojha/whatsapp-baileys-runtime/tar.gz/5912f0d",

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { cn } from '../lib/utils';
+import { getStreamPriceLabel } from '../lib/streamPrice';
 import { useAuth } from '../context/AuthContext';
 import {
   fetchChannels,
@@ -73,58 +74,6 @@ const stripSnippetNoise = (raw: string) => {
     .trim();
 };
 
-const formatCompactNumber = (value: number) => {
-  const rounded = Math.round(value * 100) / 100;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
-};
-
-const parsePriceTokens = (text: string) => {
-  const tokens = Array.from(text.matchAll(/(\d+(?:\.\d+)?)(?:\s*(cr|crore|l|lac|lakh|k|thousand|m|mn|million))?/gi));
-  return tokens.map((match) => ({
-    value: Number(match[1]),
-    unit: (match[2] || '').toLowerCase(),
-  })).filter((entry) => Number.isFinite(entry.value));
-};
-
-const convertToCr = (value: number, unit: string) => {
-  switch (unit) {
-    case 'cr':
-    case 'crore':
-      return value;
-    case 'l':
-    case 'lac':
-    case 'lakh':
-      return value / 100;
-    case 'k':
-    case 'thousand':
-      return value / 10000;
-    case 'm':
-    case 'mn':
-    case 'million':
-      return value / 10;
-    default:
-      return value;
-  }
-};
-
-const convertToK = (value: number, unit: string) => {
-  switch (unit) {
-    case 'cr':
-    case 'crore':
-      return value * 10000;
-    case 'l':
-    case 'lac':
-    case 'lakh':
-      return value * 100;
-    case 'm':
-    case 'mn':
-    case 'million':
-      return value * 1000;
-    default:
-      return value;
-  }
-};
-
 const stripPriceNoise = (raw: string) =>
   raw
     .replace(/budget\s*--?/gi, '')
@@ -136,53 +85,14 @@ const stripPriceNoise = (raw: string) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-const formatPriceValue = (value: number, unit: 'cr' | 'k') => {
-  const formatted = formatCompactNumber(value);
-  return unit === 'cr' ? `₹${formatted} Cr` : `₹${formatted}K/mo`;
-};
-
 const normalizePriceDisplay = (item: StreamItem) => {
-  const raw = stripPriceNoise(String(item.price || '')).trim();
-  const tokens = parsePriceTokens(raw);
   const negotiable = /negotiable/i.test(item.price || '');
-  const fallbackNumeric = typeof item.priceNumeric === 'number' && Number.isFinite(item.priceNumeric) ? item.priceNumeric : null;
-
-  let label = raw || 'Unspecified';
-
-  if (item.type === 'Requirement') {
-    if (tokens.length >= 2) {
-      const first = convertToCr(tokens[0].value, tokens[0].unit);
-      const second = convertToCr(tokens[1].value, tokens[1].unit || tokens[0].unit);
-      label = first === second
-        ? `Budget: ₹${formatCompactNumber(first)} Cr`
-        : `Budget: ₹${formatCompactNumber(Math.min(first, second))} – ${formatCompactNumber(Math.max(first, second))} Cr`;
-    } else if (tokens.length === 1) {
-      label = `Budget: ₹${formatCompactNumber(convertToCr(tokens[0].value, tokens[0].unit))} Cr`;
-    } else if (fallbackNumeric) {
-      label = `Budget: ₹${formatCompactNumber(convertToCr(fallbackNumeric, 'cr'))} Cr`;
-    } else {
-      label = raw ? `Budget: ${raw}` : 'Budget unavailable';
-    }
-  } else if (item.type === 'Rent') {
-    if (tokens.length > 0) {
-      label = formatPriceValue(convertToK(tokens[0].value, tokens[0].unit), 'k');
-    } else if (fallbackNumeric) {
-      label = formatPriceValue(convertToK(fallbackNumeric, 'k'), 'k');
-    } else {
-      label = raw || 'Unspecified';
-    }
-  } else {
-    if (tokens.length > 0) {
-      label = formatPriceValue(convertToCr(tokens[0].value, tokens[0].unit), 'cr');
-    } else if (fallbackNumeric) {
-      label = formatPriceValue(convertToCr(fallbackNumeric, 'cr'), 'cr');
-    } else {
-      label = raw || 'Unspecified';
-    }
-  }
 
   return {
-    label,
+    label: getStreamPriceLabel({
+      ...item,
+      price: stripPriceNoise(String(item.price || '')).trim(),
+    }),
     negotiable,
   };
 };
@@ -379,7 +289,7 @@ const getRecordBadgeClass = (label: string) =>
 
 const formatIgrCompact = (transaction: StreamItem['igrTransactions'][number]) => {
   const price = transaction?.consideration != null && Number.isFinite(transaction.consideration)
-    ? formatPriceValue(Number(transaction.consideration) / 10000000, 'cr')
+    ? `₹${Math.round((Number(transaction.consideration) / 10000000) * 100) / 100} Cr`
     : 'Price N/A';
   const date = transaction?.reg_date
     ? new Date(transaction.reg_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })
