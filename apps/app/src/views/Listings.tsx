@@ -973,6 +973,7 @@ if (brokerOnly) {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
+              data-action="rebuild-stream"
               onClick={() => void handleRebuildStream()}
               className="rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)] transition-colors hover:brightness-110"
             >
@@ -1052,6 +1053,7 @@ if (brokerOnly) {
         <div className="relative w-full md:w-96 group">
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)] transition-colors group-focus-within:text-primary" />
           <input
+            id="stream-search"
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -1063,6 +1065,7 @@ if (brokerOnly) {
         <div className="flex w-full flex-wrap items-center gap-3 md:w-auto md:flex-nowrap">
           <button
             type="button"
+            data-action="stream-filters"
             onClick={() => setShowFilters((v) => !v)}
             className={cn(
               'flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold transition-all md:flex-none',
@@ -1377,6 +1380,7 @@ if (brokerOnly) {
                     return (
                       <React.Fragment key={listing.id}>
                         <tr
+                          data-action="stream-item"
                           onClick={() => {
                             setExpandedListingId(isExpanded ? null : listing.id);
                             if (!isExpanded && editingListingId && editingListingId !== listing.id) {
@@ -1486,6 +1490,7 @@ if (brokerOnly) {
                                         </button>
                                         <button
                                           type="button"
+                                          data-action="save-to-channel"
                                           onClick={(event) => {
                                             event.stopPropagation();
                                             setOpenActionMenuId((current) => current === listing.id ? null : listing.id);
@@ -1516,6 +1521,7 @@ if (brokerOnly) {
                                               <button
                                                 key={channel.id}
                                                 type="button"
+                                                data-action="save-to-channel"
                                                 onClick={(event) => {
                                                   event.stopPropagation();
                                                   void handleAttachStreamItemToChannel(channel.id, listing.id);

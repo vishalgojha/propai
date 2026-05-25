@@ -208,7 +208,7 @@ const Analytics: React.FC = () => {
 
       {activeTab === 'pulse' && (
         <TabState error={intelError} empty={!marketPulse.length}>
-          <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <section data-tour="intelligence-locality" className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {marketPulse.map((item) => (
               <article
                 key={item.locality}
@@ -238,7 +238,7 @@ const Analytics: React.FC = () => {
             <ChartPanel label="Daily supply vs demand">
               <DailySupplyDemandChart rows={dailyVolume} />
             </ChartPanel>
-            <ChartPanel label="BHK demand gap">
+            <ChartPanel label="BHK demand gap" dataTour="intelligence-bhk">
               <BhkGapChart rows={intelData?.bhkDemand || []} />
             </ChartPanel>
           </section>
@@ -397,9 +397,9 @@ function InventoryStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ChartPanel({ label, children }: { label: string; children: React.ReactNode }) {
+function ChartPanel({ label, children, dataTour }: { label: string; children: React.ReactNode; dataTour?: string }) {
   return (
-    <div className={panelClass}>
+    <div data-tour={dataTour} className={panelClass}>
       <div className={panelLabelClass}>{label}</div>
       <div className="relative h-[300px] min-h-[260px]">{children}</div>
     </div>

@@ -244,6 +244,7 @@ export const BrokerNetwork: React.FC = () => {
         <div className="inline-flex w-full rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-1 md:w-auto">
           <button
             type="button"
+            data-action="broker-network-tab-contacts"
             onClick={() => selectView('contacts')}
             className={cn(
               'inline-flex flex-1 items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors md:flex-none',
@@ -257,6 +258,7 @@ export const BrokerNetwork: React.FC = () => {
           </button>
           <button
             type="button"
+            data-action="broker-network-tab-overlaps"
             onClick={() => selectView('overlaps')}
             className={cn(
               'inline-flex flex-1 items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors md:flex-none',
@@ -270,6 +272,7 @@ export const BrokerNetwork: React.FC = () => {
           </button>
           <button
             type="button"
+            data-action="broker-network-tab-partners"
             onClick={() => selectView('partners')}
             className={cn(
               'inline-flex flex-1 items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors md:flex-none',

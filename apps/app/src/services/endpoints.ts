@@ -18,6 +18,9 @@ export const ENDPOINTS = {
     sessionById: (id: string) => `/ai/sessions/${encodeURIComponent(id)}`,
     sessionClear: (id: string) => `/ai/sessions/${encodeURIComponent(id)}/clear`,
   },
+  agent: {
+    control: '/agent/control',
+  },
   settings: {
     get: '/settings',
     save: '/settings',

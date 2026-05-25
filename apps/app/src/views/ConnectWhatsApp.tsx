@@ -317,7 +317,7 @@ export const ConnectWhatsApp: React.FC = () => {
                             )}>Pairing Code</button>
                         </div>
 
-                        <button type="submit" disabled={connecting} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-3 text-[14px] font-semibold text-black transition hover:opacity-90 disabled:opacity-50">
+                        <button type="submit" data-action="connect-whatsapp" disabled={connecting} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-3 text-[14px] font-semibold text-black transition hover:opacity-90 disabled:opacity-50">
                             {connecting ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <QrCodeIcon className="h-4 w-4" />}
                             {connecting ? 'Connecting...' : mode === 'qr' ? 'Generate QR Code' : 'Request Pairing Code'}
                         </button>

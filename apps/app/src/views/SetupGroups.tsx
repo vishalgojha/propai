@@ -137,7 +137,7 @@ export const SetupGroups: React.FC = () => {
                             onChange={(e) => setGroupInput(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addGroup())}
                         />
-                        <button onClick={addGroup} disabled={!groupInput.trim()}
+                        <button onClick={addGroup} data-action="add-group" disabled={!groupInput.trim()}
                             className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[var(--accent)] bg-[var(--accent)] text-black transition hover:opacity-90 disabled:opacity-40"
                         >
                             <PlusIcon className="h-5 w-5" />
@@ -221,7 +221,7 @@ export const SetupGroups: React.FC = () => {
                 </section>
 
                 <div className="flex items-center justify-center gap-3">
-                    <button onClick={handleSave} disabled={saving}
+                    <button onClick={handleSave} data-action="audit-group" disabled={saving}
                         className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-6 py-3 text-[14px] font-semibold text-black transition hover:opacity-90 disabled:opacity-50"
                     >
                         {saving ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <SaveIcon className="h-4 w-4" />}

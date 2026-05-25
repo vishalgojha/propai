@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
 import { track } from '../services/analytics';
 import { useAuth } from '../context/AuthContext';
+import { AgentControlSession, type ActionStep } from '../lib/agentControl';
 import {
   AlertTriangleIcon,
   ActivityIcon,
@@ -56,6 +57,7 @@ const quickActions = [
   },
 ] as const;
 const runtimeProviderOrder = ['Google', 'Groq', 'OpenRouter', 'Doubleword'] as const;
+const CONTROL_INTENT_PATTERN = /\b(kar do|karo|open karo|create|connect|show me how|mujhe dikhao|help me|set up)\b/i;
 
 const starterMessages: ChatMessage[] = [
   {
@@ -260,9 +262,11 @@ const RichMessage: React.FC<{ content: string }> = ({ content }) => {
 export const Agent: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [messages, setMessages] = useState<ChatMessage[]>(starterMessages);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [typingLabel, setTypingLabel] = useState('Thinking through the model chain.');
   const [showNewMessagePill, setShowNewMessagePill] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [identityData, setIdentityData] = useState<Record<string, unknown> | null>(null);
@@ -278,9 +282,24 @@ export const Agent: React.FC = () => {
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [showMobileSessions, setShowMobileSessions] = useState(false);
+  const [controlPlanSummary, setControlPlanSummary] = useState<string | null>(null);
+  const [controlProgress, setControlProgress] = useState<{
+    active: boolean;
+    total: number;
+    completed: number;
+    currentDescription: string;
+  }>({
+    active: false,
+    total: 0,
+    completed: 0,
+    currentDescription: '',
+  });
   const threadRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const controlSessionIdRef = useRef<string>(typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `agent-${Date.now()}`);
+  const controlSessionRef = useRef<AgentControlSession | null>(null);
+  const lastControlSummaryRef = useRef<string | null>(null);
   const chatStorageKey = useMemo(() => buildAgentStorageKey(user?.email), [user?.email]);
   const draftStorageKey = useMemo(() => buildAgentDraftStorageKey(user?.email), [user?.email]);
 
@@ -505,6 +524,97 @@ export const Agent: React.FC = () => {
   }, [user?.token]);
 
   useEffect(() => {
+    if (!user?.token) {
+      void controlSessionRef.current?.unsubscribe();
+      controlSessionRef.current = null;
+      return;
+    }
+
+    const controlSession = new AgentControlSession({
+      sessionId: controlSessionIdRef.current,
+      navigate: (path) => navigate(path),
+      onSequenceStart: (steps, summary) => {
+        lastControlSummaryRef.current = summary || null;
+        setControlPlanSummary(summary || null);
+        setControlProgress({
+          active: true,
+          total: steps.length,
+          completed: 0,
+          currentDescription: steps[0]?.description || 'Starting…',
+        });
+      },
+      onStepComplete: (stepIndex, step) => {
+        setControlProgress((current) => ({
+          active: stepIndex + 1 < current.total,
+          total: current.total,
+          completed: stepIndex + 1,
+          currentDescription: step.description,
+        }));
+      },
+      onStepError: (_stepIndex, step, error) => {
+        setControlProgress((current) => ({
+          ...current,
+          active: false,
+          currentDescription: step?.description || error,
+        }));
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'ai',
+            content: `Yahan ruk gaya — ${step?.description || error}`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
+      },
+      onSequenceCancelled: (reason) => {
+        setControlProgress((current) => ({
+          ...current,
+          active: false,
+          currentDescription: reason,
+        }));
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'ai',
+            content: `Yahan ruk gaya — ${reason}`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
+      },
+      onSequenceComplete: (steps, summary) => {
+        const lastDescription = steps[steps.length - 1]?.description || summary || 'Ho gaya! ✓';
+        const finalMessage = lastDescription.includes('samajh nahi aaya')
+          ? lastDescription
+          : 'Ho gaya! ✓';
+        setControlProgress((current) => ({
+          ...current,
+          active: false,
+          completed: current.total || steps.length,
+          currentDescription: finalMessage,
+        }));
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'ai',
+            content: finalMessage,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
+      },
+    });
+
+    controlSession.subscribe();
+    controlSessionRef.current = controlSession;
+
+    return () => {
+      void controlSession.unsubscribe();
+      if (controlSessionRef.current === controlSession) {
+        controlSessionRef.current = null;
+      }
+    };
+  }, [navigate, user?.token]);
+
+  useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
 
@@ -512,7 +622,7 @@ export const Agent: React.FC = () => {
     el.style.height = `${Math.min(el.scrollHeight, 72)}px`;
   }, [input]);
 
-	  const ensureSession = async () => {
+  const ensureSession = async () => {
     if (activeSessionId) return activeSessionId;
     try {
       const resp = await backendApi.post(ENDPOINTS.ai.sessions, { title: 'New Chat' });
@@ -529,33 +639,73 @@ export const Agent: React.FC = () => {
     return null;
   };
 
+  const appendUserMessage = (messageText: string) => {
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', content: messageText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
+    ]);
+  };
+
+  const isControlIntent = (messageText: string) => CONTROL_INTENT_PATTERN.test(messageText);
+
+  const resetControlProgress = () => {
+    setControlPlanSummary(null);
+    setControlProgress({
+      active: false,
+      total: 0,
+      completed: 0,
+      currentDescription: '',
+    });
+  };
+
   const handleSend = async (text = input) => {
-	    const prompt = text.trim();
-      const hasAttachments = attachedFiles.length > 0;
-      if (!prompt && !hasAttachments) return;
-      const messageText = prompt || 'Please read the attached file and tell me what it contains.';
+    const prompt = text.trim();
+    const hasAttachments = attachedFiles.length > 0;
+    if (!prompt && !hasAttachments) return;
+    const messageText = prompt || 'Please read the attached file and tell me what it contains.';
+    const controlIntent = !hasAttachments && isControlIntent(messageText);
 
     track('ai_prompt_sent', {
       words: wordCount(messageText),
       quick_action: text !== input,
     });
 
-    const sessionId = await ensureSession();
+    const chatSessionId = await ensureSession();
+    appendUserMessage(messageText);
+    setInput('');
+    setIsTyping(true);
+    setTypingLabel(controlIntent ? 'Theek hai, main kar deta hoon...' : 'Thinking through the model chain.');
 
-    setMessages((prev) => [
-      ...prev,
-      { role: 'user', content: messageText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
-    ]);
-	    setInput('');
-	    setIsTyping(true);
+    try {
+      if (controlIntent) {
+        resetControlProgress();
+        const response = await backendApi.post(ENDPOINTS.agent.control, {
+          message: messageText,
+          pathname: location.pathname || '/agent',
+          sessionId: controlSessionIdRef.current,
+          controlMode: true,
+        });
+        setControlPlanSummary(response.data?.summary || null);
+        setControlProgress((current) => ({
+          ...current,
+          active: true,
+          total: Number(response.data?.stepCount || current.total || 0),
+          currentDescription: response.data?.summary || current.currentDescription || 'Planning actions…',
+        }));
+        setAttachedFiles([]);
+        setAttachmentNote(null);
+        return;
+      }
 
-	    try {
-	      const response = await backendApi.post(ENDPOINTS.ai.chat, {
-	        message: messageText,
-	        model: selectedModel,
-	        session_id: sessionId,
-	        attachments: attachedFiles.map((file) => file.id),
-	      });
+      const response = await backendApi.post(ENDPOINTS.ai.chat, {
+        message: messageText,
+        model: selectedModel,
+        session_id: chatSessionId,
+        sessionId: controlSessionIdRef.current,
+        pathname: location.pathname || '/agent',
+        controlMode: false,
+        attachments: attachedFiles.map((file) => file.id),
+      });
       const reply = [
         response.data.reply,
         response.data.capability_hint,
@@ -593,18 +743,18 @@ export const Agent: React.FC = () => {
         }
       }
 
-	      setMessages((prev) => [
-	        ...prev,
-	        {
-	          role: 'ai',
-	          content: reply || 'Pulse is ready.',
-	          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-	          route,
-	        },
-	      ]);
-	      setAttachedFiles([]);
-	      setAttachmentNote(null);
-	    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'ai',
+          content: reply || 'Pulse is ready.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          route,
+        },
+      ]);
+      setAttachedFiles([]);
+      setAttachmentNote(null);
+    } catch (err) {
       console.error(handleApiError(err));
       const isProxyOrNetworkError =
         (err as any)?.response?.status === 502 ||
@@ -619,7 +769,9 @@ export const Agent: React.FC = () => {
         {
           role: 'ai',
           content:
-            isProxyOrNetworkError || aiStatus === 'offline'
+            controlIntent
+              ? `Yahan ruk gaya — ${handleApiError(err)}`
+              : isProxyOrNetworkError || aiStatus === 'offline'
               ? 'Pulse is temporarily unavailable right now. Please try again in a moment.'
               : 'I could not complete that just now. Please try again in a moment.',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -628,6 +780,7 @@ export const Agent: React.FC = () => {
       setRuntimeNote(`Pulse could not complete that request right now: ${handleApiError(err)}`);
     } finally {
       setIsTyping(false);
+      setTypingLabel('Thinking through the model chain.');
     }
   };
 
@@ -1009,6 +1162,24 @@ export const Agent: React.FC = () => {
           </div>
         )}
 
+        {(controlProgress.active || controlProgress.completed > 0) && controlProgress.total > 0 ? (
+          <div className="mx-4 mt-4 rounded-[14px] border border-[color:rgba(62,232,138,0.18)] bg-[rgba(62,232,138,0.06)] px-4 py-3 sm:mx-6">
+            <div className="flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+              <span>Browser control</span>
+              <span>{Math.min(controlProgress.completed, controlProgress.total)}/{controlProgress.total}</span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]">
+              <div
+                className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-300"
+                style={{ width: `${controlProgress.total > 0 ? (Math.min(controlProgress.completed, controlProgress.total) / controlProgress.total) * 100 : 0}%` }}
+              />
+            </div>
+            <p className="mt-2 text-[12px] text-[var(--text-secondary)]">
+              {controlProgress.currentDescription || controlPlanSummary || 'Planning actions…'}
+            </p>
+          </div>
+        ) : null}
+
         <div ref={threadRef} className="pulse-scrollbar relative flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           <div className="space-y-4">
             {visibleMessages.map((message, index) => {
@@ -1059,7 +1230,7 @@ export const Agent: React.FC = () => {
                       <div className="pulse-agent-spinner-inner" />
                     </div>
                     <p className="text-[12px] leading-6 text-[var(--text-secondary)]">
-                      Thinking through the model chain.
+                      {typingLabel}
                     </p>
                   </div>
 

@@ -557,6 +557,7 @@ export const Settings: React.FC = () => {
               <label className="block">
                 <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Agency name</span>
                 <input
+                  id="workspace-name"
                   value={profileEditor.agencyName}
                   onChange={(e) => updateProfileField('agencyName', e.target.value)}
                   placeholder="e.g. Shah Realty"
@@ -589,6 +590,7 @@ export const Settings: React.FC = () => {
               </p>
               <button
                 type="button"
+                data-action="save-settings"
                 onClick={saveProfile}
                 disabled={isSavingProfile}
                 className={cn(

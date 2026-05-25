@@ -513,6 +513,7 @@ export const Team: React.FC = () => {
                 </select>
                 <button
                   type="button"
+                  data-action="invite-member"
                   onClick={() => void addMember()}
                   disabled={isSaving}
                   className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-black transition-opacity hover:opacity-90 disabled:opacity-60"

@@ -95,6 +95,7 @@ export const ROUTE_PATHS = {
     sessionClear: '/sessions/:id/clear',
   },
   agent: {
+    control: '/control',
     webFetch: '/tool/web_fetch',
     storeLeads: '/tool/store_leads',
   },

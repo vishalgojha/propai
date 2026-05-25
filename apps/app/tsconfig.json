@@ -38,7 +38,7 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "strict": false,
-    "ignoreDeprecations": "6.0"
+    "ignoreDeprecations": "5.0"
   },
   "include": [
     "next-env.d.ts",
