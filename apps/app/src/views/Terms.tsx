@@ -5,8 +5,8 @@ export const Terms: React.FC = () => {
   return (
     <LegalPage
       title="Terms & Conditions"
-      intro="These terms cover use of PropAI Pulse, including account access, session restore on this browser, subscriptions, and acceptable use of the broker workspace."
-      updatedAt="April 24, 2026"
+      intro="These terms cover use of PropAI Pulse, including account access, session restore on this browser, subscriptions, broker contact visibility, and acceptable use of the workspace."
+      updatedAt="May 26, 2026"
       sections={[
         {
           title: 'Use of the service',
@@ -21,6 +21,14 @@ export const Terms: React.FC = () => {
             'Some features may require an active subscription managed through our payment provider.',
             'We may keep your browser session active on this device when you choose the Remember this device option.',
             'We may change feature availability, pricing, or access rules with reasonable notice where required.',
+          ],
+        },
+        {
+          title: 'Broker contact data',
+          body: [
+            'Broker names, phone numbers, WhatsApp group references, and related market signals may be displayed to help brokers discover and connect over active inventory.',
+            'Use this information responsibly and only for legitimate brokerage and property-related outreach.',
+            'If you believe a contact or group should be reviewed for removal, email support@propai.live with the relevant details and we will review the request in good faith.',
           ],
         },
         {

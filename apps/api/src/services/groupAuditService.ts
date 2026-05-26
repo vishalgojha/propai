@@ -11,8 +11,17 @@ const db = supabaseAdmin || supabase;
 type AuditDecision = 'parse' | 'review' | 'ignore';
 
 function normalizePhoneFromJid(value?: string | null) {
-    const digits = String(value || '').split('').filter((char) => char >= '0' && char <= '9').join('');
-    return digits.length >= 10 ? digits : '';
+    const jid = String(value || '').trim().toLowerCase();
+    if (!jid) return '';
+
+    const localPart = jid.split('@')[0] || '';
+    const deviceSeparatorIndex = localPart.indexOf(':');
+    const phoneCandidate = deviceSeparatorIndex >= 0 ? localPart.slice(0, deviceSeparatorIndex) : localPart;
+    const digits = phoneCandidate.replace(/\D/g, '');
+
+    if (/^91[6-9]\d{9}$/.test(digits)) return digits.slice(2);
+    if (/^[6-9]\d{9}$/.test(digits)) return digits;
+    return '';
 }
 
 function buildOverlapMap(groups: Array<{ id: string; participantJids?: string[] }>) {

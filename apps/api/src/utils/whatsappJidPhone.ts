@@ -9,7 +9,7 @@ export function normalizePhoneFromJid(value?: string | null) {
 
     if (/^91[6-9]\d{9}$/.test(digits)) return digits.slice(2);
     if (/^[6-9]\d{9}$/.test(digits)) return digits;
-    if (jid.endsWith('@lid') && digits.length >= 10) return digits;
+    if (jid.endsWith('@lid') && /^91[6-9]\d{9}$/.test(digits)) return digits.slice(2);
 
     return '';
 }

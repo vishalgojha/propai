@@ -16,7 +16,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { useLocation, useNavigate, useSearchParams } from '../lib/router';
+import { Link, useLocation, useNavigate, useSearchParams } from '../lib/router';
 import backendApi, { handleApiError } from '../services/api';
 import { fetchBrokerContactOverlaps, fetchBrokerContacts, type BrokerContact, type BrokerContactOverlap } from '../services/brokerContactApi';
 import {
@@ -42,7 +42,13 @@ const formatPhone = (phone: string): string => {
   const digits = phone.replace(/\D/g, '');
   if (digits.length === 10) return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
   if (digits.length === 12 && digits.startsWith('91')) return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
-  return phone;
+  return '—';
+};
+
+const getBrokerLabel = (contact: { display_name: string | null; phone: string }): string => {
+  if (contact.display_name) return contact.display_name;
+  const formattedPhone = formatPhone(contact.phone);
+  return formattedPhone === '—' ? 'Broker' : formattedPhone;
 };
 
 const formatPrice = (value: number | null | undefined): string => {
@@ -63,6 +69,21 @@ const formatDate = (value?: string | null): string => {
   const days = Math.round(hours / 24);
   if (days < 30) return `${days}d ago`;
   return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const normalizePhoneDigits = (value: string): string => value.replace(/\D/g, '');
+
+const isLikelyIndianPhone = (value: string): boolean => {
+  const digits = normalizePhoneDigits(value);
+  return /^[6-9]\d{9}$/.test(digits) || /^91[6-9]\d{9}$/.test(digits);
+};
+
+const buildBrokerWhatsAppLink = (phone: string): string | null => {
+  if (!isLikelyIndianPhone(phone)) return null;
+  const digits = normalizePhoneDigits(phone);
+  const normalized = digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+  const message = 'Hi, I found your number on PropAI and wanted to connect.';
+  return `https://wa.me/91${normalized}?text=${encodeURIComponent(message)}`;
 };
 
 const extractToken = (value: string): string => {
@@ -278,6 +299,11 @@ export const BrokerNetwork: React.FC = () => {
             <RefreshCw className={cn('h-4 w-4', (activeView === 'partners' ? isLoadingPartners : isLoading) && 'animate-spin')} />
             Refresh
           </button>
+        </div>
+
+        <div className="mt-5 rounded-[18px] border border-[color:rgba(62,232,138,0.18)] bg-[rgba(62,232,138,0.06)] px-4 py-3 text-[12px] leading-6 text-[var(--text-secondary)]">
+          Broker contact data is shown for legitimate brokerage outreach only. If you want a number or group reviewed for removal, email <a className="font-semibold text-[var(--accent)] hover:underline" href="mailto:support@propai.live">support@propai.live</a>.
+          Please review the <Link className="font-semibold text-[var(--accent)] hover:underline" to="/terms">Terms &amp; Conditions</Link> before using this workspace.
         </div>
       </div>
 
@@ -551,11 +577,11 @@ export const BrokerNetwork: React.FC = () => {
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent-dim)] text-[13px] font-bold text-[var(--accent)]">
-                          {(contact.display_name || contact.phone)[0].toUpperCase()}
+                          {getBrokerLabel(contact)[0].toUpperCase()}
                         </div>
                         <div>
                           <p className="font-semibold text-[var(--text-primary)]">
-                            {contact.display_name || formatPhone(contact.phone)}
+                            {getBrokerLabel(contact)}
                           </p>
                           {contact.source_groups.length > 0 ? (
                             <p className="mt-0.5 flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
@@ -567,10 +593,20 @@ export const BrokerNetwork: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <span className="inline-flex items-center gap-1 text-[13px] text-[var(--text-secondary)]">
+                      <a
+                        href={buildBrokerWhatsAppLink(contact.phone) || undefined}
+                        target={buildBrokerWhatsAppLink(contact.phone) ? '_blank' : undefined}
+                        rel={buildBrokerWhatsAppLink(contact.phone) ? 'noreferrer' : undefined}
+                        className={cn(
+                          'inline-flex items-center gap-1 text-[13px] transition-colors',
+                          buildBrokerWhatsAppLink(contact.phone)
+                            ? 'text-[var(--accent)] hover:underline'
+                            : 'text-[var(--text-secondary)] pointer-events-none',
+                        )}
+                      >
                         <Phone className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                         {formatPhone(contact.phone)}
-                      </span>
+                      </a>
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex flex-wrap gap-1">
@@ -677,16 +713,29 @@ export const BrokerNetwork: React.FC = () => {
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent-dim)] text-[13px] font-bold text-[var(--accent)]">
-                          {(contact.display_name || contact.phone)[0].toUpperCase()}
+                          {getBrokerLabel(contact)[0].toUpperCase()}
                         </div>
                         <div>
                           <p className="font-semibold text-[var(--text-primary)]">
-                            {contact.display_name || formatPhone(contact.phone)}
+                            {getBrokerLabel(contact)}
                           </p>
                           <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
                             <Phone className="h-3 w-3" />
                             {formatPhone(contact.phone)}
                           </p>
+                          <a
+                            href={buildBrokerWhatsAppLink(contact.phone) || undefined}
+                            target={buildBrokerWhatsAppLink(contact.phone) ? '_blank' : undefined}
+                            rel={buildBrokerWhatsAppLink(contact.phone) ? 'noreferrer' : undefined}
+                            className={cn(
+                              'mt-1 inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] transition-colors',
+                              buildBrokerWhatsAppLink(contact.phone)
+                                ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)] hover:brightness-110'
+                                : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-muted)] pointer-events-none',
+                            )}
+                          >
+                            Connect on WhatsApp
+                          </a>
                         </div>
                       </div>
                     </td>

@@ -14,10 +14,12 @@ function normalizeBrokerContact(contact: any) {
     : Array.isArray(contact?.bhk_types)
       ? contact.bhk_types
       : [];
+  const phone = normalizePhoneFromJid(contact?.phone);
 
   return {
     ...contact,
     asset_types: assetTypes,
+    phone,
   };
 }
 
@@ -79,21 +81,24 @@ router.get('/overlaps', async (req, res) => {
         ...overlappingPhones,
         ...overlappingPhones.map((phone) => `91${phone}`),
       ]));
-      const { data: contacts, error: contactsError } = await supabaseAdmin
-        .from('broker_contacts')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .in('phone', contactLookupPhones);
+      try {
+        const { data: contacts, error: contactsError } = await supabaseAdmin
+          .from('broker_contacts')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .in('phone', contactLookupPhones);
 
-      if (contactsError) {
-        console.error('[BrokerContacts] Overlap contact query failed:', contactsError);
-        return res.status(500).json({ error: 'Failed to fetch overlapping contacts', details: contactsError.message });
+        if (contactsError) {
+          console.warn('[BrokerContacts] Overlap contact lookup failed, returning group-only overlaps:', contactsError);
+        } else {
+          contactsByPhone = new Map((contacts || []).map((contact: any) => {
+            const normalized = normalizeBrokerContact(contact);
+            return [normalized.phone, normalized];
+          }));
+        }
+      } catch (lookupError) {
+        console.warn('[BrokerContacts] Overlap contact lookup threw, returning group-only overlaps:', lookupError);
       }
-
-      contactsByPhone = new Map((contacts || []).map((contact: any) => {
-        const normalized = normalizeBrokerContact(contact);
-        return [normalizePhoneFromJid(normalized.phone), normalized];
-      }));
     }
 
     const overlaps = Array.from(phoneGroups.entries())
@@ -191,7 +196,9 @@ router.get('/', async (req, res) => {
       }
     }
 
-    const normalizedContacts = (contacts || []).map((contact: any) => normalizeBrokerContact(contact));
+    const normalizedContacts = (contacts || [])
+      .map((contact: any) => normalizeBrokerContact(contact))
+      .filter((contact: any) => Boolean(contact.phone));
     const filteredContacts = sessionGroupJids
       ? normalizedContacts.filter((contact: any) => {
         const sourceGroups = Array.isArray(contact?.source_groups) ? contact.source_groups : [];
