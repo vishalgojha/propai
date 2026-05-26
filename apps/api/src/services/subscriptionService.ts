@@ -31,7 +31,7 @@ export function normalizePlanName(plan?: string | null): Plan {
 export class SubscriptionService {
     private db = supabaseAdmin ?? supabase;
     private planLimits = {
-        Trial: { sessions: 1, leads: 50, features: ['basic_parser'], manualListings: 0, manualRequirements: 0, aiQueries: 5 },
+        Trial: { sessions: 1, leads: 50, features: ['basic_parser', 'manual_posting'], manualListings: 10, manualRequirements: 10, aiQueries: 5 },
         Starter: { sessions: 0, leads: 0, features: ['manual_posting'], manualListings: 50, manualRequirements: 50, aiQueries: 100 },
         Pro: { sessions: 1, leads: Infinity, features: ['basic_parser', 'portal_posting', 'unlimited_matches', 'manual_posting'], manualListings: Infinity, manualRequirements: Infinity, aiQueries: Infinity },
     };

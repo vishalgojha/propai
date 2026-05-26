@@ -88,7 +88,7 @@ export const VaultView: React.FC = () => {
   const [intakeMode, setIntakeMode] = useState<IntakeMode | null>(null);
 
   const plan = user?.subscription?.plan || 'Free';
-  const canPost = plan === 'Starter' || plan === 'Pro';
+  const canUseParser = plan === 'Trial' || plan === 'Starter' || plan === 'Pro';
 
   useEffect(() => {
     if (!user?.token) return;
@@ -155,7 +155,7 @@ export const VaultView: React.FC = () => {
       </div>
 
       {/* Post buttons */}
-      {canPost && !intakeMode && (
+      {canUseParser && !intakeMode && (
         <div className="flex gap-3">
           <button className={ghostButtonClass} onClick={() => startIntake('listing')}>
             <PlusIcon className="h-4 w-4" strokeWidth={2} />
@@ -167,13 +167,13 @@ export const VaultView: React.FC = () => {
           </button>
         </div>
       )}
-      {!canPost && !intakeMode && (
+      {!canUseParser && !intakeMode && (
         <div className={`${panelClass} flex items-center gap-3 border-[var(--amber)]`}>
           <AlertTriangleIcon className="h-5 w-5 shrink-0 text-[var(--amber)]" strokeWidth={1.5} />
           <div className="flex-1">
-            <p className="text-[13px] font-semibold text-[var(--text-primary)]">Upgrade to post listings</p>
+            <p className="text-[13px] font-semibold text-[var(--text-primary)]">Parser access unavailable</p>
             <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
-              Starter plan (₹499/mo) lets you post up to 50 listings and 50 requirements to the global stream.
+              Trial and paid plans can use the global parser. Upgrade or activate a trial to continue.
             </p>
           </div>
           <button className={accentButtonClass} onClick={() => navigate('/pricing')}>

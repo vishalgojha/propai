@@ -15,14 +15,14 @@ export const PROPAI_PLAN_CARDS = [
   {
     name: 'Starter',
     price: '₹499 / month',
-    devices: 'Manual posting only',
-    blurb: 'Post up to 50 listings & 50 requirements. Your posts syndicate to the global stream. No WhatsApp connection.',
+    devices: 'Global parser access',
+    blurb: 'Global parser access with up to 50 listings & 50 requirements. Your posts syndicate to the global stream. No WhatsApp connection.',
   },
   {
     name: 'Pro',
     price: '₹999 / month',
     devices: '1 WhatsApp device',
-    blurb: 'Your own private WhatsApp agent. One broker, one phone number, unlimited matches. Includes manual posting.',
+    blurb: 'One broker, one phone number, unlimited matches, and full global parser access.',
   },
   {
     name: 'Team',

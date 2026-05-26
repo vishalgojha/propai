@@ -74,10 +74,6 @@ router.post('/post', async (req, res) => {
       return res.status(400).json({ error: 'Type must be "listing" or "requirement"' });
     }
 
-    if (!subscriptionService.hasFeature(plan, 'manual_posting')) {
-      return res.status(403).json({ error: 'Your plan does not support manual posting. Upgrade to Starter or Pro.' });
-    }
-
     // Validate limits
     if (body.type === 'listing') {
       const limit = await subscriptionService.getLimitForTenant(tenantId, plan, 'manualListings', userEmail);
