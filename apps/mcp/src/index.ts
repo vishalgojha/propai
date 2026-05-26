@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { supabase } from "./supabase.js";
+import { generateEmbedding } from "./embedding.js";
 import { draftGrowthAssetWithLlm, extractThreadActionsWithLlm, summarizeBrokerThreadWithLlm } from "./ai.js";
 import {
   buildBroadcastDraft,
@@ -813,21 +814,9 @@ export function createMcpServer(context: ToolContext = {}) {
     async (input) => {
       await logToolCall(brokerId(context), "semantic_search", input);
 
-      // Generate query embedding via the API's embed endpoint
-      const apiUrl = process.env.PROPAI_API_URL || "http://localhost:3001";
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "";
-      let embedding: number[];
-      try {
-        const resp = await fetch(`${apiUrl}/api/scraper/embed`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-service-key": serviceKey },
-          body: JSON.stringify({ text: input.query }),
-        });
-        const data = await resp.json() as any;
-        if (!data.success) throw new Error(data.error || "embed failed");
-        embedding = data.embedding;
-      } catch (e: any) {
-        return textResponse(`Could not generate embedding: ${e.message}. Try the search_listings tool instead.`);
+      const embedding = await generateEmbedding(input.query);
+      if (!embedding) {
+        return textResponse("Could not generate an embedding right now. Try the search_listings tool instead.");
       }
 
       const { data: results, error } = await supabase.rpc("match_listings", {
