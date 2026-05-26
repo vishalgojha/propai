@@ -238,6 +238,18 @@ export class ConversationEngineService {
             };
         }
 
+        if (route.intent === 'general_chat' || route.intent === 'general_answer') {
+            const greeting = [
+                'Sab theek! Koi property dhundh rahe ho ya kuch requirement save karni hai? Batao kaise help kar sakta hoon! 😊',
+                'Sab set! Koi listing chahiye ya kuch puchna hai? Bolo bhai! 👍',
+                'Haan batao, kya kar sakta hoon aapke liye? Property dhundhni hai ya kuch aur?',
+            ][Math.floor(Math.random() * 3)];
+            const agentResponse = toAgentResponse(greeting);
+            const renderedReply = renderChannelReply(event.channel, agentResponse);
+            await saveToHistory(event.conversation.key, rawPrompt, renderedReply, input.sessionId);
+            return { reply: renderedReply, text: renderedReply, agentResponse, route, capabilityHint };
+        }
+
         const basePrompt = event.channel === 'web'
             ? WEB_PULSE_CHAT_SYSTEM_PROMPT
             : (input.basePrompt || PULSE_CHAT_SYSTEM_PROMPT);

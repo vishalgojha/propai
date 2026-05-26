@@ -92,8 +92,8 @@ function normalizeAgentResponseShape(value: unknown): AgentResponse | null {
     return null;
 }
 
-export function parseAgentResponse(rawText: string): AgentResponse {
-    const cleanedText = stripAgentResponsePrefix(rawText);
+export function parseAgentResponse(rawText: string | null | undefined): AgentResponse {
+    const cleanedText = stripAgentResponsePrefix(rawText || '');
     const fallback = toAgentResponse(cleanedText, 'text');
     const jsonText = extractJsonObject(cleanedText);
 
