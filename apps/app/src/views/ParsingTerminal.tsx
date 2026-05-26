@@ -410,6 +410,7 @@ export default function ParsingTerminal() {
                 value={totals.failed.toLocaleString('en-IN')}
                 detail="Failed in 24h"
                 tone={totals.failed > 0 ? 'danger' : 'neutral'}
+                tooltip="Messages that failed parsing or ingestion in the last 24 hours."
               />
               <StatusBlock
                 label="Sync"
@@ -551,15 +552,28 @@ function StatusBlock({
   value,
   detail,
   tone,
+  tooltip,
 }: {
   label: string;
   value: string;
   detail: string;
   tone: keyof typeof toneStyles;
+  tooltip?: string;
 }) {
   return (
     <div className={cn('border px-3 py-3 font-mono', toneBoxStyles[tone])}>
-      <p className="text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">{label}</p>
+      <p className="flex items-center gap-1 text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+        <span>{label}</span>
+        {tooltip ? (
+          <span
+            title={tooltip}
+            aria-label={tooltip}
+            className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[color:var(--border)] text-[8px] leading-none text-[var(--text-secondary)] cursor-help"
+          >
+            i
+          </span>
+        ) : null}
+      </p>
       <p className="mt-2 text-[20px] font-bold uppercase tracking-[0.04em]">{value}</p>
       <p className="mt-1 text-[10px] uppercase tracking-[0.1em] text-[var(--text-secondary)]">{detail}</p>
     </div>
