@@ -286,8 +286,7 @@ export const BrokerNetwork: React.FC = () => {
               Your broker network
             </h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              Brokers extracted from WhatsApp group broadcasts and participant lists — {contacts.length} contact{contacts.length === 1 ? '' : 's'}, {overlaps.length} overlapping contact{overlaps.length === 1 ? '' : 's'}, {totalListings} listing{totalListings === 1 ? '' : 's'} parsed.
-              {sessionLabel ? ` Session ${sessionLabel}.` : ''}
+              Brokers extracted from WhatsApp group broadcasts and participant lists across all broker workspaces — {contacts.length} unique contact{contacts.length === 1 ? '' : 's'}, {overlaps.length} overlapping contact{overlaps.length === 1 ? '' : 's'}, {totalListings} listing{totalListings === 1 ? '' : 's'} parsed.
             </p>
           </div>
           <button
@@ -361,7 +360,6 @@ export const BrokerNetwork: React.FC = () => {
         {activeView === 'overlaps' ? (
           <div className="text-[12px] text-[var(--text-secondary)]">
             {overlaps.length} contact{overlaps.length === 1 ? '' : 's'} across {overlappingGroupLinks} group membership link{overlappingGroupLinks === 1 ? '' : 's'}
-            {sessionLabel ? ` · ${sessionLabel}` : ''}
           </div>
         ) : activeView === 'partners' ? (
           <div className="text-[12px] text-[var(--text-secondary)]">

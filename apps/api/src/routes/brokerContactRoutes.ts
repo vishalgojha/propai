@@ -1,47 +1,150 @@
 import { Router } from 'express';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { brokerContactSyncService } from '../services/brokerContactSyncService';
-import { whatsappGroupService } from '../services/whatsappGroupService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { normalizePhoneFromJid } from '../utils/whatsappJidPhone';
 import { supabaseAdmin } from '../config/supabase';
 
 const router = Router();
 
-function normalizeBrokerContact(contact: any) {
-  const assetTypes = Array.isArray(contact?.asset_types)
-    ? contact.asset_types
-    : Array.isArray(contact?.bhk_types)
-      ? contact.bhk_types
-      : [];
-  const phone = normalizePhoneFromJid(contact?.phone);
+type BrokerContactRow = {
+  tenant_id: string | null;
+  phone: string | null;
+  display_name: string | null;
+  inferred_areas: string[] | null;
+  source_groups: string[] | null;
+  group_count: number | null;
+  unsubscribed: boolean | null;
+  unsubscribed_at: string | null;
+  last_seen_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  listing_count: number | null;
+  asset_types?: string[] | null;
+  bhk_types?: string[] | null;
+  price_range_low?: number | null;
+  price_range_high?: number | null;
+};
 
-  return {
-    ...contact,
-    asset_types: assetTypes,
-    phone,
-  };
+type BrokerContactAggregate = {
+  id: string;
+  tenant_id: string;
+  phone: string;
+  display_name: string | null;
+  inferred_areas: string[];
+  source_groups: string[];
+  group_count: number;
+  unsubscribed: boolean;
+  unsubscribed_at: string | null;
+  last_seen_at: string;
+  created_at: string;
+  updated_at: string;
+  listing_count: number;
+  asset_types: string[];
+  price_range_low: number | null;
+  price_range_high: number | null;
+};
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
+}
+
+function aggregateContacts(rows: BrokerContactRow[]): BrokerContactAggregate[] {
+  const byPhone = new Map<string, BrokerContactAggregate>();
+
+  for (const row of rows || []) {
+    const phone = normalizePhoneFromJid(row.phone);
+    if (!phone) continue;
+
+    const existing = byPhone.get(phone) || {
+      id: phone,
+      tenant_id: String(row.tenant_id || ''),
+      phone,
+      display_name: row.display_name || null,
+      inferred_areas: [],
+      source_groups: [],
+      group_count: 0,
+      unsubscribed: false,
+      unsubscribed_at: null,
+      last_seen_at: row.last_seen_at || new Date(0).toISOString(),
+      created_at: row.created_at || new Date(0).toISOString(),
+      updated_at: row.updated_at || new Date(0).toISOString(),
+      listing_count: 0,
+      asset_types: [],
+      price_range_low: row.price_range_low ?? null,
+      price_range_high: row.price_range_high ?? null,
+    };
+
+    const inferredAreas = uniqueStrings([...(existing.inferred_areas || []), ...((row.inferred_areas || []) as string[])]);
+    const sourceGroups = uniqueStrings([...(existing.source_groups || []), ...((row.source_groups || []) as string[])]);
+    const assetTypes = uniqueStrings([
+      ...(existing.asset_types || []),
+      ...((row.asset_types || []) as string[]),
+      ...((row.bhk_types || []) as string[]),
+    ]);
+    const nextLastSeen = existing.last_seen_at > String(row.last_seen_at || '') ? existing.last_seen_at : String(row.last_seen_at || existing.last_seen_at);
+    const nextCreatedAt = existing.created_at < String(row.created_at || existing.created_at) ? existing.created_at : String(row.created_at || existing.created_at);
+    const nextUpdatedAt = existing.updated_at > String(row.updated_at || '') ? existing.updated_at : String(row.updated_at || existing.updated_at);
+
+    byPhone.set(phone, {
+      ...existing,
+      tenant_id: existing.tenant_id || String(row.tenant_id || ''),
+      display_name: existing.display_name || row.display_name || null,
+      inferred_areas: inferredAreas,
+      source_groups: sourceGroups,
+      group_count: sourceGroups.length,
+      unsubscribed: existing.unsubscribed || Boolean(row.unsubscribed),
+      unsubscribed_at: existing.unsubscribed_at || row.unsubscribed_at || null,
+      last_seen_at: nextLastSeen,
+      created_at: nextCreatedAt,
+      updated_at: nextUpdatedAt,
+      listing_count: existing.listing_count + Number(row.listing_count || 0),
+      asset_types: assetTypes,
+      price_range_low: existing.price_range_low ?? row.price_range_low ?? null,
+      price_range_high: existing.price_range_high ?? row.price_range_high ?? null,
+    });
+  }
+
+  return Array.from(byPhone.values()).sort((left, right) => {
+    if (right.listing_count !== left.listing_count) return right.listing_count - left.listing_count;
+    if (right.group_count !== left.group_count) return right.group_count - left.group_count;
+    return String(left.display_name || left.phone).localeCompare(String(right.display_name || right.phone));
+  });
 }
 
 router.get('/overlaps', async (req, res) => {
   try {
     const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
-    const tenantId = context.workspaceOwnerId;
 
     if (!supabaseAdmin) {
       return res.status(503).json({ error: 'Database admin client is not configured' });
     }
 
-    const groups = await whatsappGroupService.listGroups(tenantId, {
-      includeArchived: false,
-    });
+    const { data: contactRows, error: contactsError } = await supabaseAdmin
+      .from('broker_contacts')
+      .select('tenant_id, phone, display_name, inferred_areas, source_groups, group_count, unsubscribed, unsubscribed_at, last_seen_at, created_at, updated_at, listing_count, asset_types, bhk_types, price_range_low, price_range_high');
+
+    if (contactsError) {
+      return res.status(500).json({ error: 'Failed to fetch broker contacts', details: contactsError.message });
+    }
+
+    const aggregatedContacts = aggregateContacts((contactRows || []) as BrokerContactRow[]);
+
+    const { data: groups, error: groupsError } = await supabaseAdmin
+      .from('whatsapp_groups')
+      .select('workspace_id, group_jid, group_name, locality, category, participant_jids')
+      .eq('is_archived', false);
+
+    if (groupsError) {
+      return res.status(500).json({ error: 'Failed to fetch group membership data', details: groupsError.message });
+    }
 
     const phoneGroups = new Map<string, Map<string, {
       id: string;
       name: string;
       locality: string | null;
       category: string | null;
-      sessionLabel: string | null;
+      workspaceId: string | null;
     }>>();
 
     for (const group of groups || []) {
@@ -53,51 +156,25 @@ router.get('/overlaps', async (req, res) => {
           name: string;
           locality: string | null;
           category: string | null;
-          sessionLabel: string | null;
+          workspaceId: string | null;
         }>();
-        const groupJid = String((group as any).groupJid || '').trim();
+        const groupJid = String((group as any).group_jid || '').trim();
+        const workspaceId = String((group as any).workspace_id || '').trim();
         if (!groupJid) continue;
 
-        existing.set(groupJid, {
-          id: groupJid,
+        const groupKey = `${workspaceId || 'workspace'}:${groupJid}`;
+        existing.set(groupKey, {
+          id: groupKey,
           name: String((group as any).name || groupJid || ''),
           locality: (group as any).locality || null,
           category: (group as any).category || null,
-          sessionLabel: (group as any).sessionLabel || null,
+          workspaceId: workspaceId || null,
         });
         phoneGroups.set(phone, existing);
       }
     }
 
-    const overlappingPhones = Array.from(phoneGroups.entries())
-      .filter(([, sourceGroups]) => sourceGroups.size > 1)
-      .map(([phone]) => phone);
-
-    let contactsByPhone = new Map<string, any>();
-    if (overlappingPhones.length > 0) {
-      const contactLookupPhones = Array.from(new Set([
-        ...overlappingPhones,
-        ...overlappingPhones.map((phone) => `91${phone}`),
-      ]));
-      try {
-        const { data: contacts, error: contactsError } = await supabaseAdmin
-          .from('broker_contacts')
-          .select('*')
-          .eq('tenant_id', tenantId)
-          .in('phone', contactLookupPhones);
-
-        if (contactsError) {
-          console.warn('[BrokerContacts] Overlap contact lookup failed, returning group-only overlaps:', contactsError);
-        } else {
-          contactsByPhone = new Map((contacts || []).map((contact: any) => {
-            const normalized = normalizeBrokerContact(contact);
-            return [normalized.phone, normalized];
-          }));
-        }
-      } catch (lookupError) {
-        console.warn('[BrokerContacts] Overlap contact lookup threw, returning group-only overlaps:', lookupError);
-      }
-    }
+    const contactsByPhone = new Map(aggregatedContacts.map((contact) => [contact.phone, contact]));
 
     const overlaps = Array.from(phoneGroups.entries())
       .filter(([, sourceGroups]) => sourceGroups.size > 1)
@@ -141,7 +218,6 @@ router.get('/overlaps', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
-    const tenantId = context.workspaceOwnerId;
 
     if (!supabaseAdmin) {
       return res.status(503).json({ error: 'Database admin client is not configured' });
@@ -150,7 +226,6 @@ router.get('/', async (req, res) => {
     const loadContacts = async () => await supabaseAdmin!
       .from('broker_contacts')
       .select('*')
-      .eq('tenant_id', tenantId)
       .order('listing_count', { ascending: false })
       .order('last_seen_at', { ascending: false });
 
@@ -163,7 +238,7 @@ router.get('/', async (req, res) => {
 
     if ((contacts || []).length <= 1) {
       try {
-        await brokerContactSyncService.syncFromStoredGroups(tenantId, {
+        await brokerContactSyncService.syncFromStoredGroups(context.workspaceOwnerId, {
           minOverlap: 2,
         });
         const reloaded = await loadContacts();
@@ -179,9 +254,8 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch broker contacts', details: error.message });
     }
 
-    const normalizedContacts = (contacts || [])
-      .map((contact: any) => normalizeBrokerContact(contact))
-      .filter((contact: any) => Boolean(contact.phone));
+    const normalizedContacts = aggregateContacts((contacts || []) as BrokerContactRow[])
+      .filter((contact) => Boolean(contact.phone));
     res.json(normalizedContacts);
   } catch (error: unknown) {
     console.error('[BrokerContacts] Unexpected error:', error);
