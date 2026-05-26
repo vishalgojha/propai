@@ -90,7 +90,6 @@ export const Layout: React.FC = () => {
     if (path.startsWith('/broker-network')) return 'Broker Network';
     if (path.startsWith('/whatsapp')) return 'WhatsApp';
     if (path.startsWith('/vault')) return 'Vault';
-    if (path.startsWith('/teach-pulse')) return 'Teach Pulse';
     if (path.startsWith('/intelligence') || path === '/analytics') return 'Intelligence';
     if (path.startsWith('/ai-usage') || path === '/aiusage') return 'AI Usage';
 

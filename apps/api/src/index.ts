@@ -23,7 +23,6 @@ import brokerContactRoutes from './routes/brokerContactRoutes';
 import syndicationRoutes from './routes/syndicationRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import vaultRoutes from './routes/vaultRoutes';
-import teachRoutes from './routes/teachRoutes';
 import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
@@ -169,7 +168,6 @@ app.use(ROUTE_PATHS.api.brokerContacts, authMiddleware, brokerContactRoutes);
 app.use(ROUTE_PATHS.api.syndication, authMiddleware, syndicationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/vault', vaultRoutes);
-app.use('/api/teach', teachRoutes);
 
 app.get(ROUTE_PATHS.api.health, (req, res) => {
     res.json({
