@@ -74,7 +74,8 @@ type ReferralSummary = {
 
 const formatPlanLabel = (plan?: string | null) => {
   const normalized = String(plan || '').trim().toLowerCase();
-  if (normalized === 'trial' || normalized === 'free') return 'Trial';
+  if (normalized === 'trial' || normalized === 'free') return 'Free';
+  if (normalized === 'starter') return 'Starter';
   return 'Pro';
 };
 
@@ -382,7 +383,7 @@ export const Dashboard: React.FC = () => {
               <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plan status</p>
               <h2 className="mt-1 text-[20px] font-bold text-[var(--text-primary)]">{planLabel}</h2>
               <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-                {planLabel === 'Trial'
+                {planLabel === 'Free'
                   ? `Your 7-day free trial is live${typeof trialDaysLeft === 'number' ? ` with ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left.` : '.'}`
                   : `Your workspace is on the ${planLabel} plan.`}
               </p>

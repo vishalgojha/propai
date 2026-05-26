@@ -96,8 +96,9 @@ const parseServiceAreas = (text: string, primaryCity: string) => {
 
 const formatPlanLabel = (plan?: string | null) => {
   const normalized = String(plan || '').trim().toLowerCase();
-  if (normalized === 'trial' || normalized === 'free') return 'Trial';
-    if (normalized === 'solo' || normalized === 'pro') return 'Pro';
+  if (normalized === 'trial' || normalized === 'free') return 'Free';
+  if (normalized === 'starter') return 'Starter';
+  if (normalized === 'solo' || normalized === 'pro') return 'Pro';
   return plan || 'Team';
 };
 

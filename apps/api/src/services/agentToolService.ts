@@ -174,10 +174,11 @@ export class AgentToolService {
             case 'get_market_intelligence':
                 return await this.getMarketIntelligence(args);
             case 'upgrade_plan': {
-                const planName = 'Pro';
+                const planName = args?.plan === 'Starter' ? 'Starter' : 'Pro';
                 const paymentLink = `https://rzp.io/i/propai_${planName}_${tenantId}`;
                 await subscriptionService.upgradePlan(tenantId, planName);
-                return { payment_link: paymentLink, message: `Please complete payment at ${paymentLink} to activate your Pro plan — ₹999/mo, 1 device.` };
+                const planLabel = planName === 'Starter' ? 'Starter — ₹499/mo' : 'Pro — ₹999/mo';
+                return { payment_link: paymentLink, message: `Please complete payment at ${paymentLink} to activate your ${planLabel} plan.` };
             }
             case 'cancel_subscription':
                 await subscriptionService.cancelSubscription(tenantId);

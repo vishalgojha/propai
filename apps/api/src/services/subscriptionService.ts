@@ -1,7 +1,7 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { referralService } from './referralService';
 
-export type Plan = 'Trial' | 'Pro';
+export type Plan = 'Trial' | 'Starter' | 'Pro';
 
 export interface Subscription {
     plan: Plan;
@@ -24,14 +24,16 @@ const OWNER_SUPER_ADMIN_SESSION_LIMIT = 99;
 export function normalizePlanName(plan?: string | null): Plan {
     const normalized = String(plan || '').trim().toLowerCase();
     if (normalized === 'free' || normalized === 'trial') return 'Trial';
+    if (normalized === 'starter') return 'Starter';
     return 'Pro';
 }
 
 export class SubscriptionService {
     private db = supabaseAdmin ?? supabase;
     private planLimits = {
-        Trial: { sessions: 1, leads: 50, features: ['basic_parser'] },
-        Pro: { sessions: 1, leads: Infinity, features: ['basic_parser', 'portal_posting', 'unlimited_matches'] },
+        Trial: { sessions: 1, leads: 50, features: ['basic_parser'], manualListings: 0, manualRequirements: 0, aiQueries: 5 },
+        Starter: { sessions: 0, leads: 0, features: ['manual_posting'], manualListings: 50, manualRequirements: 50, aiQueries: 100 },
+        Pro: { sessions: 1, leads: Infinity, features: ['basic_parser', 'portal_posting', 'unlimited_matches', 'manual_posting'], manualListings: Infinity, manualRequirements: Infinity, aiQueries: Infinity },
     };
 
     private addDays(date: Date, days: number) {
@@ -220,11 +222,11 @@ export class SubscriptionService {
         if (error) throw error;
     }
 
-    getLimit(plan: Plan | string, feature: 'sessions' | 'leads') {
+    getLimit(plan: Plan | string, feature: 'sessions' | 'leads' | 'manualListings' | 'manualRequirements' | 'aiQueries') {
         return this.planLimits[normalizePlanName(plan)][feature];
     }
 
-    async getLimitForTenant(tenantId: string, plan: Plan | string, feature: 'sessions' | 'leads', email?: string | null) {
+    async getLimitForTenant(tenantId: string, plan: Plan | string, feature: 'sessions' | 'leads' | 'manualListings' | 'manualRequirements' | 'aiQueries', email?: string | null) {
         if (feature === 'sessions' && await this.isOwnerSuperAdmin(tenantId, email)) {
             return OWNER_SUPER_ADMIN_SESSION_LIMIT;
         }

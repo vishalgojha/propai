@@ -7,16 +7,22 @@ export const PROPAI_CONNECT_PREFILL = 'Hi PropAI Assistant, I want to connect my
 export const PROPAI_CONNECT_WA_LINK = `https://wa.me/917021045254?text=${encodeURIComponent(PROPAI_CONNECT_PREFILL)}`;
 export const PROPAI_PLAN_CARDS = [
   {
-    name: 'Trial',
-    price: '7 days free',
-    devices: 'No credit card required',
-    blurb: 'Connect your WhatsApp, watch your Stream fill up. Full access, zero commitment.',
+    name: 'Free',
+    price: '₹0',
+    devices: '7-day trial then 5 AI queries/mo',
+    blurb: 'Try the agent, watch your Stream fill up. No WhatsApp connection after trial.',
+  },
+  {
+    name: 'Starter',
+    price: '₹499 / month',
+    devices: 'Manual posting only',
+    blurb: 'Post up to 50 listings & 50 requirements. Your posts syndicate to the global stream. No WhatsApp connection.',
   },
   {
     name: 'Pro',
     price: '₹999 / month',
     devices: '1 WhatsApp device',
-    blurb: 'Your own private WhatsApp agent. One broker, one phone number, unlimited matches.',
+    blurb: 'Your own private WhatsApp agent. One broker, one phone number, unlimited matches. Includes manual posting.',
   },
   {
     name: 'Team',
