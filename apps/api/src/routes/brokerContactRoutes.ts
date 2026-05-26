@@ -122,7 +122,7 @@ router.get('/overlaps', async (req, res) => {
 
     const { data: contactRows, error: contactsError } = await supabaseAdmin
       .from('broker_contacts')
-      .select('tenant_id, phone, display_name, inferred_areas, source_groups, group_count, unsubscribed, unsubscribed_at, last_seen_at, created_at, updated_at, listing_count, asset_types, bhk_types, price_range_low, price_range_high');
+      .select('tenant_id, phone, display_name, inferred_areas, source_groups, group_count, unsubscribed, unsubscribed_at, last_seen_at, created_at, updated_at, listing_count, asset_types, price_range_low, price_range_high');
 
     if (contactsError) {
       return res.status(500).json({ error: 'Failed to fetch broker contacts', details: contactsError.message });
