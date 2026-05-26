@@ -21,7 +21,7 @@ async function reparseDatabasePrices() {
             .from('stream_items')
             .select('id, raw_text, type, deal_type, price_label, price_numeric');
         if (!reparseAll) {
-            streamQuery = streamQuery.or('price_numeric.is.null,price_label.eq.Unspecified,price_label.is.null,price_label.ilike.%â¼%');
+            streamQuery = streamQuery.or('price_numeric.is.null,price_label.eq.Unspecified,price_label.is.null,price_label.ilike.%â¼%,price_label.ilike.%â¹%,price_label.ilike.%â‚¹%');
         }
         const { data: items, error } = await streamQuery;
 
