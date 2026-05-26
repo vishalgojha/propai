@@ -17,6 +17,7 @@ type Days = 7 | 14 | 30;
 type IntelligenceResult = {
   scope?: 'all_accounts' | 'workspace';
   validRows?: number;
+  activeBrokerCount?: number;
   marketPulse: {
     locality: string;
     listings: number;
@@ -183,7 +184,7 @@ const Analytics: React.FC = () => {
         <KpiCard label="Valid Stream" value={formatInteger(intelData?.validRows)} />
         <KpiCard label="Requirements" value={formatInteger(totalRequirements)} />
         <KpiCard label="Supply/Demand Ratio" value={`${formatRatio(supplyDemandRatio)}x`} />
-        <KpiCard label="Active Brokers" value={formatInteger(intelData?.brokerLeaderboard?.length)} />
+        <KpiCard label="Active Brokers" value={formatInteger(intelData?.activeBrokerCount ?? intelData?.brokerLeaderboard?.length)} />
       </section>
 
       <nav className="overflow-x-auto rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-1">

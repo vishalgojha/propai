@@ -12,7 +12,10 @@ type DemandSignal = 'high_demand' | 'balanced' | 'oversupplied';
 
 type StreamInsightRow = {
     id: string;
+    tenant_id?: string | null;
     type: string | null;
+    record_type?: string | null;
+    ingestion_status?: string | null;
     locality: string | null;
     bhk: string | null;
     broker_name?: string | null;
@@ -56,6 +59,9 @@ function parseDays(value: unknown) {
 }
 
 async function canReadAllAccounts(req: Request) {
+    const directRole = String((req.user as any)?.appRole || '').trim().toLowerCase();
+    if (directRole === 'super_admin' || directRole === 'admin') return true;
+
     const email = String(req.user?.email || '').trim().toLowerCase();
     if (isOwnerSuperAdminEmail(email)) return true;
     if (!supabaseAdmin || !req.user?.id) return false;
@@ -71,12 +77,12 @@ async function canReadAllAccounts(req: Request) {
 }
 
 async function queryStreamItems(tenantId: string, periodStart: string, allAccounts: boolean) {
-    const baseSelect = 'id, type, locality, bhk, broker_name, source_phone, confidence_score, created_at, is_read';
-    const safeSelect = 'id, type, locality, bhk, source_phone, confidence_score, created_at';
+    const baseSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, bhk, broker_name, source_phone, confidence_score, created_at, is_read';
+    const safeSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, bhk, source_phone, confidence_score, created_at';
     const withMatchesSelect = `${baseSelect}, channel_items(id, tenant_id)`;
     const safeWithMatchesSelect = `${safeSelect}, channel_items(id, tenant_id)`;
 
-    const run = (acceptedOnly: boolean, includeMatches: boolean, safeColumns = false) => {
+    const run = (excludeSuppressed: boolean, includeMatches: boolean, safeColumns = false) => {
         let query = db
             .from('stream_items')
             .select(safeColumns ? (includeMatches ? safeWithMatchesSelect : safeSelect) : (includeMatches ? withMatchesSelect : baseSelect))
@@ -88,8 +94,9 @@ async function queryStreamItems(tenantId: string, periodStart: string, allAccoun
             query = query.eq('tenant_id', tenantId);
         }
 
-        if (acceptedOnly) {
-            query = query.eq('ingestion_status', 'accepted');
+        if (excludeSuppressed) {
+            query = query.not('ingestion_status', 'like', 'suppressed%');
+            query = query.neq('ingestion_status', 'price_error');
         }
 
         return query;
@@ -135,6 +142,20 @@ function getStreamKind(type?: string | null): 'listing' | 'requirement' | null {
         return 'listing';
     }
     return null;
+}
+
+function normalizeMarketLocality(value?: string | null) {
+    const raw = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!raw) return null;
+
+    const parsed = parseIndianLocation(raw);
+    const locality = String(parsed?.locality || raw).replace(/\s+/g, ' ').trim();
+    const lower = locality.toLowerCase();
+    if (!locality || ['mumbai', 'mumbai market', 'unknown', 'n/a', 'null', 'undefined'].includes(lower)) {
+        return null;
+    }
+
+    return locality;
 }
 
 function toNumber(value: unknown) {
@@ -229,13 +250,14 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
 
         for (const row of rows) {
             const type = cleanLabel(row.type, 'Unknown');
-            const kind = getStreamKind(type);
+            const explicitRecordType = String(row.record_type || '').trim().toLowerCase();
+            const kind = explicitRecordType === 'listing' || explicitRecordType === 'requirement'
+                ? explicitRecordType
+                : getStreamKind(type);
             if (!kind) continue;
 
-            // Only count rows whose core parsed fields are strong enough to support intelligence.
-            const resolvedLoc = row.locality ? parseIndianLocation(row.locality) : null;
-            if (!resolvedLoc) continue;
-            const locality = resolvedLoc.locality;
+            const locality = normalizeMarketLocality(row.locality);
+            if (!locality) continue;
 
             const bhk = normalizeBhk(row.bhk);
             const createdAt = row.created_at || new Date(0).toISOString();
@@ -381,6 +403,7 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
             success: true,
             scope: allAccounts ? 'all_accounts' : 'workspace',
             validRows: totalListings + totalRequirements,
+            activeBrokerCount: brokerMap.size,
             marketPulse,
             bhkDemand,
             velocity,
