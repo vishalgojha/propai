@@ -470,7 +470,7 @@ export class WhatsAppClient {
                             ? await this.socket?.groupMetadata(remoteJid).catch(() => null)
                             : null;
                         const groupName = isGroup
-                            ? String(groupMetadata?.subject || groupMetadata?.name || remoteJid).trim() || null
+                            ? String(groupMetadata?.subject || remoteJid).trim() || null
                             : null;
                         void sessionEventService.log(this.tenantId, 'message_received', {
                             remoteJid,
@@ -623,7 +623,7 @@ try {
                                     : null;
                                 return participant?.name || participant?.notify || phone;
                             });
-                            const groupName = String(groupMeta?.subject || groupMeta?.name || groupJid).trim() || null;
+                            const groupName = String(groupMeta?.subject || groupJid).trim() || null;
                             const welcomeText = participantNames.length > 0
                                 ? `Welcome ${participantNames.join(', ')}. I’m Pulse from PropAI. I help brokers keep ${groupName || 'this group'} organized, parse listings and requirements, and answer when you tag me. Use @Pulse <query> to talk to me in the group.`
                                 : this.buildGroupWelcomeText(groupName);
