@@ -103,7 +103,7 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
     brokerMap.set(digits, { phone: digits, fullName: (row as any).full_name || null });
   }
 
-  return ((streamItems || []) as any[])
+  const listings = ((streamItems || []) as any[])
     .filter((row) => row.tenant_id)
     .filter((row) => {
       const locality = String(row.locality || '').trim().toLowerCase();
@@ -138,6 +138,8 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
     })
     .map((row) => normalizeStreamListing(row, brokerMap))
     .filter(Boolean);
+
+  return dedupePublicListings(listings as PublicListing[]);
 }
 
 export async function fetchPublicListingBySlug(slug: string): Promise<PublicListing | null> {
@@ -411,8 +413,46 @@ function normalizeType(value: string | null, rawText: string): string {
 }
 
 function parsePriceAmount(value: unknown, priceLabel: unknown, rawText: string, type: string) {
+  const combinedText = `${String(priceLabel || "")} ${rawText}`.trim();
+  const parsedNumeric = parsePrice(combinedText, type).numeric;
+
+  if (type === "Rent") {
+    const contextualRent = parseRentPriceAmount(combinedText);
+    if (contextualRent) return contextualRent;
+  }
+
   if (typeof value === "number" && Number.isFinite(value)) return value;
-  return parsePrice(`${String(priceLabel || "")} ${rawText}`, type).numeric;
+  return parsedNumeric;
+}
+
+function parseRentPriceAmount(text: string) {
+  const patterns = [
+    /(?:rent|lease|asking|for rent|available for rent)[^\d]{0,24}(?:rs\.?|inr|₹)?\s*([\d.]+)\s*(cr|crore|l|lac|lakh|k|thousand)?/ig,
+    /(?:rs\.?|inr|₹)?\s*([\d.]+)\s*(cr|crore|l|lac|lakh|k|thousand)?\s*(?:\/\s*month|per\s*month|monthly|pm|p\.m\.|rent)\b/ig,
+  ];
+
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(text)) !== null) {
+      const amount = convertPriceToken(match[1], match[2]);
+      if (amount != null && amount >= 5_000 && amount <= 5_000_000) {
+        return amount;
+      }
+    }
+  }
+
+  return null;
+}
+
+function convertPriceToken(amountText: string, unitText?: string) {
+  const amount = Number(amountText);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const unit = String(unitText || "").toLowerCase();
+  if (unit === "cr" || unit === "crore") return amount * 10_000_000;
+  if (unit === "l" || unit === "lac" || unit === "lakh") return amount * 100_000;
+  if (unit === "k" || unit === "thousand") return amount * 1_000;
+  return amount;
 }
 
 function pickString(...values: unknown[]) {
@@ -431,6 +471,36 @@ function extractPhone(rawText: string) {
 function digitsOnly(value: string | null) {
   const digits = String(value || "").replace(/\D/g, "");
   return digits.length >= 10 ? digits.slice(-10) : null;
+}
+
+function dedupePublicListings(listings: PublicListing[]) {
+  const seen = new Set<string>();
+  const deduped: PublicListing[] = [];
+
+  for (const listing of listings) {
+    const key = [
+      listing.type.toLowerCase(),
+      normalizeListingText(listing.locality),
+      normalizeListingText(listing.title),
+      normalizeListingText(String(listing.bhk || "")),
+      String(Math.round(Number(listing.price || 0))),
+      normalizeListingText(listing.broker_phone || ""),
+      normalizeListingText(listing.raw_text).slice(0, 180),
+    ].join("|");
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(listing);
+  }
+
+  return deduped;
+}
+
+function normalizeListingText(value: string) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 export async function fetchTodayParsedCount(): Promise<number> {
