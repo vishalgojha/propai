@@ -38,11 +38,17 @@ function hasMultipleDistinctPrices(text: string) {
 }
 
 function isMultiListing(text: string) {
+  const hasPipeSeparator = text.includes('|') && (countMatches(text, BHK_PATTERN_GLOBAL) >= 2 || hasMultipleDistinctPrices(text));
+  const hasCommaSeparator = text.includes(',') && (() => {
+    const parts = text.split(',').map((p) => p.trim()).filter(Boolean);
+    return parts.filter((p) => BHK_PATTERN.test(p)).length >= 2;
+  })();
   return (
     countMatches(text, BHK_PATTERN_GLOBAL) >= 2 ||
     hasMultipleDistinctPrices(text) ||
     NUMBERED_PATTERN.test(text) ||
-    (text.includes('|') && (countMatches(text, BHK_PATTERN_GLOBAL) >= 2 || hasMultipleDistinctPrices(text))) ||
+    hasPipeSeparator ||
+    hasCommaSeparator ||
     OPTIONS_PATTERN.test(text)
   );
 }
@@ -59,19 +65,25 @@ function isListingStart(line: string) {
 }
 
 function splitInlineUnits(line: string) {
-  if (!line.includes('|')) {
-    return [line];
+  if (line.includes('|')) {
+    const bhkCount = countMatches(line, BHK_PATTERN_GLOBAL);
+    if (bhkCount >= 2 || FLOOR_BHK_PATTERN.test(line)) {
+      return line
+        .split('|')
+        .map((part) => part.trim())
+        .filter(Boolean);
+    }
   }
 
-  const bhkCount = countMatches(line, BHK_PATTERN_GLOBAL);
-  if (bhkCount < 2 && !FLOOR_BHK_PATTERN.test(line)) {
-    return [line];
+  if (line.includes(',')) {
+    const parts = line.split(',').map((part) => part.trim()).filter(Boolean);
+    const bhkParts = parts.filter((part) => BHK_PATTERN.test(part));
+    if (bhkParts.length >= 2) {
+      return bhkParts;
+    }
   }
 
-  return line
-    .split('|')
-    .map((part) => part.trim())
-    .filter(Boolean);
+  return [line];
 }
 
 function buildListingBlocks(listingLines: string[]) {

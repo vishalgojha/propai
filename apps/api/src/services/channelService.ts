@@ -2356,9 +2356,16 @@ private dailyBriefingSentKeys = new Set<string>();
                     .gte('created_at', cutoff);
 
                 if (parsed.recordType === 'listing') {
-                    if (parsed.bhk) query.eq('bhk', parsed.bhk);
-                    if (parsed.priceNumeric != null) query.eq('price_numeric', parsed.priceNumeric);
-                    if (parsed.sourcePhone) query.eq('source_phone', parsed.sourcePhone);
+                    if (parsed.sourcePhone && parsed.rawText) {
+                        query.eq('source_phone', parsed.sourcePhone);
+                        const contentHash = parsed.rawText
+                            .toLowerCase()
+                            .replace(/[^\w\s]/g, '')
+                            .replace(/\s+/g, ' ')
+                            .trim()
+                            .slice(0, 200);
+                        query.ilike('raw_text', `${contentHash}%`);
+                    }
                 } else {
                     if (parsed.sourcePhone) query.eq('source_phone', parsed.sourcePhone);
                     if (parsed.rawText) query.eq('raw_text', parsed.rawText);
@@ -2794,7 +2801,18 @@ ${rawText}
 
         const raw = await aiService.chat(userPrompt, 'Auto', 'listing_parsing', tenantId, systemPrompt);
         const parsed = parseJson<{ items?: AIParsedStreamItem[] }>(raw.text, 'Failed to parse AI stream JSON');
-        const items = Array.isArray(parsed?.items) ? parsed.items : [];
+        const items = (() => {
+            if (Array.isArray(parsed?.items) && parsed.items.length > 0) {
+                return parsed.items;
+            }
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                const asItem = parsed as unknown as AIParsedStreamItem;
+                if (asItem.bhk || asItem.title || asItem.streamType) {
+                    return [asItem];
+                }
+            }
+            return [];
+        })();
 
         return items
             .map((item, index) => {
