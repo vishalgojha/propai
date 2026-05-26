@@ -20,6 +20,9 @@ export default function PublicNav() {
         </Link>
 
         <div className="flex items-center gap-8">
+          <Link href="/about" className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors">
+            About
+          </Link>
           <Link href="/mcp" className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors">
             MCP
           </Link>
