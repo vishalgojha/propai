@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { channelService } from '../services/channelService';
 import type { StreamListFilters } from '../services/channelService';
 import { getAnalytics as getAnalyticsData } from '../services/analyticsService';
-import { getTenantId, requireSuperAdmin, getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
+import { getTenantId, requireSuperAdmin, getErrorMessage, getErrorStatus, isOwnerSuperAdminEmail } from '../utils/controllerHelpers';
 import { subscriptionService } from '../services/subscriptionService';
 import '../types/express';
 
@@ -102,15 +102,17 @@ export const listStreamItems = async (req: Request, res: Response) => {
 export const listInboxMatches = async (req: Request, res: Response) => {
     try {
         const tenantId = getTenantId(req);
+        const email = req.user?.email;
+        const isSuper = Boolean(email && (isOwnerSuperAdminEmail(email) || (req.user as any)?.appRole === 'super_admin'));
         const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 200;
         const matches = await channelService.listInboxMatches(
             tenantId,
-            false,
+            isSuper,
             Number.isFinite(limit) ? Number(limit) : 200,
         );
         res.json({
             items: matches,
-            network_mode: false,
+            network_mode: isSuper,
             total: matches.length,
         });
     } catch (error: unknown) {

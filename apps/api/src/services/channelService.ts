@@ -1829,22 +1829,36 @@ private dailyBriefingSentKeys = new Set<string>();
 
     async listInboxMatches(
         tenantId: string,
-        _networkMode = false,
+        isSuperAdmin = false,
         limit = 200,
     ): Promise<InboxMatchRecord[]> {
-        const accessibleTenantIds = [tenantId];
         const effectiveLimit = Math.max(50, Math.min(500, limit));
-        const { data, error } = await this.readAcceptedStreamItems(this.db, accessibleTenantIds, {
-            limit: effectiveLimit,
-            orderByCreatedAt: true,
-        });
 
-        if (error) {
-            throw new Error(error.message);
+        let rows: any[];
+
+        if (isSuperAdmin) {
+            let query = this.db
+                .from('stream_items')
+                .select('*')
+                .eq('ingestion_status', 'accepted')
+                .order('created_at', { ascending: false })
+                .limit(effectiveLimit);
+            const { data, error } = await query;
+            if (error) throw new Error(error.message);
+            rows = Array.isArray(data) ? data : [];
+        } else {
+            const accessibleTenantIds = [tenantId];
+            const { data, error } = await this.readAcceptedStreamItems(this.db, accessibleTenantIds, {
+                limit: effectiveLimit,
+                orderByCreatedAt: true,
+            });
+            if (error) throw new Error(error.message);
+            rows = Array.isArray(data) ? data : [];
         }
 
-        const rows = Array.isArray(data) ? data : [];
-        const sourceRows = rows.filter((row: any) => String(row.tenant_id || '') === tenantId);
+        const sourceRows = isSuperAdmin
+            ? rows
+            : rows.filter((row: any) => String(row.tenant_id || '') === tenantId);
         const matches: Array<{
             source: any;
             matched: any;
@@ -1856,12 +1870,18 @@ private dailyBriefingSentKeys = new Set<string>();
             if (!this.isMatchableRecord(source)) {
                 continue;
             }
+            const sourcePhone = String(source.source_phone || '').trim();
 
             for (const candidate of rows) {
                 if (String(candidate.id || '') === String(source.id || '')) {
                     continue;
                 }
                 if (!this.isOppositeRecordType(source, candidate)) {
+                    continue;
+                }
+
+                const candidatePhone = String(candidate.source_phone || '').trim();
+                if (sourcePhone && candidatePhone && sourcePhone === candidatePhone) {
                     continue;
                 }
 
