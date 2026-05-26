@@ -262,9 +262,17 @@ export const Dashboard: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      const streamStatsRequest = backendApi.get<StreamStats>(ENDPOINTS.streamItems.stats).catch((err) => {
+        if ((err as any)?.response?.status === 403) {
+          return { data: { total: 0, unread: 0, avgConfidence: 0 } } as { data: StreamStats };
+        }
+
+        throw err;
+      });
+
       const [statusResponse, statsResponse, metadataResponse, referralResponse] = await Promise.all([
         backendApi.get<WhatsappStatusResponse>(ENDPOINTS.whatsapp.status),
-        backendApi.get<StreamStats>(ENDPOINTS.streamItems.stats),
+        streamStatsRequest,
         backendApi.get<{ metadata: WorkspaceMetadata }>(ENDPOINTS.workspace.metadata),
         backendApi.get<{ referral: ReferralSummary }>(ENDPOINTS.workspace.referral),
       ]);

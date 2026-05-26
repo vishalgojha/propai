@@ -4,7 +4,7 @@ import { streamAPI } from '../apis';
 import { channelService } from '../services/channelService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
-import { subscriptionService } from '../services/subscriptionService';
+import { resolveStreamAccess, STREAM_ACCESS_DENIED_MESSAGE } from '../services/streamAccessService';
 
 const router = Router();
 
@@ -20,8 +20,12 @@ router.get('/', async (req, res) => {
     const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : null;
     const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
 
-    const subscription = await subscriptionService.getSubscription(tenantId, context.currentUserEmail);
-    const networkMode = String(subscription.plan) === 'Pro';
+    const access = await resolveStreamAccess(tenantId, context.currentUserEmail);
+    if (!access.canViewStream) {
+      return res.status(403).json({ error: STREAM_ACCESS_DENIED_MESSAGE });
+    }
+
+    const networkMode = access.networkMode;
     const items = await channelService.listStreamItems(tenantId, accessToken, channelId, sessionLabel, networkMode, undefined, context.currentUserEmail);
     res.json({
       items,
@@ -38,6 +42,11 @@ router.get('/stats', async (req, res) => {
   try {
     const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
     const tenantId = context.workspaceOwnerId;
+    const access = await resolveStreamAccess(tenantId, context.currentUserEmail);
+    if (!access.canViewStream) {
+      return res.status(403).json({ error: STREAM_ACCESS_DENIED_MESSAGE });
+    }
+
     const stats = await streamAPI.getStats(tenantId);
     res.json(stats);
   } catch (error: unknown) {

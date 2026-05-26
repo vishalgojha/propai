@@ -358,6 +358,11 @@ const buildCorrectionDraft = (item: StreamItem): StreamCorrectionDraft => ({
   parseNotes: item.parseNotes || '',
 });
 
+const canViewStreamPlan = (plan?: string | null) => {
+  const normalized = String(plan || '').trim().toLowerCase();
+  return normalized === 'starter' || normalized === 'pro';
+};
+
 export const Listings: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -412,8 +417,24 @@ export const Listings: React.FC = () => {
     source: filterSource,
     brokerOnly,
   }), [brokerOnly, filterBhk, filterPropertyCategory, filterSource, quickConfidenceBands, quickFreshnessBands, quickTimeBands, quickTypes, search]);
+  const canViewStream = React.useMemo(
+    () => canViewStreamPlan(user?.subscription?.plan),
+    [user?.subscription?.plan],
+  );
 
   const loadData = React.useCallback(async () => {
+    if (!canViewStream) {
+      setIsLoading(false);
+      setError(null);
+      setInfoMessage(null);
+      setChannels([]);
+      setStreamItems([]);
+      setStreamNetworkMode(false);
+      setStreamSummary(null);
+      setStreamTotal(0);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
@@ -488,7 +509,7 @@ export const Listings: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [channelId, selectedSessionLabel, serverFilters]);
+  }, [canViewStream, channelId, selectedSessionLabel, serverFilters]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -504,11 +525,11 @@ export const Listings: React.FC = () => {
     };
   }, [loadData]);
 
-React.useEffect(() => {
+  React.useEffect(() => {
      let active = true;
      let cleanup: (() => void) | undefined;
 
-     if (!user?.token || channelId) {
+     if (!user?.token || channelId || !canViewStream) {
        return;
      }
 
@@ -587,7 +608,7 @@ React.useEffect(() => {
        active = false;
        cleanup?.();
      };
-   }, [channelId, loadData, selectedSessionLabel, user?.token]);
+   }, [canViewStream, channelId, loadData, selectedSessionLabel, user?.token]);
 
   React.useEffect(() => {
     const handleSelectedSession = (event: Event) => {
@@ -639,6 +660,36 @@ React.useEffect(() => {
   const isSuperAdmin =
     user?.appRole === 'super_admin' ||
     OWNER_SUPER_ADMIN_EMAILS.has(String(user?.email || '').trim().toLowerCase());
+
+  if (!canViewStream) {
+    return (
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 md:p-6">
+        <div className="rounded-[16px] border border-[color:var(--amber)] bg-[linear-gradient(180deg,rgba(66,47,9,0.28),rgba(12,16,24,0.92))] p-6 shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--amber)]">Stream locked</p>
+          <h2 className="mt-2 text-[24px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Upgrade to view the feed</h2>
+          <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
+            Free and trial accounts can use the workspace, but the live stream, summaries, and parsed inventory feed are restricted to Starter and Pro plans.
+          </p>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/pricing')}
+              className="inline-flex items-center gap-2 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-5 py-3 text-[12px] font-bold uppercase tracking-[0.06em] text-[#020f07]"
+            >
+              Upgrade plan
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/vault')}
+              className="inline-flex items-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-5 py-3 text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--text-primary)]"
+            >
+              Open Vault
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const uniqueSources = React.useMemo(() => {
     const sources = new Set<string>();

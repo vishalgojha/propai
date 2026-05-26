@@ -10,7 +10,7 @@ export const PROPAI_PLAN_CARDS = [
     name: 'Free',
     price: '₹0',
     devices: '7-day trial then 5 AI queries/mo',
-    blurb: 'Try the agent, watch your Stream fill up. No WhatsApp connection after trial.',
+    blurb: 'Try the agent and workspace basics. Stream access is reserved for paid plans after trial.',
   },
   {
     name: 'Starter',

@@ -220,6 +220,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   const subscription = user?.subscription;
   const trialDays = subscription?.trial_days_remaining;
   const isTrial = subscription?.status === 'trial' || subscription?.status === 'trialing' || subscription?.plan === 'Free' || subscription?.plan === 'Trial';
+  const canViewStream = React.useMemo(() => {
+    const normalized = String(subscription?.plan || '').trim().toLowerCase();
+    return normalized === 'starter' || normalized === 'pro';
+  }, [subscription?.plan]);
   const planLabel = React.useMemo(() => {
     const normalized = String(subscription?.plan || '').trim().toLowerCase();
     if (normalized === 'trial' || normalized === 'free') return 'Trial';
@@ -247,8 +251,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   }, [channels, channelSearch]);
 
   const navItems = React.useMemo(
-    () => NAV_ITEMS.filter((item) => (item.label === 'Admin' || item.label === 'AI Usage' ? isSuperAdmin : true)),
-    [isSuperAdmin],
+    () => NAV_ITEMS.filter((item) => {
+      if (item.label === 'Stream' && !canViewStream) {
+        return false;
+      }
+
+      return item.label === 'Admin' || item.label === 'AI Usage' ? isSuperAdmin : true;
+    }),
+    [canViewStream, isSuperAdmin],
   );
 
   const uplinkLabel =
