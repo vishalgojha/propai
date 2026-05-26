@@ -346,6 +346,21 @@ function isMissingSchemaEntityError(message?: string | null) {
     );
 }
 
+function isInboxItemsSchemaError(error: { code?: string | null; message?: string | null } | string | null | undefined) {
+    const code = typeof error === 'string' ? '' : String(error?.code || '').trim();
+    const message = typeof error === 'string' ? error : String(error?.message || '');
+    const normalized = message.toLowerCase();
+
+    return code === '42P01'
+        || code === '42P10'
+        || (normalized.includes('inbox_items') && (
+            normalized.includes('does not exist')
+            || normalized.includes('schema cache')
+            || normalized.includes('no unique or exclusion constraint matching the on conflict specification')
+        ))
+        || normalized.includes('there is no unique or exclusion constraint matching the on conflict specification');
+}
+
 const formatPostedTime = (value?: string | null) => {
     if (!value) return 'Just now';
 
@@ -1888,7 +1903,9 @@ private dailyBriefingSentKeys = new Set<string>();
         const effectiveLimit = Math.max(50, Math.min(500, limit));
         if (!isSuperAdmin) {
             await this.syncInboxMatchesForTenant(tenantId).catch((error) => {
-                console.error('[ChannelService] Inbox sync failed', { tenantId, error });
+                if (!isInboxItemsSchemaError(error as any)) {
+                    console.error('[ChannelService] Inbox sync failed', { tenantId, error });
+                }
             });
 
             try {
@@ -1907,7 +1924,9 @@ private dailyBriefingSentKeys = new Set<string>();
                     return this.mapInboxItemsToResponse(tenantId, data as any[]);
                 }
             } catch (error) {
-                console.error('[ChannelService] Failed to read inbox_items, using in-memory fallback', { tenantId, error });
+                if (!isInboxItemsSchemaError(error as any)) {
+                    console.error('[ChannelService] Failed to read inbox_items, using in-memory fallback', { tenantId, error });
+                }
             }
         }
 
@@ -2475,7 +2494,9 @@ private dailyBriefingSentKeys = new Set<string>();
                 console.error('[ChannelService] Channel matching failed', matchError);
             });
             await this.syncInboxMatchesForStreamItem(tenantId, data).catch((matchError) => {
-                console.error('[ChannelService] Inbox matching failed', matchError);
+                if (!isInboxItemsSchemaError(matchError as any)) {
+                    console.error('[ChannelService] Inbox matching failed', matchError);
+                }
             });
         }
 
@@ -3284,6 +3305,9 @@ ${rawText}
             .upsert(payload, { onConflict: 'tenant_id,listing_id,requirement_id' });
 
         if (upsertError) {
+            if (isInboxItemsSchemaError(upsertError)) {
+                return;
+            }
             throw new Error(upsertError.message);
         }
     }
@@ -3328,6 +3352,9 @@ ${rawText}
             .upsert(payload, { onConflict: 'tenant_id,listing_id,requirement_id' });
 
         if (upsertError) {
+            if (isInboxItemsSchemaError(upsertError)) {
+                return;
+            }
             throw new Error(upsertError.message);
         }
     }
