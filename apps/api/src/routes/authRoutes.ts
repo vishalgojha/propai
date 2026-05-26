@@ -30,7 +30,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const AUTH_OPTIONAL_WORK_TIMEOUT_MS = 2500;
 // Password auth is a hard dependency for sign-in; give production enough headroom
 // for Supabase auth latency instead of failing fast with a 504.
-const AUTH_REQUIRED_WORK_TIMEOUT_MS = 25000;
+const AUTH_REQUIRED_WORK_TIMEOUT_MS = 45000;
 const AUTH_SUPABASE_FETCH_TIMEOUT_MS = AUTH_REQUIRED_WORK_TIMEOUT_MS;
 
 type DirectPasswordSession = {

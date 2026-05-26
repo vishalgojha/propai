@@ -58,7 +58,7 @@ const proofPoints = [
 ];
 
 const fallback = ['3BHK Bandra West 1.8Cr sale, owner direct', '2BHK Powai requirement, budget 70 lakh', 'Remind me to call Rahul tomorrow 10am', 'Show me hot leads from this week'];
-const CACHE_KEY = 'propai.examplePrompts';
+const CACHE_KEY = 'propai.examplePrompts.v2';
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 function useExamplePrompts(): string[] {
@@ -271,58 +271,6 @@ export const Login: React.FC = () => {
         setError('Login failed. Please try again.');
       }
     } catch (err) {
-      const fallbackEligible = mode === 'signin'
-        && ((err as any)?.response?.status === 504
-          || (err as any)?.code === 'ECONNABORTED'
-          || String((err as any)?.message || '').toLowerCase().includes('timeout'));
-
-      if (fallbackEligible) {
-        try {
-          const { session, user: authUser } = await attemptBrowserPasswordSignIn(normalizedEmail, password);
-          let profile: any = null;
-          let subscription: any = null;
-          let referral: any = null;
-
-          try {
-            const meResponse = await backendApi.get(ENDPOINTS.auth.me, {
-              headers: {
-                Authorization: `Bearer ${session.access_token}`,
-              },
-            });
-            profile = meResponse.data?.profile || null;
-            subscription = meResponse.data?.subscription || null;
-            referral = meResponse.data?.referral || null;
-          } catch (profileError) {
-            console.warn('Browser sign-in succeeded but /auth/me hydration failed.', profileError);
-          }
-
-          login(
-            authUser.email || normalizedEmail,
-            {
-              ...buildSessionFromSupabase(authUser.email || normalizedEmail, session),
-              id: authUser.id,
-              full_name: profile?.fullName || (authUser.user_metadata as Record<string, unknown> | undefined)?.full_name as string | undefined || null,
-              appRole: resolveAppRole(
-                authUser.email || normalizedEmail,
-                profile?.appRole
-              ),
-              subscription,
-              referral,
-            },
-            rememberMe,
-          );
-          track('signin_success', {
-            remember: rememberMe,
-            has_email: Boolean(authUser.email || normalizedEmail),
-            auth_path: 'browser_fallback',
-          });
-          navigate(nextPath, { replace: true });
-          return;
-        } catch (fallbackError) {
-          err = fallbackError;
-        }
-      }
-
       track(mode === 'signup' ? 'signup_error' : 'signin_error');
       const message = handleApiError(err);
       if ((err as any)?.response?.status === 409 || message.toLowerCase().includes('no broker profile exists yet')) {
