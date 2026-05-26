@@ -177,7 +177,7 @@ export class AIService {
 
         // If the workspace or request explicitly selected a provider, do not silently
         // cascade across unrelated providers. Fallback chaining is only useful in Auto mode.
-        if ((explicitPreference || savedPreference) && preferred && order.includes(preferred)) {
+        if (explicitPreference && preferred && order.includes(preferred)) {
             return [preferred];
         }
 
