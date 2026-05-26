@@ -3,7 +3,7 @@ import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getMonit
 import { importHistoryTxt, getHistoryImports, checkDuplicateImports, backfillHistoryToStream } from '../controllers/historyController';
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
-import { supabase } from '../config/supabase';
+import { supabase, supabaseAdmin } from '../config/supabase';
 import { validate } from '../middleware/validate';
 import { whatsappGroupService } from '../services/whatsappGroupService';
 import { connectWhatsAppSchema, forceRefreshQRSchema, saveProfileSchema, sendMessageSchema, sendBulkSchema, broadcastSchema, disconnectSchema, historyBackfillStreamSchema } from '../schemas/whatsappSchemas';
@@ -44,7 +44,7 @@ router.get(ROUTE_PATHS.whatsapp.recipients, getOutboundRecipients);
 router.post(ROUTE_PATHS.whatsapp.config, async (req: Request, res: Response) => {
     const { group_id, behavior, session_label, parse_direct_messages, self_chat_enabled } = req.body;
     const tenant_id = req.user?.id;
-    const db = supabase;
+    const db = supabaseAdmin || supabase;
 
     if (group_id) {
         const { error } = await db
@@ -110,7 +110,7 @@ router.patch('/groups/:groupJid/toggle-parsing', async (req: Request, res: Respo
         }
 
         const behavior = isParsing ? 'Listen' : 'Off';
-        const { error: configError } = await supabase
+        const { error: configError } = await (supabaseAdmin || supabase)
             .from('group_configs')
             .upsert({ group_id: groupJid, tenant_id: tenantId, behavior }, { onConflict: 'group_id' });
 
