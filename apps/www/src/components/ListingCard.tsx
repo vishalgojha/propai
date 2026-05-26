@@ -61,7 +61,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
                   <div className="flex items-center justify-center w-5 h-5 rounded-full bg-[var(--accent-glow)] text-[var(--accent)] opacity-80">
                     <MapPin className="h-3 w-3" />
                   </div>
-                  <span>{listing.locality}, Mumbai</span>
+                  <span>{listing.locality}</span>
                 </div>
               </div>
               <span className={cn(

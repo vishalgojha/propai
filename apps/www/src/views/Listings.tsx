@@ -8,7 +8,12 @@ import { cn } from '@/lib/utils';
 
 export default function Listings({ initialListings = [] }: { initialListings?: PublicListing[] }) {
   const [listings, setListings] = useState<PublicListing[]>(initialListings);
-  const [filters, setFilters] = useState({ locality: '', type: 'All', sort: 'Newest' });
+  const [filters, setFilters] = useState(() => {
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+    const locality = params.get('locality') || '';
+    const type = params.get('type') || 'All';
+    return { locality: locality.charAt(0).toUpperCase() + locality.slice(1), type: type === 'All' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1), sort: 'Newest' };
+  });
 
   useEffect(() => {
     if (initialListings.length === 0) {

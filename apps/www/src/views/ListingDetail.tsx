@@ -130,7 +130,7 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
         
         <div className="flex items-center gap-2 text-[var(--text-secondary)]">
           <MapPin className="h-4 w-4" />
-          <span className="text-[16px] font-medium">{listing.locality}, Mumbai</span>
+          <span className="text-[16px] font-medium">{listing.locality}</span>
         </div>
       </div>
 

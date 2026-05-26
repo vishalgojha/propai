@@ -13,9 +13,9 @@ import { slugifyLocalityName, TOP_LOCALITIES } from "../../lib/localities";
 export const revalidate = 86400;
 
 export const metadata: Metadata = {
-  title: "Mumbai Property Market Insights - PropAI Pulse",
+  title: "Property Market Insights - PropAI Pulse",
   description:
-    "Weekly Mumbai property market snapshots by locality, including supply, requirements, price ranges, and demand signals.",
+    "Weekly property market snapshots by locality, including supply, requirements, price ranges, and demand signals.",
   alternates: {
     canonical: "https://www.propai.live/insights",
   },
@@ -30,10 +30,10 @@ export default async function Page() {
       <section className="max-w-3xl space-y-4">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--accent)]">Weekly market snapshots</p>
         <h1 className="text-[36px] md:text-[54px] font-bold leading-tight tracking-tight text-[var(--text-primary)]">
-          Mumbai Property Market Insights
+          Property Market Insights
         </h1>
         <p className="text-[15px] leading-7 text-[var(--text-secondary)]">
-          Browse locality-level supply, requirement, price, and demand signals across Mumbai micro-markets.
+          Browse locality-level supply, requirement, price, and demand signals across Indian micro-markets.
         </p>
       </section>
 

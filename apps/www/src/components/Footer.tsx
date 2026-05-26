@@ -31,13 +31,13 @@ export default async function Footer() {
               <span className="text-[18px] font-bold tracking-tighter text-[var(--text-primary)]">Pulse</span>
             </div>
             <p className="text-[13px] leading-6 text-[var(--text-secondary)] max-w-xs">
-              Real-time off-market real estate intelligence across Mumbai micro-markets.
+              Real-time off-market real estate intelligence across Indian micro-markets.
             </p>
           </div>
 
           {/* Column 2: Property in Mumbai */}
           <div>
-            <h4 className="mb-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">Property in Mumbai</h4>
+            <h4 className="mb-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">Property by Locality</h4>
             <ul className="space-y-2">
               {topLocalities.map((loc) => (
                 <li key={loc}>

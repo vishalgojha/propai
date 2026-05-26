@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Search, MapPin, Zap, ArrowRight, CheckCircle2, TrendingUp, Clock, Network } from 'lucide-react';
+import { MapPin, Zap, ArrowRight, CheckCircle2, TrendingUp, Clock, Network } from 'lucide-react';
 import { getListings, type PublicListing } from '@/lib/listings';
 import ListingCard from '@/components/ListingCard';
 import { cn } from '@/lib/utils';
 
 const locales = ['Bandra West', 'Powai', 'Andheri West', 'Worli', 'Thane', 'Juhu', 'Goregaon', 'Malad'];
 
-export default function Home({ initialListings = [] }: { initialListings?: PublicListing[] }) {
-  const [listings, setListings] = useState<PublicListing[]>(initialListings.slice(0, 3));
+export default function Home({ initialListings = [], todayCount = 0 }: { initialListings?: PublicListing[]; todayCount?: number }) {
+  const [listings, setListings] = useState<PublicListing[]>(initialListings.slice(0, 9));
   const [allListings, setAllListings] = useState<PublicListing[]>(initialListings);
+  const [searchQuery, setSearchQuery] = useState('');
   const [rotatingWord, setRotatingWord] = useState('Rentals');
   const words = ['Rentals', 'Homes', 'Offices', 'Penthouses', 'Villas'];
 
@@ -25,24 +26,48 @@ export default function Home({ initialListings = [] }: { initialListings?: Publi
     if (initialListings.length === 0) {
       getListings().then(data => {
         setAllListings(data);
-        setListings(data.slice(0, 3));
+        setListings(data.slice(0, 9));
       });
     }
     
     return () => clearInterval(interval);
   }, []);
 
+  const handleSearch = useCallback(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      window.location.href = '/listings';
+      return;
+    }
+    fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        window.location.href = data.redirectTo || '/listings';
+      })
+      .catch(() => {
+        window.location.href = `/listings?q=${encodeURIComponent(q)}`;
+      });
+  }, [searchQuery]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleSearch();
+  }, [handleSearch]);
+
   const liveCount = allListings.length;
-  const todayCount = allListings.filter(l => {
-    const d = new Date(l.created_at);
-    const now = new Date();
-    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  }).length;
-  const avgAgeMinutes = allListings.length > 0
-    ? Math.round(allListings.reduce((sum, l) => {
+  const freshListings = allListings.filter(l => {
+    const age = Date.now() - new Date(l.created_at).getTime();
+    return age < 7 * 24 * 60 * 60 * 1000;
+  });
+  const agePool = freshListings.length > 0 ? freshListings : allListings;
+  const avgAgeMinutes = agePool.length > 0
+    ? Math.round(agePool.reduce((sum, l) => {
         const ms = Date.now() - new Date(l.created_at).getTime();
         return sum + ms / 60000;
-      }, 0) / allListings.length)
+      }, 0) / agePool.length)
     : 0;
   const avgAgeDisplay = avgAgeMinutes < 60 ? `${avgAgeMinutes} Mins` : `${Math.round(avgAgeMinutes / 60)} Hrs`;
 
@@ -53,7 +78,7 @@ export default function Home({ initialListings = [] }: { initialListings?: Publi
         <div className="mx-auto max-w-7xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-[rgba(62,232,138,0.12)] border border-[rgba(62,232,138,0.25)] rounded-full mb-6 animate-stream-in">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]"></span>
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">Live Mumbai market feed</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">Live property feed</span>
           </div>
           
           <h1 className="text-[56px] font-bold leading-[1.1] tracking-[-0.03em] max-w-4xl mb-4 text-[var(--text-primary)]">
@@ -64,7 +89,7 @@ export default function Home({ initialListings = [] }: { initialListings?: Publi
           </h1>
           
           <p className="text-[var(--text-secondary)] text-[15px] max-w-xl mb-10 mx-auto leading-relaxed">
-            Real-time AI organization of verified property signals across Mumbai. Direct broker connects, zero stale data.
+            Real-time AI organization of verified property signals across India. Direct broker connects, zero stale data.
           </p>
 
           <div className="w-full max-w-2xl mx-auto bg-[var(--bg-elevated)] rounded-[20px] p-2 border border-[color:var(--border-strong)] shadow-[0_24px_80px_rgba(0,0,0,0.4)] flex items-center gap-2">
@@ -73,11 +98,14 @@ export default function Home({ initialListings = [] }: { initialListings?: Publi
               <input 
                 type="text" 
                 placeholder="Search localities (e.g. Bandra West, Powai)" 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
                 className="bg-transparent border-none outline-none text-sm w-full text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" 
               />
             </div>
             <div className="flex gap-1">
-              <button className="px-6 py-2.5 rounded-[12px] text-[11px] font-bold uppercase tracking-[0.08em] bg-[var(--accent)] text-[var(--on-propai-green)] shadow-[0_10px_28px_rgba(62,232,138,0.18)] hover:brightness-110 transition-all">
+              <button onClick={handleSearch} className="px-6 py-2.5 rounded-[12px] text-[11px] font-bold uppercase tracking-[0.08em] bg-[var(--accent)] text-[var(--on-propai-green)] shadow-[0_10px_28px_rgba(62,232,138,0.18)] hover:brightness-110 transition-all">
                 Search
               </button>
             </div>
@@ -105,7 +133,7 @@ export default function Home({ initialListings = [] }: { initialListings?: Publi
           <div>
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Live Feed</span>
             <h2 className="text-[28px] font-bold text-[var(--text-primary)] mt-1">Just Posted by Brokers</h2>
-            <p className="text-sm text-[var(--text-secondary)] mt-1">Newest verified real estate signals from active Mumbai inventory.</p>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">Newest verified real estate signals from active broker inventory.</p>
           </div>
           <Link href="/listings" className="text-[12px] font-bold text-[var(--accent)] hover:underline flex items-center gap-1 group">
             Browse All <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
@@ -186,9 +214,9 @@ export default function Home({ initialListings = [] }: { initialListings?: Publi
             <Network className="h-3.5 w-3.5 text-[var(--accent)]" />
             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--accent)]">Intelligence Mesh</span>
           </div>
-          <h2 className="text-[48px] md:text-[64px] font-bold text-[var(--text-primary)] leading-[1] tracking-tighter">The Mumbai Network</h2>
+          <h2 className="text-[48px] md:text-[64px] font-bold text-[var(--text-primary)] leading-[1] tracking-tighter">The PropAI Network</h2>
           <p className="text-[17px] text-[var(--text-secondary)] mt-6 max-w-2xl mx-auto font-medium leading-relaxed">
-            PropAI segments real-time broker-verified inventory across the city's primary micro-markets.
+            PropAI segments real-time broker-verified inventory across India's primary micro-markets.
           </p>
         </div>
         

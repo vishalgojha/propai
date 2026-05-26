@@ -3,9 +3,9 @@ import { fetchPublicListings } from "@/lib/publicListings";
 import Listings from "@/pages/Listings";
 
 export const metadata: Metadata = {
-  title: "Off-Market Real Estate Listings Mumbai | PropAI Pulse",
+  title: "Off-Market Real Estate Listings | PropAI Pulse",
   description:
-    "Browse real-time off-market properties in Mumbai. Filter by locality, price, typology, and active market signal.",
+    "Browse real-time off-market properties across India. Filter by locality, price, typology, and active market signal.",
 };
 
 export default async function Page() {

@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     listingCount = 0;
   }
 
-  const title = `Property listings in ${localityName}, Mumbai - PropAI Pulse`;
+  const title = `Property listings in ${localityName} - PropAI Pulse`;
   const description = `Browse ${listingCount} live broker-verified listings and requirements in ${localityName}. Updated continuously. Rentals, sales, and more.`;
 
   return {
@@ -81,7 +81,7 @@ export default async function Page({ params }: PageProps) {
     "@context": "https://schema.org",
     "@type": "ItemList",
     name: `Property listings in ${localityName}`,
-    description: `Live broker-verified listings in ${localityName}, Mumbai`,
+    description: `Live broker-verified listings in ${localityName}`,
     numberOfItems: listings.length,
     itemListElement: listings.slice(0, 10).map((item, index) => ({
       "@type": "ListItem",
@@ -118,7 +118,7 @@ export default async function Page({ params }: PageProps) {
             {bhkConfig} flats in {localityName} - Live listings &amp; requirements
           </h1>
           <p className="text-[15px] leading-7 text-[var(--text-secondary)] max-w-2xl">
-            Hourly refreshed supply and demand signals for {localityName}, Mumbai, with active listings,
+            Hourly refreshed supply and demand signals for {localityName}, with active listings,
             current requirements, price movement, and nearby micro-markets.
           </p>
         </div>

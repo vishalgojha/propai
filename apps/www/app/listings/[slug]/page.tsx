@@ -13,8 +13,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       listing.type === "Requirement" ? "Wanted" : listing.type === "Rent" ? "Available for rent" : "Available for sale";
     const title = `${listing.title} — ${dealType} in ${listing.locality} | PropAI Pulse`;
     const description = listing.bhk
-      ? `${listing.bhk} in ${listing.locality}, Mumbai. ${listing.furnishing || ""} ${listing.area_sqft ? `· ${listing.area_sqft} sqft` : ""} · ₹${listing.price.toLocaleString()}`
-      : `Off-market property in ${listing.locality}, Mumbai. Updated with real-time market intelligence.`;
+      ? `${listing.bhk} in ${listing.locality}. ${listing.furnishing || ""} ${listing.area_sqft ? `· ${listing.area_sqft} sqft` : ""} · ₹${listing.price.toLocaleString()}`
+      : `Off-market property in ${listing.locality}. Updated with real-time market intelligence.`;
     return {
       title,
       description,

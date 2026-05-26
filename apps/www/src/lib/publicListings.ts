@@ -27,7 +27,8 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
   const [{ data: streamItems, error: streamError }, { data: profiles }, { data: subscriptions }] = await Promise.all([
     supabaseAdmin
       .from("stream_items")
-      .select("id, tenant_id, type, deal_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, parsed_payload")
+      .select("id, tenant_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, parsed_payload")
+      .neq("record_type", "buyer_requirement")
       .order("created_at", { ascending: false }),
     supabaseAdmin.from("profiles").select("id, phone, full_name"),
     supabaseAdmin.from("subscriptions").select("tenant_id, plan, status"),
@@ -57,6 +58,23 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
 
   return ((streamItems || []) as any[])
     .filter((row) => paidTenantIds.has(String((row as any).tenant_id || "")))
+    .filter((row) => {
+      const label = String(row.price_label || "");
+      const text = String(row.raw_text || "");
+      const type = String(row.type || row.deal_type || "");
+      const lower = `${type} ${text}`.toLowerCase();
+      if (lower.includes("requirement")) return false;
+      if (/[â¹]/.test(label)) return false;
+      return true;
+    })
+    .filter((row) => {
+      const price = Number(row.price_numeric);
+      const type = String(row.type || row.deal_type || "").toLowerCase();
+      if (!Number.isFinite(price) || price <= 0) return true;
+      if (type.includes("rent") && price > 1_000_000_000) return false;
+      if (type.includes("sale") && price > 10_000_000_000) return false;
+      return true;
+    })
     .map((row) => normalizeStreamListing(row, paidBrokerMap))
     .filter(Boolean);
 }
@@ -352,6 +370,17 @@ function extractPhone(rawText: string) {
 function digitsOnly(value: string | null) {
   const digits = String(value || "").replace(/\D/g, "");
   return digits.length >= 10 ? digits.slice(-10) : null;
+}
+
+export async function fetchTodayParsedCount(): Promise<number> {
+  if (!supabaseAdmin) return 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const { count } = await supabaseAdmin
+    .from("stream_items")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", today.toISOString());
+  return count || 0;
 }
 
 function slugifyLocality(locality: string) {
