@@ -27,7 +27,7 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
   const [{ data: streamItems, error: streamError }, { data: profiles }] = await Promise.all([
     supabaseAdmin
       .from("stream_items")
-      .select("id, tenant_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, parsed_payload")
+      .select("id, tenant_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, parsed_payload, property_category, asset_class")
       .neq("record_type", "buyer_requirement")
       .order("created_at", { ascending: false }),
     supabaseAdmin.from("profiles").select("id, phone, full_name"),
@@ -64,11 +64,14 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
       const price = Number(row.price_numeric);
       const type = String(row.type || row.deal_type || "").toLowerCase();
       if (!Number.isFinite(price) || price <= 0) return true;
-      if (type.includes("rent") && price > 500_000_000) return false; // rent > 50Cr = encoding artifact
-      if (type.includes("sale") && price > 10_000_000_000) return false;
+      if (type.includes("rent") && price > 5_000_000) return false;  // rent > 50L/mo = encoding artifact
+      if (type.includes("rent") && price < 5_000) return false;      // rent < 5K/mo = not real
+      if (type.includes("sale") && price > 500_000_000) return false; // sale > 500Cr = encoding artifact
       return true;
     })
     .filter((row) => {
+      const isCommercial = String(row.property_category || '').trim() === 'commercial' || String(row.asset_class || '').trim() === 'commercial';
+      if (isCommercial) return true;
       const isJunk = String(row.bhk || '').trim() === 'N/A'
         && (row.area_sqft == null || Number(row.area_sqft) === 0)
         && (row.confidence_score == null || Number(row.confidence_score) < 0.3);

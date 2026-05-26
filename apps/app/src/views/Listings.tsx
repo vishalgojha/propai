@@ -1157,10 +1157,10 @@ if (brokerOnly) {
               <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Type</p>
               <button
                 type="button"
-                onClick={() => setQuickTypes([])}
+                onClick={() => { setQuickTypes([]); setFilterPropertyCategory('all'); }}
                 className={cn(
                   'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                  quickTypes.length === 0
+                  quickTypes.length === 0 && filterPropertyCategory === 'all'
                     ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
                     : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
                 )}
@@ -1182,6 +1182,18 @@ if (brokerOnly) {
                   {type}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setFilterPropertyCategory((current) => current === 'commercial' ? 'all' : 'commercial')}
+                className={cn(
+                  'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                  filterPropertyCategory === 'commercial'
+                    ? 'border-purple-500 bg-purple-500/20 text-purple-300'
+                    : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
+                )}
+              >
+                COMMERCIAL
+              </button>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -1410,6 +1422,11 @@ if (brokerOnly) {
                             <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em]', getDealBadgeClass(typeLabel))}>
                               {typeLabel}
                             </span>
+                            {(listing.propertyCategory === 'commercial' || listing.assetClass === 'commercial') && (
+                              <span className="ml-1.5 inline-flex rounded-full border border-purple-500/40 bg-purple-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-purple-300">
+                                COMMERCIAL
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{listing.bhk || '—'}</td>
                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{formatAreaCell(listing.areaSqft)}</td>

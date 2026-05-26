@@ -851,7 +851,7 @@ const extractDealType = (text: string) => {
 
 const extractAssetClass = (text: string) => {
     const lower = text.toLowerCase();
-    const commercialWords = ['office', 'shop', 'showroom', 'warehouse', 'commercial'];
+    const commercialWords = ['office', 'shop', 'showroom', 'warehouse', 'commercial', 'gaming', 'retail', 'restaurant', 'cafe', 'salon', 'clinic', 'entertainment zone', 'co-working', 'co working', 'coworking', 'pcmc'];
     if (commercialWords.some(w => lower.includes(w))) return 'commercial';
     if (lower.includes('pre leased') || lower.includes('pre-leased')) return 'commercial';
     return 'residential';
@@ -1289,9 +1289,12 @@ export class ChannelService {
                 query = query.or('raw_text.ilike.%broker%,raw_text.ilike.%broking%,raw_text.ilike.%agent%,raw_text.ilike.%agnt%');
             }
 
-            // Quality filters — suppress city-level locality labels, mojibake rent prices
+            // Quality filters — suppress city-level locality labels, mojibake rent prices, insane prices
             query = query.not('locality', 'in', '("Mumbai market","Mumbai","Navi Mumbai","Thane","Pune")');
             query = query.or('type.neq.Rent,price_numeric.lte.500000000,price_numeric.is.null');
+            // Price sanity: exclude rent > 50L/mo, sale > 500Cr, rent < 5K/mo
+            query = query.or('type.neq.Rent,price_numeric.lte.5000000,price_numeric.is.null');
+            query = query.or('type.neq.Sale,price_numeric.lte.500000000,price_numeric.is.null');
 
             if (options?.orderByCreatedAt) {
                 query = query.order('created_at', { ascending: false });
@@ -1304,14 +1307,35 @@ export class ChannelService {
             return query;
         };
 
+        // Search fallback: when structured search returns 0 results, retry with raw_text-only ILIKE
+        const initialSearch = options?.filters?.search;
+        const hadStructuredFilters = searchParts.bhk || searchParts.locality || searchParts.fullTextSearch || typeFilters.length > 0;
+
         let result = await buildQuery(true);
         if (result.error && isMissingIngestionStatusError(result.error.message)) {
             result = await buildQuery(false);
         }
 
+        if (result.data && Array.isArray(result.data) && result.data.length === 0 && initialSearch && hadStructuredFilters) {
+            const rawFallbackQ = this.buildQueryRawTextOnly(readClient, tenantIds, initialSearch, true, options?.limit);
+            const rawFallback = await rawFallbackQ;
+            if (rawFallback.error && isMissingIngestionStatusError(rawFallback.error.message)) {
+                const rawFallbackQ2 = this.buildQueryRawTextOnly(readClient, tenantIds, initialSearch, false, options?.limit);
+                const rawFallback2 = await rawFallbackQ2;
+                if (!rawFallback2.error && rawFallback2.data && Array.isArray(rawFallback2.data) && rawFallback2.data.length > 0) {
+                    result = rawFallback2;
+                }
+            } else if (!rawFallback.error && rawFallback.data && Array.isArray(rawFallback.data) && rawFallback.data.length > 0) {
+                result = rawFallback;
+            }
+        }
+
         // Post-query junk filter: suppress records where bhk='N/A', area_sqft is 0/null, confidence < 0.3
+        // Exempt commercial records (property_category = 'commercial') from junk filter
         if (result.data && Array.isArray(result.data)) {
             result.data = result.data.filter((row: any) => {
+                const isCommercial = String(row.property_category || '').trim() === 'commercial' || String(row.asset_class || '').trim() === 'commercial';
+                if (isCommercial) return true;
                 const isJunk = String(row.bhk || '').trim() === 'N/A'
                     && (row.area_sqft == null || Number(row.area_sqft) === 0)
                     && (row.confidence_score == null || Number(row.confidence_score) < 0.3);
@@ -3665,6 +3689,33 @@ ${rawText}
         } catch {
             return null;
         }
+    }
+
+    private async buildQueryRawTextOnly(readClient: any, tenantIds: string[], searchQuery: string, acceptedOnly: boolean, limit?: number) {
+        const pattern = escapePostgrestPattern(searchQuery);
+        let query = readClient
+            .from('stream_items')
+            .select('*')
+            .in('tenant_id', tenantIds)
+            .ilike('raw_text', `%${pattern}%`);
+
+        if (acceptedOnly) {
+            query = query.eq('ingestion_status', 'accepted');
+        }
+
+        // Quality filters
+        query = query.not('locality', 'in', '("Mumbai market","Mumbai","Navi Mumbai","Thane","Pune")');
+        query = query.or('type.neq.Rent,price_numeric.lte.500000000,price_numeric.is.null');
+        query = query.or('type.neq.Rent,price_numeric.lte.5000000,price_numeric.is.null');
+        query = query.or('type.neq.Sale,price_numeric.lte.500000000,price_numeric.is.null');
+
+        query = query.order('created_at', { ascending: false });
+
+        if (typeof limit === 'number') {
+            query = query.limit(limit);
+        }
+
+        return query;
     }
 }
 
