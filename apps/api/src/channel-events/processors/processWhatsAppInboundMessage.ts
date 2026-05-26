@@ -385,9 +385,15 @@ function extractGroupMentionQuery(event: IncomingMessageRecord): string | null {
         if (withoutFirstMentionToken) {
             return withoutFirstMentionToken;
         }
+
+        return text;
     }
 
     if (hasQuotedMention && lower) {
+        return text;
+    }
+
+    if (hasTextMention) {
         return text;
     }
 
