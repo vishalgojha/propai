@@ -112,7 +112,7 @@ router.patch('/groups/:groupJid/toggle-parsing', async (req: Request, res: Respo
         const behavior = isParsing ? 'Listen' : 'Off';
         const { error: configError } = await supabase
             .from('group_configs')
-            .upsert({ group_id: groupJid, tenant_id: tenantId, behavior }, { onConflict: 'tenant_id,group_id' });
+            .upsert({ group_id: groupJid, tenant_id: tenantId, behavior }, { onConflict: 'group_id' });
 
         if (configError) {
             return res.status(500).json({ error: configError.message });

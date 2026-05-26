@@ -774,7 +774,7 @@ export const Sources: React.FC = () => {
       setGroupAudit(payload);
       setSelectedAuditParseIds(
         Array.isArray(payload?.groups)
-          ? payload.groups.map((group) => group.id)
+          ? payload.groups.filter((group) => group.recommendation === 'parse').map((group) => group.id)
           : [],
       );
     } catch (err) {

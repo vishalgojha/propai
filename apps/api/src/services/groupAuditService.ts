@@ -205,7 +205,7 @@ export class GroupAuditService {
         });
 
         if (upserts.length > 0) {
-            const { error } = await db.from('group_configs').upsert(upserts, { onConflict: 'tenant_id,group_id' });
+            const { error } = await db.from('group_configs').upsert(upserts, { onConflict: 'group_id' });
             if (error) throw error;
         }
 

@@ -349,7 +349,7 @@ export class WhatsAppGroupService {
         for (const chunk of chunkArray(seededGroupConfigs, 200)) {
             const { error } = await db
                 .from('group_configs')
-                .upsert(chunk, { onConflict: 'tenant_id,group_id' });
+                .upsert(chunk, { onConflict: 'group_id' });
 
             if (error) {
                 console.error('[WhatsAppGroupService] Failed to seed group config sync batch', error);
