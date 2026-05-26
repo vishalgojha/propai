@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase';
 import { generateBroadcastLists } from './broadcastListGenerator';
+import { normalizePhoneFromJid } from '../utils/whatsappJidPhone';
 
 const db = supabaseAdmin;
 
@@ -12,16 +13,6 @@ type StoredGroupRow = {
   participant_jids: string[] | null;
   is_archived?: boolean | null;
 };
-
-function normalizePhoneFromJid(value?: string | null) {
-  const jid = String(value || '').trim().toLowerCase();
-  if (!jid) return '';
-
-  const digits = jid.split('@')[0]?.replace(/\D/g, '') || '';
-  if (/^91[6-9]\d{9}$/.test(digits)) return digits.slice(2);
-  if (/^[6-9]\d{9}$/.test(digits)) return digits;
-  return '';
-}
 
 function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));

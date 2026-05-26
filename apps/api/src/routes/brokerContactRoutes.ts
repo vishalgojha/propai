@@ -2,21 +2,10 @@ import { Router } from 'express';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { brokerContactSyncService } from '../services/brokerContactSyncService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
+import { normalizePhoneFromJid } from '../utils/whatsappJidPhone';
 import { supabaseAdmin } from '../config/supabase';
 
 const router = Router();
-
-function normalizePhoneFromJid(value?: string | null) {
-  const jid = String(value || '').trim().toLowerCase();
-  if (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@c.us')) {
-    return '';
-  }
-
-  const digits = jid.split('@')[0]?.replace(/\D/g, '') || '';
-  if (/^91[6-9]\d{9}$/.test(digits)) return digits.slice(2);
-  if (/^[6-9]\d{9}$/.test(digits)) return digits;
-  return '';
-}
 
 function normalizeBrokerContact(contact: any) {
   const assetTypes = Array.isArray(contact?.asset_types)
@@ -173,7 +162,7 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch broker contacts', details: error.message });
     }
 
-    if ((contacts || []).length === 0) {
+    if ((contacts || []).length <= 1) {
       try {
         await brokerContactSyncService.syncFromStoredGroups(tenantId, { minOverlap: 2 });
         const reloaded = await loadContacts();
