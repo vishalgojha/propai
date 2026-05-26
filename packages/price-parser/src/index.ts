@@ -57,6 +57,10 @@ function formatCompact(value: number) {
 }
 
 function formatPriceLabel(amount: number, basis: PriceBasis) {
+  if (basis === 'per_sqft') {
+    return `₹${Math.round(amount).toLocaleString('en-IN')}/sqft`;
+  }
+
   let label: string;
 
   if (amount >= 10000000) {
@@ -71,10 +75,6 @@ function formatPriceLabel(amount: number, basis: PriceBasis) {
 
   if (basis === 'monthly_rent') {
     return `${label}/mo`;
-  }
-
-  if (basis === 'per_sqft') {
-    return `${label}/sqft`;
   }
 
   return label;
@@ -100,7 +100,8 @@ function scoreCandidate(before: string, after: string, explicitUnit: string, amo
   if (explicitUnit) score += 8;
   if (amount >= 5000 && amount <= 100000000) score += 3;
   if (!explicitUnit && amount >= 1000000000) score -= 12;
-  if (basis === 'per_sqft' && PER_SQFT_CONTEXT_PATTERN.test(`${before} ${after}`)) score += 4;
+  const basisValue = String(basis);
+  if (basisValue === 'per_sqft' && PER_SQFT_CONTEXT_PATTERN.test(`${before} ${after}`)) score += 4;
   if (AREA_FOLLOW_PATTERN.test(after) || BHK_FOLLOW_PATTERN.test(after)) score -= 10;
   if (CONTACT_FOLLOW_PATTERN.test(after)) score -= 10;
 

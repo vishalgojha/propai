@@ -13,10 +13,16 @@ async function main() {
   // Step 1: Try using the SQL endpoint (Supabase Pro feature)
   const sql = `
     ALTER TABLE stream_items ADD COLUMN IF NOT EXISTS content_hash text;
+    ALTER TABLE stream_items ADD COLUMN IF NOT EXISTS message_hash text;
     
-    UPDATE stream_items SET content_hash = md5(coalesce(raw_text, '') || coalesce(source_phone, '')) WHERE content_hash IS NULL;
+    UPDATE stream_items
+    SET
+      content_hash = COALESCE(content_hash, md5(coalesce(raw_text, '') || coalesce(source_phone, ''))),
+      message_hash = COALESCE(message_hash, md5(coalesce(raw_text, '') || coalesce(source_phone, '')))
+    WHERE content_hash IS NULL OR message_hash IS NULL;
     
-    ALTER TABLE stream_items ADD CONSTRAINT stream_items_content_hash_key UNIQUE (content_hash);
+    ALTER TABLE stream_items DROP CONSTRAINT IF EXISTS stream_items_content_hash_key;
+    CREATE UNIQUE INDEX IF NOT EXISTS stream_items_tenant_message_hash_key ON stream_items (tenant_id, message_hash);
   `;
 
   const response = await fetch(`${SUPABASE_URL}/rest/v1/`, {

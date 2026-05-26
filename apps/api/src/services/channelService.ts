@@ -1,10 +1,11 @@
 import { createSupabaseAnonClient, supabase, supabaseAdmin } from '../config/supabase';
-import crypto from 'crypto';
 import { parsePrice, splitMultiListing } from '@propai/price-parser';
 import { aiService } from './aiService';
 import { canonicalizationService } from './canonicalizationService';
 import { igrQueryService, type IgrTransactionPreview } from './igrQueryService';
 import { extractIndianCity, extractIndianLocality, parseIndianLocation } from '../utils/locationParser';
+import { normaliseIndianPhone } from '../utils/phoneUtils';
+import { buildStreamContentHash, computeStreamCompleteness } from '../utils/streamQuality';
 import { getWorkspaceSettingsRecord } from './workspaceSettingsService';
 import { emailNotificationService } from './emailNotificationService';
 import { cleanNumber } from '../utils/number';
@@ -381,35 +382,30 @@ const formatPostedTime = (value?: string | null) => {
 };
 
 const extractPhoneNumber = (value?: string | null) => {
-    const raw = String(value || '').split('@')[0].split('').filter(c => c >= '0' && c <= '9').join('');
-    return raw.length >= 10 ? raw : null;
+    return normaliseIndianPhone(value);
 };
 
 const extractContactPhoneFromBody = (text: string) => {
-    // Extract phone numbers without regex
-    // Look for sequences that could be phone numbers (10+ digits, optionally starting with +91 or 91)
+    // Look for phone-like tokens and normalise only valid Indian mobiles.
     const words = text.split(/\s+/); // Simple split, not using regex patterns
-    let lastPhone = null;
-    
+    let lastPhone: string | null = null;
+
     for (const word of words) {
-        // Clean the word - remove common separators
-        let cleaned = word;
-        // Remove +91 or 91 prefix
-        if (cleaned.startsWith('+91')) cleaned = cleaned.slice(3);
-        else if (cleaned.startsWith('91') && cleaned.length > 10) cleaned = cleaned.slice(2);
-        // Remove dashes and spaces
-        cleaned = cleaned.split('-').join('').split(' ').join('');
-        
-        // Check if it looks like a phone number (10 digits starting with 6-9)
-        const digits = cleaned.split('').filter(c => c >= '0' && c <= '9').join('');
-        if (digits.length >= 10) {
-            const last10 = digits.slice(-10);
-            if (last10[0] >= '6' && last10[0] <= '9') {
-                lastPhone = last10;
+        const normalized = normaliseIndianPhone(word);
+        if (normalized) {
+            lastPhone = normalized;
+            continue;
+        }
+
+        const digits = word.split('').filter((c) => c >= '0' && c <= '9').join('');
+        if (digits.length === 10) {
+            const candidate = normaliseIndianPhone(digits);
+            if (candidate) {
+                lastPhone = candidate;
             }
         }
     }
-    
+
     return lastPhone;
 };
 
@@ -865,6 +861,87 @@ const extractDealType = (text: string) => {
     return 'sale';
 };
 
+const inferDealTypeFromPrice = (text: string, currentDealType: string | null | undefined, priceNumeric: number | null) => {
+    const lower = String(text || '').toLowerCase();
+    const explicitKeywords = [
+        { keywords: ['pre leased', 'pre-leased'], dealType: 'pre-leased' as const },
+        { keywords: ['leave and license', 'leave & license', 'l&l'], dealType: 'lease' as const },
+        { keywords: ['lease', 'leased'], dealType: 'lease' as const },
+        { keywords: ['rent', 'rental', 'monthly', 'per month'], dealType: 'rent' as const },
+        { keywords: ['sale', 'selling', 'resale', 'outright'], dealType: 'sale' as const },
+    ];
+
+    for (const entry of explicitKeywords) {
+        if (entry.keywords.some((keyword) => lower.includes(keyword))) {
+            return entry.dealType;
+        }
+    }
+
+    const baseDealType = String(currentDealType || '').trim().toLowerCase();
+    if (priceNumeric == null || !Number.isFinite(priceNumeric) || priceNumeric <= 0) {
+        return baseDealType || 'sale';
+    }
+
+    if (priceNumeric >= 5_000 && priceNumeric <= 1_000_000) {
+        return 'rent';
+    }
+
+    if (priceNumeric > 20_000_000) {
+        return 'sale';
+    }
+
+    if (baseDealType === 'rent' && priceNumeric < 1_000) {
+        return 'sale';
+    }
+
+    if (baseDealType === 'sale' && priceNumeric >= 5_000 && priceNumeric <= 1_000_000) {
+        return 'rent';
+    }
+
+    return baseDealType || (priceNumeric >= 5_000 && priceNumeric <= 1_000_000 ? 'rent' : 'sale');
+};
+
+const inferStreamTypeFromPrice = (text: string, currentStreamType: string | null | undefined, priceNumeric: number | null): StreamType => {
+    const lower = String(text || '').toLowerCase();
+
+    if (lower.includes('pre leased') || lower.includes('pre-leased')) return 'Pre-leased';
+    if (lower.includes('requirement') || lower.includes('looking for') || lower.includes('wanted') || lower.includes('need ') || lower.includes('require')) {
+        return 'Requirement';
+    }
+    if (lower.includes('lease') || lower.includes('leave and license') || lower.includes('leave & license') || lower.includes('l&l')) {
+        return 'Lease';
+    }
+    if (lower.includes('rent') || lower.includes('monthly') || lower.includes('per month')) {
+        return 'Rent';
+    }
+    if (lower.includes('sale') || lower.includes('selling') || lower.includes('resale') || lower.includes('outright')) {
+        return 'Sale';
+    }
+
+    const baseStreamType = String(currentStreamType || '').trim();
+    if (!priceNumeric || !Number.isFinite(priceNumeric) || priceNumeric <= 0) {
+        return (baseStreamType as StreamType) || 'Sale';
+    }
+
+    if (priceNumeric >= 5_000 && priceNumeric <= 1_000_000) {
+        return 'Rent';
+    }
+
+    if (priceNumeric > 20_000_000) {
+        return 'Sale';
+    }
+
+    if (baseStreamType === 'Rent' && priceNumeric < 1_000) {
+        return 'Sale';
+    }
+
+    if (baseStreamType === 'Sale' && priceNumeric >= 5_000 && priceNumeric <= 1_000_000) {
+        return 'Rent';
+    }
+
+    return (baseStreamType as StreamType) || (priceNumeric >= 5_000 && priceNumeric <= 1_000_000 ? 'Rent' : 'Sale');
+};
+
 const extractAssetClass = (text: string) => {
     const lower = text.toLowerCase();
     const commercialWords = ['office', 'shop', 'showroom', 'warehouse', 'commercial', 'gaming', 'retail', 'restaurant', 'cafe', 'salon', 'clinic', 'entertainment zone', 'co-working', 'co working', 'coworking', 'pcmc'];
@@ -1079,12 +1156,6 @@ const normalizeSourceKey = (value?: string | null) =>
         .replace(/[^a-z0-9]+/g, ' ')
         .trim();
 
-const buildStreamContentHash = (rawText?: string | null, sourcePhone?: string | null) =>
-    crypto
-        .createHash('md5')
-        .update(`${String(rawText || '').trim()}::${String(sourcePhone || '').trim()}`)
-        .digest('hex');
-
 const extractJsonPayload = (text: string) => {
     const trimmed = String(text || '').trim();
     if (!trimmed) {
@@ -1127,6 +1198,10 @@ type ParsedStreamCandidate = {
     totalFloors: string | null;
     propertyUse: string | null;
     confidenceScore: number;
+    messageHash: string;
+    brokerContactValid: boolean;
+    completenessScore: number;
+    isComplete: boolean;
     createdAt: string;
     parsedPayload: Record<string, unknown>;
 };
@@ -2438,39 +2513,19 @@ private dailyBriefingSentKeys = new Set<string>();
                 continue;
             }
 
-            if (['listing', 'requirement'].includes(parsed.recordType) && parsed.locality) {
+            if (['listing', 'requirement'].includes(parsed.recordType)) {
                 const windowMinutes = parsed.recordType === 'requirement' ? 24 * 60 : 10;
                 const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
-                const query = this.db
+                const contentHash = buildStreamContentHash(parsed.rawText, parsed.sourcePhone);
+
+                const { data: exactDupe } = await this.db
                     .from('stream_items')
                     .select('id, ingestion_status')
                     .eq('tenant_id', tenantId)
-                    .eq('locality', parsed.locality)
-                    .eq('record_type', parsed.recordType)
-                    .gte('created_at', cutoff);
-
-                if (parsed.recordType === 'listing') {
-                    if (parsed.sourcePhone && parsed.rawText) {
-                        query.eq('source_phone', parsed.sourcePhone);
-                        const contentHash = parsed.rawText
-                            .toLowerCase()
-                            .replace(/[^\w\s]/g, '')
-                            .replace(/\s+/g, ' ')
-                            .trim()
-                            .slice(0, 200);
-                        query.ilike('raw_text', `${contentHash}%`);
-                    }
-                } else {
-                    if (parsed.sourcePhone) query.eq('source_phone', parsed.sourcePhone);
-                    if (parsed.rawText) query.eq('raw_text', parsed.rawText);
-                }
-
-                const { data: dupe } = await query
-                    .order('created_at', { ascending: false })
-                    .limit(1)
+                    .eq('content_hash', contentHash)
                     .maybeSingle();
 
-                if (dupe) {
+                if (exactDupe) {
                     await this.db
                         .from('stream_items')
                         .update({
@@ -2479,9 +2534,54 @@ private dailyBriefingSentKeys = new Set<string>();
                             suppressed_at: null,
                             suppression_reason: null,
                         })
-                        .eq('id', dupe.id);
+                        .eq('id', exactDupe.id);
                     ingestedCount += 1;
                     continue;
+                }
+
+                if (parsed.locality && parsed.priceNumeric != null) {
+                    const query = this.db
+                        .from('stream_items')
+                        .select('id, ingestion_status')
+                        .eq('tenant_id', tenantId)
+                        .eq('locality', parsed.locality)
+                        .eq('record_type', parsed.recordType)
+                        .gte('created_at', cutoff);
+
+                    if (parsed.recordType === 'listing') {
+                        if (parsed.sourcePhone && parsed.rawText) {
+                            query.eq('source_phone', parsed.sourcePhone);
+                            const contentHash = parsed.rawText
+                                .toLowerCase()
+                                .replace(/[^\w\s]/g, '')
+                                .replace(/\s+/g, ' ')
+                                .trim()
+                                .slice(0, 200);
+                            query.ilike('raw_text', `${contentHash}%`);
+                        }
+                    } else {
+                        if (parsed.sourcePhone) query.eq('source_phone', parsed.sourcePhone);
+                        if (parsed.rawText) query.eq('raw_text', parsed.rawText);
+                    }
+
+                    const { data: dupe } = await query
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (dupe) {
+                        await this.db
+                            .from('stream_items')
+                            .update({
+                                created_at: parsed.createdAt,
+                                ingestion_status: 'accepted',
+                                suppressed_at: null,
+                                suppression_reason: null,
+                            })
+                            .eq('id', dupe.id);
+                        ingestedCount += 1;
+                        continue;
+                    }
                 }
             }
 
@@ -2497,6 +2597,13 @@ private dailyBriefingSentKeys = new Set<string>();
                 senderJid: message.senderJid || null,
             };
             const contentHash = buildStreamContentHash(parsed.rawText, parsed.sourcePhone);
+            const completeness = computeStreamCompleteness({
+                locality: parsed.locality,
+                bhk: parsed.bhk,
+                sqft: parsed.areaSqft,
+                priceNumeric: parsed.priceNumeric,
+                brokerContactValid: Boolean(parsed.sourcePhone),
+            });
 
             const { data, error } = await this.db
                 .from('stream_items')
@@ -2536,9 +2643,14 @@ private dailyBriefingSentKeys = new Set<string>();
                     resolution_context: {
                         ...qualityDecision.resolutionContext,
                         qualityMetrics: qualityDecision.metrics,
-                        qualityScore: qualityDecision.qualityScore,
-                        candidateMessageId: parsed.messageId,
-                    },
+                qualityScore: qualityDecision.qualityScore,
+                candidateMessageId: parsed.messageId,
+                streamQuality: {
+                    completenessScore: completeness.completeness_score,
+                    isComplete: completeness.is_complete,
+                    brokerContactValid: Boolean(parsed.sourcePhone),
+                },
+            },
                     created_at: parsed.createdAt,
                 }, { onConflict: 'tenant_id,message_id' })
                 .select('*')
@@ -2859,7 +2971,7 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
 
         // Check locality_aliases before falling through to parser
         const commonResolution = parseIndianLocation(rawText);
-        const commonLocation = commonResolution?.locality || '';
+        const commonLocation = commonResolution?.locality || extractIndianLocality(rawText) || '';
         const commonCity = commonResolution?.city || extractIndianCity(rawText);
 
         const systemPrompt = `You are PropAI's parser for raw Indian real estate WhatsApp broker messages.
@@ -2951,21 +3063,24 @@ ${rawText}
                     parseIndianLocation(candidateText) ||
                     (item.locality ? parseIndianLocation(String(item.locality)) : null) ||
                     commonResolution;
-                const locality = String(item.locality || resolution?.locality || commonLocation || '').trim() || null;
+                const locality = String(item.locality || resolution?.locality || commonLocation || extractIndianLocality(candidateText) || extractIndianLocality(rawText) || '').trim() || null;
                 const city = String(item.city || resolution?.city || commonCity || '').trim() || null;
                 const buildingName = item.buildingName ? titleCase(String(item.buildingName).trim()) : extractBuildingName(candidateText);
                 const microLocation = item.microLocation ? titleCase(String(item.microLocation).trim()) : (extractMicroLocation(candidateText) || extractMicroLocation(rawText));
                 const title = String(item.title || '').trim() || buildDisplayTitle(buildingName, microLocation, locality);
-                const streamType =
+                const hintedStreamType =
                     item.streamType === 'Rent' || item.streamType === 'Sale' || item.streamType === 'Requirement' || item.streamType === 'Pre-leased'
                         ? item.streamType
                         : inferType(candidateText);
-                const dealType =
+                const hintedDealType =
                     item.dealType === 'rent' || item.dealType === 'sale' || item.dealType === 'pre-leased' || item.dealType === 'unknown'
                         ? item.dealType
                         : extractDealType(candidateText);
+                const provisionalPriceInfo = extractPriceInfo(candidateText, hintedDealType);
+                const dealType = inferDealTypeFromPrice(candidateText, hintedDealType, provisionalPriceInfo.numeric);
                 const priceInfo = extractPriceInfo(candidateText, dealType);
-                const priceLabel = String(item.priceLabel || '').trim() || priceInfo.label || null;
+                const streamType = inferStreamTypeFromPrice(candidateText, hintedStreamType, priceInfo.numeric);
+                const priceLabel = priceInfo.label || String(item.priceLabel || '').trim() || null;
                 const rawAiNumeric = typeof item.priceNumeric === 'number' && Number.isFinite(item.priceNumeric) ? item.priceNumeric : null;
                 const isRentType = streamType === 'Rent';
                 
@@ -3036,6 +3151,13 @@ ${rawText}
                     buildingName,
                     microLocation,
                 });
+                const completeness = computeStreamCompleteness({
+                    locality,
+                    bhk: normalizedBhk,
+                    sqft: areaSqft ?? null,
+                    priceNumeric,
+                    brokerContactValid: Boolean(sourcePhone),
+                });
 
                 return {
                     messageId: items.length > 1 ? `${String(message.id)}:${index + 1}` : String(message.id),
@@ -3060,6 +3182,10 @@ ${rawText}
                     totalFloors: totalFloors || null,
                     propertyUse: propertyUse || null,
                     confidenceScore: confidence,
+                    messageHash: buildStreamContentHash(candidateText, sourcePhone),
+                    brokerContactValid: Boolean(sourcePhone),
+                    completenessScore: completeness.completeness_score,
+                    isComplete: completeness.is_complete,
                     createdAt,
                     parsedPayload: {
                         displayTitle: title,
@@ -3109,7 +3235,7 @@ ${rawText}
 
         const segments = splitMessageIntoSegments(rawText);
         const commonResolution = parseIndianLocation(rawText);
-        const commonLocation = commonResolution?.locality || '';
+        const commonLocation = commonResolution?.locality || extractIndianLocality(rawText) || '';
         const createdAt = new Date().toISOString();
         const sourcePhone = extractContactPhoneFromBody(rawText) || extractPhoneNumber(message.sender) || extractPhoneNumber(message.remote_jid);
         const bodyContactName = extractContactNameFromBody(rawText);
@@ -3120,9 +3246,12 @@ ${rawText}
         return segments.map((segment, index) => {
             const candidateText = segment.text.trim();
             const resolution = parseIndianLocation(candidateText) || commonResolution;
-            const location = resolution?.locality || commonLocation || null;
-            const dealType = extractDealType(candidateText);
+            const location = resolution?.locality || commonLocation || extractIndianLocality(candidateText) || null;
+            const hintedDealType = extractDealType(candidateText);
+            const provisionalPrice = extractPriceInfo(candidateText, hintedDealType);
+            const dealType = inferDealTypeFromPrice(candidateText, hintedDealType, provisionalPrice.numeric);
             const price = extractPriceInfo(candidateText, dealType);
+            const streamType = inferStreamTypeFromPrice(candidateText, segment.streamType, price.numeric);
             const bhkRaw = extractBhk(candidateText);
             const bhk = bhkRaw === 'N/A' ? null : bhkRaw;
             const buildingName = extractBuildingName(candidateText);
@@ -3135,6 +3264,13 @@ ${rawText}
             const floorNumber = extractFloorNumber(candidateText);
             const totalFloors = extractTotalFloors(candidateText);
             const propertyUse = extractPropertyUse(candidateText);
+            const completeness = computeStreamCompleteness({
+                locality: location,
+                bhk,
+                sqft: areaSqft,
+                priceNumeric: price.numeric,
+                brokerContactValid: Boolean(sourcePhone),
+            });
 
             return {
                 messageId: segments.length > 1 ? `${String(message.id)}:${index + 1}` : String(message.id),
@@ -3143,7 +3279,7 @@ ${rawText}
                 sourceLabel,
                 sourceGroupId,
                 sourceGroupName,
-                streamType: segment.streamType,
+                streamType,
                 recordType: segment.streamType === 'Requirement' ? 'requirement' : 'listing',
                 locality: location,
                 city: resolution?.city || extractIndianCity(candidateText) || null,
@@ -3165,6 +3301,10 @@ ${rawText}
                     buildingName,
                     microLocation,
                 }),
+                messageHash: buildStreamContentHash(candidateText, sourcePhone),
+                brokerContactValid: Boolean(sourcePhone),
+                completenessScore: completeness.completeness_score,
+                isComplete: completeness.is_complete,
                 createdAt,
                 parsedPayload: {
                     displayTitle,
@@ -3799,9 +3939,9 @@ ${rawText}
             ? Number(item.area_sqft)
             : extractAreaSqft(rawText);
         const sourcePhone =
-            item.source_phone ||
-            item.parsed_payload?.sourcePhone ||
-            item.parsed_payload?.contactPhone ||
+            normaliseIndianPhone(item.source_phone) ||
+            normaliseIndianPhone(item.parsed_payload?.sourcePhone) ||
+            normaliseIndianPhone(item.parsed_payload?.contactPhone) ||
             extractContactPhoneFromBody(rawText) ||
             null;
         const brokerName =

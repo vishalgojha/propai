@@ -4,6 +4,8 @@ import { parsePrice, splitMultiListing } from '@propai/price-parser';
 import { buildingResolverService } from '../services/buildingResolverService';
 import { igrEnrichmentService } from '../services/igrEnrichmentService';
 import { isOwnerSuperAdminEmail, HttpError, getErrorMessage } from '../utils/controllerHelpers';
+import { normaliseIndianPhone } from '../utils/phoneUtils';
+import { buildStreamContentHash, computeStreamCompleteness } from '../utils/streamQuality';
 
 type AdminClient = NonNullable<ReturnType<typeof createSupabaseServiceClient>>;
 
@@ -29,16 +31,9 @@ function toTitle(item: any): string {
     return parts.join(' ') || 'Property Listing';
 }
 
-function extractPhone(raw: string | null | undefined): string | null {
-    if (!raw) return null;
-    const digits = raw.replace(/\D/g, '');
-    if (digits.length >= 10) return digits;
-    return null;
-}
-
 function extractPhoneFromText(text: string): string | null {
     const m = text.match(/(?:\+?91)?[6-9]\d{9}/);
-    return m ? m[0] : null;
+    return m ? normaliseIndianPhone(m[0]) : null;
 }
 
 function extractBhkFromText(text: string): string | null {
@@ -181,6 +176,15 @@ export const ingestListings = async (req: Request, res: Response) => {
                 const splitMessageId = buildSplitMessageId(baseMessageId, index, splitRawTexts.length);
                 const price = parsePrice(rawText, item.type || item.deal_type || undefined);
                 const bhk = extractBhkFromText(rawText) || item.bhk || null;
+                const sourcePhone = normaliseIndianPhone(item.source_phone || item.sender_jid || item.remote_jid);
+                const contentHash = buildStreamContentHash(rawText, sourcePhone);
+                const completeness = computeStreamCompleteness({
+                    locality: item.locality || null,
+                    bhk,
+                    sqft: item.area_sqft || null,
+                    priceNumeric: price.numeric ?? item.price_numeric ?? null,
+                    brokerContactValid: Boolean(sourcePhone),
+                });
                 const listingRow = {
                     tenant_id,
                     source_group_id: item.source_group_id || null,
@@ -199,7 +203,8 @@ export const ingestListings = async (req: Request, res: Response) => {
                     source_message_id: baseMessageId,
                     source_group_id: item.source_group_id || null,
                     source_group_name: item.source_group_name || null,
-                    source_phone: item.source_phone || null,
+                    source_phone: sourcePhone,
+                    content_hash: contentHash,
                     raw_text: rawText,
                     type: item.type || 'Sale',
                     locality: item.locality || null,
@@ -216,6 +221,11 @@ export const ingestListings = async (req: Request, res: Response) => {
                         sourceMessageId: baseMessageId,
                         splitIndex: splitRawTexts.length > 1 ? index : undefined,
                         splitCount: splitRawTexts.length > 1 ? splitRawTexts.length : undefined,
+                        streamQuality: {
+                            completenessScore: completeness.completeness_score,
+                            isComplete: completeness.is_complete,
+                            brokerContactValid: Boolean(sourcePhone),
+                        },
                     },
                 };
                 if (item.embedding && Array.isArray(item.embedding) && splitRawTexts.length === 1) {
@@ -244,7 +254,7 @@ export const ingestListings = async (req: Request, res: Response) => {
                 }
 
                 const listingType = toListingType(item.type);
-                const phone = item.source_phone || extractPhoneFromText(rawText);
+                const phone = sourcePhone || extractPhoneFromText(rawText);
                 const publicRow = {
                     source_message_id: splitMessageId,
                     source_group_id: item.source_group_id || null,

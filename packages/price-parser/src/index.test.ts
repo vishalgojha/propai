@@ -62,4 +62,12 @@ describe('parsePrice', () => {
       confidence: 'high',
     });
   });
+
+  it('renders per sqft values with raw rupee formatting', () => {
+    expect(parsePrice('₹25,000/sqft')).toMatchObject({
+      numeric: 25000,
+      label: '₹25,000/sqft',
+      basis: 'per_sqft',
+    });
+  });
 });
