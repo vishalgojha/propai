@@ -197,17 +197,8 @@ export const Layout: React.FC = () => {
           });
         }
       } catch {
-        if (!cancelled) {
-          setWhatsappStatus({
-            status: 'disconnected',
-            connectedPhoneNumber: null,
-            connectedOwnerName: null,
-            activeCount: 0,
-            limit: 0,
-            sessions: [],
-            selectedSessionLabel: null,
-          });
-        }
+        // Keep the last known status on transient request failures so route
+        // changes or brief API hiccups do not look like a WhatsApp disconnect.
       }
   }, [selectedSessionLabel, syncSelectedSession]);
 
@@ -445,7 +436,7 @@ export const Layout: React.FC = () => {
         </header>
 
         <div id="main-scroll-container" className="pulse-scrollbar flex-1 overflow-y-auto">
-          <div key={location.pathname} className="p-4 sm:p-6 lg:p-8">
+          <div className="p-4 sm:p-6 lg:p-8">
             <Outlet />
           </div>
         </div>

@@ -822,7 +822,7 @@ if (brokerOnly) {
         const resp = await backendApi.get(ENDPOINTS.whatsapp.status);
         setWaStatus(resp.data?.status || 'disconnected');
       } catch {
-        setWaStatus('disconnected');
+        // Preserve the last known badge state if the status request fails briefly.
       }
     };
     void fetch();
