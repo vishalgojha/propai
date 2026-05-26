@@ -39,10 +39,13 @@ type SharedRouteExecutionResult =
 const WORKFLOW_INTENTS = new Set<BrokerToolIntent>([
     'save_listing',
     'save_requirement',
+    'create_requirement',
     'create_channel',
     'schedule_callback',
     'check_callbacks',
     'search_listings',
+    'search_requirements',
+    'match_requirement_to_broker',
     'semantic_search',
     'market_insights',
     'get_my_listings',

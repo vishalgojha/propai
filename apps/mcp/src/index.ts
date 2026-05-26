@@ -41,6 +41,7 @@ export const MCP_TOOL_NAMES = [
   "save_thread_listing",
   "create_thread_follow_up",
   "buyer_to_inventory_match",
+  "match_requirement_to_broker",
   "pricing_negotiation_brief",
   "stale_lead_reactivation",
   "draft_growth_asset",
@@ -450,6 +451,44 @@ export function createMcpServer(context: ToolContext = {}) {
       const result = await createRequirementRecord({ brokerId: id, ...input });
       return textResponse(
         `Requirement saved for ${input.location_pref || "the requested location"} with lead id ${result.lead.lead_id}.`,
+        result,
+      );
+    },
+  );
+
+  server.registerTool(
+    "match_requirement_to_broker",
+    {
+      description:
+        "Match a buyer or tenant requirement to brokers who have suitable listings in the PropAI broker network, workspace CRM, or both.",
+      inputSchema: {
+        raw_text: z.string().optional().describe("Requirement brief or search note"),
+        locality: z.string().optional(),
+        city: z.string().optional(),
+        bhk: z.number().optional(),
+        max_budget_cr: z.number().optional(),
+        property_type: z.enum(["sale", "rent", "lease", "all"]).default("sale"),
+        source_mode: z.enum(["public", "workspace", "both"]).default("both"),
+        limit: z.number().default(8),
+      },
+    },
+    async (input) => {
+      const id = requireBrokerId(context);
+      await logToolCall(id, "match_requirement_to_broker", input);
+      const result = await matchBuyerToInventory({ brokerId: id, ...input });
+
+      if (!result.items.length) {
+        return textResponse("No broker matches found for this requirement yet. Try widening the locality, budget, or source mode.", result);
+      }
+
+      const lines = result.items.map((item, index) => {
+        const location = item.location ? ` in ${item.location}` : "";
+        const price = item.price != null ? `, approx ${formatCurrencyCr(item.price)}` : "";
+        return `${index + 1}. ${item.title}${location}${price} - score ${item.score}. Why: ${item.why.join(", ")}. Next: ${item.suggested_action}`;
+      });
+
+      return textResponse(
+        `Found ${result.items.length} broker matches for this requirement:\n\n${lines.join("\n")}`,
         result,
       );
     },

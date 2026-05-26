@@ -25,6 +25,14 @@ const CAPABILITIES: PulseCapability[] = [
     hint: 'You can say: "Add this requirement ..." and I will save the buyer brief.',
   },
   {
+    key: 'create_requirement',
+    promptBullet: 'create buyer or tenant requirements directly from chat',
+    answerLine: 'Create buyer or tenant requirements directly from plain language.',
+    routerIntent: 'create_requirement',
+    routerLine: '- create_requirement: broker wants Pulse to create a buyer, tenant, or client requirement entry',
+    hint: 'You can say: "Create a requirement for 3BHK in Andheri" and I will save it.',
+  },
+  {
     key: 'create_channel',
     promptBullet: 'create personal stream channels from localities, keywords, or deal filters',
     answerLine: 'Create personal stream channels by locality, keyword, or deal filter.',
@@ -47,6 +55,22 @@ const CAPABILITIES: PulseCapability[] = [
     routerIntent: 'get_my_requirements',
     routerLine: '- get_my_requirements: broker wants to see or retrieve their saved buyer or tenant requirements',
     hint: 'You can say: "Show my buyer requirements for Powai" and I will pull them from your CRM.',
+  },
+  {
+    key: 'search_requirements',
+    promptBullet: 'search saved buyer and tenant requirements',
+    answerLine: 'Search saved buyer and tenant requirements by locality, budget, and keywords.',
+    routerIntent: 'search_requirements',
+    routerLine: '- search_requirements: broker wants to search saved requirements by locality, budget, or keywords',
+    hint: 'You can ask me to search requirements for a locality or budget and I will look through CRM records.',
+  },
+  {
+    key: 'match_requirement_to_broker',
+    promptBullet: 'match a requirement to brokers who have suitable listings',
+    answerLine: 'Match a requirement to brokers who have the best fitting inventory.',
+    routerIntent: 'match_requirement_to_broker',
+    routerLine: '- match_requirement_to_broker: broker wants to find which brokers have listings matching a requirement',
+    hint: 'You can ask me to match a buyer brief to brokers with suitable listings.',
   },
   {
     key: 'crm_search',

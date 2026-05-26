@@ -151,6 +151,8 @@ export class AgentToolService {
                 }
                 return result;
             }
+            case 'create_requirement':
+                return await brokerWorkflowService.saveRequirementFromDraft(tenantId, args, promptText);
             case 'create_channel':
                 return await brokerWorkflowService.createChannelFromDraft(tenantId, args, promptText);
             case 'classify_contact': {
@@ -199,6 +201,10 @@ export class AgentToolService {
                 return await brokerWorkflowService.executePlan(tenantId, { intent: 'get_my_listings', args }, promptText);
             case 'get_my_requirements':
                 return await brokerWorkflowService.executePlan(tenantId, { intent: 'get_my_requirements', args }, promptText);
+            case 'search_requirements':
+                return await brokerWorkflowService.executePlan(tenantId, { intent: 'search_requirements', args }, promptText);
+            case 'match_requirement_to_broker':
+                return await brokerWorkflowService.executePlan(tenantId, { intent: 'match_requirement_to_broker', args }, promptText);
             case 'semantic_search':
                 return await brokerWorkflowService.executePlan(tenantId, { intent: 'semantic_search', args }, promptText);
             case 'market_insights':

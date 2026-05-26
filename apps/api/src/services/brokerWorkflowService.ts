@@ -79,10 +79,13 @@ type RankedStreamListing = {
 export type BrokerToolIntent =
     | 'save_listing'
     | 'save_requirement'
+    | 'create_requirement'
     | 'create_channel'
     | 'schedule_callback'
     | 'check_callbacks'
     | 'search_listings'
+    | 'search_requirements'
+    | 'match_requirement_to_broker'
     | 'semantic_search'
     | 'market_insights'
     | 'get_my_listings'
@@ -170,6 +173,7 @@ export class BrokerWorkflowService {
             case 'save_listing':
                 return await this.saveListingFromDraft(tenantId, plan.args || {}, prompt);
             case 'save_requirement':
+            case 'create_requirement':
                 return await this.saveRequirementFromDraft(tenantId, plan.args || {}, prompt);
             case 'create_channel':
                 return await this.createChannelFromDraft(tenantId, plan.args || {}, prompt);
@@ -179,6 +183,10 @@ export class BrokerWorkflowService {
                 return await this.checkCallbacks(tenantId);
             case 'search_listings':
                 return await this.searchListings(tenantId, this.mergeText(plan.args, prompt));
+            case 'search_requirements':
+                return await this.searchRequirements(tenantId, this.mergeText(plan.args, prompt));
+            case 'match_requirement_to_broker':
+                return await this.matchRequirementToBroker(tenantId, this.mergeText(plan.args, prompt));
             case 'semantic_search':
                 return await this.semanticSearchListings(tenantId, this.mergeText(plan.args, prompt));
             case 'market_insights':
@@ -678,6 +686,30 @@ export class BrokerWorkflowService {
         return lines.join('\n');
     }
 
+    private renderBrokerMatch(listing: RankedStreamListing, index: number) {
+        const lines = [
+            `${index}. **${listing.brokerName || 'Broker'}**${listing.locality ? ` — ${listing.locality}` : ''}${listing.city ? `, ${listing.city}` : ''}`,
+        ];
+
+        if (listing.bhk) {
+            lines.push(`- BHK: **${listing.bhk}**`);
+        }
+        if (listing.priceLabel) {
+            lines.push(`- Price: **${listing.priceLabel}**`);
+        }
+        if (listing.buildingName) {
+            lines.push(`- Listing: **${listing.buildingName}**`);
+        }
+        if (listing.areaSqft) {
+            lines.push(`- Area: **${Math.round(listing.areaSqft)} sqft**`);
+        }
+        if (listing.brokerPhone) {
+            lines.push(`- Contact: **${this.formatBrokerPhone(listing.brokerPhone)}**`);
+        }
+
+        return lines.join('\n');
+    }
+
     private formatBrokerPhone(value: string) {
         const digits = String(value || '').replace(/\D/g, '');
         if (digits.length === 10) {
@@ -895,6 +927,110 @@ export class BrokerWorkflowService {
                 items: matches.map((record: any) => ({
                     title: this.describeRequirement(record),
                     snippet: this.formatCreatedAt(record.created_at),
+                })),
+            },
+        };
+    }
+
+    private async searchRequirements(tenantId: string, prompt: string): Promise<WorkflowResult> {
+        const { data, error } = await this.admin
+            .from('lead_records')
+            .select('lead_id,name,phone,location_hint,locality_canonical,budget,raw_text,created_at')
+            .eq('tenant_id', tenantId)
+            .eq('record_type', 'buyer_requirement')
+            .order('created_at', { ascending: false })
+            .limit(75);
+
+        if (error) {
+            return {
+                handled: true,
+                reply: `I couldn't search your requirements right now: ${error.message}`,
+                data: { type: 'requirement_search_failed' },
+            };
+        }
+
+        const matches = this.filterLeadRecords(data || [], prompt).slice(0, 10);
+
+        return {
+            handled: true,
+            reply: matches.length
+                ? `I found ${matches.length} requirement match${matches.length === 1 ? '' : 'es'} in your CRM.`
+                : 'I could not find any requirements matching that yet.',
+            data: {
+                type: 'requirement_search',
+                output_format: 'bullet_list',
+                items: matches.map((record: any) => ({
+                    title: this.describeRequirement(record),
+                    snippet: this.formatCreatedAt(record.created_at),
+                })),
+            },
+        };
+    }
+
+    private async matchRequirementToBroker(tenantId: string, prompt: string): Promise<WorkflowResult> {
+        const criteria = {
+            ...this.buildSearchCriteria(prompt),
+            wantsRequirementOnly: false,
+        };
+
+        const { data, error } = await this.admin
+            .from('stream_items')
+            .select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status, building_name, broker_name')
+            .eq('tenant_id', tenantId)
+            .eq('record_type', 'listing')
+            .not('ingestion_status', 'in', '("suppressed","expired")')
+            .order('created_at', { ascending: false })
+            .limit(250);
+
+        if (error) {
+            return {
+                handled: true,
+                reply: `I couldn't search broker matches right now: ${error.message}`,
+                data: { type: 'requirement_match_failed' },
+            };
+        }
+
+        const ranked = (data || [])
+            .map((listing: any) => this.rankStreamListing(listing, criteria))
+            .filter((listing): listing is RankedStreamListing => Boolean(listing))
+            .sort((a, b) => b.score - a.score || (new Date(b.item?.created_at || 0).getTime() - new Date(a.item?.created_at || 0).getTime()));
+
+        const matches: RankedStreamListing[] = [];
+        const seen = new Set<string>();
+        for (const match of ranked) {
+            const dedupeKey = [
+                this.normalizeText(match.brokerName || ''),
+                this.normalizeText(match.brokerPhone || ''),
+                this.normalizeText(match.buildingName || ''),
+                this.normalizeText(match.locality || ''),
+            ].join('|');
+            if (seen.has(dedupeKey)) {
+                continue;
+            }
+            seen.add(dedupeKey);
+            matches.push(match);
+            if (matches.length >= 8) {
+                break;
+            }
+        }
+
+        const querySummary = this.describeSearchIntent(criteria, prompt);
+
+        return {
+            handled: true,
+            reply: matches.length
+                ? [
+                    `I found ${matches.length} broker match${matches.length === 1 ? '' : 'es'} for **${querySummary}**.`,
+                    '',
+                    ...matches.map((listing, index) => this.renderBrokerMatch(listing, index + 1)),
+                ].join('\n')
+                : `I could not find a broker match for **${querySummary}** yet.`,
+            data: {
+                type: 'requirement_broker_match',
+                output_format: 'bullet_list',
+                items: matches.map((listing) => ({
+                    title: listing.brokerName || this.describeStreamListing(listing.item),
+                    snippet: this.formatCreatedAt(listing.item.created_at),
                 })),
             },
         };

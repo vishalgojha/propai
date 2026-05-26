@@ -7,10 +7,13 @@ const AgentRoutePlanSchema = z.object({
     intent: z.enum([
         'save_listing',
         'save_requirement',
+        'create_requirement',
         'create_channel',
         'schedule_callback',
         'check_callbacks',
         'search_listings',
+        'search_requirements',
+        'match_requirement_to_broker',
         'semantic_search',
         'market_insights',
         'get_my_listings',
@@ -105,6 +108,25 @@ export class AgentRouterService {
         const asksToSearch = /\b(search|find|show|pull|get|lookup|look up)\b/.test(normalized);
         const mentionsCrm = /\b(my\s+)?crm\b/.test(normalized)
             || /\bsaved\s+(records|data|listings|requirements|leads)\b/.test(normalized);
+        const mentionsRequirementRecords = /\b(requirement|requirements|buyer|buyers|tenant|tenants|lead|leads)\b/.test(normalized);
+
+        if (asksToSearch && mentionsRequirementRecords && !mentionsCrm) {
+            return {
+                intent: 'search_requirements',
+                confidence: 1,
+                rationale: 'Deterministic requirement search guard',
+                args: {},
+            };
+        }
+
+        if (/\b(match|matches|matching|broker)\b/.test(normalized) && mentionsRequirementRecords) {
+            return {
+                intent: 'match_requirement_to_broker',
+                confidence: 1,
+                rationale: 'Deterministic requirement-to-broker match guard',
+                args: {},
+            };
+        }
 
         if (asksToSearch && mentionsCrm) {
             return {
