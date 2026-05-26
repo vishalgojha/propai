@@ -2742,7 +2742,11 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
         const bodyContactName = extractContactNameFromBody(rawText);
         const sourceLabel = bodyContactName || senderLabel || null;
         const sourceGroupId = message.remote_jid?.endsWith('@g.us') ? String(message.remote_jid) : null;
-        const commonResolution = parseIndianLocation(rawText);
+
+        // Check locality_aliases before falling through to parser
+        const aliasLocality = await this.checkAliasForText(rawText).catch(() => null);
+        const aliasResolution = aliasLocality ? { locality: aliasLocality, city: extractIndianCity(rawText), pincode: null, matchedAlias: aliasLocality, confidence: 1 } : null;
+        const commonResolution = aliasResolution || parseIndianLocation(rawText);
         const commonLocation = commonResolution?.locality || '';
         const commonCity = commonResolution?.city || extractIndianCity(rawText);
 
@@ -3652,6 +3656,15 @@ ${rawText}
                 }, item.brokerName || null, recoveredPhone),
             };
         });
+    }
+
+    private async checkAliasForText(text: string): Promise<string | null> {
+        try {
+            const { localityAliasService } = await import('./localityAliasService');
+            return await localityAliasService.findAliasForText(text);
+        } catch {
+            return null;
+        }
     }
 }
 
