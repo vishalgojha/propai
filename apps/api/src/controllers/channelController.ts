@@ -3,7 +3,6 @@ import { channelService } from '../services/channelService';
 import type { StreamListFilters } from '../services/channelService';
 import { getAnalytics as getAnalyticsData } from '../services/analyticsService';
 import { getTenantId, requireSuperAdmin, getErrorMessage, getErrorStatus, isOwnerSuperAdminEmail } from '../utils/controllerHelpers';
-import { subscriptionService } from '../services/subscriptionService';
 import '../types/express';
 
 const VALID_STREAM_TYPES = new Set(['Rent', 'Sale', 'Requirement', 'Pre-leased', 'Lease']);
@@ -77,8 +76,7 @@ export const listStreamItems = async (req: Request, res: Response) => {
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
         const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 500;
         const filters = parseStreamFilters(req.query);
-        const subscription = await subscriptionService.getSubscription(tenantId, req.user?.email);
-        const networkMode = String(subscription.plan) === 'Pro';
+        const networkMode = true;
         const items = await channelService.listStreamItems(
             tenantId,
             accessToken,
@@ -125,8 +123,7 @@ export const listStreamSummary = async (req: Request, res: Response) => {
         const tenantId = getTenantId(req);
         const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : null;
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
-        const subscription = await subscriptionService.getSubscription(tenantId, req.user?.email);
-        const networkMode = String(subscription.plan) === 'Pro';
+        const networkMode = true;
         const summary = await channelService.getStreamSummary(tenantId, channelId, sessionLabel, networkMode);
         res.json({
             ...summary,

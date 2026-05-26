@@ -27,7 +27,6 @@ router.get('/overlaps', async (req, res) => {
   try {
     const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
     const tenantId = context.workspaceOwnerId;
-    const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel.trim() : '';
 
     if (!supabaseAdmin) {
       return res.status(503).json({ error: 'Database admin client is not configured' });
@@ -35,7 +34,6 @@ router.get('/overlaps', async (req, res) => {
 
     const groups = await whatsappGroupService.listGroups(tenantId, {
       includeArchived: false,
-      ...(sessionLabel ? { sessionLabel } : {}),
     });
 
     const phoneGroups = new Map<string, Map<string, {
@@ -144,7 +142,6 @@ router.get('/', async (req, res) => {
   try {
     const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
     const tenantId = context.workspaceOwnerId;
-    const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel.trim() : '';
 
     if (!supabaseAdmin) {
       return res.status(503).json({ error: 'Database admin client is not configured' });
@@ -168,7 +165,6 @@ router.get('/', async (req, res) => {
       try {
         await brokerContactSyncService.syncFromStoredGroups(tenantId, {
           minOverlap: 2,
-          ...(sessionLabel ? { sessionLabel } : {}),
         });
         const reloaded = await loadContacts();
         contacts = reloaded.data || [];
@@ -183,30 +179,10 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch broker contacts', details: error.message });
     }
 
-    let sessionGroupJids: Set<string> | null = null;
-    if (sessionLabel) {
-      try {
-        const sessionGroups = await whatsappGroupService.listGroups(tenantId, {
-          includeArchived: false,
-          sessionLabel,
-        });
-        sessionGroupJids = new Set(sessionGroups.map((group: any) => String(group.groupJid || '').trim()).filter(Boolean));
-      } catch (sessionGroupError) {
-        console.warn('[BrokerContacts] Session group lookup failed:', sessionGroupError);
-      }
-    }
-
     const normalizedContacts = (contacts || [])
       .map((contact: any) => normalizeBrokerContact(contact))
       .filter((contact: any) => Boolean(contact.phone));
-    const filteredContacts = sessionGroupJids
-      ? normalizedContacts.filter((contact: any) => {
-        const sourceGroups = Array.isArray(contact?.source_groups) ? contact.source_groups : [];
-        return sourceGroups.some((groupJid: string) => sessionGroupJids.has(String(groupJid || '').trim()));
-      })
-      : normalizedContacts;
-
-    res.json(filteredContacts);
+    res.json(normalizedContacts);
   } catch (error: unknown) {
     console.error('[BrokerContacts] Unexpected error:', error);
     res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load broker contacts') });

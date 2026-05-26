@@ -11,24 +11,23 @@ function isMissingIngestionStatusError(message?: string | null) {
 }
 
 export class StreamAPI {
-  async getStreamItems(
-    tenantId: string,
-    networkMode = false,
-    filters?: StreamFilters,
-  ): Promise<{ items: StreamItem[]; network_mode: boolean; total: number }> {
-    let tenantIds = [tenantId];
-    if (networkMode) {
-      const { data: layer2Tenants } = await supabase
-        .from('subscriptions')
-        .select('tenant_id')
-        .in('plan', ['Pro'])
-        .eq('status', 'active');
+    async getStreamItems(
+        tenantId: string,
+        networkMode = false,
+        filters?: StreamFilters,
+    ): Promise<{ items: StreamItem[]; network_mode: boolean; total: number }> {
+        let tenantIds = [tenantId];
+        if (networkMode) {
+      const { data: brokerProfiles } = await supabase
+        .from('profiles')
+        .select('id')
+        .in('app_role', ['broker', 'super_admin']);
 
       tenantIds = Array.from(new Set([
         tenantId,
-        ...((layer2Tenants || []).map((row: any) => String(row.tenant_id || '')).filter(Boolean)),
+        ...((brokerProfiles || []).map((row: any) => String(row.id || '')).filter(Boolean)),
       ]));
-    }
+        }
 
     const applyFilters = (query: any) => {
       if (filters?.type && filters.type.length > 0) {

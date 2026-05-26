@@ -1419,11 +1419,8 @@ export class ChannelService {
         return result;
     }
 
-    private isGlobalStreamCandidate(parsed: ParsedStreamCandidate) {
-        return typeof parsed.priceNumeric === 'number'
-            && Number.isFinite(parsed.priceNumeric)
-            && parsed.priceNumeric > 0
-            && Number(parsed.confidenceScore || 0) > 0.6;
+    private isGlobalStreamCandidate(_parsed: ParsedStreamCandidate, isAccepted = true) {
+        return isAccepted;
     }
 
     private shouldPersistParsedCandidate(parsed: ParsedStreamCandidate) {
@@ -1816,17 +1813,16 @@ private dailyBriefingSentKeys = new Set<string>();
             return [tenantId];
         }
 
-        const cacheKey = `network::${tenantId}`;
+        const cacheKey = `network::all-brokers`;
         const cached = this.networkTenantIdsCache.get(cacheKey);
         if (cached && cached.expiresAt > Date.now()) {
             return cached.tenantIds;
         }
 
         const { data, error } = await this.db
-            .from('subscriptions')
-            .select('tenant_id')
-            .in('plan', ['Pro', 'Pro'])
-            .eq('status', 'active');
+            .from('profiles')
+            .select('id')
+            .in('app_role', ['broker', 'super_admin']);
 
         if (error) {
             throw new Error(error.message);
@@ -1834,7 +1830,7 @@ private dailyBriefingSentKeys = new Set<string>();
 
         const tenantIds = Array.from(new Set([
             tenantId,
-            ...((data || []).map((row: any) => String(row.tenant_id || '')).filter(Boolean)),
+            ...((data || []).map((row: any) => String(row.id || '')).filter(Boolean)),
         ]));
 
         this.networkTenantIdsCache.set(cacheKey, {
@@ -2532,7 +2528,7 @@ private dailyBriefingSentKeys = new Set<string>();
                     total_floors: parsed.totalFloors,
                     property_use: parsed.propertyUse,
                     confidence_score: parsed.confidenceScore,
-                    is_global: this.isGlobalStreamCandidate(parsed),
+                    is_global: this.isGlobalStreamCandidate(parsed, isAccepted),
                     parsed_payload: parsedPayload,
                     ingestion_status: qualityDecision.status,
                     suppression_reason: qualityDecision.suppressionReason,

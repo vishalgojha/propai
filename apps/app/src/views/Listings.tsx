@@ -930,8 +930,8 @@ if (brokerOnly) {
     const scopeLabel = activeChannel
       ? `${formatChannelTitle(activeChannel.name)} parsed feed`
       : streamNetworkMode
-        ? 'Global parsed feed'
-        : 'Private parsed feed';
+        ? 'Shared parsed feed'
+        : 'Workspace parsed feed';
 
     return [
       { label: 'Parsed last 1 hour', value: summary.oneHour, hint: scopeLabel },
@@ -949,10 +949,10 @@ if (brokerOnly) {
           <div className="max-w-3xl">
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Inventory workspace</p>
             <h2 className="mt-1 text-[20px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
-              Private feed for listings, requirements, and follow-up signals
+              Shared feed for listings, requirements, and follow-up signals
             </h2>
             <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-              This view is your internal working surface for parsed inventory and buyer demand. Review fresh items,
+              This view is the shared working surface for parsed inventory and buyer demand. Review fresh items,
               filter by quality and type, route the right records into channels, and act on high-signal entries first.
             </p>
             <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
