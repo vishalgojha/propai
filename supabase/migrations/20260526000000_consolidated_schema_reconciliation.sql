@@ -188,6 +188,10 @@ alter table workspace_members add column if not exists member_phone text;
 alter table workspace_members add column if not exists permissions jsonb not null default '{}'::jsonb;
 alter table workspace_members add column if not exists last_active_at timestamptz;
 
+-- tenant_id was added by the bootstrap schema as NOT NULL, but the code
+-- (workspaceController.ts upsert) does not populate it. Make it nullable.
+alter table workspace_members alter column tenant_id drop not null;
+
 create unique index if not exists idx_workspace_members_owner_email
   on workspace_members(workspace_owner_id, member_email);
 
