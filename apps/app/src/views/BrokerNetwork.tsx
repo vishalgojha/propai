@@ -16,6 +16,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { formatPriceNumeric } from '../lib/formatPrice';
 import { Link, useLocation, useNavigate, useSearchParams } from '../lib/router';
 import backendApi, { handleApiError } from '../services/api';
 import { fetchBrokerContactOverlaps, fetchBrokerContacts, type BrokerContact, type BrokerContactOverlap } from '../services/brokerContactApi';
@@ -53,10 +54,7 @@ const getBrokerLabel = (contact: { display_name: string | null; phone: string })
 
 const formatPrice = (value: number | null | undefined): string => {
   if (value == null || !Number.isFinite(value)) return '—';
-  if (value >= 10000000) return `₹${(value / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  if (value >= 100000) return `₹${(value / 100000).toFixed(1).replace(/\.0$/, '')} L`;
-  if (value >= 1000) return `₹${Math.round(value / 1000)}K`;
-  return `₹${Math.round(value).toLocaleString('en-IN')}`;
+  return formatPriceNumeric(value);
 };
 
 const formatDate = (value?: string | null): string => {

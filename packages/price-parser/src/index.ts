@@ -62,9 +62,9 @@ function formatPriceLabel(amount: number, basis: PriceBasis) {
   if (amount >= 10000000) {
     label = `₹${formatCompact(amount / 10000000)} Cr`;
   } else if (amount >= 100000) {
-    label = `₹${formatCompact(amount / 100000)}L`;
+    label = `₹${formatCompact(amount / 100000)} Lakh`;
   } else if (amount >= 1000) {
-    label = `₹${formatCompact(amount / 1000)}K`;
+    label = `₹${formatCompact(amount / 1000)}k`;
   } else {
     label = `₹${Math.round(amount).toLocaleString('en-IN')}`;
   }

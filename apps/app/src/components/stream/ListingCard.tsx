@@ -1,6 +1,7 @@
 import React from 'react';
 import { MessageSquare, Clock, ExternalLink, ChevronUp, ChevronDown, Copy, Save, MapPin, Check, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { formatPriceNumeric } from '../../lib/formatPrice';
 import { getStreamPriceLabel } from '../../lib/streamPrice';
 import { logWaClick, fetchWaClickListingLog, type WaClickListingLog } from '../../services/waClickAPI';
 import { PROPAI_ASSISTANT_PHONE_DIGITS } from '../../lib/propai';
@@ -56,10 +57,7 @@ function formatCurrency(value?: number | null): string {
     if (value == null || !Number.isFinite(value)) {
         return 'N/A';
     }
-
-    if (value >= 10000000) return `₹${(value / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-    if (value >= 100000) return `₹${(value / 100000).toFixed(1).replace(/\.0$/, '')} L`;
-    return `₹${Math.round(value).toLocaleString('en-IN')}`;
+    return formatPriceNumeric(value);
 }
 
 function formatShortDate(value?: string | null): string {

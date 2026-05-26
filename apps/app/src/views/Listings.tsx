@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { cn } from '../lib/utils';
+import { formatPriceNumeric } from '../lib/formatPrice';
 import { getStreamPriceLabel } from '../lib/streamPrice';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -296,7 +297,7 @@ const getRecordBadgeClass = (label: string) =>
 
 const formatIgrCompact = (transaction: StreamItem['igrTransactions'][number]) => {
   const price = transaction?.consideration != null && Number.isFinite(transaction.consideration)
-    ? `₹${Math.round((Number(transaction.consideration) / 10000000) * 100) / 100} Cr`
+    ? formatPriceNumeric(transaction.consideration)
     : 'Price N/A';
   const date = transaction?.reg_date
     ? new Date(transaction.reg_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })

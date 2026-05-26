@@ -14,7 +14,7 @@ describe('parsePrice', () => {
   it('parses monthly rent labels once', () => {
     expect(parsePrice('65000/mo', 'rent')).toMatchObject({
       numeric: 65000,
-      label: '₹65K/mo',
+      label: '₹65k/mo',
       basis: 'monthly_rent',
       confidence: 'low',
     });
@@ -23,7 +23,7 @@ describe('parsePrice', () => {
   it('parses deposits without a rent suffix', () => {
     expect(parsePrice('2.5L deposit')).toMatchObject({
       numeric: 250000,
-      label: '₹2.5L',
+      label: '₹2.5 Lakh',
       basis: 'deposit',
       confidence: 'high',
     });
@@ -49,7 +49,7 @@ describe('parsePrice', () => {
   it('normalizes corrupted rupee symbol variants before parsing', () => {
     expect(parsePrice('Rent â¼4 L/mo', 'rent')).toMatchObject({
       numeric: 400000,
-      label: '₹4L/mo',
+      label: '₹4 Lakh/mo',
       basis: 'monthly_rent',
     });
   });
