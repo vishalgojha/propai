@@ -394,6 +394,34 @@ function extractGroupMentionQuery(event: IncomingMessageRecord): string | null {
     return null;
 }
 
+function buildGroupMentionDebug(event: IncomingMessageRecord) {
+    const rawMessage = (event.rawMessage || {}) as any;
+    const contextInfo = extractMessageContext(rawMessage);
+    const mentionedJids = [
+        ...(Array.isArray(contextInfo?.mentionedJid) ? contextInfo.mentionedJid : []),
+        ...(Array.isArray(contextInfo?.groupMentions) ? contextInfo.groupMentions.map((entry: any) => entry?.jid || entry?.participant || '') : []),
+    ]
+        .map(normalizeJid)
+        .filter((jid): jid is string => Boolean(jid));
+
+    const quotedParticipant = normalizeJid(
+        contextInfo?.participant ||
+        contextInfo?.remoteJid ||
+        contextInfo?.quotedParticipant ||
+        contextInfo?.stanzaIdParticipant,
+    );
+
+    const text = String(event.text || '').trim();
+    return {
+        textPreview: text.slice(0, 120),
+        hasTextMention: /(^|\s)@propai\b/i.test(text) || /(^|\s)@pulse\b/i.test(text) || /(^|\s)(?:\+?91)?7021045254\b/.test(text) || /(^|\s)(?:\+?91)?917021045254\b/.test(text),
+        mentionedJids,
+        quotedParticipant: quotedParticipant || null,
+        hasGroupMentions: Array.isArray(contextInfo?.groupMentions) && contextInfo.groupMentions.length > 0,
+        hasMentionedJid: Array.isArray(contextInfo?.mentionedJid) && contextInfo.mentionedJid.length > 0,
+    };
+}
+
 function extractPulseMentionedText(event: IncomingMessageRecord): string | null {
     const rawText = String(event.text || '').trim();
     if (!rawText) {
@@ -586,14 +614,23 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
     const groupName = groupMetadata?.groupName || null;
 
     if (isGroup) {
+        const mentionDebug = buildGroupMentionDebug(event);
         const mentionQuery = extractGroupMentionQuery(event);
         if (mentionQuery) {
+            console.info('[GroupMentionDebug]', JSON.stringify({
+                tenantId,
+                sessionLabel: label || 'default',
+                remoteJid,
+                groupName,
+                ...mentionDebug,
+                extractedQuery: mentionQuery.slice(0, 120),
+            }));
             await whatsappHealthService.appendEvent(
                 tenantId,
                 label || 'default',
                 'group_mention_received',
                 'Group mention routed to the agent.',
-                { remoteJid, groupName, senderJid: event.sender || null },
+                { remoteJid, groupName, senderJid: event.sender || null, ...mentionDebug, extractedQuery: mentionQuery.slice(0, 120) },
             ).catch(() => undefined);
 
             await triggerAgent(tenantId, remoteJid, mentionQuery, label, {
