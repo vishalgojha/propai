@@ -165,21 +165,23 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
              </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {[
-              { label: 'Configuration', value: listing.bhk ? `${listing.bhk} BHK` : 'N/A' },
-              { label: 'Price', value: `₹${listing.price.toLocaleString()}` },
-              { label: 'Area', value: listing.area_sqft ? `${listing.area_sqft} SQFT` : 'N/A' },
-              { label: 'Furnishing', value: listing.furnishing || 'N/A' },
-              { label: 'Availability', value: listing.availability || 'N/A' },
-              { label: 'Floor', value: listing.floor || 'N/A' }
-            ].map((stat, i) => (
-              <div key={i} className="rounded-[18px] bg-[var(--bg-surface)] p-5 shadow-sm">
-                <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-1.5">{stat.label}</div>
-                <div className="text-[16px] font-bold text-[var(--text-primary)]">{stat.value}</div>
-              </div>
-            ))}
-          </div>
+           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+             {[
+               listing.bhk && { label: 'Configuration', value: `${listing.bhk}`.replace(/\s*BHK$/i, '') + ' BHK' },
+               listing.price && listing.price > 0 && { label: 'Price', value: `₹${listing.price.toLocaleString()}` },
+               listing.area_sqft && { label: 'Area', value: `${listing.area_sqft} SQFT` },
+               listing.furnishing && { label: 'Furnishing', value: listing.furnishing },
+               listing.availability && { label: 'Availability', value: listing.availability },
+               listing.floor && { label: 'Floor', value: listing.floor }
+             ]
+               .filter(Boolean)
+               .map((stat, i) => (
+                 <div key={i} className="rounded-[18px] bg-[var(--bg-surface)] p-5 shadow-sm">
+                   <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-1.5">{stat.label}</div>
+                   <div className="text-[16px] font-bold text-[var(--text-primary)]">{stat.value}</div>
+                 </div>
+               ))}
+           </div>
         </div>
 
         {/* Sidebar/Action Box */}
@@ -190,7 +192,7 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
              <div className="relative z-10">
                <div className="mb-8">
                   <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1.5">Asking Price</div>
-                  <div className="text-[36px] font-bold text-[var(--accent)] tracking-tight">₹{listing.price.toLocaleString()}</div>
+                   <div className="text-[36px] font-bold text-[var(--accent)] tracking-tight">{listing.price && listing.price > 0 ? `₹${listing.price.toLocaleString()}` : 'Price on Request'}</div>
                </div>
 
                <div className="space-y-4">

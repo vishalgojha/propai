@@ -2,6 +2,65 @@ import { createHash } from "crypto";
 import { parsePrice } from "@propai/price-parser";
 import { supabaseAdmin } from "@/lib/supabase.server";
 
+// Standard locality names from mumbai-localities.ts (API side)
+const STANDARD_LOCALITIES = new Set([
+  "Bandra West",
+  "Bandra East",
+  "Juhu",
+  "Worli",
+  "Lower Parel",
+  "Prabhadevi",
+  "Dadar",
+  "Mahalaxmi",
+  "Marine Drive",
+  "Malabar Hill",
+  "Colaba",
+  "Nariman Point",
+  "Andheri West",
+  "Andheri East",
+  "Versova",
+  "Powai",
+  "Vikhroli",
+  "Ghatkopar West",
+  "Ghatkopar East",
+  "Mulund West",
+  "Mulund East",
+  "Thane West",
+  "Thane East",
+  "Borivali West",
+  "Borivali East",
+  "Malad West",
+  "Malad East",
+  "Goregaon West",
+  "Goregaon East",
+  "Kandivali West",
+  "Kandivali East",
+  "Dahisar West",
+  "Dahisar East",
+  "Mira Road",
+  "Bhayander",
+  "Khar West",
+  "Khar East",
+  "Santacruz West",
+  "Santacruz East",
+  "Vile Parle West",
+  "Vile Parle East",
+  "Sion",
+  "Kurla",
+  "Chembur",
+  "Vashi",
+  "Nerul",
+  "Kharghar",
+  "Panvel",
+  "Airoli",
+  "Ghansoli",
+  "Dombivali",
+  "Kalyan",
+  "Oshiwara",
+  "Lokhandwala",
+  "Hiranandani Gardens",
+]);
+
 export interface PublicListing {
   id: string;
   title: string;
@@ -410,8 +469,6 @@ const CITY_LOOKUP: [RegExp, string][] = [
   [/^dombivli|^kalyan|^ulhasnagar|^ambarnath|^badlapur/i, "Thane"],
   [/^nerul|^vashi|^sanpada|^ghansoli|^koparkhairane|^airoli|^panvel|^kharghar|^kamothe|^kalamboli|^taloja/i, "Navi Mumbai"],
   [/^pimpri|^kharadi|^wakad|^hinjewadi|^baner|^aundh/i, "Pune"],
-  [/^lonavala|^khandala/i, "Lonavala"],
-  [/^palghar|^vasai|^virar|^nalasopara/i, "Palghar"],
 ];
 
 function inferFooterCity(locality: string, dbCity: string | null): string {
@@ -426,10 +483,11 @@ function isValidFooterLocality(name: string): boolean {
   const lower = name.toLowerCase().trim();
   if (lower.length < 3) return false;
   if (/not parsed|unknown|n\/?a|location|undefined|null/.test(lower)) return false;
-  if (FOOTER_KNOWN_LOCALITIES.has(lower)) return true;
   if (/\b(project|chsl|wing|floor|sqft|bhk|furnish|avenue|building|tower|phase)\b/i.test(name)) return false;
   if (/^(we have|offering|semi furnished|fully furnished|partly furnished|unfurnished|balcony|area|legal|kids|making|can remove|for family|close to|a wing|a swimming|auditors|well|kitchen|icecream|cs no)\b/i.test(name)) return false;
   if (/^[a-z]\s+wing\b/i.test(name)) return false;
+  // Must be in standard locality whitelist
+  if (!STANDARD_LOCALITIES.has(name.trim())) return false;
   return name.length >= 4;
 }
 
@@ -459,7 +517,7 @@ export async function fetchLocalitiesForFooter(minCount = 2): Promise<CityLocali
       cityMap.get(city)!.push({ name: key.replace(/\b\w/g, (c) => c.toUpperCase()), count: val.count });
     }
     const result: CityLocality[] = [];
-    const CITIES = ["Mumbai", "Thane", "Navi Mumbai", "Pune", "Palghar", "Lonavala"];
+    const CITIES = ["Mumbai", "Thane", "Navi Mumbai", "Pune"];
     const sortMap = new Map(CITIES.map((c, i) => [c, i]));
     for (const [city, localities] of cityMap) {
       localities.sort((a, b) => b.count - a.count);

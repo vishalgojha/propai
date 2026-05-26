@@ -31,14 +31,16 @@ function buildDescription(listing: PublicListing): string {
 export default function ListingCard({ listing }: ListingCardProps) {
   const description = buildDescription(listing);
 
-  const formattedPrice = listing.price >= 10000000 
-    ? `₹${(listing.price / 10000000).toFixed(2)} Cr`
-    : listing.price >= 100000 
-      ? `₹${(listing.price / 100000).toFixed(2)} L`
-      : `₹${listing.price.toLocaleString()}`;
+  const formattedPrice = listing.price && listing.price > 0 
+    ? (listing.price >= 10000000 
+      ? `₹${(listing.price / 10000000).toFixed(2)} Cr`
+      : listing.price >= 100000 
+        ? `₹${(listing.price / 100000).toFixed(2)} L`
+        : `₹${listing.price.toLocaleString()}`)
+    : 'Price on Request';
 
   const features = [];
-  if (listing.bhk) features.push(`${listing.bhk} BHK`);
+  if (listing.bhk) features.push(`${listing.bhk}`.replace(/\s*BHK$/i, '') + ' BHK');
   if (listing.raw_text?.toLowerCase().includes('furnish')) features.push('Furnished');
   if (listing.raw_text?.toLowerCase().includes('parking')) features.push('Parking');
   if (listing.raw_text?.toLowerCase().includes('sea view') || listing.raw_text?.toLowerCase().includes('ocean')) features.push('Sea View');
