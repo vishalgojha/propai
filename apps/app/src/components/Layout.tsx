@@ -91,6 +91,7 @@ export const Layout: React.FC = () => {
     if (path.startsWith('/whatsapp')) return 'WhatsApp';
     if (path.startsWith('/vault')) return 'Vault';
     if (path.startsWith('/intelligence') || path === '/analytics') return 'Intelligence';
+    if (path.startsWith('/igr')) return 'IGR';
     if (path.startsWith('/ai-usage') || path === '/aiusage') return 'AI Usage';
 
     switch (path) {
