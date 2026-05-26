@@ -238,6 +238,24 @@ export class WhatsAppHealthService {
             }
         }
 
+        const syncedIds = new Set(uniqueGroups.map((g) => g.id));
+        const { data: existingGroups } = await db
+            .from('whatsapp_group_health')
+            .select('group_id')
+            .eq('tenant_id', tenantId)
+            .eq('session_label', sessionLabel);
+        const staleIds = (existingGroups || [])
+            .map((r: any) => String(r.group_id || ''))
+            .filter((id: string) => id && !syncedIds.has(id));
+        for (const staleId of staleIds) {
+            await db
+                .from('whatsapp_group_health')
+                .update({ is_active: false, updated_at: now })
+                .eq('tenant_id', tenantId)
+                .eq('session_label', sessionLabel)
+                .eq('group_id', staleId);
+        }
+
         const activeGroups24h = await this.countActiveGroups24h(tenantId, sessionLabel).catch(() => 0);
         const detailedPayload = {
                 tenant_id: tenantId,
@@ -467,6 +485,7 @@ export class WhatsAppHealthService {
             .from('whatsapp_group_health')
             .select('*')
             .eq('tenant_id', tenantId)
+            .eq('is_active', true)
             .order('updated_at', { ascending: false });
 
         if (error) {
