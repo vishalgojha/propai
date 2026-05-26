@@ -60,21 +60,21 @@ function describeRequirement(item: VaultRequirement): string {
 }
 
 const LISTING_SCHEMA = [
-  { field: 'locality', question: 'Which locality is this listing for?', hint: 'Use one Mumbai locality only.' },
-  { field: 'bhk', question: 'What BHK is it?', hint: 'Example: 1 BHK, 2 BHK, 3 BHK.' },
-  { field: 'deal_type', question: 'Is it rent, sale, or lease?', hint: 'Pick one deal type.' },
-  { field: 'price', question: 'What is the price?', hint: 'Use the final numeric asking price.' },
-  { field: 'furnishing', question: 'What is the furnishing status?', hint: 'Unfurnished, semi-furnished, or fully-furnished.' },
-  { field: 'area_sqft', question: 'What is the area in sqft?', hint: 'Optional if you do not have it.' },
-  { field: 'notes', question: 'Any additional listing notes?', hint: 'Include floor, tower, parking, or other details.' },
+  { field: 'location', question: 'What location should we extract?', hint: 'Use the locality or area from the message.' },
+  { field: 'bhk', question: 'What BHK should we extract?', hint: 'Example: 1 BHK, 2 BHK, 3 BHK.' },
+  { field: 'price', question: 'What price should we extract?', hint: 'Use the final numeric asking price.' },
+  { field: 'carpet_area', question: 'What carpet area should we extract?', hint: 'Optional if not mentioned.' },
+  { field: 'furnishing', question: 'What furnishing should we extract?', hint: 'Unfurnished, semi-furnished, or fully-furnished.' },
+  { field: 'possession_date', question: 'What possession date should we extract?', hint: 'Optional if not mentioned.' },
+  { field: 'contact_number', question: 'What contact number should we extract?', hint: 'Use the broker or owner phone if present.' },
 ];
 
 const REQUIREMENT_SCHEMA = [
-  { field: 'locality', question: 'Which locality does the buyer want?', hint: 'Use one or more target localities if needed.' },
-  { field: 'bhk', question: 'What BHK is required?', hint: 'Example: 1 BHK, 2 BHK, 3 BHK.' },
-  { field: 'deal_type', question: 'Is the requirement for rent, sale, or lease?', hint: 'Pick one deal type.' },
-  { field: 'budget', question: 'What is the budget?', hint: 'Use the max budget or target range.' },
-  { field: 'notes', question: 'Any additional requirement notes?', hint: 'Include move-in date, furnishing, or special constraints.' },
+  { field: 'location_pref', question: 'What location preference should we extract?', hint: 'Use the buyer’s target locality or area.' },
+  { field: 'budget', question: 'What budget should we extract?', hint: 'Use the maximum budget or target range.' },
+  { field: 'timeline', question: 'What timeline should we extract?', hint: 'Example: immediate, this month, next month.' },
+  { field: 'possession', question: 'What possession requirement should we extract?', hint: 'Example: ready, within 30 days, flexible.' },
+  { field: 'contact_number', question: 'What contact number should we extract?', hint: 'Use the buyer phone if present.' },
 ];
 
 export const VaultView: React.FC = () => {
@@ -121,10 +121,11 @@ export const VaultView: React.FC = () => {
     setIntakeMode(mode);
     const schema = mode === 'listing' ? LISTING_SCHEMA : REQUIREMENT_SCHEMA;
     const prompt = [
-      `Start a new ${mode}.`,
-      'Ask these questions in exact order and wait for each answer before asking the next one:',
-      ...schema.map((item, index) => `${index + 1}. ${item.question} (${item.hint})`),
-      'Do not use a form. Keep the interaction deterministic and one question at a time.',
+      `Start a new ${mode} intake.`,
+      `Use the parser schema fields exactly in this order: ${schema.map((item) => item.field).join(', ')}.`,
+      'Ask exactly one question at a time, wait for the answer, and never render a form.',
+      ...schema.map((item, index) => `${index + 1}. [${item.field}] ${item.question} (${item.hint})`),
+      'Keep the interaction deterministic and schema-driven.',
     ].join(' ');
     askPulse(prompt);
   }, []);
@@ -185,7 +186,7 @@ export const VaultView: React.FC = () => {
         <div className={`${panelClass} space-y-4`}>
           <div className="flex items-center justify-between">
             <p className="text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--accent)]">
-              {intakeMode === 'listing' ? 'Listing Intake' : 'Requirement Intake'}
+              {intakeMode === 'listing' ? 'Listing Parser Schema' : 'Requirement Parser Schema'}
             </p>
             <button className="text-[var(--text-muted)] hover:text-[var(--text-primary)]" onClick={() => setIntakeMode(null)}>
               <XIcon className="h-4 w-4" strokeWidth={2} />
@@ -194,7 +195,7 @@ export const VaultView: React.FC = () => {
 
           <div className="space-y-3">
             <p className="text-[12px] text-[var(--text-secondary)]">
-              Pulse will ask these parser-schema questions one at a time, in this order.
+              Pulse will ask these parser-schema questions one at a time, in this exact order.
             </p>
             <div className="grid gap-3">
               {(intakeMode === 'listing' ? LISTING_SCHEMA : REQUIREMENT_SCHEMA).map((item, index) => (
@@ -211,11 +212,11 @@ export const VaultView: React.FC = () => {
 
           <div className="flex items-center justify-between gap-3">
             <p className="text-[11px] text-[var(--text-muted)]">
-              This keeps intake deterministic and avoids the old freeform form.
+              This keeps intake deterministic and aligned with the backend parser schema.
             </p>
             <button className={accentButtonClass} onClick={() => startIntake(intakeMode)}>
               <MessageCircleIcon className="h-4 w-4" strokeWidth={1.5} />
-              Start in Pulse
+              Start schema flow
             </button>
           </div>
         </div>
