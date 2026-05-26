@@ -586,17 +586,6 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
     const groupName = groupMetadata?.groupName || null;
 
     if (isGroup) {
-        const { data: config } = await db
-            .from('group_configs')
-            .select('behavior')
-            .eq('tenant_id', tenantId)
-            .eq('group_id', remoteJid)
-            .maybeSingle();
-
-        if (config && config.behavior !== 'Listen' && config.behavior !== 'AutoReply') {
-            return;
-        }
-
         const mentionQuery = extractGroupMentionQuery(event);
         if (mentionQuery) {
             await whatsappHealthService.appendEvent(
@@ -615,6 +604,17 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
                     senderJid: event.sender || null,
                 },
             });
+            return;
+        }
+
+        const { data: config } = await db
+            .from('group_configs')
+            .select('behavior')
+            .eq('tenant_id', tenantId)
+            .eq('group_id', remoteJid)
+            .maybeSingle();
+
+        if (config && config.behavior !== 'Listen' && config.behavior !== 'AutoReply') {
             return;
         }
 
