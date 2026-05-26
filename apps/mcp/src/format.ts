@@ -16,8 +16,17 @@ export function toNumber(value: unknown): number | null {
 
 export function formatCurrencyCr(value: number | null | undefined) {
   if (value == null) return "price not shared";
-  const crore = value >= 10000000 ? value / 10000000 : value;
-  return `₹${crore.toLocaleString("en-IN", { maximumFractionDigits: 2 })}Cr`;
+  const abs = Math.abs(value);
+  if (abs >= 10000000) {
+    return `₹${(value / 10000000).toLocaleString("en-IN", { maximumFractionDigits: 2 })}Cr`;
+  }
+  if (abs >= 100000) {
+    return `₹${(value / 100000).toLocaleString("en-IN", { maximumFractionDigits: 2 })}L`;
+  }
+  if (abs >= 1000) {
+    return `₹${Math.round(value / 1000).toLocaleString("en-IN")}K`;
+  }
+  return `₹${Math.round(value).toLocaleString("en-IN")}`;
 }
 
 export function formatBudgetRange(min?: number, max?: number) {

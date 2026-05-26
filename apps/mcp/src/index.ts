@@ -22,7 +22,7 @@ import {
   searchPublicListings,
   summarizeThread,
 } from "./data.js";
-import { listingLine } from "./format.js";
+import { formatCurrencyCr, listingLine } from "./format.js";
 import { registerMcpPrompts } from "./prompts.js";
 import { registerMcpResources } from "./resources.js";
 import type { ToolContext } from "./types.js";
@@ -272,7 +272,7 @@ export function createMcpServer(context: ToolContext = {}) {
 
       const lines = result.items.map((item, index) => {
         const location = item.location ? ` in ${item.location}` : "";
-        const price = item.price != null ? `, approx ₹${item.price}Cr` : "";
+        const price = item.price != null ? `, approx ${formatCurrencyCr(item.price)}` : "";
         return `${index + 1}. ${item.title}${location}${price} - score ${item.score}. Why: ${item.why.join(", ")}. Next: ${item.suggested_action}`;
       });
 
@@ -503,7 +503,7 @@ export function createMcpServer(context: ToolContext = {}) {
         ? result.top_localities.map((item) => `${item.locality} (${item.count})`).join(", ")
         : "no strong locality cluster yet";
       return textResponse(
-        `Market summary for the last ${result.days} days: ${result.listing_count} comparable listings, average ${result.avg_price_cr != null ? `₹${result.avg_price_cr}Cr` : "price unavailable"}, median ${result.median_price_cr != null ? `₹${result.median_price_cr}Cr` : "price unavailable"}, average ${result.avg_price_per_sqft != null ? `₹${result.avg_price_per_sqft.toLocaleString("en-IN")}/sqft` : "ppsf unavailable"}. Top localities: ${topLocalities}.`,
+        `Market summary for the last ${result.days} days: ${result.listing_count} comparable listings, average ${result.avg_price_cr != null ? formatCurrencyCr(result.avg_price_cr) : "price unavailable"}, median ${result.median_price_cr != null ? formatCurrencyCr(result.median_price_cr) : "price unavailable"}, average ${result.avg_price_per_sqft != null ? `₹${result.avg_price_per_sqft.toLocaleString("en-IN")}/sqft` : "ppsf unavailable"}. Top localities: ${topLocalities}.`,
         result,
       );
     },
@@ -826,7 +826,7 @@ export function createMcpServer(context: ToolContext = {}) {
       inputSchema: {
         hours: z.number().default(6).describe("Last N hours"),
         city: z.string().optional(),
-        limit: z.number().default(20),
+        limit: z.number().default(50),
       },
     },
     async (input) => {

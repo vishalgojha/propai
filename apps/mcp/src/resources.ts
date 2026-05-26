@@ -105,7 +105,7 @@ export function registerMcpResources(server: McpServer, context: ToolContext = {
     },
     async (uri: URL) => {
       const id = requireBrokerId(context);
-      const items = await getRecentSavedListings({ brokerId: id, limit: 20 });
+      const items = await getRecentSavedListings({ brokerId: id, limit: 50 });
       return jsonResource(uri.toString(), {
         count: items.length,
         items,
@@ -123,7 +123,7 @@ export function registerMcpResources(server: McpServer, context: ToolContext = {
     },
     async (uri: URL) => {
       const id = requireBrokerId(context);
-      const items = await getRecentRequirements({ brokerId: id, limit: 20 });
+      const items = await getRecentRequirements({ brokerId: id, limit: 50 });
       return jsonResource(uri.toString(), {
         count: items.length,
         items,

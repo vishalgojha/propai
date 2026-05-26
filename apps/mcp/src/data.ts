@@ -101,7 +101,7 @@ export async function getFreshStream(input: { hours?: number; city?: string; lim
     .select(PUBLIC_LISTING_COLUMNS)
     .gte("message_timestamp", since)
     .order("message_timestamp", { ascending: false, nullsFirst: false })
-    .limit(clampLimit(input.limit, 20, 100));
+    .limit(clampLimit(input.limit, 50, 100));
 
   query = applyLocality(query, undefined, input.city);
 
