@@ -65,7 +65,17 @@ function cleanWhatsAppReply(text: string) {
 }
 
 export class AgentExecutor {
-    async processMessage(tenantId: string, remoteJid: string, text: string, sessionLabel?: string): Promise<string> {
+    async processMessage(
+        tenantId: string,
+        remoteJid: string,
+        text: string,
+        sessionLabel?: string,
+        groupContext?: {
+            groupJid: string;
+            groupName: string | null;
+            senderJid: string | null;
+        },
+    ): Promise<string> {
         const ASSISTANT_PHONE = '7021045254'; // last 10 digits of +91 70210 45254
         let effectiveTenantId = tenantId;
         let systemPrompt = '';
@@ -146,6 +156,7 @@ export class AgentExecutor {
                         },
                         actor: {
                             phone: conversationKey,
+                            userId: groupContext?.senderJid || null,
                         },
                         content: {
                             text,
@@ -153,6 +164,9 @@ export class AgentExecutor {
                         metadata: {
                             sessionLabel: sessionLabel || null,
                             source: 'AgentExecutor',
+                            groupJid: groupContext?.groupJid || null,
+                            groupName: groupContext?.groupName || null,
+                            senderJid: groupContext?.senderJid || null,
                         },
                     },
                     profileLookupTenantId: effectiveTenantId,
@@ -171,7 +185,7 @@ export class AgentExecutor {
                     taskType: 'agent_router',
                 });
                 const response = await aiService.chat(
-                    currentPrompt,
+                    groupContext ? this.decorateGroupPrompt(currentPrompt, groupContext) : currentPrompt,
                     'Auto',
                     'agent_router',
                     effectiveTenantId,
@@ -227,6 +241,21 @@ export class AgentExecutor {
 
     private logAgentInvocation(stage: 'request' | 'response', metadata: Record<string, unknown>) {
         console.info('[agent-invocation]', JSON.stringify({ stage, ...metadata }));
+    }
+
+    private decorateGroupPrompt(prompt: string, groupContext: {
+        groupJid: string;
+        groupName: string | null;
+        senderJid: string | null;
+    }) {
+        return [
+            'Group context:',
+            `- groupJid: ${groupContext.groupJid}`,
+            `- groupName: ${groupContext.groupName || 'Unknown group'}`,
+            `- senderJid: ${groupContext.senderJid || 'Unknown sender'}`,
+            '',
+            prompt,
+        ].join('\n');
     }
 
     private async logEvent(tenantId: string, eventType: string, description: string, metadata: any = {}) {

@@ -183,6 +183,25 @@ function shouldUseAttachmentContextForRouting(rawText: string, hasAttachments: b
     return EXPLICIT_ACTION_PATTERN.test(normalized);
 }
 
+function buildGroupContextPrompt(event: ConversationEvent) {
+    if (!event.conversation.isGroup) {
+        return '';
+    }
+
+    const metadata = (event.metadata || {}) as Record<string, unknown>;
+    const groupJid = String(metadata.groupJid || event.conversation.externalId || '').trim();
+    const groupName = String(metadata.groupName || '').trim();
+    const senderJid = String(metadata.senderJid || event.actor?.userId || event.actor?.phone || '').trim();
+
+    return [
+        'Group context:',
+        `- groupJid: ${groupJid || 'Unknown group'}`,
+        `- groupName: ${groupName || 'Unknown group'}`,
+        `- senderJid: ${senderJid || 'Unknown sender'}`,
+        '',
+    ].join('\n');
+}
+
 export class ConversationEngineService {
     async process(input: ConversationEngineInput): Promise<ConversationEngineResult> {
         const { event } = input;
@@ -264,9 +283,11 @@ export class ConversationEngineService {
         const finalSystemPrompt = event.channel === 'whatsapp'
             ? `${systemPrompt}\n\n${WHATSAPP_BROKER_FORMATTING_PROMPT}`
             : `${systemPrompt}\n\n${WEB_BROKER_FORMATTING_PROMPT}`;
+        const groupContextPrompt = buildGroupContextPrompt(event);
+        const promptWithContext = groupContextPrompt ? `${groupContextPrompt}${prompt}` : prompt;
 
         const response = await aiService.chat(
-            prompt,
+            promptWithContext,
             input.modelPreference || 'Auto',
             undefined,
             event.tenantId,

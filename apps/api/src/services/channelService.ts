@@ -1165,6 +1165,10 @@ type RawInboundMessage = {
     text?: string | null;
     timestamp?: string | null;
     created_at?: string | null;
+    source?: string | null;
+    sourceGroupId?: string | null;
+    sourceGroupName?: string | null;
+    senderJid?: string | null;
 };
 
 type GroupIngestionContext = {
@@ -1543,7 +1547,444 @@ export class ChannelService {
     }
 
     private evaluateMessageQuality(message: RawInboundMessage, candidates: ParsedStreamCandidate[], groupContext: GroupIngestionContext | null): MessageQualityDecision {
+        // Auto-suppression rules for obviously low-quality messages
         const rawText = String(message.text || '').trim();
+        
+        // 1. Too short to be meaningful
+        if (rawText.length < 20) {
+            return {
+                status: 'insufficient_data',
+                suppressionReason: 'Message too short (<20 characters) to contain meaningful real estate information.',
+                qualityScore: 0,
+                metrics: {
+                    candidateCount: 0,
+                    avgConfidence: 0,
+                    lowEffortRate: 0,
+                    unresolvedRate: 0,
+                    actionableRate: 0,
+                    lineCount: rawText.split('\n').length,
+                    resolvedWithGroupCount: 0,
+                    actionableCount: 0,
+                },
+                resolutionContext: {
+                    sourceGroupId: message.remote_jid || null,
+                    sourceGroupName: groupContext?.groupName || null,
+                    groupLocality: groupContext?.locality || null,
+                    groupCity: groupContext?.city || null,
+                    groupCategory: groupContext?.category || null,
+                    groupTags: groupContext?.tags || [],
+                },
+            };
+        }
+        
+        // 2. No real estate keywords found
+        const lowerText = rawText.toLowerCase();
+        const realEstateKeywords = [
+            'bhk', 'bed', 'bedroom', 'bath', 'bathroom', 'flat', 'apartment', 
+            'house', 'villa', 'plot', 'land', 'property', 'rent', 'sale', 
+            'lease', 'available', 'ready', 'possession', 'sqft', 'square feet',
+            'developer', 'builder', 'project', 'society', 'wing', 'tower', 
+            'floor', 'flat no', 'flat no.', 'building', 'residency', 'residency',
+            'ac', 'parking', 'lift', 'elevator', 'gym', 'pool', 'clubhouse',
+            'security', 'maintenance', 'society', 'office', 'shop', 'showroom',
+            'commercial', 'retail', 'warehouse', 'factory', 'industrial'
+        ];
+        
+        const hasRealEstateKeyword = realEstateKeywords.some(keyword => lowerText.includes(keyword));
+        if (!hasRealEstateKeyword) {
+            return {
+                status: 'insufficient_data',
+                suppressionReason: 'Message contains no recognizable real estate keywords.',
+                qualityScore: 0,
+                metrics: {
+                    candidateCount: 0,
+                    avgConfidence: 0,
+                    lowEffortRate: 0,
+                    unresolvedRate: 0,
+                    actionableRate: 0,
+                    lineCount: rawText.split('\n').length,
+                    resolvedWithGroupCount: 0,
+                    actionableCount: 0,
+                },
+                resolutionContext: {
+                    sourceGroupId: message.remote_jid || null,
+                    sourceGroupName: groupContext?.groupName || null,
+                    groupLocality: groupContext?.locality || null,
+                    groupCity: groupContext?.city || null,
+                    groupCategory: groupContext?.category || null,
+                    groupTags: groupContext?.tags || [],
+                },
+            };
+        }
+        
+        // Continue with original evaluation logic...
+        const lines = rawText.split('\n').map((line) => line.trim()).filter(Boolean);
+        const candidateCount = candidates.length;
+        const avgConfidence = candidateCount > 0
+            ? candidates.reduce((sum, candidate) => sum + Number(candidate.confidenceScore || 0), 0) / candidateCount
+            : 0;
+
+        let lowEffortCount = 0;
+        let unresolvedCount = 0;
+        let resolvedWithGroupCount = 0;
+        let actionableCount = 0;
+
+        for (const candidate of candidates) {
+            const completeness = this.scoreCandidateCompleteness(candidate);
+            const payload = (candidate.parsedPayload || {}) as Record<string, unknown>;
+            if (completeness <= 2) {
+                lowEffortCount += 1;
+            }
+            if (this.isPlaceholderLocation(candidate.locality)) {
+                unresolvedCount += 1;
+            }
+            if (payload.groupContextApplied) {
+                resolvedWithGroupCount += 1;
+            }
+            if (this.hasActionableCore(candidate)) {
+                actionableCount += 1;
+            }
+        }
+
+        const lowEffortRate = candidateCount > 0 ? lowEffortCount / candidateCount : 0;
+        const unresolvedRate = candidateCount > 0 ? unresolvedCount / candidateCount : 0;
+        const actionableRate = candidateCount > 0 ? actionableCount / candidateCount : 0;
+        const qualityScore = Math.max(
+            0,
+            Math.round(avgConfidence - (lowEffortRate * 35) - (unresolvedRate * 30) + (resolvedWithGroupCount * 4) + (actionableRate * 18)),
+        );
+
+        let status: MessageIngestionStatus = 'accepted';
+        let suppressionReason: string | null = null;
+
+        if (candidateCount >= 15 && actionableRate < 0.3 && (lowEffortRate >= 0.4 || avgConfidence < 60 || unresolvedRate >= 0.3)) {
+            status = 'suppressed_bulk_spam';
+            suppressionReason = `Suppressed ${candidateCount}-item broker blast due to weak structure and low-actionability.`;
+        } else if (candidateCount >= 10 && lowEffortRate >= 0.7 && actionableRate < 0.25) {
+            status = 'suppressed_bulk_spam';
+            suppressionReason = `Suppressed multi-listing broker blast because most extracted records are low-effort.`;
+        } else if (!groupContext?.locality && candidateCount >= 5 && unresolvedRate >= 0.75 && actionableRate < 0.15) {
+            status = 'suppressed_unresolved_context';
+            suppressionReason = 'Suppressed message because locality context remained unresolved across most extracted records.';
+        } else if (candidateCount >= 2 && lowEffortRate >= 0.85 && avgConfidence < 60 && actionableCount === 0) {
+            status = 'suppressed_low_effort';
+            suppressionReason = 'Suppressed message because most extracted records are too vague to be actionable.';
+        } else if (candidateCount === 1 && lowEffortRate === 1 && avgConfidence < 40 && !this.hasActionableCore(candidates[0])) {
+            status = 'suppressed_low_effort';
+            suppressionReason = 'Suppressed single low-effort listing with insufficient actionable detail.';
+        }
+
+        return {
+            status,
+            suppressionReason,
+            qualityScore,
+            metrics: {
+                candidateCount,
+                avgConfidence: Math.round(avgConfidence * 10) / 10,
+                lowEffortRate: Math.round(lowEffortRate * 100) / 100,
+                unresolvedRate: Math.round(unresolvedRate * 100) / 100,
+                actionableRate: Math.round(actionableRate * 100) / 100,
+                lineCount: lines.length,
+                resolvedWithGroupCount,
+                actionableCount,
+            },
+            resolutionContext: {
+                sourceGroupId: message.remote_jid || null,
+                sourceGroupName: groupContext?.groupName || null,
+                groupLocality: groupContext?.locality || null,
+                groupCity: groupContext?.city || null,
+                groupCategory: groupContext?.category || null,
+                groupTags: groupContext?.tags || [],
+            },
+        };
+    }
+        
+        // 2. No real estate keywords found
+        const lowerText = rawText.toLowerCase();
+        const realEstateKeywords = [
+            'bhk', 'bed', 'bedroom', 'bath', 'bathroom', 'flat', 'apartment', 
+            'house', 'villa', 'plot', 'land', 'property', 'rent', 'sale', 
+            'lease', 'available', 'ready', 'possession', 'sqft', 'square feet',
+            'developer', 'builder', 'project', 'society', 'wing', 'tower', 
+            'floor', 'flat no', 'flat no.', 'building', 'residency', 'residency',
+            'ac', 'parking', 'lift', 'elevator', 'gym', 'pool', 'clubhouse',
+            'security', 'maintenance', 'society', 'office', 'shop', 'showroom',
+            'commercial', 'retail', 'warehouse', 'factory', 'industrial'
+        ];
+        
+        const hasRealEstateKeyword = realEstateKeywords.some(keyword => lowerText.includes(keyword));
+        if (!hasRealEstateKeyword) {
+            return {
+                status: 'insufficient_data',
+                suppressionReason: 'Message contains no recognizable real estate keywords.',
+                qualityScore: 0,
+                metrics: {
+                    candidateCount: 0,
+                    avgConfidence: 0,
+                    lowEffortRate: 0,
+                    unresolvedRate: 0,
+                    actionableRate: 0,
+                    lineCount: rawText.split('\n').length,
+                    resolvedWithGroupCount: 0,
+                    actionableCount: 0,
+                },
+                resolutionContext: {
+                    sourceGroupId: message.remote_jid || null,
+                    sourceGroupName: groupContext?.groupName || null,
+                    groupLocality: groupContext?.locality || null,
+                    groupCity: groupContext?.city || null,
+                    groupCategory: groupContext?.category || null,
+                    groupTags: groupContext?.tags || [],
+                },
+            };
+        }
+        
+        // Continue with original evaluation logic...
+        const rawText = String(message.text || '').trim();
+        const lines = rawText.split('\n').map((line) => line.trim()).filter(Boolean);
+        const candidateCount = candidates.length;
+        const avgConfidence = candidateCount > 0
+            ? candidates.reduce((sum, candidate) => sum + Number(candidate.confidenceScore || 0), 0) / candidateCount
+            : 0;
+
+        let lowEffortCount = 0;
+        let unresolvedCount = 0;
+        let resolvedWithGroupCount = 0;
+        let actionableCount = 0;
+
+        for (const candidate of candidates) {
+            const completeness = this.scoreCandidateCompleteness(candidate);
+            const payload = (candidate.parsedPayload || {}) as Record<string, unknown>;
+            if (completeness <= 2) {
+                lowEffortCount += 1;
+            }
+            if (this.isPlaceholderLocation(candidate.locality)) {
+                unresolvedCount += 1;
+            }
+            if (payload.groupContextApplied) {
+                resolvedWithGroupCount += 1;
+            }
+            if (this.hasActionableCore(candidate)) {
+                actionableCount += 1;
+            }
+        }
+
+        const lowEffortRate = candidateCount > 0 ? lowEffortCount / candidateCount : 0;
+        const unresolvedRate = candidateCount > 0 ? unresolvedCount / candidateCount : 0;
+        const actionableRate = candidateCount > 0 ? actionableCount / candidateCount : 0;
+        const qualityScore = Math.max(
+            0,
+            Math.round(avgConfidence - (lowEffortRate * 35) - (unresolvedRate * 30) + (resolvedWithGroupCount * 4) + (actionableRate * 18)),
+        );
+
+        let status: MessageIngestionStatus = 'accepted';
+        let suppressionReason: string | null = null;
+
+        if (candidateCount >= 15 && actionableRate < 0.3 && (lowEffortRate >= 0.4 || avgConfidence < 60 || unresolvedRate >= 0.3)) {
+            status = 'suppressed_bulk_spam';
+            suppressionReason = `Suppressed ${candidateCount}-item broker blast due to weak structure and low-actionability.`;
+        } else if (candidateCount >= 10 && lowEffortRate >= 0.7 && actionableRate < 0.25) {
+            status = 'suppressed_bulk_spam';
+            suppressionReason = `Suppressed multi-listing broker blast because most extracted records are low-effort.`;
+        } else if (!groupContext?.locality && candidateCount >= 5 && unresolvedRate >= 0.75 && actionableRate < 0.15) {
+            status = 'suppressed_unresolved_context';
+            suppressionReason = 'Suppressed message because locality context remained unresolved across most extracted records.';
+        } else if (candidateCount >= 2 && lowEffortRate >= 0.85 && avgConfidence < 60 && actionableCount === 0) {
+            status = 'suppressed_low_effort';
+            suppressionReason = 'Suppressed message because most extracted records are too vague to be actionable.';
+        } else if (candidateCount === 1 && lowEffortRate === 1 && avgConfidence < 40 && !this.hasActionableCore(candidates[0])) {
+            status = 'suppressed_low_effort';
+            suppressionReason = 'Suppressed single low-effort listing with insufficient actionable detail.';
+        }
+
+        return {
+            status,
+            suppressionReason,
+            qualityScore,
+            metrics: {
+                candidateCount,
+                avgConfidence: Math.round(avgConfidence * 10) / 10,
+                lowEffortRate: Math.round(lowEffortRate * 100) / 100,
+                unresolvedRate: Math.round(unresolvedRate * 100) / 100,
+                actionableRate: Math.round(actionableRate * 100) / 100,
+                lineCount: lines.length,
+                resolvedWithGroupCount,
+                actionableCount,
+            },
+            resolutionContext: {
+                sourceGroupId: message.remote_jid || null,
+                sourceGroupName: groupContext?.groupName || null,
+                groupLocality: groupContext?.locality || null,
+                groupCity: groupContext?.city || null,
+                groupCategory: groupContext?.category || null,
+                groupTags: groupContext?.tags || [],
+            },
+        };
+    }
+        
+        // 2. No real estate keywords found
+        const lowerText = rawText.toLowerCase();
+        const realEstateKeywords = [
+            'bhk', 'bed', 'bedroom', 'bath', 'bathroom', 'flat', 'apartment', 
+            'house', 'villa', 'plot', 'land', 'property', 'rent', 'sale', 
+            'lease', 'available', 'ready', 'possession', 'sqft', 'square feet',
+            'developer', 'builder', 'project', 'society', 'wing', 'tower', 
+            'floor', 'flat no', 'flat no.', 'building', 'residency', 'residency',
+            'ac', 'parking', 'lift', 'elevator', 'gym', 'pool', 'clubhouse',
+            'security', 'maintenance', 'society', 'office', 'shop', 'showroom',
+            'commercial', 'retail', 'warehouse', 'factory', 'industrial'
+        ];
+        
+        const hasRealEstateKeyword = realEstateKeywords.some(keyword => lowerText.includes(keyword));
+        if (!hasRealEstateKeyword) {
+            return {
+                status: 'insufficient_data',
+                suppressionReason: 'Message contains no recognizable real estate keywords.',
+                qualityScore: 0,
+                metrics: {
+                    candidateCount: 0,
+                    avgConfidence: 0,
+                    lowEffortRate: 0,
+                    unresolvedRate: 0,
+                    actionableRate: 0,
+                    lineCount: rawText.split('\n').length,
+                    resolvedWithGroupCount: 0,
+                    actionableCount: 0,
+                },
+                resolutionContext: {
+                    sourceGroupId: message.remote_jid || null,
+                    sourceGroupName: groupContext?.groupName || null,
+                    groupLocality: groupContext?.locality || null,
+                    groupCity: groupContext?.city || null,
+                    groupCategory: groupContext?.category || null,
+                    groupTags: groupContext?.tags || [],
+                },
+            };
+        }
+        
+        // Continue with existing evaluation logic...
+        const lines = rawText.split('\n').map((line) => line.trim()).filter(Boolean);
+        const candidateCount = candidates.length;
+        const avgConfidence = candidateCount > 0
+            ? candidates.reduce((sum, candidate) => sum + Number(candidate.confidenceScore || 0), 0) / candidateCount
+            : 0;
+        
+        let lowEffortCount = 0;
+        let unresolvedCount = 0;
+        let resolvedWithGroupCount = 0;
+        let actionableCount = 0;
+        
+        for (const candidate of candidates) {
+            const completeness = this.scoreCandidateCompleteness(candidate);
+            const payload = (candidate.parsedPayload || {}) as Record<string, unknown>;
+            if (completeness <= 2) {
+                lowEffortCount += 1;
+            }
+            if (this.isPlaceholderLocation(candidate.locality)) {
+                unresolvedCount += 1;
+            }
+            if (payload.groupContextApplied) {
+                resolvedWithGroupCount += 1;
+            }
+            if (this.hasActionableCore(candidate)) {
+                actionableCount += 1;
+            }
+        }
+        
+        const lowEffortRate = candidateCount > 0 ? lowEffortCount / candidateCount : 0;
+        const unresolvedRate = candidateCount > 0 ? unresolvedCount / candidateCount : 0;
+        const actionableRate = candidateCount > 0 ? actionableCount / candidateCount : 0;
+        const qualityScore = Math.max(
+            0,
+            Math.round(avgConfidence - (lowEffortRate * 35) - (unresolvedRate * 30) + (resolvedWithGroupCount * 4) + (actionableRate * 18)),
+        );
+        
+        let status: MessageIngestionStatus = 'accepted';
+        let suppressionReason: string | null = null;
+        
+        if (candidateCount >= 15 && actionableRate < 0.3 && (lowEffortRate >= 0.4 || avgConfidence < 60 || unresolvedRate >= 0.3)) {
+            status = 'suppressed_bulk_spam';
+            suppressionReason = `Suppressed ${candidateCount}-item broker blast due to weak structure and low-actionability.`;
+        } else if (candidateCount >= 10 && lowEffortRate >= 0.7 && actionableRate < 0.25) {
+            status = 'suppressed_bulk_spam';
+            suppressionReason = `Suppressed multi-listing broker blast because most extracted records are low-effort.`;
+        } else if (!groupContext?.locality && candidateCount >= 5 && unresolvedRate >= 0.75 && actionableRate < 0.15) {
+            status = 'suppressed_unresolved_context';
+            suppressionReason = 'Suppressed message because locality context remained unresolved across most extracted records.';
+        } else if (candidateCount >= 2 && lowEffortRate >= 0.85 && avgConfidence < 60 && actionableCount === 0) {
+            status = 'suppressed_low_effort';
+            suppressionReason = 'Suppressed message because most extracted records are too vague to be actionable.';
+        } else if (candidateCount === 1 && lowEffortRate === 1 && avgConfidence < 40 && !this.hasActionableCore(candidates[0])) {
+            status = 'suppressed_low_effort';
+            suppressionReason = 'Suppressed single low-effort listing with insufficient actionable detail.';
+        }
+        
+        return {
+            status,
+            suppressionReason,
+            qualityScore,
+            metrics: {
+                candidateCount,
+                avgConfidence: Math.round(avgConfidence * 10) / 10,
+                lowEffortRate: Math.round(lowEffortRate * 100) / 100,
+                unresolvedRate: Math.round(unresolvedRate * 100) / 100,
+                actionableRate: Math.round(actionableRate * 100) / 100,
+                lineCount: lines.length,
+                resolvedWithGroupCount,
+                actionableCount,
+            },
+            resolutionContext: {
+                sourceGroupId: message.remote_jid || null,
+                sourceGroupName: groupContext?.groupName || null,
+                groupLocality: groupContext?.locality || null,
+                groupCity: groupContext?.city || null,
+                groupCategory: groupContext?.category || null,
+                groupTags: groupContext?.tags || [],
+            },
+        };
+    }
+        
+        // 2. No real estate keywords found
+        const lowerText = rawText.toLowerCase();
+        const realEstateKeywords = [
+            'bhk', 'bed', 'bedroom', 'bath', 'bathroom', 'flat', 'apartment', 
+            'house', 'villa', 'plot', 'land', 'property', 'rent', 'sale', 
+            'lease', 'available', 'ready', 'possession', 'sqft', 'square feet',
+            'developer', 'builder', 'project', 'society', 'wing', 'tower', 
+            'floor', 'flat no', 'flat no.', 'building', 'residency', 'residency',
+            'ac', 'parking', 'lift', 'elevator', 'gym', 'pool', 'clubhouse',
+            'security', 'maintenance', 'society', 'office', 'shop', 'showroom',
+            'commercial', 'retail', 'warehouse', 'factory', 'industrial'
+        ];
+        
+        const hasRealEstateKeyword = realEstateKeywords.some(keyword => lowerText.includes(keyword));
+        if (!hasRealEstateKeyword) {
+            return {
+                status: 'insufficient_data',
+                suppressionReason: 'Message contains no recognizable real estate keywords.',
+                qualityScore: 0,
+                metrics: {
+                    candidateCount: 0,
+                    avgConfidence: 0,
+                    lowEffortRate: 0,
+                    unresolvedRate: 0,
+                    actionableRate: 0,
+                    lineCount: rawText.split('\n').length,
+                    resolvedWithGroupCount: 0,
+                    actionableCount: 0,
+                },
+                resolutionContext: {
+                    sourceGroupId: message.remote_jid || null,
+                    sourceGroupName: groupContext?.groupName || null,
+                    groupLocality: groupContext?.locality || null,
+                    groupCity: groupContext?.city || null,
+                    groupCategory: groupContext?.category || null,
+                    groupTags: groupContext?.tags || [],
+                },
+            };
+        }
+        
+        // Continue with existing evaluation logic...
         const lines = rawText.split('\n').map((line) => line.trim()).filter(Boolean);
         const candidateCount = candidates.length;
         const avgConfidence = candidateCount > 0
@@ -2421,6 +2862,10 @@ private dailyBriefingSentKeys = new Set<string>();
                 suppressionReason: qualityDecision.suppressionReason,
                 qualityScore: qualityDecision.qualityScore,
                 qualityMetrics: qualityDecision.metrics,
+                source: String(message.source || parsed.parsedPayload?.source || 'unknown').trim() || 'unknown',
+                sourceGroupId: message.sourceGroupId || parsed.sourceGroupId || message.remote_jid || null,
+                sourceGroupName: message.sourceGroupName || parsed.sourceGroupName || null,
+                senderJid: message.senderJid || null,
             };
             const contentHash = buildStreamContentHash(parsed.rawText, parsed.sourcePhone);
 
@@ -2577,6 +3022,10 @@ private dailyBriefingSentKeys = new Set<string>();
             bhk: parsed.bhk || null,
             locality: parsed.locality || null,
             contact_number: phone,
+            source: parsed.parsedPayload?.source || null,
+            source_group_id: parsed.sourceGroupId || null,
+            source_group_name: parsed.sourceGroupName || null,
+            sender_jid: (parsed.parsedPayload as any)?.senderJid || null,
             city: parsed.city || null,
             type: parsed.streamType?.toLowerCase?.() || null,
             deal_type: parsed.dealType || null,
@@ -2598,6 +3047,7 @@ private dailyBriefingSentKeys = new Set<string>();
         const { error } = await this.db.from('listings').insert({
             tenant_id: tenantId,
             source_group_id: parsed.sourceGroupId || null,
+            source_group_name: parsed.sourceGroupName || null,
             structured_data: structuredData,
             raw_text: parsed.rawText || '',
             status: 'Active',
@@ -2776,6 +3226,7 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
         const bodyContactName = extractContactNameFromBody(rawText);
         const sourceLabel = bodyContactName || senderLabel || null;
         const sourceGroupId = message.remote_jid?.endsWith('@g.us') ? String(message.remote_jid) : null;
+        const sourceGroupName = String(message.sourceGroupName || '').trim() || null;
 
         // Check locality_aliases before falling through to parser
         const aliasLocality = await this.checkAliasForText(rawText).catch(() => null);
@@ -2965,7 +3416,7 @@ ${rawText}
                     sourcePhone,
                     sourceLabel,
                     sourceGroupId,
-                    sourceGroupName: null,
+                    sourceGroupName,
                     streamType,
                     recordType: item.recordType === 'requirement' ? 'requirement' : 'listing',
                     locality,
@@ -3007,6 +3458,10 @@ ${rawText}
                         propertyUse: propertyUse || null,
                         parseNotes: item.parseNotes || null,
                         aiParsed: true,
+                        source: String(message.source || 'ai').trim() || 'ai',
+                        sourceGroupId,
+                        sourceGroupName,
+                        senderJid: message.senderJid || null,
                     },
                 } satisfies ParsedStreamCandidate;
             })
@@ -3033,6 +3488,7 @@ ${rawText}
         const bodyContactName = extractContactNameFromBody(rawText);
         const sourceLabel = bodyContactName || String(message.sender || '').trim() || null;
         const sourceGroupId = message.remote_jid?.endsWith('@g.us') ? String(message.remote_jid) : null;
+        const sourceGroupName = String(message.sourceGroupName || '').trim() || null;
 
         return segments.map((segment, index) => {
             const candidateText = segment.text.trim();
@@ -3059,7 +3515,7 @@ ${rawText}
                 sourcePhone,
                 sourceLabel,
                 sourceGroupId,
-                sourceGroupName: null,
+                sourceGroupName,
                 streamType: segment.streamType,
                 recordType: segment.streamType === 'Requirement' ? 'requirement' : 'listing',
                 locality: location,
@@ -3105,6 +3561,10 @@ ${rawText}
                     floorNumber,
                     totalFloors,
                     propertyUse,
+                    source: String(message.source || 'fallback').trim() || 'fallback',
+                    sourceGroupId,
+                    sourceGroupName,
+                    senderJid: message.senderJid || null,
                 },
             };
         });
@@ -3727,12 +4187,17 @@ ${rawText}
             item.parsed_payload?.brokerCompany ||
             item.parsed_payload?.company ||
             null;
+        const parsedSource = String(item.parsed_payload?.source || '').trim().toLowerCase();
         const source =
-            item.parsed_payload?.contactName ||
-            item.parsed_payload?.sourceLabel ||
-            brokerName ||
-            brokerCompany ||
-            'Broker contact';
+            parsedSource === 'group_passive'
+                ? 'Group passive'
+                : (
+                    item.parsed_payload?.contactName ||
+                    item.parsed_payload?.sourceLabel ||
+                    brokerName ||
+                    brokerCompany ||
+                    'Broker contact'
+                );
 
         return {
             id: String(item.id),
@@ -3924,15 +4389,6 @@ ${rawText}
                 }, item.brokerName || null, recoveredPhone),
             };
         });
-    }
-
-    private async checkAliasForText(text: string): Promise<string | null> {
-        try {
-            const { localityAliasService } = await import('./localityAliasService');
-            return await localityAliasService.findAliasForText(text);
-        } catch {
-            return null;
-        }
     }
 
     private async buildQueryRawTextOnly(readClient: any, tenantIds: string[], searchQuery: string, acceptedOnly: boolean, limit?: number) {

@@ -3,6 +3,8 @@ import type { WhatsAppGateway } from './WhatsAppGateway';
 import type {
     WhatsAppBroadcastInput,
     WhatsAppBroadcastResult,
+    WhatsAppCreateGroupInput,
+    WhatsAppCreateGroupResult,
     WhatsAppConnectInput,
     WhatsAppConnectMode,
     WhatsAppConnectResult,
@@ -105,6 +107,23 @@ export class BaileysWhatsAppGateway implements WhatsAppGateway {
                     };
                 })
                 : [],
+        };
+    }
+
+    async createGroup(input: WhatsAppCreateGroupInput): Promise<WhatsAppCreateGroupResult> {
+        const client = await sessionManager.getSession(input.workspaceOwnerId, input.sessionLabel);
+        if (!client) {
+            throw new Error('No active WhatsApp session found');
+        }
+
+        const result = await client.createManagedGroup(input.subject, input.participants);
+        const groupJid = String(result?.id || result?.gid || result?.groupJid || '').trim() || null;
+        const groupName = String(result?.subject || result?.name || input.subject || '').trim() || null;
+
+        return {
+            groupJid,
+            groupName,
+            raw: result,
         };
     }
 

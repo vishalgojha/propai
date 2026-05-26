@@ -131,6 +131,60 @@ export class WhatsAppClient {
         });
     }
 
+    private buildGroupWelcomeText(groupName?: string | null) {
+        const title = String(groupName || '').trim() || 'this group';
+        return [
+            `Hi everyone, I’m Pulse from PropAI.`,
+            `I help brokers keep ${title} organized, parse listings and requirements, and respond when you tag me.`,
+            `Use @Pulse <query> to ask me something in the group.`,
+        ].join(' ');
+    }
+
+    private async registerManagedGroup(groupJid: string, groupName?: string | null, participantJids?: string[] | null) {
+        try {
+            await whatsappGroupService.registerManagedGroup(this.tenantId, {
+                sessionLabel: this.label,
+                groupJid,
+                groupName: groupName || groupJid,
+                participantJids: participantJids || [],
+            });
+        } catch (error) {
+            console.error('[WhatsAppClient] Failed to register managed group:', error);
+        }
+    }
+
+    private async sendGroupWelcome(groupJid: string, groupName?: string | null) {
+        const welcomeText = this.buildGroupWelcomeText(groupName);
+        await this.sendText(groupJid, welcomeText).catch(() => undefined);
+    }
+
+    async createManagedGroup(subject: string, participants: string[]) {
+        if (!this.socket) {
+            throw new Error('WhatsApp session is not connected');
+        }
+
+        const cleanSubject = String(subject || '').trim();
+        const cleanParticipants = Array.from(new Set((participants || []).map((participant) => String(participant || '').trim()).filter(Boolean)));
+        if (!cleanSubject || cleanParticipants.length === 0) {
+            throw new Error('Group subject and participants are required');
+        }
+
+        const groupCreate = (this.socket as any).groupCreate?.bind(this.socket);
+        if (typeof groupCreate !== 'function') {
+            throw new Error('This WhatsApp client does not support group creation');
+        }
+
+        const result = await groupCreate(cleanSubject, cleanParticipants);
+        const groupJid = String(result?.id || result?.gid || result?.groupJid || '').trim();
+        const groupName = String(result?.subject || result?.name || cleanSubject || '').trim() || null;
+        if (groupJid) {
+            await this.registerManagedGroup(groupJid, groupName, cleanParticipants);
+            await this.sendGroupWelcome(groupJid, groupName);
+        }
+
+        return result;
+    }
+
     constructor(options: WhatsAppClientOptions) {
         this.tenantId = options.tenantId;
         this.storage = options.storage;
@@ -385,75 +439,91 @@ export class WhatsAppClient {
                 }
             });
 
-this.socket.ev.on('messages.upsert', async (payload: any) => {
-                 try {
-                     const messages = Array.isArray(payload?.messages) ? payload.messages : [];
-                     for (const msg of messages) {
-                         if (!msg?.message) {
-                             continue;
-                         }
+            this.socket.ev.on('messages.upsert', async (payload: any) => {
+                try {
+                    const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+                    for (const msg of messages) {
+                        if (!msg?.message) {
+                            continue;
+                        }
 
-                         const messageText = this.extractMessageText(msg.message);
-                         const remoteJid = String(msg.key?.remoteJid || '').trim();
-                         const remoteJidAlt = String(msg.key?.remoteJidAlt || '');
-                         const wasSentByThisClient = this.isRecentOutgoingMessage(remoteJid, messageText);
+                        const messageText = this.extractMessageText(msg.message);
+                        const remoteJid = String(msg.key?.remoteJid || '').trim();
+                        const remoteJidAlt = String(msg.key?.remoteJidAlt || '');
+                        const wasSentByThisClient = this.isRecentOutgoingMessage(remoteJid, messageText);
 
-                         if (!remoteJid || !messageText) {
-                             continue;
-                         }
+                        if (!remoteJid || !messageText) {
+                            continue;
+                        }
 
-                         if (msg.key?.fromMe && wasSentByThisClient) {
-                             continue;
-                         }
+                        if (msg.key?.fromMe && wasSentByThisClient) {
+                            continue;
+                        }
 
-                         if (msg.key?.fromMe && remoteJid.endsWith('@lid') && remoteJidAlt.startsWith(`${this.connectedPhoneNumber}@`)) {
-                             this.connectedLidJid = remoteJid;
-                             await this.persistStatus(this.connectionStatus);
-                         }
+                        if (msg.key?.fromMe && remoteJid.endsWith('@lid') && remoteJidAlt.startsWith(`${this.connectedPhoneNumber}@`)) {
+                            this.connectedLidJid = remoteJid;
+                            await this.persistStatus(this.connectionStatus);
+                        }
 
-                         const isGroup = remoteJid.endsWith('@g.us');
-                         void sessionEventService.log(this.tenantId, 'message_received', {
-                             remoteJid,
-                             isGroup,
-                             label: this.label,
-                             length: messageText.length,
-                             hasMedia: Boolean(msg.message?.imageMessage || msg.message?.videoMessage),
-                         });
+                        const isGroup = remoteJid.endsWith('@g.us');
+                        const groupMetadata = isGroup
+                            ? await this.socket?.groupMetadata(remoteJid).catch(() => null)
+                            : null;
+                        const groupName = isGroup
+                            ? String(groupMetadata?.subject || groupMetadata?.name || remoteJid).trim() || null
+                            : null;
+                        void sessionEventService.log(this.tenantId, 'message_received', {
+                            remoteJid,
+                            isGroup,
+                            label: this.label,
+                            length: messageText.length,
+                            hasMedia: Boolean(msg.message?.imageMessage || msg.message?.videoMessage),
+                        });
 
-                         const event: IncomingMessageRecord = {
-                             tenantId: this.tenantId,
-                             label: this.label,
-                             remoteJid,
-                             text: messageText,
-                             sender: this.resolveStoredSender(msg),
-                             timestamp: this.resolveMessageTimestamp(msg),
-                             fromMe: Boolean(msg.key?.fromMe),
-                             rawMessage: msg,
-                         };
+                        const event: IncomingMessageRecord & {
+                            groupMetadata?: { groupJid: string; groupName: string | null };
+                        } = {
+                            tenantId: this.tenantId,
+                            label: this.label,
+                            remoteJid,
+                            text: messageText,
+                            sender: this.resolveStoredSender(msg),
+                            timestamp: this.resolveMessageTimestamp(msg),
+                            fromMe: Boolean(msg.key?.fromMe),
+                            rawMessage: msg,
+                            groupMetadata: isGroup
+                                ? {
+                                    groupJid: remoteJid,
+                                    groupName,
+                                }
+                                : undefined,
+                        } as IncomingMessageRecord & {
+                            groupMetadata?: { groupJid: string; groupName: string | null };
+                        };
 
-                         try {
-                             await whatsappHealthService.recordMessageMetrics({
-                                 tenantId: this.tenantId,
-                                 sessionLabel: this.label,
-                                 remoteJid,
-                                 parsed: false,
-                                 timestamp: event.timestamp,
-                             });
-                         } catch (metricsError) {
-                             console.error('[WhatsAppClient] Failed to record inbound receipt metrics:', metricsError);
-                         }
-                         await this.storage.saveInboundMessage(event);
-                         await this.hooks?.onMessage?.(event);
-                     }
-                 } catch (error) {
-                     await this.hooks?.onError?.({
-                         tenantId: this.tenantId,
-                         label: this.label,
-                         error,
-                         stage: 'messages.upsert',
-                     });
-                 }
-             });
+                        try {
+                            await whatsappHealthService.recordMessageMetrics({
+                                tenantId: this.tenantId,
+                                sessionLabel: this.label,
+                                remoteJid,
+                                parsed: false,
+                                timestamp: event.timestamp,
+                            });
+                        } catch (metricsError) {
+                            console.error('[WhatsAppClient] Failed to record inbound receipt metrics:', metricsError);
+                        }
+                        await this.storage.saveInboundMessage(event);
+                        await this.hooks?.onMessage?.(event);
+                    }
+                } catch (error) {
+                    await this.hooks?.onError?.({
+                        tenantId: this.tenantId,
+                        label: this.label,
+                        error,
+                        stage: 'messages.upsert',
+                    });
+                }
+            });
 
 // Handle message updates (edits and deletions/revocations)
               this.socket.ev.on('messages.update', async (payload: any) => {
@@ -517,58 +587,60 @@ try {
               });
 
 // Handle group participant changes in real-time
-              this.socket.ev.on('group-participants.update', async (payload: any) => {
-                  try {
-                      const { id: groupJid, participants } = payload || {};
-                      if (!groupJid || !participants) return;
+            this.socket.ev.on('group-participants.update', async (payload: any) => {
+                try {
+                    const { id: groupJid, participants } = payload || {};
+                    if (!groupJid || !participants) return;
 
-                      void sessionEventService.log(this.tenantId, 'group_participants_updated', {
-                          groupJid,
-                          action: payload.action,
-                          participantCount: participants.length,
-                          label: this.label,
-                      });
+                    void sessionEventService.log(this.tenantId, 'group_participants_updated', {
+                        groupJid,
+                        action: payload.action,
+                        participantCount: participants.length,
+                        label: this.label,
+                    });
 
-                      // Re-sync group metadata and participant counts after changes
-                      try {
-                          const currentGroups = await this.getGroups();
-                          const groupInfos: RawGroupInput[] = currentGroups.map((g: any) => ({
-                              id: g.id || g,
-                              name: g.name || '',
-                              participantsCount: g.participantsCount || 0,
-                              participantJids: Array.isArray(g.participantJids) ? g.participantJids : [],
-                          }));
-                          await whatsappGroupService.syncGroups(this.tenantId, this.label, groupInfos);
-                      } catch {
-                          // Non-fatal: group sync may fail
-                      }
+                    // Re-sync group metadata and participant counts after changes
+                    try {
+                        const currentGroups = await this.getGroups();
+                        const groupInfos: RawGroupInput[] = currentGroups.map((g: any) => ({
+                            id: g.id || g,
+                            name: g.name || '',
+                            participantsCount: g.participantsCount || 0,
+                            participantJids: Array.isArray(g.participantJids) ? g.participantJids : [],
+                        }));
+                        await whatsappGroupService.syncGroups(this.tenantId, this.label, groupInfos);
+                    } catch {
+                        // Non-fatal: group sync may fail
+                    }
 
-                      // Pulse: Welcome new members in groups (system session only)
-                      if (this.label === 'System' && payload.action === 'add' && Array.isArray(participants)) {
-                          for (const participantJid of participants) {
-                              const phone = String(participantJid || '').split('@')[0];
-                              try {
-                                  const groupMeta = await this.socket?.groupMetadata(groupJid).catch(() => null);
-                                  const participant = Array.isArray(groupMeta?.participants)
-                                      ? groupMeta.participants.find((p: any) => p.id === participantJid)
-                                      : null;
-                                  const name = participant?.name || participant?.notify || phone;
-                                  const welcomeText = `Welcome ${name}! Main hoon Pulse, PropAI ka AI agent. Mujhe save kar 917021045254 — message kar 'Hi Pulse' toh main tujhe private matches bhejta rehta hun. Koi bhi listing ya requirement daal, main dekh leta hun.`;
-                                  await this.sendText(groupJid, welcomeText).catch(() => {});
-                              } catch {
-                                  // Non-fatal: per-participant welcome may fail
-                              }
-                          }
-                      }
-                  } catch (error) {
-                      await this.hooks?.onError?.({
-                          tenantId: this.tenantId,
-                          label: this.label,
-                          error,
-                          stage: 'group-participants.update',
-                      });
-                  }
-              });
+                    if (payload.action === 'add' && Array.isArray(participants)) {
+                        try {
+                            const groupMeta = await this.socket?.groupMetadata(groupJid).catch(() => null);
+                            const participantNames = participants.map((participantJid: string) => {
+                                const phone = String(participantJid || '').split('@')[0];
+                                const participant = Array.isArray(groupMeta?.participants)
+                                    ? groupMeta.participants.find((p: any) => p.id === participantJid)
+                                    : null;
+                                return participant?.name || participant?.notify || phone;
+                            });
+                            const groupName = String(groupMeta?.subject || groupMeta?.name || groupJid).trim() || null;
+                            const welcomeText = participantNames.length > 0
+                                ? `Welcome ${participantNames.join(', ')}. I’m Pulse from PropAI. I help brokers keep ${groupName || 'this group'} organized, parse listings and requirements, and answer when you tag me. Use @Pulse <query> to talk to me in the group.`
+                                : this.buildGroupWelcomeText(groupName);
+                            await this.sendText(groupJid, welcomeText).catch(() => {});
+                        } catch {
+                            // Non-fatal: welcome may fail
+                        }
+                    }
+                } catch (error) {
+                    await this.hooks?.onError?.({
+                        tenantId: this.tenantId,
+                        label: this.label,
+                        error,
+                        stage: 'group-participants.update',
+                    });
+                }
+            });
         } catch (error) {
             this.connectionStatus = 'disconnected';
             await this.persistStatus('disconnected');

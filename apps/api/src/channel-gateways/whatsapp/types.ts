@@ -36,6 +36,19 @@ export type WhatsAppBroadcastResult = {
     failed: Array<{ groupId: string; error: string }>;
 };
 
+export type WhatsAppCreateGroupInput = {
+    workspaceOwnerId: string;
+    sessionLabel?: string;
+    subject: string;
+    participants: string[];
+};
+
+export type WhatsAppCreateGroupResult = {
+    groupJid: string | null;
+    groupName: string | null;
+    raw: unknown;
+};
+
 export type WhatsAppDisconnectInput = {
     workspaceOwnerId: string;
     sessionLabel?: string;

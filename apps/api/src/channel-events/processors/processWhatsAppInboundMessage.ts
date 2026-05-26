@@ -107,11 +107,24 @@ async function sendViaTenantSession(tenantId: string, remoteJid: string, text: s
     });
 }
 
-async function triggerAgent(tenantId: string, remoteJid: string, text: string, sessionLabel?: string, options?: { prefixAsPropAI?: boolean }) {
+async function triggerAgent(
+    tenantId: string,
+    remoteJid: string,
+    text: string,
+    sessionLabel?: string,
+    options?: {
+        prefixAsPropAI?: boolean;
+        groupContext?: {
+            groupJid: string;
+            groupName: string | null;
+            senderJid: string | null;
+        };
+    },
+) {
     const { agentExecutor } = require('../../services/AgentExecutor');
 
     try {
-        const response = await agentExecutor.processMessage(tenantId, remoteJid, text, sessionLabel);
+        const response = await agentExecutor.processMessage(tenantId, remoteJid, text, sessionLabel, options?.groupContext);
         const outboundText = options?.prefixAsPropAI ? formatSelfChatReply(response) : response;
         await sendViaTenantSession(tenantId, remoteJid, outboundText, sessionLabel);
         rememberSelfChatReply(tenantId, sessionLabel, remoteJid, outboundText);
@@ -290,6 +303,23 @@ function normalizeMentionToken(value?: string | null) {
     return String(value || '').trim().toLowerCase();
 }
 
+function normalizeGroupMentionCandidate(value?: string | null) {
+    const normalized = normalizeMentionToken(value);
+    if (!normalized) {
+        return '';
+    }
+
+    if (normalized.startsWith('@')) {
+        return normalizeJid(normalized.slice(1));
+    }
+
+    if (/^\+?\d{10,15}$/.test(normalized)) {
+        return `${normalized.replace(/^\+/, '')}@s.whatsapp.net`;
+    }
+
+    return normalizeJid(normalized);
+}
+
 function extractMessageContext(rawMessage: any) {
     const message = rawMessage?.message || {};
     return (
@@ -301,7 +331,7 @@ function extractMessageContext(rawMessage: any) {
     ) as Record<string, any>;
 }
 
-function extractPropAIMentionQuery(event: IncomingMessageRecord): string | null {
+function extractGroupMentionQuery(event: IncomingMessageRecord): string | null {
     const rawMessage = (event.rawMessage || {}) as any;
     const contextInfo = extractMessageContext(rawMessage);
     const mentionedJids = [
@@ -335,8 +365,10 @@ function extractPropAIMentionQuery(event: IncomingMessageRecord): string | null 
 
     const directTextQuery = text
         .replace(/.*?@propai[\s:,\-]*/i, '')
+        .replace(/.*?@pulse[\s:,\-]*/i, '')
         .replace(/.*?(?:\+?91)?7021045254[\s:,\-]*/i, '')
         .replace(/.*?(?:\+?91)?917021045254[\s:,\-]*/i, '')
+        .replace(/^@\S+\s*/i, '')
         .trim();
 
     if (directTextQuery) {
@@ -359,6 +391,49 @@ function extractPropAIMentionQuery(event: IncomingMessageRecord): string | null 
     }
 
     return null;
+}
+
+function extractPulseMentionedText(event: IncomingMessageRecord): string | null {
+    const rawText = String(event.text || '').trim();
+    if (!rawText) {
+        return null;
+    }
+
+    const rawMessage = (event.rawMessage || {}) as any;
+    const contextInfo = extractMessageContext(rawMessage);
+    const mentionedJids = new Set(
+        [
+            ...(Array.isArray(contextInfo?.mentionedJid) ? contextInfo.mentionedJid : []),
+            ...(Array.isArray(contextInfo?.groupMentions) ? contextInfo.groupMentions.map((entry: any) => entry?.jid || entry?.participant || '') : []),
+        ]
+            .map(normalizeGroupMentionCandidate)
+            .filter(Boolean),
+    );
+
+    const pulseJids = new Set([
+        '917021045254@s.whatsapp.net',
+        '7021045254@s.whatsapp.net',
+    ]);
+    const hasPulseMention = Array.from(mentionedJids).some((jid) => pulseJids.has(jid));
+    const hasTextMention = /(^|\s)@pulse\b/i.test(rawText)
+        || /(^|\s)@propai\b/i.test(rawText)
+        || /(^|\s)(?:\+?91)?917021045254\b/.test(rawText)
+        || /(^|\s)(?:\+?91)?7021045254\b/.test(rawText);
+
+    if (!hasPulseMention && !hasTextMention) {
+        return null;
+    }
+
+    const stripped = rawText
+        .replace(/@pulse\b/ig, ' ')
+        .replace(/@propai\b/ig, ' ')
+        .replace(/(?:\+?91)?917021045254\b/g, ' ')
+        .replace(/(?:\+?91)?7021045254\b/g, ' ')
+        .replace(/^@\S+\s*/i, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    return stripped || rawText;
 }
 
 function formatGroupMentionMatches(matches: GroupMentionListingMatch[]) {
@@ -394,6 +469,16 @@ async function handleGroupMentionSearch(tenantId: string, remoteJid: string, que
     }
 
     await sendAutomatedReply(tenantId, remoteJid, formatGroupMentionMatches(matches), sessionLabel);
+}
+
+function buildGroupParseMetadata(event: IncomingMessageRecord, groupName: string | null, source: string) {
+    return {
+        source,
+        sourceGroupId: event.remoteJid,
+        sourceGroupName: groupName,
+        senderJid: event.sender || null,
+        sourceThreadJid: event.remoteJid,
+    };
 }
 
 async function getBotJids(tenantId: string, sessionLabel?: string): Promise<string[]> {
@@ -464,7 +549,7 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
         return;
     }
 
-    const ASSISTANT_PHONE = '7021045254';
+    const ASSISTANT_PHONE = '917021045254';
     const isAssistantSession = botJids.some(
         (jid) => normalizeComparablePhone(jid) === normalizeComparablePhone(ASSISTANT_PHONE)
     ) || label === 'Assistant';
@@ -494,13 +579,10 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
         }
     }
 
-    if (text.length < 20 && !fromMe && !effectiveIsSelfChat && !isAssistantDM) {
-        return;
-    }
-
-    if (isEmojiOnly(text) && !effectiveIsSelfChat && !isAssistantDM) {
-        return;
-    }
+    const groupMetadata = (event as IncomingMessageRecord & {
+        groupMetadata?: { groupJid: string; groupName: string | null };
+    }).groupMetadata || null;
+    const groupName = groupMetadata?.groupName || null;
 
     if (isGroup) {
         const { data: config } = await db
@@ -514,19 +596,24 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
             return;
         }
 
-        const mentionQuery = extractPropAIMentionQuery(event);
+        const mentionQuery = extractGroupMentionQuery(event);
         if (mentionQuery) {
-            if (!isAssistantSession) {
-                await whatsappHealthService.appendEvent(
-                    tenantId,
-                    label || 'default',
-                    'group_reply_blocked',
-                    'Group AI reply skipped because only the PropAI Assistant session is allowed to reply outside self chat.',
-                    { remoteJid, assistantSessionRequired: true },
-                ).catch(() => undefined);
-                return;
-            }
-            await handleGroupMentionSearch(tenantId, remoteJid, mentionQuery, label);
+            await whatsappHealthService.appendEvent(
+                tenantId,
+                label || 'default',
+                'group_mention_received',
+                'Group mention routed to the agent.',
+                { remoteJid, groupName, senderJid: event.sender || null },
+            ).catch(() => undefined);
+
+            await triggerAgent(tenantId, remoteJid, mentionQuery, label, {
+                prefixAsPropAI: false,
+                groupContext: {
+                    groupJid: remoteJid,
+                    groupName,
+                    senderJid: event.sender || null,
+                },
+            });
             return;
         }
 
@@ -536,11 +623,15 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
                 id: String(rawMessage?.key?.id || `${tenantId}:${label || 'workspace'}:${remoteJid}:${event.timestamp || Date.now()}`),
                 session_label: label || 'workspace',
                 remote_jid: remoteJid,
-                sender: (event as IncomingMessageRecord & { pushName?: string | null }).pushName || normalizedRemoteJid || null,
+                sender: (event as IncomingMessageRecord & { pushName?: string | null }).pushName || event.sender || normalizedRemoteJid || null,
                 text: event.text,
                 timestamp: event.timestamp || new Date().toISOString(),
                 created_at: new Date().toISOString(),
-            });
+                source: 'group_passive',
+                sourceGroupId: remoteJid,
+                sourceGroupName: groupName,
+                senderJid: event.sender || null,
+            } as any);
 
             await whatsappHealthService.recordMessageMetrics({
                 tenantId,
@@ -556,11 +647,13 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
                 await whatsappHealthService.appendEvent(
                     tenantId,
                     label || 'default',
-                    'group_message_broadcast_parsed',
-                    'Group message parsed through the unified stream parser.',
+                    'group_message_passive_parsed',
+                    'Group message parsed silently through the unified stream parser.',
                     {
                         remoteJid,
+                        groupName,
                         parsed: ingestedCount,
+                        senderJid: event.sender || null,
                     },
                 ).catch(() => undefined);
             }
@@ -581,6 +674,14 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
                 reason: error instanceof Error ? error.message : 'Unknown parsing error',
             });
         }
+        return;
+    }
+
+    if (text.length < 20 && !fromMe && !effectiveIsSelfChat && !isAssistantDM) {
+        return;
+    }
+
+    if (isEmojiOnly(text) && !effectiveIsSelfChat && !isAssistantDM) {
         return;
     }
 
@@ -616,8 +717,15 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
         label || 'default',
         effectiveIsSelfChat ? 'self_chat_received' : (isAssistantDM ? 'assistant_dm_received' : 'message_routed_to_agent'),
         'WhatsApp message routed to PropAI agent.',
-        { remoteJid, isGroup, selfChat: effectiveIsSelfChat, assistantDm: isAssistantDM },
+        { remoteJid, isGroup, selfChat: effectiveIsSelfChat, assistantDm: isAssistantDM, groupName },
     ).catch(() => undefined);
 
-    await triggerAgent(tenantId, remoteJid, text, label, { prefixAsPropAI: effectiveIsSelfChat });
+    await triggerAgent(tenantId, remoteJid, text, label, {
+        prefixAsPropAI: effectiveIsSelfChat,
+        groupContext: isGroup ? {
+            groupJid: remoteJid,
+            groupName,
+            senderJid: event.sender || null,
+        } : undefined,
+    });
 }

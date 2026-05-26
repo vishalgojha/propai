@@ -421,6 +421,64 @@ export class WhatsAppGroupService {
         }));
     }
 
+    async registerManagedGroup(tenantId: string, input: {
+        sessionLabel: string;
+        groupJid: string;
+        groupName?: string | null;
+        participantJids?: string[] | null;
+    }) {
+        const now = new Date().toISOString();
+        const groupName = String(input.groupName || input.groupJid || '').trim();
+        const parsedLocation = parseIndianLocation(groupName);
+        const inferredLocality = parsedLocation?.locality || null;
+        const inferredCity = parsedLocation?.city && parsedLocation.city !== 'Unknown' ? parsedLocation.city : null;
+        const inferredCategory = inferCategory(groupName);
+        const inferredTags = inferTags(groupName, inferredLocality, inferredCategory);
+        const autoClassification = classifyGroup(groupName, inferredLocality, inferredCategory);
+        const participantJids = uniqueStrings((input.participantJids || []).map((participant) => normalizeParticipantJid(participant)));
+        const payload = {
+            workspace_id: tenantId,
+            session_id: `${tenantId}:${input.sessionLabel}`,
+            tenant_id: tenantId,
+            session_label: input.sessionLabel,
+            group_jid: input.groupJid,
+            group_name: groupName || input.groupJid,
+            normalized_name: normalizeName(groupName || input.groupJid),
+            locality: inferredLocality,
+            city: inferredCity,
+            category: inferredCategory,
+            tags: inferredTags,
+            participant_count: participantJids.length || null,
+            member_count: participantJids.length || null,
+            participant_jids: participantJids,
+            is_parsing: true,
+            classification: autoClassification.classification,
+            visibility_status: autoClassification.visibilityStatus,
+            business_confidence: autoClassification.confidence,
+            duplicate_overlap_score: 0,
+            signal_score: countLikelyBrokerSignals({ id: input.groupJid, name: groupName, participantsCount: participantJids.length }, inferredLocality, inferredCategory),
+            noise_score: countNoiseSignals({ id: input.groupJid, name: groupName, participantsCount: participantJids.length }, autoClassification.classification, inferredCategory),
+            audit_recommendation: autoClassification.classification === 'business' ? 'parse' : 'review',
+            last_message_at: now,
+            last_active_at: now,
+            broadcast_enabled: true,
+            is_archived: false,
+            updated_at: now,
+        };
+
+        const { data, error } = await db
+            .from('whatsapp_groups')
+            .upsert(payload, { onConflict: 'workspace_id,group_jid' })
+            .select('*')
+            .single();
+
+        if (error) {
+            throw error;
+        }
+
+        return data;
+    }
+
     async updateGroup(tenantId: string, groupJid: string, updates: {
         groupName?: string | null;
         locality?: string | null;

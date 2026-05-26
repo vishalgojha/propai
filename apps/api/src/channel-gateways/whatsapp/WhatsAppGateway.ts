@@ -1,6 +1,8 @@
 import type {
     WhatsAppBroadcastInput,
     WhatsAppBroadcastResult,
+    WhatsAppCreateGroupInput,
+    WhatsAppCreateGroupResult,
     WhatsAppConnectInput,
     WhatsAppConnectResult,
     WhatsAppDisconnectInput,
@@ -17,6 +19,7 @@ export interface WhatsAppGateway {
     disconnect(input: WhatsAppDisconnectInput): Promise<void>;
     sendMessage(input: WhatsAppSendMessageInput): Promise<void>;
     broadcastToGroups(input: WhatsAppBroadcastInput): Promise<WhatsAppBroadcastResult>;
+    createGroup(input: WhatsAppCreateGroupInput): Promise<WhatsAppCreateGroupResult>;
     getStatus(input: WhatsAppStatusInput): Promise<WhatsAppSessionSnapshot | null>;
     getQRCode(input: WhatsAppStatusInput): Promise<string | null>;
     listGroups(input: { workspaceOwnerId: string; sessionLabel: string }): Promise<WhatsAppGroupRecord[]>;
