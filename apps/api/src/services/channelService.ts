@@ -1289,6 +1289,10 @@ export class ChannelService {
                 query = query.or('raw_text.ilike.%broker%,raw_text.ilike.%broking%,raw_text.ilike.%agent%,raw_text.ilike.%agnt%');
             }
 
+            // Quality filters — suppress city-level locality labels, mojibake rent prices
+            query = query.not('locality', 'in', '("Mumbai market","Mumbai","Navi Mumbai","Thane","Pune")');
+            query = query.or('type.neq.Rent,price_numeric.lte.500000000,price_numeric.is.null');
+
             if (options?.orderByCreatedAt) {
                 query = query.order('created_at', { ascending: false });
             }
@@ -1303,6 +1307,16 @@ export class ChannelService {
         let result = await buildQuery(true);
         if (result.error && isMissingIngestionStatusError(result.error.message)) {
             result = await buildQuery(false);
+        }
+
+        // Post-query junk filter: suppress records where bhk='N/A', area_sqft is 0/null, confidence < 0.3
+        if (result.data && Array.isArray(result.data)) {
+            result.data = result.data.filter((row: any) => {
+                const isJunk = String(row.bhk || '').trim() === 'N/A'
+                    && (row.area_sqft == null || Number(row.area_sqft) === 0)
+                    && (row.confidence_score == null || Number(row.confidence_score) < 0.3);
+                return !isJunk;
+            });
         }
 
         return result;

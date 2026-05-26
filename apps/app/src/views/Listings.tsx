@@ -214,6 +214,13 @@ const redactPhoneNumbers = (value?: string | null) =>
     .replace(/(?:\+?91[-\s]?)?[6-9]\d{9}\b/g, '[hidden]')
     .trim();
 
+const stripHiddenLines = (value: string) =>
+  value
+    .split('\n')
+    .filter((line) => !line.includes('[hidden]'))
+    .join('\n')
+    .trim();
+
 const formatPostedCell = (value?: string | null) => {
   if (!value) return '—';
   const parsed = new Date(value);
@@ -1375,6 +1382,7 @@ if (brokerOnly) {
                     const recordLabel = getRecordLabel(listing);
                     const typeLabel = getTypeLabel(listing);
                     const rawNote = redactPhoneNumbers(listing.rawText || listing.description || '');
+                    const cleanNote = stripHiddenLines(rawNote);
                     const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
 
                     return (
@@ -1445,7 +1453,7 @@ if (brokerOnly) {
                                     ) : null}
                                     <div>
                                       <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Broker Note</p>
-                                      <pre className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-6 text-[var(--text-primary)]">{rawNote || '—'}</pre>
+                                      <pre className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-6 text-[var(--text-primary)]">{cleanNote || '—'}</pre>
                                     </div>
                                     {listing.parseNotes ? (
                                       <div>

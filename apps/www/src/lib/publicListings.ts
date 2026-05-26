@@ -47,6 +47,11 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
   return ((streamItems || []) as any[])
     .filter((row) => row.tenant_id)
     .filter((row) => {
+      const locality = String(row.locality || '').trim().toLowerCase();
+      if (['mumbai market', 'mumbai', 'navi mumbai', 'thane', 'pune'].includes(locality)) return false;
+      return true;
+    })
+    .filter((row) => {
       const label = String(row.price_label || "");
       const text = String(row.raw_text || "");
       const type = String(row.type || row.deal_type || "");
@@ -59,9 +64,15 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
       const price = Number(row.price_numeric);
       const type = String(row.type || row.deal_type || "").toLowerCase();
       if (!Number.isFinite(price) || price <= 0) return true;
-      if (type.includes("rent") && price > 1_000_000_000) return false;
+      if (type.includes("rent") && price > 500_000_000) return false; // rent > 50Cr = encoding artifact
       if (type.includes("sale") && price > 10_000_000_000) return false;
       return true;
+    })
+    .filter((row) => {
+      const isJunk = String(row.bhk || '').trim() === 'N/A'
+        && (row.area_sqft == null || Number(row.area_sqft) === 0)
+        && (row.confidence_score == null || Number(row.confidence_score) < 0.3);
+      return !isJunk;
     })
     .map((row) => normalizeStreamListing(row, brokerMap))
     .filter(Boolean);
