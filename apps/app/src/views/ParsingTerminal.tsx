@@ -9,6 +9,13 @@ type GroupHealth = {
   sessionLabel: string;
   groupId: string;
   groupName: string;
+  recommendation?: 'parse' | 'review' | 'ignore';
+  signalScore?: number;
+  noiseScore?: number;
+  chaosScore?: number;
+  participantsCount?: number;
+  duplicateOverlapPercent?: number;
+  reasons?: string[];
   lastMessageAt: string | null;
   lastParsedAt: string | null;
   messagesReceived24h: number;
@@ -17,6 +24,38 @@ type GroupHealth = {
   status: string;
   isParsing?: boolean;
   behavior?: string | null;
+};
+
+type GroupAuditResponse = {
+  sessionLabel: string;
+  summary: {
+    totalGroups: number;
+    recommendedParseGroups: number;
+    reviewGroups: number;
+    ignoredGroups: number;
+    realEstateGroups: number;
+    uniqueParticipants: number;
+    duplicateParticipants: number;
+    overlappingParticipants?: number;
+    duplicateParticipantRate: number;
+    overlappingParticipantRate?: number;
+    averageChaosScore: number;
+    averageSignalScore: number;
+  };
+  groups: Array<{
+    id: string;
+    name: string;
+    sessionLabel?: string | null;
+    participantsCount: number;
+    duplicateMemberCount: number;
+    overlappingMemberCount?: number;
+    duplicateOverlapPercent: number;
+    signalScore: number;
+    noiseScore: number;
+    chaosScore: number;
+    recommendation: 'parse' | 'review' | 'ignore';
+    reasons: string[];
+  }>;
 };
 
 type ParserEvent = {
@@ -39,6 +78,8 @@ const terminalPanelClass =
 export default function ParsingTerminal() {
   const [groups, setGroups] = React.useState<GroupHealth[]>([]);
   const [events, setEvents] = React.useState<ParserEvent[]>([]);
+  const [auditSummary, setAuditSummary] = React.useState<GroupAuditResponse['summary'] | null>(null);
+  const [sessionLabel, setSessionLabel] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = React.useState<Date | null>(null);
@@ -52,22 +93,41 @@ export default function ParsingTerminal() {
       const statusResponse = await backendApi.get(ENDPOINTS.whatsapp.status, { timeout: 15000 });
       const rawStatus = String(statusResponse.data?.status || 'disconnected');
       const nextConnected = rawStatus === 'connected' || rawStatus === 'connecting' || rawStatus === 'reconnecting';
+      const statusSessions = Array.isArray(statusResponse.data?.sessions) ? statusResponse.data.sessions : [];
+      const primarySession =
+        statusSessions.find((session: any) => String(session?.status || '') === 'connected')
+        || statusSessions.find((session: any) => String(session?.status || '') === 'connecting')
+        || statusSessions.find((session: any) => String(session?.status || '') === 'reconnecting')
+        || statusSessions[0]
+        || null;
+      const nextSessionLabel = String(primarySession?.label || statusResponse.data?.preferredOutboundSessionLabel || '').trim() || null;
+
       setIsConnected(nextConnected);
+      setSessionLabel(nextSessionLabel);
 
       if (!nextConnected) {
         setGroups([]);
         setEvents([]);
+        setAuditSummary(null);
         setError(null);
         setLastRefresh(new Date());
         return;
       }
 
-      const [groupResponse, eventResponse] = await Promise.all([
+      const auditRequest = nextSessionLabel
+        ? backendApi.get<GroupAuditResponse>(ENDPOINTS.whatsapp.groupsAudit, {
+            params: { sessionLabel: nextSessionLabel },
+            timeout: 60000,
+          })
+        : Promise.resolve({ data: null } as any);
+
+      const [auditResponse, groupResponse, eventResponse] = await Promise.all([
+        auditRequest,
         backendApi.get(ENDPOINTS.whatsapp.groupsHealth),
         backendApi.get(ENDPOINTS.whatsapp.events),
       ]);
 
-      const nextGroups = Array.isArray(groupResponse.data)
+      const healthRows = Array.isArray(groupResponse.data)
         ? groupResponse.data.map((row: any, index: number) => ({
             id: String(row.id || row.groupId || `group-${index}`),
             sessionLabel: String(row.sessionLabel || 'default'),
@@ -84,9 +144,44 @@ export default function ParsingTerminal() {
           }))
         : [];
 
+      const healthByGroupId = new Map(
+        healthRows
+          .filter((row) => !nextSessionLabel || row.sessionLabel === nextSessionLabel)
+          .filter((row) => Boolean(row.groupId))
+          .map((row) => [row.groupId, row] as const),
+      );
+
+      const nextGroups = Array.isArray(auditResponse.data?.groups)
+        ? auditResponse.data.groups.map((row: any, index: number) => {
+            const health = healthByGroupId.get(String(row.id || '')) || null;
+            return {
+              id: String(row.id || `group-${index}`),
+              sessionLabel: String(row.sessionLabel || nextSessionLabel || 'default'),
+              groupId: String(row.id || ''),
+              groupName: String(row.name || row.id || 'Unnamed group'),
+              recommendation: row.recommendation,
+              signalScore: Number(row.signalScore || 0),
+              noiseScore: Number(row.noiseScore || 0),
+              chaosScore: Number(row.chaosScore || 0),
+              participantsCount: Number(row.participantsCount || 0),
+              duplicateOverlapPercent: Number(row.duplicateOverlapPercent || 0),
+              reasons: Array.isArray(row.reasons) ? row.reasons : [],
+              lastMessageAt: health?.lastMessageAt || null,
+              lastParsedAt: health?.lastParsedAt || null,
+              messagesReceived24h: Number(health?.messagesReceived24h || 0),
+              messagesParsed24h: Number(health?.messagesParsed24h || 0),
+              messagesFailed24h: Number(health?.messagesFailed24h || 0),
+              status: String(health?.status || (row.recommendation === 'parse' ? 'active' : 'unknown')),
+              isParsing: health ? Boolean(health.isParsing) : row.recommendation === 'parse',
+              behavior: typeof health?.behavior === 'string' ? health.behavior : (row.recommendation === 'parse' ? 'Listen' : null),
+            };
+          })
+        : healthRows.filter((row) => !nextSessionLabel || row.sessionLabel === nextSessionLabel);
+
       const nextEvents = Array.isArray(eventResponse.data)
         ? eventResponse.data
             .filter((row: any) => String(row.eventType || '') === 'group_message_broadcast_parsed')
+            .filter((row: any) => !nextSessionLabel || String(row.sessionLabel || '') === nextSessionLabel)
             .map((row: any, index: number) => ({
               id: String(row.id || `event-${index}`),
               sessionLabel: row.sessionLabel || null,
@@ -99,6 +194,7 @@ export default function ParsingTerminal() {
 
       setGroups(nextGroups.sort(sortGroups));
       setEvents(nextEvents);
+      setAuditSummary(auditResponse.data?.summary || null);
       setError(null);
       setInfoMessage(null);
       setLastRefresh(new Date());
@@ -132,6 +228,9 @@ export default function ParsingTerminal() {
     [groups],
   );
   const parseRate = totals.received > 0 ? Math.round((totals.parsed / totals.received) * 100) : 0;
+  const auditParseCount = auditSummary ? auditSummary.recommendedParseGroups : groups.filter((group) => group.recommendation === 'parse').length;
+  const auditReviewCount = auditSummary ? auditSummary.reviewGroups : groups.filter((group) => group.recommendation === 'review').length;
+  const auditIgnoreCount = auditSummary ? auditSummary.ignoredGroups : groups.filter((group) => group.recommendation === 'ignore').length;
   const promptGroup = React.useMemo(
     () => groups.find((group) => shouldPromptForParsing(group) && !dismissedPromptIds.includes(group.groupId)) || null,
     [dismissedPromptIds, groups],
@@ -169,6 +268,9 @@ export default function ParsingTerminal() {
               <span className="inline-flex items-center gap-2 rounded-none border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-1">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--accent)]" />
                 Live Feed
+              </span>
+              <span className="text-[var(--text-secondary)]">
+                {sessionLabel ? `Session ${sessionLabel}` : 'Session unknown'}
               </span>
               <span className="text-[var(--text-secondary)]">
                 {lastRefresh ? `Last poll ${formatTime(lastRefresh.toISOString())}` : 'Booting feed'}
@@ -248,7 +350,7 @@ export default function ParsingTerminal() {
         <div className={cn(terminalPanelClass, 'min-h-[620px] overflow-hidden')}>
           <PanelHeader
             left="Group matrix"
-            right={`${totals.failed.toLocaleString('en-IN')} failures / 24h`}
+            right={auditSummary ? `parse ${auditParseCount} · review ${auditReviewCount} · ignore ${auditIgnoreCount}` : `${totals.failed.toLocaleString('en-IN')} failures / 24h`}
           />
           <div className="terminal-table-header grid grid-cols-[minmax(0,1.35fr)_90px_90px_90px_90px_110px] gap-3 px-4 py-2 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
             <span>Group</span>
@@ -357,8 +459,25 @@ function GroupRow({ group, rowIndex }: { group: GroupHealth; rowIndex: number })
           )}>
             {live ? 'Live' : 'Idle'}
           </span>
+          {group.recommendation ? (
+            <span className={cn(
+              'shrink-0 border px-1.5 py-0.5 text-[8px] uppercase tracking-[0.12em]',
+              group.recommendation === 'parse'
+                ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                : group.recommendation === 'review'
+                  ? 'border-[rgba(245,158,11,0.32)] bg-[rgba(245,158,11,0.08)] text-[var(--amber)]'
+                  : 'border-[rgba(239,68,68,0.3)] bg-[var(--red-dim)] text-[var(--red)]',
+            )}>
+              {group.recommendation}
+            </span>
+          ) : null}
         </div>
         <p className="mt-1 truncate text-[10px] text-[var(--text-muted)]">{group.sessionLabel} · {group.groupId}</p>
+        {group.reasons?.length ? (
+          <p className="mt-1 truncate text-[10px] text-[var(--text-secondary)]">
+            {group.reasons.slice(0, 2).join(' · ')}
+          </p>
+        ) : null}
       </div>
       <Cell value={group.messagesReceived24h} align="right" />
       <Cell value={group.messagesParsed24h} align="right" tone="positive" />
