@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { brokerContactSyncService } from '../services/brokerContactSyncService';
+import { whatsappGroupService } from '../services/whatsappGroupService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { normalizePhoneFromJid } from '../utils/whatsappJidPhone';
 import { supabaseAdmin } from '../config/supabase';
@@ -24,21 +25,16 @@ router.get('/overlaps', async (req, res) => {
   try {
     const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
     const tenantId = context.workspaceOwnerId;
+    const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel.trim() : '';
 
     if (!supabaseAdmin) {
       return res.status(503).json({ error: 'Database admin client is not configured' });
     }
 
-    const { data: groups, error: groupsError } = await supabaseAdmin
-      .from('whatsapp_groups')
-      .select('group_jid, group_name, locality, category, participant_jids, session_label, is_archived')
-      .eq('workspace_id', tenantId)
-      .eq('is_archived', false);
-
-    if (groupsError) {
-      console.error('[BrokerContacts] Overlap group query failed:', groupsError);
-      return res.status(500).json({ error: 'Failed to fetch overlapping contacts', details: groupsError.message });
-    }
+    const groups = await whatsappGroupService.listGroups(tenantId, {
+      includeArchived: false,
+      ...(sessionLabel ? { sessionLabel } : {}),
+    });
 
     const phoneGroups = new Map<string, Map<string, {
       id: string;
@@ -49,7 +45,7 @@ router.get('/overlaps', async (req, res) => {
     }>>();
 
     for (const group of groups || []) {
-      const participants: string[] = Array.isArray((group as any).participant_jids) ? (group as any).participant_jids : [];
+      const participants: string[] = Array.isArray((group as any).participantJids) ? (group as any).participantJids : [];
       const phones: string[] = Array.from(new Set(participants.map((jid) => normalizePhoneFromJid(jid)).filter(Boolean)));
       for (const phone of phones) {
         const existing = phoneGroups.get(phone) || new Map<string, {
@@ -59,15 +55,15 @@ router.get('/overlaps', async (req, res) => {
           category: string | null;
           sessionLabel: string | null;
         }>();
-        const groupJid = String((group as any).group_jid || '').trim();
+        const groupJid = String((group as any).groupJid || '').trim();
         if (!groupJid) continue;
 
         existing.set(groupJid, {
-          id: String((group as any).group_jid || ''),
-          name: String((group as any).group_name || (group as any).group_jid || ''),
+          id: groupJid,
+          name: String((group as any).name || groupJid || ''),
           locality: (group as any).locality || null,
           category: (group as any).category || null,
-          sessionLabel: (group as any).session_label || null,
+          sessionLabel: (group as any).sessionLabel || null,
         });
         phoneGroups.set(phone, existing);
       }
@@ -85,7 +81,7 @@ router.get('/overlaps', async (req, res) => {
       ]));
       const { data: contacts, error: contactsError } = await supabaseAdmin
         .from('broker_contacts')
-        .select('id, phone, display_name, inferred_areas, source_groups, group_count, unsubscribed, last_seen_at, listing_count, bhk_types, price_range_low, price_range_high')
+        .select('*')
         .eq('tenant_id', tenantId)
         .in('phone', contactLookupPhones);
 
@@ -143,6 +139,7 @@ router.get('/', async (req, res) => {
   try {
     const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
     const tenantId = context.workspaceOwnerId;
+    const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel.trim() : '';
 
     if (!supabaseAdmin) {
       return res.status(503).json({ error: 'Database admin client is not configured' });
@@ -164,7 +161,10 @@ router.get('/', async (req, res) => {
 
     if ((contacts || []).length <= 1) {
       try {
-        await brokerContactSyncService.syncFromStoredGroups(tenantId, { minOverlap: 2 });
+        await brokerContactSyncService.syncFromStoredGroups(tenantId, {
+          minOverlap: 2,
+          ...(sessionLabel ? { sessionLabel } : {}),
+        });
         const reloaded = await loadContacts();
         contacts = reloaded.data || [];
         error = reloaded.error;
@@ -178,7 +178,28 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch broker contacts', details: error.message });
     }
 
-    res.json((contacts || []).map((contact: any) => normalizeBrokerContact(contact)));
+    let sessionGroupJids: Set<string> | null = null;
+    if (sessionLabel) {
+      try {
+        const sessionGroups = await whatsappGroupService.listGroups(tenantId, {
+          includeArchived: false,
+          sessionLabel,
+        });
+        sessionGroupJids = new Set(sessionGroups.map((group: any) => String(group.groupJid || '').trim()).filter(Boolean));
+      } catch (sessionGroupError) {
+        console.warn('[BrokerContacts] Session group lookup failed:', sessionGroupError);
+      }
+    }
+
+    const normalizedContacts = (contacts || []).map((contact: any) => normalizeBrokerContact(contact));
+    const filteredContacts = sessionGroupJids
+      ? normalizedContacts.filter((contact: any) => {
+        const sourceGroups = Array.isArray(contact?.source_groups) ? contact.source_groups : [];
+        return sourceGroups.some((groupJid: string) => sessionGroupJids.has(String(groupJid || '').trim()));
+      })
+      : normalizedContacts;
+
+    res.json(filteredContacts);
   } catch (error: unknown) {
     console.error('[BrokerContacts] Unexpected error:', error);
     res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load broker contacts') });

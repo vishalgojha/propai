@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useLocation, useNavigate, useSearchParams } from '../lib/router';
+import backendApi, { handleApiError } from '../services/api';
 import { fetchBrokerContactOverlaps, fetchBrokerContacts, type BrokerContact, type BrokerContactOverlap } from '../services/brokerContactApi';
 import {
   acceptSyndicationInvite,
@@ -25,7 +26,7 @@ import {
   revokeSyndication,
   type SyndicationPartner,
 } from '../services/syndicationApi';
-import { handleApiError } from '../services/api';
+import { ENDPOINTS } from '../services/endpoints';
 
 type BrokerNetworkView = 'contacts' | 'overlaps' | 'partners';
 
@@ -76,12 +77,31 @@ const extractToken = (value: string): string => {
   }
 };
 
+function resolveActiveSessionLabel(data: any): string | null {
+  const sessions = Array.isArray(data?.sessions) ? data.sessions : [];
+  const preferredLabel = String(data?.selectedSessionLabel || data?.preferredOutboundSessionLabel || '').trim();
+
+  if (preferredLabel) {
+    return preferredLabel;
+  }
+
+  const activeSession =
+    sessions.find((session: any) => String(session?.status || '') === 'connected')
+    || sessions.find((session: any) => String(session?.status || '') === 'connecting')
+    || sessions.find((session: any) => String(session?.status || '') === 'reconnecting')
+    || sessions[0]
+    || null;
+
+  return String(activeSession?.label || '').trim() || null;
+}
+
 export const BrokerNetwork: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [contacts, setContacts] = React.useState<BrokerContact[]>([]);
   const [overlaps, setOverlaps] = React.useState<BrokerContactOverlap[]>([]);
+  const [sessionLabel, setSessionLabel] = React.useState<string | null>(null);
   const initialView = brokerNetworkViewFromPath(location.pathname);
   const [activeView, setActiveView] = React.useState<BrokerNetworkView>(initialView);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -97,13 +117,40 @@ export const BrokerNetwork: React.FC = () => {
   const load = React.useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setContacts([]);
+    setOverlaps([]);
     try {
-      const [contactData, overlapData] = await Promise.all([
-        fetchBrokerContacts(),
-        fetchBrokerContactOverlaps(),
+      let activeSessionLabel: string | null = null;
+
+      try {
+        const statusResponse = await backendApi.get(ENDPOINTS.whatsapp.status);
+        activeSessionLabel = resolveActiveSessionLabel(statusResponse.data);
+      } catch {
+        activeSessionLabel = null;
+      }
+
+      setSessionLabel(activeSessionLabel);
+
+      const [contactResult, overlapResult] = await Promise.allSettled([
+        fetchBrokerContacts({ sessionLabel: activeSessionLabel }),
+        fetchBrokerContactOverlaps({ sessionLabel: activeSessionLabel }),
       ]);
-      setContacts(contactData);
-      setOverlaps(overlapData);
+
+      if (contactResult.status === 'fulfilled') {
+        setContacts(contactResult.value);
+      }
+
+      if (overlapResult.status === 'fulfilled') {
+        setOverlaps(overlapResult.value);
+      }
+
+      const loadErrors = [contactResult, overlapResult]
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map((result) => handleApiError(result.reason));
+
+      if (loadErrors.length > 0) {
+        setError(loadErrors[0]);
+      }
     } catch (err) {
       setError(handleApiError(err));
     } finally {
@@ -219,6 +266,7 @@ export const BrokerNetwork: React.FC = () => {
             </h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
               Brokers extracted from WhatsApp group broadcasts and participant lists — {contacts.length} contact{contacts.length === 1 ? '' : 's'}, {overlaps.length} overlapping contact{overlaps.length === 1 ? '' : 's'}, {totalListings} listing{totalListings === 1 ? '' : 's'} parsed.
+              {sessionLabel ? ` Session ${sessionLabel}.` : ''}
             </p>
           </div>
           <button
@@ -287,6 +335,7 @@ export const BrokerNetwork: React.FC = () => {
         {activeView === 'overlaps' ? (
           <div className="text-[12px] text-[var(--text-secondary)]">
             {overlaps.length} contact{overlaps.length === 1 ? '' : 's'} across {overlappingGroupLinks} group membership link{overlappingGroupLinks === 1 ? '' : 's'}
+            {sessionLabel ? ` · ${sessionLabel}` : ''}
           </div>
         ) : activeView === 'partners' ? (
           <div className="text-[12px] text-[var(--text-secondary)]">
