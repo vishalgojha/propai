@@ -640,10 +640,9 @@ export const backfillPublicListings = async (req: Request, res: Response) => {
       };
     });
 
-    const { error: insertError } = await supabaseAdmin.from('public_listings').upsert(rows, {
-      onConflict: 'source_message_id',
-      ignoreDuplicates: true,
-    });
+    const { error: insertError } = await supabaseAdmin
+      .from('public_listings')
+      .insert(rows);
 
     if (insertError) {
       return res.status(500).json({ error: insertError.message });

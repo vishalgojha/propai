@@ -2514,9 +2514,10 @@ private dailyBriefingSentKeys = new Set<string>();
         const listingType = parsed.streamType === 'Rent' ? 'listing_rent'
             : parsed.streamType === 'Sale' ? 'listing_sale'
             : 'requirement';
+        const sourceMessageId = parsed.messageId;
 
         const publicRow = {
-            source_message_id: parsed.messageId,
+            source_message_id: sourceMessageId,
             source_group_id: parsed.sourceGroupId,
             source_group_name: parsed.sourceGroupName,
             listing_type: listingType,
@@ -2544,13 +2545,29 @@ private dailyBriefingSentKeys = new Set<string>();
             search_text: [parsed.rawText, parsed.locality, parsed.bhk, parsed.streamType].filter(Boolean).join(' '),
         };
 
-        const { error } = await this.db.from('public_listings').upsert(publicRow, {
-            onConflict: 'source_message_id',
-            ignoreDuplicates: true,
-        });
+        const { data: existingRow, error: selectError } = await this.db
+            .from('public_listings')
+            .select('id')
+            .eq('source_message_id', sourceMessageId)
+            .limit(1)
+            .maybeSingle();
+
+        if (selectError) {
+            console.error('[ChannelService] public_listings lookup failed:', selectError.message, 'for', sourceMessageId);
+            return;
+        }
+
+        const { error } = existingRow
+            ? await this.db
+                .from('public_listings')
+                .update(publicRow)
+                .eq('id', existingRow.id)
+            : await this.db
+                .from('public_listings')
+                .insert(publicRow);
 
         if (error) {
-            console.error('[ChannelService] public_listings upsert failed:', error.message, 'for', parsed.messageId);
+            console.error('[ChannelService] public_listings save failed:', error.message, 'for', sourceMessageId);
         }
     }
 
