@@ -24,40 +24,28 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
     throw new Error("Database not configured");
   }
 
-  const [{ data: streamItems, error: streamError }, { data: profiles }, { data: subscriptions }] = await Promise.all([
+  const [{ data: streamItems, error: streamError }, { data: profiles }] = await Promise.all([
     supabaseAdmin
       .from("stream_items")
       .select("id, tenant_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, parsed_payload")
       .neq("record_type", "buyer_requirement")
       .order("created_at", { ascending: false }),
     supabaseAdmin.from("profiles").select("id, phone, full_name"),
-    supabaseAdmin.from("subscriptions").select("tenant_id, plan, status"),
   ]);
 
   if (streamError) {
     throw new Error(streamError.message);
   }
 
-  const paidTenantIds = new Set(
-    (subscriptions || [])
-      .filter(
-        (row: any) =>
-          (row.status === "active" || row.status === "trial") &&
-          (row.plan === "Pro" || row.plan === "Trial")
-      )
-      .map((row: any) => row.tenant_id)
-  );
-
-  const paidBrokerMap = new Map<string, { phone: string; fullName: string | null }>();
+  const brokerMap = new Map<string, { phone: string; fullName: string | null }>();
   for (const row of profiles || []) {
     const digits = digitsOnly((row as any).phone);
     if (!digits) continue;
-    if (!paidTenantIds.has((row as any).id)) continue;
-    paidBrokerMap.set(digits, { phone: digits, fullName: (row as any).full_name || null });
+    brokerMap.set(digits, { phone: digits, fullName: (row as any).full_name || null });
   }
 
   return ((streamItems || []) as any[])
-    .filter((row) => paidTenantIds.has(String((row as any).tenant_id || "")))
+    .filter((row) => row.tenant_id)
     .filter((row) => {
       const label = String(row.price_label || "");
       const text = String(row.raw_text || "");
@@ -75,7 +63,7 @@ export async function fetchPublicListings(): Promise<PublicListing[]> {
       if (type.includes("sale") && price > 10_000_000_000) return false;
       return true;
     })
-    .map((row) => normalizeStreamListing(row, paidBrokerMap))
+    .map((row) => normalizeStreamListing(row, brokerMap))
     .filter(Boolean);
 }
 
