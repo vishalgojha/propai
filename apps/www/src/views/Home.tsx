@@ -2,12 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { MapPin, Zap, ArrowRight, CheckCircle2, TrendingUp, Clock, Network } from 'lucide-react';
+import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { getListings, type PublicListing } from '@/lib/listings';
 import ListingCard from '@/components/ListingCard';
 import { cn } from '@/lib/utils';
-
-const locales = ['Bandra West', 'Powai', 'Andheri West', 'Worli', 'Thane', 'Juhu', 'Goregaon', 'Malad'];
 
 export default function Home({ initialListings = [], todayCount = 0 }: { initialListings?: PublicListing[]; todayCount?: number }) {
   const [listings, setListings] = useState<PublicListing[]>(initialListings.slice(0, 9));
@@ -200,60 +198,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
         </div>
       </section>
 
-      {/* Mumbai Coverage Cluster */}
-      <section className="mx-auto max-w-7xl px-5 relative py-20 overflow-hidden">
-        {/* Technical Grid Background */}
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
-             style={{ backgroundImage: 'radial-gradient(var(--accent) 1.5px, transparent 1.5px)', backgroundSize: '48px 48px' }} />
-        
-        {/* Background glow for "network" feel */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[var(--accent)]/[0.03] blur-[140px] rounded-full pointer-events-none" />
-        
-        <div className="text-center mb-20 relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[var(--accent-glow)] border border-[color:var(--accent-border)] rounded-full mb-6">
-            <Network className="h-3.5 w-3.5 text-[var(--accent)]" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--accent)]">Intelligence Mesh</span>
-          </div>
-          <h2 className="text-[48px] md:text-[64px] font-bold text-[var(--text-primary)] leading-[1] tracking-tighter">The PropAI Network</h2>
-          <p className="text-[17px] text-[var(--text-secondary)] mt-6 max-w-2xl mx-auto font-medium leading-relaxed">
-            PropAI segments real-time broker-verified inventory across India's primary micro-markets.
-          </p>
-        </div>
-        
-        <div className="flex flex-wrap justify-center gap-4 md:gap-5 max-w-6xl mx-auto relative z-10">
-          {[
-            { n: 'Bandra West', p: 'Primary Core', s: 'text-[24px]', c: 'bg-[var(--accent)] text-[var(--on-propai-green)] border-[var(--accent)] shadow-[0_20px_50px_rgba(62,232,138,0.3)]' },
-            { n: 'Worli', p: 'Luxury Tier', s: 'text-[19px]', c: 'bg-[var(--bg-surface)] border-white/5' },
-            { n: 'Andheri West', p: 'High Volume', s: 'text-[22px]', c: 'bg-[var(--bg-surface)] border-white/5 shadow-lg' },
-            { n: 'Powai', p: 'Tech Hub', s: 'text-[18px]', c: 'bg-[var(--bg-surface)] border-white/5' },
-            { n: 'Thane', p: 'Growth Sector', s: 'text-[15px]', c: 'bg-[var(--bg-elevated)] border-white/5 opacity-80' },
-            { n: 'Juhu', p: 'Ultra Luxury', s: 'text-[20px]', c: 'bg-[var(--bg-surface)] border-white/5' },
-            { n: 'Goregaon', p: 'Corporate Hub', s: 'text-[17px]', c: 'bg-[var(--bg-surface)] border-white/5' },
-            { n: 'Malad', p: 'Residential', s: 'text-[15px]', c: 'bg-[var(--bg-elevated)] border-white/5 opacity-80' },
-            { n: 'Colaba', p: 'Heritage South', s: 'text-[17px]', c: 'bg-[var(--bg-surface)] border-white/5' },
-            { n: 'Lower Parel', p: 'Business District', s: 'text-[19px]', c: 'bg-[var(--bg-surface)] border-white/5' },
-            { n: 'Dadar', p: 'Connectivity Hub', s: 'text-[16px]', c: 'bg-[var(--bg-elevated)] border-white/5 opacity-80' },
-            { n: 'Chembur', p: 'East Gateway', s: 'text-[15px]', c: 'bg-[var(--bg-elevated)] border-white/5 opacity-70' },
-            { n: 'Khar', p: 'Boutique West', s: 'text-[18px]', c: 'bg-[var(--bg-surface)] border-white/5' },
-            { n: 'Santacruz', p: 'Connectivity', s: 'text-[17px]', c: 'bg-[var(--bg-surface)] border-white/5' },
-            { n: 'Prabhadevi', p: 'Premium Resi', s: 'text-[18px]', c: 'bg-[var(--bg-surface)] border-white/5' }
-          ].map((loc) => (
-            <Link 
-              key={loc.n} 
-              href={`/listings?locality=${encodeURIComponent(loc.n)}`}
-              className={cn(
-                "group px-7 py-4.5 rounded-[20px] border transition-all duration-500 hover:scale-110 hover:-translate-y-3 font-bold tracking-tight shadow-sm whitespace-nowrap flex flex-col items-center justify-center gap-1 cursor-pointer",
-                loc.c || "bg-[var(--bg-surface)] border-white/5 text-[var(--text-primary)]"
-              )}
-            >
-              <span className={cn(loc.s, "group-hover:text-[var(--accent)] transition-colors duration-300")}>{loc.n}</span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-30 group-hover:opacity-100 group-hover:text-[var(--accent)] transition-all duration-300">
-                {loc.p}
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
+
 
       {/* CTA Section */}
       <section className="mx-auto max-w-5xl px-5 shadow-[0_24px_80px_rgba(62,232,138,0.06)]">

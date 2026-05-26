@@ -383,6 +383,93 @@ export async function fetchTodayParsedCount(): Promise<number> {
   return count || 0;
 }
 
+export type CityLocality = {
+  city: string;
+  localities: { name: string; count: number }[];
+};
+
+const FOOTER_KNOWN_LOCALITIES = new Set([
+  "bandra west", "bandra east", "khar west", "khar", "santacruz west", "santacruz east",
+  "vile parle", "andheri west", "andheri east", "juhu", "versova", "goregaon west", "goregaon east",
+  "malad west", "malad east", "kandivali west", "kandivali east", "borivali west", "borivali east",
+  "dahisar", "powai", "worli", "lower parel", "prabhadevi", "dadar west", "dadar east",
+  "mahim", "matunga", "sion", "chembur", "ghatkopar", "vikhroli", "kanjurmarg", "bhandup",
+  "mulund", "colaba", "marine lines", "churchgate", "nariman point", "fort", "byculla",
+  "wadala", "parel", "jogeshwari", "mira road", "bhayandar", "vasai", "nalasopara", "virar", "palghar",
+  "thane west", "thane east", "dombivli", "kalyan", "ulhasnagar", "ambarnath", "badlapur",
+  "nerul", "vashi", "sanpada", "ghansoli", "koparkhairane", "airoli", "panvel",
+  "kharghar", "kamothe", "kalamboli", "taloja",
+  "pimpri-chinchwad", "kharadi", "wakad", "hinjewadi", "baner", "aundh",
+  "lonavala", "khandala",
+]);
+
+const CITY_LOOKUP: [RegExp, string][] = [
+  [/^thane/i, "Thane"],
+  [/^dombivli|^kalyan|^ulhasnagar|^ambarnath|^badlapur/i, "Thane"],
+  [/^nerul|^vashi|^sanpada|^ghansoli|^koparkhairane|^airoli|^panvel|^kharghar|^kamothe|^kalamboli|^taloja/i, "Navi Mumbai"],
+  [/^pimpri|^kharadi|^wakad|^hinjewadi|^baner|^aundh/i, "Pune"],
+  [/^lonavala|^khandala/i, "Lonavala"],
+  [/^palghar|^vasai|^virar|^nalasopara/i, "Palghar"],
+];
+
+function inferFooterCity(locality: string, dbCity: string | null): string {
+  if (dbCity && !/unknown|null/i.test(dbCity) && dbCity.length > 2) return dbCity;
+  for (const [pattern, city] of CITY_LOOKUP) {
+    if (pattern.test(locality)) return city;
+  }
+  return "Mumbai";
+}
+
+function isValidFooterLocality(name: string): boolean {
+  const lower = name.toLowerCase().trim();
+  if (lower.length < 3) return false;
+  if (/not parsed|unknown|n\/?a|location|undefined|null/.test(lower)) return false;
+  if (FOOTER_KNOWN_LOCALITIES.has(lower)) return true;
+  if (/\b(project|chsl|wing|floor|sqft|bhk|furnish|avenue|building|tower|phase)\b/i.test(name)) return false;
+  if (/^(we have|offering|semi furnished|fully furnished|partly furnished|unfurnished|balcony|area|legal|kids|making|can remove|for family|close to|a wing|a swimming|auditors|well|kitchen|icecream|cs no)\b/i.test(name)) return false;
+  if (/^[a-z]\s+wing\b/i.test(name)) return false;
+  return name.length >= 4;
+}
+
+export async function fetchLocalitiesForFooter(minCount = 2): Promise<CityLocality[]> {
+  if (!supabaseAdmin) return [];
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("stream_items")
+      .select("city, locality")
+      .not("locality", "is", null)
+      .neq("locality", "")
+      .limit(5000);
+    if (error || !data) return [];
+    const raw = (data as any[]).reduce<Record<string, { city: string | null; count: number }>>((acc, row) => {
+      const loc = String(row.locality || "").trim();
+      if (!isValidFooterLocality(loc)) return acc;
+      const key = loc.toLowerCase();
+      if (!acc[key]) acc[key] = { city: String(row.city || "").trim() || null, count: 0 };
+      acc[key].count++;
+      return acc;
+    }, {} as Record<string, { city: string | null; count: number }>);
+    const cityMap = new Map<string, { name: string; count: number }[]>();
+    for (const [key, val] of Object.entries(raw) as [string, { city: string | null; count: number }][]) {
+      if (val.count < minCount) continue;
+      const city = inferFooterCity(key, val.city);
+      if (!cityMap.has(city)) cityMap.set(city, []);
+      cityMap.get(city)!.push({ name: key.replace(/\b\w/g, (c) => c.toUpperCase()), count: val.count });
+    }
+    const result: CityLocality[] = [];
+    const CITIES = ["Mumbai", "Thane", "Navi Mumbai", "Pune", "Palghar", "Lonavala"];
+    const sortMap = new Map(CITIES.map((c, i) => [c, i]));
+    for (const [city, localities] of cityMap) {
+      localities.sort((a, b) => b.count - a.count);
+      result.push({ city, localities });
+    }
+    result.sort((a, b) => (sortMap.get(a.city) ?? 99) - (sortMap.get(b.city) ?? 99));
+    return result;
+  } catch {
+    return [];
+  }
+}
+
 function slugifyLocality(locality: string) {
   return locality.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
