@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mail, MessageSquare, MapPin, Send } from 'lucide-react';
+import { Mail, MessageSquare, Send } from 'lucide-react';
 
 export default function Contact() {
   return (
@@ -20,7 +20,7 @@ export default function Contact() {
               </div>
               <div>
                 <h3 className="text-[14px] font-bold text-[var(--text-primary)] uppercase tracking-widest mb-1">Email</h3>
-                <p className="text-[15px] text-[var(--text-secondary)]">hello@propai.pulse</p>
+                <p className="text-[15px] text-[var(--text-secondary)]">hello@propai.live</p>
               </div>
             </div>
 
@@ -35,20 +35,7 @@ export default function Contact() {
             </div>
           </div>
 
-          <div className="p-8 rounded-[24px] bg-[var(--bg-elevated)] border border-[color:var(--border)] relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-1 h-full bg-[var(--accent)]" />
-            <div className="relative z-10 flex items-start gap-4">
-              <MapPin className="h-6 w-6 text-[var(--accent)] shrink-0 mt-1" />
-              <div>
-                <h3 className="text-[16px] font-bold text-[var(--text-primary)] mb-2">Technical HQ</h3>
-                <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed">
-                  BKC Financial District<br />
-                  Bandra East, Mumbai<br />
-                  Maharashtra 400051
-                </p>
-              </div>
-            </div>
-          </div>
+
         </div>
 
         <div className="rounded-[32px] bg-[var(--bg-surface)] p-10 shadow-[0_32px_80px_rgba(0,0,0,0.4)] border border-white/[0.03] space-y-8">

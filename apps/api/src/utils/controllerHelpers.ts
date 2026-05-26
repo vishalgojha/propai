@@ -7,6 +7,7 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'chariotrealty@gmail.com',
   'hello@chaoscraftlabs.com',
   'ojha007@gmail.com',
+  'hello@propai.live',
 ]);
 
 export function isOwnerSuperAdminEmail(email?: string | null) {

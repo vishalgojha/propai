@@ -62,6 +62,7 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
     'vishal@chaoscraftlabs.com',
     'hello@chaoscraftlabs.com',
     'ojha007@gmail.com',
+    'hello@propai.live',
 ]);
 
 export function isWorkflowIntent(intent: AgentRoutePlan['intent']): intent is BrokerToolIntent {
