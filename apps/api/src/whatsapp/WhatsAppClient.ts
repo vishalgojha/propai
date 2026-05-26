@@ -587,12 +587,21 @@ try {
         return this.sendMessage(jid, text);
     }
 
+    private async showTyping(jid: string, textLength: number) {
+        if (!this.socket) return;
+        const delay = textLength < 50 ? 800 : textLength < 200 ? 1200 : textLength < 500 ? 1800 : 2500;
+        await this.socket.sendPresenceUpdate('composing', jid).catch(() => {});
+        await new Promise((r) => setTimeout(r, delay));
+        await this.socket.sendPresenceUpdate('paused', jid).catch(() => {});
+    }
+
     async sendMessage(jid: string, text: string) {
         if (!this.socket) {
             throw new Error('WhatsApp session is not connected');
         }
 
         const sanitizedText = sanitizeForWhatsApp(text);
+        await this.showTyping(jid, sanitizedText.length).catch(() => {});
         this.rememberOutgoingMessage(jid, sanitizedText);
         const result = await this.socket.sendMessage(jid, { text: sanitizedText });
         await this.recordMessageStatus({
@@ -618,6 +627,9 @@ try {
             throw new Error('WhatsApp session is not connected');
         }
 
+        const caption = String(media.caption || '').trim();
+        await this.showTyping(jid, caption.length || 50).catch(() => {});
+
         const url = String(media.url || '').trim();
         if (!url) {
             throw new Error('Media URL is required');
@@ -625,7 +637,6 @@ try {
 
         const mimeType = String(media.mimeType || 'application/octet-stream').trim();
         const fileName = String(media.fileName || 'attachment').trim() || 'attachment';
-        const caption = String(media.caption || '').trim();
         const lowerMimeType = mimeType.toLowerCase();
         const message: Record<string, unknown> = {
             mimetype: mimeType,

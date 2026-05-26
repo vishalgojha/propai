@@ -93,6 +93,46 @@ app.get(ROUTE_PATHS.api.propertiesSearch, (req, res) => {
     });
 });
 
+// Public route — example prompts for login page
+app.get(ROUTE_PATHS.api.examplePrompts, async (req, res) => {
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const sbUrl = process.env.SUPABASE_URL || '';
+    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+    if (!sbUrl || !sbKey) {
+      return res.json({ prompts: staticFallback() });
+    }
+    const sb = createClient(sbUrl, sbKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    const { data } = await sb
+      .from('stream_items')
+      .select('bhk, locality, price_label, record_type, city')
+      .neq('record_type', 'buyer_requirement')
+      .not('bhk', 'is', null)
+      .not('locality', 'is', null)
+      .not('price_label', 'is', null)
+      .limit(20)
+      .order('created_at', { ascending: false });
+
+    if (!data || !data.length) {
+      return res.json({ prompts: staticFallback() });
+    }
+
+    const shuffled = [...data].sort(() => Math.random() - 0.5).slice(0, 4);
+    const prompts = shuffled.map((item) => {
+      const bhk = String(item.bhk || '').trim();
+      const loc = String(item.locality || '').trim();
+      const price = String(item.price_label || '').trim();
+      return `${bhk} in ${loc}${price ? `, ${price}` : ''} — is this still available?`;
+    });
+    res.json({ prompts });
+  } catch {
+    res.json({ prompts: staticFallback() });
+  }
+  function staticFallback() {
+    return ['3BHK Bandra West 1.8Cr sale, owner direct', '2BHK Powai requirement, budget 70 lakh', 'Remind me to call Rahul tomorrow 10am', 'Show me hot leads from this week'];
+  }
+});
+
 app.post(ROUTE_PATHS.api.aiPropertySearch, (req, res) => {
     const { message } = req.body;
     if (!message) return res.status(400).json({ error: 'Message is required' });

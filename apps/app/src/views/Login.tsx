@@ -9,6 +9,7 @@ import { track } from '../services/analytics';
 import { cn } from '../lib/utils';
 import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK } from '../lib/propai';
 import { buildFullName } from '../lib/names';
+import { backendApiUrl } from '../services/apiBase';
 import {
   ArrowRightIcon,
   ActivityIcon,
@@ -55,12 +56,41 @@ const proofPoints = [
   { label: 'Device', value: '1 per account' },
 ];
 
-const examples = [
-  '3BHK Bandra West 1.8Cr sale, owner direct',
-  '2BHK Powai requirement, budget 70 lakh',
-  'Remind me to call Rahul tomorrow 10am',
-  'Show me hot leads from this week',
-];
+const fallback = ['3BHK Bandra West 1.8Cr sale, owner direct', '2BHK Powai requirement, budget 70 lakh', 'Remind me to call Rahul tomorrow 10am', 'Show me hot leads from this week'];
+const CACHE_KEY = 'propai.examplePrompts';
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+function useExamplePrompts(): string[] {
+  const [prompts, setPrompts] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.prompts) && parsed.expiry > Date.now()) {
+          setPrompts(parsed.prompts);
+          return;
+        }
+      }
+    } catch { /* ignore */ }
+
+    if (!backendApiUrl) return;
+    fetch(`${backendApiUrl}/example-prompts`, { signal: AbortSignal.timeout?.(5000) ?? undefined })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.prompts?.length === 4) {
+          setPrompts(data.prompts);
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify({ prompts: data.prompts, expiry: Date.now() + CACHE_TTL })); } catch { /* ignore */ }
+        } else {
+          setPrompts(fallback);
+        }
+      })
+      .catch(() => setPrompts(fallback));
+  }, []);
+
+  return prompts.length === 4 ? prompts : fallback;
+}
 
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'vishal@chaoscraftlabs.com',
@@ -130,6 +160,7 @@ export const Login: React.FC = () => {
   const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const exPromptList = useExamplePrompts();
 
   const nextPath = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -431,7 +462,7 @@ export const Login: React.FC = () => {
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Example prompts</p>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {examples.map((item) => (
+                  {exPromptList.map((item) => (
                     <div
                       key={item}
                       className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"

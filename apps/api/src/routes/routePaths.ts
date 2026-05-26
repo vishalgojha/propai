@@ -21,6 +21,7 @@ export const ROUTE_PATHS = {
     stream: '/api/stream-items',
     ingest: '/api/listings/ingest',
     intelligence: '/api/intelligence',
+    examplePrompts: '/api/example-prompts',
     notifications: '/api/notifications',
     syndication: '/api/syndication',
   },
