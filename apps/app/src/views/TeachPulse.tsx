@@ -59,7 +59,7 @@ export const TeachPulseView: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await backendApi.get<{ items: UnresolvedItem[] }>('/api/teach/unresolved?days=7&limit=200');
+      const res = await backendApi.get<{ items: UnresolvedItem[] }>('/api/teach/unresolved?limit=200');
       setItems(res.data?.items ?? []);
     } catch (err) {
       setError(handleApiError(err));

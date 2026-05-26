@@ -1,4 +1,5 @@
 import { createSupabaseAnonClient, supabase, supabaseAdmin } from '../config/supabase';
+import crypto from 'crypto';
 import { parsePrice, splitMultiListing } from '@propai/price-parser';
 import { aiService } from './aiService';
 import { canonicalizationService } from './canonicalizationService';
@@ -1063,6 +1064,12 @@ const normalizeSourceKey = (value?: string | null) =>
         .replace(/[^a-z0-9]+/g, ' ')
         .trim();
 
+const buildStreamContentHash = (rawText?: string | null, sourcePhone?: string | null) =>
+    crypto
+        .createHash('md5')
+        .update(`${String(rawText || '').trim()}::${String(sourcePhone || '').trim()}`)
+        .digest('hex');
+
 const extractJsonPayload = (text: string) => {
     const trimmed = String(text || '').trim();
     if (!trimmed) {
@@ -1193,6 +1200,14 @@ type StreamCorrectionInput = {
     assetClass?: string;
     confidence?: number;
     parseNotes?: string | null;
+};
+
+type InboxPairCandidate = {
+    listing: any;
+    requirement: any;
+    score: number;
+    reasons: string[];
+    createdAt: string;
 };
 
 export class ChannelService {
@@ -1871,96 +1886,48 @@ private dailyBriefingSentKeys = new Set<string>();
         limit = 200,
     ): Promise<InboxMatchRecord[]> {
         const effectiveLimit = Math.max(50, Math.min(500, limit));
+        if (!isSuperAdmin) {
+            await this.syncInboxMatchesForTenant(tenantId).catch((error) => {
+                console.error('[ChannelService] Inbox sync failed', { tenantId, error });
+            });
 
-        let rows: any[];
+            try {
+                const { data, error } = await this.db
+                    .from('inbox_items')
+                    .select('id, tenant_id, listing_id, requirement_id, match_score, match_reasons, created_at, updated_at')
+                    .eq('tenant_id', tenantId)
+                    .order('updated_at', { ascending: false })
+                    .limit(effectiveLimit);
+
+                if (error) {
+                    throw error;
+                }
+
+                if (Array.isArray(data) && data.length > 0) {
+                    return this.mapInboxItemsToResponse(tenantId, data as any[]);
+                }
+            } catch (error) {
+                console.error('[ChannelService] Failed to read inbox_items, using in-memory fallback', { tenantId, error });
+            }
+        }
 
         if (isSuperAdmin) {
-            let query = this.db
+            const { data, error } = await this.db
                 .from('stream_items')
                 .select('*')
                 .eq('ingestion_status', 'accepted')
                 .order('created_at', { ascending: false })
-                .limit(effectiveLimit);
-            const { data, error } = await query;
+                .limit(Math.max(effectiveLimit * 3, 400));
             if (error) throw new Error(error.message);
-            rows = Array.isArray(data) ? data : [];
-        } else {
-            const accessibleTenantIds = [tenantId];
-            const { data, error } = await this.readAcceptedStreamItems(this.db, accessibleTenantIds, {
-                limit: effectiveLimit,
-                orderByCreatedAt: true,
-            });
-            if (error) throw new Error(error.message);
-            rows = Array.isArray(data) ? data : [];
+            return this.buildInboxMatchesFromRows(tenantId, Array.isArray(data) ? data : [], effectiveLimit);
         }
 
-        const sourceRows = isSuperAdmin
-            ? rows
-            : rows.filter((row: any) => String(row.tenant_id || '') === tenantId);
-        const matches: Array<{
-            source: any;
-            matched: any;
-            score: number;
-            reasons: string[];
-        }> = [];
-
-        for (const source of sourceRows) {
-            if (!this.isMatchableRecord(source)) {
-                continue;
-            }
-            const sourcePhone = String(source.source_phone || '').trim();
-
-            for (const candidate of rows) {
-                if (String(candidate.id || '') === String(source.id || '')) {
-                    continue;
-                }
-                if (!this.isOppositeRecordType(source, candidate)) {
-                    continue;
-                }
-
-                const candidatePhone = String(candidate.source_phone || '').trim();
-                if (sourcePhone && candidatePhone && sourcePhone === candidatePhone) {
-                    continue;
-                }
-
-                const result = this.calculateItemMatchScore(source, candidate);
-                if (result.score <= 0) {
-                    continue;
-                }
-
-                matches.push({
-                    source,
-                    matched: candidate,
-                    score: result.score,
-                    reasons: result.reasons,
-                });
-            }
-        }
-
-        matches.sort((a, b) => {
-            if (b.score !== a.score) return b.score - a.score;
-            return new Date(b.matched.created_at || 0).getTime() - new Date(a.matched.created_at || 0).getTime();
+        const { data, error } = await this.readAcceptedStreamItems(this.db, [tenantId], {
+            limit: Math.max(effectiveLimit * 3, 400),
+            orderByCreatedAt: true,
         });
-
-        const selected = matches.slice(0, effectiveLimit);
-        const sourceMapped = this.enrichSourcePhones(
-            selected.map((match) => this.mapStreamItem(match.source, tenantId)),
-        );
-        const matchedMapped = this.enrichSourcePhones(
-            selected.map((match) => this.mapStreamItem(match.matched, tenantId, Boolean(match.matched.is_read))),
-        );
-
-        const enrichedMatched = await this.enrichWithIgrTransactions(matchedMapped);
-
-        return selected.map((match, index) => ({
-            id: `${match.source.id}:${match.matched.id}`,
-            sourceItem: sourceMapped[index],
-            matchedItem: enrichedMatched[index],
-            matchScore: match.score,
-            matchReasons: match.reasons,
-            isRead: Boolean(match.matched.is_read),
-            createdAt: match.matched.created_at || match.source.created_at || new Date().toISOString(),
-        }));
+        if (error) throw new Error(error.message);
+        return this.buildInboxMatchesFromRows(tenantId, Array.isArray(data) ? data : [], effectiveLimit);
     }
 
     async getStreamSummary(
@@ -2436,6 +2403,7 @@ private dailyBriefingSentKeys = new Set<string>();
                 qualityScore: qualityDecision.qualityScore,
                 qualityMetrics: qualityDecision.metrics,
             };
+            const contentHash = buildStreamContentHash(parsed.rawText, parsed.sourcePhone);
 
             const { data, error } = await this.db
                 .from('stream_items')
@@ -2448,6 +2416,7 @@ private dailyBriefingSentKeys = new Set<string>();
                     source_group_id: parsed.sourceGroupId,
                     source_group_name: parsed.sourceGroupName,
                     source_phone: parsed.sourcePhone,
+                    content_hash: contentHash,
                     raw_text: parsed.rawText,
                     type: parsed.streamType,
                     record_type: parsed.recordType,
@@ -2504,6 +2473,9 @@ private dailyBriefingSentKeys = new Set<string>();
             });
             await this.matchStreamItemToChannels(tenantId, data).catch((matchError) => {
                 console.error('[ChannelService] Channel matching failed', matchError);
+            });
+            await this.syncInboxMatchesForStreamItem(tenantId, data).catch((matchError) => {
+                console.error('[ChannelService] Inbox matching failed', matchError);
             });
         }
 
@@ -3129,6 +3101,234 @@ ${rawText}
                     is_read: false,
                     created_at: streamItem.created_at || new Date().toISOString(),
                 }, { onConflict: 'channel_id,stream_item_id' });
+        }
+    }
+
+    private getInboxPair(source: any, candidate: any): { listing: any; requirement: any } | null {
+        if (!this.isOppositeRecordType(source, candidate)) {
+            return null;
+        }
+
+        const sourceKind = this.getRecordKind(source);
+        if (sourceKind === 'listing') {
+            return { listing: source, requirement: candidate };
+        }
+
+        if (sourceKind === 'requirement') {
+            return { listing: candidate, requirement: source };
+        }
+
+        return null;
+    }
+
+    private getInboxPairKey(listingId: string, requirementId: string) {
+        return `${listingId}:${requirementId}`;
+    }
+
+    private collectInboxPairCandidates(rows: any[]): InboxPairCandidate[] {
+        const pairMap = new Map<string, InboxPairCandidate>();
+
+        for (const source of rows) {
+            if (!this.isMatchableRecord(source)) {
+                continue;
+            }
+
+            const sourcePhone = String(source.source_phone || '').trim();
+            for (const candidate of rows) {
+                if (String(candidate.id || '') === String(source.id || '')) {
+                    continue;
+                }
+
+                const pair = this.getInboxPair(source, candidate);
+                if (!pair) {
+                    continue;
+                }
+
+                const candidatePhone = String(candidate.source_phone || '').trim();
+                if (sourcePhone && candidatePhone && sourcePhone === candidatePhone) {
+                    continue;
+                }
+
+                const result = this.calculateItemMatchScore(source, candidate);
+                if (result.score <= 0) {
+                    continue;
+                }
+
+                const key = this.getInboxPairKey(String(pair.listing.id), String(pair.requirement.id));
+                const createdAt = pair.listing.created_at || pair.requirement.created_at || new Date().toISOString();
+                const current = pairMap.get(key);
+                if (!current) {
+                    pairMap.set(key, {
+                        listing: pair.listing,
+                        requirement: pair.requirement,
+                        score: result.score,
+                        reasons: result.reasons,
+                        createdAt,
+                    });
+                    continue;
+                }
+
+                const currentCreatedAt = new Date(current.createdAt || 0).getTime();
+                const nextCreatedAt = new Date(createdAt || 0).getTime();
+                if (result.score > current.score || (result.score === current.score && nextCreatedAt > currentCreatedAt)) {
+                    pairMap.set(key, {
+                        listing: pair.listing,
+                        requirement: pair.requirement,
+                        score: result.score,
+                        reasons: result.reasons,
+                        createdAt,
+                    });
+                }
+            }
+        }
+
+        return [...pairMap.values()].sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        });
+    }
+
+    private async buildInboxMatchesFromRows(tenantId: string, rows: any[], limit: number): Promise<InboxMatchRecord[]> {
+        const selected = this.collectInboxPairCandidates(rows).slice(0, limit);
+        const sourceMapped = this.enrichSourcePhones(
+            selected.map((match) => this.mapStreamItem(match.requirement, tenantId)),
+        );
+        const matchedMapped = this.enrichSourcePhones(
+            selected.map((match) => this.mapStreamItem(match.listing, tenantId, Boolean(match.listing.is_read))),
+        );
+        const enrichedMatched = await this.enrichWithIgrTransactions(matchedMapped);
+
+        return selected.map((match, index) => ({
+            id: this.getInboxPairKey(String(match.listing.id), String(match.requirement.id)),
+            sourceItem: sourceMapped[index],
+            matchedItem: enrichedMatched[index],
+            matchScore: match.score,
+            matchReasons: match.reasons,
+            isRead: Boolean(match.listing.is_read),
+            createdAt: match.createdAt,
+        }));
+    }
+
+    private async mapInboxItemsToResponse(
+        tenantId: string,
+        inboxItems: Array<{
+            id: string;
+            tenant_id: string;
+            listing_id: string;
+            requirement_id: string;
+            match_score: number;
+            match_reasons: string[] | null;
+            created_at: string;
+            updated_at: string;
+        }>,
+    ): Promise<InboxMatchRecord[]> {
+        const streamIds = Array.from(new Set(inboxItems.flatMap((item) => [item.listing_id, item.requirement_id])));
+        const { data, error } = await this.readAcceptedStreamItems(this.db, [tenantId], {
+            streamIds,
+            limit: Math.max(streamIds.length, 1),
+        });
+
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        const rowMap = new Map<string, any>((data || []).map((row: any) => [String(row.id), row]));
+        const completeItems = inboxItems.filter((item) => rowMap.has(item.listing_id) && rowMap.has(item.requirement_id));
+        const sourceMapped = this.enrichSourcePhones(
+            completeItems.map((item) => this.mapStreamItem(rowMap.get(item.requirement_id), tenantId)),
+        );
+        const matchedMapped = this.enrichSourcePhones(
+            completeItems.map((item) => this.mapStreamItem(rowMap.get(item.listing_id), tenantId, Boolean(rowMap.get(item.listing_id)?.is_read))),
+        );
+        const enrichedMatched = await this.enrichWithIgrTransactions(matchedMapped);
+
+        return completeItems.map((item, index) => ({
+            id: item.id,
+            sourceItem: sourceMapped[index],
+            matchedItem: enrichedMatched[index],
+            matchScore: Number(item.match_score || 0),
+            matchReasons: Array.isArray(item.match_reasons) ? item.match_reasons : [],
+            isRead: Boolean(rowMap.get(item.listing_id)?.is_read),
+            createdAt: item.updated_at || item.created_at,
+        }));
+    }
+
+    private async syncInboxMatchesForTenant(tenantId: string): Promise<void> {
+        const { data, error } = await this.readAcceptedStreamItems(this.db, [tenantId], {
+            limit: 1500,
+            orderByCreatedAt: true,
+        });
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        const rows = Array.isArray(data) ? data : [];
+        const pairCandidates = this.collectInboxPairCandidates(rows);
+        if (pairCandidates.length === 0) {
+            return;
+        }
+
+        const now = new Date().toISOString();
+        const payload = pairCandidates.map((pair) => ({
+            tenant_id: tenantId,
+            listing_id: pair.listing.id,
+            requirement_id: pair.requirement.id,
+            match_score: pair.score,
+            match_reasons: pair.reasons,
+            created_at: pair.createdAt,
+            updated_at: now,
+        }));
+
+        const { error: upsertError } = await this.db
+            .from('inbox_items')
+            .upsert(payload, { onConflict: 'tenant_id,listing_id,requirement_id' });
+
+        if (upsertError) {
+            throw new Error(upsertError.message);
+        }
+    }
+
+    private async syncInboxMatchesForStreamItem(tenantId: string, streamItem: any): Promise<void> {
+        if (!this.isMatchableRecord(streamItem)) {
+            return;
+        }
+
+        const { data, error } = await this.readAcceptedStreamItems(this.db, [tenantId], {
+            limit: 1500,
+            orderByCreatedAt: true,
+        });
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        const rows = Array.isArray(data) ? data : [];
+        const relevantRows = rows.filter((row: any) =>
+            String(row.id) === String(streamItem.id) || this.isOppositeRecordType(streamItem, row),
+        );
+        const pairCandidates = this.collectInboxPairCandidates(relevantRows)
+            .filter((pair) => String(pair.listing.id) === String(streamItem.id) || String(pair.requirement.id) === String(streamItem.id));
+
+        if (pairCandidates.length === 0) {
+            return;
+        }
+
+        const now = new Date().toISOString();
+        const payload = pairCandidates.map((pair) => ({
+            tenant_id: tenantId,
+            listing_id: pair.listing.id,
+            requirement_id: pair.requirement.id,
+            match_score: pair.score,
+            match_reasons: pair.reasons,
+            created_at: pair.createdAt,
+            updated_at: now,
+        }));
+
+        const { error: upsertError } = await this.db
+            .from('inbox_items')
+            .upsert(payload, { onConflict: 'tenant_id,listing_id,requirement_id' });
+
+        if (upsertError) {
+            throw new Error(upsertError.message);
         }
     }
 

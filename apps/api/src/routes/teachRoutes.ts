@@ -11,7 +11,8 @@ router.use(authMiddleware);
 // GET /api/teach/unresolved — items needing review (last 7 days)
 router.get('/unresolved', async (req, res) => {
   try {
-    const days = typeof req.query.days === 'string' ? Math.min(30, Math.max(1, Number(req.query.days))) : 7;
+    const parsedDays = typeof req.query.days === 'string' ? Number(req.query.days) : NaN;
+    const days = Number.isFinite(parsedDays) && parsedDays > 0 ? Math.min(90, Math.max(1, parsedDays)) : null;
     const limit = typeof req.query.limit === 'string' ? Math.min(500, Math.max(10, Number(req.query.limit))) : 200;
     const items = await localityAliasService.getUnresolvedItems(days, limit);
     res.json({ items, count: items.length });

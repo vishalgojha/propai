@@ -10,6 +10,13 @@ type AliasRow = {
 
 export class LocalityAliasService {
   private db = supabaseAdmin ?? supabase;
+  private unresolvedOrFilter =
+    'locality.is.null,' +
+    'locality.in.("Mumbai","Mumbai market"),' +
+    'confidence_score.lt.0.4,' +
+    'bhk.eq.N/A,' +
+    'price_numeric.eq.0,' +
+    'price_numeric.is.null';
 
   async getAllAliases(): Promise<AliasRow[]> {
     const { data } = await this.db
@@ -77,27 +84,27 @@ export class LocalityAliasService {
     return { id: data!.id, updatedCount };
   }
 
-  async getUnresolvedItems(days = 7, limit = 200): Promise<any[]> {
-    const since = new Date(Date.now() - days * 86400000).toISOString();
-
-    const { data } = await this.db
+  async getUnresolvedItems(days: number | null = null, limit = 200): Promise<any[]> {
+    let query = this.db
       .from('stream_items')
       .select('id, tenant_id, raw_text, locality, city, bhk, type, price_label, price_numeric, confidence_score, record_type, created_at')
-      .gte('created_at', since)
-      .or(
-        'locality.is.null,' +
-        'locality.in.("Mumbai market","Mumbai","Navi Mumbai","Thane","Pune"),' +
-        'confidence_score.lt.0.4,' +
-        'bhk.eq.N/A'
-      )
+      .or(this.unresolvedOrFilter)
       .order('created_at', { ascending: false })
       .limit(limit);
 
+    if (days && Number.isFinite(days) && days > 0) {
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      query = query.gte('created_at', since);
+    }
+
+    const { data } = await query;
+
     return (data ?? []).filter((row: any) => {
       const loc = String(row.locality || '').trim().toLowerCase();
-      if (!loc || ['mumbai market', 'mumbai', 'navi mumbai', 'thane', 'pune'].includes(loc)) return true;
+      if (!loc || ['mumbai market', 'mumbai'].includes(loc)) return true;
       if (row.confidence_score != null && Number(row.confidence_score) < 0.4) return true;
       if (String(row.bhk || '').trim() === 'N/A') return true;
+      if (row.price_numeric == null || Number(row.price_numeric) === 0) return true;
       return false;
     });
   }
@@ -130,12 +137,7 @@ export class LocalityAliasService {
     const { count: total } = await this.db
       .from('stream_items')
       .select('id', { count: 'exact', head: true })
-      .or(
-        'locality.is.null,' +
-        'locality.in.("Mumbai market","Mumbai","Navi Mumbai","Thane","Pune"),' +
-        'confidence_score.lt.0.4,' +
-        'bhk.eq.N/A'
-      );
+      .or(this.unresolvedOrFilter);
 
     const totalCount = total ?? 0;
     if (totalCount === 0) return { total: 0, resolved: 0, queued: 0 };
@@ -155,12 +157,7 @@ export class LocalityAliasService {
       let query = this.db
         .from('stream_items')
         .select('id, raw_text, locality, confidence_score, bhk, created_at')
-        .or(
-          'locality.is.null,' +
-          'locality.in.("Mumbai market","Mumbai","Navi Mumbai","Thane","Pune"),' +
-          'confidence_score.lt.0.4,' +
-          'bhk.eq.N/A'
-        )
+        .or(this.unresolvedOrFilter)
         .order('created_at', { ascending: false })
         .limit(batchSize);
 

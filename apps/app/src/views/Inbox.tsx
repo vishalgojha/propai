@@ -266,7 +266,7 @@ export function Inbox() {
   const { matches, unreadCount, markRead, markAllRead, isLoading } = useInbox();
   const [tab, setTab] = React.useState<'unread' | 'all'>('unread');
   const [page, setPage] = React.useState(1);
-  const isSuperAdmin = user?.appRole === 'super_admin' || user?.appRole === 'admin';
+  const isSuperAdmin = user?.appRole === 'super_admin';
 
   const filtered = React.useMemo(
     () => (tab === 'unread' ? matches.filter((match) => !match.isRead && !match.matchedItem.isRead) : matches),
