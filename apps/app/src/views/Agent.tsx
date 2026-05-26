@@ -536,6 +536,19 @@ export const Agent: React.FC = () => {
     window.localStorage.removeItem(draftStorageKey);
   }, [chatHydrated, draftStorageKey, input, activeSessionId]);
 
+  // Auto-send from URL ?prompt= param (used by Vault "Ask Pulse" button)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !chatHydrated) return;
+    const params = new URLSearchParams(location.search);
+    const urlPrompt = params.get('prompt');
+    if (urlPrompt && urlPrompt.trim()) {
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState(null, '', cleanUrl);
+      const timer = setTimeout(() => handleSend(urlPrompt.trim()), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [chatHydrated]);
+
   useEffect(() => {
     const el = threadRef.current;
     if (!el) return;

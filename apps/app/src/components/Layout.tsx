@@ -89,6 +89,7 @@ export const Layout: React.FC = () => {
   const getPageTitle = (path: string) => {
     if (path.startsWith('/broker-network')) return 'Broker Network';
     if (path.startsWith('/whatsapp')) return 'WhatsApp';
+    if (path.startsWith('/vault')) return 'Vault';
     if (path.startsWith('/intelligence') || path === '/analytics') return 'Intelligence';
     if (path.startsWith('/ai-usage') || path === '/aiusage') return 'AI Usage';
 
