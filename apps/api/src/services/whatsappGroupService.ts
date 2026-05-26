@@ -491,7 +491,13 @@ export class WhatsAppGroupService {
         classification?: GroupClassification | null;
         visibilityStatus?: GroupVisibilityStatus | null;
     }) {
+        const groupName = String(updates.groupName || groupJid || '').trim() || groupJid;
         const payload: Record<string, unknown> = {
+            workspace_id: tenantId,
+            tenant_id: tenantId,
+            group_jid: groupJid,
+            group_name: groupName,
+            normalized_name: normalizeName(groupName || groupJid),
             updated_at: new Date().toISOString(),
         };
 
@@ -511,9 +517,7 @@ export class WhatsAppGroupService {
 
         const { data, error } = await db
             .from('whatsapp_groups')
-            .update(payload)
-            .eq('workspace_id', tenantId)
-            .eq('group_jid', groupJid)
+            .upsert(payload, { onConflict: 'workspace_id,group_jid' })
             .select('*')
             .single();
 
