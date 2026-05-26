@@ -268,6 +268,9 @@ export class SessionManager {
             throw new Error('Session client not found');
         }
 
+        // Preserve UI/runtime callbacks before clearing the in-memory session entry.
+        const callbacks = this.callbacks.get(fullKey) || { onQR: () => {}, onConnectionUpdate: () => {} };
+
         // Force disconnect and cleanup
         await client.disconnect();
         this.clients.delete(fullKey);
@@ -290,7 +293,6 @@ export class SessionManager {
         }
 
         // Recreate the session
-        const callbacks = this.callbacks.get(fullKey) || { onQR: () => {}, onConnectionUpdate: () => {} };
         await this.createSession(tenantId, callbacks.onQR, callbacks.onConnectionUpdate, {
             label,
             ownerName: existingSession?.ownerName || undefined,
