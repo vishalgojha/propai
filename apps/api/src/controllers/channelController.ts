@@ -73,7 +73,7 @@ export const listStreamItems = async (req: Request, res: Response) => {
         const tenantId = getTenantId(req);
         const access = await resolveStreamAccess(tenantId, req.user?.email);
         if (!access.canViewStream) {
-            return res.status(403).json({ error: STREAM_ACCESS_DENIED_MESSAGE });
+            return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
         }
         const authHeader = String(req.headers.authorization || '');
         const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
@@ -128,7 +128,7 @@ export const listStreamSummary = async (req: Request, res: Response) => {
         const tenantId = getTenantId(req);
         const access = await resolveStreamAccess(tenantId, req.user?.email);
         if (!access.canViewStream) {
-            return res.status(403).json({ error: STREAM_ACCESS_DENIED_MESSAGE });
+            return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
         }
         const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : null;
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
@@ -148,7 +148,7 @@ export const rebuildStream = async (req: Request, res: Response) => {
         const tenantId = getTenantId(req);
         const access = await resolveStreamAccess(tenantId, req.user?.email);
         if (!access.canViewStream) {
-            return res.status(403).json({ error: STREAM_ACCESS_DENIED_MESSAGE });
+            return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
         }
         const limit = typeof req.body?.limit === 'number' ? Math.max(1, Math.min(2000, req.body.limit)) : 500;
         const sessionLabel = typeof req.body?.sessionLabel === 'string' ? req.body.sessionLabel.trim() || null : null;
@@ -169,7 +169,7 @@ export const correctStreamItem = async (req: Request, res: Response) => {
          const tenantId = getTenantId(req);
          const access = await resolveStreamAccess(tenantId, req.user?.email);
          if (!access.canViewStream) {
-             return res.status(403).json({ error: STREAM_ACCESS_DENIED_MESSAGE });
+             return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
          }
          await requireSuperAdmin(req);
          const userEmail = String(req.user?.email || '');

@@ -129,9 +129,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   const isSuperAdmin =
     user?.appRole === 'super_admin' ||
     OWNER_SUPER_ADMIN_EMAILS.has(String(user?.email || '').trim().toLowerCase());
+  const subscription = user?.subscription;
+  const trialDays = subscription?.trial_days_remaining;
+  const isTrial = subscription?.status === 'trial' || subscription?.status === 'trialing' || subscription?.plan === 'Free' || subscription?.plan === 'Trial';
+  const canViewStream = React.useMemo(() => {
+    const normalized = String(subscription?.plan || '').trim().toLowerCase();
+    return !isSuperAdmin && (normalized === 'starter' || normalized === 'pro');
+  }, [isSuperAdmin, subscription?.plan]);
+  const planLabel = React.useMemo(() => {
+    const normalized = String(subscription?.plan || '').trim().toLowerCase();
+    if (normalized === 'trial' || normalized === 'free') return 'Trial';
+    if (normalized === 'solo' || normalized === 'pro') return 'Pro';
+    return subscription?.plan || 'Team';
+  }, [subscription?.plan]);
 
   React.useEffect(() => {
     if (!user?.token) {
+      setChannels([]);
+      setIsChannelsLoading(false);
+      return;
+    }
+
+    if (!canViewStream) {
       setChannels([]);
       setIsChannelsLoading(false);
       return;
@@ -211,25 +230,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
       window.removeEventListener('channels:created', handleCreated as EventListener);
       window.clearInterval(interval);
     };
-  }, [user?.email, user?.token]);
+  }, [canViewStream, user?.email, user?.token]);
 
   const activeChannel = React.useMemo(
     () => channels.find((channel) => channel.id === selectedChannelId) || null,
     [channels, selectedChannelId],
   );
-  const subscription = user?.subscription;
-  const trialDays = subscription?.trial_days_remaining;
-  const isTrial = subscription?.status === 'trial' || subscription?.status === 'trialing' || subscription?.plan === 'Free' || subscription?.plan === 'Trial';
-  const canViewStream = React.useMemo(() => {
-    const normalized = String(subscription?.plan || '').trim().toLowerCase();
-    return normalized === 'starter' || normalized === 'pro';
-  }, [subscription?.plan]);
-  const planLabel = React.useMemo(() => {
-    const normalized = String(subscription?.plan || '').trim().toLowerCase();
-    if (normalized === 'trial' || normalized === 'free') return 'Trial';
-    if (normalized === 'solo' || normalized === 'pro') return 'Pro';
-    return subscription?.plan || 'Team';
-  }, [subscription?.plan]);
 
   const visibleChannels = React.useMemo(() => {
     const filtered = channels.filter((channel) => matchesChannelQuery(channel, channelSearch));

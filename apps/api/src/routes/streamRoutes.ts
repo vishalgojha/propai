@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
 
     const access = await resolveStreamAccess(tenantId, context.currentUserEmail);
     if (!access.canViewStream) {
-      return res.status(403).json({ error: STREAM_ACCESS_DENIED_MESSAGE });
+      return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
     }
 
     const networkMode = access.networkMode;
@@ -44,7 +44,7 @@ router.get('/stats', async (req, res) => {
     const tenantId = context.workspaceOwnerId;
     const access = await resolveStreamAccess(tenantId, context.currentUserEmail);
     if (!access.canViewStream) {
-      return res.status(403).json({ error: STREAM_ACCESS_DENIED_MESSAGE });
+      return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
     }
 
     const stats = await streamAPI.getStats(tenantId);

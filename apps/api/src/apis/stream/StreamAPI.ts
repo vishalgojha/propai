@@ -21,7 +21,7 @@ export class StreamAPI {
       const { data: brokerProfiles } = await supabase
         .from('profiles')
         .select('id')
-        .in('app_role', ['broker', 'super_admin']);
+        .in('app_role', ['broker']);
 
       tenantIds = Array.from(new Set([
         tenantId,
