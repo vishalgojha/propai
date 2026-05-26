@@ -1,4 +1,5 @@
 import { backendApiUrl } from './apiBase';
+import { deleteCookie, readJsonCookie, writeJsonCookie } from './browserCookies';
 
 type StoredSession = {
   id?: string;
@@ -10,6 +11,7 @@ type StoredSession = {
   refreshToken?: string;
   expiresAt?: number;
   appRole?: string;
+  remember?: boolean;
 };
 
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
@@ -29,12 +31,13 @@ const STORAGE_KEY = 'propai_user';
 const SESSION_KEY = 'propai_user_session';
 
 const EXPIRY_SKEW_MS = 5 * 60_000;
+const COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
-function toJson(value: StoredSession, remember: boolean) {
-  return JSON.stringify({ ...value, remember });
-}
+function readLegacyStoredSession() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
 
-export function readStoredSession(): StoredSession | null {
   const savedUser = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(SESSION_KEY);
   if (!savedUser) return null;
 
@@ -47,19 +50,49 @@ export function readStoredSession(): StoredSession | null {
   }
 }
 
+export function readStoredSession(): StoredSession | null {
+  const storedSession = readJsonCookie<StoredSession>(STORAGE_KEY) || readJsonCookie<StoredSession>(SESSION_KEY) || readLegacyStoredSession();
+
+  if (!storedSession?.email || !storedSession?.token) {
+    return null;
+  }
+
+  return storedSession;
+}
+
 export function saveStoredSession(session: StoredSession, remember = true) {
-  const value = toJson(session, remember);
+  const storedSession = { ...session, remember };
+
   if (remember) {
-    localStorage.setItem(STORAGE_KEY, value);
-    sessionStorage.removeItem(SESSION_KEY);
+    writeJsonCookie(STORAGE_KEY, storedSession, { maxAge: COOKIE_MAX_AGE_SECONDS });
+    deleteCookie(SESSION_KEY);
+  } else {
+    writeJsonCookie(SESSION_KEY, storedSession);
+    deleteCookie(STORAGE_KEY);
+  }
+
+  if (typeof window === 'undefined') {
     return;
   }
 
-  sessionStorage.setItem(SESSION_KEY, value);
   localStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem(SESSION_KEY);
+
+  if (remember) {
+    deleteCookie(SESSION_KEY);
+  } else {
+    deleteCookie(STORAGE_KEY);
+  }
 }
 
 export function clearStoredSession() {
+  deleteCookie(STORAGE_KEY);
+  deleteCookie(SESSION_KEY);
+
+  if (typeof window === 'undefined') {
+    return;
+  }
+
   localStorage.removeItem(STORAGE_KEY);
   sessionStorage.removeItem(SESSION_KEY);
 }
@@ -103,6 +136,7 @@ export async function refreshSupabaseSession(session: StoredSession): Promise<St
       refreshToken,
       expiresAt,
       appRole: resolveAppRole(session.email, session.appRole),
+      remember: session.remember,
     };
   } catch {
     return null;

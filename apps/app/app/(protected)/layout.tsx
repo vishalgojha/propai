@@ -8,8 +8,10 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import backendApi from "@/services/api";
 import { ENDPOINTS } from "@/services/endpoints";
 import { RouterOutletProvider } from "@/lib/router";
+import { readCookie, writeCookie } from "@/services/browserCookies";
 
 export const dynamic = "force-dynamic";
+const ONBOARDING_STATUS_COOKIE = "propai.onboarding_status";
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -35,7 +37,7 @@ function ProtectedLayoutInner({ children }: { children: React.ReactNode }) {
       return "loading";
     }
 
-    const cached = window.sessionStorage.getItem("propai.onboarding_status");
+    const cached = readCookie(ONBOARDING_STATUS_COOKIE);
     return cached === "needed" || cached === "done" ? cached : "done";
   });
 
@@ -49,12 +51,12 @@ function ProtectedLayoutInner({ children }: { children: React.ReactNode }) {
         const data = resp.data?.data;
         const nextState = data && data.onboarding_completed ? "done" : "needed";
         if (!cancelled) {
-          window.sessionStorage.setItem("propai.onboarding_status", nextState);
+          writeCookie(ONBOARDING_STATUS_COOKIE, nextState);
           setOnboardingCheck(nextState);
         }
       } catch {
         if (!cancelled) {
-          window.sessionStorage.setItem("propai.onboarding_status", "done");
+          writeCookie(ONBOARDING_STATUS_COOKIE, "done");
           setOnboardingCheck("done");
         }
       }

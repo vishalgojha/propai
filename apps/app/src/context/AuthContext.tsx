@@ -71,7 +71,6 @@ const resolveAppRole = (email?: string | null, appRole?: string) => {
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const STORAGE_KEY = 'propai_user';
 
 function resolveNameParts(userLike?: { first_name?: string | null; last_name?: string | null; full_name?: string | null } | null) {
   const firstName = String(userLike?.first_name || '').trim();
@@ -131,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const refreshed = await refreshSupabaseSession(activeSession);
           if (refreshed) {
             activeSession = refreshed;
-            saveStoredSession(refreshed, !!localStorage.getItem(STORAGE_KEY));
+            saveStoredSession(refreshed, activeSession.remember !== false);
           }
         }
 

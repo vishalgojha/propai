@@ -41,8 +41,7 @@ async function refreshSessionOnce() {
     refreshInFlight = (async () => {
       const refreshed = await refreshSupabaseSession(session);
       if (refreshed) {
-        const remember = !!localStorage.getItem('propai_user');
-        saveStoredSession(refreshed, remember);
+        saveStoredSession(refreshed, session.remember !== false);
         setBackendApiAuthToken(refreshed.token);
         return refreshed;
       }

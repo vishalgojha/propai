@@ -2,8 +2,10 @@ import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
+import { deleteCookie, writeCookie } from '../services/browserCookies';
 
 const REFERRAL_STORAGE_KEY = 'propai.referral_code';
+const REFERRAL_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 export const ReferralCapture: React.FC = () => {
   const navigate = useNavigate();
@@ -24,13 +26,13 @@ export const ReferralCapture: React.FC = () => {
         const response = await backendApi.get(ENDPOINTS.auth.referralPreview(normalized));
         const referral = response.data?.referral;
         if (!cancelled) {
-          window.localStorage.setItem(REFERRAL_STORAGE_KEY, normalized);
+          writeCookie(REFERRAL_STORAGE_KEY, normalized, { maxAge: REFERRAL_COOKIE_MAX_AGE_SECONDS });
           setMessage(referral?.fullName ? `Referral applied from ${referral.fullName}. Redirecting...` : 'Referral applied. Redirecting...');
         }
       } catch (error) {
         if (!cancelled) {
           setMessage(handleApiError(error));
-          window.localStorage.removeItem(REFERRAL_STORAGE_KEY);
+          deleteCookie(REFERRAL_STORAGE_KEY);
         }
       } finally {
         window.setTimeout(() => {

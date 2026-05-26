@@ -10,6 +10,7 @@ import { cn } from '../lib/utils';
 import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK } from '../lib/propai';
 import { buildFullName } from '../lib/names';
 import { backendApiUrl } from '../services/apiBase';
+import { deleteCookie, readCookie, writeCookie } from '../services/browserCookies';
 import {
   ArrowRightIcon,
   ActivityIcon,
@@ -106,6 +107,7 @@ const authPill =
 const authFieldClassName =
   'w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 px-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]';
 const REFERRAL_STORAGE_KEY = 'propai.referral_code';
+const REFERRAL_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 const resolveAppRole = (email?: string | null, appRole?: string) => {
   if (appRole === 'super_admin') {
@@ -176,14 +178,14 @@ export const Login: React.FC = () => {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const nextCode = String(params.get('ref') || window.localStorage.getItem(REFERRAL_STORAGE_KEY) || '').trim().toUpperCase();
+    const nextCode = String(params.get('ref') || readCookie(REFERRAL_STORAGE_KEY) || '').trim().toUpperCase();
     if (!nextCode) {
       setReferralCode('');
       setReferralLabel('');
       return;
     }
 
-    window.localStorage.setItem(REFERRAL_STORAGE_KEY, nextCode);
+    writeCookie(REFERRAL_STORAGE_KEY, nextCode, { maxAge: REFERRAL_COOKIE_MAX_AGE_SECONDS });
     setReferralCode(nextCode);
     setReferralLabel(`Referral code applied: ${nextCode}`);
     setMode('signup');
@@ -255,7 +257,7 @@ export const Login: React.FC = () => {
           rememberMe,
         );
         if (mode === 'signup') {
-          window.localStorage.removeItem(REFERRAL_STORAGE_KEY);
+          deleteCookie(REFERRAL_STORAGE_KEY);
           setReferralCode('');
           setReferralLabel('');
         }

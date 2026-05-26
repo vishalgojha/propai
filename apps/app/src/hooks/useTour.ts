@@ -1,42 +1,27 @@
 import React from 'react';
+import { deleteCookie, readCookie, writeCookie } from '../services/browserCookies';
 
 const TOUR_COMPLETED_KEY = 'propai.tour_v1_completed';
+const TOUR_COMPLETED_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 
 export function useTour(userId?: string | null) {
   const storageKey = userId ? `${TOUR_COMPLETED_KEY}.${userId}` : TOUR_COMPLETED_KEY;
 
   const [isCompleted, setIsCompleted] = React.useState(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return window.localStorage.getItem(storageKey) === 'true';
-    } catch {
-      return false;
-    }
+    return readCookie(storageKey) === 'true';
   });
 
   React.useEffect(() => {
-    try {
-      setIsCompleted(window.localStorage.getItem(storageKey) === 'true');
-    } catch {
-      setIsCompleted(false);
-    }
+    setIsCompleted(readCookie(storageKey) === 'true');
   }, [storageKey]);
 
   const markCompleted = React.useCallback(() => {
-    try {
-      window.localStorage.setItem(storageKey, 'true');
-    } catch {
-      // Ignore storage failures.
-    }
+    writeCookie(storageKey, 'true', { maxAge: TOUR_COMPLETED_MAX_AGE_SECONDS });
     setIsCompleted(true);
   }, [storageKey]);
 
   const resetTour = React.useCallback(() => {
-    try {
-      window.localStorage.removeItem(storageKey);
-    } catch {
-      // Ignore storage failures.
-    }
+    deleteCookie(storageKey);
     setIsCompleted(false);
   }, [storageKey]);
 
