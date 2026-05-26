@@ -59,7 +59,7 @@ export const TeachPulseView: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await backendApi.get<{ items: UnresolvedItem[] }>('/api/teach/unresolved?limit=200');
+      const res = await backendApi.get<{ items: UnresolvedItem[] }>('/teach/unresolved?limit=200');
       setItems(res.data?.items ?? []);
     } catch (err) {
       setError(handleApiError(err));
@@ -102,7 +102,7 @@ export const TeachPulseView: React.FC = () => {
       if (corrType) payload.type = corrType;
       if (corrAlias.trim()) payload.aliasFragment = corrAlias.trim();
 
-      const res = await backendApi.post('/api/teach/correct', payload);
+      const res = await backendApi.post('/teach/correct', payload);
       const msg = res.data?.message || 'Saved!';
       showToast('success', msg);
       cancelForm();
@@ -118,7 +118,7 @@ export const TeachPulseView: React.FC = () => {
     setProcessing(true);
     setProgress(null);
     try {
-      const res = await backendApi.post<{ success: boolean; total: number; resolved: number; queued: number; message: string }>('/api/teach/process-all');
+      const res = await backendApi.post<{ success: boolean; total: number; resolved: number; queued: number; message: string }>('/teach/process-all');
       showToast('success', res.data?.message || 'Processing complete');
       fetchItems();
     } catch (err) {
