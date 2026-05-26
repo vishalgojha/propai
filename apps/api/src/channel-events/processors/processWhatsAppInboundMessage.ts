@@ -182,6 +182,7 @@ async function triggerAgent(
                 fallbackText,
                 sessionLabel,
             );
+            rememberSelfChatReply(tenantId, sessionLabel, remoteJid, fallbackText);
         } catch (sendError) {
             console.error('[SelfChat Debug] Failed to send fallback response:', sendError);
         }
@@ -529,7 +530,7 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
         return;
     }
 
-    if (effectiveIsSelfChat && fromMe && isRecentSelfChatReply(tenantId, label, remoteJid, text)) {
+    if (effectiveIsSelfChat && isRecentSelfChatReply(tenantId, label, remoteJid, text)) {
         return;
     }
 
