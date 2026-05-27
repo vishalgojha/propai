@@ -1423,6 +1423,55 @@ export const applyGroupsAudit = async (req: Request, res: Response) => {
     }
 };
 
+export const allowAllRealEstateGroups = async (req: Request, res: Response) => {
+    const sessionLabel = typeof req.body?.sessionLabel === 'string' ? req.body.sessionLabel.trim() : '';
+
+    if (!sessionLabel) {
+        return res.status(400).json({ error: 'sessionLabel is required' });
+    }
+
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const result = await groupAuditService.allowAllRealEstate({
+            workspaceOwnerId: context.workspaceOwnerId,
+            sessionLabel,
+        });
+        res.json({ success: true, result });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to allow all real estate groups') });
+    }
+};
+
+export const getGroupStreamItems = async (req: Request, res: Response) => {
+    const groupJid = String(req.params.groupJid || '').trim();
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
+
+    if (!groupJid) {
+        return res.status(400).json({ error: 'groupJid is required' });
+    }
+
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const db = supabaseAdmin || supabase;
+
+        const { data, error } = await db
+            .from('stream_items')
+            .select('id, source_group_id, source_group_name, raw_text, type, record_type, locality, city, bhk, price_label, price_numeric, deal_type, asset_class, confidence_score, ingestion_status, created_at')
+            .eq('tenant_id', context.workspaceOwnerId)
+            .eq('source_group_id', groupJid)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json({ success: true, items: data || [] });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to fetch group stream items') });
+    }
+};
+
 export const getOutboundRecipients = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
     const dbClient = getDbClient();

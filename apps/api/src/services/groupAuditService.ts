@@ -5,6 +5,7 @@ import {
     GroupClassification,
     whatsappGroupService,
 } from './whatsappGroupService';
+import { brokerContactSyncService } from './brokerContactSyncService';
 
 const db = supabaseAdmin || supabase;
 
@@ -114,8 +115,9 @@ export class GroupAuditService {
                 (group as any).noiseScore,
                 () => countNoiseSignals(scoringInput, classification, group.category),
             );
+            const autoAllow = classification === 'business' && signalScore >= 50;
             const recommendation: AuditDecision =
-                classification === 'business' && signalScore >= 55 && noiseScore <= 45
+                autoAllow
                     ? 'parse'
                     : classification === 'personal' || noiseScore >= 70
                         ? 'ignore'
@@ -129,8 +131,12 @@ export class GroupAuditService {
             if (noiseScore >= 60) reasons.push('high non-business or noisy naming pattern');
             if (phones.length >= 100) reasons.push('large broker surface');
 
+            const status = autoAllow ? 'allowed' : recommendation === 'ignore' ? 'ignored' : 'review';
+
             return {
                 ...group,
+                autoAllow,
+                status,
                 participantPhoneCount: phones.length,
                 duplicateMemberCount: duplicatePhones.length,
                 overlappingMemberCount: duplicatePhones.length,
@@ -180,6 +186,62 @@ export class GroupAuditService {
             },
             groups: enrichedGroups,
         };
+    }
+
+    async allowAllRealEstate(input: {
+        workspaceOwnerId: string;
+        sessionLabel: string;
+    }) {
+        const groups = (await whatsappGroupService.listGroups(input.workspaceOwnerId, { includeArchived: false }))
+            .filter((group) => String(group.sessionLabel || '') === input.sessionLabel);
+
+        const allowIds: string[] = [];
+        for (const group of groups) {
+            const participantJids: string[] = Array.isArray((group as any).participantJids)
+                ? ((group as any).participantJids as string[])
+                : [];
+            const scoringInput = {
+                id: String(group.id || ''),
+                name: String(group.name || ''),
+                participantsCount: Number(group.participantsCount || 0),
+                participantJids,
+            };
+            const signalScore = positiveOrDerived(
+                (group as any).signalScore,
+                () => countLikelyBrokerSignals(scoringInput, group.locality, group.category),
+            );
+            const classification = String((group as any).classification || 'unknown') as GroupClassification;
+            if (classification === 'business' && signalScore >= 50) {
+                allowIds.push(String(group.id || ''));
+            }
+        }
+
+        if (allowIds.length > 0) {
+            const parseRows = allowIds.map((groupId) => ({
+                tenant_id: input.workspaceOwnerId,
+                group_id: groupId,
+                behavior: 'Listen' as const,
+            }));
+            const { error } = await db.from('group_configs').upsert(parseRows, { onConflict: 'group_id' });
+            if (error) throw error;
+
+            await Promise.all(allowIds.map((groupId) =>
+                whatsappGroupService.updateGroup(input.workspaceOwnerId, groupId, {
+                    isParsing: true,
+                    visibilityStatus: 'visible',
+                }),
+            ));
+        }
+
+        try {
+            await brokerContactSyncService.syncFromStoredGroups(input.workspaceOwnerId, {
+                sessionLabel: input.sessionLabel,
+            });
+        } catch (syncError) {
+            console.warn('[GroupAudit] Broker contact sync failed after bulk allow:', syncError);
+        }
+
+        return { allowedCount: allowIds.length };
     }
 
     async applyRecommendations(input: {
@@ -264,6 +326,14 @@ export class GroupAuditService {
             .eq('label', input.sessionLabel);
 
         if (updateError) throw updateError;
+
+        try {
+            await brokerContactSyncService.syncFromStoredGroups(input.workspaceOwnerId, {
+                sessionLabel: input.sessionLabel,
+            });
+        } catch (syncError) {
+            console.warn('[GroupAudit] Broker contact sync failed after audit apply:', syncError);
+        }
 
         return {
             parsedGroups: groups.filter((group) => {

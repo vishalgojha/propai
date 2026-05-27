@@ -70,6 +70,8 @@ export const ENDPOINTS = {
     historyCheckDuplicates: '/whatsapp/history/check-duplicates',
     groups: '/whatsapp/groups',
     groupsAudit: '/whatsapp/groups/audit',
+    auditAllowAll: '/whatsapp/groups/audit/allow-real-estate',
+    groupStreamItems: (groupJid: string) => `/whatsapp/groups/${encodeURIComponent(groupJid)}/stream-items`,
     toggleGroupParsing: (groupJid: string) => `/whatsapp/groups/${encodeURIComponent(groupJid)}/toggle-parsing`,
     updateGroupVisibility: (groupJid: string) => `/whatsapp/groups/${encodeURIComponent(groupJid)}/visibility`,
     recipients: '/whatsapp/recipients',

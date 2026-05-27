@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CheckCircle2,
   Building2,
+  ChevronDown,
   Info,
   Loader2,
   MessageSquare,
@@ -287,6 +288,8 @@ type GroupAuditGroup = {
   reasons: string[];
   sessionLabel?: string | null;
   isParsing?: boolean;
+  autoAllow?: boolean;
+  status?: string;
 };
 
 type GroupAuditResponse = {
@@ -335,8 +338,8 @@ const WHATSAPP_TABS: Array<{ id: SourcesTab; label: string }> = [
 
 const GROUP_AUDIT_FILTERS: Array<{ id: GroupAuditFilter; label: string }> = [
   { id: 'all', label: 'All' },
-  { id: 'selected', label: 'Parsing' },
-  { id: 'not_selected', label: 'Kept out' },
+  { id: 'selected', label: 'Allowed' },
+  { id: 'not_selected', label: 'Review' },
   { id: 'parse', label: 'Parse' },
   { id: 'review', label: 'Review' },
   { id: 'ignore', label: 'Ignore' },
@@ -505,9 +508,13 @@ export const Sources: React.FC = () => {
   const [isLoadingGroupAudit, setIsLoadingGroupAudit] = useState(false);
   const [groupAuditError, setGroupAuditError] = useState<string | null>(null);
   const [isApplyingGroupAudit, setIsApplyingGroupAudit] = useState(false);
+  const [isAllowingAllRealEstate, setIsAllowingAllRealEstate] = useState(false);
   const [selectedAuditParseIds, setSelectedAuditParseIds] = useState<string[]>([]);
   const [groupAuditSearchTerm, setGroupAuditSearchTerm] = useState('');
   const [groupAuditFilter, setGroupAuditFilter] = useState<GroupAuditFilter>('all');
+  const [expandedAuditParseIds, setExpandedAuditParseIds] = useState<string[]>([]);
+  const [groupStreamItems, setGroupStreamItems] = useState<Record<string, Array<{ id: string; raw_text: string; type: string; record_type: string; locality: string | null; price_numeric: number | null; bhk: string | null; created_at: string }>>>({});
+  const [loadingGroupStreamItems, setLoadingGroupStreamItems] = useState<Record<string, boolean>>({});
   const [groupSearchTerm, setGroupSearchTerm] = useState('');
   const [outboundSessionKey, setOutboundSessionKey] = useState('');
   const [brokerRecipients, setBrokerRecipients] = useState<OutboundRecipient[]>([]);
@@ -774,7 +781,7 @@ export const Sources: React.FC = () => {
       setGroupAudit(payload);
       setSelectedAuditParseIds(
         Array.isArray(payload?.groups)
-          ? payload.groups.filter((group) => group.recommendation === 'parse').map((group) => group.id)
+          ? payload.groups.filter((group) => group.autoAllow).map((group) => group.id)
           : [],
       );
     } catch (err) {
@@ -1310,6 +1317,32 @@ export const Sources: React.FC = () => {
     current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
   );
 
+  const toggleGroupStreamItems = async (groupId: string) => {
+    if (expandedAuditParseIds.includes(groupId)) {
+      setExpandedAuditParseIds((current) => current.filter((id) => id !== groupId));
+      return;
+    }
+
+    setExpandedAuditParseIds((current) => [...current, groupId]);
+
+    if (groupStreamItems[groupId]) return;
+
+    setLoadingGroupStreamItems((current) => ({ ...current, [groupId]: true }));
+    try {
+      const response = await backendApi.get(ENDPOINTS.whatsapp.groupStreamItems(groupId), {
+        params: { limit: 5 },
+      });
+      setGroupStreamItems((current) => ({
+        ...current,
+        [groupId]: response.data?.items || [],
+      }));
+    } catch {
+      setGroupStreamItems((current) => ({ ...current, [groupId]: [] }));
+    } finally {
+      setLoadingGroupStreamItems((current) => ({ ...current, [groupId]: false }));
+    }
+  };
+
   const handleSetGroupParsing = async (groupId: string, enabled: boolean) => {
     setSavingGroupBehavior((current) => ({ ...current, [groupId]: true }));
     setError(null);
@@ -1360,6 +1393,31 @@ export const Sources: React.FC = () => {
         ...current,
         ...Object.fromEntries(groupIds.map((id) => [id, false])),
       }));
+    }
+  };
+
+  const handleAllowAllRealEstate = async () => {
+    if (!auditSessionLabel || !groupAudit) {
+      setError('Connect a WhatsApp session first.');
+      return;
+    }
+
+    setIsAllowingAllRealEstate(true);
+    setError(null);
+    try {
+      await backendApi.post(ENDPOINTS.whatsapp.auditAllowAll, {
+        sessionLabel: auditSessionLabel,
+      });
+
+      await Promise.all([
+        fetchStatus(),
+        fetchGroupAudit(auditSessionLabel),
+        fetchHealth(),
+      ]);
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsAllowingAllRealEstate(false);
     }
   };
 
@@ -1698,11 +1756,19 @@ export const Sources: React.FC = () => {
       {activeTab === 'audit' ? (
         <div className="space-y-4">
           <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-[12px] font-medium text-[var(--text-secondary)]">
-                Groups parse by default. Keep noisy or private groups out before Stream fills.
+                Real-estate groups (signal &ge; 50) auto-allow. Review others before Stream fills.
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleAllowAllRealEstate()}
+                  className={sourceSecondaryButton}
+                  disabled={isAllowingAllRealEstate || !auditSessionLabel || !groupAudit}
+                >
+                  {isAllowingAllRealEstate ? 'Allowing...' : 'Allow all real_estate groups'}
+                </button>
                 <button
                   type="button"
                   onClick={() => void fetchGroupAudit()}
@@ -1766,7 +1832,7 @@ export const Sources: React.FC = () => {
               <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
                 {[
                   { label: 'Total groups', value: groupAudit.summary.totalGroups, note: 'Synced from this number.' },
-                  { label: 'Parsing by default', value: selectedAuditParseIds.length, note: 'Groups feeding Stream unless kept out.' },
+                  { label: 'Auto-allowed', value: selectedAuditParseIds.length, note: 'Real-estate groups (signal ≥ 50) auto-allow. Review others below.' },
                   { label: 'Cross-group overlap', value: groupAudit.summary.overlappingParticipants ?? groupAudit.summary.duplicateParticipants, note: `${groupAudit.summary.overlappingParticipantRate ?? groupAudit.summary.duplicateParticipantRate}% of ${groupAudit.summary.uniqueParticipants} unique numbers appear in more than one group.` },
                   { label: 'Average chaos', value: groupAudit.summary.averageChaosScore, note: 'Overlap pressure plus noisy/off-topic signals.' },
                   { label: 'Likely real-estate groups', value: groupAudit.summary.realEstateGroups, note: 'Groups with broker/property signals or business classification.' },
@@ -1803,9 +1869,9 @@ export const Sources: React.FC = () => {
                 <h4 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Review groups kept in or out of Stream</h4>
               </div>
               <div className="text-[11px] text-[var(--text-secondary)]">
-                Parsing: <span className="font-semibold text-[var(--text-primary)]">{selectedAuditParseIds.length}</span>
+                Auto-allowed: <span className="font-semibold text-[var(--text-primary)]">{selectedAuditParseIds.length}</span>
                 <span className="mx-2">·</span>
-                Kept out: <span className="font-semibold text-[var(--text-primary)]">{(groupAudit?.groups.length || 0) - selectedAuditParseIds.length}</span>
+                Review: <span className="font-semibold text-[var(--text-primary)]">{(groupAudit?.groups.length || 0) - selectedAuditParseIds.length}</span>
               </div>
             </div>
 
@@ -1876,8 +1942,12 @@ export const Sources: React.FC = () => {
               ) : (
                 filteredAuditGroups.map((group) => {
                   const selected = selectedAuditParseIds.includes(group.id);
+                  const isExpanded = expandedAuditParseIds.includes(group.id);
                   const overlappingMemberCount = group.overlappingMemberCount ?? group.duplicateMemberCount;
                   const topOverlappingGroups = Array.isArray(group.overlappingGroups) ? group.overlappingGroups.slice(0, 3) : [];
+                  const items = groupStreamItems[group.id];
+                  const isLoadingItems = loadingGroupStreamItems[group.id];
+                  const groupStatus = group.autoAllow ? 'allowed' : (group.status || group.recommendation);
                   return (
                     <div key={group.id} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1886,21 +1956,13 @@ export const Sources: React.FC = () => {
                             <p className="truncate text-[14px] font-semibold text-[var(--text-primary)]">{group.name}</p>
                             <span className={cn(
                               'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
-                              group.recommendation === 'parse'
+                              groupStatus === 'allowed'
                                 ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
-                                : group.recommendation === 'ignore'
+                                : groupStatus === 'ignored'
                                   ? 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]'
                                   : 'border-[color:rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.08)] text-[var(--amber)]',
                             )}>
-                              {group.recommendation}
-                            </span>
-                            <span className={cn(
-                              'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
-                              selected
-                                ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
-                                : 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
-                            )}>
-                              {selected ? 'Parsing' : 'Kept out of Stream'}
+                              {groupStatus === 'allowed' ? 'Allowed' : groupStatus}
                             </span>
                           </div>
                           <p className="mt-2 text-[12px] text-[var(--text-secondary)]">
@@ -1957,16 +2019,52 @@ export const Sources: React.FC = () => {
                             Allow in Stream
                           </button>
                         ) : null}
+                        {selected ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAuditParseIds((current) => current.filter((id) => id !== group.id))}
+                            className={cn(sourceSecondaryButton, 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)] hover:bg-[rgba(239,68,68,0.12)]')}
+                          >
+                            Keep out of Stream
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-4 border-t border-[color:var(--border)] pt-3">
                         <button
                           type="button"
-                          onClick={() => setSelectedAuditParseIds((current) => current.filter((id) => id !== group.id))}
-                          className={cn(
-                            sourceSecondaryButton,
-                            !selected && 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)] hover:bg-[rgba(239,68,68,0.12)]',
-                          )}
+                          onClick={() => void toggleGroupStreamItems(group.id)}
+                          className="flex w-full items-center justify-between text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                         >
-                          Keep out of Stream
+                          <span>Parsing Activity</span>
+                          <ChevronDown className={cn('h-4 w-4 transition-transform', isExpanded && 'rotate-180')} />
                         </button>
+                        {isExpanded ? (
+                          <div className="mt-3 space-y-2">
+                            {isLoadingItems ? (
+                              <p className="text-[11px] text-[var(--text-secondary)]">Loading parsed items...</p>
+                            ) : !selected && !group.autoAllow ? (
+                              <div className="rounded-[10px] border border-[color:rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.06)] px-3 py-2 text-[11px] text-[var(--amber)]">
+                                This group is not in Stream. Allow it in Stream above or apply audit decisions to start parsing messages here.
+                              </div>
+                            ) : !items || items.length === 0 ? (
+                              <p className="text-[11px] text-[var(--text-secondary)]">No parsed messages yet for this group.</p>
+                            ) : (
+                              items.map((item) => (
+                                <div key={item.id} className="rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-2">
+                                  <div className="flex items-center gap-2 text-[10px] text-[var(--text-secondary)]">
+                                    <span className="rounded-full border border-[color:var(--border)] px-1.5 py-0.5 uppercase">{item.record_type}</span>
+                                    {item.type ? <span>{item.type}</span> : null}
+                                    {item.locality ? <span>{item.locality}</span> : null}
+                                    {item.bhk ? <span>{item.bhk}BHK</span> : null}
+                                    {item.price_numeric ? <span>₹{Number(item.price_numeric).toLocaleString()}</span> : null}
+                                  </div>
+                                  <p className="mt-1 line-clamp-2 text-[10px] text-[var(--text-secondary)]">{item.raw_text}</p>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   );

@@ -64,6 +64,8 @@ export const ROUTE_PATHS = {
         monitor: '/monitor',
         monitorMessages: '/monitor/messages',
         groupsAudit: '/groups/audit',
+        auditAllowAll: '/groups/audit/allow-real-estate',
+        groupStreamItems: '/groups/:groupJid/stream-items',
         health: '/health',
         healthDetailed: '/health/detailed',
         historyDebug: '/history/debug',
