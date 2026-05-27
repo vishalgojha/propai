@@ -169,6 +169,10 @@ export const ConnectWhatsApp: React.FC = () => {
 
     const handleConnect = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (anySession) {
+            setError('A session already exists. Disconnect it first before connecting a new one.');
+            return;
+        }
         const normPhone = phone.replace(/\D/g, '');
         const fullName = buildFullName(firstName, lastName);
         if (!firstName.trim() || !lastName.trim() || normPhone.length < 10 || normPhone.length > 15) {
@@ -204,7 +208,9 @@ export const ConnectWhatsApp: React.FC = () => {
     };
 
     const handleDisconnect = async () => {
-        const session = status?.sessions?.find((s) => s.status === 'connected') || status?.sessions?.[0];
+        const session = status?.sessions?.find((s) => s.status === 'connected')
+            || status?.sessions?.find((s) => s.status === 'connecting' || s.status === 'reconnecting')
+            || status?.sessions?.[0];
         if (!session) return;
         setConnecting(true);
         try {
@@ -230,6 +236,9 @@ export const ConnectWhatsApp: React.FC = () => {
     }
 
     const connected = status?.sessions?.some((s) => s.status === 'connected');
+    const connecting = status?.sessions?.some((s) => s.status === 'connecting' || s.status === 'reconnecting');
+    const anySession = status?.sessions?.length > 0;
+    const connectingSession = status?.sessions?.find((s) => s.status === 'connecting' || s.status === 'reconnecting');
 
     return (
         <div className="mx-auto max-w-lg py-10">
@@ -252,12 +261,32 @@ export const ConnectWhatsApp: React.FC = () => {
                     <div>
                         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">Device Status</p>
                         <p className="mt-1 text-[14px] font-semibold text-[var(--text-primary)]">
-                            {status?.activeCount || 0} / {status?.limit || 2} devices connected
+                            {status?.activeCount || 0} / 1 device connected
                         </p>
                     </div>
                 </div>
 
-                {connected ? (
+                {connecting && !connected && connectingSession ? (
+                    <div className="space-y-4">
+                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/20">
+                                    <LoaderIcon className="h-4 w-4 animate-spin text-amber-400" />
+                                </div>
+                                <div>
+                                    <p className="text-[14px] font-medium text-amber-300">Session is connecting...</p>
+                                    <p className="text-[12px] text-amber-400/70">
+                                        {connectingSession.phoneNumber || connectingSession.label || 'Waiting for QR scan'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <button onClick={handleDisconnect} disabled={connecting} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
+                            <XIcon className="h-4 w-4" />
+                            Kill Connecting Session
+                        </button>
+                    </div>
+                ) : connected ? (
                     <div className="space-y-4">
                         <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4">
                             {status?.sessions?.filter((s) => s.status === 'connected').map((s) => (
@@ -280,6 +309,14 @@ export const ConnectWhatsApp: React.FC = () => {
                         <button onClick={handleDisconnect} disabled={connecting} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
                             {connecting ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <PowerIcon className="h-4 w-4" />}
                             Disconnect
+                        </button>
+                    </div>
+                ) : anySession ? (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-center">
+                        <p className="text-[14px] font-medium text-amber-300">A session already exists</p>
+                        <p className="mt-1 text-[12px] text-amber-400/70">Disconnect the existing session before connecting a new one.</p>
+                        <button onClick={handleDisconnect} className="mt-3 rounded-xl border border-red-500/30 px-4 py-2 text-[13px] font-semibold text-red-400 transition hover:bg-red-500/10">
+                            Disconnect Existing
                         </button>
                     </div>
                 ) : (

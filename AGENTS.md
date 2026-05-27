@@ -1,3 +1,10 @@
+# PropAI Pulse — Company & Platform Context
+
+**PropAI Pulse** is an AI-powered real estate platform for Indian brokers, built by **Vishal Ojha**.
+- **Website**: propai.live
+- **Founder**: Vishal Ojha — 15+ years of real estate brokerage experience in Mumbai/India.
+- **Platform**: AI-driven WhatsApp ingestion, parsing, matching, and CRM for real estate brokers.
+
 # Repo Notes
 
 - After every completed task, push the relevant git branch/commit so the remote stays current.
