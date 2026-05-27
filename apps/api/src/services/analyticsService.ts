@@ -78,43 +78,20 @@ function isMissingIngestionStatusError(message?: string | null) {
 async function queryStreamItems(tenantId: string) {
     if (!db) return { data: [] as StreamItemRow[], count: 0 };
 
-    let [streamResult, countResult] = await Promise.all([
-        db
-            .from('stream_items')
-            .select('type, deal_type, locality, source_phone, confidence_score, created_at')
-            .eq('tenant_id', tenantId)
-            .eq('ingestion_status', 'accepted')
-            .order('created_at', { ascending: false })
-            .limit(5000),
-        db
-            .from('stream_items')
-            .select('id', { count: 'exact', head: true })
-            .eq('tenant_id', tenantId)
-            .eq('ingestion_status', 'accepted'),
+    const [resStream, comStream, resCount, comCount] = await Promise.all([
+        db.from('stream_items_residential').select('type, deal_type, locality, source_phone, confidence_score, created_at').eq('tenant_id', tenantId).eq('ingestion_status', 'accepted').order('created_at', { ascending: false }).limit(5000),
+        db.from('stream_items_commercial').select('type, deal_type, locality, source_phone, confidence_score, created_at').eq('tenant_id', tenantId).eq('ingestion_status', 'accepted').order('created_at', { ascending: false }).limit(5000),
+        db.from('stream_items_residential').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('ingestion_status', 'accepted'),
+        db.from('stream_items_commercial').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('ingestion_status', 'accepted'),
     ]);
 
-    if ((streamResult.error && isMissingIngestionStatusError(streamResult.error.message)) || (countResult.error && isMissingIngestionStatusError(countResult.error.message))) {
-        [streamResult, countResult] = await Promise.all([
-            db
-                .from('stream_items')
-                .select('type, deal_type, locality, source_phone, confidence_score, created_at')
-                .eq('tenant_id', tenantId)
-                .order('created_at', { ascending: false })
-                .limit(5000),
-            db
-                .from('stream_items')
-                .select('id', { count: 'exact', head: true })
-                .eq('tenant_id', tenantId),
-        ]);
-    }
+    const data = [
+        ...(Array.isArray(resStream.data) ? resStream.data : []),
+        ...(Array.isArray(comStream.data) ? comStream.data : []),
+    ] as StreamItemRow[];
+    const count = (resCount.count || 0) + (comCount.count || 0);
 
-    if (streamResult.error) throw streamResult.error;
-    if (countResult.error) throw countResult.error;
-
-    return {
-        data: (streamResult.data || []) as StreamItemRow[],
-        count: countResult.count || 0,
-    };
+    return { data, count };
 }
 
 function normalizeItems(rows: StreamItemRow[]): NormalizedItem[] {

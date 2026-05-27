@@ -10,6 +10,9 @@ function isMissingIngestionStatusError(message?: string | null) {
   );
 }
 
+const streamTable = (category?: string) =>
+  category === 'commercial' ? 'stream_items_commercial' : 'stream_items_residential';
+
 export class StreamAPI {
     async getStreamItems(
         tenantId: string,
@@ -29,16 +32,14 @@ export class StreamAPI {
       ]));
         }
 
+    const table = streamTable(filters?.category);
+
     const applyFilters = (query: any) => {
       if (filters?.type && filters.type.length > 0) {
         try {
           query = query.in('type', filters.type);
         } catch (e) {
         }
-      }
-
-      if (filters?.category) {
-        query = query.eq('property_category', filters.category);
       }
 
       if (filters?.locality) {
@@ -67,7 +68,7 @@ export class StreamAPI {
 
     let query = applyFilters(
       supabase
-        .from('stream_items')
+        .from(table)
         .select('*')
         .in('tenant_id', tenantIds)
         .eq('ingestion_status', 'accepted')
@@ -77,7 +78,7 @@ export class StreamAPI {
     if (error && isMissingIngestionStatusError(error.message)) {
       query = applyFilters(
         supabase
-          .from('stream_items')
+          .from(table)
           .select('*')
           .in('tenant_id', tenantIds)
       );
@@ -182,20 +183,15 @@ export class StreamAPI {
   }
 
   async getStats(tenantId: string): Promise<StreamStats> {
-    let { data, error } = await supabase
-      .from('stream_items')
-      .select('confidence_score, is_read')
-      .eq('tenant_id', tenantId)
-      .eq('ingestion_status', 'accepted');
+    const [resResult, comResult] = await Promise.all([
+      supabase.from('stream_items_residential').select('confidence_score, is_read').eq('tenant_id', tenantId).eq('ingestion_status', 'accepted'),
+      supabase.from('stream_items_commercial').select('confidence_score, is_read').eq('tenant_id', tenantId).eq('ingestion_status', 'accepted'),
+    ]);
+    const data = [
+      ...(Array.isArray(resResult.data) ? resResult.data : []),
+      ...(Array.isArray(comResult.data) ? comResult.data : []),
+    ];
 
-    if (error && isMissingIngestionStatusError(error.message)) {
-      ({ data, error } = await supabase
-        .from('stream_items')
-        .select('confidence_score, is_read')
-        .eq('tenant_id', tenantId));
-    }
-
-    if (error || !data) return { total: 0, unread: 0, avgConfidence: 0 };
     if (!Array.isArray(data)) return { total: 0, unread: 0, avgConfidence: 0 };
 
     const total = data.length;
@@ -208,11 +204,10 @@ export class StreamAPI {
   }
 
   async markAsRead(tenantId: string, itemId: string): Promise<void> {
-    await supabase
-      .from('stream_items')
-      .update({ is_read: true })
-      .eq('id', itemId)
-      .eq('tenant_id', tenantId);
+    await Promise.all([
+      supabase.from('stream_items_residential').update({ is_read: true }).eq('id', itemId).eq('tenant_id', tenantId),
+      supabase.from('stream_items_commercial').update({ is_read: true }).eq('id', itemId).eq('tenant_id', tenantId),
+    ]);
   }
 
   async correctItem(tenantId: string, itemId: string, corrections: Partial<StreamItem>): Promise<void> {
@@ -223,29 +218,21 @@ export class StreamAPI {
     if (corrections.priceNumeric) updateData.price_numeric = corrections.priceNumeric;
     if (corrections.areaSqft) updateData.area_sqft = corrections.areaSqft;
 
-    await supabase
-      .from('stream_items')
-      .update(updateData)
-      .eq('id', itemId)
-      .eq('tenant_id', tenantId);
+    await Promise.all([
+      supabase.from('stream_items_residential').update(updateData).eq('id', itemId).eq('tenant_id', tenantId),
+      supabase.from('stream_items_commercial').update(updateData).eq('id', itemId).eq('tenant_id', tenantId),
+    ]);
   }
 
   async getChannels(tenantId: string): Promise<StreamChannel[]> {
-    let { data, error } = await supabase
-      .from('stream_items')
-      .select('source_phone')
-      .eq('tenant_id', tenantId)
-      .eq('ingestion_status', 'accepted');
-
-    if (error && isMissingIngestionStatusError(error.message)) {
-      ({ data, error } = await supabase
-        .from('stream_items')
-        .select('source_phone')
-        .eq('tenant_id', tenantId));
-    }
-
-    if (error || !data) return [];
-    if (!Array.isArray(data)) return [];
+    const [resResult, comResult] = await Promise.all([
+      supabase.from('stream_items_residential').select('source_phone').eq('tenant_id', tenantId).eq('ingestion_status', 'accepted'),
+      supabase.from('stream_items_commercial').select('source_phone').eq('tenant_id', tenantId).eq('ingestion_status', 'accepted'),
+    ]);
+    const data = [
+      ...(Array.isArray(resResult.data) ? resResult.data : []),
+      ...(Array.isArray(comResult.data) ? comResult.data : []),
+    ];
 
     const channelMap = new Map<string, number>();
     data.forEach((item: any) => {

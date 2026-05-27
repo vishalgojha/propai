@@ -48,9 +48,11 @@ export class PropertyAPI {
       return query;
     };
 
+    const table = filters?.category === 'commercial' ? 'stream_items_commercial' : 'stream_items_residential';
+
     let query = applyFilters(
       supabase
-        .from('stream_items')
+        .from(table)
         .select('*')
         .eq('tenant_id', tenantId)
         .eq('ingestion_status', 'accepted')
@@ -60,7 +62,7 @@ export class PropertyAPI {
     if (error && isMissingIngestionStatusError(error.message)) {
       query = applyFilters(
         supabase
-          .from('stream_items')
+          .from(table)
           .select('*')
           .eq('tenant_id', tenantId)
       );

@@ -475,13 +475,17 @@ export const backfillListings = async (req: Request, res: Response) => {
       .select('id, raw_text');
     const existingRawTexts = new Set((existing || []).map((r: any) => (r.raw_text || '').trim()));
 
-    const { data: items, error } = await supabaseAdmin
-      .from('stream_items')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const [resItems, comItems] = await Promise.all([
+      supabaseAdmin.from('stream_items_residential').select('*').order('created_at', { ascending: false }),
+      supabaseAdmin.from('stream_items_commercial').select('*').order('created_at', { ascending: false }),
+    ]);
+    const items = [
+      ...(Array.isArray(resItems.data) ? resItems.data : []),
+      ...(Array.isArray(comItems.data) ? comItems.data : []),
+    ];
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
+    if (resItems.error || comItems.error) {
+      return res.status(500).json({ error: resItems.error?.message || comItems.error?.message });
     }
 
     if (!items || !items.length) {
@@ -567,13 +571,17 @@ export const backfillPublicListings = async (req: Request, res: Response) => {
       .select('source_message_id');
     const existingIds = new Set((existing || []).map((r: any) => r.source_message_id));
 
-    const { data: items, error } = await supabaseAdmin
-      .from('stream_items')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const [resItems, comItems] = await Promise.all([
+      supabaseAdmin.from('stream_items_residential').select('*').order('created_at', { ascending: false }),
+      supabaseAdmin.from('stream_items_commercial').select('*').order('created_at', { ascending: false }),
+    ]);
+    const items = [
+      ...(Array.isArray(resItems.data) ? resItems.data : []),
+      ...(Array.isArray(comItems.data) ? comItems.data : []),
+    ];
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
+    if (resItems.error || comItems.error) {
+      return res.status(500).json({ error: resItems.error?.message || comItems.error?.message });
     }
 
     if (!items || !items.length) {

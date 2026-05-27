@@ -55,8 +55,10 @@ async function upsertSyndicatedItems(
   for (const item of items) {
     const dedupKey = `syndicated:${item.external_id}`;
 
+    const targetTable = item.propertyCategory === 'commercial' ? 'stream_items_commercial' : 'stream_items_residential';
+
     const { data: existing } = await db!
-      .from('stream_items')
+      .from(targetTable)
       .select('id')
       .eq('tenant_id', acceptorTenantId)
       .eq('message_id', dedupKey)
@@ -68,7 +70,7 @@ async function upsertSyndicatedItems(
     }
 
     const { error: insertError } = await db!
-      .from('stream_items')
+      .from(targetTable)
       .insert({
         tenant_id: acceptorTenantId,
         message_id: dedupKey,

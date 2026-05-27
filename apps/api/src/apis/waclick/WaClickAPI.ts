@@ -108,12 +108,13 @@ export class WaClickAPI {
     }
 
     async getBrokerPhone(listingId: string, workspaceId: string): Promise<string | null> {
-        const { data, error } = await supabase
-            .from('stream_items')
-            .select('source_phone')
-            .eq('id', listingId);
+        const [resResult, comResult] = await Promise.all([
+            supabase.from('stream_items_residential').select('source_phone').eq('id', listingId),
+            supabase.from('stream_items_commercial').select('source_phone').eq('id', listingId),
+        ]);
+        const data = resResult.data?.[0] || comResult.data?.[0];
 
-        if (error || !data || !data.length) {
+        if (!data) {
             const { data: listingData } = await supabase
                 .from('listings')
                 .select('structured_data')
@@ -128,7 +129,7 @@ export class WaClickAPI {
             return null;
         }
 
-        return (data[0] as any).source_phone || null;
+        return (data as any).source_phone || null;
     }
 
     async getListingDetails(listingId: string): Promise<{
@@ -140,13 +141,13 @@ export class WaClickAPI {
         sourceLabel?: string;
         rawText?: string;
     } | null> {
-        const { data, error } = await supabase
-            .from('stream_items')
-            .select('type, locality, bhk, price_label, area_sqft, source_label, raw_text, source_phone, source_group_name')
-            .eq('id', listingId)
-            .single();
+        const [resResult, comResult] = await Promise.all([
+            supabase.from('stream_items_residential').select('type, locality, bhk, price_label, area_sqft, source_label, raw_text, source_phone, source_group_name').eq('id', listingId).single(),
+            supabase.from('stream_items_commercial').select('type, locality, bhk, price_label, area_sqft, source_label, raw_text, source_phone, source_group_name').eq('id', listingId).single(),
+        ]);
+        const data = resResult.data || comResult.data;
 
-        if (error || !data) {
+        if (!data) {
             return null;
         }
 

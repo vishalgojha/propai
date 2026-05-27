@@ -77,24 +77,22 @@ router.post('/post', async (req, res) => {
     // Validate limits
     if (body.type === 'listing') {
       const limit = await subscriptionService.getLimitForTenant(tenantId, plan, 'manualListings', userEmail);
-      const { count } = await supabaseAdmin
-        .from('stream_items')
-        .select('id', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId)
-        .eq('record_type', 'listing')
-        .eq('source', 'manual');
-      if (count != null && count >= limit) {
+      const [resCount, comCount] = await Promise.all([
+        supabaseAdmin.from('stream_items_residential').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('record_type', 'listing').eq('source', 'manual'),
+        supabaseAdmin.from('stream_items_commercial').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('record_type', 'listing').eq('source', 'manual'),
+      ]);
+      const count = (resCount.count || 0) + (comCount.count || 0);
+      if (count >= limit) {
         return res.status(403).json({ error: `Manual listing limit (${limit}) reached. Upgrade to increase.` });
       }
     } else {
       const limit = await subscriptionService.getLimitForTenant(tenantId, plan, 'manualRequirements', userEmail);
-      const { count } = await supabaseAdmin
-        .from('stream_items')
-        .select('id', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId)
-        .eq('record_type', 'requirement')
-        .eq('source', 'manual');
-      if (count != null && count >= limit) {
+      const [resCount, comCount] = await Promise.all([
+        supabaseAdmin.from('stream_items_residential').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('record_type', 'requirement').eq('source', 'manual'),
+        supabaseAdmin.from('stream_items_commercial').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('record_type', 'requirement').eq('source', 'manual'),
+      ]);
+      const count = (resCount.count || 0) + (comCount.count || 0);
+      if (count >= limit) {
         return res.status(403).json({ error: `Manual requirement limit (${limit}) reached. Upgrade to increase.` });
       }
     }
@@ -167,8 +165,10 @@ router.post('/post', async (req, res) => {
       created_at: new Date().toISOString(),
     };
 
+    const targetTable = streamRow.property_category === 'commercial' ? 'stream_items_commercial' : 'stream_items_residential';
+
     const { data, error } = await supabaseAdmin
-      .from('stream_items')
+      .from(targetTable)
       .insert(streamRow)
       .select('id')
       .single();

@@ -207,32 +207,18 @@ export class CanonicalizationService {
             };
         }
 
-        let query = db
-            .from('stream_items')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .order('created_at', { ascending: true })
-            .limit(limit);
+        const [resResult, comResult] = await Promise.all([
+            db.from('stream_items_residential').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: true }).limit(limit),
+            db.from('stream_items_commercial').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: true }).limit(limit),
+        ]);
+        const data = [
+            ...(Array.isArray(resResult.data) ? resResult.data : []),
+            ...(Array.isArray(comResult.data) ? comResult.data : []),
+        ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).slice(0, limit);
 
+        let filteredData = data;
         if (onlyMissing) {
-            query = query.is('canonical_record_id', null);
-        }
-
-        const { data, error } = await query;
-        if (error) {
-            if (this.disableForMissingSchema(error, 'canonicalization backfill query')) {
-                return {
-                    scanned: 0,
-                    processed: 0,
-                    new: 0,
-                    matched: 0,
-                    conflicted: 0,
-                    failed: 0,
-                    totalCanonicalizedStreamItems: 0,
-                    disabled: true,
-                };
-            }
-            throw new Error(error.message);
+            filteredData = data.filter((item: any) => !item.canonical_record_id);
         }
 
         const counts = {
@@ -258,11 +244,11 @@ export class CanonicalizationService {
             }
         }
 
-        const { count: canonicalizedCount } = await db
-            .from('stream_items')
-            .select('id', { count: 'exact', head: true })
-            .eq('tenant_id', tenantId)
-            .not('canonical_record_id', 'is', null);
+        const [resCount, comCount] = await Promise.all([
+            db.from('stream_items_residential').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).not('canonical_record_id', 'is', null),
+            db.from('stream_items_commercial').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).not('canonical_record_id', 'is', null),
+        ]);
+        const canonicalizedCount = (resCount.count || 0) + (comCount.count || 0);
 
         return {
             scanned: (data || []).length,
@@ -541,18 +527,19 @@ Return only this JSON:
     }
 
     private async updateStreamItem(streamItemId: string, canonicalRecordId: string, fingerprint: string, decision: MatchDecision) {
-        await db
-            .from('stream_items')
-            .update({
-                parser_version: 'stream_parser_v1',
-                semantic_fingerprint_text: fingerprint,
-                novelty_score: decision.decision === 'new' ? 1 : Math.max(0.05, 1 - decision.confidence),
-                duplicate_cluster_hint: fingerprint.slice(0, 120) || null,
-                canonical_record_id: canonicalRecordId,
-                canonical_match_confidence: decision.confidence,
-                canonical_decision: decision.decision === 'conflict' ? 'conflicted' : decision.decision === 'match' ? 'matched' : 'new',
-            })
-            .eq('id', streamItemId);
+        const updateData = {
+            parser_version: 'stream_parser_v1',
+            semantic_fingerprint_text: fingerprint,
+            novelty_score: decision.decision === 'new' ? 1 : Math.max(0.05, 1 - decision.confidence),
+            duplicate_cluster_hint: fingerprint.slice(0, 120) || null,
+            canonical_record_id: canonicalRecordId,
+            canonical_match_confidence: decision.confidence,
+            canonical_decision: decision.decision === 'conflict' ? 'conflicted' : decision.decision === 'match' ? 'matched' : 'new',
+        };
+        await Promise.all([
+            db.from('stream_items_residential').update(updateData).eq('id', streamItemId),
+            db.from('stream_items_commercial').update(updateData).eq('id', streamItemId),
+        ]);
     }
 
     private async updateSourceReliability(item: StreamRow, decision: MatchDecision, matched: boolean) {

@@ -87,10 +87,11 @@ async function resolveAndUpdateBuildingMetadata(params: {
     }
 
     if (Object.keys(streamUpdate).length > 0) {
-        const { error: streamUpdateError } = await admin
-            .from('stream_items')
-            .update(streamUpdate)
-            .eq('id', streamItemId);
+        const [resErr, comErr] = await Promise.all([
+            admin.from('stream_items_residential').update(streamUpdate).eq('id', streamItemId),
+            admin.from('stream_items_commercial').update(streamUpdate).eq('id', streamItemId),
+        ]);
+        const streamUpdateError = resErr.error || comErr.error;
 
         if (streamUpdateError) {
             throw new Error(streamUpdateError.message);
@@ -231,8 +232,9 @@ export const ingestListings = async (req: Request, res: Response) => {
                 if (item.embedding && Array.isArray(item.embedding) && splitRawTexts.length === 1) {
                     streamRow.embedding = item.embedding;
                 }
+                const targetTable = item.property_category === 'commercial' ? 'stream_items_commercial' : 'stream_items_residential';
                 const { data: insertedStreamItem, error: se } = await admin
-                    .from('stream_items')
+                    .from(targetTable)
                     .insert(streamRow)
                     .select('id')
                     .maybeSingle();

@@ -14,8 +14,17 @@ import { cleanNumber } from '../utils/number';
 type ChannelType = 'listing' | 'requirement' | 'mixed';
 type StreamType = 'Rent' | 'Sale' | 'Requirement' | 'Pre-leased' | 'Lease';
 type StreamConfidenceBand = 'low' | 'medium' | 'high';
-type StreamTimeBand = '1h' | '4h' | '1d' | '7d';
+type StreamTimeBand = '1h' | '1d' | '7d';
 type StreamFreshnessBand = '1h' | '6h';
+type StreamTable = 'stream_items_residential' | 'stream_items_commercial';
+
+const streamTableFor = (propertyCategory?: string | null, propertyUse?: string | null, assetClass?: string | null): StreamTable => {
+    const cat = (propertyCategory || assetClass || '').toLowerCase();
+    const use = (propertyUse || '').toLowerCase();
+    const commercialUses = ['office', 'retail', 'showroom', 'warehouse', 'industrial'];
+    if (cat === 'commercial' || commercialUses.includes(use)) return 'stream_items_commercial';
+    return 'stream_items_residential';
+};
 
 export type StreamListFilters = {
     search?: string | null;
@@ -91,6 +100,7 @@ export type StreamItemRecord = {
     furnishing?: string | null;
     floorNumber?: string | null;
     totalFloors?: string | null;
+    parking?: string | null;
     propertyUse?: string | null;
     posted: string;
     rawText?: string;
@@ -197,7 +207,6 @@ function getLargestTimeWindow(
     ];
     const hours = selected.map((band) => {
         if (band === '1h') return 1;
-        if (band === '4h') return 4;
         if (band === '6h') return 6;
         if (band === '1d') return 24;
         if (band === '7d') return 24 * 7;
@@ -500,13 +509,83 @@ export const extractTotalFloors = (text: string) => {
     return match?.[1] ? String(match[1]).trim() : null;
 };
 
+export const extractParking = (text: string) => {
+    const lower = text.toLowerCase();
+    
+    // Check for explicit parking patterns
+    const parkingPatterns = [
+        /(\d+)\s*(covered|open|car)?\s*parking/i,
+        /parking\s*[:\-]?\s*(\d+)/i,
+        /(\d+)\s*car\s*(parking|space|spot)/i,
+        /covered\s*parking/i,
+        /open\s*parking/i,
+        /dedicated\s*parking/i,
+        /parking\s*space/i,
+        /parking\s*available/i,
+    ];
+    
+    for (const pattern of parkingPatterns) {
+        const match = text.match(pattern);
+        if (match) {
+            // If we have a number, return it
+            if (match[1]) {
+                return `${match[1]} ${match[2] || 'parking'}`.trim();
+            }
+            // Otherwise return the type
+            return match[0];
+        }
+    }
+    
+    // Check for "parking" keyword without specifics
+    if (lower.includes('parking')) {
+        return 'parking';
+    }
+    
+    return null;
+};
+
 export const extractPropertyUse = (text: string) => {
-    if (/showroom/i.test(text)) return 'showroom';
-    if (/office/i.test(text)) return 'office';
-    if (/shop|retail/i.test(text)) return 'retail';
-    if (/warehouse|godown/i.test(text)) return 'warehouse';
-    if (/industrial/i.test(text)) return 'industrial';
-    if (/residential/i.test(text)) return 'residential';
+    const lower = text.toLowerCase();
+    
+    // Check for residential signals FIRST (higher priority than commercial keywords)
+    const residentialSignals = [
+        /\b\d+\s*bhk\b/i, /\b\d+\s*bed\b/i, /\bflat\b/i, /\bapartment\b/i,
+        /\balcony\b/i, /\bwardrobe\b/i, /\bbeds?\b/i, /\bkitchen\b/i,
+        /\bresidential\b/i, /\bsociety\b/i, /\btower\b/i, /\bwing\b/i,
+    ];
+    const hasResidentialSignal = residentialSignals.some(pattern => pattern.test(text));
+    
+    // Commercial keywords — only match if NO residential signals present
+    const commercialSignals = [
+        { pattern: /\bshowroom\b/i, value: 'showroom' },
+        { pattern: /\bshop\b|\bretail\b/i, value: 'retail' },
+        { pattern: /\bwarehouse\b|\bgodown\b/i, value: 'warehouse' },
+        { pattern: /\bindustrial\b/i, value: 'industrial' },
+        { pattern: /\boffice\b/i, value: 'office' },
+    ];
+    
+    // If residential signals present, prioritize residential
+    if (hasResidentialSignal) {
+        for (const { pattern, value } of commercialSignals) {
+            if (pattern.test(text)) {
+                // Check if commercial word is in a signature/footer context (last 3 lines)
+                const lines = text.split('\n');
+                const footerLines = lines.slice(-3).join('\n').toLowerCase();
+                if (pattern.test(footerLines) && lines.length > 2) {
+                    // Likely a broker signature, ignore
+                    continue;
+                }
+                return value;
+            }
+        }
+        return 'residential';
+    }
+    
+    // No residential signals — check commercial
+    for (const { pattern, value } of commercialSignals) {
+        if (pattern.test(text)) return value;
+    }
+    
     return null;
 };
 
@@ -739,6 +818,24 @@ const extractBuildingName = (text: string) => {
                 if (name.length >= 2) {
                     return titleCase(name);
                 }
+            }
+        }
+        
+        // Check for "in <name>" at end of line (e.g., "Available for Rent In Sunaina")
+        const lineEnd = afterIn.indexOf('\n');
+        if (lineEnd > 0) {
+            let name = afterIn.slice(0, lineEnd).trim();
+            // Remove trailing asterisks or other formatting
+            name = name.replace(/[*_~]+$/, '').trim();
+            if (name.length >= 2 && name.length < 50) {
+                return titleCase(name);
+            }
+        } else if (afterIn.trim().length > 0 && afterIn.trim().length < 50) {
+            // "in <name>" at end of text
+            let name = afterIn.trim();
+            name = name.replace(/[*_~]+$/, '').trim();
+            if (name.length >= 2) {
+                return titleCase(name);
             }
         }
     }
@@ -1196,6 +1293,7 @@ type ParsedStreamCandidate = {
     furnishing: 'unfurnished' | 'semi-furnished' | 'fully-furnished' | null;
     floorNumber: string | null;
     totalFloors: string | null;
+    parking: string | null;
     propertyUse: string | null;
     confidenceScore: number;
     messageHash: string;
@@ -1226,6 +1324,7 @@ type AIParsedStreamItem = {
     furnishing?: 'unfurnished' | 'semi-furnished' | 'fully-furnished' | 'furnished' | null;
     floorNumber?: string | null;
     totalFloors?: string | null;
+    parking?: string | null;
     propertyUse?: string | null;
     parseNotes?: string | null;
     confidence?: number | null;
@@ -1326,8 +1425,12 @@ export class ChannelService {
         const confidenceRange = getConfidenceRange(options?.filters);
 
         const buildQuery = (acceptedOnly: boolean) => {
+            const table = options?.filters?.category === 'commercial'
+                ? 'stream_items_commercial'
+                : 'stream_items_residential';
+
             let query = readClient
-                .from('stream_items')
+                .from(table)
                 .select('*')
                 .in('tenant_id', tenantIds);
 
@@ -1345,10 +1448,6 @@ export class ChannelService {
 
             if (typeFilters.length > 0) {
                 query = query.in('type', typeFilters);
-            }
-
-            if (options?.filters?.category) {
-                query = query.eq('property_category', options.filters.category);
             }
 
             if (searchParts.bhk) {
@@ -1427,16 +1526,14 @@ export class ChannelService {
         }
 
         if (result.data && Array.isArray(result.data) && result.data.length === 0 && initialSearch && hadStructuredFilters) {
-            const rawFallbackQ = this.buildQueryRawTextOnly(readClient, tenantIds, initialSearch, true, options?.limit);
-            const rawFallback = await rawFallbackQ;
-            if (rawFallback.error && isMissingIngestionStatusError(rawFallback.error.message)) {
-                const rawFallbackQ2 = this.buildQueryRawTextOnly(readClient, tenantIds, initialSearch, false, options?.limit);
-                const rawFallback2 = await rawFallbackQ2;
-                if (!rawFallback2.error && rawFallback2.data && Array.isArray(rawFallback2.data) && rawFallback2.data.length > 0) {
-                    result = rawFallback2;
+            const rawFallback = await this.buildQueryRawTextOnly(readClient, tenantIds, initialSearch, true, options?.limit);
+            if (Array.isArray(rawFallback) && rawFallback.length > 0) {
+                result = { data: rawFallback, error: null, count: rawFallback.length };
+            } else {
+                const rawFallback2 = await this.buildQueryRawTextOnly(readClient, tenantIds, initialSearch, false, options?.limit);
+                if (Array.isArray(rawFallback2) && rawFallback2.length > 0) {
+                    result = { data: rawFallback2, error: null, count: rawFallback2.length };
                 }
-            } else if (!rawFallback.error && rawFallback.data && Array.isArray(rawFallback.data) && rawFallback.data.length > 0) {
-                result = rawFallback;
             }
         }
 
@@ -1460,10 +1557,15 @@ export class ChannelService {
         createdAfter?: string;
         sessionGroupIds?: string[] | null;
         sessionLabel?: string | null;
+        category?: 'residential' | 'commercial' | null;
     }) {
+        const table = options?.category === 'commercial'
+            ? 'stream_items_commercial'
+            : 'stream_items_residential';
+
         const buildQuery = (acceptedOnly: boolean) => {
             let query = this.db
-                .from('stream_items')
+                .from(table)
                 .select('id', { count: 'exact', head: true })
                 .in('tenant_id', tenantIds);
 
@@ -2076,14 +2178,15 @@ private dailyBriefingSentKeys = new Set<string>();
         }
 
         if (isSuperAdmin) {
-            const { data, error } = await this.db
-                .from('stream_items')
-                .select('*')
-                .eq('ingestion_status', 'accepted')
-                .order('created_at', { ascending: false })
-                .limit(Math.max(effectiveLimit * 3, 400));
-            if (error) throw new Error(error.message);
-            return this.buildInboxMatchesFromRows(tenantId, Array.isArray(data) ? data : [], effectiveLimit);
+            const [resResult, comResult] = await Promise.all([
+                this.db.from('stream_items_residential').select('*').eq('ingestion_status', 'accepted').order('created_at', { ascending: false }).limit(Math.max(effectiveLimit * 3, 400)),
+                this.db.from('stream_items_commercial').select('*').eq('ingestion_status', 'accepted').order('created_at', { ascending: false }).limit(Math.max(effectiveLimit * 3, 400)),
+            ]);
+            const data = [
+                ...(Array.isArray(resResult.data) ? resResult.data : []),
+                ...(Array.isArray(comResult.data) ? comResult.data : []),
+            ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, Math.max(effectiveLimit * 3, 400));
+            return this.buildInboxMatchesFromRows(tenantId, data, effectiveLimit);
         }
 
         const { data, error } = await this.readAcceptedStreamItems(this.db, [tenantId], {
@@ -2332,20 +2435,17 @@ private dailyBriefingSentKeys = new Set<string>();
     }
 
     async correctStreamItem(tenantId: string, correctedBy: string, streamItemId: string, input: StreamCorrectionInput) {
-        const { data: existing, error: existingError } = await this.db
-            .from('stream_items')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .eq('id', streamItemId)
-            .maybeSingle();
-
-        if (existingError) {
-            throw new Error(existingError.message);
+        let existing: any = null;
+        for (const table of ['stream_items_residential', 'stream_items_commercial'] as const) {
+            const { data } = await this.db.from(table).select('*').eq('tenant_id', tenantId).eq('id', streamItemId).maybeSingle();
+            if (data) { existing = data; break; }
         }
 
         if (!existing) {
             throw new Error('Stream item not found');
         }
+
+        const targetTable = existing.property_category === 'commercial' ? 'stream_items_commercial' : 'stream_items_residential';
 
         const nextPayload = {
             ...(existing.parsed_payload || {}),
@@ -2375,7 +2475,7 @@ private dailyBriefingSentKeys = new Set<string>();
         };
 
         const { data: corrected, error: correctedError } = await this.db
-            .from('stream_items')
+            .from(targetTable)
             .update(update)
             .eq('tenant_id', tenantId)
             .eq('id', streamItemId)
@@ -2464,18 +2564,20 @@ private dailyBriefingSentKeys = new Set<string>();
         }
 
         const { data: streamItem, error: streamError } = await this.db
-            .from('stream_items')
-            .select('id, tenant_id')
+            .from('stream_items_residential')
+            .select('id, tenant_id, property_category')
             .eq('tenant_id', tenantId)
             .eq('id', streamItemId)
             .maybeSingle();
 
-        if (streamError) {
-            throw new Error(streamError.message);
-        }
-
         if (!streamItem) {
-            throw new Error('Stream item not found');
+            const { data: comItem } = await this.db
+                .from('stream_items_commercial')
+                .select('id, tenant_id, property_category')
+                .eq('tenant_id', tenantId)
+                .eq('id', streamItemId)
+                .maybeSingle();
+            if (comItem) { /* exists in commercial */ }
         }
 
         const { error } = await this.db
@@ -2517,9 +2619,10 @@ private dailyBriefingSentKeys = new Set<string>();
                 const windowMinutes = parsed.recordType === 'requirement' ? 24 * 60 : 10;
                 const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
                 const contentHash = buildStreamContentHash(parsed.rawText, parsed.sourcePhone);
+                const targetTable = streamTableFor(parsed.propertyCategory, parsed.propertyUse, parsed.assetClass);
 
                 const { data: exactDupe } = await this.db
-                    .from('stream_items')
+                    .from(targetTable)
                     .select('id, ingestion_status')
                     .eq('tenant_id', tenantId)
                     .eq('content_hash', contentHash)
@@ -2527,7 +2630,7 @@ private dailyBriefingSentKeys = new Set<string>();
 
                 if (exactDupe) {
                     await this.db
-                        .from('stream_items')
+                        .from(targetTable)
                         .update({
                             created_at: parsed.createdAt,
                             ingestion_status: 'accepted',
@@ -2541,7 +2644,7 @@ private dailyBriefingSentKeys = new Set<string>();
 
                 if (parsed.locality && parsed.priceNumeric != null) {
                     const query = this.db
-                        .from('stream_items')
+                        .from(targetTable)
                         .select('id, ingestion_status')
                         .eq('tenant_id', tenantId)
                         .eq('locality', parsed.locality)
@@ -2571,7 +2674,7 @@ private dailyBriefingSentKeys = new Set<string>();
 
                     if (dupe) {
                         await this.db
-                            .from('stream_items')
+                            .from(targetTable)
                             .update({
                                 created_at: parsed.createdAt,
                                 ingestion_status: 'accepted',
@@ -2605,8 +2708,10 @@ private dailyBriefingSentKeys = new Set<string>();
                 brokerContactValid: Boolean(parsed.sourcePhone),
             });
 
+            const targetTable = streamTableFor(parsed.propertyCategory, parsed.propertyUse, parsed.assetClass);
+
             const { data, error } = await this.db
-                .from('stream_items')
+                .from(targetTable)
                 .upsert({
                     tenant_id: tenantId,
                     session_label: message.session_label || 'workspace',
@@ -2633,6 +2738,7 @@ private dailyBriefingSentKeys = new Set<string>();
                     furnishing: parsed.furnishing,
                     floor_number: parsed.floorNumber,
                     total_floors: parsed.totalFloors,
+                    parking: parsed.parking,
                     property_use: parsed.propertyUse,
                     confidence_score: parsed.confidenceScore,
                     is_global: this.isGlobalStreamCandidate(parsed, isAccepted),
@@ -2836,42 +2942,52 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
              return;
          }
 
-         let streamQuery = this.db
-             .from('stream_items')
-             .select('id', { count: 'exact', head: true })
-             .eq('tenant_id', tenantId)
-             .eq('ingestion_status', 'accepted');
+          let streamQueryRes = this.db
+              .from('stream_items_residential')
+              .select('id', { count: 'exact', head: true })
+              .eq('tenant_id', tenantId)
+              .eq('ingestion_status', 'accepted');
 
-         if (sessionLabel) {
-             streamQuery = streamQuery.eq('session_label', sessionLabel);
-         }
+          if (sessionLabel) {
+              streamQueryRes = streamQueryRes.eq('session_label', sessionLabel);
+          }
 
-         const streamResult = await streamQuery;
-         const totalStreamItems = typeof streamResult.count === 'number' ? streamResult.count : 0;
+          let streamQueryCom = this.db
+              .from('stream_items_commercial')
+              .select('id', { count: 'exact', head: true })
+              .eq('tenant_id', tenantId)
+              .eq('ingestion_status', 'accepted');
 
-         // Only skip backfill if we have a meaningful portion already ingested
-         if (!streamResult.error && totalStreamItems >= Math.max(10, totalMessages * 0.5)) {
-             return;
-         }
+          if (sessionLabel) {
+              streamQueryCom = streamQueryCom.eq('session_label', sessionLabel);
+          }
 
-         try {
-              // Use cursor so each backfill processes messages after the latest stream item
-              const { data: latestItem } = sessionLabel
-                  ? await this.db
-                      .from('stream_items')
-                      .select('created_at')
-                      .eq('tenant_id', tenantId)
-                      .eq('session_label', sessionLabel)
-                      .order('created_at', { ascending: false })
-                      .limit(1)
-                      .maybeSingle()
-                  : await this.db
-                      .from('stream_items')
-                      .select('created_at')
-                      .eq('tenant_id', tenantId)
-                      .order('created_at', { ascending: false })
-                      .limit(1)
-                      .maybeSingle();
+          const [streamResultRes, streamResultCom] = await Promise.all([streamQueryRes, streamQueryCom]);
+          const totalStreamItems = (typeof streamResultRes.count === 'number' ? streamResultRes.count : 0)
+              + (typeof streamResultCom.count === 'number' ? streamResultCom.count : 0);
+
+          // Only skip backfill if we have a meaningful portion already ingested
+          if (!streamResultRes.error && totalStreamItems >= Math.max(10, totalMessages * 0.5)) {
+              return;
+          }
+
+          try {
+               const { data: latestItem } = sessionLabel
+                   ? await this.db
+                       .from('stream_items_residential')
+                       .select('created_at')
+                       .eq('tenant_id', tenantId)
+                       .eq('session_label', sessionLabel)
+                       .order('created_at', { ascending: false })
+                       .limit(1)
+                       .maybeSingle()
+                   : await this.db
+                       .from('stream_items_residential')
+                       .select('created_at')
+                       .eq('tenant_id', tenantId)
+                       .order('created_at', { ascending: false })
+                       .limit(1)
+                       .maybeSingle();
 
               const from = latestItem?.created_at || null;
 
@@ -2902,15 +3018,16 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
 
             const todayStart = new Date();
             todayStart.setHours(0, 0, 0, 0);
-            const { data: items, error } = await this.db
-                .from('stream_items')
-                .select('id, raw_text, type, record_type, confidence_score, locality, bhk, price_label')
-                .eq('tenant_id', tenantId)
-                .gte('created_at', todayStart.toISOString())
-                .order('confidence_score', { ascending: false })
-                .limit(5);
+            const [resResult, comResult] = await Promise.all([
+                this.db.from('stream_items_residential').select('id, raw_text, type, record_type, confidence_score, locality, bhk, price_label').eq('tenant_id', tenantId).gte('created_at', todayStart.toISOString()).order('confidence_score', { ascending: false }).limit(5),
+                this.db.from('stream_items_commercial').select('id, raw_text, type, record_type, confidence_score, locality, bhk, price_label').eq('tenant_id', tenantId).gte('created_at', todayStart.toISOString()).order('confidence_score', { ascending: false }).limit(5),
+            ]);
+            const items = [
+                ...(Array.isArray(resResult.data) ? resResult.data : []),
+                ...(Array.isArray(comResult.data) ? comResult.data : []),
+            ].sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0)).slice(0, 5);
 
-            if (error || !items || items.length === 0) {
+            if (!items || items.length === 0) {
                 return;
             }
 
@@ -3143,6 +3260,7 @@ ${rawText}
                 const furnishing = normalizeFurnishing(item.furnishing) || normalizeFurnishing(candidateText);
                 const floorNumber = String(item.floorNumber || '').trim() || extractFloorNumber(candidateText);
                 const totalFloors = String(item.totalFloors || '').trim() || extractTotalFloors(candidateText);
+                const parking = String(item.parking || '').trim() || extractParking(candidateText);
                 const propertyUse = String(item.propertyUse || '').trim() || extractPropertyUse(candidateText);
                 const confidence = Math.max(0, Math.min(100, Number(item.confidence || 0))) || calculateConfidence(candidateText, {
                     location: locality,
@@ -3180,6 +3298,7 @@ ${rawText}
                     furnishing,
                     floorNumber: floorNumber || null,
                     totalFloors: totalFloors || null,
+                    parking: parking || null,
                     propertyUse: propertyUse || null,
                     confidenceScore: confidence,
                     messageHash: buildStreamContentHash(candidateText, sourcePhone),
@@ -3263,6 +3382,7 @@ ${rawText}
             const furnishing = normalizeFurnishing(candidateText);
             const floorNumber = extractFloorNumber(candidateText);
             const totalFloors = extractTotalFloors(candidateText);
+            const parking = extractParking(candidateText);
             const propertyUse = extractPropertyUse(candidateText);
             const completeness = computeStreamCompleteness({
                 locality: location,
@@ -3293,6 +3413,7 @@ ${rawText}
                 furnishing,
                 floorNumber,
                 totalFloors,
+                parking,
                 propertyUse,
                 confidenceScore: calculateConfidence(candidateText, {
                     location: location || '',
@@ -3982,6 +4103,7 @@ ${rawText}
             furnishing: normalizeFurnishing(item.furnishing) || normalizeFurnishing(item.parsed_payload?.furnishing) || normalizeFurnishing(rawText),
             floorNumber: String(item.floor_number || '').trim() || extractFloorNumber(rawText),
             totalFloors: String(item.total_floors || '').trim() || extractTotalFloors(rawText),
+            parking: String(item.parking || '').trim() || extractParking(rawText),
             propertyUse: String(item.property_use || '').trim() || extractPropertyUse(rawText),
             posted: formatPostedTime(item.created_at),
             createdAt: item.created_at,
@@ -4160,8 +4282,18 @@ ${rawText}
 
     private async buildQueryRawTextOnly(readClient: any, tenantIds: string[], searchQuery: string, acceptedOnly: boolean, limit?: number) {
         const pattern = escapePostgrestPattern(searchQuery);
+        const [resResult, comResult] = await Promise.all([
+            this.buildSingleTableQuery(readClient, 'stream_items_residential', tenantIds, pattern, acceptedOnly, limit),
+            this.buildSingleTableQuery(readClient, 'stream_items_commercial', tenantIds, pattern, acceptedOnly, limit),
+        ]);
+        return [...(Array.isArray(resResult) ? resResult : []), ...(Array.isArray(comResult) ? comResult : [])]
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .slice(0, limit ?? 100);
+    }
+
+    private async buildSingleTableQuery(readClient: any, table: string, tenantIds: string[], pattern: string, acceptedOnly: boolean, limit?: number) {
         let query = readClient
-            .from('stream_items')
+            .from(table)
             .select('*')
             .in('tenant_id', tenantIds)
             .ilike('raw_text', `%${pattern}%`);
@@ -4170,7 +4302,6 @@ ${rawText}
             query = query.eq('ingestion_status', 'accepted');
         }
 
-        // Quality filters
         query = query.not('locality', 'in', '("Mumbai market","Mumbai","Navi Mumbai","Thane","Pune")');
         query = query.or('type.neq.Rent,price_numeric.lte.500000000,price_numeric.is.null');
         query = query.or('type.neq.Rent,price_numeric.lte.5000000,price_numeric.is.null');
@@ -4182,7 +4313,8 @@ ${rawText}
             query = query.limit(limit);
         }
 
-        return query;
+        const { data } = await query;
+        return data || [];
     }
 }
 

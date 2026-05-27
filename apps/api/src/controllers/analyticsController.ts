@@ -82,24 +82,33 @@ async function queryStreamItems(tenantId: string, periodStart: string, allAccoun
     const withMatchesSelect = `${baseSelect}, channel_items(id, tenant_id)`;
     const safeWithMatchesSelect = `${safeSelect}, channel_items(id, tenant_id)`;
 
-    const run = (excludeSuppressed: boolean, includeMatches: boolean, safeColumns = false) => {
-        let query = db
-            .from('stream_items')
-            .select(safeColumns ? (includeMatches ? safeWithMatchesSelect : safeSelect) : (includeMatches ? withMatchesSelect : baseSelect))
-            .gte('created_at', periodStart)
-            .order('created_at', { ascending: false })
-            .limit(10000);
+    const run = async (excludeSuppressed: boolean, includeMatches: boolean, safeColumns = false) => {
+        const buildQuery = (table: string) => {
+            let query = db
+                .from(table)
+                .select(safeColumns ? (includeMatches ? safeWithMatchesSelect : safeSelect) : (includeMatches ? withMatchesSelect : baseSelect))
+                .gte('created_at', periodStart)
+                .order('created_at', { ascending: false })
+                .limit(10000);
 
-        if (!allAccounts) {
-            query = query.eq('tenant_id', tenantId);
-        }
+            if (!allAccounts) {
+                query = query.eq('tenant_id', tenantId);
+            }
 
-        if (excludeSuppressed) {
-            query = query.not('ingestion_status', 'like', 'suppressed%');
-            query = query.neq('ingestion_status', 'price_error');
-        }
+            if (excludeSuppressed) {
+                query = query.not('ingestion_status', 'like', 'suppressed%');
+                query = query.neq('ingestion_status', 'price_error');
+            }
 
-        return query;
+            return query;
+        };
+
+        const [resResult, comResult] = await Promise.all([buildQuery('stream_items_residential'), buildQuery('stream_items_commercial')]);
+        const combinedData = [
+            ...(Array.isArray(resResult.data) ? resResult.data : []),
+            ...(Array.isArray(comResult.data) ? comResult.data : []),
+        ];
+        return { data: combinedData, error: resResult.error || comResult.error };
     };
 
     let result = await run(true, true);

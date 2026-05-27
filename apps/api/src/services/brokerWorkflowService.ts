@@ -218,15 +218,16 @@ export class BrokerWorkflowService {
             .map((token) => token.trim())
             .filter((token) => token.length >= 2 && !['in', 'at', 'for', 'and', 'the', 'with', 'from'].includes(token));
 
-        const { data, error } = await this.admin
-            .from('stream_items')
-            .select('id, locality, city, bhk, price_label, price_numeric, property_category, area_sqft, raw_text, created_at, confidence_score, source_phone, parsed_payload, record_type')
-            .eq('tenant_id', tenantId)
-            .eq('record_type', 'listing')
-            .order('created_at', { ascending: false })
-            .limit(250);
+        const [resResult, comResult] = await Promise.all([
+            this.admin.from('stream_items_residential').select('id, locality, city, bhk, price_label, price_numeric, property_category, area_sqft, raw_text, created_at, confidence_score, source_phone, parsed_payload, record_type').eq('tenant_id', tenantId).eq('record_type', 'listing').order('created_at', { ascending: false }).limit(250),
+            this.admin.from('stream_items_commercial').select('id, locality, city, bhk, price_label, price_numeric, property_category, area_sqft, raw_text, created_at, confidence_score, source_phone, parsed_payload, record_type').eq('tenant_id', tenantId).eq('record_type', 'listing').order('created_at', { ascending: false }).limit(250),
+        ]);
+        const data = [
+            ...(Array.isArray(resResult.data) ? resResult.data : []),
+            ...(Array.isArray(comResult.data) ? comResult.data : []),
+        ];
 
-        if (error || !data) {
+        if (!data || data.length === 0) {
             return [];
         }
 
@@ -577,19 +578,20 @@ export class BrokerWorkflowService {
 
     private async searchListings(tenantId: string, prompt: string): Promise<WorkflowResult> {
         const criteria = this.buildSearchCriteria(prompt);
-        const { data, error } = await this.admin
-            .from('stream_items')
-            .select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status, building_name, broker_name')
-            .eq('tenant_id', tenantId)
-            .eq('record_type', 'listing')
-            .not('ingestion_status', 'in', '("suppressed","expired")')
-            .order('created_at', { ascending: false })
-            .limit(250);
+        const [resResult, comResult] = await Promise.all([
+            this.admin.from('stream_items_residential').select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status, building_name, broker_name').eq('tenant_id', tenantId).eq('record_type', 'listing').not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(250),
+            this.admin.from('stream_items_commercial').select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status, building_name, broker_name').eq('tenant_id', tenantId).eq('record_type', 'listing').not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(250),
+        ]);
+        const data = [
+            ...(Array.isArray(resResult.data) ? resResult.data : []),
+            ...(Array.isArray(comResult.data) ? comResult.data : []),
+        ];
 
-        if (error) {
+        if (resResult.error || comResult.error) {
+            const errMsg = resResult.error?.message || comResult.error?.message || 'Unknown error';
             return {
                 handled: true,
-                reply: `I couldn't search Stream right now: ${error.message}`,
+                reply: `I couldn't search Stream right now: ${errMsg}`,
                 data: { type: 'search_failed' },
             };
         }
@@ -973,19 +975,20 @@ export class BrokerWorkflowService {
             wantsRequirementOnly: false,
         };
 
-        const { data, error } = await this.admin
-            .from('stream_items')
-            .select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status, building_name, broker_name')
-            .eq('tenant_id', tenantId)
-            .eq('record_type', 'listing')
-            .not('ingestion_status', 'in', '("suppressed","expired")')
-            .order('created_at', { ascending: false })
-            .limit(250);
+        const [resResult, comResult] = await Promise.all([
+            this.admin.from('stream_items_residential').select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status, building_name, broker_name').eq('tenant_id', tenantId).eq('record_type', 'listing').not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(250),
+            this.admin.from('stream_items_commercial').select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status, building_name, broker_name').eq('tenant_id', tenantId).eq('record_type', 'listing').not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(250),
+        ]);
+        const data = [
+            ...(Array.isArray(resResult.data) ? resResult.data : []),
+            ...(Array.isArray(comResult.data) ? comResult.data : []),
+        ];
 
-        if (error) {
+        if (resResult.error || comResult.error) {
+            const errMsg = resResult.error?.message || comResult.error?.message || 'Unknown error';
             return {
                 handled: true,
-                reply: `I couldn't search broker matches right now: ${error.message}`,
+                reply: `I couldn't search broker matches right now: ${errMsg}`,
                 data: { type: 'requirement_match_failed' },
             };
         }

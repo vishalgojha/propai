@@ -53,17 +53,17 @@ export async function runGenerateMarketInsights(now = new Date()) {
 
   for (const locality of TOP_LOCALITIES) {
     try {
-      const { data, error } = await supabaseAdmin
-        .from('stream_items')
-        .select('type, bhk, price_numeric, price_label, created_at')
-        .ilike('locality', `%${locality.name}%`)
-        .gte('created_at', periodStart.toISOString())
-        .lte('created_at', periodEnd.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(200);
+      const [resResult, comResult] = await Promise.all([
+        supabaseAdmin.from('stream_items_residential').select('type, bhk, price_numeric, price_label, created_at').ilike('locality', `%${locality.name}%`).gte('created_at', periodStart.toISOString()).lte('created_at', periodEnd.toISOString()).order('created_at', { ascending: false }).limit(200),
+        supabaseAdmin.from('stream_items_commercial').select('type, bhk, price_numeric, price_label, created_at').ilike('locality', `%${locality.name}%`).gte('created_at', periodStart.toISOString()).lte('created_at', periodEnd.toISOString()).order('created_at', { ascending: false }).limit(200),
+      ]);
+      const data = [
+        ...(Array.isArray(resResult.data) ? resResult.data : []),
+        ...(Array.isArray(comResult.data) ? comResult.data : []),
+      ];
 
-      if (error) {
-        console.error('[MarketInsights] Failed to fetch stream items', { locality: locality.name, error });
+      if (resResult.error || comResult.error) {
+        console.error('[MarketInsights] Failed to fetch stream items', { locality: locality.name, error: resResult.error || comResult.error });
         continue;
       }
 

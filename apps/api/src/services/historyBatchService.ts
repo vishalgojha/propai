@@ -349,11 +349,15 @@ export class HistoryBatchService {
             if (ingestedCount > 0) {
               parsed += ingestedCount;
 
-              const { data: streamRows, error: streamError } = await db
-                .from('stream_items')
-                .select('record_type, raw_text, price_label, locality, bhk')
-                .eq('tenant_id', profileId)
-                .eq('source_message_id', message.id);
+              const [resRows, comRows] = await Promise.all([
+                db.from('stream_items_residential').select('record_type, raw_text, price_label, locality, bhk').eq('tenant_id', profileId).eq('source_message_id', message.id),
+                db.from('stream_items_commercial').select('record_type, raw_text, price_label, locality, bhk').eq('tenant_id', profileId).eq('source_message_id', message.id),
+              ]);
+              const streamRows = [
+                ...(Array.isArray(resRows.data) ? resRows.data : []),
+                ...(Array.isArray(comRows.data) ? comRows.data : []),
+              ];
+              const streamError = resRows.error || comRows.error;
 
               if (!streamError && Array.isArray(streamRows)) {
                 const summary = summarizeStreamRows(streamRows, message.text);

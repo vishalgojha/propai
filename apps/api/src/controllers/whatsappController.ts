@@ -1541,16 +1541,17 @@ export const getGroupStreamItems = async (req: Request, res: Response) => {
         const context = await workspaceAccessService.resolveContext(req.user ?? {});
         const db = supabaseAdmin || supabase;
 
-        const { data, error } = await db
-            .from('stream_items')
-            .select('id, source_group_id, source_group_name, raw_text, type, record_type, locality, city, bhk, price_label, price_numeric, deal_type, asset_class, confidence_score, ingestion_status, created_at')
-            .eq('tenant_id', context.workspaceOwnerId)
-            .eq('source_group_id', groupJid)
-            .order('created_at', { ascending: false })
-            .limit(limit);
+        const [resResult, comResult] = await Promise.all([
+            db.from('stream_items_residential').select('id, source_group_id, source_group_name, raw_text, type, record_type, locality, city, bhk, price_label, price_numeric, deal_type, asset_class, confidence_score, ingestion_status, created_at').eq('tenant_id', context.workspaceOwnerId).eq('source_group_id', groupJid).order('created_at', { ascending: false }).limit(limit),
+            db.from('stream_items_commercial').select('id, source_group_id, source_group_name, raw_text, type, record_type, locality, city, bhk, price_label, price_numeric, deal_type, asset_class, confidence_score, ingestion_status, created_at').eq('tenant_id', context.workspaceOwnerId).eq('source_group_id', groupJid).order('created_at', { ascending: false }).limit(limit),
+        ]);
+        const data = [
+            ...(Array.isArray(resResult.data) ? resResult.data : []),
+            ...(Array.isArray(comResult.data) ? comResult.data : []),
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, limit);
 
-        if (error) {
-            return res.status(500).json({ error: error.message });
+        if (resResult.error || comResult.error) {
+            return res.status(500).json({ error: resResult.error?.message || comResult.error?.message });
         }
 
         res.json({ success: true, items: data || [] });

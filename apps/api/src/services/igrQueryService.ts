@@ -295,16 +295,14 @@ export class IgrQueryService {
     const { data: igrData, error: igrError } = await igrQuery;
     if (igrError) throw new Error(igrError.message);
 
-    let streamQuery = getClient()
-      .from('stream_items')
-      .select('building_name');
-
-    if (searchTerm) {
-      streamQuery = streamQuery.ilike('building_name', `%${searchTerm}%`);
-    }
-
-    const { data: streamData, error: streamError } = await streamQuery;
-    if (streamError) throw new Error(streamError.message);
+    const [resStream, comStream] = await Promise.all([
+      getClient().from('stream_items_residential').select('building_name').ilike('building_name', `%${searchTerm || ''}%`),
+      getClient().from('stream_items_commercial').select('building_name').ilike('building_name', `%${searchTerm || ''}%`),
+    ]);
+    const streamData = [
+      ...(Array.isArray(resStream.data) ? resStream.data : []),
+      ...(Array.isArray(comStream.data) ? comStream.data : []),
+    ];
 
     const freq = new Map<string, number>();
     for (const row of (igrData || []) as Array<{ building_name: string | null }>) {

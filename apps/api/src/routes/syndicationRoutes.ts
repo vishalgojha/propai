@@ -194,17 +194,17 @@ router.get('/feed', async (req, res) => {
     };
     const allowedTypes = scope.flatMap((s: string) => typeMap[s.toLowerCase()] || []);
 
-    const { data: items, error: itemsError } = await supabaseAdmin!
-      .from('stream_items')
-      .select('id, type, locality, city, bhk, price_numeric, price_label, area_sqft, property_category, furnishing, floor_number, total_floors, parsed_payload, raw_text, created_at')
-      .eq('tenant_id', workspaceId)
-      .in('type', allowedTypes)
-      .not('ingestion_status', 'in', '("suppressed","expired")')
-      .order('created_at', { ascending: false })
-      .limit(100);
+    const [resResult, comResult] = await Promise.all([
+      supabaseAdmin!.from('stream_items_residential').select('id, type, locality, city, bhk, price_numeric, price_label, area_sqft, property_category, furnishing, floor_number, total_floors, parsed_payload, raw_text, created_at').eq('tenant_id', workspaceId).in('type', allowedTypes).not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(100),
+      supabaseAdmin!.from('stream_items_commercial').select('id, type, locality, city, bhk, price_numeric, price_label, area_sqft, property_category, furnishing, floor_number, total_floors, parsed_payload, raw_text, created_at').eq('tenant_id', workspaceId).in('type', allowedTypes).not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(100),
+    ]);
+    const items = [
+      ...(Array.isArray(resResult.data) ? resResult.data : []),
+      ...(Array.isArray(comResult.data) ? comResult.data : []),
+    ];
 
-    if (itemsError) {
-      console.error('[Syndication] Feed query failed:', itemsError);
+    if (resResult.error || comResult.error) {
+      console.error('[Syndication] Feed query failed:', resResult.error || comResult.error);
       return res.status(500).json({ error: 'Failed to fetch feed' });
     }
 

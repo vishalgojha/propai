@@ -110,15 +110,14 @@ app.get(ROUTE_PATHS.api.examplePrompts, async (req, res) => {
       return res.json({ prompts: staticFallback() });
     }
     const sb = createClient(sbUrl, sbKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
-    const { data } = await sb
-      .from('stream_items')
-      .select('bhk, locality, price_label, record_type, city')
-      .neq('record_type', 'buyer_requirement')
-      .not('bhk', 'is', null)
-      .not('locality', 'is', null)
-      .not('price_label', 'is', null)
-      .limit(20)
-      .order('created_at', { ascending: false });
+    const [resData, comData] = await Promise.all([
+      sb.from('stream_items_residential').select('bhk, locality, price_label, record_type, city').neq('record_type', 'buyer_requirement').not('bhk', 'is', null).not('locality', 'is', null).not('price_label', 'is', null).limit(20).order('created_at', { ascending: false }),
+      sb.from('stream_items_commercial').select('bhk, locality, price_label, record_type, city').neq('record_type', 'buyer_requirement').not('bhk', 'is', null).not('locality', 'is', null).not('price_label', 'is', null).limit(20).order('created_at', { ascending: false }),
+    ]);
+    const data = [
+      ...(Array.isArray(resData.data) ? resData.data : []),
+      ...(Array.isArray(comData.data) ? comData.data : []),
+    ];
 
     if (!data || !data.length) {
       return res.json({ prompts: staticFallback() });

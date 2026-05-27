@@ -33,14 +33,17 @@ export class CorrectionService {
       };
     }
 
-    const { data: items, error: findError } = await db
-      .from('stream_items')
-      .select('id, building_name, locality, city')
-      .eq('tenant_id', tenantId)
-      .or(`building_name.ilike.%${buildingName}%,raw_text.ilike.%${buildingName}%`);
+    const [resItems, comItems] = await Promise.all([
+      db.from('stream_items_residential').select('id, building_name, locality, city, property_category').eq('tenant_id', tenantId).or(`building_name.ilike.%${buildingName}%,raw_text.ilike.%${buildingName}%`),
+      db.from('stream_items_commercial').select('id, building_name, locality, city, property_category').eq('tenant_id', tenantId).or(`building_name.ilike.%${buildingName}%,raw_text.ilike.%${buildingName}%`),
+    ]);
+    const items = [
+      ...(Array.isArray(resItems.data) ? resItems.data : []),
+      ...(Array.isArray(comItems.data) ? comItems.data : []),
+    ];
 
-    if (findError) {
-      console.error('[Correction] Search failed:', findError);
+    if (resItems.error && comItems.error) {
+      console.error('[Correction] Search failed:', resItems.error, comItems.error);
       return { updatedItems: 0, updatedCanonicals: 0, summary: 'Something went wrong while searching your records.' };
     }
 
@@ -60,8 +63,9 @@ export class CorrectionService {
       const updatePayload: Record<string, unknown> = {};
       updatePayload[streamField] = newValue;
 
+      const table = item.property_category === 'commercial' ? 'stream_items_commercial' : 'stream_items_residential';
       const { error: updateError } = await db
-        .from('stream_items')
+        .from(table)
         .update(updatePayload)
         .eq('id', item.id)
         .eq('tenant_id', tenantId);
