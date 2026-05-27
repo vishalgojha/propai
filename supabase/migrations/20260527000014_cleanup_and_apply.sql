@@ -1,12 +1,32 @@
--- Unified search: pg_trgm fuzzy matching + search reference table
--- Enables "Did you mean?" suggestions and fast locality/building search
+-- Clean up duplicate migration entries and apply pending migrations
+-- This migration fixes the schema_migrations table and applies the actual SQL
 
--- ── Enable pg_trgm for fuzzy matching ──────────────────────────────────────
+-- Step 1: Delete duplicate entries from schema_migrations
+-- Keep only the first occurrence of each version
+DELETE FROM supabase_migrations.schema_migrations 
+WHERE ctid NOT IN (
+    SELECT MIN(ctid) 
+    FROM supabase_migrations.schema_migrations 
+    GROUP BY version
+);
+
+-- Step 2: Add commercial columns to stream_items_commercial
+alter table stream_items_commercial
+    add column if not exists commercial_type text,
+    add column if not exists fitout_status text,
+    add column if not exists workstations_count integer,
+    add column if not exists cabins_count integer;
+
+create index if not exists idx_stream_com_commercial_type
+    on stream_items_commercial (commercial_type);
+
+create index if not exists idx_stream_com_fitout_status
+    on stream_items_commercial (fitout_status);
+
+-- Step 3: Enable pg_trgm for fuzzy matching
 create extension if not exists pg_trgm;
 
--- ── Search reference table ─────────────────────────────────────────────────
--- Populated from existing stream data + manual entries
--- Used for fuzzy matching "Did you mean?" suggestions
+-- Step 4: Create search reference table
 create table if not exists search_reference (
     id uuid primary key default gen_random_uuid(),
     term text not null,
@@ -18,16 +38,13 @@ create table if not exists search_reference (
     unique (term, term_type, city)
 );
 
--- GIN trigram index for fuzzy matching
 create index if not exists idx_search_reference_trgm
     on search_reference using gin (term gin_trgm_ops);
 
--- Index for exact lookups
 create index if not exists idx_search_reference_type
     on search_reference (term_type, city);
 
--- ── Seed from existing stream data ─────────────────────────────────────────
--- Insert distinct localities from both stream tables
+-- Step 5: Seed from existing stream data
 insert into search_reference (term, term_type, standard_form, city, popularity)
 select distinct lower(locality), 'locality', locality, coalesce(city, 'Mumbai'), count(*)
 from stream_items_residential
@@ -42,7 +59,6 @@ where locality is not null and length(locality) > 2
 group by locality, city
 on conflict (term, term_type, city) do update set popularity = excluded.popularity;
 
--- Insert distinct building names
 insert into search_reference (term, term_type, standard_form, city, popularity)
 select distinct lower(building_name), 'building', building_name, 'Mumbai', count(*)
 from stream_items_residential
@@ -57,8 +73,7 @@ where building_name is not null and length(building_name) > 2
 group by building_name
 on conflict (term, term_type, city) do update set popularity = excluded.popularity;
 
--- ── Fuzzy search function ──────────────────────────────────────────────────
--- Returns "Did you mean?" suggestions for a search term
+-- Step 6: Create fuzzy search function
 create or replace function fuzzy_search_suggestions(
     search_term text,
     min_similarity float default 0.3,
@@ -82,7 +97,7 @@ begin
 end;
 $$ language plpgsql;
 
--- ── Auto-update reference table on new stream items ────────────────────────
+-- Step 7: Create sync triggers
 create or replace function sync_search_reference_res()
 returns trigger as $$
 begin
