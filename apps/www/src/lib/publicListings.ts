@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { parsePrice } from "@propai/price-parser";
 import { supabaseAdmin } from "@/lib/supabase.server";
+import { neighbouringLocalities, slugifyLocalityName } from "../../lib/localities";
 
 // Standard locality names from mumbai-localities.ts (API side)
 const STANDARD_LOCALITIES = new Set([
@@ -576,7 +577,12 @@ export async function fetchTodayParsedCount(): Promise<number> {
 
 export type CityLocality = {
   city: string;
-  localities: { name: string; count: number }[];
+  localities: {
+    name: string;
+    slug: string;
+    count: number;
+    related: { name: string; slug: string; count: number }[];
+  }[];
 };
 
 const FOOTER_KNOWN_LOCALITIES = new Set([
@@ -631,20 +637,38 @@ export async function fetchLocalitiesForFooter(minCount = 2): Promise<CityLocali
       .neq("locality", "")
       .limit(5000);
     if (error || !data) return [];
-    const raw = (data as any[]).reduce<Record<string, { city: string | null; count: number }>>((acc, row) => {
+    const raw = (data as any[]).reduce<Record<string, { name: string; slug: string; city: string | null; count: number }>>((acc, row) => {
       const loc = String(row.locality || "").trim();
       if (!isValidFooterLocality(loc)) return acc;
       const key = loc.toLowerCase();
-      if (!acc[key]) acc[key] = { city: String(row.city || "").trim() || null, count: 0 };
+      if (!acc[key]) acc[key] = {
+        name: loc.replace(/\b\w/g, (c) => c.toUpperCase()),
+        slug: slugifyLocalityName(loc),
+        city: String(row.city || "").trim() || null,
+        count: 0,
+      };
       acc[key].count++;
       return acc;
-    }, {} as Record<string, { city: string | null; count: number }>);
-    const cityMap = new Map<string, { name: string; count: number }[]>();
-    for (const [key, val] of Object.entries(raw) as [string, { city: string | null; count: number }][]) {
+    }, {} as Record<string, { name: string; slug: string; city: string | null; count: number }>);
+    const cityMap = new Map<string, { name: string; slug: string; count: number; related: { name: string; slug: string; count: number }[] }[]>();
+    for (const [key, val] of Object.entries(raw) as [string, { name: string; slug: string; city: string | null; count: number }][]) {
       if (val.count < minCount) continue;
       const city = inferFooterCity(key, val.city);
       if (!cityMap.has(city)) cityMap.set(city, []);
-      cityMap.get(city)!.push({ name: key.replace(/\b\w/g, (c) => c.toUpperCase()), count: val.count });
+      const related = neighbouringLocalities(val.slug, 2)
+        .map((locality) => {
+          const relatedKey = locality.name.toLowerCase();
+          const relatedRow = raw[relatedKey];
+          if (!relatedRow) return null;
+          return {
+            name: relatedRow.name,
+            slug: relatedRow.slug,
+            count: relatedRow.count,
+          };
+        })
+        .filter((item): item is { name: string; slug: string; count: number } => Boolean(item));
+
+      cityMap.get(city)!.push({ name: val.name, slug: val.slug, count: val.count, related });
     }
     const result: CityLocality[] = [];
     const CITIES = ["Mumbai", "Thane", "Navi Mumbai", "Pune"];

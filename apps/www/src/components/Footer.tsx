@@ -50,26 +50,50 @@ export default async function Footer() {
           </div>
         </div>
 
-        {/* Bottom row: SEO locality grid */}
+        {/* Bottom row: relational locality grid */}
         {cities.length > 0 && (
           <div className="pt-14">
-            <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-8">Browse properties by locality</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-8 gap-y-10">
+            <h2 className="mb-8 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Related markets</h2>
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-4">
               {cities.map((cityGroup) => (
-                <div key={cityGroup.city}>
-                  <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)] mb-3">{cityGroup.city}</h3>
-                  <ul className="space-y-1.5">
-                    {cityGroup.localities.slice(0, 20).map((loc) => (
-                      <li key={loc.name}>
-                        <Link
-                          href={`/listings?locality=${encodeURIComponent(loc.name)}`}
-                          className="text-[12px] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors"
-                        >
-                          {loc.name}
-                        </Link>
-                      </li>
+                <div key={cityGroup.city} className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">{cityGroup.city}</h3>
+                  <div className="mt-4 space-y-3">
+                    {cityGroup.localities.slice(0, 8).map((loc) => (
+                      <div key={loc.slug} className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-3 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <Link
+                              href={`/listings?locality=${encodeURIComponent(loc.name)}`}
+                              className="text-[13px] font-semibold text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors"
+                            >
+                              {loc.name}
+                            </Link>
+                            <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">{loc.count} live item{loc.count === 1 ? '' : 's'}</p>
+                          </div>
+                          <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                            Nearby
+                          </span>
+                        </div>
+                        {loc.related.length > 0 ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {loc.related.map((related) => (
+                              <Link
+                                key={related.slug}
+                                href={`/listings?locality=${encodeURIComponent(related.name)}`}
+                                className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)] hover:border-[color:var(--accent-border)] hover:text-[var(--accent)] transition-colors"
+                              >
+                                <span>{related.name}</span>
+                                <span className="text-[10px] text-[var(--text-muted)]">{related.count}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-[11px] text-[var(--text-muted)]">No nearby market links found yet.</p>
+                        )}
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               ))}
             </div>
