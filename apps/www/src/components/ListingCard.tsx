@@ -48,8 +48,9 @@ export default function ListingCard({ listing }: ListingCardProps) {
 
   return (
     <Link href={`/listings/${listing.slug}`} className="group block animate-stream-in">
-      <div className="h-full bg-[var(--bg-surface)] rounded-[28px] p-7 transition-all duration-500 hover:-translate-y-2 shadow-[0_8px_40px_rgba(0,0,0,0.15)] hover:shadow-[0_32px_64px_rgba(0,0,0,0.3)] relative overflow-hidden group-hover:bg-[var(--bg-hover)] border border-white/[0.02]">
-        <div className="absolute -top-32 -right-32 h-64 w-64 bg-[var(--accent)]/3 blur-[100px] rounded-full group-hover:bg-[var(--accent)]/8 transition-all duration-700" />
+      <div className="h-full rounded-[28px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] p-7 relative overflow-hidden transition-all duration-500 shadow-[0_12px_36px_rgba(0,0,0,0.18)] hover:-translate-y-1.5 hover:bg-[var(--bg-surface)] hover:border-[color:var(--accent-border)] hover:shadow-[0_26px_56px_rgba(0,0,0,0.26)]">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/20 to-transparent opacity-70" />
+        <div className="absolute -top-32 -right-32 h-64 w-64 bg-[var(--accent)]/4 blur-[100px] rounded-full group-hover:bg-[var(--accent)]/10 transition-all duration-700" />
         
         <div className="flex flex-col h-full justify-between relative z-10">
           <div className="space-y-6">
@@ -86,7 +87,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
             {/* Tags */}
             <div className="flex flex-wrap gap-2 pt-2">
               {features.map((f, i) => (
-                <span key={i} className="px-3 py-1.5 rounded-xl bg-[var(--bg-elevated)] text-[11px] font-bold text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-base)]">
+                <span key={i} className="px-3 py-1.5 rounded-xl bg-[var(--bg-surface)] text-[11px] font-bold text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-base)]">
                   {f}
                 </span>
               ))}
@@ -94,7 +95,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
           </div>
 
           {/* Footer Area */}
-          <div className="mt-8 pt-6 border-t border-white/[0.03] flex items-center justify-between">
+          <div className="mt-8 pt-6 border-t border-white/[0.06] flex items-center justify-between">
             <div className="space-y-0.5">
               <div className="text-[26px] font-bold text-[var(--text-primary)] tracking-tight">
                 {formattedPrice}
