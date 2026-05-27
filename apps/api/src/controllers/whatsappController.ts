@@ -167,6 +167,19 @@ function buildConnectionArtifact(mode: ConnectionArtifactMode, value?: string | 
     };
 }
 
+async function sendWhatsAppCrashReport(subject: string, error: unknown, context: Record<string, unknown>) {
+    try {
+        await emailNotificationService.sendCrashReport({
+            to: 'hello@propai.live',
+            subject,
+            error: getErrorMessage(error, 'WhatsApp operation failed'),
+            context,
+        });
+    } catch (reportError) {
+        console.error('[whatsappController] Failed to send WhatsApp crash report:', reportError);
+    }
+}
+
 function formatProfileResponse(profile: Record<string, unknown> | null, fallback?: { id: string; fullName: string; phone: string; email?: string | null }) {
     if (profile) {
         return {
@@ -196,14 +209,15 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
     let sessionLabel = buildSessionLabel(ownerName || label, phoneNumber);
     const gateway = getWhatsAppGateway(tenantId);
+    let requestedPhone = normalizeRecipientPhone(phoneNumber);
+    let lockedWorkspacePhone: string | null = null;
 
     try {
         if (connectMethod === 'pairing' && !phoneNumber) {
             return res.status(400).json({ error: 'Enter the WhatsApp number to request a pairing code.' });
         }
 
-        const requestedPhone = normalizeRecipientPhone(phoneNumber);
-        const lockedWorkspacePhone = await getLockedWorkspacePhone(
+        lockedWorkspacePhone = await getLockedWorkspacePhone(
             tenantId,
             context.isWorkspaceOwner ? String(req.user?.user_metadata?.phone || '') : null,
         );
@@ -342,6 +356,20 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
         void pushRecentAction(tenantId, `Started WhatsApp connection (${connectMethod})`);
     } catch (error: unknown) {
         console.error('Connect Error:', error);
+        void sendWhatsAppCrashReport(
+            `WhatsApp connect crash log — ${sessionLabel || 'unknown session'} — ${new Date().toISOString()}`,
+            error,
+            {
+                operation: 'connectWhatsApp',
+                tenantId,
+                sessionLabel,
+                connectMethod,
+                phoneNumber: phoneNumber || null,
+                ownerName: ownerName || null,
+                requestedPhone: requestedPhone || null,
+                lockedWorkspacePhone: lockedWorkspacePhone || null,
+            },
+        );
         await getDbClient()
             .from('whatsapp_sessions')
             .update({
@@ -434,6 +462,16 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
         });
     } catch (error: unknown) {
         console.error('Force Refresh QR Error:', error);
+        void sendWhatsAppCrashReport(
+            `WhatsApp QR refresh crash log — ${sessionKey || 'unknown session'} — ${new Date().toISOString()}`,
+            error,
+            {
+                operation: 'forceRefreshQR',
+                tenantId,
+                sessionKey: sessionKey || null,
+                label: label || null,
+            },
+        );
         res.status(getErrorStatus(error)).json({ 
             error: getErrorMessage(error, 'Could not refresh QR code. Please try disconnecting and reconnecting.') 
         });
@@ -832,10 +870,9 @@ export const resetWhatsAppSession = async (req: Request, res: Response) => {
     const { label, phoneNumber } = req.body || {};
     const dbClient = getDbClient();
     const gateway = getWhatsAppGateway(tenantId);
+    let targetLabel: string | undefined = label || undefined;
 
     try {
-        let targetLabel = label || undefined;
-
         if (!targetLabel && phoneNumber) {
             const normalized = normalizeRecipientPhone(phoneNumber);
             const { data: rows } = await dbClient
@@ -889,6 +926,16 @@ export const resetWhatsAppSession = async (req: Request, res: Response) => {
         });
     } catch (error: unknown) {
         console.error('Reset Session Error:', error);
+        void sendWhatsAppCrashReport(
+            `WhatsApp reset crash log — ${targetLabel || 'all sessions'} — ${new Date().toISOString()}`,
+            error,
+            {
+                operation: 'resetWhatsAppSession',
+                tenantId,
+                targetLabel: targetLabel || null,
+                phoneNumber: phoneNumber || null,
+            },
+        );
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Could not reset session.') });
     }
 };

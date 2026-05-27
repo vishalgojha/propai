@@ -349,6 +349,10 @@ export const ConnectWhatsApp: React.FC = () => {
                 </div>
             )}
 
+            <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[12px] text-[var(--text-secondary)]">
+                If WhatsApp gets stuck on Connecting, use Reset stale session first. We send the crash log to hello@propai.live with the error reason so the issue can be fixed without asking you for technical details.
+            </div>
+
             <div className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-surface)] p-6 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
                 <div className="mb-5 flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--bg-elevated)]">

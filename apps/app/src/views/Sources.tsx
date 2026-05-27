@@ -2464,6 +2464,9 @@ export const Sources: React.FC = () => {
                 )}
               </div>
             </div>
+            <div className="mt-3 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 text-[12px] text-[var(--text-secondary)]">
+              If WhatsApp keeps showing connecting or fails to finish, use Reset stale session first. We automatically send a crash log to <a className="text-[var(--accent)] underline" href="mailto:hello@propai.live">hello@propai.live</a> with the error reason so we can fix it.
+            </div>
 
             <div className="mt-4 space-y-3">
               {status.sessions.length === 0 ? (
@@ -2518,7 +2521,7 @@ export const Sources: React.FC = () => {
             <div className="flex items-start gap-3">
               <Info className="mt-0.5 h-4 w-4 text-[var(--accent)]" />
               <p className="text-[12px] leading-5 text-[var(--text-secondary)]">
-                Save the broker details first, then connect with QR. If the broker is away from a laptop, use the pairing code fallback instead. The connected number is surfaced globally in the header so the whole app knows which WhatsApp is active.
+                Save the broker details first, then connect with QR. If the broker is away from a laptop, use the pairing code fallback instead. If a session gets stuck, use Reset stale session and we will send a crash log to hello@propai.live with the reason.
               </p>
             </div>
           </div>

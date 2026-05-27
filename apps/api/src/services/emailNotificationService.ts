@@ -27,6 +27,7 @@ type WhatsAppStatusEmailInput = {
 };
 
 type CrashReportInput = {
+    to?: string;
     subject: string;
     error: string;
     context?: Record<string, any>;
@@ -128,7 +129,7 @@ class EmailNotificationService {
     async sendCrashReport(input: CrashReportInput): Promise<EmailSendResult> {
         const contextLine = input.context ? `\nContext: ${JSON.stringify(input.context, null, 2)}` : '';
         return this.sendEmail({
-            to: 'support@propai.live',
+            to: input.to || 'support@propai.live',
             subject: input.subject,
             text: [
                 `Crash Report`,
