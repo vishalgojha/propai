@@ -52,6 +52,7 @@ export const ConnectWhatsApp: React.FC = () => {
     const [qrGeneratedAt, setQrGeneratedAt] = useState<number | null>(null);
     const [mode, setMode] = useState<'qr' | 'pairing'>('qr');
     const [activeSessionLabel, setActiveSessionLabel] = useState<string | null>(null);
+    const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
     const QR_FRESHNESS = 90;
 
@@ -107,7 +108,7 @@ export const ConnectWhatsApp: React.FC = () => {
                     return;
                 }
 
-                if (activeSessionLabel) {
+                if (activeSessionLabel && artifact?.mode === 'qr') {
                     const qrResp = await backendApi.get(ENDPOINTS.whatsapp.qr, {
                         params: { label: activeSessionLabel },
                     });
@@ -167,9 +168,20 @@ export const ConnectWhatsApp: React.FC = () => {
 
     const timeLeft = qrGeneratedAt ? Math.max(0, QR_FRESHNESS - Math.floor((Date.now() - qrGeneratedAt) / 1000)) : 0;
 
-    const handleConnect = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (anySession) {
+    const handleCopyPairingCode = async () => {
+        if (!artifact?.value) return;
+        try {
+            await navigator.clipboard.writeText(artifact.value);
+            setCopyMessage('Pairing code copied');
+            window.setTimeout(() => setCopyMessage(null), 1800);
+        } catch {
+            setCopyMessage('Copy failed');
+            window.setTimeout(() => setCopyMessage(null), 1800);
+        }
+    };
+
+    const submitConnect = async (options?: { force?: boolean }) => {
+        if (anySession && !options?.force) {
             setError('A session already exists. Disconnect it first before connecting a new one.');
             return;
         }
@@ -205,6 +217,16 @@ export const ConnectWhatsApp: React.FC = () => {
         } finally {
             setIsConnecting(false);
         }
+    };
+
+    const handleConnect = async (e: React.FormEvent) => {
+        e.preventDefault();
+        await submitConnect();
+    };
+
+    const handleRefreshPairingCode = async () => {
+        setMode('pairing');
+        await submitConnect({ force: true });
     };
 
     const handleDisconnect = async () => {
@@ -344,19 +366,25 @@ export const ConnectWhatsApp: React.FC = () => {
                         </div>
 
                         <div className="flex gap-2">
-                            <button type="button" onClick={() => setMode('qr')} className={cn(
-                                'flex-1 rounded-xl border px-4 py-2.5 text-[13px] font-semibold transition',
-                                mode === 'qr' ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]' : 'border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]',
-                            )}>QR Code</button>
+                        <button type="button" onClick={() => setMode('qr')} className={cn(
+                            'flex-1 rounded-xl border px-4 py-2.5 text-[13px] font-semibold transition',
+                            mode === 'qr' ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]' : 'border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]',
+                            )}>QR Scan</button>
                             <button type="button" onClick={() => setMode('pairing')} className={cn(
                                 'flex-1 rounded-xl border px-4 py-2.5 text-[13px] font-semibold transition',
                                 mode === 'pairing' ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]' : 'border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]',
-                            )}>Pairing Code</button>
+                            )}>Code-based</button>
+                        </div>
+
+                        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[12px] text-[var(--text-secondary)]">
+                            {mode === 'pairing'
+                                ? 'Use code-based connect if the broker is on a phone. Open WhatsApp on the phone, go to Linked devices, choose Link with phone number, then enter the code shown here.'
+                                : 'Use QR scan if the broker can scan from another device. Open WhatsApp on the phone, go to Linked devices, and scan the code shown here.'}
                         </div>
 
                         <button type="submit" data-action="connect-whatsapp" disabled={isConnecting} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-3 text-[14px] font-semibold text-black transition hover:opacity-90 disabled:opacity-50">
                             {isConnecting ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <QrCodeIcon className="h-4 w-4" />}
-                            {isConnecting ? 'Connecting...' : mode === 'qr' ? 'Generate QR Code' : 'Request Pairing Code'}
+                            {isConnecting ? 'Connecting...' : mode === 'qr' ? 'Generate QR Code' : 'Generate Pairing Code'}
                         </button>
                     </form>
                 )}
@@ -384,6 +412,25 @@ export const ConnectWhatsApp: React.FC = () => {
                         <p className="mt-3 text-[13px] text-[var(--text-secondary)]">
                             Open WhatsApp {'> '} Linked Devices {'> '} Link a Device {'> '} Enter Code
                         </p>
+                        <div className="mt-4 flex items-center justify-center gap-3">
+                            <button
+                                type="button"
+                                onClick={handleCopyPairingCode}
+                                className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[12px] font-semibold text-[var(--text-primary)] transition hover:border-[var(--accent-border)] hover:text-[var(--accent)]"
+                            >
+                                Copy code
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void handleRefreshPairingCode()}
+                                className="rounded-xl border border-[var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[12px] font-semibold text-black transition hover:opacity-90"
+                            >
+                                Refresh code
+                            </button>
+                        </div>
+                        {copyMessage ? (
+                            <p className="mt-2 text-[12px] text-[var(--text-muted)]">{copyMessage}</p>
+                        ) : null}
                     </div>
                 )}
             </div>
