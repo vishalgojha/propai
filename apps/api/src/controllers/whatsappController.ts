@@ -1244,7 +1244,7 @@ export const saveProfile = async (req: Request, res: Response) => {
 
     const normalizedPhone = String(phone).split('').filter(c => c >= '0' && c <= '9').join('');
     if (normalizedPhone.length < 10 || normalizedPhone.length > 15) {
-        return res.status(400).json({ error: 'Enter the WhatsApp number with country code only, digits only, no spaces or + sign.' });
+        return res.status(400).json({ error: 'Enter your 10-digit WhatsApp number, digits only.' });
     }
 
     const dbClient = getDbClient();

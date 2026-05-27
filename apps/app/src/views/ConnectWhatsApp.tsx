@@ -172,7 +172,7 @@ export const ConnectWhatsApp: React.FC = () => {
         const normPhone = phone.replace(/\D/g, '');
         const fullName = buildFullName(firstName, lastName);
         if (!firstName.trim() || !lastName.trim() || normPhone.length < 10 || normPhone.length > 15) {
-            setError('Enter your first name, last name, and WhatsApp number (country code + digits).');
+            setError('Enter your first name, last name, and 10-digit WhatsApp number.');
             return;
         }
 
@@ -301,7 +301,7 @@ export const ConnectWhatsApp: React.FC = () => {
                             <label className="mb-2 block text-[13px] font-semibold text-[var(--text-secondary)]">WhatsApp Number</label>
                             <input
                                 className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[15px] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
-                                placeholder="919876543210" value={phone} onChange={(e) => setPhone(e.target.value)}
+                                placeholder="9876543210" value={phone} onChange={(e) => setPhone(e.target.value)}
                             />
                             <p className="mt-1 text-[12px] text-[var(--text-muted)]">Country code + number, digits only</p>
                         </div>

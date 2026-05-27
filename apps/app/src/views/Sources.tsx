@@ -2306,7 +2306,7 @@ export const Sources: React.FC = () => {
                   <input
                     value={connectPhoneValue}
                     onChange={(e) => { setDevicePhoneNumber(e.target.value); setPhoneNumber(e.target.value); }}
-                    placeholder="919876543210"
+                    placeholder="9876543210"
                     className={cn(sourceFieldClassName, 'pl-9')}
                     disabled={isWorkspacePhoneLocked}
                   />
