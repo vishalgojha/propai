@@ -25,7 +25,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     popover: {
       title: 'Welcome to PropAI Pulse',
-      description: 'Your AI-powered broker command center. This quick tour covers the key screens and takes about 90 seconds.',
+      description: 'Quick tour of the working areas. Use it once, then get back to data.',
       side: 'bottom',
       align: 'center',
     },
@@ -34,7 +34,7 @@ const TOUR_STEPS: TourStep[] = [
     element: '#tour-nav-agent',
     popover: {
       title: 'AI Agent',
-      description: 'Pulse reads broker broadcasts from your WhatsApp groups, parses listings and requirements, and helps handle inbound inquiries.',
+      description: 'Ask in plain language. It parses listings, requirements, and follow-ups.',
       side: 'right',
       align: 'start',
     },
@@ -43,7 +43,7 @@ const TOUR_STEPS: TourStep[] = [
     element: '#tour-nav-stream',
     popover: {
       title: 'Stream',
-      description: 'Your live property feed. Parsed listings and requirements land here, scored and filterable by channel, locality, asset type, or keyword.',
+      description: 'Live feed of parsed items. Filter by channel, locality, type, or keyword.',
       side: 'right',
       align: 'start',
     },
@@ -52,7 +52,7 @@ const TOUR_STEPS: TourStep[] = [
     element: '#tour-nav-inbox',
     popover: {
       title: 'Inbox',
-      description: 'Your auto-match desk. Pulse pairs your workspace listings with your own buyer and tenant requirements so you can act on the best fits first.',
+      description: 'Matched listings and requirements. Review the best fits first.',
       side: 'right',
       align: 'start',
     },
@@ -61,7 +61,7 @@ const TOUR_STEPS: TourStep[] = [
     element: '#tour-nav-whatsapp',
     popover: {
       title: 'WhatsApp',
-      description: 'Connect and manage WhatsApp sessions here. PropAI listens to approved groups and keeps the runtime tied to the main workspace session.',
+      description: 'Connect or reset WhatsApp here. Keep one live session per number.',
       side: 'right',
       align: 'start',
     },
@@ -70,7 +70,7 @@ const TOUR_STEPS: TourStep[] = [
     element: '#tour-nav-parsing-terminal',
     popover: {
       title: 'Parsing Terminal',
-      description: 'All groups parse by default. Opt out of the ones you don\'t need. Rescan to discover newly joined groups.',
+      description: 'Turn groups on or off and rescan when new groups appear.',
       side: 'right',
       align: 'start',
     },
@@ -79,7 +79,7 @@ const TOUR_STEPS: TourStep[] = [
     element: '#tour-nav-broker-network',
     popover: {
       title: 'Broker Network',
-      description: 'Contacts found across groups and parsed broadcasts are enriched here with areas, asset types, listings, and shared-group overlap.',
+      description: 'Contacts and shared groups, kept with the areas and asset types that matter.',
       side: 'right',
       align: 'start',
     },
@@ -88,7 +88,7 @@ const TOUR_STEPS: TourStep[] = [
     element: '#tour-nav-settings',
     popover: {
       title: 'Settings',
-      description: 'Configure workspace identity, AI keys, default model behavior, syndication, and replay this tour when needed.',
+      description: 'Set workspace details, API keys, defaults, and replay this tour if needed.',
       side: 'right',
       align: 'start',
     },
@@ -96,7 +96,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     popover: {
       title: 'You are all set',
-      description: 'Connect WhatsApp to activate Pulse, then use Stream, Inbox, and Broker Network as your daily operating view.',
+      description: 'Connect WhatsApp, then work from Stream, Inbox, and Agent.',
       side: 'bottom',
       align: 'center',
     },

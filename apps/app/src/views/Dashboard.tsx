@@ -1,11 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, ArrowRight, MessageSquare, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { Activity, ArrowRight, MessageSquare, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
-import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_CONNECT_WA_LINK, PROPAI_PLAN_CARDS } from '../lib/propai';
+import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_CONNECT_WA_LINK } from '../lib/propai';
 
 const DASHBOARD_CACHE_KEY = 'propai.dashboard_cache';
 
@@ -75,54 +75,29 @@ const formatPlanLabel = (plan?: string | null) => {
 
 const EmptyState: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
   return (
-    <div className="mx-auto flex min-h-[60vh] max-w-5xl flex-col justify-center space-y-6">
-      <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-surface)] p-6 md:p-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-[10px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
-              <Zap className="h-6 w-6 text-[var(--accent)]" />
-            </div>
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Your workspace is live</p>
-              <h2 className="text-[24px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Good to have you, partner.</h2>
-            </div>
+    <div className="mx-auto flex min-h-[58vh] max-w-4xl flex-col gap-4">
+      <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">No live data yet</p>
+            <h2 className="mt-1 text-[22px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">Connect WhatsApp, then work from data.</h2>
+            <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+              Clean inputs matter: one connected number, one workspace profile, and verified listings are what make the dashboard useful.
+            </p>
           </div>
 
-          <p className="mt-5 max-w-xl text-[13px] leading-6 text-[var(--text-secondary)]">
-            Connect your WhatsApp number and Pulse starts working immediately — reading group messages, scoring listings, flagging requirements, and keeping your follow-up queue moving.
-          </p>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            {[
-              ['Never miss a listing', 'Every property you hear about, captured before the group scrolls past it.'],
-              ['Follow up at the right time', 'Pulse flags hot leads and reminds you who to call next — no spreadsheet needed.'],
-              ['Find matches instantly', "Describe what the buyer wants. Pulse searches your full inventory and returns the right unit."],
-            ].map(([title, copy]) => (
-              <div key={title} className="rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                <p className="text-[13px] font-semibold text-[var(--text-primary)]">{title}</p>
-                <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">{copy}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 inline-flex items-center gap-2 rounded-full border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] text-[var(--text-secondary)]">
-            <ShieldCheck className="h-3.5 w-3.5 text-[var(--accent)]" />
-            Your workspace is secured and ready to receive WhatsApp data.
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-3">
-              <a
-                href={PROPAI_CONNECT_WA_LINK}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[12px] font-semibold text-[#020f07] transition hover:brightness-95"
-              >
-                <Sparkles className="h-4 w-4" />
-                Connect WhatsApp
-                <ArrowRight className="h-4 w-4" />
-              </a>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={PROPAI_CONNECT_WA_LINK}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[12px] font-semibold text-[#020f07] transition hover:brightness-95"
+            >
+              <Sparkles className="h-4 w-4" />
+              Connect WhatsApp
+              <ArrowRight className="h-4 w-4" />
+            </a>
             <a
               href={PROPAI_ASSISTANT_WA_LINK}
               target="_blank"
@@ -135,49 +110,23 @@ const EmptyState: React.FC = () => {
           </div>
         </div>
 
-        <div className="rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-surface)] p-6 md:p-8">
-          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">3 steps to your first deal</p>
-          <div className="mt-3 space-y-4">
-            <div className="rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-              <p className="text-[12px] font-medium text-[var(--text-primary)]">1. Connect your WhatsApp</p>
-              <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">Go to Sources, scan the QR, and Pulse starts reading your group messages automatically.</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {[
+            ['Connect WhatsApp', 'Required for live parsing and session status.'],
+            ['Add workspace profile', 'Agency, city, and service areas improve matching.'],
+            ['Open Stream', 'Review new items and remove bad data quickly.'],
+          ].map(([title, copy]) => (
+            <div key={title} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
+              <p className="text-[12px] font-semibold text-[var(--text-primary)]">{title}</p>
+              <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">{copy}</p>
             </div>
-            <div className="rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-              <p className="text-[12px] font-medium text-[var(--text-primary)]">2. Tell Pulse what you heard</p>
-              <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">Message the agent: "3BHK Bandra West 1.8Cr sale" — Pulse files it, scores it, and routes the match.</p>
-            </div>
-            <div className="rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-              <p className="text-[12px] font-medium text-[var(--text-primary)]">3. Close your first deal</p>
-              <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">Check matched requirements, pending follow-ups, and hot leads — all in one place, ranked by urgency.</p>
-            </div>
-          </div>
+          ))}
         </div>
-      </div>
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
-          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plans</p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {PROPAI_PLAN_CARDS.map((plan) => (
-              <div key={plan.name} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">{plan.name}</p>
-                <p className="mt-2 text-[22px] font-bold text-[var(--text-primary)]">{plan.price}</p>
-                <p className="text-[12px] text-[var(--text-secondary)]">{plan.devices}</p>
-              </div>
-            ))}
-          </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-secondary)]">
+          <ShieldCheck className="h-3.5 w-3.5 text-[var(--accent)]" />
+          If WhatsApp gets stuck on connecting, reset the stale session before trying again.
         </div>
-        <div className="rounded-[14px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-5">
-          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--accent)]">Referral lane</p>
-          <p className="mt-2 text-[14px] font-semibold text-[var(--text-primary)]">Refer 3 paying brokers, get 1 free month.</p>
-          <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-            Your referral code is {user?.referral?.code || 'generated after signup'}. Share Pulse with the PropAI Assistant contact included for onboarding help.
-          </p>
-          <p className="mt-3 text-[12px] font-medium text-[var(--text-primary)]">Assistant: {PROPAI_ASSISTANT_NUMBER}</p>
-        </div>
-      </div>
-      <div className="flex flex-col gap-2 rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-surface)] px-5 py-4 text-[12px] text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between">
-        <span>Connect WhatsApp in the Sources page to activate live group message parsing.</span>
-        <span className="text-[var(--text-primary)]">Workspace ready</span>
       </div>
     </div>
   );
@@ -340,9 +289,7 @@ export const Dashboard: React.FC = () => {
         <div>
           <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Home</p>
           <h1 className="mt-1 text-[22px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">Pulse Dashboard</h1>
-          <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--text-secondary)]">
-            A quick view of what’s connected, what’s new, and what to do next.
-          </p>
+          <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--text-secondary)]">Live data, recent items, next action.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -365,81 +312,69 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+      <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+        <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Plan status</p>
-              <h2 className="mt-1 text-[20px] font-bold text-[var(--text-primary)]">{planLabel}</h2>
-              <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
+              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Account</p>
+              <h2 className="mt-1 text-[18px] font-bold text-[var(--text-primary)]">{planLabel}</h2>
+              <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
                 {planLabel === 'Free'
-                  ? `Your 7-day free trial is live${typeof trialDaysLeft === 'number' ? ` with ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left.` : '.'}`
-                  : `Your workspace is on the ${planLabel} plan.`}
+                  ? `Free trial live${typeof trialDaysLeft === 'number' ? ` · ${trialDaysLeft}d left` : ''}.`
+                  : `Workspace on the ${planLabel} plan.`}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
-                {whatsapp?.activeCount || 0}/{deviceLimit} devices active
-              </span>
-              {typeof trialDaysLeft === 'number' ? (
-                <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">
-                  Trial countdown: {trialDaysLeft}d
-                </span>
-              ) : null}
-            </div>
+            <span className="rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+              {whatsapp?.activeCount || 0}/{deviceLimit} devices active
+            </span>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            {PROPAI_PLAN_CARDS.map((plan) => (
-              <div key={plan.name} className={cn(
-                'rounded-[12px] border p-4',
-                plan.name === planLabel
-                  ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)]'
-                  : 'border-[color:var(--border)] bg-[var(--bg-elevated)]',
-              )}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">{plan.name}</p>
-                <p className="mt-2 text-[20px] font-bold text-[var(--text-primary)]">{plan.price}</p>
-                <p className="text-[12px] text-[var(--text-secondary)]">{plan.devices}</p>
-              </div>
-            ))}
+          <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[var(--text-secondary)]">
+            {typeof trialDaysLeft === 'number' ? (
+              <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5">Trial {trialDaysLeft}d</span>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => navigate('/pricing')}
+              className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[var(--text-primary)] transition hover:bg-[var(--bg-base)]"
+            >
+              Open pricing
+            </button>
           </div>
         </div>
 
-        <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
-          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Referral progress</p>
-          <h2 className="mt-1 text-[20px] font-bold text-[var(--text-primary)]">{referral?.progressToNextReward || 0}/3 referrals</h2>
-          <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-            Refer 3 paying brokers who complete trial and payment to earn 1 free month. Free months earned so far: {referral?.freeMonthsEarned || 0}.
-          </p>
-          <div className="mt-4 h-2 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
-            <div className="h-full bg-[var(--accent)] transition-all" style={{ width: `${((referral?.progressToNextReward || 0) / 3) * 100}%` }} />
-          </div>
-          <div className="mt-4 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">Share code</p>
-            <p className="mt-1 text-[16px] font-bold text-[var(--text-primary)]">{referral?.code || 'Generating...'}</p>
-            <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
-              Share {referral?.link || 'your referral link'} and tell new brokers they can message the PropAI Assistant at {PROPAI_ASSISTANT_NUMBER} for onboarding help.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (referral?.shareMessage) {
-                    void navigator.clipboard.writeText(referral.shareMessage);
-                  }
-                }}
-                className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[11px] font-semibold text-[#020f07]"
-              >
-                Copy referral copy
-              </button>
-              <a
-                href={PROPAI_ASSISTANT_WA_LINK}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[11px] font-semibold text-[var(--text-primary)]"
-              >
-                Message Assistant
-              </a>
+        <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Referral</p>
+              <h2 className="mt-1 text-[18px] font-bold text-[var(--text-primary)]">{referral?.code || 'Generating...'}</h2>
+              <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+                {referral?.progressToNextReward || 0}/3 paid referrals. New brokers can message the assistant at {PROPAI_ASSISTANT_NUMBER}.
+              </p>
             </div>
+            <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">
+              {referral?.freeMonthsEarned || 0} free months
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (referral?.shareMessage) {
+                  void navigator.clipboard.writeText(referral.shareMessage);
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[11px] font-semibold text-[#020f07]"
+            >
+              Copy referral copy
+            </button>
+            <a
+              href={PROPAI_ASSISTANT_WA_LINK}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[11px] font-semibold text-[var(--text-primary)]"
+            >
+              Message Assistant
+            </a>
           </div>
         </div>
       </div>
