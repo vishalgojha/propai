@@ -251,7 +251,7 @@ function InboxMatchCard({ match, isSuperAdmin, onRead }: { match: InboxMatch; is
           <MessageSquare className="h-4 w-4 text-[var(--accent)]" />
           Review the fit, then contact the saved source or client from the matched record.
         </div>
-        <a href={match.matchedItem.waLink || '#'} target="_blank" rel="noreferrer" className={cn('rounded-[10px] px-4 py-2 text-[12px] font-bold', match.matchedItem.waLink ? 'bg-[var(--accent)] text-[#061108]' : 'pointer-events-none bg-[var(--bg-elevated)] text-[var(--text-muted)]')}>
+        <a href={match.matchedItem.brokerWaMeLinks?.[0] || match.matchedItem.waLink || '#'} target="_blank" rel="noreferrer" className={cn('rounded-[10px] px-4 py-2 text-[12px] font-bold', (match.matchedItem.brokerWaMeLinks?.[0] || match.matchedItem.waLink) ? 'bg-[var(--accent)] text-[#061108]' : 'pointer-events-none bg-[var(--bg-elevated)] text-[var(--text-muted)]')}>
           Open WhatsApp
         </a>
       </div>

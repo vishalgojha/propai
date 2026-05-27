@@ -30,6 +30,7 @@ export interface StreamItem {
   brokerName?: string | null;
   brokerCompany?: string | null;
   waLink?: string | null;
+  brokerWaMeLinks?: string[] | null;
   isNetworkItem?: boolean;
   isSyndicated?: boolean;
   sourceWorkspaceId?: string;

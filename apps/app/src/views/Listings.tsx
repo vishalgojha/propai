@@ -1485,10 +1485,11 @@ if (brokerOnly) {
                               type="button"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                if (!listing.waLink) return;
-                                window.open(listing.waLink, '_blank', 'noopener,noreferrer');
+                                const waLink = listing.brokerWaMeLinks?.[0] || listing.waLink;
+                                if (!waLink) return;
+                                window.open(waLink, '_blank', 'noopener,noreferrer');
                               }}
-                              disabled={!listing.waLink}
+                              disabled={!listing.brokerWaMeLinks?.[0] && !listing.waLink}
                               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] text-[16px] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
                               aria-label="Open WhatsApp"
                             >
@@ -1550,10 +1551,11 @@ if (brokerOnly) {
                                           type="button"
                                           onClick={(event) => {
                                             event.stopPropagation();
-                                            if (!listing.waLink) return;
-                                            window.open(listing.waLink, '_blank', 'noopener,noreferrer');
+                                            const waLink = listing.brokerWaMeLinks?.[0] || listing.waLink;
+                                            if (!waLink) return;
+                                            window.open(waLink, '_blank', 'noopener,noreferrer');
                                           }}
-                                          disabled={!listing.waLink}
+                                          disabled={!listing.brokerWaMeLinks?.[0] && !listing.waLink}
                                           className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                           <Phone className="h-3.5 w-3.5" />
