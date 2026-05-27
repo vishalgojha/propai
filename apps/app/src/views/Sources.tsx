@@ -1081,7 +1081,10 @@ export const Sources: React.FC = () => {
     await handleConnect('qr', { ownerName: nameToUse, phoneNumber: normalizedPhone });
   };
 
-  const waitForQR = useCallback(async (label: string): Promise<ConnectionArtifact | null> => {
+  const waitForArtifact = useCallback(async (
+    label: string,
+    expectedMode: 'qr' | 'pairing',
+  ): Promise<ConnectionArtifact | null> => {
     for (let attempt = 0; attempt < QR_POLL_ATTEMPTS; attempt += 1) {
       try {
         const response = await backendApi.get<GetQrResponse>(ENDPOINTS.whatsapp.qr, {
@@ -1096,19 +1099,39 @@ export const Sources: React.FC = () => {
           return null;
         }
 
+        if (response.data?.artifact?.value) {
+          if (expectedMode === 'pairing') {
+            return {
+              mode: 'pairing',
+              format: 'text',
+              value: response.data.artifact.value,
+            };
+          }
+
+          return response.data.artifact;
+        }
+
         if (!response.data?.artifact) {
           if (attempt === QR_POLL_ATTEMPTS - 1) {
-            throw new Error('QR code is taking longer than expected. Try once more in a few seconds.');
+            throw new Error(expectedMode === 'pairing'
+              ? 'Pairing code is taking longer than expected. Try once more in a few seconds.'
+              : 'QR code is taking longer than expected. Try once more in a few seconds.');
           }
           await new Promise((resolve) => window.setTimeout(resolve, QR_POLL_INTERVAL_MS));
           continue;
         }
 
-        return response.data.artifact;
+        if (attempt === QR_POLL_ATTEMPTS - 1) {
+          throw new Error(expectedMode === 'pairing'
+            ? 'Pairing code is taking longer than expected. Try once more in a few seconds.'
+            : 'QR code is taking longer than expected. Try once more in a few seconds.');
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, QR_POLL_INTERVAL_MS));
       } catch (err) {
         const message = handleApiError(err);
         const isStillPreparing =
           message === 'QR code is still being generated.' ||
+          message === 'Pairing code is still being generated.' ||
           message === 'Code not ready yet';
 
         if (isStillPreparing && attempt < QR_POLL_ATTEMPTS - 1) {
@@ -1121,7 +1144,9 @@ export const Sources: React.FC = () => {
       }
     }
 
-    throw new Error('QR code is taking longer than expected. Try once more in a few seconds.');
+    throw new Error(expectedMode === 'pairing'
+      ? 'Pairing code is taking longer than expected. Try once more in a few seconds.'
+      : 'QR code is taking longer than expected. Try once more in a few seconds.');
   }, []);
 
   const handleConnect = useCallback(async (
@@ -1201,9 +1226,17 @@ export const Sources: React.FC = () => {
         setQrGeneratedAt(null);
         setQrTimeLeft(0);
       } else {
-        const nextArtifact = response.data?.artifact || (mode === 'qr'
-          ? await waitForQR(response.data?.label || sessionLabelToUse)
-          : null);
+        const nextArtifact = response.data?.artifact
+          || (response.data?.pairingCode
+            ? { mode: 'pairing' as const, format: 'text' as const, value: response.data.pairingCode }
+            : null)
+          || (response.data?.qr
+            ? { mode: 'qr' as const, format: 'text' as const, value: response.data.qr }
+            : null)
+          || await waitForArtifact(
+          response.data?.label || sessionLabelToUse,
+          mode,
+        );
         if (nextArtifact) {
           setConnectionArtifact(nextArtifact);
           setQrGeneratedAt(Date.now());
@@ -1221,7 +1254,7 @@ export const Sources: React.FC = () => {
     } finally {
       setIsConnecting(false);
     }
-  }, [deviceOwnerName, ensureConnectUiVisible, fetchStatus, normalizedDevicePhone, status.activeCount, status.limit, status.plan, status.sessions, waitForQR]);
+  }, [deviceOwnerName, ensureConnectUiVisible, fetchStatus, normalizedDevicePhone, status.activeCount, status.limit, status.plan, status.sessions, waitForArtifact]);
 
   const handleDisconnect = async (label?: string) => {
     setIsConnecting(true);

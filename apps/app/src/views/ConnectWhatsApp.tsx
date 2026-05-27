@@ -55,6 +55,8 @@ export const ConnectWhatsApp: React.FC = () => {
     const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
     const QR_FRESHNESS = 90;
+    const ARTIFACT_POLL_ATTEMPTS = 8;
+    const ARTIFACT_POLL_INTERVAL_MS = 750;
 
     const fetchStatus = useCallback(async () => {
         try {
@@ -180,6 +182,34 @@ export const ConnectWhatsApp: React.FC = () => {
         }
     };
 
+    const waitForArtifact = useCallback(async (label: string, modeToWaitFor: 'qr' | 'pairing'): Promise<ConnectionArtifact | null> => {
+        for (let attempt = 0; attempt < ARTIFACT_POLL_ATTEMPTS; attempt += 1) {
+            try {
+                const response = await backendApi.get(ENDPOINTS.whatsapp.qr, {
+                    params: { label },
+                });
+
+                const nextArtifact = response.data?.artifact || null;
+                if (nextArtifact?.value && nextArtifact.mode === modeToWaitFor) {
+                    return nextArtifact;
+                }
+
+                const sessionReady = String(response.data?.message || '').toLowerCase().includes('already connected');
+                if (sessionReady) {
+                    return null;
+                }
+            } catch {
+                // Keep retrying until the artifact appears or we run out of attempts.
+            }
+
+            if (attempt < ARTIFACT_POLL_ATTEMPTS - 1) {
+                await new Promise((resolve) => window.setTimeout(resolve, ARTIFACT_POLL_INTERVAL_MS));
+            }
+        }
+
+        return null;
+    }, []);
+
     const submitConnect = async (options?: { force?: boolean }) => {
         if (anySession && !options?.force) {
             setError('A session already exists. Disconnect it first before connecting a new one.');
@@ -207,7 +237,7 @@ export const ConnectWhatsApp: React.FC = () => {
             if (resp.data?.connected) {
                 setArtifact(null);
             } else {
-                const next = resp.data?.artifact || null;
+                const next = resp.data?.artifact || await waitForArtifact(resp.data?.label || `device-${normPhone}`, mode);
                 setArtifact(next);
                 setQrGeneratedAt(Date.now());
             }
@@ -248,6 +278,29 @@ export const ConnectWhatsApp: React.FC = () => {
             setIsConnecting(false);
         }
     };
+
+    useEffect(() => {
+        if (!activeSessionLabel || isConnecting || artifact?.value) {
+            return;
+        }
+
+        let cancelled = false;
+        const loadArtifact = async () => {
+            try {
+                const next = await waitForArtifact(activeSessionLabel, mode);
+                if (cancelled || !next) return;
+                setArtifact(next);
+                setQrGeneratedAt(Date.now());
+            } catch {
+                // Ignore. Status polling will keep the session updated.
+            }
+        };
+
+        void loadArtifact();
+        return () => {
+            cancelled = true;
+        };
+    }, [activeSessionLabel, artifact?.value, isConnecting, mode, waitForArtifact]);
 
     if (loading) {
         return (
