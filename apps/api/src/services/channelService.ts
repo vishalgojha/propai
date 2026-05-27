@@ -1897,7 +1897,7 @@ private dailyBriefingSentKeys = new Set<string>();
         const { data, error } = await this.db
             .from('profiles')
             .select('id')
-            .in('app_role', ['broker']);
+            .in('app_role', ['broker', 'super_admin']);
 
         if (error) {
             throw new Error(error.message);

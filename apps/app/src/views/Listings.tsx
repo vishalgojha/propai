@@ -37,10 +37,6 @@ const ALL_TYPES = ['Rent', 'Sale', 'Requirement', 'Pre-leased', 'Lease'] as cons
 const ALL_BHK = ['1 BHK', '2 BHK', '3 BHK', '4+ BHK'] as const;
 const ALL_PROPERTY_CATEGORIES = ['residential', 'commercial'] as const;
 const BROKER_TAG_PATTERN = /\b(broker|broking|agnt|agent)\b/i;
-const OWNER_SUPER_ADMIN_EMAILS = new Set([
-  'vishal@chaoscraftlabs.com',
-  'vishal@chaoscraftslabs.com',
-]);
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
 type StreamPresetId = 'fresh' | 'rental' | 'sale' | 'pre_leased' | 'requirements' | 'high_confidence';
 const STREAM_PRESETS: Array<{ id: StreamPresetId; label: string }> = [
@@ -418,12 +414,9 @@ export const Listings: React.FC = () => {
     source: filterSource,
     brokerOnly,
   }), [brokerOnly, filterBhk, filterPropertyCategory, filterSource, quickConfidenceBands, quickFreshnessBands, quickTimeBands, quickTypes, search]);
-  const isSuperAdmin =
-    user?.appRole === 'super_admin' ||
-    OWNER_SUPER_ADMIN_EMAILS.has(String(user?.email || '').trim().toLowerCase());
   const canViewStream = React.useMemo(
-    () => !isSuperAdmin && canViewStreamPlan(user?.subscription?.plan),
-    [isSuperAdmin, user?.subscription?.plan],
+    () => canViewStreamPlan(user?.subscription?.plan),
+    [user?.subscription?.plan],
   );
 
   const loadData = React.useCallback(async () => {
@@ -661,36 +654,6 @@ export const Listings: React.FC = () => {
     () => channels.find((channel) => channel.id === channelId) || null,
     [channels, channelId],
   );
-
-  if (isSuperAdmin) {
-    return (
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 md:p-6">
-        <div className="rounded-[16px] border border-[color:var(--border)] bg-[linear-gradient(180deg,rgba(16,24,32,0.98),rgba(10,14,20,0.96))] p-6 shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">Stream disabled</p>
-          <h2 className="mt-2 text-[24px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Super admins do not have stream access</h2>
-          <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-            This workspace keeps Stream reserved for broker accounts. Super admins can still use the admin surfaces, but the live feed and parsed inventory views stay blocked here.
-          </p>
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/agent')}
-              className="inline-flex items-center gap-2 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-5 py-3 text-[12px] font-bold uppercase tracking-[0.06em] text-[#020f07]"
-            >
-              Go to Agent
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/admin')}
-              className="inline-flex items-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-5 py-3 text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--text-primary)]"
-            >
-              Open Admin
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (!canViewStream) {
     return (

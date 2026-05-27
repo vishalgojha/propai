@@ -136,8 +136,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   const isTrial = subscription?.status === 'trial' || subscription?.status === 'trialing' || subscription?.plan === 'Free' || subscription?.plan === 'Trial';
   const canViewStream = React.useMemo(() => {
     const normalized = String(subscription?.plan || '').trim().toLowerCase();
-    return !isSuperAdmin && (normalized === 'starter' || normalized === 'pro');
-  }, [isSuperAdmin, subscription?.plan]);
+    return normalized === 'starter' || normalized === 'pro';
+  }, [subscription?.plan]);
   const planLabel = React.useMemo(() => {
     const normalized = String(subscription?.plan || '').trim().toLowerCase();
     if (normalized === 'trial' || normalized === 'free') return 'Trial';
@@ -523,9 +523,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
                 {getInitial(user?.email)}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{user?.email || 'Signed in broker'}</p>
+                <p className="truncate text-[12px] font-semibold text-[var(--text-primary)]">{user?.email || 'Signed in'}</p>
                 <p className="truncate text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                  {activeChannel ? `#${activeChannel.name}` : 'Personal channels'}
+                  {isSuperAdmin ? 'Super Admin' : activeChannel ? `#${activeChannel.name}` : 'Personal channels'}
                 </p>
                 {whatsappStatus.connectedPhoneNumber ? (
                   <p className="mt-1 hidden truncate text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)] lg:block">
