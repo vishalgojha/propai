@@ -223,48 +223,50 @@ insert into stream_items_residential (
     tenant_id, message_id, source_message_id, source_group_id, source_group_name,
     source_phone, raw_text, type, record_type, locality, city, bhk,
     price_label, price_numeric, deal_type, asset_class, property_category,
-    area_sqft, furnishing, floor_number, total_floors, property_use,
-    building_name, confidence_score, ingestion_status,
-    parsed_payload, expires_at, created_at, embedding
+    area_sqft, furnishing, floor_number, total_floors, parking, property_use,
+    building_name, micro_location, confidence_score, ingestion_status,
+    parsed_payload, message_hash, content_hash, expires_at, created_at, embedding
 )
 select
     tenant_id, message_id, source_message_id, source_group_id, source_group_name,
     source_phone, raw_text, type, record_type, locality, city, bhk,
     price_label, price_numeric, deal_type, asset_class,
-    coalesce(property_category, 'residential'),
+    coalesce(parsed_payload->>'propertyCategory', 'residential'),
     area_sqft, furnishing, floor_number, total_floors,
+    parsed_payload->>'parking',
     coalesce(property_use, parsed_payload->>'propertyUse', 'residential'),
     building_name,
+    parsed_payload->>'microLocation',
     confidence_score, ingestion_status,
-    parsed_payload, expires_at, created_at, embedding
+    parsed_payload, message_hash, content_hash, expires_at, created_at, embedding
 from stream_items
-where ingestion_status in ('accepted', 'expired', 'suppressed_low_effort', 'suppressed_bulk_spam', 'suppressed_unresolved_context')
-  and (coalesce(asset_class, parsed_payload->>'assetClass', 'residential') = 'residential'
-   or coalesce(property_use, parsed_payload->>'propertyUse', 'residential') = 'residential')
+where coalesce(asset_class, parsed_payload->>'assetClass', 'residential') = 'residential'
+   or coalesce(property_use, parsed_payload->>'propertyUse', 'residential') = 'residential'
 on conflict (tenant_id, message_id) do nothing;
 
 insert into stream_items_commercial (
     tenant_id, message_id, source_message_id, source_group_id, source_group_name,
     source_phone, raw_text, type, record_type, locality, city,
     price_label, price_numeric, deal_type, asset_class, property_category,
-    area_sqft, furnishing, floor_number, total_floors, property_use,
-    building_name, confidence_score, ingestion_status,
-    parsed_payload, expires_at, created_at, embedding
+    area_sqft, furnishing, floor_number, total_floors, parking, property_use,
+    building_name, micro_location, confidence_score, ingestion_status,
+    parsed_payload, message_hash, content_hash, expires_at, created_at, embedding
 )
 select
     tenant_id, message_id, source_message_id, source_group_id, source_group_name,
     source_phone, raw_text, type, record_type, locality, city,
     price_label, price_numeric, deal_type, asset_class,
-    coalesce(property_category, 'commercial'),
+    coalesce(parsed_payload->>'propertyCategory', 'commercial'),
     area_sqft, furnishing, floor_number, total_floors,
+    parsed_payload->>'parking',
     coalesce(property_use, parsed_payload->>'propertyUse'),
     building_name,
+    parsed_payload->>'microLocation',
     confidence_score, ingestion_status,
-    parsed_payload, expires_at, created_at, embedding
+    parsed_payload, message_hash, content_hash, expires_at, created_at, embedding
 from stream_items
-where ingestion_status in ('accepted', 'expired', 'suppressed_low_effort', 'suppressed_bulk_spam', 'suppressed_unresolved_context')
-  and (coalesce(asset_class, parsed_payload->>'assetClass') in ('commercial', 'office', 'retail', 'showroom', 'warehouse', 'industrial')
-   or coalesce(property_use, parsed_payload->>'propertyUse') in ('office', 'retail', 'showroom', 'warehouse', 'industrial'))
+where coalesce(asset_class, parsed_payload->>'assetClass') in ('commercial', 'office', 'retail', 'showroom', 'warehouse', 'industrial')
+   or coalesce(property_use, parsed_payload->>'propertyUse') in ('office', 'retail', 'showroom', 'warehouse', 'industrial')
 on conflict (tenant_id, message_id) do nothing;
 
 notify pgrst, 'reload schema';
