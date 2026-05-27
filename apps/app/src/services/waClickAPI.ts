@@ -49,7 +49,25 @@ export async function fetchWaClickListingLog(listingId: string): Promise<WaClick
     }
 }
 
-export function getWaClickExportUrl(date?: string): string {
-    const params = date ? `?date=${encodeURIComponent(date)}` : '';
-    return ENDPOINTS.waClick.export + params;
+export async function exportWaClickCsv(date?: string): Promise<void> {
+    try {
+        const params: Record<string, string> = {};
+        if (date) params.date = date;
+        const response = await backendApi.get(ENDPOINTS.waClick.export, {
+            params,
+            responseType: 'blob',
+        });
+
+        const blob = new Blob([response.data], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `wa-clicks-${date || 'all'}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    } catch {
+        // Silently fail — export is a nice-to-have
+    }
 }

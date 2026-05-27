@@ -28,7 +28,7 @@ import { handleApiError, default as backendApi } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { fetchStreamItems, fetchStreamStats, fetchStreamSummary, correctStreamItem, type StreamItem, type StreamSummaryResponse } from '../services/streamAPI';
 import { rebuildStreamFromSavedMessages } from '../services/streamService';
-import { fetchWaClickStats, getWaClickExportUrl, type WaClickStats } from '../services/waClickAPI';
+import { fetchWaClickStats, exportWaClickCsv, type WaClickStats } from '../services/waClickAPI';
 
 const formatChannelTitle = (name: string) => `#${name}`;
 const PAGE_SIZE = 20;
@@ -1091,13 +1091,14 @@ if (brokerOnly) {
               : '—'}
           </span>
           <div className="flex-1" />
-          <a
-            href={getWaClickExportUrl()}
+          <button
+            type="button"
+            onClick={() => void exportWaClickCsv()}
             className="flex items-center gap-1 rounded-lg border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] text-[var(--text-secondary)] hover:text-white"
           >
             <Download className="h-3 w-3" />
             Export CSV
-          </a>
+          </button>
         </div>
       </div>
 
