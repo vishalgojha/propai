@@ -92,6 +92,7 @@ export const ENDPOINTS = {
     correct: (streamItemId: string) => `/channels/stream/${streamItemId}/correct`,
     markRead: (channelId: string) => `/channels/${channelId}/read`,
     attachItem: (channelId: string) => `/channels/${channelId}/items`,
+    search: '/stream-items/search',
   },
   streamItems: {
     list: '/stream-items',

@@ -123,7 +123,7 @@ export async function searchStream(
   limit = 50,
   offset = 0,
 ): Promise<SearchResponse> {
-  const response = await backendApi.post(`${ENDPOINTS.channels.stream}/search`, {
+  const response = await backendApi.post(ENDPOINTS.channels.search, {
     asset_class: assetClass,
     query_string: queryString,
     limit,
