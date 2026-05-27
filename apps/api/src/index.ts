@@ -35,6 +35,7 @@ import { historySyncWorker } from './services/historySyncWorker';
 import { syndicationSyncJob } from './jobs/syndicationSyncJob';
 import { generateMarketInsightsJob } from './jobs/generateMarketInsights';
 import { igrEnrichmentJob } from './jobs/igrEnrichmentJob';
+import { followUpOverdueJob } from './jobs/followUpOverdueJob';
 import { ROUTE_PATHS } from './routes/routePaths';
 
 const app = express();
@@ -274,6 +275,7 @@ async function gracefulShutdown(signal: string) {
         syndicationSyncJob.stop?.();
         generateMarketInsightsJob.stop?.();
         igrEnrichmentJob.stop?.();
+        followUpOverdueJob.stop();
         console.log('[shutdown] Background workers stopped.');
     } catch (error) {
         console.error('[shutdown] Error stopping workers:', error);
@@ -325,6 +327,7 @@ server = app.listen(PORT, () => {
             syndicationSyncJob.start();
             generateMarketInsightsJob.start();
             igrEnrichmentJob.start();
+            followUpOverdueJob.start();
 
             if (ENABLE_SYSTEM_WHATSAPP_SESSION) {
                 await sessionManager.initSystemSession();
