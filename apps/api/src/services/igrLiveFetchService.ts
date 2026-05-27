@@ -47,20 +47,32 @@ function uniqueSessionKey(prefix: string): string {
 
 class CamoufoxIgrClient {
     private client: AxiosInstance;
+    private _healthy: boolean | null = null;
+    private _lastHealthCheck = 0;
+    private readonly HEALTH_CHECK_CACHE_MS = 30_000;
 
     constructor() {
         this.client = axios.create({
             baseURL: CAMOUFOX_BASE_URL,
-            timeout: NAVIGATE_TIMEOUT_MS,
+            timeout: 10_000,
             headers: { 'Content-Type': 'application/json' },
         });
     }
 
     async health(): Promise<boolean> {
+        const now = Date.now();
+        if (this._healthy !== null && now - this._lastHealthCheck < this.HEALTH_CHECK_CACHE_MS) {
+            return this._healthy;
+        }
+
         try {
             const resp = await this.client.get('/health');
-            return resp.data?.ok === true && resp.data?.browserConnected === true;
+            this._healthy = resp.data?.ok === true && resp.data?.browserConnected === true;
+            this._lastHealthCheck = now;
+            return this._healthy;
         } catch {
+            this._healthy = false;
+            this._lastHealthCheck = now;
             return false;
         }
     }
@@ -280,10 +292,19 @@ export class IgrLiveFetchService {
         }
 
         const camoufox = this.getCamoufox();
-        if (!camoufox || !(await camoufox.health())) {
+        if (!camoufox) {
             return {
                 success: false,
-                error: 'Camoufox browser is not available. Ensure CAMOFOX_URL is configured and the browser is running.',
+                error: 'Camoufox browser is not configured. Set CAMOFOX_URL env var to point to the browser server.',
+                searchQuery,
+            };
+        }
+
+        const isHealthy = await camoufox.health();
+        if (!isHealthy) {
+            return {
+                success: false,
+                error: `Camoufox browser is unreachable at ${CAMOUFOX_BASE_URL}. Check that the browser server is running and CAMOFOX_URL is set correctly.`,
                 searchQuery,
             };
         }

@@ -1,16 +1,24 @@
 {
-  "name": "propai-camofox",
+  "name": "propai-camoufox",
   "build": {
     "type": "git",
     "repository": "https://github.com/vishalgojha/camofox-browser",
-    "branch": "main"
+    "branch": "master"
   },
   "environment": {
-    "CAMOFOX_URL": "http://camofox-browser:9377"
+    "CAMOFOX_PORT": "9377",
+    "MAX_SESSIONS": "10",
+    "MAX_TABS_PER_SESSION": "5",
+    "SESSION_TIMEOUT_MS": "1800000",
+    "BROWSER_IDLE_TIMEOUT_MS": "600000"
   },
   "network": "propai-network",
   "ports": [
     "9377:9377"
   ],
-  "restart": "always"
+  "restart": "always",
+  "healthcheck": {
+    "path": "/health",
+    "port": 9377
+  }
 }

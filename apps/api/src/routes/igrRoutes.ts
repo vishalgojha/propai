@@ -64,7 +64,19 @@ router.post('/fetch', async (req, res) => {
         const buildingName = String(req.body?.buildingName || req.body?.building_name || '').trim();
         const locality = String(req.body?.locality || '').trim();
 
-        const result = await igrLiveFetchService.fetchAndStore({ buildingName, locality });
+        if (!buildingName && !locality) {
+            return res.status(400).json({
+                success: false,
+                error: 'buildingName or locality is required',
+            });
+        }
+
+        const result = await Promise.race([
+            igrLiveFetchService.fetchAndStore({ buildingName, locality }),
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('IGR fetch timed out after 60 seconds')), 60_000)
+            ),
+        ]);
 
         if (!result.success) {
             return res.status(400).json(result);
@@ -72,9 +84,16 @@ router.post('/fetch', async (req, res) => {
 
         return res.json(result);
     } catch (error: any) {
+        const message = error?.message || 'Failed to fetch live IGR data';
+        if (message.includes('timed out')) {
+            return res.status(504).json({
+                success: false,
+                error: 'IGR fetch timed out. The government portal may be slow or unreachable. Try again later.',
+            });
+        }
         return res.status(500).json({
             success: false,
-            error: error?.message || 'Failed to fetch live IGR data',
+            error: message,
         });
     }
 });
