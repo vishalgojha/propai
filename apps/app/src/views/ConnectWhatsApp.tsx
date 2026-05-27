@@ -42,7 +42,7 @@ export const ConnectWhatsApp: React.FC = () => {
     }));
     const [status, setStatus] = useState<StatusData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [connecting, setConnecting] = useState(false);
+    const [isConnecting, setIsConnecting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [firstName, setFirstName] = useState(initialNames.firstName);
     const [lastName, setLastName] = useState(initialNames.lastName);
@@ -80,7 +80,7 @@ export const ConnectWhatsApp: React.FC = () => {
     }, [fetchStatus]);
 
     useEffect(() => {
-        const shouldPoll = connecting
+        const shouldPoll = isConnecting
             || status?.status === 'connecting'
             || status?.status === 'reconnecting'
             || artifact?.mode === 'qr'
@@ -130,7 +130,7 @@ export const ConnectWhatsApp: React.FC = () => {
             cancelled = true;
             window.clearInterval(interval);
         };
-    }, [activeSessionLabel, artifact?.mode, connecting, status?.status]);
+    }, [activeSessionLabel, artifact?.mode, isConnecting, status?.status]);
 
     useEffect(() => {
         if (!artifact || artifact.mode !== 'qr' || !artifact.value) {
@@ -180,7 +180,7 @@ export const ConnectWhatsApp: React.FC = () => {
             return;
         }
 
-        setConnecting(true);
+        setIsConnecting(true);
         setError(null);
         setArtifact(null);
         setQrSvg(null);
@@ -203,7 +203,7 @@ export const ConnectWhatsApp: React.FC = () => {
         } catch (err) {
             setError(handleApiError(err));
         } finally {
-            setConnecting(false);
+            setIsConnecting(false);
         }
     };
 
@@ -212,7 +212,7 @@ export const ConnectWhatsApp: React.FC = () => {
             || status?.sessions?.find((s) => s.status === 'connecting' || s.status === 'reconnecting')
             || status?.sessions?.[0];
         if (!session) return;
-        setConnecting(true);
+        setIsConnecting(true);
         try {
             await backendApi.post(ENDPOINTS.whatsapp.disconnect, { label: session.label });
             setArtifact(null);
@@ -223,7 +223,7 @@ export const ConnectWhatsApp: React.FC = () => {
         } catch (err) {
             setError(handleApiError(err));
         } finally {
-            setConnecting(false);
+            setIsConnecting(false);
         }
     };
 
@@ -236,9 +236,9 @@ export const ConnectWhatsApp: React.FC = () => {
     }
 
     const connected = status?.sessions?.some((s) => s.status === 'connected');
-    const connecting = status?.sessions?.some((s) => s.status === 'connecting' || s.status === 'reconnecting');
+    const connecting = status?.sessions?.some((s) => ['connecting', 'reconnecting'].includes(s.status));
     const anySession = status?.sessions?.length > 0;
-    const connectingSession = status?.sessions?.find((s) => s.status === 'connecting' || s.status === 'reconnecting');
+    const connectingSession = status?.sessions?.find((s) => ['connecting', 'reconnecting'].includes(s.status));
 
     return (
         <div className="mx-auto max-w-lg py-10">
@@ -281,7 +281,7 @@ export const ConnectWhatsApp: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <button onClick={handleDisconnect} disabled={connecting} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
+                        <button onClick={handleDisconnect} disabled={isConnecting} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
                             <XIcon className="h-4 w-4" />
                             Kill Connecting Session
                         </button>
@@ -306,8 +306,8 @@ export const ConnectWhatsApp: React.FC = () => {
                                 </div>
                             ))}
                         </div>
-                        <button onClick={handleDisconnect} disabled={connecting} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
-                            {connecting ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <PowerIcon className="h-4 w-4" />}
+                        <button onClick={handleDisconnect} disabled={isConnecting} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
+                            {isConnecting ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <PowerIcon className="h-4 w-4" />}
                             Disconnect
                         </button>
                     </div>
@@ -354,9 +354,9 @@ export const ConnectWhatsApp: React.FC = () => {
                             )}>Pairing Code</button>
                         </div>
 
-                        <button type="submit" data-action="connect-whatsapp" disabled={connecting} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-3 text-[14px] font-semibold text-black transition hover:opacity-90 disabled:opacity-50">
-                            {connecting ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <QrCodeIcon className="h-4 w-4" />}
-                            {connecting ? 'Connecting...' : mode === 'qr' ? 'Generate QR Code' : 'Request Pairing Code'}
+                        <button type="submit" data-action="connect-whatsapp" disabled={isConnecting} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-3 text-[14px] font-semibold text-black transition hover:opacity-90 disabled:opacity-50">
+                            {isConnecting ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <QrCodeIcon className="h-4 w-4" />}
+                            {isConnecting ? 'Connecting...' : mode === 'qr' ? 'Generate QR Code' : 'Request Pairing Code'}
                         </button>
                     </form>
                 )}
