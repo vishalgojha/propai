@@ -304,15 +304,15 @@ export class SessionManager {
     }
 
     async removeSession(tenantId: string, sessionKey?: string) {
-        const fullKey = sessionKey
+        const foundKey = sessionKey
             ? `${tenantId}:${sessionKey}`
             : Array.from(this.clients.keys()).find((key) => key.startsWith(`${tenantId}:`));
 
-        if (!fullKey) {
+        if (!foundKey) {
             return;
         }
 
-        const client = this.clients.get(fullKey);
+        const client = this.clients.get(foundKey);
         if (!client) {
             return;
         }
@@ -331,9 +331,33 @@ export class SessionManager {
                 stage: 'removeSession.disconnect',
             });
         } finally {
-            this.clients.delete(fullKey);
-            this.callbacks.delete(fullKey);
-            this.qrs.delete(fullKey);
+            this.clients.delete(foundKey);
+            this.callbacks.delete(foundKey);
+            this.qrs.delete(foundKey);
+        }
+    }
+
+    async hardResetSession(tenantId: string, sessionKey?: string) {
+        const foundKey = sessionKey
+            ? `${tenantId}:${sessionKey}`
+            : Array.from(this.clients.keys()).find((key) => key.startsWith(`${tenantId}:`));
+
+        if (foundKey) {
+            const client = this.clients.get(foundKey);
+            if (client) {
+                try {
+                    await client.disconnect();
+                } catch {
+                    // Ignore disconnect errors during hard reset
+                }
+                this.clients.delete(foundKey);
+                this.callbacks.delete(foundKey);
+                this.qrs.delete(foundKey);
+            }
+        }
+
+        if (sessionKey) {
+            await this.storage.deleteSession?.({ tenantId, label: sessionKey });
         }
     }
 

@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express';
-import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getMonitorMessages, disconnectWhatsApp, getMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getHistoryDebug, getGroupHealth, getEvents, getHealthLogs, submitSupportLogs, getGroups, getGroupsAudit, applyGroupsAudit, allowAllRealEstateGroups, getGroupStreamItems, getOutboundRecipients } from '../controllers/whatsappController';
+import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getMonitorMessages, disconnectWhatsApp, resetWhatsAppSession, getMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getHistoryDebug, getGroupHealth, getEvents, getHealthLogs, submitSupportLogs, getGroups, getGroupsAudit, applyGroupsAudit, allowAllRealEstateGroups, getGroupStreamItems, getOutboundRecipients } from '../controllers/whatsappController';
 import { importHistoryTxt, getHistoryImports, checkDuplicateImports, backfillHistoryToStream } from '../controllers/historyController';
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { validate } from '../middleware/validate';
 import { whatsappGroupService } from '../services/whatsappGroupService';
-import { connectWhatsAppSchema, forceRefreshQRSchema, saveProfileSchema, sendMessageSchema, sendBulkSchema, broadcastSchema, disconnectSchema, historyBackfillStreamSchema } from '../schemas/whatsappSchemas';
+import { connectWhatsAppSchema, forceRefreshQRSchema, saveProfileSchema, sendMessageSchema, sendBulkSchema, broadcastSchema, disconnectSchema, resetSessionSchema, historyBackfillStreamSchema } from '../schemas/whatsappSchemas';
 
 const router = Router();
 
@@ -36,6 +36,7 @@ router.post(ROUTE_PATHS.whatsapp.send, validate(sendMessageSchema), sendMessage)
 router.post(ROUTE_PATHS.whatsapp.sendBulk, validate(sendBulkSchema), sendBulkDirectMessages);
 router.post(ROUTE_PATHS.whatsapp.broadcast, validate(broadcastSchema), broadcastToGroups);
 router.post(ROUTE_PATHS.whatsapp.disconnect, validate(disconnectSchema), disconnectWhatsApp);
+router.post(ROUTE_PATHS.whatsapp.reset, validate(resetSessionSchema), resetWhatsAppSession);
 router.get(ROUTE_PATHS.whatsapp.groups, getGroups);
 router.get(ROUTE_PATHS.whatsapp.groupsAudit, getGroupsAudit);
 router.post(ROUTE_PATHS.whatsapp.groupsAudit, applyGroupsAudit);

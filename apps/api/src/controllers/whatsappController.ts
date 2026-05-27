@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
+import { sessionManager } from '../whatsapp/SessionManager';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { subscriptionService } from '../services/subscriptionService';
 import { whatsappHealthService } from '../services/whatsappHealthService';
@@ -774,6 +775,73 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
     } catch (error: unknown) {
         console.error('Disconnect Error:', error);
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Could not disconnect. Please try again.') });
+    }
+};
+
+export const resetWhatsAppSession = async (req: Request, res: Response) => {
+    const context = await workspaceAccessService.resolveContext(req.user ?? {});
+    const tenantId = context.workspaceOwnerId;
+    const { label, phoneNumber } = req.body || {};
+    const dbClient = getDbClient();
+    const gateway = getWhatsAppGateway(tenantId);
+
+    try {
+        let targetLabel = label || undefined;
+
+        if (!targetLabel && phoneNumber) {
+            const normalized = normalizeRecipientPhone(phoneNumber);
+            const { data: rows } = await dbClient
+                .from('whatsapp_sessions')
+                .select('label')
+                .eq('tenant_id', tenantId)
+                .order('last_sync', { ascending: false });
+            const match = (rows || []).find((r: any) =>
+                normalizeRecipientPhone(r?.session_data?.phoneNumber) === normalized
+            );
+            targetLabel = match?.label || undefined;
+        }
+
+        if (targetLabel) {
+            await sessionManager.hardResetSession(tenantId, targetLabel);
+        }
+
+        const sessionFilter = targetLabel
+            ? { tenant_id: tenantId, label: targetLabel }
+            : { tenant_id: tenantId };
+
+        const { error } = await dbClient
+            .from('whatsapp_sessions')
+            .update({
+                status: 'disconnected',
+                creds: null,
+                keys: null,
+                session_data: {},
+                updated_at: new Date().toISOString(),
+                last_sync: new Date().toISOString(),
+            })
+            .match(sessionFilter);
+
+        if (error) {
+            console.error('[resetWhatsAppSession] DB cleanup error:', error);
+        }
+
+        void workspaceActivityService.track({
+            actor: req.user,
+            workspaceOwnerId: tenantId,
+            eventType: 'whatsapp.session.reset',
+            entityType: 'whatsapp_session',
+            entityId: targetLabel || 'all',
+            summary: `Hard reset WhatsApp session ${targetLabel || 'all'}.`,
+            metadata: { label: targetLabel || null, phoneNumber: phoneNumber || null },
+        });
+
+        res.json({
+            message: 'Session reset successfully. You can now reconnect with a fresh QR scan or pairing code.',
+            label: targetLabel || null,
+        });
+    } catch (error: unknown) {
+        console.error('Reset Session Error:', error);
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Could not reset session.') });
     }
 };
 

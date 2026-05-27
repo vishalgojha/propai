@@ -79,6 +79,7 @@ export const ROUTE_PATHS = {
         sendBulk: '/send-bulk',
         broadcast: '/broadcast',
         disconnect: '/disconnect',
+        reset: '/reset',
         groups: '/groups',
         recipients: '/recipients',
         config: '/config',

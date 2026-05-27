@@ -941,10 +941,6 @@ try {
     }
 
     async disconnect() {
-        if (!this.socket) {
-            return;
-        }
-
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
@@ -954,9 +950,13 @@ try {
             this.autoSyncInterval = null;
         }
         this.reconnectAttempts = 0;
-
         this.stopHealthCheck();
-        await this.disposeSocket({ logout: true });
+
+        if (this.socket) {
+            await this.disposeSocket({ logout: true });
+            this.socket = null;
+        }
+
         this.connectionStatus = 'disconnected';
         await this.persistStatus('disconnected');
         await this.storage.deleteSession?.({
