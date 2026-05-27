@@ -279,6 +279,27 @@ export const ConnectWhatsApp: React.FC = () => {
         }
     };
 
+    const handleResetSession = async () => {
+        const session = status?.sessions?.find((s) => s.status === 'connected')
+            || status?.sessions?.find((s) => s.status === 'connecting' || s.status === 'reconnecting')
+            || status?.sessions?.[0];
+        if (!session) return;
+        setIsConnecting(true);
+        setError(null);
+        try {
+            await backendApi.post(ENDPOINTS.whatsapp.reset, { label: session.label });
+            setArtifact(null);
+            setQrSvg(null);
+            setQrGeneratedAt(null);
+            setActiveSessionLabel(null);
+            await fetchStatus();
+        } catch (err) {
+            setError(handleApiError(err));
+        } finally {
+            setIsConnecting(false);
+        }
+    };
+
     useEffect(() => {
         if (!activeSessionLabel || isConnecting || artifact?.value) {
             return;
@@ -356,10 +377,16 @@ export const ConnectWhatsApp: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <button onClick={handleDisconnect} disabled={isConnecting} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
-                            <XIcon className="h-4 w-4" />
-                            Kill Connecting Session
-                        </button>
+                        <div className="flex w-full flex-wrap gap-2">
+                            <button onClick={handleResetSession} disabled={isConnecting} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-amber-500/30 px-4 py-3 text-[14px] font-semibold text-amber-300 transition hover:bg-amber-500/10 disabled:opacity-50">
+                                <RefreshIcon className="h-4 w-4" />
+                                Reset stale session
+                            </button>
+                            <button onClick={handleDisconnect} disabled={isConnecting} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
+                                <XIcon className="h-4 w-4" />
+                                Disconnect
+                            </button>
+                        </div>
                     </div>
                 ) : connected ? (
                     <div className="space-y-4">
@@ -381,10 +408,16 @@ export const ConnectWhatsApp: React.FC = () => {
                                 </div>
                             ))}
                         </div>
-                        <button onClick={handleDisconnect} disabled={isConnecting} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
-                            {isConnecting ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <PowerIcon className="h-4 w-4" />}
-                            Disconnect
-                        </button>
+                        <div className="flex w-full flex-wrap gap-2">
+                            <button onClick={handleResetSession} disabled={isConnecting} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-amber-500/30 px-4 py-3 text-[14px] font-semibold text-amber-300 transition hover:bg-amber-500/10 disabled:opacity-50">
+                                {isConnecting ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <RefreshIcon className="h-4 w-4" />}
+                                Reset stale session
+                            </button>
+                            <button onClick={handleDisconnect} disabled={isConnecting} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
+                                {isConnecting ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <PowerIcon className="h-4 w-4" />}
+                                Disconnect
+                            </button>
+                        </div>
                     </div>
                 ) : anySession ? (
                     <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-center">
