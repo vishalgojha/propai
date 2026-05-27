@@ -387,6 +387,11 @@ const ensureIndiaPrefix = (phone: string) => {
   if (digits.startsWith('+91')) return digits.slice(1);
   return `91${digits}`;
 };
+const stripIndiaPrefix = (phone: string) => {
+  const digits = normalizePhoneNumber(phone);
+  if (digits.startsWith('91') && digits.length === 12) return digits.slice(2);
+  return digits;
+};
 const isGroupParsingEnabled = (behavior?: string | null) => behavior === 'Listen' || behavior === 'AutoReply';
 
 const buildSessionLabel = (ownerName?: string, phoneNumber?: string) => {
@@ -563,8 +568,9 @@ export const Sources: React.FC = () => {
   const normalizedPhone = useMemo(() => normalizePhoneNumber(phoneNumber), [phoneNumber]);
   const normalizedDevicePhone = useMemo(() => normalizePhoneNumber(devicePhoneNumber), [devicePhoneNumber]);
   const lockedWorkspacePhone = normalizedPhone;
+  const lockedWorkspacePhoneDisplay = stripIndiaPrefix(normalizedPhone);
   const isWorkspacePhoneLocked = profileLoaded && lockedWorkspacePhone.length >= 10;
-  const connectPhoneValue = isWorkspacePhoneLocked ? lockedWorkspacePhone : (devicePhoneNumber || phoneNumber);
+  const connectPhoneValue = isWorkspacePhoneLocked ? lockedWorkspacePhoneDisplay : (devicePhoneNumber || phoneNumber);
   const expectedSessionLabel = useMemo(
     () => buildSessionLabel(deviceOwnerName || 'Owner', normalizedDevicePhone || 'device'),
     [deviceOwnerName, normalizedDevicePhone],
@@ -635,10 +641,11 @@ export const Sources: React.FC = () => {
       if (profile) {
         const nextName = profile.fullName || '';
         const nextPhone = ensureIndiaPrefix(profile.phone || '');
+        const displayPhone = stripIndiaPrefix(nextPhone);
         setFullName((current) => current || nextName);
-        setPhoneNumber((current) => current || nextPhone);
+        setPhoneNumber((current) => current || displayPhone);
         setDeviceOwnerName((current) => current || nextName);
-        setDevicePhoneNumber((current) => current || nextPhone);
+        setDevicePhoneNumber((current) => current || displayPhone);
       }
     } catch (err) {
       console.error(handleApiError(err));
