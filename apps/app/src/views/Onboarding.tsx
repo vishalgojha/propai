@@ -8,7 +8,7 @@ import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { buildFullName, splitFullName } from '../lib/names';
 
-const STEPS = ['Name', 'Agency', 'City', 'Localities', 'Team', 'Done'];
+const STEPS = ['Agency', 'City', 'Done'];
 const CITIES = [
   'Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai', 'Kolkata',
   'Ahmedabad', 'Pune', 'Surat', 'Jaipur', 'Lucknow', 'Kanpur',
@@ -72,15 +72,8 @@ export const Onboarding: React.FC = () => {
                     setData({ ...emptyData, ...existing });
                     const s = Math.min(existing.onboarding_step || 0, 5);
                     setStep(s);
-                    if (s === 0) {
-                        const names = existing.first_name || existing.last_name
-                            ? { firstName: existing.first_name || '', lastName: existing.last_name || '' }
-                            : splitFullName(existing.full_name || '');
-                        setFirstName(names.firstName);
-                        setLastName(names.lastName);
-                    }
-                    else if (s === 1) setFieldValue(existing.agency_name || '');
-                    else if (s === 2) {
+                    if (s === 0) setFieldValue(existing.agency_name || '');
+                    else if (s === 1) {
                         const city = existing.city || '';
                         if (city && !CITIES.includes(city)) {
                             setFieldValue('Other');
@@ -103,7 +96,7 @@ export const Onboarding: React.FC = () => {
         setSaving(true);
         setError(null);
         try {
-            const nextStep = Math.min(step + 1, 5);
+            const nextStep = Math.min(step + 1, 2);
             const resp = await backendApi.post(ENDPOINTS.identity.onboarding, {
                 ...data, ...patch, onboarding_step: nextStep,
             });
@@ -112,7 +105,7 @@ export const Onboarding: React.FC = () => {
             }
             setData((prev) => ({ ...prev, ...patch, onboarding_step: nextStep }));
             setStep(nextStep);
-            if (nextStep < 5) { setFieldValue(''); setOtherCityInput(''); }
+            if (nextStep < 2) { setFieldValue(''); setOtherCityInput(''); }
         } catch (err) {
             console.error('[Onboarding] saveStep POST failed:', err);
             setError(handleApiError(err));
@@ -122,25 +115,12 @@ export const Onboarding: React.FC = () => {
 
     const handleNext = async () => {
         if (step === 0) {
-            const normalizedFirstName = firstName.trim();
-            const normalizedLastName = lastName.trim();
-            if (!normalizedFirstName || !normalizedLastName) { setError('Enter your first name and last name'); return; }
-            await saveStep({
-                first_name: normalizedFirstName,
-                last_name: normalizedLastName,
-                full_name: buildFullName(normalizedFirstName, normalizedLastName),
-            });
-        } else if (step === 1) {
             await saveStep({ agency_name: fieldValue.trim() || null });
-        } else if (step === 2) {
+        } else if (step === 1) {
             const city = fieldValue === 'Other' ? otherCityInput.trim() : fieldValue.trim();
             if (!city) { setError('Enter or select your city'); return; }
             await saveStep({ city });
-        } else if (step === 3) {
-            await saveStep({ localities: data.localities });
-        } else if (step === 4) {
-            await saveStep({ team_members: data.team_members });
-        } else if (step === 5) {
+        } else if (step === 2) {
             setSaving(true);
             setError(null);
             try {
@@ -211,8 +191,8 @@ export const Onboarding: React.FC = () => {
                 </div>
                 <h2 className="mb-2 text-3xl font-bold text-white">You're all set!</h2>
                 <p className="mb-10 text-[17px] text-gray-400">Your profile is ready. Let's find you some deals.</p>
-                <button onClick={() => navigate('/dashboard')} className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-8 py-4 text-[16px] font-semibold text-black transition hover:opacity-90">
-                    Go to Dashboard <ArrowRightIcon className="h-5 w-5" />
+                <button onClick={() => navigate('/whatsapp')} className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-8 py-4 text-[16px] font-semibold text-black transition hover:opacity-90">
+                    Go to WhatsApp <ArrowRightIcon className="h-5 w-5" />
                 </button>
             </div>
         );
@@ -245,30 +225,6 @@ export const Onboarding: React.FC = () => {
                     {step === 0 && (
                         <div>
                             <p className="mb-2 text-[13px] font-medium uppercase tracking-[0.1em] text-gray-500">Step 1</p>
-                            <h2 className="mb-8 text-[28px] font-bold leading-tight text-white">What's your name?</h2>
-                            <div className="grid gap-5 sm:grid-cols-2">
-                                <input
-                                    value={firstName}
-                                    onChange={(e) => setFirstName(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleNext())}
-                                    placeholder="First name"
-                                    className="w-full border-0 border-b-2 border-gray-700 bg-transparent pb-3 text-[28px] font-semibold text-white outline-none transition placeholder:text-gray-600 focus:border-[var(--accent)]"
-                                    autoFocus
-                                />
-                                <input
-                                    value={lastName}
-                                    onChange={(e) => setLastName(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleNext())}
-                                    placeholder="Last name"
-                                    className="w-full border-0 border-b-2 border-gray-700 bg-transparent pb-3 text-[28px] font-semibold text-white outline-none transition placeholder:text-gray-600 focus:border-[var(--accent)]"
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    {step === 1 && (
-                        <div>
-                            <p className="mb-2 text-[13px] font-medium uppercase tracking-[0.1em] text-gray-500">Step 2</p>
                             <h2 className="mb-8 text-[28px] font-bold leading-tight text-white">Your agency name?</h2>
                             <input
                                 value={fieldValue}
@@ -281,9 +237,9 @@ export const Onboarding: React.FC = () => {
                         </div>
                     )}
 
-                    {step === 2 && (
+                    {step === 1 && (
                         <div className="relative">
-                            <p className="mb-2 text-[13px] font-medium uppercase tracking-[0.1em] text-gray-500">Step 3</p>
+                            <p className="mb-2 text-[13px] font-medium uppercase tracking-[0.1em] text-gray-500">Step 2</p>
                             <h2 className="mb-8 text-[28px] font-bold leading-tight text-white">Which city do you operate in?</h2>
                             {fieldValue !== 'Other' ? (
                                 <>
@@ -333,113 +289,14 @@ export const Onboarding: React.FC = () => {
                         </div>
                     )}
 
-                    {step === 3 && (
-                        <div className="relative">
-                            <p className="mb-2 text-[13px] font-medium uppercase tracking-[0.1em] text-gray-500">Step 4</p>
-                            <h2 className="mb-8 text-[28px] font-bold leading-tight text-white">Which localities do you serve?</h2>
-
-                            {data.localities && data.localities.length > 0 && (
-                                <div className="mb-6 flex flex-wrap gap-2">
-                                    {data.localities.map((loc, i) => (
-                                        <span key={i} className="inline-flex items-center gap-2 rounded-full border border-gray-700 bg-gray-900 px-4 py-2 text-[15px] text-white">
-                                            {loc}
-                                            <button onClick={() => removeLocality(i)} className="text-gray-500 hover:text-red-400">
-                                                <XIcon className="h-4 w-4" />
-                                            </button>
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-
-                            <input
-                                value={localityInput}
-                                onChange={(e) => setLocalityInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        const matches = LOCALITY_PRESETS.filter(
-                                            l => l.toLowerCase().includes(localityInput.toLowerCase()) && !(data.localities || []).includes(l)
-                                        );
-                                        if (matches.length === 1) {
-                                            addLocality(matches[0]);
-                                        } else if (!LOCALITY_PRESETS.some(l => l.toLowerCase() === localityInput.trim().toLowerCase())) {
-                                            addLocality();
-                                        }
-                                    }
-                                }}
-                                placeholder="Search localities..."
-                                className="w-full border-0 border-b-2 border-gray-700 bg-transparent pb-3 text-[22px] font-semibold text-white outline-none transition placeholder:text-gray-600 focus:border-[var(--accent)]"
-                                autoFocus
-                            />
-
-                            {localityInput.trim() && (
-                                <div className="mt-3 max-h-56 overflow-y-auto rounded-xl border border-gray-800 bg-gray-900 py-2">
-                                    {LOCALITY_PRESETS
-                                        .filter(l => l.toLowerCase().includes(localityInput.toLowerCase()) && !(data.localities || []).includes(l))
-                                        .map(loc => (
-                                            <button
-                                                key={loc}
-                                                onClick={() => addLocality(loc)}
-                                                className="w-full px-5 py-3 text-left text-[17px] text-white transition hover:bg-gray-800"
-                                            >
-                                                {loc}
-                                            </button>
-                                        ))}
-                                    {!LOCALITY_PRESETS.some(l => l.toLowerCase() === localityInput.trim().toLowerCase()) && (
-                                        <button
-                                            onClick={() => addLocality()}
-                                            className="w-full px-5 py-3 text-left text-[17px] text-gray-400 transition hover:bg-gray-800"
-                                        >
-                                            Add &ldquo;{localityInput.trim()}&rdquo;
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {step === 4 && (
-                        <div>
-                            <p className="mb-2 text-[13px] font-medium uppercase tracking-[0.1em] text-gray-500">Step 5</p>
-                            <h2 className="mb-8 text-[28px] font-bold leading-tight text-white">Add team members</h2>
-                            <div className="flex gap-2">
-                                <input value={teamName} onChange={(e) => setTeamName(e.target.value)} placeholder="Name"
-                                    className="flex-1 border-0 border-b-2 border-gray-700 bg-transparent pb-3 text-[18px] text-white outline-none transition placeholder:text-gray-600 focus:border-[var(--accent)]" />
-                                <input value={teamPhone} onChange={(e) => setTeamPhone(e.target.value)} placeholder="Phone"
-                                    className="flex-1 border-0 border-b-2 border-gray-700 bg-transparent pb-3 text-[18px] text-white outline-none transition placeholder:text-gray-600 focus:border-[var(--accent)]" />
-                                <button onClick={addTeamMember} disabled={!teamName.trim() && !teamPhone.trim()}
-                                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] text-black text-2xl font-bold transition hover:opacity-90 disabled:opacity-30">
-                                    +
-                                </button>
-                            </div>
-                            {(data.team_members || []).length > 0 && (
-                                <div className="mt-6 space-y-2">
-                                    {(data.team_members || []).map((m, i) => (
-                                        <div key={i} className="flex items-center justify-between rounded-xl border border-gray-800 bg-gray-900 px-5 py-3">
-                                            <span className="text-[16px] text-white">
-                                                {m.name || 'Unnamed'} {m.mobile && <span className="ml-2 text-gray-500">{m.mobile}</span>}
-                                            </span>
-                                            <button onClick={() => removeTeamMember(i)} className="text-gray-600 hover:text-red-400">
-                                                <XIcon className="h-5 w-5" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {step === 5 && (
+                    {step === 2 && (
                         <div className="text-center">
                             <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--accent)]/10">
                                 <CheckCircleIcon className="h-8 w-8 text-[var(--accent)]" />
                             </div>
                             <h2 className="mb-2 text-[28px] font-bold text-white">Ready to go</h2>
                             <p className="mb-2 text-[16px] text-gray-400">
-                                {buildFullName(data.first_name, data.last_name) || data.full_name}{data.agency_name ? ` · ${data.agency_name}` : ''}{data.city ? ` · ${data.city}` : ''}
-                            </p>
-                            <p className="text-[14px] text-gray-500">
-                                {(data.localities || []).length} localities · {(data.team_members || []).length} team members
+                                {data.full_name}{data.agency_name ? ` · ${data.agency_name}` : ''}{data.city ? ` · ${data.city}` : ''}
                             </p>
                         </div>
                     )}

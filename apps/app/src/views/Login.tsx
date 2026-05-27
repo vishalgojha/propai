@@ -167,7 +167,7 @@ export const Login: React.FC = () => {
   const nextPath = useMemo(() => {
     const params = new URLSearchParams(location.search);
     const next = params.get('next');
-    return next && next.startsWith('/') ? next : '/agent';
+    return next && next.startsWith('/') ? next : '/onboarding';
   }, [location.search]);
 
   useEffect(() => {
@@ -222,6 +222,14 @@ export const Login: React.FC = () => {
     setError(null);
     const normalizedEmail = email.trim();
 
+    const ensureIndiaPrefix = (phone: string) => {
+      const digits = phone.replace(/\D/g, '');
+      if (digits.startsWith('91') && digits.length === 12) return digits;
+      if (digits.startsWith('+91') && digits.length === 13) return digits.slice(1);
+      if (digits.length === 10) return `91${digits}`;
+      return digits;
+    };
+
     try {
       const fullName = buildFullName(firstName, lastName);
       if (mode === 'signup' && (!firstName.trim() || !lastName.trim())) {
@@ -237,7 +245,7 @@ export const Login: React.FC = () => {
         fullName,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        phone: phoneNumber,
+        phone: mode === 'signup' ? ensureIndiaPrefix(phoneNumber) : phoneNumber,
         referralCode: mode === 'signup' ? referralCode || undefined : undefined,
       });
       const session = response.data?.session;
@@ -723,11 +731,11 @@ export const Login: React.FC = () => {
                             required
                             value={phoneNumber}
                             onChange={(e) => setPhoneNumber(e.target.value.split('').filter(c => c >= '0' && c <= '9').join(''))}
-                            placeholder="919876543210"
+                            placeholder="9876543210"
                             className={authFieldClassName}
                           />
                           <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
-                            Type digits only with country code. Example: <span className="text-[var(--text-primary)]">919876543210</span>
+                            Enter your 10-digit number. We'll add the India prefix automatically.
                           </p>
                         </label>
 
