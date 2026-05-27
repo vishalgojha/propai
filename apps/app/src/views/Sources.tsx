@@ -380,6 +380,13 @@ const whatsappCapabilities = [
 ];
 
 const normalizePhoneNumber = (value: string) => value.split('').filter(c => c >= '0' && c <= '9').join('');
+const ensureIndiaPrefix = (phone: string) => {
+  const digits = normalizePhoneNumber(phone);
+  if (!digits) return '91';
+  if (digits.startsWith('91')) return digits;
+  if (digits.startsWith('+91')) return digits.slice(1);
+  return `91${digits}`;
+};
 const isGroupParsingEnabled = (behavior?: string | null) => behavior === 'Listen' || behavior === 'AutoReply';
 
 const buildSessionLabel = (ownerName?: string, phoneNumber?: string) => {
@@ -627,7 +634,7 @@ export const Sources: React.FC = () => {
       const profile = response.data?.profile as Profile | undefined;
       if (profile) {
         const nextName = profile.fullName || '';
-        const nextPhone = normalizePhoneNumber(profile.phone || '');
+        const nextPhone = ensureIndiaPrefix(profile.phone || '');
         setFullName((current) => current || nextName);
         setPhoneNumber((current) => current || nextPhone);
         setDeviceOwnerName((current) => current || nextName);
@@ -836,7 +843,7 @@ export const Sources: React.FC = () => {
       if (!session) return;
 
       setDeviceOwnerName(session.ownerName || fullName || '');
-      setDevicePhoneNumber(session.phoneNumber || '');
+      setDevicePhoneNumber(ensureIndiaPrefix(session.phoneNumber || ''));
       setPendingConnection(null);
       setConnectionArtifact(null);
       setQrGeneratedAt(null);
@@ -1040,10 +1047,10 @@ export const Sources: React.FC = () => {
 
     const nameToUse = deviceOwnerName || fullName;
     const phoneToUse = isWorkspacePhoneLocked ? lockedWorkspacePhone : (devicePhoneNumber || phoneNumber);
-    const normalizedPhone = normalizePhoneNumber(phoneToUse);
+    const normalizedPhone = ensureIndiaPrefix(phoneToUse);
 
-    if (!nameToUse.trim() || normalizedPhone.length < 10 || normalizedPhone.length > 15) {
-      setError('Enter your name and WhatsApp number first.');
+    if (!nameToUse.trim() || normalizedPhone.length < 12 || normalizedPhone.length > 17) {
+      setError('Enter your name and 10-digit WhatsApp number first.');
       return;
     }
 
@@ -1116,12 +1123,12 @@ export const Sources: React.FC = () => {
   ) => {
     ensureConnectUiVisible();
     const ownerNameToUse = values?.ownerName ?? deviceOwnerName;
-    const phoneNumberToUse = values?.phoneNumber ?? normalizedDevicePhone;
+    const phoneNumberToUse = ensureIndiaPrefix(values?.phoneNumber ?? normalizedDevicePhone);
     const sessionLabelToUse = buildSessionLabel(ownerNameToUse || 'Owner', phoneNumberToUse || 'device');
     const sessionForLabel = status.sessions.find((session) => session.label === sessionLabelToUse);
 
-    if (!ownerNameToUse.trim() || phoneNumberToUse.length < 10 || phoneNumberToUse.length > 15) {
-      setError('Enter the device owner name and WhatsApp number you want to connect first.');
+    if (!ownerNameToUse.trim() || phoneNumberToUse.length < 12 || phoneNumberToUse.length > 17) {
+      setError('Enter the device owner name and 10-digit WhatsApp number you want to connect first.');
       return;
     }
 
@@ -1283,7 +1290,7 @@ export const Sources: React.FC = () => {
 
   const handleAddAnotherNumber = () => {
     setDeviceOwnerName(fullName || '');
-    setDevicePhoneNumber('');
+    setDevicePhoneNumber('91');
     setPendingConnection(null);
     setConnectionArtifact(null);
     setQrGeneratedAt(null);
@@ -1293,7 +1300,7 @@ export const Sources: React.FC = () => {
 
   const handleSelectExistingSession = (session: WhatsappSession) => {
     setDeviceOwnerName(session.ownerName || fullName || '');
-    setDevicePhoneNumber(session.phoneNumber || '');
+    setDevicePhoneNumber(ensureIndiaPrefix(session.phoneNumber || ''));
     setPendingConnection(null);
     setConnectionArtifact(null);
     setQrGeneratedAt(null);
@@ -2292,7 +2299,7 @@ export const Sources: React.FC = () => {
                 />
               </label>
 
-              <label className="block">
+               <label className="block">
                 <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">WhatsApp number</span>
                 <div className="relative">
                   <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
@@ -2308,7 +2315,7 @@ export const Sources: React.FC = () => {
                   {isWorkspacePhoneLocked ? (
                     <>This workspace is locked to <span className="text-[var(--text-primary)]">{lockedWorkspacePhone}</span>. Use this number for WhatsApp connection.</>
                   ) : (
-                    <>Enter your WhatsApp number with country code (digits only). Example: <span className="text-[var(--text-primary)]">919876543210</span></>
+                    <>Enter your 10-digit WhatsApp number. <span className="text-[var(--text-primary)]">91</span> (India) is added automatically.</>
                   )}
                 </p>
               </label>
