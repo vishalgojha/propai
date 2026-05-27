@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, MapPin } from 'lucide-react';
 import { getListings, type PublicListing } from '@/lib/listings';
 import ListingCard from '@/components/ListingCard';
 import { cn } from '@/lib/utils';
@@ -145,75 +145,65 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
         </div>
       </section>
 
-      {/* Why PropAI / Comparison */}
+      {/* Data-first summary */}
       <section className="mx-auto max-w-7xl px-5">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">The Advantage</span>
-            <h2 className="text-[28px] font-bold text-[var(--text-primary)] mt-1 mb-6">Why PropAI Pulse?</h2>
-            <div className="space-y-6">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">What this page gives you</span>
+            <h2 className="mt-1 text-[28px] font-bold text-[var(--text-primary)]">Listings, locality context, and direct broker access.</h2>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
               {[
-                { t: 'Off-Market Before Anyone Else', d: 'Properties that never reach portals like MagicBricks — sourced directly from broker networks.' },
-                { t: "Inventory That's Seconds Old", d: "Not scraped from portals. Indexed as active market inventory changes." },
-                { t: 'Direct Connection', d: 'One click to request a direct conversation with the listing broker.' }
-              ].map((v, i) => (
-                <div key={i} className="flex gap-4">
-                  <div className="h-6 w-6 rounded-full bg-[var(--accent-dim)] border border-[color:var(--accent-border)] flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-[var(--accent)]" />
-                  </div>
-                  <div>
-                    <h4 className="text-[15px] font-semibold text-[var(--text-primary)]">{v.t}</h4>
-                    <p className="text-[13px] text-[var(--text-secondary)] mt-1">{v.d}</p>
-                  </div>
+                { t: 'Fresh inventory', d: 'Visible as soon as it is parsed.' },
+                { t: 'Locality context', d: 'Move from market to market without guessing.' },
+                { t: 'Direct contact', d: 'Open the broker chat when a record is worth calling.' },
+              ].map((v) => (
+                <div key={v.t} className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+                  <h4 className="text-[14px] font-semibold text-[var(--text-primary)]">{v.t}</h4>
+                  <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{v.d}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-[20px] border border-[color:var(--border-strong)] bg-[var(--bg-surface)] overflow-hidden shadow-2xl">
-             <table className="w-full text-left border-collapse">
-                <thead>
-                   <tr className="bg-[var(--bg-elevated)] border-b border-[color:var(--border)]">
-                      <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Feature</th>
-                      <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-[var(--accent)]">PropAI</th>
-                      <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Portals</th>
-                   </tr>
-                </thead>
-                <tbody className="text-[13px]">
-                   {[
-                      { f: 'Freshness', p: 'Seconds old', t: '24-48 hours' },
-                      { f: 'Direct broker connect', p: 'Native', t: 'Rarely' },
-                      { f: 'Off-market', p: '100%', t: '0%' },
-                      { f: 'Spam filters', p: 'AI Level', t: 'Manual' }
-                   ].map((row, i) => (
-                      <tr key={i} className="border-b border-[color:var(--border)]">
-                         <td className="px-6 py-4 font-medium text-[var(--text-secondary)]">{row.f}</td>
-                         <td className="px-6 py-4 font-bold text-[var(--text-primary)]">{row.p}</td>
-                         <td className="px-6 py-4 text-[var(--text-muted)]">{row.t}</td>
-                      </tr>
-                   ))}
-                </tbody>
-             </table>
+          <div className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Top belts</span>
+            <h2 className="mt-1 text-[24px] font-bold text-[var(--text-primary)]">Common markets brokers jump between.</h2>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {['Bandra West', 'Khar West', 'Santacruz West', 'Andheri West', 'Powai', 'Worli', 'Lower Parel', 'Chembur'].map((loc) => (
+                <Link
+                  key={loc}
+                  href={`/listings?locality=${encodeURIComponent(loc)}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)] hover:border-[color:var(--accent-border)] hover:text-[var(--accent)] transition-colors"
+                >
+                  <MapPin className="h-3 w-3" />
+                  {loc}
+                </Link>
+              ))}
+            </div>
+            <p className="mt-5 text-[13px] leading-6 text-[var(--text-secondary)]">
+              The public site should feel like an inventory index, not a brochure. The useful work is the listing, locality, and broker connection.
+            </p>
           </div>
         </div>
       </section>
 
-
-
-      {/* CTA Section */}
-      <section className="mx-auto max-w-5xl px-5 shadow-[0_24px_80px_rgba(62,232,138,0.06)]">
-        <div className="rounded-[24px] bg-gradient-to-br from-[var(--bg-elevated)] to-[#0c1a12] border border-[color:var(--accent-border)] p-12 text-center">
-          <h2 className="text-[32px] font-bold text-[var(--text-primary)] mb-4">Ready to secure the edge?</h2>
-          <p className="text-[14px] text-[var(--text-secondary)] mb-10 max-w-xl mx-auto">
-            Stop refreshing generic portals. Join the network where real estate intelligence moves first.
-          </p>
-          <div className="flex flex-wrap justify-center gap-4">
-            <Link href="/listings" className="inline-flex items-center justify-center gap-2 rounded-[12px] bg-[var(--accent)] px-8 py-4 text-[13px] font-bold uppercase tracking-wider text-[var(--on-propai-green)] shadow-xl hover:brightness-110 transition-all">
-              Browse Listings
-            </Link>
-            <Link href="/broker/signup" className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-8 py-4 text-[13px] font-bold uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all">
-              For Brokers
-            </Link>
+      <section className="mx-auto max-w-5xl px-5">
+        <div className="rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-[24px] font-bold text-[var(--text-primary)]">Use it like a working desk</h2>
+              <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
+                Search a locality, open the feed, and move straight to the broker when the record is strong enough.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link href="/listings" className="inline-flex items-center justify-center gap-2 rounded-[12px] bg-[var(--accent)] px-5 py-3 text-[13px] font-bold uppercase tracking-wider text-[var(--on-propai-green)] shadow-xl hover:brightness-110 transition-all">
+                Browse Listings
+              </Link>
+              <Link href="/broker/signup" className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-5 py-3 text-[13px] font-bold uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all">
+                For Brokers
+              </Link>
+            </div>
           </div>
         </div>
       </section>

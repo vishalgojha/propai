@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Search, Filter, LayoutGrid, List as ListIcon, X } from 'lucide-react';
 import { getListings, type PublicListing } from '@/lib/listings';
 import ListingCard from '@/components/ListingCard';
 import { cn } from '@/lib/utils';
+import { neighbouringLocalities, slugifyLocalityName } from '../../lib/localities';
 
 export default function Listings({ initialListings = [] }: { initialListings?: PublicListing[] }) {
   const [listings, setListings] = useState<PublicListing[]>(initialListings);
@@ -27,6 +29,15 @@ export default function Listings({ initialListings = [] }: { initialListings?: P
     return true;
   });
 
+  const primaryLocality = filters.locality.trim();
+  const localityBelt = primaryLocality
+    ? neighbouringLocalities(slugifyLocalityName(primaryLocality), 4)
+    : [];
+  const localityCounts = localityBelt.map((market) => ({
+    ...market,
+    count: listings.filter((listing) => listing.locality.toLowerCase().includes(market.name.toLowerCase())).length,
+  }));
+
   return (
     <div className="mx-auto max-w-7xl px-5 py-12 space-y-10">
       <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
@@ -45,6 +56,30 @@ export default function Listings({ initialListings = [] }: { initialListings?: P
           {/* View toggle removed to focus on vertical Airbnb-style cards */}
         </div>
       </div>
+
+      {localityCounts.length > 0 ? (
+        <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Market belt</p>
+              <h2 className="mt-1 text-[16px] font-bold text-[var(--text-primary)]">{primaryLocality}</h2>
+            </div>
+            <p className="text-[12px] text-[var(--text-secondary)]">Related localities brokers usually cross-check</p>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {localityCounts.map((market) => (
+              <Link
+                key={market.slug}
+                href={`/listings?locality=${encodeURIComponent(market.name)}`}
+                className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[12px] text-[var(--text-secondary)] hover:border-[color:var(--accent-border)] hover:text-[var(--accent)] transition-colors"
+              >
+                <span>{market.name}</span>
+                <span className="text-[10px] text-[var(--text-muted)]">{market.count}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         {['All', 'Rent', 'Sale'].map(type => (
