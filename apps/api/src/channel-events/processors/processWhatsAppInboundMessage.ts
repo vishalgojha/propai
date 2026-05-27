@@ -332,7 +332,7 @@ function extractMessageContext(rawMessage: any) {
     ) as Record<string, any>;
 }
 
-function extractGroupMentionQuery(event: IncomingMessageRecord): string | null {
+function extractGroupMentionQuery(event: IncomingMessageRecord, botJids: string[]): string | null {
     const rawMessage = (event.rawMessage || {}) as any;
     const contextInfo = extractMessageContext(rawMessage);
     const mentionedJids = [
@@ -352,36 +352,61 @@ function extractGroupMentionQuery(event: IncomingMessageRecord): string | null {
     const mentionTargets = new Set([
         '917021045254@s.whatsapp.net',
         '7021045254@s.whatsapp.net',
+        ...botJids.map(normalizeJid).filter(Boolean),
     ]);
 
     const text = String(event.text || '').trim();
     const lower = normalizeMentionToken(text);
-    const hasTextMention = /(^|\s)@propai\b/i.test(text) || /(^|\s)(?:\+?91)?7021045254\b/.test(text) || /(^|\s)(?:\+?91)?917021045254\b/.test(text);
+
+    const botPhones = new Set(
+        botJids.map((jid) => normalizeComparablePhone(jid)).filter(Boolean) as string[],
+    );
+
+    const hasTextMention = /(^|\s)@propai\b/i.test(text)
+        || /(^|\s)(?:\+?91)?7021045254\b/.test(text)
+        || /(^|\s)(?:\+?91)?917021045254\b/.test(text)
+        || [...botPhones].some((phone) => new RegExp(`(^|\\s)(?:\\+?91)?${phone}\\b`).test(text));
+
     const hasDirectMention = mentionedJids.some((jid) => mentionTargets.has(jid));
     const hasQuotedMention = Boolean(quotedParticipant) && mentionTargets.has(quotedParticipant);
+
+    console.info('[GroupMentionDebug]', JSON.stringify({
+        mentionedJids,
+        hasDirectMention,
+        hasTextMention,
+        hasQuotedMention,
+        botJids,
+        textPreview: text.slice(0, 200),
+    }));
 
     if (!hasTextMention && !hasDirectMention && !hasQuotedMention) {
         return null;
     }
 
-    const directTextQuery = text
-        .replace(/.*?@propai[\s:,\-]*/i, '')
-        .replace(/.*?@pulse[\s:,\-]*/i, '')
-        .replace(/.*?(?:\+?91)?7021045254[\s:,\-]*/i, '')
-        .replace(/.*?(?:\+?91)?917021045254[\s:,\-]*/i, '')
-        .replace(/^@\S+\s*/i, '')
-        .trim();
+    let cleaned = text;
+    cleaned = cleaned.replace(/.*?@propai[\s:,\-]*/i, '');
+    cleaned = cleaned.replace(/.*?@pulse[\s:,\-]*/i, '');
+    cleaned = cleaned.replace(/.*?(?:\+?91)?7021045254[\s:,\-]*/i, '');
+    cleaned = cleaned.replace(/.*?(?:\+?91)?917021045254[\s:,\-]*/i, '');
+    for (const phone of botPhones) {
+        cleaned = cleaned.replace(new RegExp(`.*?(?:\\+?91)?${phone}[\\s:,\\-]*`, 'i'), '');
+    }
+    cleaned = cleaned.replace(/^@\S+\s*/i, '');
+    const directTextQuery = cleaned.trim();
 
     if (directTextQuery) {
         return directTextQuery;
     }
 
     if (hasDirectMention) {
-        const withoutFirstMentionToken = text
-            .replace(/^@\S+\s*/, '')
-            .replace(/^(?:\+?91)?7021045254\s*/, '')
-            .replace(/^(?:\+?91)?917021045254\s*/, '')
-            .trim();
+        let cleaned2 = text;
+        cleaned2 = cleaned2.replace(/^@\S+\s*/, '');
+        cleaned2 = cleaned2.replace(/^(?:\+?91)?7021045254\s*/, '');
+        cleaned2 = cleaned2.replace(/^(?:\+?91)?917021045254\s*/, '');
+        for (const phone of botPhones) {
+            cleaned2 = cleaned2.replace(new RegExp(`^(?:\\+?91)?${phone}\\s*`), '');
+        }
+        const withoutFirstMentionToken = cleaned2.trim();
         if (withoutFirstMentionToken) {
             return withoutFirstMentionToken;
         }
@@ -400,7 +425,7 @@ function extractGroupMentionQuery(event: IncomingMessageRecord): string | null {
     return null;
 }
 
-function buildGroupMentionDebug(event: IncomingMessageRecord) {
+function buildGroupMentionDebug(event: IncomingMessageRecord, botJids: string[]) {
     const rawMessage = (event.rawMessage || {}) as any;
     const contextInfo = extractMessageContext(rawMessage);
     const mentionedJids = [
@@ -409,20 +434,24 @@ function buildGroupMentionDebug(event: IncomingMessageRecord) {
     ]
         .map(normalizeJid)
         .filter((jid): jid is string => Boolean(jid));
-
     const quotedParticipant = normalizeJid(
         contextInfo?.participant ||
         contextInfo?.remoteJid ||
         contextInfo?.quotedParticipant ||
         contextInfo?.stanzaIdParticipant,
     );
-
     const text = String(event.text || '').trim();
+    const botPhones = new Set(
+        botJids.map((jid) => normalizeComparablePhone(jid)).filter(Boolean) as string[],
+    );
+    const hasTextMention = /(^|\s)@propai\b/i.test(text)
+        || /(^|\s)(?:\+?91)?7021045254\b/.test(text)
+        || /(^|\s)(?:\+?91)?917021045254\b/.test(text)
+        || [...botPhones].some((phone) => new RegExp(`(^|\\s)(?:\\+?91)?${phone}\\b`).test(text));
     return {
-        textPreview: text.slice(0, 120),
-        hasTextMention: /(^|\s)@propai\b/i.test(text) || /(^|\s)@pulse\b/i.test(text) || /(^|\s)(?:\+?91)?7021045254\b/.test(text) || /(^|\s)(?:\+?91)?917021045254\b/.test(text),
         mentionedJids,
-        quotedParticipant: quotedParticipant || null,
+        quotedParticipant,
+        hasTextMention,
         hasGroupMentions: Array.isArray(contextInfo?.groupMentions) && contextInfo.groupMentions.length > 0,
         hasMentionedJid: Array.isArray(contextInfo?.mentionedJid) && contextInfo.mentionedJid.length > 0,
     };
@@ -620,8 +649,8 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
     const groupName = groupMetadata?.groupName || null;
 
     if (isGroup) {
-        const mentionDebug = buildGroupMentionDebug(event);
-        const mentionQuery = extractGroupMentionQuery(event);
+        const mentionDebug = buildGroupMentionDebug(event, botJids);
+        const mentionQuery = extractGroupMentionQuery(event, botJids);
         if (mentionQuery) {
             console.info('[GroupMentionDebug]', JSON.stringify({
                 tenantId,
