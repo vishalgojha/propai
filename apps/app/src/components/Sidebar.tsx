@@ -135,8 +135,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   const isTrial = subscription?.status === 'trial' || subscription?.status === 'trialing' || subscription?.plan === 'Free' || subscription?.plan === 'Trial';
   const canViewStream = React.useMemo(() => {
     const normalized = String(subscription?.plan || '').trim().toLowerCase();
-    return normalized === 'starter' || normalized === 'pro';
-  }, [subscription?.plan]);
+    return isSuperAdmin || normalized === 'starter' || normalized === 'pro';
+  }, [isSuperAdmin, subscription?.plan]);
   const planLabel = React.useMemo(() => {
     const normalized = String(subscription?.plan || '').trim().toLowerCase();
     if (normalized === 'trial' || normalized === 'free') return 'Trial';
