@@ -30,7 +30,7 @@ type LiveIgrFetchResult = {
 };
 
 const IGR_PORTAL_URL = 'https://freesearchigrservice.maharashtra.gov.in/';
-const CAMOUFOX_BASE_URL = process.env.CAMOUFOX_URL || 'http://127.0.0.1:9377';
+const CAMOUFOX_BASE_URL = process.env.CAMOFOX_URL || process.env.CAMOUFOX_URL || 'http://127.0.0.1:9377';
 const CAMOUFOX_USER_ID = 'propai-igr';
 const NAVIGATE_TIMEOUT_MS = 30_000;
 const FORM_FILL_DELAY_MS = 2_000;

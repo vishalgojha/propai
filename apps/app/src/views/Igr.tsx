@@ -4,7 +4,7 @@ import { handleApiError } from '../services/api';
 import { fetchAndSaveLiveIgr, fetchIgrSearch, fetchBuildingNames, type IgrTransaction, type IgrSearchResponse } from '../services/igrApi';
 import { cn } from '../lib/utils';
 
-const panelClass = 'rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]';
+const panelClass = 'rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]';
 const inputClass = 'w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg)] px-4 py-3 text-[13px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[color:var(--accent-border)]';
 
 function formatDate(value?: string | null) {
@@ -156,9 +156,9 @@ export default function IgrView() {
     : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4 md:p-6">
+    <div className="mx-auto flex w-full max-w-[95vw] flex-col gap-4 p-3 md:p-4">
       {/* Compact toolbar */}
-      <div className="flex items-center justify-between gap-4 rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-5 py-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+      <div className="flex items-center justify-between gap-4 rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-[var(--accent)]" />
@@ -187,10 +187,10 @@ export default function IgrView() {
       </div>
 
       {/* Form + Latest result row */}
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Tight form */}
         <form className={panelClass} onSubmit={submitSearch}>
-          <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-0 flex-1">
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Building</label>
               <div className="relative">
