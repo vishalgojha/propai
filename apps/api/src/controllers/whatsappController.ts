@@ -754,9 +754,10 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
     const fallbackEmail = String(user?.email || '').trim().toLowerCase() || null;
     const fallbackFullName = String(user?.full_name || user?.name || '').trim() || null;
     const gateway = getWhatsAppGateway(tenantId);
+    const dbClient = getDbClient();
 
     try {
-        const dbClient = getDbClient();
+        // Find the session in DB even if no active client exists
         const { data: sessionRow } = await dbClient
             .from('whatsapp_sessions')
             .select('label, session_data, owner_name')
@@ -764,11 +765,40 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
             .eq('label', String(targetSessionKey || ''))
             .maybeSingle();
 
-        await gateway.disconnect({ workspaceOwnerId: tenantId, sessionLabel: targetSessionKey });
+        const resolvedLabel = sessionRow?.label || targetSessionKey || '';
+
+        // Try to disconnect active client (may not exist if API restarted)
+        try {
+            await gateway.disconnect({ workspaceOwnerId: tenantId, sessionLabel: resolvedLabel });
+        } catch {
+            // Client may not exist, but we still clear the DB
+        }
+
+        // Always clear DB state even if no active client
+        await dbClient
+            .from('whatsapp_sessions')
+            .update({
+                status: 'disconnected',
+                updated_at: new Date().toISOString(),
+            })
+            .eq('tenant_id', tenantId)
+            .eq('label', resolvedLabel);
+
+        // Also clear ingestion health
+        await dbClient
+            .from('whatsapp_ingestion_health')
+            .update({
+                connection_status: 'disconnected',
+                qr_code: null,
+                error_code: null,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('tenant_id', tenantId)
+            .eq('session_label', resolvedLabel);
 
         await sendWhatsAppLifecycleEmail({
             tenantId,
-            label: String(sessionRow?.label || targetSessionKey || ''),
+            label: resolvedLabel,
             status: 'disconnected',
             phoneNumber: sessionRow?.session_data?.phoneNumber || phoneNumber || null,
             fallbackEmail,
@@ -780,10 +810,10 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
             workspaceOwnerId: tenantId,
             eventType: 'whatsapp.session.disconnected',
             entityType: 'whatsapp_session',
-            entityId: String(targetSessionKey || ''),
-            summary: `Disconnected WhatsApp session ${targetSessionKey || 'default'}.`,
+            entityId: resolvedLabel,
+            summary: `Disconnected WhatsApp session ${resolvedLabel || 'default'}.`,
             metadata: {
-                targetSessionKey: targetSessionKey || null,
+                targetSessionKey: resolvedLabel || null,
             },
         });
 
