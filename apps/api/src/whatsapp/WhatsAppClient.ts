@@ -629,6 +629,11 @@ try {
                                 return phone;
                             });
                             const groupName = String(groupMeta?.subject || groupJid).trim() || null;
+
+                            if (this.connectedPhoneNumber && this.connectedPhoneNumber !== '917021045254') {
+                                return;
+                            }
+
                             const welcomeText = participantNames.length > 0
                                 ? `Welcome ${participantNames.join(', ')}. I'm Pulse from PropAI. I help brokers keep ${groupName || 'this group'} organized, parse listings and requirements, and answer when you tag me. Use @Pulse <query> to talk to me in the group.`
                                 : this.buildGroupWelcomeText(groupName);
@@ -1173,7 +1178,6 @@ try {
             return false;
         }
 
-        this.recentGroupEvents.delete(key);
         return true;
     }
 
