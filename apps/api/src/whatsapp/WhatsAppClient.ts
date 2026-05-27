@@ -69,6 +69,7 @@ export class WhatsAppClient {
     private isConnecting = false;
     private connectionStatus: ConnectionStatus = 'disconnected';
     private readonly recentOutgoingMessages = new Map<string, number>();
+    private readonly recentGroupEvents = new Map<string, number>();
     private authState: SupabaseAuthState | null = null;
     private reconnectAttempts = 0;
     private readonly maxReconnectAttempts = 10;
@@ -615,17 +616,21 @@ try {
 
                     if (payload.action === 'add' && Array.isArray(participants)) {
                         try {
+                            const dedupKey = `${groupJid}:${participants.sort().join(',')}:add`;
+                            if (this.isRecentGroupEvent(dedupKey)) {
+                                return;
+                            }
+                            this.rememberGroupEvent(dedupKey);
+
                             const groupMeta = await this.socket?.groupMetadata(groupJid).catch(() => null);
-                            const participantNames = participants.map((participantJid: string) => {
-                                const phone = String(participantJid || '').split('@')[0];
-                                const participant = Array.isArray(groupMeta?.participants)
-                                    ? groupMeta.participants.find((p: any) => p.id === participantJid)
-                                    : null;
-                                return participant?.name || participant?.notify || phone;
+                            const participantNames = participants.map((raw: any) => {
+                                const jidStr = typeof raw === 'string' ? raw : String(raw?.id || raw || '');
+                                const phone = jidStr.split('@')[0];
+                                return phone;
                             });
                             const groupName = String(groupMeta?.subject || groupJid).trim() || null;
                             const welcomeText = participantNames.length > 0
-                                ? `Welcome ${participantNames.join(', ')}. I’m Pulse from PropAI. I help brokers keep ${groupName || 'this group'} organized, parse listings and requirements, and answer when you tag me. Use @Pulse <query> to talk to me in the group.`
+                                ? `Welcome ${participantNames.join(', ')}. I'm Pulse from PropAI. I help brokers keep ${groupName || 'this group'} organized, parse listings and requirements, and answer when you tag me. Use @Pulse <query> to talk to me in the group.`
                                 : this.buildGroupWelcomeText(groupName);
                             await this.sendText(groupJid, welcomeText).catch(() => {});
                         } catch {
@@ -1148,6 +1153,27 @@ try {
         }
 
         this.recentOutgoingMessages.delete(key);
+        return true;
+    }
+
+    private rememberGroupEvent(key: string) {
+        this.recentGroupEvents.set(key, Date.now() + 60000);
+    }
+
+    private isRecentGroupEvent(key: string) {
+        const now = Date.now();
+        for (const [entryKey, expiresAt] of this.recentGroupEvents.entries()) {
+            if (expiresAt <= now) {
+                this.recentGroupEvents.delete(entryKey);
+            }
+        }
+
+        const expiresAt = this.recentGroupEvents.get(key);
+        if (!expiresAt) {
+            return false;
+        }
+
+        this.recentGroupEvents.delete(key);
         return true;
     }
 
