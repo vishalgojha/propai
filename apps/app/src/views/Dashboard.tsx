@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, ArrowRight, History, MessageSquare, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { Activity, ArrowRight, MessageSquare, RefreshCw, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
@@ -8,12 +8,6 @@ import { cn } from '../lib/utils';
 import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_CONNECT_WA_LINK, PROPAI_PLAN_CARDS } from '../lib/propai';
 
 const DASHBOARD_CACHE_KEY = 'propai.dashboard_cache';
-
-type HistorySyncStatus = {
-  isProcessing: boolean;
-  totalProcessed: number;
-  progress: number | null;
-};
 
 type DashboardCache = {
   whatsapp: WhatsappStatusResponse | null;
@@ -129,14 +123,6 @@ const EmptyState: React.FC = () => {
                 Connect WhatsApp
                 <ArrowRight className="h-4 w-4" />
               </a>
-            <button
-              type="button"
-              onClick={() => navigate('/history-sync')}
-              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[12px] font-semibold text-[var(--text-primary)] transition hover:bg-[var(--bg-base)]"
-            >
-              <History className="h-4 w-4 text-[var(--accent)]" />
-              Import chat history
-            </button>
             <a
               href={PROPAI_ASSISTANT_WA_LINK}
               target="_blank"
@@ -244,11 +230,6 @@ const StatCard: React.FC<{
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const historySync = React.useMemo<HistorySyncStatus>(() => ({
-    isProcessing: false,
-    totalProcessed: 0,
-    progress: null,
-  }), []);
   const cached = React.useRef(readDashboardCache());
   const [whatsapp, setWhatsapp] = React.useState<WhatsappStatusResponse | null>(cached.current?.whatsapp ?? null);
   const [streamStats, setStreamStats] = React.useState<StreamStats | null>(cached.current?.streamStats ?? null);
@@ -307,7 +288,7 @@ export const Dashboard: React.FC = () => {
   const isConnected = whatsapp?.status === 'connected';
   const hasStreamData = Number(streamStats?.total || 0) > 0;
   const hasCachedData = Boolean(cached.current && (cached.current.streamStats.total > 0 || cached.current.whatsapp?.status === 'connected' || cached.current.workspaceMetadata?.agencyName));
-  const hasAnyData = hasStreamData || historySync.totalProcessed > 0 || isConnected || hasCachedData;
+  const hasAnyData = hasStreamData || isConnected || hasCachedData;
   const needsOnboarding = !workspaceMetadata?.agencyName || !workspaceMetadata?.primaryCity || (workspaceMetadata?.serviceAreas?.length || 0) === 0;
 
   if (!hasAnyData && !loading && !error) {
@@ -526,18 +507,7 @@ export const Dashboard: React.FC = () => {
           icon={<Sparkles className="h-5 w-5" />}
           tone={unread > 0 ? 'warn' : total > 0 ? 'good' : 'neutral'}
           onClick={() => navigate('/stream')}
-          cta={unread > 0 ? 'Review new items' : total > 0 ? 'Open Stream' : 'Seed with history'}
-        />
-        <StatCard
-          title="History sync"
-          value={historySync.isProcessing ? 'Importing' : historySync.totalProcessed > 0 ? 'Complete' : 'Not started'}
-          hint={historySync.totalProcessed > 0
-            ? `${historySync.totalProcessed} messages processed · ${typeof historySync.progress === 'number' ? `${Math.round(historySync.progress)}%` : '…'}`
-            : 'Import a WhatsApp TXT export to backfill listings and requirements.'}
-          icon={<History className="h-5 w-5" />}
-          tone={historySync.isProcessing ? 'warn' : historySync.totalProcessed > 0 ? 'good' : 'neutral'}
-          onClick={() => navigate('/history-sync')}
-          cta={historySync.totalProcessed > 0 ? 'View importer' : 'Import TXT'}
+          cta={unread > 0 ? 'Review new items' : total > 0 ? 'Open Stream' : 'Browse listings'}
         />
       </div>
 
