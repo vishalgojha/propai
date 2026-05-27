@@ -518,6 +518,7 @@ export const Sources: React.FC = () => {
   const [groupAuditError, setGroupAuditError] = useState<string | null>(null);
   const [isApplyingGroupAudit, setIsApplyingGroupAudit] = useState(false);
   const [isAllowingAllRealEstate, setIsAllowingAllRealEstate] = useState(false);
+  const [isResettingSession, setIsResettingSession] = useState(false);
   const [selectedAuditParseIds, setSelectedAuditParseIds] = useState<string[]>([]);
   const [groupAuditSearchTerm, setGroupAuditSearchTerm] = useState('');
   const [groupAuditFilter, setGroupAuditFilter] = useState<GroupAuditFilter>('all');
@@ -1276,6 +1277,32 @@ export const Sources: React.FC = () => {
     }
   };
 
+  const handleResetSession = async (label?: string | null) => {
+    if (!label) {
+      return;
+    }
+
+    setIsResettingSession(true);
+    setError(null);
+    try {
+      await backendApi.post(ENDPOINTS.whatsapp.reset, { label });
+      track('whatsapp_session_reset', {
+        label,
+      });
+      setConnectionArtifact(null);
+      setRenderedQrMarkup(null);
+      setQrGeneratedAt(null);
+      setQrTimeLeft(0);
+      setScanProgress(0);
+      setPendingConnection(null);
+      await fetchStatus();
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsResettingSession(false);
+    }
+  };
+
   const saveAssistantSettings = useCallback(async (overrides?: {
     parseDirectMessages?: boolean;
     selfChatEnabled?: boolean;
@@ -1657,7 +1684,7 @@ export const Sources: React.FC = () => {
       { all: 0, selected: 0, not_selected: 0, parse: 0, review: 0, ignore: 0 },
     );
   }, [groupAudit?.groups, selectedAuditParseIds]);
-  const disconnectTargetLabel = currentSession?.label || primaryConnectedSession?.label || null;
+  const disconnectTargetLabel = currentSession?.label || primaryConnectedSession?.label || pendingConnection?.label || activeSessionLabel || null;
   const isQrExpired = Boolean(artifactValue) && qrTimeLeft === 0 && !isCurrentSessionConnected;
   const showConnectionArtifactPanel = Boolean(artifactValue) || (isConnecting && Boolean(artifactMode) && !isCurrentSessionConnected);
   const selectedHealthSession = useMemo(() => {
@@ -2416,14 +2443,24 @@ export const Sources: React.FC = () => {
                   <p className="mt-2 text-[11px] text-[var(--text-secondary)]">{status.activeCount}/{status.limit} numbers connected on this workspace</p>
                 </div>
                 {disconnectTargetLabel && currentSessionStatus !== 'disconnected' && (
-                  <button
-                    onClick={() => handleDisconnect(disconnectTargetLabel)}
-                    disabled={isConnecting}
-                    className={cn(sourceSecondaryButton, 'bg-[var(--bg-base)] px-3 py-2.5 text-[var(--text-secondary)] hover:text-[var(--red)]')}
-                  >
-                    <Power className="h-4 w-4" />
-                    Disconnect
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => void handleResetSession(disconnectTargetLabel)}
+                      disabled={isConnecting || isResettingSession}
+                      className={cn(sourceSecondaryButton, 'bg-[var(--bg-base)] px-3 py-2.5 text-[var(--text-secondary)] hover:text-[var(--amber)]')}
+                    >
+                      {isResettingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      Reset stale session
+                    </button>
+                    <button
+                      onClick={() => void handleDisconnect(disconnectTargetLabel)}
+                      disabled={isConnecting || isResettingSession}
+                      className={cn(sourceSecondaryButton, 'bg-[var(--bg-base)] px-3 py-2.5 text-[var(--text-secondary)] hover:text-[var(--red)]')}
+                    >
+                      <Power className="h-4 w-4" />
+                      Disconnect
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
