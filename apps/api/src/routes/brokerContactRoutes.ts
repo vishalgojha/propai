@@ -231,7 +231,8 @@ router.get('/', async (req, res) => {
 
     const { data: contacts, error } = await supabaseAdmin!
       .from('broker_contacts')
-      .select('*');
+      .select('*')
+      .eq('tenant_id', context.workspaceOwnerId);
 
     if (error) {
       console.error('[BrokerContacts] DB query failed:', error);
