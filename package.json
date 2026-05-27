@@ -13,5 +13,22 @@
     "prettier": "latest",
     "typescript": "latest"
   },
-  "packageManager": "pnpm@9.0.0"
+  "packageManager": "pnpm@9.0.0",
+  "version": "1.0.0",
+  "description": "PropAI Pulse is a high-performance workspace for real estate brokers to automate WhatsApp lead capture, listing parsing, and client qualification.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vishalgojha/propai.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/vishalgojha/propai/issues"
+  },
+  "homepage": "https://github.com/vishalgojha/propai#readme"
 }

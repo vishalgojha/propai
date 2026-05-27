@@ -194,18 +194,36 @@ export class GroupAuditService {
             .filter((group) => String(group.sessionLabel || '') === input.sessionLabel);
         const useOptOut = ignoreIds.size > 0 || parseIds.length === groups.length || parseIds.length === 0;
 
-        const upserts = groups.map((group) => {
-            const id = String(group.id || '');
-            const shouldParse = useOptOut ? !ignoreIds.has(id) : parseIds.includes(id);
-            return {
+        const parseIds_group = groups
+            .filter((group) => {
+                const id = String(group.id || '');
+                return useOptOut ? !ignoreIds.has(id) : parseIds.includes(id);
+            })
+            .map((group) => ({
                 tenant_id: input.workspaceOwnerId,
-                group_id: id,
-                behavior: shouldParse ? 'Listen' : 'Off',
-            };
-        });
+                group_id: String(group.id || ''),
+                behavior: 'Listen' as const,
+            }));
 
-        if (upserts.length > 0) {
-            const { error } = await db.from('group_configs').upsert(upserts, { onConflict: 'group_id' });
+        const offIds = groups
+            .filter((group) => {
+                const id = String(group.id || '');
+                return useOptOut ? ignoreIds.has(id) : !parseIds.includes(id);
+            })
+            .map((group) => String(group.id || ''))
+            .filter(Boolean);
+
+        if (parseIds_group.length > 0) {
+            const { error } = await db.from('group_configs').upsert(parseIds_group, { onConflict: 'group_id' });
+            if (error) throw error;
+        }
+
+        if (offIds.length > 0) {
+            const { error } = await db
+                .from('group_configs')
+                .delete()
+                .eq('tenant_id', input.workspaceOwnerId)
+                .in('group_id', offIds);
             if (error) throw error;
         }
 

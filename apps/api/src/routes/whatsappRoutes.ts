@@ -109,10 +109,25 @@ router.patch('/groups/:groupJid/toggle-parsing', async (req: Request, res: Respo
             return res.status(400).json({ error: 'isParsing boolean is required' });
         }
 
-        const behavior = isParsing ? 'Listen' : 'Off';
-        const { error: configError } = await (supabaseAdmin || supabase)
-            .from('group_configs')
-            .upsert({ group_id: groupJid, tenant_id: tenantId, behavior }, { onConflict: 'group_id' });
+        if (isParsing) {
+            const { error: configError } = await (supabaseAdmin || supabase)
+                .from('group_configs')
+                .upsert({ group_id: groupJid, tenant_id: tenantId, behavior: 'Listen' }, { onConflict: 'group_id' });
+
+            if (configError) {
+                return res.status(500).json({ error: configError.message });
+            }
+        } else {
+            const { error: deleteError } = await (supabaseAdmin || supabase)
+                .from('group_configs')
+                .delete()
+                .eq('group_id', groupJid)
+                .eq('tenant_id', tenantId);
+
+            if (deleteError) {
+                return res.status(500).json({ error: deleteError.message });
+            }
+        }
 
         if (configError) {
             return res.status(500).json({ error: configError.message });
