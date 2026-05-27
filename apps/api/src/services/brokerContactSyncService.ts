@@ -32,7 +32,7 @@ export class BrokerContactSyncService {
       throw new Error('Database admin client is not configured');
     }
 
-    const minOverlap = Math.max(1, Number(options?.minOverlap || 2));
+    const minOverlap = Math.max(1, Number(options?.minOverlap || 1));
     let query = db
       .from('whatsapp_groups')
       .select('group_jid, group_name, locality, category, session_label, participant_jids, is_archived')

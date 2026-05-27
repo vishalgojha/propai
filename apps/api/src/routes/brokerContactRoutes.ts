@@ -223,34 +223,19 @@ router.get('/', async (req, res) => {
       return res.status(503).json({ error: 'Database admin client is not configured' });
     }
 
-    const loadContacts = async () => await supabaseAdmin!
+    try {
+      await brokerContactSyncService.syncFromStoredGroups(context.workspaceOwnerId);
+    } catch (syncError) {
+      console.error('[BrokerContacts] Sync failed:', syncError);
+    }
+
+    const { data: contacts, error } = await supabaseAdmin!
       .from('broker_contacts')
       .select('*')
-      .order('listing_count', { ascending: false })
-      .order('last_seen_at', { ascending: false });
-
-    let { data: contacts, error } = await loadContacts();
+      .eq('tenant_id', context.workspaceOwnerId);
 
     if (error) {
       console.error('[BrokerContacts] DB query failed:', error);
-      return res.status(500).json({ error: 'Failed to fetch broker contacts', details: error.message });
-    }
-
-    if ((contacts || []).length <= 1) {
-      try {
-        await brokerContactSyncService.syncFromStoredGroups(context.workspaceOwnerId, {
-          minOverlap: 2,
-        });
-        const reloaded = await loadContacts();
-        contacts = reloaded.data || [];
-        error = reloaded.error;
-      } catch (syncError) {
-        console.error('[BrokerContacts] Bootstrap sync failed:', syncError);
-      }
-    }
-
-    if (error) {
-      console.error('[BrokerContacts] DB query failed after bootstrap sync:', error);
       return res.status(500).json({ error: 'Failed to fetch broker contacts', details: error.message });
     }
 
