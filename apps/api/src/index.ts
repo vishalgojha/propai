@@ -24,6 +24,7 @@ import syndicationRoutes from './routes/syndicationRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import vaultRoutes from './routes/vaultRoutes';
 import igrRoutes from './routes/igrRoutes';
+import locationRoutes from './routes/locationRoutes';
 import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
@@ -170,6 +171,7 @@ app.use(ROUTE_PATHS.api.syndication, authMiddleware, syndicationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/vault', vaultRoutes);
 app.use('/api/igr', igrRoutes);
+app.use('/api/location', locationRoutes);
 
 app.get(ROUTE_PATHS.api.health, (req, res) => {
     res.json({

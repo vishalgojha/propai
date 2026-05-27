@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { parsePrice } from '@propai/price-parser'
 
 import type { ParsedMessage } from './messageParser'
+import { detectLocality } from '../utils/localityDetector'
+import { enrichLocation } from '../utils/locationEnricher'
 
 export const ExtractedLeadSchema = z.object({
 	lead_id: z.string().min(1),
@@ -17,6 +19,12 @@ export const ExtractedLeadSchema = z.object({
 	area_sqft: z.number().nonnegative().optional(),
 	area_basis: z.enum(['carpet', 'rera_carpet', 'builtup', 'unknown']).optional(),
 	location_hint: z.string().optional(),
+	city: z.string().optional(),
+	city_canonical: z.string().optional(),
+	locality_canonical: z.string().optional(),
+	pincode: z.string().optional(),
+	micro_market: z.string().optional(),
+	matched_alias: z.string().optional(),
 	raw_text: z.string().optional(),
 	source: z.string().optional(),
 	created_at: z.string().datetime().optional(),
@@ -87,7 +95,7 @@ export class LeadExtractionError extends Error {
 	}
 }
 
-export function extractLeadsFromMessages(messages: ParsedMessage[], options: LeadExtractionOptions = {}): ExtractedLead[] {
+export async function extractLeadsFromMessages(messages: ParsedMessage[], options: LeadExtractionOptions = {}): Promise<ExtractedLead[]> {
 	if (!Array.isArray(messages)) {
 		throw new LeadExtractionError('Parsed message array is required')
 	}
@@ -96,8 +104,9 @@ export function extractLeadsFromMessages(messages: ParsedMessage[], options: Lea
 	const seen = new Set<string>()
 	const datasetMode = options.datasetMode || inferDatasetMode(messages)
 
-	for (const message of messages) {
-		const parsed = extractLeadCandidate(message, datasetMode, options.source)
+	const candidates = await Promise.all(messages.map((message) => extractLeadCandidate(message, datasetMode, options.source)))
+
+	for (const parsed of candidates) {
 		if (!parsed) {
 			continue
 		}
@@ -126,11 +135,11 @@ export function extractLeadsFromMessages(messages: ParsedMessage[], options: Lea
 	return ExtractedLeadArraySchema.parse(leads)
 }
 
-function extractLeadCandidate(
+async function extractLeadCandidate(
 	message: ParsedMessage,
 	datasetMode: NonNullable<LeadExtractionOptions['datasetMode']>,
 	source?: string,
-): Omit<ExtractedLead, 'lead_id'> | null {
+): Promise<Omit<ExtractedLead, 'lead_id'> | null> {
 	const text = normalizeText(message.content)
 	if (!text || isBoilerplate(text)) {
 		return null
@@ -147,6 +156,30 @@ function extractLeadCandidate(
 		return null
 	}
 
+	const rawLocationHint = inferLocationHint(text)
+	let locationHint = rawLocationHint
+	let city: string | undefined
+	let cityCanonical: string | undefined
+	let localityCanonical: string | undefined
+	let pincode: string | undefined
+
+	if (rawLocationHint) {
+		const detectedLocality = await detectLocality(rawLocationHint)
+		if (detectedLocality) {
+			locationHint = detectedLocality
+			localityCanonical = detectedLocality
+		} else {
+			const enriched = await enrichLocation(rawLocationHint, text)
+			if (enriched) {
+				locationHint = enriched.locality
+				localityCanonical = enriched.locality
+				city = enriched.city
+				cityCanonical = enriched.city
+				pincode = enriched.pincode || undefined
+			}
+		}
+	}
+
 	const lead = {
 		dataset_mode: datasetMode,
 		name: inferName(message.sender, text, phone),
@@ -159,7 +192,11 @@ function extractLeadCandidate(
 		price_basis: inferPriceBasis(text),
 		area_sqft: inferAreaSqft(text),
 		area_basis: inferAreaBasis(text),
-		location_hint: inferLocationHint(text),
+		location_hint: locationHint,
+		city,
+		city_canonical: cityCanonical,
+		locality_canonical: localityCanonical,
+		pincode,
 		raw_text: message.content,
 		source,
 		created_at: message.timestamp,
@@ -325,13 +362,13 @@ function buildLeadId(lead: Omit<ExtractedLead, 'lead_id'>) {
 		lead.phone,
 		lead.record_type,
 		lead.property_type || 'na',
-		lead.location_hint || 'na',
+		lead.locality_canonical || lead.location_hint || 'na',
 		lead.budget ? String(lead.budget) : 'na',
 	].join(':')
 }
 
 function normalizeDedupKey(lead: Omit<ExtractedLead, 'lead_id'>, leadId: string) {
-	return `${lead.phone}|${lead.record_type}|${lead.property_type || ''}|${lead.location_hint || ''}|${lead.budget || ''}|${leadId}`
+	return `${lead.phone}|${lead.record_type}|${lead.property_type || ''}|${lead.locality_canonical || lead.location_hint || ''}|${lead.budget || ''}|${leadId}`
 }
 
 function isRequirementText(text: string) {

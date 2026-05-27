@@ -24,6 +24,7 @@ export const LeadStorageTools = {
 					city: z.string().optional(),
 					city_canonical: z.string().optional(),
 					locality_canonical: z.string().optional(),
+					pincode: z.string().optional(),
 					micro_market: z.string().optional(),
 					matched_alias: z.string().optional(),
 					confidence: z.number().min(0).max(1).optional(),

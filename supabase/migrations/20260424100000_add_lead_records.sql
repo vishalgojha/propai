@@ -17,6 +17,7 @@ create table if not exists public.lead_records (
   city text,
   city_canonical text,
   locality_canonical text,
+  pincode text,
   micro_market text,
   matched_alias text,
   confidence numeric,
