@@ -1,12 +1,9 @@
 import React from 'react';
 import {
   ArrowUpFromLine,
-  ChevronDown,
-  Filter,
   Loader2,
   Search,
   Sparkles,
-  X,
   Copy,
   Download,
   Phone,
@@ -26,7 +23,7 @@ import {
 } from '../services/channelApi';
 import { handleApiError, default as backendApi } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
-import { fetchStreamItems, fetchStreamStats, fetchStreamSummary, correctStreamItem, type StreamItem, type StreamSummaryResponse } from '../services/streamAPI';
+import { fetchStreamItems, fetchStreamStats, fetchStreamSummary, correctStreamItem, searchStream, type StreamItem, type StreamSummaryResponse, type FuzzySuggestion } from '../services/streamAPI';
 import { rebuildStreamFromSavedMessages } from '../services/streamService';
 import { fetchWaClickStats, exportWaClickCsv, type WaClickStats } from '../services/waClickAPI';
 
@@ -391,7 +388,9 @@ export const Listings: React.FC = () => {
   const [quickTypes, setQuickTypes] = React.useState<Array<StreamItem['type']>>([]);
   const [quickConfidenceBands, setQuickConfidenceBands] = React.useState<Array<'low' | 'medium' | 'high'>>([]);
   const [quickFreshnessBands, setQuickFreshnessBands] = React.useState<Array<'1h' | '6h'>>([]);
-  const [filterPropertyCategory, setFilterPropertyCategory] = React.useState<string>('all');
+  const [filterPropertyCategory, setFilterPropertyCategory] = React.useState<string>('residential');
+  const [searchSuggestions, setSearchSuggestions] = React.useState<FuzzySuggestion[]>([]);
+  const [isSearching, setIsSearching] = React.useState(false);
   const [openActionMenuId, setOpenActionMenuId] = React.useState<string | null>(null);
   const [savingChannelItemId, setSavingChannelItemId] = React.useState<string | null>(null);
   const [isSavingCorrection, setIsSavingCorrection] = React.useState(false);
@@ -404,16 +403,9 @@ export const Listings: React.FC = () => {
   const [waStatus, setWaStatus] = React.useState<string>('loading');
 
   const serverFilters = React.useMemo(() => ({
-    search: search.trim() || undefined,
-    type: quickTypes,
-    category: filterPropertyCategory === 'all' ? undefined : filterPropertyCategory as 'residential' | 'commercial',
-    bhk: filterBhk === 'all' ? undefined : filterBhk,
-    confidenceBand: quickConfidenceBands,
-    timeBand: quickTimeBands,
-    freshnessBand: quickFreshnessBands,
-    source: filterSource,
-    brokerOnly,
-  }), [brokerOnly, filterBhk, filterPropertyCategory, filterSource, quickConfidenceBands, quickFreshnessBands, quickTimeBands, quickTypes, search]);
+    category: filterPropertyCategory as 'residential' | 'commercial',
+    limit: STREAM_FETCH_LIMIT,
+  }), [filterPropertyCategory]);
   const canViewStream = React.useMemo(
     () => canViewStreamPlan(user?.subscription?.plan),
     [user?.subscription?.plan],
@@ -692,6 +684,11 @@ export const Listings: React.FC = () => {
   }, [streamItems]);
 
   const visibleStream = React.useMemo(() => {
+    // When using unified search API, results are already filtered server-side
+    if (isSearching || (search.trim() && streamTotal > 0 && streamItems.length !== streamTotal)) {
+      return streamItems;
+    }
+
     const query = search.trim().toLowerCase();
     let filtered = streamItems;
 
@@ -777,12 +774,11 @@ if (brokerOnly) {
         filtered = filtered.filter(isBrokerTagged);
       }
 
-      if (filterPropertyCategory !== 'all') {
-        filtered = filtered.filter((item) => (item.propertyCategory || 'residential') === filterPropertyCategory);
-      }
+    // Always filter by category (residential or commercial)
+    filtered = filtered.filter((item) => (item.propertyCategory || 'residential') === filterPropertyCategory);
 
-      return filtered;
-    }, [streamItems, search, quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory]);
+    return filtered;
+  }, [streamItems, search, quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory]);
 
   const activeFilterCount = React.useMemo(() => {
     let count = 0;
@@ -805,8 +801,30 @@ if (brokerOnly) {
     setFilterBhk('all');
     setFilterSource('all');
     setBrokerOnly(false);
-    setFilterPropertyCategory('all');
+    setSearch('');
+    setSearchSuggestions([]);
   };
+
+  const handleSearchSubmit = React.useCallback(async () => {
+    if (!search.trim()) {
+      loadData();
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const assetClass = filterPropertyCategory === 'commercial' ? 'commercial' : 'residential';
+      const result = await searchStream(assetClass, search.trim(), STREAM_FETCH_LIMIT);
+      setStreamItems(result.items as StreamItem[]);
+      setStreamTotal(result.total);
+      setStreamNetworkMode(result.network_mode);
+      setSearchSuggestions(result.suggestions);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Search failed');
+    } finally {
+      setIsSearching(false);
+    }
+  }, [search, filterPropertyCategory, loadData]);
 
   const applyPreset = (preset: StreamPresetId) => {
     if (preset === 'fresh') {
@@ -1102,299 +1120,71 @@ if (brokerOnly) {
         </div>
       </div>
 
-      <div className="flex flex-col items-stretch justify-between gap-4 rounded-2xl border border-[color:var(--border)] bg-[var(--bg-surface)]/30 p-4 md:flex-row md:items-center">
-        <div className="relative w-full md:w-96 group">
-          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)] transition-colors group-focus-within:text-primary" />
+      {/* Unified Search Bar + Asset Toggle */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
           <input
             id="stream-search"
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder={activeChannel ? `Search ${activeChannel.name}...` : 'Search inventory and requirements...'}
-            className="w-full rounded-xl border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-2 pl-12 pr-4 text-sm text-[var(--text-primary)] transition-all focus:border-primary focus:outline-none"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && search.trim()) {
+                handleSearchSubmit();
+              }
+            }}
+            placeholder="Search: '3bhk rent under 1.5L in Bandra' or 'office space 500sqft BKC'..."
+            className="w-full rounded-xl border border-[color:var(--border-strong)] bg-[var(--bg-surface)] py-2.5 pl-12 pr-4 text-sm text-[var(--text-primary)] transition-all focus:border-primary focus:outline-none"
           />
+          {searchSuggestions.length > 0 && (
+            <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-[color:var(--border)] bg-[var(--bg-surface)] p-2 shadow-lg">
+              {searchSuggestions.map((s, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    setSearch(s.suggestion);
+                    setSearchSuggestions([]);
+                    handleSearchSubmit();
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-white"
+                >
+                  <span className="text-[10px] uppercase text-[var(--text-muted)]">{s.termType}</span>
+                  Did you mean <span className="font-semibold text-primary">"{s.suggestion}"</span>?
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="flex w-full flex-wrap items-center gap-3 md:w-auto md:flex-nowrap">
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            data-action="stream-filters"
-            onClick={() => setShowFilters((v) => !v)}
+            onClick={() => setFilterPropertyCategory('residential')}
             className={cn(
-              'flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold transition-all md:flex-none',
-              showFilters || activeFilterCount > 0
-                ? 'border-primary/40 bg-primary/10 text-primary'
-                : 'border-neutral-800 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
+              'rounded-lg border px-4 py-2 text-xs font-bold uppercase tracking-wider transition-colors',
+              filterPropertyCategory !== 'commercial'
+                ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
             )}
           >
-            <Filter className="h-3 w-3" />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-black text-black">
-                {activeFilterCount}
-              </span>
-            )}
-            <ChevronDown className={cn('h-3 w-3 transition-transform', showFilters && 'rotate-180')} />
+            Residential
           </button>
-          <div className="hidden h-6 w-px bg-[var(--bg-elevated)] md:block" />
-          <p className="px-2 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
-            {activeChannel ? visibleStream.length : visibleStream.length} feed items
-          </p>
+          <button
+            type="button"
+            onClick={() => setFilterPropertyCategory('commercial')}
+            className={cn(
+              'rounded-lg border px-4 py-2 text-xs font-bold uppercase tracking-wider transition-colors',
+              filterPropertyCategory === 'commercial'
+                ? 'border-purple-500 bg-purple-500/20 text-purple-300'
+                : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
+            )}
+          >
+            Commercial
+          </button>
         </div>
       </div>
-
-      <div className="block">
-        <div className="rounded-2xl border border-[color:var(--border-strong)] bg-[var(--bg-base)] p-4">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Presets</p>
-              {STREAM_PRESETS.map((preset) => {
-                const active = isPresetActive(preset.id);
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => applyPreset(preset.id)}
-                    className={cn(
-                      'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                      active
-                        ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                        : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-                    )}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Time</p>
-              <button
-                type="button"
-                onClick={() => setQuickTimeBands([])}
-                className={cn(
-                  'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                  quickTimeBands.length === 0
-                    ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                    : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-                )}
-              >
-                All
-              </button>
-              {(['1h', '4h', '1d', '7d'] as const).map((band) => (
-                <button
-                  key={band}
-                  type="button"
-                  onClick={() => setQuickTimeBands((current) => toggleSelection(current, band))}
-                  className={cn(
-                    'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                    quickTimeBands.includes(band)
-                      ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                      : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-                  )}
-                >
-                  {band === '1h' ? '<1hr' : band === '4h' ? '<4hr' : band === '1d' ? '<1d' : '<7d'}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Type</p>
-              <button
-                type="button"
-                onClick={() => { setQuickTypes([]); setFilterPropertyCategory('all'); }}
-                className={cn(
-                  'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                  quickTypes.length === 0 && filterPropertyCategory === 'all'
-                    ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                    : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-                )}
-              >
-                All
-              </button>
-              {ALL_TYPES.map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setQuickTypes((current) => toggleSelection(current, type))}
-                  className={cn(
-                    'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                    quickTypes.includes(type)
-                      ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                      : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-                  )}
-                >
-                  {type}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setFilterPropertyCategory((current) => current === 'commercial' ? 'all' : 'commercial')}
-                className={cn(
-                  'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                  filterPropertyCategory === 'commercial'
-                    ? 'border-purple-500 bg-purple-500/20 text-purple-300'
-                    : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-                )}
-              >
-                COMMERCIAL
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Confidence</p>
-              {([
-                ['high', 'High (>70%)'],
-                ['medium', 'Medium'],
-                ['low', 'Low'],
-              ] as const).map(([band, label]) => (
-                <button
-                  key={band}
-                  type="button"
-                  onClick={() => setQuickConfidenceBands((current) => toggleSelection(current, band))}
-                  className={cn(
-                    'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                    quickConfidenceBands.includes(band)
-                      ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                      : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setQuickConfidenceBands([])}
-                className={cn(
-                  'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                  quickConfidenceBands.length === 0
-                    ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                    : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-                )}
-              >
-                All
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="mr-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Freshness</p>
-              {([
-                ['1h', 'Last 1hr'],
-                ['6h', 'Last 6hr'],
-              ] as const).map(([band, label]) => (
-                <button
-                  key={band}
-                  type="button"
-                  onClick={() => setQuickFreshnessBands((current) => toggleSelection(current, band))}
-                  className={cn(
-                    'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                    quickFreshnessBands.includes(band)
-                      ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                      : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setQuickFreshnessBands([])}
-                className={cn(
-                  'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                  quickFreshnessBands.length === 0
-                    ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
-                    : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
-                )}
-              >
-                All
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {showFilters ? (
-        <div className="overflow-hidden">
-          <div className="rounded-2xl border border-[color:var(--border-strong)] bg-[var(--bg-surface)] p-4 sm:p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)]">Filters</h3>
-                {activeFilterCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={clearAllFilters}
-                    className="flex items-center gap-1 text-[10px] font-bold text-[var(--text-secondary)] transition-colors hover:text-white"
-                  >
-                    <X className="h-3 w-3" />
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-[var(--text-secondary)]">Category</label>
-                  <select
-                    value={filterPropertyCategory}
-                    onChange={(e) => setFilterPropertyCategory(e.target.value)}
-                    className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-2 text-xs text-white focus:border-primary focus:outline-none"
-                  >
-                    <option value="all">All</option>
-                    <option value="residential">Residential</option>
-                    <option value="commercial">Commercial</option>
-                  </select>
-                </div>
-
-                {filterPropertyCategory !== 'commercial' && (
-                  <div>
-                    <label className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-[var(--text-secondary)]">BHK</label>
-                    <select
-                      value={filterBhk}
-                      onChange={(e) => setFilterBhk(e.target.value)}
-                      className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-2 text-xs text-white focus:border-primary focus:outline-none"
-                    >
-                      <option value="all">All</option>
-                      {ALL_BHK.map((b) => (
-                        <option key={b} value={b}>{formatLayoutLabel(b)}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div>
-                  <label className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-[var(--text-secondary)]">Source</label>
-                  <select
-                    value={filterSource}
-                    onChange={(e) => setFilterSource(e.target.value)}
-                    className="w-full rounded-lg border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-2 text-xs text-white focus:border-primary focus:outline-none"
-                  >
-                    <option value="all">All</option>
-                    {uniqueSources.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-xl border border-[color:var(--border-strong)] bg-[var(--bg-base)]/35 p-4">
-                <label className="flex cursor-pointer items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={brokerOnly}
-                    onChange={(e) => setBrokerOnly(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-[color:var(--border-strong)] bg-[var(--bg-surface)] text-primary focus:ring-primary"
-                  />
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-white">Broker-tagged only</p>
-                    <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
-                      Show only items where the parsed source or message text contains terms like <span className="text-neutral-200">broker</span>, <span className="text-neutral-200">broking</span>, <span className="text-neutral-200">agnt</span>, or <span className="text-neutral-200">agent</span>.
-                    </p>
-                  </div>
-                </label>
-              </div>
-            </div>
-        </div>
-      ) : null}
 
       <div className="glass-panel overflow-hidden rounded-2xl border-[color:var(--border)]">
         <div className="overflow-x-auto">
@@ -1415,7 +1205,10 @@ if (brokerOnly) {
             <table className="min-w-[1080px] w-full border-separate border-spacing-0 text-left">
               <thead>
                 <tr className="border-b border-[color:var(--accent-border)] bg-[color:var(--propai-green-dim)]">
-                  {['Record', 'Type', 'BHK', 'Area', 'Price', 'Furnishing', 'Floor', 'Posted', 'WA'].map((header) => (
+                  {(filterPropertyCategory === 'commercial'
+                    ? ['Record', 'Type', 'Fit-out / Type', 'Area', 'Price', 'Workstations / Cabins', 'Floor', 'Posted', 'WA']
+                    : ['Record', 'Type', 'BHK', 'Area', 'Price', 'Furnishing', 'Floor', 'Posted', 'WA']
+                  ).map((header) => (
                     <th
                       key={header}
                       className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--propai-green)]"
@@ -1474,11 +1267,30 @@ if (brokerOnly) {
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{listing.bhk || '—'}</td>
-                          <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{formatAreaCell(listing.areaSqft)}</td>
-                          <td className="px-4 py-3 text-[13px] font-semibold text-[var(--text-primary)]">{normalizePriceDisplay(listing).label || 'Price on request'}</td>
-                          <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{formatFurnishingCell(listing.furnishing)}</td>
-                          <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{formatFloorCell(listing)}</td>
+                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
+                             {filterPropertyCategory === 'commercial'
+                               ? (() => {
+                                   const type = listing.commercialType || listing.propertyUse || listing.assetClass || '—';
+                                   const fitout = listing.fitoutStatus ? ` (${listing.fitoutStatus})` : '';
+                                   return `${type}${fitout}`;
+                                 })()
+                               : (listing.bhk || '—')}
+                           </td>
+                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{formatAreaCell(listing.areaSqft)}</td>
+                           <td className="px-4 py-3 text-[13px] font-semibold text-[var(--text-primary)]">{normalizePriceDisplay(listing).label || 'Price on request'}</td>
+                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
+                             {filterPropertyCategory === 'commercial'
+                               ? (() => {
+                                   const ws = listing.workstationsCount;
+                                   const cabins = listing.cabinsCount;
+                                   if (ws || cabins) {
+                                     return `${ws || '—'} Seats / ${cabins || '—'} Cabins`;
+                                   }
+                                   return listing.furnishing || '—';
+                                 })()
+                               : formatFurnishingCell(listing.furnishing)}
+                           </td>
+                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{formatFloorCell(listing)}</td>
                           <td className="px-4 py-3 text-[13px] text-[var(--text-secondary)]">{formatPostedCell(listing.createdAt)}</td>
                           <td className="px-4 py-3">
                             <button

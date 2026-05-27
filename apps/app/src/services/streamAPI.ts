@@ -24,6 +24,10 @@ export interface StreamItem {
   totalFloors?: string | null;
   propertyUse?: string | null;
   propertyCategory?: 'residential' | 'commercial';
+  commercialType?: string | null;
+  fitoutStatus?: string | null;
+  workstationsCount?: number | null;
+  cabinsCount?: number | null;
   areaSqft?: number | null;
   confidence: number;
   source: string;
@@ -98,6 +102,40 @@ export interface StreamFilters {
   bhk?: string;
   brokerOnly?: boolean;
   limit?: number;
+}
+
+export interface FuzzySuggestion {
+  suggestion: string;
+  termType: string;
+  similarity: number;
+}
+
+export interface SearchResponse {
+  items: StreamItem[];
+  total: number;
+  suggestions: FuzzySuggestion[];
+  network_mode: boolean;
+}
+
+export async function searchStream(
+  assetClass: 'residential' | 'commercial',
+  queryString: string,
+  limit = 50,
+  offset = 0,
+): Promise<SearchResponse> {
+  const response = await backendApi.post(`${ENDPOINTS.channels.stream}/search`, {
+    asset_class: assetClass,
+    query_string: queryString,
+    limit,
+    offset,
+  }, { timeout: 30000 });
+
+  return {
+    items: Array.isArray(response.data?.items) ? response.data.items as StreamItem[] : [],
+    total: Number(response.data?.total || 0),
+    suggestions: Array.isArray(response.data?.suggestions) ? response.data.suggestions as FuzzySuggestion[] : [],
+    network_mode: Boolean(response.data?.network_mode),
+  };
 }
 
 export async function fetchStreamItems(filters?: StreamFilters): Promise<StreamResponse> {

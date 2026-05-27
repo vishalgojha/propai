@@ -5,6 +5,7 @@ import { channelService } from '../services/channelService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { resolveStreamAccess, STREAM_ACCESS_DENIED_MESSAGE } from '../services/streamAccessService';
+import { unifiedSearch } from '../services/searchService';
 
 const router = Router();
 
@@ -78,6 +79,41 @@ router.post('/:id/correct', async (req, res) => {
     res.json({ success: true });
   } catch (error: unknown) {
     res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to correct item') });
+  }
+});
+
+// Unified search with NLP parsing + fuzzy matching
+router.post('/search', async (req, res) => {
+  try {
+    const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
+    const tenantId = context.workspaceOwnerId;
+    const access = await resolveStreamAccess(tenantId, context.currentUserEmail);
+    if (!access.canViewStream) {
+      return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
+    }
+
+    const { asset_class, query_string, limit, offset } = req.body;
+    if (!query_string || typeof query_string !== 'string') {
+      return res.status(400).json({ error: 'query_string is required' });
+    }
+
+    const assetClass = asset_class === 'commercial' ? 'commercial' : 'residential';
+    const result = await unifiedSearch(
+      tenantId,
+      assetClass,
+      query_string,
+      Math.min(Number(limit) || 50, 200),
+      Number(offset) || 0,
+    );
+
+    res.json({
+      items: result.items,
+      total: result.total,
+      suggestions: result.suggestions,
+      network_mode: access.networkMode,
+    });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Search failed') });
   }
 });
 

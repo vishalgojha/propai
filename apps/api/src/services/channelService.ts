@@ -590,6 +590,43 @@ export const extractPropertyUse = (text: string) => {
     return null;
 };
 
+export const extractCommercialType = (text: string): string | null => {
+    const lower = text.toLowerCase();
+    const patterns = [
+        { pattern: /\bco[- ]?work(ing)?\b/i, value: 'co-working' },
+        { pattern: /\boffice\s*space\b|\boffice\b/i, value: 'office' },
+        { pattern: /\bretail\s*shop\b|\bretail\b/i, value: 'retail' },
+        { pattern: /\bshop\b/i, value: 'shop' },
+        { pattern: /\bshowroom\b/i, value: 'showroom' },
+        { pattern: /\bwarehouse\b|\bgodown\b/i, value: 'warehouse' },
+        { pattern: /\bindustrial\b|\bfactory\b/i, value: 'industrial' },
+    ];
+    for (const { pattern, value } of patterns) {
+        if (pattern.test(text)) return value;
+    }
+    return null;
+};
+
+export const extractFitoutStatus = (text: string): string | null => {
+    const lower = text.toLowerCase();
+    if (/\bbare[- ]?shell\b|\bbare\b|\bshell\b|\bunfitted\b/i.test(lower)) return 'bare-shell';
+    if (/\bfully[- ]?fitted\b|\bfully[- ]?fit\b|\bturnkey\b/i.test(lower)) return 'fully-fitted';
+    if (/\bsemi[- ]?fitted\b|\bsemi[- ]?fit\b|\bpartially[- ]?fitted\b/i.test(lower)) return 'semi-fitted';
+    if (/\bfurnished\b/i.test(lower)) return 'furnished';
+    if (/\bunfurnished\b/i.test(lower)) return 'unfurnished';
+    return null;
+};
+
+export const extractWorkstationsCount = (text: string): number | null => {
+    const match = text.match(/(\d+)\s*(?:workstations?|ws|seats?|desk)/i);
+    return match ? parseInt(match[1], 10) : null;
+};
+
+export const extractCabinsCount = (text: string): number | null => {
+    const match = text.match(/(\d+)\s*(?:cabins?|cabin|private\s*room|manager\s*room)/i);
+    return match ? parseInt(match[1], 10) : null;
+};
+
 const inferType = (text: string): StreamType => {
     const normalized = text.toLowerCase();
     
@@ -1296,6 +1333,10 @@ type ParsedStreamCandidate = {
     totalFloors: string | null;
     parking: string | null;
     propertyUse: string | null;
+    commercialType: string | null;
+    fitoutStatus: string | null;
+    workstationsCount: number | null;
+    cabinsCount: number | null;
     brokerWaMeLinks: string[] | null;
     confidenceScore: number;
     messageHash: string;
@@ -1328,6 +1369,10 @@ type AIParsedStreamItem = {
     totalFloors?: string | null;
     parking?: string | null;
     propertyUse?: string | null;
+    commercialType?: 'office' | 'retail' | 'shop' | 'showroom' | 'warehouse' | 'godown' | 'industrial' | 'factory' | 'co-working' | null;
+    fitoutStatus?: 'bare-shell' | 'fully-fitted' | 'semi-fitted' | 'furnished' | 'unfurnished' | null;
+    workstationsCount?: number | null;
+    cabinsCount?: number | null;
     broker_wa_me_links?: string[] | null;
     parseNotes?: string | null;
     confidence?: number | null;
@@ -2743,6 +2788,10 @@ private dailyBriefingSentKeys = new Set<string>();
                     total_floors: parsed.totalFloors,
                     parking: parsed.parking,
                     property_use: parsed.propertyUse,
+                    commercial_type: parsed.commercialType || null,
+                    fitout_status: parsed.fitoutStatus || null,
+                    workstations_count: parsed.workstationsCount || null,
+                    cabins_count: parsed.cabinsCount || null,
                     broker_wa_me_links: parsed.brokerWaMeLinks || null,
                     confidence_score: parsed.confidenceScore,
                     is_global: this.isGlobalStreamCandidate(parsed, isAccepted),
@@ -3130,6 +3179,10 @@ Return ONLY this JSON:
       "totalFloors": "string or null",
       "parking": "string or null",
       "propertyUse": "string or null",
+      "commercialType": "office" | "retail" | "shop" | "showroom" | "warehouse" | "godown" | "industrial" | "factory" | "co-working" | null (only for commercial properties)",
+      "fitoutStatus": "bare-shell" | "fully-fitted" | "semi-fitted" | "furnished" | "unfurnished" | null (only for commercial properties)",
+      "workstationsCount": number or null (only for commercial office spaces)",
+      "cabinsCount": number or null (only for commercial office spaces)",
       "broker_wa_me_links": ["https://wa.me/91XXXXXXXXXX"],
       "parseNotes": "string or null",
       "confidence": number,
@@ -3273,6 +3326,18 @@ ${rawText}
                 const totalFloors = String(item.totalFloors || '').trim() || extractTotalFloors(candidateText);
                 const parking = String(item.parking || '').trim() || extractParking(candidateText);
                 const propertyUse = String(item.propertyUse || '').trim() || extractPropertyUse(candidateText);
+                const commercialType = propertyCategory === 'commercial'
+                    ? (String(item.commercialType || '').trim() || extractCommercialType(candidateText) || null)
+                    : null;
+                const fitoutStatus = propertyCategory === 'commercial'
+                    ? (String(item.fitoutStatus || '').trim() || extractFitoutStatus(candidateText) || null)
+                    : null;
+                const workstationsCount = propertyCategory === 'commercial' && typeof item.workstationsCount === 'number' && Number.isFinite(item.workstationsCount)
+                    ? item.workstationsCount
+                    : extractWorkstationsCount(candidateText);
+                const cabinsCount = propertyCategory === 'commercial' && typeof item.cabinsCount === 'number' && Number.isFinite(item.cabinsCount)
+                    ? item.cabinsCount
+                    : extractCabinsCount(candidateText);
                 const brokerWaMeLinks = Array.isArray(item.broker_wa_me_links) && item.broker_wa_me_links.length > 0
                     ? item.broker_wa_me_links
                     : sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
@@ -3314,6 +3379,10 @@ ${rawText}
                     totalFloors: totalFloors || null,
                     parking: parking || null,
                     propertyUse: propertyUse || null,
+                    commercialType: commercialType || null,
+                    fitoutStatus: fitoutStatus || null,
+                    workstationsCount: workstationsCount || null,
+                    cabinsCount: cabinsCount || null,
                     brokerWaMeLinks,
                     confidenceScore: confidence,
                     messageHash: buildStreamContentHash(candidateText, sourcePhone),
@@ -3399,6 +3468,10 @@ ${rawText}
             const totalFloors = extractTotalFloors(candidateText);
             const parking = extractParking(candidateText);
             const propertyUse = extractPropertyUse(candidateText);
+            const commercialType = propertyCategory === 'commercial' ? extractCommercialType(candidateText) : null;
+            const fitoutStatus = propertyCategory === 'commercial' ? extractFitoutStatus(candidateText) : null;
+            const workstationsCount = propertyCategory === 'commercial' ? extractWorkstationsCount(candidateText) : null;
+            const cabinsCount = propertyCategory === 'commercial' ? extractCabinsCount(candidateText) : null;
             const brokerWaMeLinks = sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
             const completeness = computeStreamCompleteness({
                 locality: location,
@@ -3431,6 +3504,10 @@ ${rawText}
                 totalFloors,
                 parking,
                 propertyUse,
+                commercialType,
+                fitoutStatus,
+                workstationsCount,
+                cabinsCount,
                 brokerWaMeLinks,
                 confidenceScore: calculateConfidence(candidateText, {
                     location: location || '',
