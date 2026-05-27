@@ -280,6 +280,52 @@ export class IgrQueryService {
     };
   }
 
+  async getBuildingNames(search?: string): Promise<Array<{ name: string; count: number }>> {
+    const searchTerm = normalizeSearchText(search);
+    const minLength = searchTerm ? 1 : 3;
+
+    let igrQuery = getClient()
+      .from('igr_transactions')
+      .select('building_name');
+
+    if (searchTerm) {
+      igrQuery = igrQuery.ilike('building_name', `%${searchTerm}%`);
+    }
+
+    const { data: igrData, error: igrError } = await igrQuery;
+    if (igrError) throw new Error(igrError.message);
+
+    let streamQuery = getClient()
+      .from('stream_items')
+      .select('building_name');
+
+    if (searchTerm) {
+      streamQuery = streamQuery.ilike('building_name', `%${searchTerm}%`);
+    }
+
+    const { data: streamData, error: streamError } = await streamQuery;
+    if (streamError) throw new Error(streamError.message);
+
+    const freq = new Map<string, number>();
+    for (const row of (igrData || []) as Array<{ building_name: string | null }>) {
+      const name = row.building_name?.trim();
+      if (name && name.length >= minLength) {
+        freq.set(name, (freq.get(name) || 0) + 1);
+      }
+    }
+    for (const row of (streamData || []) as Array<{ building_name: string | null }>) {
+      const name = row.building_name?.trim();
+      if (name && name.length >= minLength) {
+        freq.set(name, (freq.get(name) || 0) + 1);
+      }
+    }
+
+    return Array.from(freq.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+      .slice(0, 20);
+  }
+
   async searchTransactions(query: SearchQuery) {
     let request = getClient()
       .from('igr_transactions')

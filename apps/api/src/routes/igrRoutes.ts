@@ -7,6 +7,18 @@ const router = Router();
 
 router.use(authMiddleware);
 
+router.get('/building-names', async (req, res) => {
+    try {
+        const search = String(req.query.search || '').trim() || undefined;
+        const names = await igrQueryService.getBuildingNames(search);
+        return res.json({ names });
+    } catch (error: any) {
+        return res.status(500).json({
+            error: error?.message || 'Failed to load building names',
+        });
+    }
+});
+
 router.get('/search', async (req, res) => {
     try {
         const buildingName = String(req.query.building_name || req.query.buildingName || '').trim();

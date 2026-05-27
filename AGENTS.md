@@ -20,6 +20,10 @@
 - Canonical branch: `main`
 - Current local branch should be treated as the source of truth unless the user explicitly says otherwise.
 
+### Pending Actions
+
+- **propai-gras fix**: Live IGR fetch (`/api/igr/fetch`) times out on government portal (`igrmaharashtra.gov.in`). Needs Camoufox-based browser navigation instead of direct HTTP fetch. Full prompt at `.agents/prompts/propai-gras.md`.
+
 ### Current Remote State
 
 - Latest local commits:

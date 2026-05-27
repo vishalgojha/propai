@@ -60,6 +60,14 @@ export async function fetchIgrSearch(buildingName?: string, locality?: string, m
   return response.data;
 }
 
+export async function fetchBuildingNames(search?: string) {
+  const response = await backendApi.get<{ names: Array<{ name: string; count: number }> }>(
+    ENDPOINTS.igr.buildingNames,
+    { params: { search: search || undefined } },
+  );
+  return response.data.names;
+}
+
 export async function fetchAndSaveLiveIgr(buildingName?: string, locality?: string) {
   const response = await backendApi.post<IgrFetchResponse>(ENDPOINTS.igr.fetch, {
     buildingName,
