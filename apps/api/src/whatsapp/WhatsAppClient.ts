@@ -74,7 +74,7 @@ export class WhatsAppClient {
     private reconnectAttempts = 0;
     private readonly maxReconnectAttempts = 10;
     private reconnectTimer: NodeJS.Timeout | null = null;
-    private circuitBreaker = new CircuitBreaker();
+    private qrTimeoutTimer: NodeJS.Timeout | null = null;
     private healthCheckInterval: NodeJS.Timeout | null = null;
     private autoSyncInterval: NodeJS.Timeout | null = null;
     private disconnectMeta: { reason: string | null; replaced: boolean; at: string | null } = {
@@ -223,8 +223,13 @@ export class WhatsAppClient {
 
             let version: [number, number, number] = [2, 3000, 0];
             try {
-                const fetched = await fetchLatestBaileysVersion();
+                const versionPromise = fetchLatestBaileysVersion();
+                const versionTimeout = new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('Baileys version fetch timeout')), 10000)
+                );
+                const fetched = await Promise.race([versionPromise, versionTimeout]);
                 version = fetched.version;
+                console.log('[WhatsAppClient] Using Baileys version:', version.join('.'));
             } catch (error) {
                 console.log('[WhatsAppClient] Version fetch failed, using default:', error);
             }
@@ -243,8 +248,20 @@ export class WhatsAppClient {
 
             console.log(`[WhatsAppClient] Socket created for ${this.tenantId}:${this.label}, waiting for QR...`);
 
+            if (this.qrTimeoutTimer) {
+                clearTimeout(this.qrTimeoutTimer);
+            }
+            this.qrTimeoutTimer = setTimeout(() => {
+                console.warn(`[WhatsAppClient] QR timeout for ${this.tenantId}:${this.label} after 30s. Socket state: ${this.socket ? 'alive' : 'null'}, connection: ${this.connectionStatus}`);
+                this.qrTimeoutTimer = null;
+            }, 30000);
+
             if (options.usePairingCode) {
                 const code = await this.socket.requestPairingCode(options.usePairingCode);
+                if (this.qrTimeoutTimer) {
+                    clearTimeout(this.qrTimeoutTimer);
+                    this.qrTimeoutTimer = null;
+                }
                 await this.emitQR(code);
             }
 
@@ -253,6 +270,11 @@ export class WhatsAppClient {
                     const connection = update?.connection;
                     const lastDisconnect = update?.lastDisconnect;
                     const qr = update?.qr;
+
+                    if (qr && this.qrTimeoutTimer) {
+                        clearTimeout(this.qrTimeoutTimer);
+                        this.qrTimeoutTimer = null;
+                    }
 
                     if (qr && !options.usePairingCode) {
                         await this.emitQR(qr);
@@ -277,6 +299,10 @@ export class WhatsAppClient {
                     }
 
                     if (connection === 'close') {
+                        if (this.qrTimeoutTimer) {
+                            clearTimeout(this.qrTimeoutTimer);
+                            this.qrTimeoutTimer = null;
+                        }
                         this.connectionStatus = 'disconnected';
                         const statusCode = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode;
                         const replaced = this.isSessionReplaced(lastDisconnect?.error);
@@ -335,6 +361,10 @@ export class WhatsAppClient {
                             await this.persistStatus('disconnected');
                         }
                     } else if (connection === 'open') {
+                        if (this.qrTimeoutTimer) {
+                            clearTimeout(this.qrTimeoutTimer);
+                            this.qrTimeoutTimer = null;
+                        }
                         this.connectionStatus = 'connected';
                         this.reconnectAttempts = 0;
                         this.disconnectMeta = { reason: null, replaced: false, at: null };
@@ -944,6 +974,10 @@ try {
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
+        }
+        if (this.qrTimeoutTimer) {
+            clearTimeout(this.qrTimeoutTimer);
+            this.qrTimeoutTimer = null;
         }
         if (this.autoSyncInterval) {
             clearInterval(this.autoSyncInterval);
