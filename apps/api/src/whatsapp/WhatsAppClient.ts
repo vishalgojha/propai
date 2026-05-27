@@ -207,6 +207,14 @@ export class WhatsAppClient {
         this.connectionStatus = 'connecting';
         await this.persistStatus('connecting');
 
+        const connectionTimeout = setTimeout(() => {
+            if (this.connectionStatus === 'connecting') {
+                console.warn(`[WhatsAppClient] Connection timeout for ${this.tenantId}:${this.label} after 45s. Forcing disconnect.`);
+                this.connectionStatus = 'disconnected';
+                this.persistStatus('disconnected').catch(() => {});
+            }
+        }, 45000);
+
         if (this.reconnectAttempts > 0) {
             console.log(`[WhatsAppClient] Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} for ${this.tenantId}:${this.label}`);
         }
@@ -300,6 +308,7 @@ export class WhatsAppClient {
                     }
 
                     if (connection === 'close') {
+                        clearTimeout(connectionTimeout);
                         if (this.qrTimeoutTimer) {
                             clearTimeout(this.qrTimeoutTimer);
                             this.qrTimeoutTimer = null;
@@ -362,6 +371,7 @@ export class WhatsAppClient {
                             await this.persistStatus('disconnected');
                         }
                     } else if (connection === 'open') {
+                        clearTimeout(connectionTimeout);
                         if (this.qrTimeoutTimer) {
                             clearTimeout(this.qrTimeoutTimer);
                             this.qrTimeoutTimer = null;
@@ -683,6 +693,7 @@ try {
                 }
             });
         } catch (error) {
+            clearTimeout(connectionTimeout);
             this.connectionStatus = 'disconnected';
             await this.persistStatus('disconnected');
             await this.hooks?.onError?.({
@@ -692,6 +703,7 @@ try {
                 stage: 'connect',
             });
         } finally {
+            clearTimeout(connectionTimeout);
             this.isConnecting = false;
         }
     }
