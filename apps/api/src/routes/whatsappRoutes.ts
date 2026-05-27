@@ -129,10 +129,6 @@ router.patch('/groups/:groupJid/toggle-parsing', async (req: Request, res: Respo
             }
         }
 
-        if (configError) {
-            return res.status(500).json({ error: configError.message });
-        }
-
         const result = await whatsappGroupService.updateGroup(tenantId, groupJid, { isParsing });
         res.json({ success: true, group: result });
     } catch (error: unknown) {
