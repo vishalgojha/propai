@@ -102,6 +102,7 @@ export type StreamItemRecord = {
     totalFloors?: string | null;
     parking?: string | null;
     propertyUse?: string | null;
+    brokerWaMeLinks?: string[] | null;
     posted: string;
     rawText?: string;
     source: string;
@@ -1295,6 +1296,7 @@ type ParsedStreamCandidate = {
     totalFloors: string | null;
     parking: string | null;
     propertyUse: string | null;
+    brokerWaMeLinks: string[] | null;
     confidenceScore: number;
     messageHash: string;
     brokerContactValid: boolean;
@@ -1326,6 +1328,7 @@ type AIParsedStreamItem = {
     totalFloors?: string | null;
     parking?: string | null;
     propertyUse?: string | null;
+    broker_wa_me_links?: string[] | null;
     parseNotes?: string | null;
     confidence?: number | null;
     rawText?: string | null;
@@ -2740,6 +2743,7 @@ private dailyBriefingSentKeys = new Set<string>();
                     total_floors: parsed.totalFloors,
                     parking: parsed.parking,
                     property_use: parsed.propertyUse,
+                    broker_wa_me_links: parsed.brokerWaMeLinks || null,
                     confidence_score: parsed.confidenceScore,
                     is_global: this.isGlobalStreamCandidate(parsed, isAccepted),
                     parsed_payload: parsedPayload,
@@ -3092,7 +3096,12 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
         const commonCity = commonResolution?.city || extractIndianCity(rawText);
 
         const systemPrompt = `You are PropAI's parser for raw Indian real estate WhatsApp broker messages.
-A single message may contain multiple listings or requirements. Return valid JSON only. No markdown.`;
+A single message may contain multiple listings or requirements. Return valid JSON only. No markdown.
+
+### Contact Sanitization & wa.me Link Rule:
+Extract every phone number from the message. Sanitize each by removing all spaces, hyphens, plus signs, and country code prefixes. Prepend '91' if not present. Append to "https://wa.me/" to create click-to-chat links.
+- Output these in the "broker_wa_me_links" array for each item.
+- Example: "+91 90043 98827" → "https://wa.me/919004398827"`;
 
         const userPrompt = `Extract all real-estate records from this WhatsApp message.
 
@@ -3119,7 +3128,9 @@ Return ONLY this JSON:
       "furnishing": "unfurnished" | "semi-furnished" | "fully-furnished" | "furnished" | null,
       "floorNumber": "string or null",
       "totalFloors": "string or null",
+      "parking": "string or null",
       "propertyUse": "string or null",
+      "broker_wa_me_links": ["https://wa.me/91XXXXXXXXXX"],
       "parseNotes": "string or null",
       "confidence": number,
       "rawText": "string"
@@ -3262,6 +3273,9 @@ ${rawText}
                 const totalFloors = String(item.totalFloors || '').trim() || extractTotalFloors(candidateText);
                 const parking = String(item.parking || '').trim() || extractParking(candidateText);
                 const propertyUse = String(item.propertyUse || '').trim() || extractPropertyUse(candidateText);
+                const brokerWaMeLinks = Array.isArray(item.broker_wa_me_links) && item.broker_wa_me_links.length > 0
+                    ? item.broker_wa_me_links
+                    : sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
                 const confidence = Math.max(0, Math.min(100, Number(item.confidence || 0))) || calculateConfidence(candidateText, {
                     location: locality,
                     price: priceLabel,
@@ -3300,6 +3314,7 @@ ${rawText}
                     totalFloors: totalFloors || null,
                     parking: parking || null,
                     propertyUse: propertyUse || null,
+                    brokerWaMeLinks,
                     confidenceScore: confidence,
                     messageHash: buildStreamContentHash(candidateText, sourcePhone),
                     brokerContactValid: Boolean(sourcePhone),
@@ -3384,6 +3399,7 @@ ${rawText}
             const totalFloors = extractTotalFloors(candidateText);
             const parking = extractParking(candidateText);
             const propertyUse = extractPropertyUse(candidateText);
+            const brokerWaMeLinks = sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
             const completeness = computeStreamCompleteness({
                 locality: location,
                 bhk,
@@ -3415,6 +3431,7 @@ ${rawText}
                 totalFloors,
                 parking,
                 propertyUse,
+                brokerWaMeLinks,
                 confidenceScore: calculateConfidence(candidateText, {
                     location: location || '',
                     price: price.label,
@@ -4105,6 +4122,7 @@ ${rawText}
             totalFloors: String(item.total_floors || '').trim() || extractTotalFloors(rawText),
             parking: String(item.parking || '').trim() || extractParking(rawText),
             propertyUse: String(item.property_use || '').trim() || extractPropertyUse(rawText),
+            brokerWaMeLinks: Array.isArray(item.broker_wa_me_links) ? item.broker_wa_me_links : null,
             posted: formatPostedTime(item.created_at),
             createdAt: item.created_at,
             source,
