@@ -74,7 +74,19 @@ export default async function Page({ params }: PageProps) {
   const lastUpdated = items[0]?.created_at || null;
   const bhkConfig = getMostCommonBhk(listings.length ? listings : items);
   const signal = requirements.length > listings.length ? "high_demand" : "active";
-  const neighbours = neighbouringLocalities(slug, 3);
+  const neighbours = neighbouringLocalities(slug, 4);
+  const relatedMarkets = await Promise.all(
+    neighbours.slice(0, 4).map(async (market) => {
+      const relatedItems = await fetchLocalityStreamItems(market.name, 30, 50);
+      const { listings: relatedListings, requirements: relatedRequirements } = splitSupplyDemand(relatedItems);
+      return {
+        ...market,
+        listings: relatedListings.length,
+        requirements: relatedRequirements.length,
+        latestAt: relatedItems[0]?.created_at || null,
+      };
+    }),
+  );
   const faqAverageRent = averageTwoBhkRent(listings);
 
   const itemListJsonLd = {
@@ -119,7 +131,7 @@ export default async function Page({ params }: PageProps) {
           </h1>
           <p className="text-[15px] leading-7 text-[var(--text-secondary)] max-w-2xl">
             Hourly refreshed supply and demand signals for {localityName}, with active listings,
-            current requirements, price movement, and nearby micro-markets.
+            current requirements, price movement, and nearby bounce-off markets.
           </p>
         </div>
       </section>
@@ -228,6 +240,41 @@ export default async function Page({ params }: PageProps) {
               </Link>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="space-y-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-[24px] font-bold text-[var(--text-primary)]">Bounce-off markets</h2>
+            <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
+              These are the markets brokers usually cross-check when a deal in {localityName} is not a fit.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {relatedMarkets.map((market) => (
+            <Link
+              key={market.slug}
+              href={`/locality/${market.slug}`}
+              className="rounded-lg border border-[color:var(--border)] bg-[var(--bg-surface)] p-5 transition-colors hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-elevated)]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[16px] font-bold text-[var(--text-primary)]">{market.name}</h3>
+                  <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
+                    {market.listings} listings · {market.requirements} requirements
+                  </p>
+                </div>
+                <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                  Open
+                </span>
+              </div>
+              <div className="mt-4 text-[12px] text-[var(--text-muted)]">
+                Last active {formatDisplayDateTime(market.latestAt)}
+              </div>
+            </Link>
+          ))}
         </div>
       </section>
 

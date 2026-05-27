@@ -23,6 +23,29 @@ export const TOP_LOCALITIES = [
 
 export type TopLocality = (typeof TOP_LOCALITIES)[number];
 
+const LOCALITY_RELATIONS: Record<string, string[]> = {
+  "bandra-west": ["khar-west", "santacruz-west", "juhu", "bandra-east"],
+  "bandra-east": ["bandra-west", "khar-west", "santacruz-west", "andheri-east"],
+  "khar-west": ["bandra-west", "santacruz-west", "juhu", "bandra-east"],
+  "santacruz-west": ["bandra-west", "khar-west", "juhu", "andheri-west"],
+  juhu: ["santacruz-west", "andheri-west", "versova", "bandra-west"],
+  "andheri-west": ["lokhandwala", "versova", "juhu", "andheri-east"],
+  "andheri-east": ["andheri-west", "powai", "chembur", "bandra-east"],
+  versova: ["andheri-west", "lokhandwala", "juhu", "goregaon-west"],
+  lokhandwala: ["andheri-west", "versova", "powai", "goregaon-west"],
+  powai: ["andheri-east", "lokhandwala", "chembur", "ghatkopar-west"],
+  "goregaon-west": ["malad-west", "andheri-west", "lokhandwala", "borivali-west"],
+  "malad-west": ["goregaon-west", "borivali-west", "kandivali-west", "andheri-west"],
+  "borivali-west": ["malad-west", "kandivali-west", "goregaon-west"],
+  "kandivali-west": ["malad-west", "borivali-west", "goregaon-west"],
+  worli: ["lower-parel", "prabhadevi", "dadar-west", "bandra-west"],
+  "lower-parel": ["worli", "prabhadevi", "dadar-west", "matunga"],
+  prabhadevi: ["worli", "lower-parel", "dadar-west", "matunga"],
+  "dadar-west": ["matunga", "prabhadevi", "lower-parel", "worli"],
+  matunga: ["dadar-west", "chembur", "prabhadevi", "lower-parel"],
+  chembur: ["powai", "andheri-east", "matunga", "bandra-east"],
+};
+
 export function getLocalityBySlug(slug: string): TopLocality | null {
   return TOP_LOCALITIES.find((locality) => locality.slug === slug) || null;
 }
@@ -48,13 +71,26 @@ export function localityNameFromSlug(slug: string) {
 }
 
 export function neighbouringLocalities(slug: string, count = 3): TopLocality[] {
-  const index = TOP_LOCALITIES.findIndex((locality) => locality.slug === slug);
-  if (index === -1) return TOP_LOCALITIES.slice(0, count);
+  const relationSlugs = LOCALITY_RELATIONS[slug] || [];
+  const related = relationSlugs
+    .map((relatedSlug) => getLocalityBySlug(relatedSlug))
+    .filter((locality): locality is TopLocality => Boolean(locality))
+    .slice(0, count);
+  if (related.length >= count) return related;
 
-  const neighbours: TopLocality[] = [];
+  const seen = new Set(related.map((locality) => locality.slug));
+  const index = TOP_LOCALITIES.findIndex((locality) => locality.slug === slug);
+  if (index === -1) {
+    return [...related, ...TOP_LOCALITIES.filter((locality) => !seen.has(locality.slug)).slice(0, count - related.length)];
+  }
+
+  const neighbours: TopLocality[] = [...related];
   for (let offset = 1; neighbours.length < count && offset < TOP_LOCALITIES.length; offset += 1) {
     const next = TOP_LOCALITIES[(index + offset) % TOP_LOCALITIES.length];
-    if (next.slug !== slug) neighbours.push(next);
+    if (next.slug !== slug && !seen.has(next.slug)) {
+      seen.add(next.slug);
+      neighbours.push(next);
+    }
   }
   return neighbours;
 }
