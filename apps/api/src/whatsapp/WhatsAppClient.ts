@@ -211,6 +211,7 @@ export class WhatsAppClient {
             if (this.connectionStatus === 'connecting') {
                 console.warn(`[WhatsAppClient] Connection timeout for ${this.tenantId}:${this.label} after 45s. Forcing disconnect.`);
                 this.connectionStatus = 'disconnected';
+                this.isConnecting = false;
                 this.persistStatus('disconnected').catch(() => {});
             }
         }, 45000);
@@ -997,6 +998,7 @@ try {
             this.autoSyncInterval = null;
         }
         this.reconnectAttempts = 0;
+        this.isConnecting = false;
         this.stopHealthCheck();
 
         if (this.socket) {
