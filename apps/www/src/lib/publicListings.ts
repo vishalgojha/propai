@@ -284,6 +284,19 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
     id: row.id,
   });
 
+  if (!isTitleWorthyPublicListing({
+    title,
+    locality,
+    type,
+    bhk,
+    areaSqft,
+    price: priceAmount,
+    availability,
+    rawText,
+  })) {
+    return null;
+  }
+
   return {
     id: row.id,
     title,
@@ -331,6 +344,19 @@ function normalizeStreamListing(row: any, paidBrokerMap: Map<string, { phone: st
     type: type.toLowerCase(),
     id: row.id,
   });
+
+  if (!isTitleWorthyPublicListing({
+    title,
+    locality,
+    type,
+    bhk,
+    areaSqft,
+    price: priceAmount,
+    availability,
+    rawText,
+  })) {
+    return null;
+  }
 
   return {
     id: row.id,
@@ -410,6 +436,40 @@ function normalizeType(value: string | null, rawText: string): string {
   if (lower.includes("requirement")) return "Requirement";
   if (lower.includes("rent") || lower.includes("lease") || lower.includes("l/l")) return "Rent";
   return "Sale";
+}
+
+function isTitleWorthyPublicListing(input: {
+  title: string;
+  locality: string;
+  type: string;
+  bhk?: string | number | null;
+  areaSqft?: number | null;
+  price?: number | null;
+  availability?: string | null;
+  rawText: string;
+}) {
+  const title = String(input.title || "").trim();
+  const locality = String(input.locality || "").trim();
+  const rawText = String(input.rawText || "").trim();
+  if (title.length < 12 || locality.length < 3) return false;
+  if (/^(property listing|broker-sourced property)$/i.test(title)) return false;
+
+  const normalizedTitle = normalizeListingText(title);
+  const normalizedRaw = normalizeListingText(rawText);
+  const titleKeywords = `${normalizedTitle} ${normalizedRaw}`;
+  const hasTypeSignal = /\b(rent|sale|lease|requirement|wanted|office|shop|warehouse|plot|land|flat|apartment|villa|penthouse|studio|commercial|residential|pg|bare shell)\b/i.test(titleKeywords);
+  const hasSubstance = Boolean(
+    (typeof input.bhk === "string" && input.bhk.trim() && !/^flexible$/i.test(input.bhk.trim())) ||
+    (typeof input.bhk === "number" && Number.isFinite(input.bhk)) ||
+    (typeof input.areaSqft === "number" && Number.isFinite(input.areaSqft) && input.areaSqft > 0) ||
+    (typeof input.price === "number" && Number.isFinite(input.price) && input.price > 0) ||
+    String(input.availability || "").trim()
+  );
+
+  if (!hasTypeSignal || !hasSubstance) return false;
+  if (normalizedRaw.length < 20) return false;
+
+  return true;
 }
 
 function parsePriceAmount(value: unknown, priceLabel: unknown, rawText: string, type: string) {

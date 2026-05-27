@@ -319,12 +319,16 @@ export const ListingCard: React.FC<ListingCardProps> = ({
             <div className="relative z-10">
                 {/* Top row: Type badge + time */}
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <span className={cn(
                             'inline-flex rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.1em] backdrop-blur-md',
                             getTypeBadgeClass(listing.type)
                         )}>
                             {listing.type}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold text-[var(--text-secondary)]">
+                            <MapPin className="h-3 w-3 text-[var(--accent)]" />
+                            {listing.location || 'Mumbai market'}
                         </span>
                         <span className="flex items-center gap-1 text-[11px] text-[var(--text-secondary)]">
                             <Clock className="h-3 w-3" />
@@ -338,15 +342,14 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                     ) : null}
                 </div>
 
-                {/* Title + Location */}
-                <div className="flex items-start gap-2 mb-3">
-                    <MapPin className="mt-1 h-4 w-4 shrink-0 text-[var(--accent)]" />
+                {/* Title + Source */}
+                <div className="mb-3">
                     <div className="min-w-0">
                         <h3 className="text-[17px] font-bold leading-[1.3] text-[var(--text-primary)] transition-colors duration-300 group-hover:text-[var(--accent)] sm:text-[20px]">
                             {displayTitle}
                         </h3>
                         <p className="mt-0.5 text-[12px] font-medium text-[var(--text-secondary)] sm:text-[13px]">
-                            {listing.location || 'Mumbai market'} · {sourceLabel}
+                            {listing.buildingName || sourceLabel}
                         </p>
                     </div>
                 </div>

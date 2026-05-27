@@ -293,6 +293,15 @@ const getRecordBadgeClass = (label: string) =>
     ? 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-sky-300'
     : 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]';
 
+const formatLocalityCell = (value?: string | null) => {
+  const text = String(value || '').trim();
+  if (!text || /^n\/?a$/i.test(text) || /^unknown$/i.test(text)) {
+    return '—';
+  }
+
+  return text;
+};
+
 const formatIgrCompact = (transaction: StreamItem['igrTransactions'][number]) => {
   const price = transaction?.consideration != null && Number.isFinite(transaction.consideration)
     ? formatPriceNumeric(transaction.consideration)
@@ -1214,8 +1223,8 @@ if (brokerOnly) {
               <thead>
                 <tr className="border-b border-[color:var(--accent-border)] bg-[color:var(--propai-green-dim)]">
                   {(filterPropertyCategory === 'commercial'
-                    ? ['Record', 'Type', 'Fit-out / Type', 'Area', 'Price', 'Workstations / Cabins', 'Floor', 'Posted', 'WA']
-                    : ['Record', 'Type', 'BHK', 'Area', 'Price', 'Furnishing', 'Floor', 'Posted', 'WA']
+                    ? ['Record', 'Type', 'Locality', 'Fit-out / Type', 'Area', 'Price', 'Workstations / Cabins', 'Floor', 'Posted', 'WA']
+                    : ['Record', 'Type', 'Locality', 'BHK', 'Area', 'Price', 'Furnishing', 'Floor', 'Posted', 'WA']
                   ).map((header) => (
                     <th
                       key={header}
@@ -1230,7 +1239,7 @@ if (brokerOnly) {
                 <tbody key={group.locality}>
                   <tr className="sticky top-0 z-10">
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="border-y border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 text-[12px] font-semibold text-[var(--text-primary)] backdrop-blur"
                     >
                       {group.locality} · {group.listingCount} listing{group.listingCount === 1 ? '' : 's'} · {group.requirementCount} requirement{group.requirementCount === 1 ? '' : 's'}
@@ -1275,7 +1284,10 @@ if (brokerOnly) {
                               </span>
                             )}
                           </td>
-                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
+                          <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
+                            {formatLocalityCell(listing.location)}
+                          </td>
+                          <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
                              {filterPropertyCategory === 'commercial'
                                ? (() => {
                                    const type = listing.commercialType || listing.propertyUse || listing.assetClass || '—';
@@ -1319,7 +1331,7 @@ if (brokerOnly) {
                         </tr>
                         {isExpanded ? (
                           <tr className="border-b border-[color:var(--border)] bg-[var(--bg-surface)]">
-                            <td colSpan={9} className="px-4 pb-5 pt-1">
+                            <td colSpan={10} className="px-4 pb-5 pt-1">
                               <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4">
                                 <div className="grid gap-3 md:grid-cols-2">
                                   <div className="space-y-3">
