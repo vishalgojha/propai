@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
-import { aiService } from './aiService';
-import { browserToolService } from './browserToolService';
+import axios, { AxiosInstance } from 'axios';
 import { supabaseAdmin } from '../config/supabase';
 
 type LiveIgrFetchInput = {
@@ -9,27 +8,20 @@ type LiveIgrFetchInput = {
 };
 
 type LiveIgrExtraction = {
-    found?: boolean;
     doc_number?: string | null;
     building_name?: string | null;
     locality?: string | null;
     registration_date?: string | null;
     consideration?: number | null;
-    rent_amount?: number | null;
-    deposit_amount?: number | null;
-    lease_duration?: number | null;
     area_sqft?: number | null;
     district?: string | null;
     sro_office?: string | null;
     article_type?: string | null;
     transaction_type?: string | null;
-    summary?: string | null;
-    confidence_note?: string | null;
 };
 
 type LiveIgrFetchResult = {
     success: boolean;
-    sourceUrl?: string | null;
     searchQuery?: string;
     extracted?: LiveIgrExtraction | null;
     saved?: boolean;
@@ -37,64 +29,245 @@ type LiveIgrFetchResult = {
     error?: string | null;
 };
 
-function normalize(value?: string | null) {
+const IGR_PORTAL_URL = 'https://freesearchigrservice.maharashtra.gov.in/';
+const CAMOUFOX_BASE_URL = process.env.CAMOUFOX_URL || 'http://127.0.0.1:9377';
+const CAMOUFOX_USER_ID = 'propai-igr';
+const NAVIGATE_TIMEOUT_MS = 30_000;
+const FORM_FILL_DELAY_MS = 2_000;
+const RESULTS_WAIT_MS = 5_000;
+const MAX_RETRY_ATTEMPTS = 2;
+
+function normalize(value?: string | null): string {
     return String(value || '').trim();
 }
 
-function safeParseJson(text: string): LiveIgrExtraction | null {
-    const raw = String(text || '').trim();
-    if (!raw) {
-        return null;
+function uniqueSessionKey(prefix: string): string {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+class CamoufoxIgrClient {
+    private client: AxiosInstance;
+
+    constructor() {
+        this.client = axios.create({
+            baseURL: CAMOUFOX_BASE_URL,
+            timeout: NAVIGATE_TIMEOUT_MS,
+            headers: { 'Content-Type': 'application/json' },
+        });
     }
 
-    const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    const candidate = fenced?.[1]?.trim() || raw;
-    const start = candidate.indexOf('{');
-    const end = candidate.lastIndexOf('}');
-    if (start < 0 || end <= start) {
-        return null;
+    async health(): Promise<boolean> {
+        try {
+            const resp = await this.client.get('/health');
+            return resp.data?.ok === true && resp.data?.browserConnected === true;
+        } catch {
+            return false;
+        }
     }
 
-    try {
-        return JSON.parse(candidate.slice(start, end + 1)) as LiveIgrExtraction;
-    } catch {
-        return null;
+    async createTab(url: string): Promise<string> {
+        const resp = await this.client.post('/tabs', {
+            userId: CAMOUFOX_USER_ID,
+            sessionKey: uniqueSessionKey('igr'),
+            url,
+        });
+        return resp.data?.tabId || resp.data?.targetId;
+    }
+
+    async closeTab(tabId: string): Promise<void> {
+        try {
+            await this.client.delete(`/tabs/${tabId}`, {
+                params: { userId: CAMOUFOX_USER_ID },
+            });
+        } catch {
+            // Ignore cleanup errors
+        }
+    }
+
+    async navigate(tabId: string, url: string): Promise<void> {
+        await this.client.post(`/tabs/${tabId}/navigate`, {
+            userId: CAMOUFOX_USER_ID,
+            url,
+        });
+    }
+
+    async evaluate<T>(tabId: string, expression: string): Promise<T | null> {
+        const resp = await this.client.post(`/tabs/${tabId}/evaluate`, {
+            userId: CAMOUFOX_USER_ID,
+            expression,
+        });
+        return resp.data?.result ?? null;
+    }
+
+    async waitForPageLoad(tabId: string, pollMs = 1000, timeoutMs = 30_000): Promise<boolean> {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+            try {
+                const snapshot = await this.evaluate<string>(tabId, 'document.body?.innerText?.slice(0, 50) || ""');
+                if (snapshot && snapshot.length > 0) return true;
+            } catch {
+                // Page not ready yet
+            }
+            await new Promise((r) => setTimeout(r, pollMs));
+        }
+        return false;
     }
 }
 
-function buildSearchQuery(input: LiveIgrFetchInput) {
+function buildSearchQuery(input: LiveIgrFetchInput): string {
     const buildingName = normalize(input.buildingName);
     const locality = normalize(input.locality);
-    return [
-        buildingName ? `"${buildingName}"` : '',
-        locality,
-        'Maharashtra IGR OR GRAS latest transaction sale rent registration',
-    ].filter(Boolean).join(' ');
+    return [buildingName, locality].filter(Boolean).join(', ') || 'unknown';
 }
 
-function normalizeSourceUrl(url: string) {
-    return String(url || '').trim().toLowerCase();
-}
-
-function pickCandidateUrl(items: Array<Record<string, unknown>>) {
-    const preferred = items.find((item) => {
-        const url = normalizeSourceUrl(String(item.url || ''));
-        return url.includes('igrmaharashtra') || url.includes('igrs.maharashtra') || url.includes('registration') || url.includes('freesearchigrservice');
-    });
-
-    const fallback = items[0];
-    const candidate = preferred || fallback;
-    const url = normalize(String(candidate?.url || ''));
-    return url || null;
+function parseAmount(text: string): number | null {
+    if (!text) return null;
+    const cleaned = text.replace(/[,\s₹Rs.]/g, '').toLowerCase();
+    let multiplier = 1;
+    if (cleaned.includes('cr') || cleaned.includes('crore')) {
+        multiplier = 10_000_000;
+    } else if (cleaned.includes('l') || cleaned.includes('lac') || cleaned.includes('lakh')) {
+        multiplier = 100_000;
+    } else if (cleaned.includes('k') || cleaned.includes('thousand')) {
+        multiplier = 1_000;
+    }
+    const num = parseFloat(cleaned.replace(/[^0-9.]/g, ''));
+    return Number.isNaN(num) ? null : num * multiplier;
 }
 
 export class IgrLiveFetchService {
+    private camoufox: CamoufoxIgrClient | null = null;
+
+    private getCamoufox(): CamoufoxIgrClient | null {
+        if (this.camoufox === null) {
+            this.camoufox = new CamoufoxIgrClient();
+        }
+        return this.camoufox;
+    }
+
     private getAdmin() {
         if (!supabaseAdmin) {
             throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for live IGR saves');
         }
-
         return supabaseAdmin;
+    }
+
+    private async extractResults(tabId: string): Promise<Array<Record<string, string>>> {
+        const result = await this.getCamoufox()!.evaluate<string>(tabId, `
+            (() => {
+                const rows = [];
+                const tables = document.querySelectorAll('table');
+                let targetTable = null;
+
+                for (const t of tables) {
+                    const trs = t.querySelectorAll('tr');
+                    let numCount = 0;
+                    for (const tr of trs) {
+                        const firstTd = tr.querySelector('td');
+                        if (firstTd && /^\\d+$/.test(firstTd.textContent.trim())) {
+                            numCount++;
+                        }
+                    }
+                    if (numCount > 2) { targetTable = t; break; }
+                }
+
+                if (!targetTable) return JSON.stringify({error: 'no results table'});
+
+                const trs = targetTable.querySelectorAll('tr');
+                for (const tr of trs) {
+                    const tds = tr.querySelectorAll('td');
+                    if (tds.length < 3) continue;
+                    const docNo = tds[0]?.textContent.trim();
+                    if (!docNo || !/^\\d+$/.test(docNo)) continue;
+                    rows.push({
+                        doc_no: docNo,
+                        reg_date: tds[1]?.textContent.trim() || '',
+                        consideration: tds[2]?.textContent.trim() || '',
+                        stamp_duty: tds[3]?.textContent.trim() || '',
+                        property_type: tds[4]?.textContent.trim() || '',
+                        village: tds[5]?.textContent.trim() || '',
+                        buyer: tds[6]?.textContent.trim() || '',
+                        seller: tds[7]?.textContent.trim() || '',
+                    });
+                }
+
+                return JSON.stringify({ rows, count: rows.length });
+            })()
+        `);
+
+        if (!result) return [];
+        try {
+            const parsed = JSON.parse(result);
+            if (parsed.error) return [];
+            return Array.isArray(parsed.rows) ? parsed.rows : [];
+        } catch {
+            return [];
+        }
+    }
+
+    private async fillAndSearch(tabId: string, buildingName: string, year: number): Promise<string> {
+        const camoufox = this.getCamoufox()!;
+
+        // Set year dropdown
+        await camoufox.evaluate(tabId, `
+            (() => {
+                const y = document.getElementById('ddlFromYear');
+                if (!y) return 'no_year_select';
+                y.value = '${year}';
+                y.dispatchEvent(new Event('change', { bubbles: true }));
+                return 'year_set=' + y.value;
+            })()
+        `);
+
+        // Type building name into area text field
+        await camoufox.evaluate(tabId, `
+            (() => {
+                const t = document.getElementById('txtAreaName');
+                if (!t) return 'no_area_field';
+                t.value = '${buildingName.replace(/'/g, "\\'")}';
+                t.dispatchEvent(new Event('input', { bubbles: true }));
+                t.dispatchEvent(new Event('change', { bubbles: true }));
+                return 'area_set=' + t.value;
+            })()
+        `);
+
+        // Try to click search button — try multiple selectors
+        const searchSelectors = [
+            "input[type='submit']",
+            "button[type='submit']",
+            "#btnSearch",
+            "input[value='Search']",
+            "input[value='search']",
+        ];
+
+        for (const selector of searchSelectors) {
+            const clicked = await camoufox.evaluate<boolean>(tabId, `
+                (() => {
+                    const el = document.querySelector('${selector}');
+                    if (el) { el.click(); return true; }
+                    return false;
+                })()
+            `);
+            if (clicked) break;
+        }
+
+        return 'search_triggered';
+    }
+
+    private async tryPortalPath(tabId: string, buildingName: string, year: number): Promise<Array<Record<string, string>>> {
+        const camoufox = this.getCamoufox()!;
+
+        await camoufox.navigate(tabId, IGR_PORTAL_URL);
+        await camoufox.waitForPageLoad(tabId);
+        await new Promise((r) => setTimeout(r, FORM_FILL_DELAY_MS));
+
+        const status = await this.fillAndSearch(tabId, buildingName, year);
+        if (status !== 'search_triggered') {
+            return [];
+        }
+
+        await new Promise((r) => setTimeout(r, RESULTS_WAIT_MS));
+        return this.extractResults(tabId);
     }
 
     async fetchAndStore(input: LiveIgrFetchInput): Promise<LiveIgrFetchResult> {
@@ -103,125 +276,147 @@ export class IgrLiveFetchService {
         const searchQuery = buildSearchQuery({ buildingName, locality });
 
         if (!buildingName && !locality) {
+            return { success: false, error: 'Provide a building name or locality.', searchQuery };
+        }
+
+        const camoufox = this.getCamoufox();
+        if (!camoufox || !(await camoufox.health())) {
             return {
                 success: false,
-                error: 'Provide a building name or locality.',
+                error: 'Camoufox browser is not available. Ensure CAMOUFOX_URL is configured and the browser is running.',
                 searchQuery,
             };
         }
 
-        const searchResult = await browserToolService.execute('search_web', { query: searchQuery });
-        const searchItems = Array.isArray(searchResult.data?.items) ? searchResult.data.items as Array<Record<string, unknown>> : [];
-        const sourceUrl = pickCandidateUrl(searchItems);
+        const currentYear = new Date().getFullYear();
+        const searchYears = [currentYear, currentYear - 1, currentYear - 2];
 
-        if (!sourceUrl) {
-            return {
-                success: false,
-                error: 'No live IGR source URL could be found.',
-                searchQuery,
-                extracted: null,
-                sourceUrl: null,
-            };
+        for (let attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt += 1) {
+            const tabId = await camoufox.createTab(IGR_PORTAL_URL);
+            if (!tabId) {
+                return { success: false, error: 'Failed to create browser tab.', searchQuery };
+            }
+
+            try {
+                await camoufox.waitForPageLoad(tabId);
+                await new Promise((r) => setTimeout(r, 2000));
+
+                for (const year of searchYears) {
+                    const rows = await this.tryPortalPath(tabId, buildingName || locality || '', year);
+                    if (rows.length > 0) {
+                        return this.saveBestMatch(rows, { buildingName, locality, searchQuery });
+                    }
+                }
+            } catch (error: unknown) {
+                console.error('[IgrLiveFetchService] Browser automation error:', error);
+                if (attempt === MAX_RETRY_ATTEMPTS - 1) {
+                    return {
+                        success: false,
+                        error: `Browser automation failed after ${MAX_RETRY_ATTEMPTS} attempts: ${(error as Error).message}`,
+                        searchQuery,
+                    };
+                }
+            } finally {
+                await camoufox.closeTab(tabId);
+            }
+
+            await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
         }
 
-        const pageResult = await browserToolService.execute('web_fetch', { url: sourceUrl });
-        const pageText = String(pageResult.message || '').trim();
-        if (!pageText) {
-            return {
-                success: false,
-                error: 'Could not read any content from the live IGR page.',
-                searchQuery,
-                sourceUrl,
-                extracted: null,
-            };
+        return {
+            success: false,
+            error: 'No matching IGR transactions found for the specified building/locality.',
+            searchQuery,
+            extracted: null,
+        };
+    }
+
+    private async saveBestMatch(
+        rows: Array<Record<string, string>>,
+        context: { buildingName: string; locality: string; searchQuery: string },
+    ): Promise<LiveIgrFetchResult> {
+        const { buildingName, locality, searchQuery } = context;
+        const buildingLower = buildingName.toLowerCase();
+        const localityLower = locality.toLowerCase();
+
+        // Score rows by relevance
+        let bestRow: Record<string, string> | null = null;
+        let bestScore = 0;
+
+        for (const row of rows) {
+            let score = 0;
+            const propertyType = (row.property_type || '').toLowerCase();
+            const village = (row.village || '').toLowerCase();
+            const buyer = (row.buyer || '').toLowerCase();
+            const seller = (row.seller || '').toLowerCase();
+
+            if (buildingLower && (propertyType.includes(buildingLower) || village.includes(buildingLower))) {
+                score += 10;
+            }
+            if (localityLower && (village.includes(localityLower) || propertyType.includes(localityLower))) {
+                score += 5;
+            }
+            if (buyer && buildingLower && buyer.includes(buildingLower)) score += 3;
+            if (seller && buildingLower && seller.includes(buildingLower)) score += 3;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestRow = row;
+            }
         }
 
-        const systemPrompt = [
-            'You extract Maharashtra IGR / GRAS transaction data from a fetched web page.',
-            'Return valid JSON only. No markdown.',
-            'If the page does not clearly show a matching transaction, set found=false and keep other fields null.',
-        ].join(' ');
-
-        const userPrompt = `Extract the live Maharashtra IGR / GRAS transaction details from the fetched page.
-
-Return ONLY this JSON shape:
-{
-  "found": true | false,
-  "doc_number": "string or null",
-  "building_name": "string or null",
-  "locality": "string or null",
-  "registration_date": "string or null",
-  "consideration": number or null,
-  "rent_amount": number or null,
-  "deposit_amount": number or null,
-  "lease_duration": number or null,
-  "area_sqft": number or null,
-  "district": "string or null",
-  "sro_office": "string or null",
-  "article_type": "string or null",
-  "transaction_type": "sale | rent | leave_and_license | unknown",
-  "summary": "short plain English summary or null",
-  "confidence_note": "string or null"
-}
-
-Requested building: ${buildingName || 'unknown'}
-Requested locality: ${locality || 'unknown'}
-Source URL: ${sourceUrl}
-
-Fetched page text:
-"""
-${pageText.slice(0, 8000)}
-"""`;
-
-        const extraction = await aiService.chat(userPrompt, 'Auto', 'listing_parsing', undefined, systemPrompt);
-        const parsed = safeParseJson(extraction.text);
-
-        if (!parsed || parsed.found !== true) {
-            return {
-                success: false,
-                error: 'Live IGR source found, but extraction was not confident enough to save.',
-                searchQuery,
-                sourceUrl,
-                extracted: parsed,
-            };
+        if (!bestRow) {
+            bestRow = rows[0];
         }
 
-        const docNumber = normalize(parsed.doc_number) || `live:${crypto.createHash('sha256')
-            .update([sourceUrl, buildingName, locality, parsed.registration_date || '', String(parsed.consideration || '')].join('|'))
+        const docNumber = bestRow.doc_no || `live:${crypto.createHash('sha256')
+            .update([buildingName, locality, bestRow.reg_date || '', bestRow.consideration || ''].join('|'))
             .digest('hex')
             .slice(0, 20)}`;
 
-        const row = {
+        const extracted: LiveIgrExtraction = {
             doc_number: docNumber,
-            registration_date: parsed.registration_date || null,
-            sro_office: parsed.sro_office || null,
-            district: parsed.district || null,
-            article_type: parsed.article_type || '25',
-            consideration_amount: parsed.consideration ?? null,
-            rent_amount: parsed.rent_amount ?? null,
-            deposit_amount: parsed.deposit_amount ?? null,
-            lease_duration: parsed.lease_duration ?? null,
-            property_description: parsed.summary || null,
-            building_name: parsed.building_name || buildingName || null,
-            buyer_name: null,
-            seller_name: null,
-            village_locality: parsed.locality || locality || null,
-            area_sqft: parsed.area_sqft ?? null,
-            source: 'igr_live',
+            building_name: buildingName || null,
+            locality: bestRow.village || locality || null,
+            registration_date: bestRow.reg_date || null,
+            consideration: parseAmount(bestRow.consideration || ''),
+            area_sqft: null,
+            district: null,
+            sro_office: null,
+            article_type: '25',
+            transaction_type: 'sale',
+        };
+
+        const rowToUpsert = {
+            doc_number: docNumber,
+            registration_date: extracted.registration_date || null,
+            sro_office: extracted.sro_office || null,
+            district: extracted.district || null,
+            article_type: extracted.article_type || '25',
+            consideration_amount: extracted.consideration ?? null,
+            rent_amount: null,
+            deposit_amount: null,
+            lease_duration: null,
+            property_description: bestRow?.property_type || null,
+            building_name: buildingName || null,
+            buyer_name: bestRow?.buyer || null,
+            seller_name: bestRow?.seller || null,
+            village_locality: extracted.locality || null,
+            area_sqft: extracted.area_sqft ?? null,
+            source: 'igr_live_browser',
             scraped_at: new Date().toISOString(),
         };
 
         const { error } = await this.getAdmin()
             .from('igr_transactions')
-            .upsert(row, { onConflict: 'doc_number' });
+            .upsert(rowToUpsert, { onConflict: 'doc_number' });
 
         if (error) {
             return {
                 success: false,
                 error: error.message,
                 searchQuery,
-                sourceUrl,
-                extracted: parsed,
+                extracted,
                 docNumber,
             };
         }
@@ -229,8 +424,7 @@ ${pageText.slice(0, 8000)}
         return {
             success: true,
             searchQuery,
-            sourceUrl,
-            extracted: parsed,
+            extracted,
             saved: true,
             docNumber,
         };
