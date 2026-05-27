@@ -75,6 +75,7 @@ export class WhatsAppClient {
     private readonly maxReconnectAttempts = 10;
     private reconnectTimer: NodeJS.Timeout | null = null;
     private qrTimeoutTimer: NodeJS.Timeout | null = null;
+    private circuitBreaker = new CircuitBreaker();
     private healthCheckInterval: NodeJS.Timeout | null = null;
     private autoSyncInterval: NodeJS.Timeout | null = null;
     private disconnectMeta: { reason: string | null; replaced: boolean; at: string | null } = {
