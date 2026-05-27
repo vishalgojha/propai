@@ -63,6 +63,9 @@ process.on('unhandledRejection', (reason) => {
 
 process.on('uncaughtException', (error) => {
     console.error('Uncaught exception:', error);
+    // Exit so the orchestrator (Coolify/Docker) can restart a clean process.
+    // Staying alive in a corrupted state causes persistent 502s.
+    process.exit(1);
 });
 
 app.use(cors());
@@ -173,12 +176,36 @@ app.use('/api/vault', vaultRoutes);
 app.use('/api/igr', igrRoutes);
 app.use('/api/location', locationRoutes);
 
-app.get(ROUTE_PATHS.api.health, (req, res) => {
-    res.json({
+app.get(ROUTE_PATHS.api.health, async (req, res) => {
+    const health: Record<string, unknown> = {
         status: 'ok',
         supabaseProjectRef: getSupabaseProjectRef(),
         hasServiceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-    });
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+    };
+
+    // Check Supabase connectivity
+    try {
+        const { createClient } = await import('@supabase/supabase-js');
+        const sbUrl = process.env.SUPABASE_URL || '';
+        const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+        if (sbUrl && sbKey) {
+            const sb = createClient(sbUrl, sbKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+            const { error } = await sb.from('whatsapp_sessions').select('id').limit(1);
+            health.database = error ? 'degraded' : 'connected';
+        }
+    } catch {
+        health.database = 'unreachable';
+    }
+
+    const dbStatus = health.database as string | undefined;
+    if (dbStatus === 'unreachable' || dbStatus === 'degraded') {
+        health.status = 'degraded';
+        return res.status(503).json(health);
+    }
+
+    res.json(health);
 });
 
 function filterProperties(query: string) {
@@ -228,23 +255,86 @@ function buildPropertySearchResponse(count: number) {
 
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+let server: ReturnType<typeof app.listen> | null = null;
+
+async function gracefulShutdown(signal: string) {
+    console.log(`[${signal}] Graceful shutdown initiated...`);
+
+    // Disconnect all WhatsApp sessions cleanly to avoid "replaced" conflicts
+    try {
+        await sessionManager.disconnectAllSessions();
+        console.log('[shutdown] All WhatsApp sessions disconnected.');
+    } catch (error) {
+        console.error('[shutdown] Error disconnecting WhatsApp sessions:', error);
+    }
+
+    // Stop background workers
+    try {
+        historySyncWorker.stop();
+        syndicationSyncJob.stop?.();
+        generateMarketInsightsJob.stop?.();
+        igrEnrichmentJob.stop?.();
+        console.log('[shutdown] Background workers stopped.');
+    } catch (error) {
+        console.error('[shutdown] Error stopping workers:', error);
+    }
+
+    // Close HTTP server
+    if (server) {
+        server.close(() => {
+            console.log('[shutdown] HTTP server closed.');
+            process.exit(0);
+        });
+
+        // Force exit after 10s if connections don't close
+        setTimeout(() => {
+            console.error('[shutdown] Force exit after timeout.');
+            process.exit(1);
+        }, 10_000);
+    } else {
+        process.exit(0);
+    }
+}
+
+process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => void gracefulShutdown('SIGINT'));
+
+server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+
+    // Async startup tasks with timeout — if any step hangs, log and continue
+    // so the server remains responsive for non-WhatsApp endpoints.
+    const STARTUP_TIMEOUT_MS = 60_000; // 60s max for all startup tasks
+    const startupDeadline = Date.now() + STARTUP_TIMEOUT_MS;
 
     void (async () => {
         try {
-            await sessionManager.rehydratePersistedSessions();
+            console.log('[startup] Rehydrating WhatsApp sessions...');
+            await Promise.race([
+                sessionManager.rehydratePersistedSessions(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Session rehydration timed out')), Math.max(0, startupDeadline - Date.now()))),
+            ]);
+            console.log('[startup] Sessions rehydrated.');
+
+            if (Date.now() > startupDeadline) {
+                console.warn('[startup] Startup deadline exceeded, skipping remaining tasks.');
+                return;
+            }
+
             historySyncWorker.start();
             syndicationSyncJob.start();
             generateMarketInsightsJob.start();
             igrEnrichmentJob.start();
+
             if (ENABLE_SYSTEM_WHATSAPP_SESSION) {
                 await sessionManager.initSystemSession();
             } else {
-                console.log('System WhatsApp session disabled. Set ENABLE_SYSTEM_WHATSAPP_SESSION=true to enable it.');
+                console.log('[startup] System WhatsApp session disabled.');
             }
+
+            console.log('[startup] All initialization complete.');
         } catch (error) {
-            console.error('Startup initialization failed:', error);
+            console.error('[startup] Initialization error (server remains running):', error);
         }
     })();
 });

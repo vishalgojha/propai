@@ -375,6 +375,20 @@ export class SessionManager {
             };
         });
     }
+
+    async disconnectAllSessions() {
+        const disconnectPromises = Array.from(this.clients.entries()).map(async ([key, client]) => {
+            try {
+                await client.disconnect();
+            } catch (error) {
+                console.error(`[SessionManager] Error disconnecting ${key}:`, error);
+            }
+        });
+        await Promise.allSettled(disconnectPromises);
+        this.clients.clear();
+        this.callbacks.clear();
+        this.qrs.clear();
+    }
 }
 
 export const sessionManager = new SessionManager();
