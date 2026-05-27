@@ -67,10 +67,10 @@ const TOUR_STEPS: TourStep[] = [
     },
   },
   {
-    element: '#tour-nav-group-audit',
+    element: '#tour-nav-parsing-terminal',
     popover: {
-      title: 'Group Audit',
-      description: 'Review signal, overlap, and noise for synced groups so only the right WhatsApp groups feed Stream.',
+      title: 'Parsing Terminal',
+      description: 'All groups parse by default. Opt out of the ones you don\'t need. Rescan to discover newly joined groups.',
       side: 'right',
       align: 'start',
     },

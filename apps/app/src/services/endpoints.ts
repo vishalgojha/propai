@@ -71,6 +71,7 @@ export const ENDPOINTS = {
     groups: '/whatsapp/groups',
     groupsAudit: '/whatsapp/groups/audit',
     auditAllowAll: '/whatsapp/groups/audit/allow-real-estate',
+    rescanGroups: '/whatsapp/groups/rescan',
     groupStreamItems: (groupJid: string) => `/whatsapp/groups/${encodeURIComponent(groupJid)}/stream-items`,
     toggleGroupParsing: (groupJid: string) => `/whatsapp/groups/${encodeURIComponent(groupJid)}/toggle-parsing`,
     updateGroupVisibility: (groupJid: string) => `/whatsapp/groups/${encodeURIComponent(groupJid)}/visibility`,
@@ -107,6 +108,7 @@ export const ENDPOINTS = {
   igr: {
     search: '/igr/search',
     fetch: '/igr/fetch',
+    buildingNames: '/igr/building-names',
   },
   properties: {
     search: (query: string) => `/properties/search?q=${encodeURIComponent(query)}`,

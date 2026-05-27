@@ -327,7 +327,6 @@ type SourcesTab = 'setup' | 'audit' | 'pricing' | 'logs';
 
 const SOURCE_TABS: Array<{ id: SourcesTab; label: string }> = [
   { id: 'setup', label: 'Setup' },
-  { id: 'audit', label: 'Audit' },
   { id: 'pricing', label: 'Pricing' },
   { id: 'logs', label: 'Logs' },
 ];
@@ -351,13 +350,11 @@ const isSourcesTab = (value: string | null): value is SourcesTab =>
 const tabForPath = (pathname: string): SourcesTab | null => {
   if (pathname === '/whatsapp' || pathname === '/whatsapp/setup') return 'setup';
   if (pathname === '/pricing') return 'pricing';
-  if (pathname === '/group-audit') return 'audit';
-  if (pathname === '/wa-logs') return 'logs';
+  if (pathname === '/group-audit' || pathname === '/wa-logs') return 'logs';
   return null;
 };
 
 const pathForTab = (tab: SourcesTab) => {
-  if (tab === 'audit') return '/group-audit';
   if (tab === 'pricing') return '/pricing';
   if (tab === 'logs') return '/wa-logs';
   return '/whatsapp/setup';
@@ -1018,15 +1015,12 @@ export const Sources: React.FC = () => {
     }
 
     if (searchParams.get('audit') === '1') {
-      navigate('/group-audit', { replace: true });
-      void fetchGroupAudit(auditSessionLabel);
+      navigate('/parsing-terminal', { replace: true });
       return;
     }
 
     if (location.pathname === '/whatsapp' && currentSessionAuditPending) {
-      navigate('/group-audit', { replace: true });
-      setActiveTab('audit');
-      void fetchGroupAudit(auditSessionLabel);
+      navigate('/parsing-terminal', { replace: true });
     }
   }, [auditSessionLabel, currentSessionAuditPending, fetchGroupAudit, location.pathname, navigate, searchParams]);
 

@@ -1470,8 +1470,6 @@ export const getGroupsAudit = async (req: Request, res: Response) => {
 
 export const applyGroupsAudit = async (req: Request, res: Response) => {
     const sessionLabel = typeof req.body?.sessionLabel === 'string' ? req.body.sessionLabel.trim() : '';
-    const parseGroupIds = Array.isArray(req.body?.parseGroupIds) ? req.body.parseGroupIds.map((id: unknown) => String(id || '').trim()).filter(Boolean) : [];
-    const ignoreGroupIds = Array.isArray(req.body?.ignoreGroupIds) ? req.body.ignoreGroupIds.map((id: unknown) => String(id || '').trim()).filter(Boolean) : [];
 
     if (!sessionLabel) {
         return res.status(400).json({ error: 'sessionLabel is required' });
@@ -1479,19 +1477,14 @@ export const applyGroupsAudit = async (req: Request, res: Response) => {
 
     try {
         const context = await workspaceAccessService.resolveContext(req.user ?? {});
-        const result = await groupAuditService.applyRecommendations({
-            workspaceOwnerId: context.workspaceOwnerId,
-            sessionLabel,
-            parseGroupIds,
-            ignoreGroupIds,
-        });
+        const result = await groupAuditService.rescanGroups(context.workspaceOwnerId, sessionLabel);
         res.json({ success: true, result });
     } catch (error: unknown) {
-        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to apply group audit recommendations') });
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to rescan groups') });
     }
 };
 
-export const allowAllRealEstateGroups = async (req: Request, res: Response) => {
+export const rescanGroups = async (req: Request, res: Response) => {
     const sessionLabel = typeof req.body?.sessionLabel === 'string' ? req.body.sessionLabel.trim() : '';
 
     if (!sessionLabel) {
@@ -1500,13 +1493,21 @@ export const allowAllRealEstateGroups = async (req: Request, res: Response) => {
 
     try {
         const context = await workspaceAccessService.resolveContext(req.user ?? {});
-        const result = await groupAuditService.allowAllRealEstate({
+        const gateway = getWhatsAppGateway(context.workspaceOwnerId);
+
+        const liveGroups = await gateway.listGroups({
             workspaceOwnerId: context.workspaceOwnerId,
             sessionLabel,
         });
-        res.json({ success: true, result });
+
+        if (liveGroups.length > 0) {
+            await whatsappGroupService.syncGroups(context.workspaceOwnerId, sessionLabel, liveGroups);
+        }
+
+        const result = await groupAuditService.rescanGroups(context.workspaceOwnerId, sessionLabel);
+        res.json({ success: true, liveGroupsFound: liveGroups.length, result });
     } catch (error: unknown) {
-        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to allow all real estate groups') });
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to rescan groups') });
     }
 };
 

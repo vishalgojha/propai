@@ -98,8 +98,7 @@ export const Layout: React.FC = () => {
       case '/listings':
       case '/stream': return 'Stream';
       case '/sources':
-      case '/group-audit':
-        return path === '/group-audit' ? 'Group Audit' : 'WhatsApp';
+        return 'WhatsApp';
       case '/wa-logs':
         return 'WA Logs';
       case '/pricing':

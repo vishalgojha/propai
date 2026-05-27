@@ -1,4 +1,5 @@
 import React from 'react';
+import { RefreshCw, Pause, Play } from 'lucide-react';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
@@ -9,7 +10,6 @@ type GroupHealth = {
   sessionLabel: string;
   groupId: string;
   groupName: string;
-  recommendation?: 'parse' | 'review' | 'ignore';
   signalScore?: number;
   noiseScore?: number;
   chaosScore?: number;
@@ -30,15 +30,9 @@ type GroupAuditResponse = {
   sessionLabel: string;
   summary: {
     totalGroups: number;
-    recommendedParseGroups: number;
-    reviewGroups: number;
-    ignoredGroups: number;
     realEstateGroups: number;
     uniqueParticipants: number;
     duplicateParticipants: number;
-    overlappingParticipants?: number;
-    duplicateParticipantRate: number;
-    overlappingParticipantRate?: number;
     averageChaosScore: number;
     averageSignalScore: number;
   };
@@ -48,12 +42,10 @@ type GroupAuditResponse = {
     sessionLabel?: string | null;
     participantsCount: number;
     duplicateMemberCount: number;
-    overlappingMemberCount?: number;
     duplicateOverlapPercent: number;
     signalScore: number;
     noiseScore: number;
     chaosScore: number;
-    recommendation: 'parse' | 'review' | 'ignore';
     reasons: string[];
   }>;
 };
@@ -87,6 +79,7 @@ export default function ParsingTerminal() {
   const [actionGroupId, setActionGroupId] = React.useState<string | null>(null);
   const [dismissedPromptIds, setDismissedPromptIds] = React.useState<string[]>([]);
   const [infoMessage, setInfoMessage] = React.useState<string | null>(null);
+  const [isRescanning, setIsRescanning] = React.useState(false);
 
   const refresh = React.useCallback(async () => {
     try {
@@ -159,7 +152,6 @@ export default function ParsingTerminal() {
               sessionLabel: String(row.sessionLabel || nextSessionLabel || 'default'),
               groupId: String(row.id || ''),
               groupName: String(row.name || row.id || 'Unnamed group'),
-              recommendation: row.recommendation,
               signalScore: Number(row.signalScore || 0),
               noiseScore: Number(row.noiseScore || 0),
               chaosScore: Number(row.chaosScore || 0),
@@ -171,9 +163,9 @@ export default function ParsingTerminal() {
               messagesReceived24h: Number(health?.messagesReceived24h || 0),
               messagesParsed24h: Number(health?.messagesParsed24h || 0),
               messagesFailed24h: Number(health?.messagesFailed24h || 0),
-              status: String(health?.status || (row.recommendation === 'parse' ? 'active' : 'unknown')),
-              isParsing: health ? Boolean(health.isParsing) : row.recommendation === 'parse',
-              behavior: typeof health?.behavior === 'string' ? health.behavior : (row.recommendation === 'parse' ? 'Listen' : null),
+              status: String(health?.status || 'active'),
+              isParsing: health ? Boolean(health.isParsing) : true,
+              behavior: typeof health?.behavior === 'string' ? health.behavior : 'Listen',
             };
           })
         : healthRows.filter((row) => !nextSessionLabel || row.sessionLabel === nextSessionLabel);
@@ -228,13 +220,30 @@ export default function ParsingTerminal() {
     [groups],
   );
   const parseRate = totals.received > 0 ? Math.round((totals.parsed / totals.received) * 100) : 0;
-  const auditParseCount = auditSummary ? auditSummary.recommendedParseGroups : groups.filter((group) => group.recommendation === 'parse').length;
-  const auditReviewCount = auditSummary ? auditSummary.reviewGroups : groups.filter((group) => group.recommendation === 'review').length;
-  const auditIgnoreCount = auditSummary ? auditSummary.ignoredGroups : groups.filter((group) => group.recommendation === 'ignore').length;
+  const optedOutCount = groups.filter((group) => group.isParsing === false).length;
   const promptGroup = React.useMemo(
     () => groups.find((group) => shouldPromptForParsing(group) && !dismissedPromptIds.includes(group.groupId)) || null,
     [dismissedPromptIds, groups],
   );
+
+  const handleRescanGroups = React.useCallback(async () => {
+    if (!sessionLabel) return;
+    setIsRescanning(true);
+    setError(null);
+    setInfoMessage(null);
+    try {
+      const response = await backendApi.post(ENDPOINTS.whatsapp.rescanGroups, {
+        sessionLabel,
+      });
+      const found = Number(response.data?.liveGroupsFound || 0);
+      setInfoMessage(`Rescan complete. ${found} live groups synced.`);
+      await refresh();
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsRescanning(false);
+    }
+  }, [sessionLabel, refresh]);
 
   const handleSetGroupParsing = React.useCallback(async (group: GroupHealth, enabled: boolean) => {
     setActionGroupId(group.groupId);
@@ -280,15 +289,36 @@ export default function ParsingTerminal() {
               Parsing Terminal
             </h1>
             <p className="mt-2 max-w-3xl font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-              Group ingest health, parser throughput, and broadcast extraction wins in one live console.
+              All groups parse by default. Opt out of groups you don't need. Rescan to discover newly joined groups.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            <Metric label="Groups" value={groups.length} tone="neutral" />
-            <Metric label="Live" value={totals.live} tone="positive" />
-            <Metric label="Received" value={totals.received} tone="neutral" />
-            <Metric label="Parsed" value={totals.parsed} tone="positive" />
-            <Metric label="Rate" value={`${parseRate}%`} tone={parseRate >= 60 ? 'positive' : 'warning'} />
+          <div className="flex flex-wrap items-end gap-2">
+            <button
+              type="button"
+              onClick={() => void handleRescanGroups()}
+              disabled={isRescanning || !sessionLabel}
+              className="flex items-center gap-2 border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--accent)] disabled:opacity-60"
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5', isRescanning && 'animate-spin')} />
+              {isRescanning ? 'Scanning...' : 'Rescan groups'}
+            </button>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
+              <Metric label="Groups" value={groups.length} tone="neutral" />
+              <Metric label="Parsing" value={groups.length - optedOutCount} tone="positive" />
+              <Metric label="Opted out" value={optedOutCount} tone={optedOutCount > 0 ? 'warning' : 'neutral'} />
+              <Metric label="Live" value={totals.live} tone="positive" />
+              {auditSummary ? (
+                <>
+                  <Metric label="Brokers" value={auditSummary.uniqueParticipants} tone="neutral" />
+                  <Metric label="Overlap" value={`${auditSummary.duplicateParticipants > 0 ? Math.round((auditSummary.duplicateParticipants / auditSummary.uniqueParticipants) * 100) : 0}%`} tone={auditSummary.duplicateParticipants > 0 && (auditSummary.duplicateParticipants / auditSummary.uniqueParticipants) > 0.4 ? 'warning' : 'neutral'} />
+                </>
+              ) : (
+                <>
+                  <Metric label="Received" value={totals.received} tone="neutral" />
+                  <Metric label="Parsed" value={totals.parsed} tone="positive" />
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -350,7 +380,7 @@ export default function ParsingTerminal() {
         <div className={cn(terminalPanelClass, 'min-h-[620px] overflow-hidden')}>
           <PanelHeader
             left="Group matrix"
-            right={auditSummary ? `parse ${auditParseCount} · review ${auditReviewCount} · ignore ${auditIgnoreCount}` : `${totals.failed.toLocaleString('en-IN')} failures / 24h`}
+            right={auditSummary ? `${auditSummary.totalGroups} groups · ${auditSummary.uniqueParticipants.toLocaleString('en-IN')} brokers · ${optedOutCount} opted out` : `${totals.failed.toLocaleString('en-IN')} failures / 24h`}
           />
           <div className="terminal-table-header grid grid-cols-[minmax(0,1.35fr)_90px_90px_90px_90px_110px] gap-3 px-4 py-2 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
             <span>Group</span>
@@ -367,7 +397,7 @@ export default function ParsingTerminal() {
               <TerminalEmpty text={isConnected ? 'No groups detected yet' : 'WhatsApp is disconnected'} />
             ) : (
               groups.map((group, index) => (
-                <GroupRow key={`${group.sessionLabel}-${group.groupId}`} group={group} rowIndex={index} />
+                <GroupRow key={`${group.sessionLabel}-${group.groupId}`} group={group} rowIndex={index} onToggle={handleSetGroupParsing} />
               ))
             )}
           </div>
@@ -435,7 +465,7 @@ function PanelHeader({ left, right }: { left: string; right: string }) {
   );
 }
 
-function GroupRow({ group, rowIndex }: { group: GroupHealth; rowIndex: number }) {
+function GroupRow({ group, rowIndex, onToggle }: { group: GroupHealth; rowIndex: number; onToggle: (group: GroupHealth, enabled: boolean) => void }) {
   const live = isLiveGroup(group);
   const parsedRatio = group.messagesReceived24h > 0 ? Math.round((group.messagesParsed24h / group.messagesReceived24h) * 100) : 0;
   const toneClass = parsedRatio >= 60 ? 'text-[var(--accent)]' : parsedRatio >= 30 ? 'text-[var(--text-primary)]' : 'text-[var(--red)]';
@@ -460,16 +490,19 @@ function GroupRow({ group, rowIndex }: { group: GroupHealth; rowIndex: number })
           )}>
             {live ? 'Live' : 'Idle'}
           </span>
-          {group.recommendation ? (
-            <span className={cn(
-              'shrink-0 border px-1.5 py-0.5 text-[8px] uppercase tracking-[0.12em]',
-              group.recommendation === 'parse'
-                ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
-                : group.recommendation === 'review'
-                  ? 'border-[rgba(245,158,11,0.32)] bg-[rgba(245,158,11,0.08)] text-[var(--amber)]'
-                  : 'border-[rgba(239,68,68,0.3)] bg-[var(--red-dim)] text-[var(--red)]',
-            )}>
-              {group.recommendation}
+          {group.isParsing === false ? (
+            <span className="shrink-0 border border-[rgba(239,68,68,0.3)] bg-[var(--red-dim)] px-1.5 py-0.5 text-[8px] uppercase tracking-[0.12em] text-[var(--red)]">
+              Off
+            </span>
+          ) : null}
+          {group.participantsCount ? (
+            <span className="shrink-0 border border-[color:var(--border)] bg-transparent px-1.5 py-0.5 text-[8px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
+              {group.participantsCount} members
+            </span>
+          ) : null}
+          {group.duplicateOverlapPercent ? (
+            <span className="shrink-0 border border-[color:var(--border)] bg-transparent px-1.5 py-0.5 text-[8px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
+              {group.duplicateOverlapPercent}% overlap
             </span>
           ) : null}
         </div>
@@ -484,7 +517,25 @@ function GroupRow({ group, rowIndex }: { group: GroupHealth; rowIndex: number })
       <Cell value={group.messagesParsed24h} align="right" tone="positive" />
       <Cell value={group.messagesFailed24h} align="right" tone={group.messagesFailed24h > 0 ? 'danger' : 'neutral'} />
       <Cell value={`${parsedRatio}%`} align="right" className={toneClass} />
-      <Cell value={formatRelative(group.lastMessageAt || group.lastParsedAt)} align="right" />
+      <div className="flex items-center justify-end gap-1 self-center">
+        {group.isParsing === false ? (
+          <button
+            type="button"
+            onClick={() => onToggle(group, true)}
+            className="border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-1 text-[9px] uppercase tracking-[0.14em] text-[var(--accent)]"
+          >
+            <Play className="h-3 w-3" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onToggle(group, false)}
+            className="border border-[rgba(239,68,68,0.3)] bg-[var(--red-dim)] px-2 py-1 text-[9px] uppercase tracking-[0.14em] text-[var(--red)]"
+          >
+            <Pause className="h-3 w-3" />
+          </button>
+        )}
+      </div>
     </article>
   );
 }

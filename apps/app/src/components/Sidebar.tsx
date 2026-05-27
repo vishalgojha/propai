@@ -44,7 +44,6 @@ const NAV_ITEMS = [
   { label: 'IGR', path: '/igr', icon: MapPinIcon },
   { label: 'Parsing Terminal', path: '/parsing-terminal', icon: TerminalIcon },
   { label: 'WhatsApp', path: '/whatsapp/setup', icon: GroupsIcon },
-  { label: 'Group Audit', path: '/group-audit', icon: ShieldIcon },
   { label: 'WA Logs', path: '/wa-logs', icon: MessageSquareIcon },
   { label: 'Broker Network', path: '/broker-network/contacts', icon: UsersIcon },
   { label: 'Profile & Team', path: '/team', icon: ShieldIcon },

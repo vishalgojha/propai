@@ -1,4 +1,3 @@
-import { supabase, supabaseAdmin } from '../config/supabase';
 import {
     countLikelyBrokerSignals,
     countNoiseSignals,
@@ -6,10 +5,6 @@ import {
     whatsappGroupService,
 } from './whatsappGroupService';
 import { brokerContactSyncService } from './brokerContactSyncService';
-
-const db = supabaseAdmin || supabase;
-
-type AuditDecision = 'parse' | 'review' | 'ignore';
 
 function normalizePhoneFromJid(value?: string | null) {
     const jid = String(value || '').trim().toLowerCase();
@@ -115,13 +110,6 @@ export class GroupAuditService {
                 (group as any).noiseScore,
                 () => countNoiseSignals(scoringInput, classification, group.category),
             );
-            const autoAllow = classification === 'business' && signalScore >= 50;
-            const recommendation: AuditDecision =
-                autoAllow
-                    ? 'parse'
-                    : classification === 'personal' || noiseScore >= 70
-                        ? 'ignore'
-                        : 'review';
 
             const reasons: string[] = [];
             if (classification === 'business') reasons.push('business-labelled by PropAI');
@@ -131,12 +119,8 @@ export class GroupAuditService {
             if (noiseScore >= 60) reasons.push('high non-business or noisy naming pattern');
             if (phones.length >= 100) reasons.push('large broker surface');
 
-            const status = autoAllow ? 'allowed' : recommendation === 'ignore' ? 'ignored' : 'review';
-
             return {
                 ...group,
-                autoAllow,
-                status,
                 participantPhoneCount: phones.length,
                 duplicateMemberCount: duplicatePhones.length,
                 overlappingMemberCount: duplicatePhones.length,
@@ -149,15 +133,10 @@ export class GroupAuditService {
                 }),
                 signalScore,
                 noiseScore,
-                recommendation,
                 reasons,
                 chaosScore: Math.max(0, Math.min(100, Math.round((noiseScore * 0.55) + (overlapPercent * 0.45)))),
             };
         }).sort((left, right) => {
-            const rank = { parse: 0, review: 1, ignore: 2 };
-            if (rank[left.recommendation] !== rank[right.recommendation]) {
-                return rank[left.recommendation] - rank[right.recommendation];
-            }
             return (right.signalScore - right.noiseScore) - (left.signalScore - left.noiseScore);
         });
 
@@ -172,9 +151,6 @@ export class GroupAuditService {
             sessionLabel,
             summary: {
                 totalGroups: enrichedGroups.length,
-                recommendedParseGroups: enrichedGroups.filter((group) => group.recommendation === 'parse').length,
-                reviewGroups: enrichedGroups.filter((group) => group.recommendation === 'review').length,
-                ignoredGroups: enrichedGroups.filter((group) => group.recommendation === 'ignore').length,
                 realEstateGroups: enrichedGroups.filter((group) => String((group as any).classification || '') === 'business' || group.signalScore >= 55).length,
                 uniqueParticipants: uniquePhones.size,
                 duplicateParticipants: duplicatePhonesWorkspace.size,
@@ -188,161 +164,27 @@ export class GroupAuditService {
         };
     }
 
-    async allowAllRealEstate(input: {
-        workspaceOwnerId: string;
-        sessionLabel: string;
-    }) {
-        const groups = (await whatsappGroupService.listGroups(input.workspaceOwnerId, { includeArchived: false }))
-            .filter((group) => String(group.sessionLabel || '') === input.sessionLabel);
+    async rescanGroups(workspaceOwnerId: string, sessionLabel: string) {
+        const groups = (await whatsappGroupService.listGroups(workspaceOwnerId, { includeArchived: false }))
+            .filter((group) => String(group.sessionLabel || '') === sessionLabel);
 
-        const allowIds: string[] = [];
         for (const group of groups) {
-            const participantJids: string[] = Array.isArray((group as any).participantJids)
-                ? ((group as any).participantJids as string[])
-                : [];
-            const scoringInput = {
-                id: String(group.id || ''),
-                name: String(group.name || ''),
-                participantsCount: Number(group.participantsCount || 0),
-                participantJids,
-            };
-            const signalScore = positiveOrDerived(
-                (group as any).signalScore,
-                () => countLikelyBrokerSignals(scoringInput, group.locality, group.category),
-            );
-            const classification = String((group as any).classification || 'unknown') as GroupClassification;
-            if (classification === 'business' && signalScore >= 50) {
-                allowIds.push(String(group.id || ''));
-            }
-        }
-
-        if (allowIds.length > 0) {
-            const parseRows = allowIds.map((groupId) => ({
-                tenant_id: input.workspaceOwnerId,
-                group_id: groupId,
-                behavior: 'Listen' as const,
-            }));
-            const { error } = await db.from('group_configs').upsert(parseRows, { onConflict: 'group_id' });
-            if (error) throw error;
-
-            await Promise.all(allowIds.map((groupId) =>
-                whatsappGroupService.updateGroup(input.workspaceOwnerId, groupId, {
-                    isParsing: true,
-                    visibilityStatus: 'visible',
-                }),
-            ));
+            const groupId = String(group.id || '');
+            await whatsappGroupService.updateGroup(workspaceOwnerId, groupId, {
+                isParsing: true,
+                visibilityStatus: 'visible',
+            });
         }
 
         try {
-            await brokerContactSyncService.syncFromStoredGroups(input.workspaceOwnerId, {
-                sessionLabel: input.sessionLabel,
+            await brokerContactSyncService.syncFromStoredGroups(workspaceOwnerId, {
+                sessionLabel,
             });
         } catch (syncError) {
-            console.warn('[GroupAudit] Broker contact sync failed after bulk allow:', syncError);
+            console.warn('[GroupAudit] Broker contact sync failed after rescan:', syncError);
         }
 
-        return { allowedCount: allowIds.length };
-    }
-
-    async applyRecommendations(input: {
-        workspaceOwnerId: string;
-        sessionLabel: string;
-        parseGroupIds: string[];
-        ignoreGroupIds: string[];
-    }) {
-        const parseIds = Array.from(new Set((input.parseGroupIds || []).map((id) => String(id || '').trim()).filter(Boolean)));
-        const ignoreIds = new Set((input.ignoreGroupIds || []).map((id) => String(id || '').trim()).filter(Boolean));
-        const groups = (await whatsappGroupService.listGroups(input.workspaceOwnerId, { includeArchived: false }))
-            .filter((group) => String(group.sessionLabel || '') === input.sessionLabel);
-        const useOptOut = ignoreIds.size > 0 || parseIds.length === groups.length || parseIds.length === 0;
-
-        const parseIds_group = groups
-            .filter((group) => {
-                const id = String(group.id || '');
-                return useOptOut ? !ignoreIds.has(id) : parseIds.includes(id);
-            })
-            .map((group) => ({
-                tenant_id: input.workspaceOwnerId,
-                group_id: String(group.id || ''),
-                behavior: 'Listen' as const,
-            }));
-
-        const offIds = groups
-            .filter((group) => {
-                const id = String(group.id || '');
-                return useOptOut ? ignoreIds.has(id) : !parseIds.includes(id);
-            })
-            .map((group) => String(group.id || ''))
-            .filter(Boolean);
-
-        if (parseIds_group.length > 0) {
-            const { error } = await db.from('group_configs').upsert(parseIds_group, { onConflict: 'group_id' });
-            if (error) throw error;
-        }
-
-        if (offIds.length > 0) {
-            const { error } = await db
-                .from('group_configs')
-                .delete()
-                .eq('tenant_id', input.workspaceOwnerId)
-                .in('group_id', offIds);
-            if (error) throw error;
-        }
-
-        await Promise.all(groups.map((group) => {
-            const id = String(group.id || '');
-            const shouldParse = useOptOut ? !ignoreIds.has(id) : parseIds.includes(id);
-            return whatsappGroupService.updateGroup(input.workspaceOwnerId, id, {
-                isParsing: shouldParse,
-                visibilityStatus: ignoreIds.has(id) ? 'hidden' : 'visible',
-            });
-        }));
-
-        const { data: sessionRow, error: sessionError } = await db
-            .from('whatsapp_sessions')
-            .select('session_data')
-            .eq('tenant_id', input.workspaceOwnerId)
-            .eq('label', input.sessionLabel)
-            .maybeSingle();
-
-        if (sessionError) throw sessionError;
-
-        const sessionData = sessionRow?.session_data && typeof sessionRow.session_data === 'object'
-            ? sessionRow.session_data as Record<string, unknown>
-            : {};
-
-        const { error: updateError } = await db
-            .from('whatsapp_sessions')
-            .update({
-                session_data: {
-                    ...sessionData,
-                    groupAuditPending: false,
-                    groupAuditCompletedAt: new Date().toISOString(),
-                },
-                updated_at: new Date().toISOString(),
-                last_sync: new Date().toISOString(),
-            })
-            .eq('tenant_id', input.workspaceOwnerId)
-            .eq('label', input.sessionLabel);
-
-        if (updateError) throw updateError;
-
-        try {
-            await brokerContactSyncService.syncFromStoredGroups(input.workspaceOwnerId, {
-                sessionLabel: input.sessionLabel,
-            });
-        } catch (syncError) {
-            console.warn('[GroupAudit] Broker contact sync failed after audit apply:', syncError);
-        }
-
-        return {
-            parsedGroups: groups.filter((group) => {
-                const id = String(group.id || '');
-                return useOptOut ? !ignoreIds.has(id) : parseIds.includes(id);
-            }).length,
-            ignoredGroups: ignoreIds.size,
-            totalGroups: groups.length,
-        };
+        return { totalGroups: groups.length };
     }
 }
 
