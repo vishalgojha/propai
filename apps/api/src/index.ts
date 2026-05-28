@@ -41,6 +41,32 @@ import { ROUTE_PATHS } from './routes/routePaths';
 const app = express();
 const PORT = process.env.PORT || 3001;
 const ENABLE_SYSTEM_WHATSAPP_SESSION = process.env.ENABLE_SYSTEM_WHATSAPP_SESSION === 'true';
+const corsOptions = {
+    origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+        if (!origin) {
+            callback(null, true);
+            return;
+        }
+
+        if (
+            origin === 'https://propai.live'
+            || origin === 'https://app.propai.live'
+            || origin === 'https://www.propai.live'
+            || origin.endsWith('.propai.live')
+            || origin.startsWith('http://localhost:')
+            || origin.startsWith('http://127.0.0.1:')
+        ) {
+            callback(null, true);
+            return;
+        }
+
+        callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    credentials: false,
+    optionsSuccessStatus: 204,
+};
 
 // Prefer IPv4 for outbound lookups. Several providers intermittently stall on IPv6
 // from containerized deployments, which can surface as long auth/network timeouts.
@@ -69,7 +95,8 @@ process.on('uncaughtException', (error) => {
     process.exit(1);
 });
 
-app.use(cors());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '25mb' }));
 
 app.use(ROUTE_PATHS.api.voiceListen, express.raw({ type: 'audio/wav', limit: '10mb' }));

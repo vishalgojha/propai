@@ -959,13 +959,10 @@ export const Sources: React.FC = () => {
   }, [activeTab, fetchHealthLogs]);
 
   const ensureConnectUiVisible = useCallback(() => {
-    if (location.pathname !== '/whatsapp') {
-      navigate('/whatsapp');
-    }
     if (activeTab !== 'setup') {
       setActiveTab('setup');
     }
-  }, [activeTab, location.pathname, navigate]);
+  }, [activeTab]);
 
   useEffect(() => {
     if (searchParams.get('connect') !== '1') {
@@ -1085,6 +1082,12 @@ export const Sources: React.FC = () => {
       return;
     }
 
+    console.log('[WhatsApp] connect submit', {
+      pathname: location.pathname,
+      phone: normalizedPhone,
+      mode: 'qr',
+    });
+
     // Save profile first
     try {
       await backendApi.post(ENDPOINTS.whatsapp.profile, {
@@ -1177,7 +1180,6 @@ export const Sources: React.FC = () => {
     mode: 'qr' | 'pairing' = 'qr',
     values?: { ownerName?: string; phoneNumber?: string },
   ) => {
-    ensureConnectUiVisible();
     const ownerNameToUse = values?.ownerName ?? deviceOwnerName;
     const phoneNumberToUse = ensureIndiaPrefix(values?.phoneNumber ?? normalizedDevicePhone);
     const sessionLabelToUse = buildSessionLabel(ownerNameToUse || 'Owner', phoneNumberToUse || 'device');
@@ -1198,6 +1200,14 @@ export const Sources: React.FC = () => {
       ownerName: ownerNameToUse,
       phoneNumber: phoneNumberToUse,
     });
+
+    console.info('[WhatsApp] connect request', {
+      mode,
+      label: sessionLabelToUse,
+      phoneNumber: phoneNumberToUse,
+      pathname: location.pathname,
+    });
+
     if (demoMode) {
       setIsConnecting(true);
       setScanProgress(0);
@@ -1234,6 +1244,11 @@ export const Sources: React.FC = () => {
     setQrGeneratedAt(null);
     setQrTimeLeft(0);
     try {
+      console.log('[WhatsApp] connect request start', {
+        mode,
+        label: sessionLabelToUse,
+        phoneNumber: phoneNumberToUse,
+      });
       const response = await backendApi.post<ConnectWhatsAppResponse>(ENDPOINTS.whatsapp.connect, {
         phoneNumber: phoneNumberToUse,
         ownerName: ownerNameToUse,

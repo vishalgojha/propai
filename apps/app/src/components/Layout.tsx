@@ -287,7 +287,6 @@ export const Layout: React.FC = () => {
 
   const handleReconnectSelectedSession = React.useCallback(async () => {
     if (!selectedSession?.label) {
-      navigate('/whatsapp');
       return;
     }
 
@@ -295,13 +294,12 @@ export const Layout: React.FC = () => {
     try {
       await backendApi.post(ENDPOINTS.whatsapp.reconnect, { label: selectedSession.label });
       await loadWhatsappStatus(false);
-      navigate('/whatsapp');
     } catch (error) {
       console.error(handleApiError(error));
     } finally {
       setIsReconnectingSession(false);
     }
-  }, [loadWhatsappStatus, navigate, selectedSession?.label]);
+  }, [loadWhatsappStatus, selectedSession?.label]);
 
   return (
     <div className="flex min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] lg:h-screen lg:overflow-hidden">
