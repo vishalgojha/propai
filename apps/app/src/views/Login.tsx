@@ -56,30 +56,6 @@ const proofPoints = [
   { label: 'Device', value: '1 per account' },
 ];
 
-const fallback = ['3BHK Bandra West 1.8Cr sale, owner direct', '2BHK Powai requirement, budget 70 lakh', 'Remind me to call Rahul tomorrow 10am', 'Show me hot leads from this week'];
-const CACHE_KEY = 'propai.examplePrompts.v2';
-
-function useExamplePrompts(): string[] {
-  const [prompts, setPrompts] = useState<string[]>([]);
-
-  useEffect(() => {
-    try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed && Array.isArray(parsed.prompts) && parsed.expiry > Date.now()) {
-          setPrompts(parsed.prompts);
-          return;
-        }
-      }
-    } catch { /* ignore */ }
-
-    setPrompts(fallback);
-  }, []);
-
-  return prompts.length === 4 ? prompts : fallback;
-}
-
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'vishal@chaoscraftlabs.com',
   'vishal@chaoscraftslabs.com',
@@ -149,7 +125,6 @@ export const Login: React.FC = () => {
   const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const exPromptList = useExamplePrompts();
 
   const nextPath = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -398,23 +373,6 @@ export const Login: React.FC = () => {
                   </div>
                 ))}
               </div>
-
-              <AuthCard className="p-5">
-                <div className="flex items-center gap-2">
-              <MessageSquareTextIcon className="h-4 w-4 text-[var(--accent)]" />
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Example prompts</p>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {exPromptList.map((item) => (
-                    <div
-                      key={item}
-                      className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
-                    >
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </AuthCard>
 
               <AuthCard className="p-5 md:p-6">
                 <div className="flex items-center gap-2">
