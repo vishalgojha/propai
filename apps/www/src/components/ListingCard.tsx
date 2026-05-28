@@ -48,16 +48,16 @@ export default function ListingCard({ listing }: ListingCardProps) {
 
   return (
     <Link href={`/listings/${listing.slug}`} className="group block animate-stream-in">
-      <div className="h-full rounded-[28px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] p-7 relative overflow-hidden transition-all duration-500 shadow-[0_12px_36px_rgba(0,0,0,0.18)] hover:-translate-y-1.5 hover:bg-[var(--bg-surface)] hover:border-[color:var(--accent-border)] hover:shadow-[0_26px_56px_rgba(0,0,0,0.26)]">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/20 to-transparent opacity-70" />
-        <div className="absolute -top-32 -right-32 h-64 w-64 bg-[var(--accent)]/4 blur-[100px] rounded-full group-hover:bg-[var(--accent)]/10 transition-all duration-700" />
+      <div className="h-full rounded-[24px] border border-[color:rgba(255,255,255,0.08)] bg-[var(--bg-elevated)] p-6 relative overflow-hidden transition-all duration-300 shadow-[0_10px_28px_rgba(0,0,0,0.16)] hover:-translate-y-1 hover:bg-[var(--bg-surface)] hover:border-[color:var(--accent-border)] hover:shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+        <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/22 to-transparent opacity-70" />
+        <div className="absolute -top-32 -right-32 h-64 w-64 bg-[var(--accent)]/3 blur-[100px] rounded-full group-hover:bg-[var(--accent)]/8 transition-all duration-700" />
         
         <div className="flex flex-col h-full justify-between relative z-10">
           <div className="space-y-6">
             {/* Header: Title and Type */}
             <div className="flex justify-between items-start gap-4">
               <div className="space-y-1.5">
-                <h3 className="text-[20px] font-bold text-[var(--text-primary)] leading-[1.3] group-hover:text-[var(--accent)] transition-colors duration-300">
+                <h3 className="text-[19px] font-bold text-[var(--text-primary)] leading-[1.28] group-hover:text-[var(--accent)] transition-colors duration-300">
                   {listing.title}
                 </h3>
                 <div className="flex items-center gap-2 text-[13px] text-[var(--text-secondary)] font-medium">
@@ -87,7 +87,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
             {/* Tags */}
             <div className="flex flex-wrap gap-2 pt-2">
               {features.map((f, i) => (
-                <span key={i} className="px-3 py-1.5 rounded-xl bg-[var(--bg-surface)] text-[11px] font-bold text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-base)]">
+                <span key={i} className="rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)] transition-colors group-hover:border-[color:var(--accent-border)] group-hover:text-[var(--text-primary)]">
                   {f}
                 </span>
               ))}
@@ -95,7 +95,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
           </div>
 
           {/* Footer Area */}
-          <div className="mt-8 pt-6 border-t border-white/[0.06] flex items-center justify-between">
+          <div className="mt-7 pt-5 border-t border-[color:rgba(255,255,255,0.06)] flex items-center justify-between">
             <div className="space-y-0.5">
               <div className="text-[26px] font-bold text-[var(--text-primary)] tracking-tight">
                 {formattedPrice}

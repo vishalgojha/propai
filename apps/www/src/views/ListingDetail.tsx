@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { MessageCircle, MapPin, Share2, Heart, Clock, ChevronRight, LayoutGrid, Info, ShieldCheck, Zap } from 'lucide-react';
+import { MessageCircle, MapPin, Share2, Heart, Clock, ChevronRight } from 'lucide-react';
 import { getListingBySlug, getListings, type PublicListing } from '@/lib/listings';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -99,166 +99,138 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-5 py-8 space-y-10">
+    <div className="mx-auto max-w-7xl space-y-10 px-5 py-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      {/* Breadcrumbs */}
+
       <nav className="flex items-center gap-2 text-[11px] font-medium text-[var(--text-secondary)]">
-        <Link href="/" className="hover:text-[var(--accent)] transition-colors">Home</Link>
+        <Link href="/" className="transition-colors hover:text-[var(--accent)]">Home</Link>
         <ChevronRight className="h-3 w-3" />
-        <Link href="/listings" className="hover:text-[var(--accent)] transition-colors">Listings</Link>
+        <Link href="/listings" className="transition-colors hover:text-[var(--accent)]">Listings</Link>
         <ChevronRight className="h-3 w-3" />
-        <span className="text-[var(--text-primary)] truncate max-w-[200px]">{listing.title}</span>
+        <span className="max-w-[220px] truncate text-[var(--text-primary)]">{listing.title}</span>
       </nav>
 
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-glow)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">
+      <section className="rounded-[28px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.24)] md:p-8">
+        <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em]">
+          <span className="inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-glow)] px-3 py-1 text-[var(--accent)]">
             {listing.type}
           </span>
-          <span className="text-[11px] font-medium text-[var(--text-muted)] flex items-center gap-1">
+          <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[var(--text-muted)]">
             <Clock className="h-3 w-3" />
             {formatDistanceToNow(new Date(listing.created_at))} ago
           </span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[var(--text-secondary)]">
+            <MapPin className="h-3 w-3" />
+            {listing.locality}
+          </span>
         </div>
-        
-        <h1 className="text-[32px] md:text-[44px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">
-          {listing.title}
-        </h1>
-        
-        <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-          <MapPin className="h-4 w-4" />
-          <span className="text-[16px] font-medium">{listing.locality}</span>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-10">
-          {/* Hero Data Box */}
-          <div className="aspect-[21/9] w-full rounded-[32px] bg-[var(--bg-elevated)] relative overflow-hidden p-12 flex flex-col justify-center shadow-[0_32px_80px_rgba(0,0,0,0.4)] border border-white/[0.03]">
-             <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/5 via-transparent to-transparent opacity-30" />
-             <div className="absolute inset-0 opacity-[0.02] pointer-events-none" 
-                  style={{ backgroundImage: 'radial-gradient(var(--accent) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
-             
-             <div className="relative z-10 max-w-4xl">
-                <div className="flex items-center justify-between mb-8">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-[var(--accent-glow)]">
-                      <Zap className="h-3 w-3 text-[var(--accent)] fill-[var(--accent)] animate-pulse" />
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[var(--accent)]">Direct Broker Listing</span>
-                  </div>
-                  <div className="text-[10px] font-mono text-[var(--text-muted)] opacity-50">
-                    ID: {listing.id.slice(0, 8)} | SYNC_OK
-                  </div>
-                </div>
-                <p className="text-[20px] md:text-[28px] font-mono leading-relaxed text-[var(--text-primary)] font-medium italic whitespace-pre-wrap">
-                  {description}
-                </p>
-             </div>
-             
-             <div className="absolute bottom-0 right-0 h-32 w-64 opacity-[0.03] select-none pointer-events-none">
-                <div className="absolute inset-0 bg-[var(--accent)]" style={{ clipPath: 'polygon(100% 100%, 0% 100%, 100% 0%)' }} />
-             </div>
+        <div className="mt-6 grid gap-8 lg:grid-cols-[1.35fr_0.65fr] lg:items-start">
+          <div className="space-y-6">
+            <h1 className="text-[34px] font-bold leading-[1.05] tracking-tight text-[var(--text-primary)] md:text-[46px]">
+              {listing.title}
+            </h1>
+            <p className="max-w-3xl text-[15px] leading-7 text-[var(--text-secondary)]">
+              {description}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                listing.bhk && { label: 'Configuration', value: `${listing.bhk}`.replace(/\s*BHK$/i, '') + ' BHK' },
+                listing.area_sqft && { label: 'Area', value: `${listing.area_sqft} SQFT` },
+                listing.furnishing && { label: 'Furnishing', value: listing.furnishing },
+                listing.availability && { label: 'Availability', value: listing.availability },
+                listing.floor && { label: 'Floor', value: listing.floor },
+              ]
+                .filter(Boolean)
+                .map((stat, index) => (
+                  <span key={index} className="inline-flex items-center rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-medium text-[var(--text-secondary)]">
+                    {stat.label}: <span className="ml-1 text-[var(--text-primary)]">{stat.value}</span>
+                  </span>
+                ))}
+            </div>
           </div>
 
-           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-             {[
-               listing.bhk && { label: 'Configuration', value: `${listing.bhk}`.replace(/\s*BHK$/i, '') + ' BHK' },
-               listing.price && listing.price > 0 && { label: 'Price', value: `₹${listing.price.toLocaleString()}` },
-               listing.area_sqft && { label: 'Area', value: `${listing.area_sqft} SQFT` },
-               listing.furnishing && { label: 'Furnishing', value: listing.furnishing },
-               listing.availability && { label: 'Availability', value: listing.availability },
-               listing.floor && { label: 'Floor', value: listing.floor }
-             ]
-               .filter(Boolean)
-               .map((stat, i) => (
-                 <div key={i} className="rounded-[18px] bg-[var(--bg-surface)] p-5 shadow-sm">
-                   <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)] mb-1.5">{stat.label}</div>
-                   <div className="text-[16px] font-bold text-[var(--text-primary)]">{stat.value}</div>
-                 </div>
-               ))}
-           </div>
-        </div>
-
-        {/* Sidebar/Action Box */}
-        <div className="space-y-6">
-          <div className="sticky top-24 rounded-[28px] bg-[var(--bg-surface)] p-8 shadow-[0_32px_96px_rgba(0,0,0,0.5)] relative overflow-hidden">
-             <div className="absolute -top-12 -right-12 h-24 w-24 bg-[var(--accent)]/5 blur-[40px] rounded-full" />
-             
-             <div className="relative z-10">
-               <div className="mb-8">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1.5">Asking Price</div>
-                   <div className="text-[36px] font-bold text-[var(--accent)] tracking-tight">{listing.price && listing.price > 0 ? `₹${listing.price.toLocaleString()}` : 'Price on Request'}</div>
-               </div>
-
-               <div className="space-y-4">
-                  <button 
-                    onClick={() => {
-                      const phone = listing.broker_phone || '';
-                      const text = encodeURIComponent(`Hi, I am interested in ${listing.title} in ${listing.locality} (via PropAI)`);
-                      window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
-                    }}
-                    className="w-full flex items-center justify-center gap-3 rounded-[16px] bg-[var(--accent)] py-4.5 text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--on-propai-green)] shadow-[0_12px_32px_rgba(62,232,138,0.25)] hover:scale-[1.02] active:scale-[0.98] transition-all"
-                  >
-                    <MessageCircle className="h-5 w-5" />
-                    Contact broker
-                  </button>
-                  <div className="grid grid-cols-2 gap-3">
-                     <button className="flex items-center justify-center gap-2 rounded-[16px] bg-[var(--bg-elevated)] py-3.5 text-[11px] font-bold uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all">
-                        <Heart className="h-4 w-4" />
-                        Save
-                     </button>
-                     <button className="flex items-center justify-center gap-2 rounded-[16px] bg-[var(--bg-elevated)] py-3.5 text-[11px] font-bold uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all">
-                        <Share2 className="h-4 w-4" />
-                        Share
-                     </button>
-                  </div>
-               </div>
-
-               <div className="mt-10 pt-10 border-t border-white/[0.03]">
-                  <h4 className="text-[13px] font-bold text-[var(--text-primary)] mb-5 uppercase tracking-[0.08em]">Check availability</h4>
-                  <div className="space-y-4">
-                     <input 
-                      type="text" 
-                      placeholder="Full Name"
-                      className="w-full rounded-[14px] bg-[var(--bg-base)] py-4 px-5 text-[13px] text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[var(--accent)]/20 transition-all placeholder:text-[var(--text-muted)]"
-                     />
-                     <input 
-                      type="tel" 
-                      placeholder="Phone Number"
-                      className="w-full rounded-[14px] bg-[var(--bg-base)] py-4 px-5 text-[13px] text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[var(--accent)]/20 transition-all placeholder:text-[var(--text-muted)]"
-                     />
-                     <button className="w-full rounded-[14px] border border-[var(--accent-border)] bg-[var(--accent-glow)] py-4 text-[12px] font-bold uppercase tracking-widest text-[var(--accent)] hover:bg-[var(--accent)] hover:text-[var(--on-propai-green)] transition-all">
-                      Submit Request
-                     </button>
-                  </div>
-               </div>
-             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Similar Listings */}
-      {related.length > 0 && (
-        <section className="pt-24 space-y-10">
-           <div className="flex items-baseline justify-between mb-8 border-b border-white/[0.03] pb-6">
-              <div className="space-y-1">
-                <h3 className="text-[28px] font-bold text-[var(--text-primary)]">Similar Properties</h3>
-                <p className="text-[14px] text-[var(--text-muted)] font-medium">Fresh intelligence from the same micro-market</p>
+          <aside className="rounded-[22px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-5">
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">Asking price</div>
+            <div className="mt-2 text-[34px] font-bold tracking-tight text-[var(--accent)]">
+              {listing.price && listing.price > 0 ? `₹${listing.price.toLocaleString()}` : 'Price on Request'}
+            </div>
+            <p className="mt-3 text-[12px] leading-6 text-[var(--text-secondary)]">
+              Public pages show the market signal first. Broker contact stays explicit.
+            </p>
+            <div className="mt-5 flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  const phone = listing.broker_phone || '';
+                  const text = encodeURIComponent(`Hi, I am interested in ${listing.title} in ${listing.locality} (via PropAI)`);
+                  window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+                }}
+                className="flex items-center justify-center gap-3 rounded-[16px] bg-[var(--accent)] py-4 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--on-propai-green)] shadow-[0_12px_32px_rgba(62,232,138,0.25)] transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <MessageCircle className="h-5 w-5" />
+                Contact broker
+              </button>
+              <div className="grid grid-cols-2 gap-3">
+                <button className="flex items-center justify-center gap-2 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-base)] py-3 text-[11px] font-bold uppercase tracking-wider text-[var(--text-primary)] transition-all hover:bg-[var(--bg-hover)]">
+                  <Heart className="h-4 w-4" />
+                  Save
+                </button>
+                <button className="flex items-center justify-center gap-2 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-base)] py-3 text-[11px] font-bold uppercase tracking-wider text-[var(--text-primary)] transition-all hover:bg-[var(--bg-hover)]">
+                  <Share2 className="h-4 w-4" />
+                  Share
+                </button>
               </div>
-              <Link href="/listings" className="text-[12px] font-bold uppercase tracking-[0.2em] text-[var(--accent)] hover:brightness-110 transition-all">
-                View All Intelligence
-              </Link>
-           </div>
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {related.map(r => (
-                <ListingCard key={r.id} listing={r} />
-              ))}
-           </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {[
+            listing.bhk && { label: 'Configuration', value: `${listing.bhk}`.replace(/\s*BHK$/i, '') + ' BHK' },
+            listing.price && listing.price > 0 && { label: 'Price', value: `₹${listing.price.toLocaleString()}` },
+            listing.area_sqft && { label: 'Area', value: `${listing.area_sqft} SQFT` },
+            listing.furnishing && { label: 'Furnishing', value: listing.furnishing },
+            listing.availability && { label: 'Availability', value: listing.availability },
+            listing.floor && { label: 'Floor', value: listing.floor },
+          ]
+            .filter(Boolean)
+            .map((stat, index) => (
+              <div key={index} className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+                <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">{stat.label}</div>
+                <div className="mt-2 text-[16px] font-bold text-[var(--text-primary)]">{stat.value}</div>
+              </div>
+            ))}
+        </div>
+
+        <div className="rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">Public listing note</div>
+          <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">
+            Public pages should stay title-first, locality-first, and action-first. Anything extra should help the broker decide, not decorate the page.
+          </p>
+        </div>
+      </div>
+
+      {related.length > 0 && (
+        <section className="pt-10 space-y-6">
+          <div className="flex items-baseline justify-between border-b border-[color:var(--border)] pb-4">
+            <div className="space-y-1">
+              <h3 className="text-[24px] font-bold text-[var(--text-primary)]">More in this market</h3>
+              <p className="text-[14px] font-medium text-[var(--text-secondary)]">Fresh public listings from the same locality belt.</p>
+            </div>
+            <Link href="/listings" className="text-[12px] font-bold uppercase tracking-[0.2em] text-[var(--accent)] transition-all hover:brightness-110">
+              View all listings
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {related.map((r) => (
+              <ListingCard key={r.id} listing={r} />
+            ))}
+          </div>
         </section>
       )}
     </div>
