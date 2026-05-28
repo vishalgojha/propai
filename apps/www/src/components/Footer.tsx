@@ -5,11 +5,11 @@ export default async function Footer() {
   const cities = await fetchLocalitiesForFooter(2);
 
   return (
-    <footer className="border-t border-[color:var(--border)] bg-[var(--bg-surface)] pt-16 pb-8">
-      <div className="mx-auto max-w-7xl px-5">
+    <footer className="border-t border-[color:var(--border)] bg-[var(--bg-surface)] pt-12 pb-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-5">
         {/* Top row: brand + quick links */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 pb-14 border-b border-[color:var(--border)]">
-          <div className="col-span-2 md:col-span-1">
+        <div className="grid grid-cols-1 gap-8 border-b border-[color:var(--border)] pb-10 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-[18px] font-bold tracking-tighter text-[var(--accent)]">PropAI</span>
               <span className="text-[18px] font-bold tracking-tighter text-[var(--text-primary)]">Pulse</span>
@@ -52,11 +52,11 @@ export default async function Footer() {
 
         {/* Bottom row: relational locality grid */}
         {cities.length > 0 && (
-          <div className="pt-14">
+          <div className="pt-12">
             <h2 className="mb-8 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Related markets</h2>
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
               {cities.map((cityGroup) => (
-                <div key={cityGroup.city} className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+                <div key={cityGroup.city} className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4 sm:p-5">
                   <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">{cityGroup.city}</h3>
                   <div className="mt-4 space-y-3">
                     {cityGroup.localities.slice(0, 8).map((loc) => (

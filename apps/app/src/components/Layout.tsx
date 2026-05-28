@@ -54,6 +54,7 @@ const normalizeWhatsAppSession = (session: unknown): WhatsAppSessionSummary | nu
 
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'propai.sidebar_collapsed';
+const MOBILE_COLLAPSE_BREAKPOINT = '(max-width: 1023px)';
 export const Layout: React.FC = () => {
   const { user, isLoading, logout } = useAuth();
   const navigate = useNavigate();
@@ -62,7 +63,12 @@ export const Layout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState<boolean>(() => {
     try {
-      return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true';
+      const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
+      if (stored !== null) {
+        return stored === 'true';
+      }
+
+      return window.matchMedia(MOBILE_COLLAPSE_BREAKPOINT).matches;
     } catch {
       return false;
     }
