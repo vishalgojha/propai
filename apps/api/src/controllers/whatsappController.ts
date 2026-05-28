@@ -940,6 +940,89 @@ export const resetWhatsAppSession = async (req: Request, res: Response) => {
     }
 };
 
+export const resetAllWhatsAppSessions = async (req: Request, res: Response) => {
+    const context = await workspaceAccessService.resolveContext(req.user ?? {});
+    const tenantId = context.workspaceOwnerId;
+    const dbClient = getDbClient();
+    const gateway = getWhatsAppGateway(tenantId);
+
+    try {
+        const [dbResult, liveSessions] = await Promise.all([
+            dbClient
+                .from('whatsapp_sessions')
+                .select('label')
+                .eq('tenant_id', tenantId),
+            gateway.getSessions(tenantId).catch(() => []),
+        ]);
+
+        if (dbResult.error) {
+            throw dbResult.error;
+        }
+
+        const labels = new Set<string>();
+        for (const row of dbResult.data || []) {
+            const label = String((row as { label?: string }).label || '').trim();
+            if (label) {
+                labels.add(label);
+            }
+        }
+        for (const liveSession of liveSessions as LiveSessionRecord[]) {
+            const label = String(liveSession.label || '').trim();
+            if (label) {
+                labels.add(label);
+            }
+        }
+
+        for (const label of labels) {
+            try {
+                await sessionManager.hardResetSession(tenantId, label);
+            } catch (error) {
+                console.error(`[resetAllWhatsAppSessions] Failed to hard reset ${label}:`, error);
+            }
+        }
+
+        await Promise.all([
+            dbClient
+                .from('whatsapp_sessions')
+                .delete()
+                .eq('tenant_id', tenantId),
+            dbClient
+                .from('whatsapp_ingestion_health')
+                .delete()
+                .eq('tenant_id', tenantId),
+        ]);
+
+        void workspaceActivityService.track({
+            actor: req.user,
+            workspaceOwnerId: tenantId,
+            eventType: 'whatsapp.session.reset_all',
+            entityType: 'whatsapp_session',
+            entityId: 'all',
+            summary: 'Wiped all WhatsApp session state for a fresh start.',
+            metadata: { sessionCount: labels.size },
+        });
+
+        void pushRecentAction(tenantId, 'Reset all WhatsApp sessions');
+
+        res.json({
+            success: true,
+            message: 'All WhatsApp session state cleared. You can now connect afresh.',
+            clearedSessions: labels.size,
+        });
+    } catch (error: unknown) {
+        console.error('Reset All Sessions Error:', error);
+        void sendWhatsAppCrashReport(
+            `WhatsApp reset-all crash log — ${new Date().toISOString()}`,
+            error,
+            {
+                operation: 'resetAllWhatsAppSessions',
+                tenantId,
+            },
+        );
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Could not clear all WhatsApp sessions.') });
+    }
+};
+
 export const getIngestionHealth = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
 

@@ -301,6 +301,27 @@ export const ConnectWhatsApp: React.FC = () => {
         }
     };
 
+    const handleResetAllSessions = async () => {
+        if (!window.confirm('This will wipe all WhatsApp session state for this workspace and start fresh. Continue?')) {
+            return;
+        }
+
+        setIsConnecting(true);
+        setError(null);
+        try {
+            await backendApi.post(ENDPOINTS.whatsapp.resetAll, {});
+            setArtifact(null);
+            setQrSvg(null);
+            setQrGeneratedAt(null);
+            setActiveSessionLabel(null);
+            await fetchStatus();
+        } catch (err) {
+            setError(handleApiError(err));
+        } finally {
+            setIsConnecting(false);
+        }
+    };
+
     useEffect(() => {
         if (!activeSessionLabel || isConnecting || artifact?.value) {
             return;
@@ -387,6 +408,10 @@ export const ConnectWhatsApp: React.FC = () => {
                                 <RefreshIcon className="h-4 w-4" />
                                 Reset stale session
                             </button>
+                            <button onClick={handleResetAllSessions} disabled={isConnecting} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
+                                <XIcon className="h-4 w-4" />
+                                Start fresh
+                            </button>
                             <button onClick={handleDisconnect} disabled={isConnecting} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
                                 <XIcon className="h-4 w-4" />
                                 Disconnect
@@ -417,6 +442,10 @@ export const ConnectWhatsApp: React.FC = () => {
                             <button onClick={handleResetSession} disabled={isConnecting} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-amber-500/30 px-4 py-3 text-[14px] font-semibold text-amber-300 transition hover:bg-amber-500/10 disabled:opacity-50">
                                 {isConnecting ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <RefreshIcon className="h-4 w-4" />}
                                 Reset stale session
+                            </button>
+                            <button onClick={handleResetAllSessions} disabled={isConnecting} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
+                                {isConnecting ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <XIcon className="h-4 w-4" />}
+                                Start fresh
                             </button>
                             <button onClick={handleDisconnect} disabled={isConnecting} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-500/30 px-4 py-3 text-[14px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50">
                                 {isConnecting ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <PowerIcon className="h-4 w-4" />}

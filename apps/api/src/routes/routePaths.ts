@@ -80,6 +80,7 @@ export const ROUTE_PATHS = {
         broadcast: '/broadcast',
         disconnect: '/disconnect',
         reset: '/reset',
+        resetAll: '/reset-all',
         rescanGroups: '/groups/rescan',
         groups: '/groups',
         recipients: '/recipients',

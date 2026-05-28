@@ -19,6 +19,7 @@ import {
   UserRound,
   Users,
   Zap,
+  X as XIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import backendApi, { handleApiError } from '../services/api';
@@ -1303,6 +1304,32 @@ export const Sources: React.FC = () => {
     }
   };
 
+  const handleResetAllSessions = async () => {
+    if (!window.confirm('This will wipe all WhatsApp session state for this workspace and start fresh. Continue?')) {
+      return;
+    }
+
+    setIsResettingSession(true);
+    setError(null);
+    try {
+      await backendApi.post(ENDPOINTS.whatsapp.resetAll, {});
+      track('whatsapp_session_reset_all', {
+        workspace: 'current',
+      });
+      setConnectionArtifact(null);
+      setRenderedQrMarkup(null);
+      setQrGeneratedAt(null);
+      setQrTimeLeft(0);
+      setScanProgress(0);
+      setPendingConnection(null);
+      await fetchStatus();
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsResettingSession(false);
+    }
+  };
+
   const saveAssistantSettings = useCallback(async (overrides?: {
     parseDirectMessages?: boolean;
     selfChatEnabled?: boolean;
@@ -2451,6 +2478,14 @@ export const Sources: React.FC = () => {
                     >
                       {isResettingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                       Reset stale session
+                    </button>
+                    <button
+                      onClick={() => void handleResetAllSessions()}
+                      disabled={isConnecting || isResettingSession}
+                      className={cn(sourceSecondaryButton, 'bg-[var(--bg-base)] px-3 py-2.5 text-[var(--text-secondary)] hover:text-[var(--red)]')}
+                    >
+                      {isResettingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <XIcon className="h-4 w-4" />}
+                      Start fresh
                     </button>
                     <button
                       onClick={() => void handleDisconnect(disconnectTargetLabel)}

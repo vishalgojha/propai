@@ -56,6 +56,8 @@ export const resetSessionSchema = z.object({
     phoneNumber: z.string().optional(),
 });
 
+export const resetAllSessionSchema = z.object({});
+
 export const historyBackfillStreamSchema = z.object({
     limit: z.number().int().min(1).max(10000).optional(),
     remoteJid: z.string().trim().min(1).optional(),

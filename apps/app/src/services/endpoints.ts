@@ -49,10 +49,11 @@ export const ENDPOINTS = {
     metadata: '/workspace/metadata',
     referral: '/workspace/referral',
   },
-  whatsapp: {
+    whatsapp: {
     connect: '/whatsapp/connect',
     disconnect: '/whatsapp/disconnect',
     reset: '/whatsapp/reset',
+    resetAll: '/whatsapp/reset-all',
     status: '/whatsapp/status',
     sessions: '/whatsapp/sessions',
     qr: '/whatsapp/qr',
