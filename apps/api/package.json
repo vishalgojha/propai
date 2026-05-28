@@ -18,7 +18,8 @@
     "stream:backfill:buildings": "ts-node src/scripts/backfillBuildingNames.ts",
     "stream:backfill:fields": "ts-node src/scripts/backfillMissingFields.ts",
     "stream:cleanup": "ts-node src/scripts/cleanInvalidStreamItems.ts",
-    "stream:cleanup:dry": "ts-node src/scripts/cleanInvalidStreamItems.ts --dry-run"
+    "stream:cleanup:dry": "ts-node src/scripts/cleanInvalidStreamItems.ts --dry-run",
+    "import:wadata": "ts-node src/scripts/importWhatsappExports.ts"
   },
   "keywords": [],
   "author": "",
