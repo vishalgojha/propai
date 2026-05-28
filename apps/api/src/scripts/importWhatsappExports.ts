@@ -666,6 +666,15 @@ function hasUrlNoise(text: string): boolean {
   return /https?:\/\/|www\./i.test(text);
 }
 
+function hasMixedDealSignals(text: string): boolean {
+  const lower = normalizeText(text);
+  const rentSignals = ['for rent', 'on rent', 'rent', 'lease', 'leave and license', 'per month', '/mo', '/month'];
+  const saleSignals = ['for sale', 'on sale', 'sale', 'outright', 'resale', 'buy', 'purchase'];
+  const hasRent = rentSignals.some((signal) => lower.includes(signal));
+  const hasSale = saleSignals.some((signal) => lower.includes(signal));
+  return hasRent && hasSale;
+}
+
 function splitMessageSegments(text: string): string[] {
   const normalized = String(text || '').replace(/\r\n/g, '\n').trim();
   if (!normalized) return [];
@@ -829,6 +838,11 @@ function classifyRecord(input: {
     } else if (!rejectionReason) {
       rejectionReason = 'contains_noise_or_link';
     }
+  }
+
+  if (publishState === 'accepted' && hasMixedDealSignals(text)) {
+    publishState = 'review';
+    rejectionReason = 'mixed_deal_signals';
   }
 
   const confidenceScore = computeConfidenceScore({
