@@ -3,10 +3,15 @@ import { supabaseAdmin } from "../src/lib/supabase.server";
 export type StreamMarketItem = {
   id: string;
   type: string | null;
+  deal_type?: string | null;
   bhk: string | null;
   price_label: string | null;
   price_numeric: number | null;
   locality: string | null;
+  city?: string | null;
+  record_type?: string | null;
+  property_category?: string | null;
+  asset_class?: string | null;
   created_at: string;
   raw_text?: string | null;
   parsed_payload?: Record<string, unknown> | null;
@@ -42,7 +47,7 @@ export async function fetchLocalityStreamItems(localityName: string, days = 30, 
     const since = new Date(Date.now() - days * 86_400_000).toISOString();
     const { data, error } = await supabaseAdmin
       .from("stream_items")
-      .select("id, type, bhk, price_label, price_numeric, locality, created_at, raw_text, parsed_payload")
+      .select("id, type, deal_type, bhk, price_label, price_numeric, locality, city, record_type, property_category, asset_class, created_at, raw_text, parsed_payload")
       .ilike("locality", `%${localityName}%`)
       .gte("created_at", since)
       .order("created_at", { ascending: false })
@@ -66,7 +71,7 @@ export async function fetchInsightStreamItems(localityName: string, periodStart:
   try {
     const { data, error } = await supabaseAdmin
       .from("stream_items")
-      .select("id, type, bhk, price_label, price_numeric, locality, created_at, raw_text, parsed_payload")
+      .select("id, type, deal_type, bhk, price_label, price_numeric, locality, city, record_type, property_category, asset_class, created_at, raw_text, parsed_payload")
       .ilike("locality", `%${localityName}%`)
       .gte("created_at", periodStart)
       .lte("created_at", periodEnd)
@@ -267,10 +272,15 @@ function toStreamMarketItem(row: any): StreamMarketItem {
   return {
     id: String(row.id || ""),
     type: row.type == null ? null : String(row.type),
+    deal_type: row.deal_type == null ? null : String(row.deal_type),
     bhk: row.bhk == null ? null : String(row.bhk),
     price_label: row.price_label == null ? null : String(row.price_label),
     price_numeric: Number.isFinite(price) ? price : null,
     locality: row.locality == null ? null : String(row.locality),
+    city: row.city == null ? null : String(row.city),
+    record_type: row.record_type == null ? null : String(row.record_type),
+    property_category: row.property_category == null ? null : String(row.property_category),
+    asset_class: row.asset_class == null ? null : String(row.asset_class),
     created_at: String(row.created_at || new Date().toISOString()),
     raw_text: row.raw_text == null ? null : String(row.raw_text),
     parsed_payload: row.parsed_payload && typeof row.parsed_payload === "object" ? row.parsed_payload : null,

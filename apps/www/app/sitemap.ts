@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { fetchPublicListings } from "@/lib/publicListings";
 import { supabaseAdmin } from "../src/lib/supabase.server";
 import { TOP_LOCALITIES } from "../lib/localities";
+import { getLongTailStaticParams } from "../lib/longtail";
 import { getAllBlogArticles } from "../lib/blog";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -34,6 +35,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "hourly" as const,
   }));
 
+  const longTailPages: MetadataRoute.Sitemap = getLongTailStaticParams().map((page) => ({
+    url: `${baseUrl}/${page.localitySlug}/${page.intentSlug}`,
+    priority: 0.72,
+    changeFrequency: "daily" as const,
+  }));
+
   const blogPages: MetadataRoute.Sitemap = getAllBlogArticles().map((article) => ({
     url: `${baseUrl}/blog/${article.slug}`,
     priority: 0.65,
@@ -63,5 +70,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // If insights fetch fails, keep sitemap generation alive.
   }
 
-  return [...staticPages, ...listingPages, ...localityPages, ...blogPages, ...insightPages];
+  return [...staticPages, ...listingPages, ...localityPages, ...longTailPages, ...blogPages, ...insightPages];
 }

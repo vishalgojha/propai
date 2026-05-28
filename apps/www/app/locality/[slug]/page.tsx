@@ -19,6 +19,10 @@ import {
   neighbouringLocalities,
   TOP_LOCALITIES,
 } from "../../../lib/localities";
+import {
+  getLongTailCanonicalPath,
+  getLongTailRelatedIntents,
+} from "../../../lib/longtail";
 
 export const revalidate = 3600;
 
@@ -273,6 +277,28 @@ export default async function Page({ params }: PageProps) {
               <div className="mt-4 text-[12px] text-[var(--text-muted)]">
                 Last active {formatDisplayDateTime(market.latestAt)}
               </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-[24px] font-bold text-[var(--text-primary)]">Popular searches in this market</h2>
+            <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
+              These are the long-tail pages search engines can index directly for {localityName}.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {getLongTailRelatedIntents("2-bhk-rent", 6).map((intent) => (
+            <Link
+              key={intent.slug}
+              href={getLongTailCanonicalPath(slug, intent.slug)}
+              className="rounded-lg border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-4 text-[13px] font-semibold text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
+            >
+              {intent.label} in {localityName}
             </Link>
           ))}
         </div>
