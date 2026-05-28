@@ -157,6 +157,17 @@ function parseBhk(value: string | null): number | null {
   return match ? Number(match[1]) : null;
 }
 
+function cleanText(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const text = String(value)
+    .normalize('NFKC')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ' ')
+    .replace(/[\uD800-\uDFFF]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text || null;
+}
+
 function buildParsedPayload(record: AcceptedRecord, locality: string | null, city: string | null, sourcePhone: string | null) {
   return {
     origin: 'wadata',
@@ -197,17 +208,44 @@ async function readJsonl(filePath: string): Promise<AcceptedRecord[]> {
   return records;
 }
 
-async function upsertBatch(tenantId: string, rows: any[]) {
-  if (!rows.length || !supabaseAdmin) return;
-  const targetTable = rows[0]._targetTable as StreamTable;
-  const payload = rows.map(({ _targetTable, ...row }) => row);
-  const { error } = await supabaseAdmin
-    .from(targetTable)
-    .upsert(payload, { onConflict: 'tenant_id,message_id' });
-  if (error) {
-    throw new Error(error.message);
+async function upsertBatch(rows: any[]): Promise<number> {
+  if (!rows.length || !supabaseAdmin) return 0;
+  const grouped = new Map<StreamTable, any[]>();
+  for (const row of rows) {
+    const targetTable = row._targetTable as StreamTable;
+    const existing = grouped.get(targetTable) || [];
+    existing.push(row);
+    grouped.set(targetTable, existing);
   }
-  return rows.length;
+
+  let inserted = 0;
+  for (const [targetTable, groupRows] of grouped.entries()) {
+    const payload = groupRows.map(({ _targetTable, ...row }) => row);
+    const { error } = await supabaseAdmin
+      .from(targetTable)
+      .upsert(payload, { onConflict: 'tenant_id,message_id' });
+    if (error) {
+      if (groupRows.length === 1) {
+        console.warn(JSON.stringify({
+          event: 'wadata_import_row_skipped',
+          table: targetTable,
+          message_id: groupRows[0].message_id,
+          source_message_id: groupRows[0].source_message_id,
+          reason: error.message,
+        }));
+        continue;
+      }
+
+      const midpoint = Math.floor(groupRows.length / 2);
+      inserted += await upsertBatch(groupRows.slice(0, midpoint));
+      inserted += await upsertBatch(groupRows.slice(midpoint));
+      continue;
+    }
+
+    inserted += groupRows.length;
+  }
+
+  return inserted;
 }
 
 async function main() {
@@ -235,12 +273,9 @@ async function main() {
     const normalized = normalizeLocality(record);
     const sourcePhone = normaliseIndianPhone(record.sender_phone || record.contact_phone || extractPhone(record.text) || undefined);
     const streamType = inferStreamType(record);
-    const assetClass = inferAssetClass(record);
-    const propertyUse = inferPropertyUse(record);
-    const targetTable = streamTableFor(record.property_category, propertyUse);
+    const targetTable = streamTableFor(record.property_category, inferPropertyUse(record));
     const locality = normalized.locality;
     const city = normalized.city;
-    const contentHash = buildStreamContentHash(record.text, sourcePhone);
     const messageId = `wadata:${record.record_hash}`;
     const sourceGroupId = `wadata:${createHash('sha1').update(record.chat_name).digest('hex').slice(0, 16)}`;
     const sourceGroupName = record.chat_name;
@@ -254,48 +289,22 @@ async function main() {
 
     const row = {
       tenant_id: tenantId,
-      session_label: 'wadata-import',
       message_id: messageId,
-      source_message_id: record.record_hash,
-      source_thread_jid: null,
-      source_group_id: sourceGroupId,
-      source_group_name: sourceGroupName,
-      source_phone: sourcePhone,
-      content_hash: contentHash,
-      raw_text: record.text,
-      type: streamType,
-      record_type: record.record_type,
-      locality,
-      city,
-      bhk: record.bhk,
-      building_name: record.building_name,
-      price_label: record.price_label,
+      source_group_id: cleanText(sourceGroupId),
+      source_group_name: cleanText(sourceGroupName),
+      source_phone: cleanText(sourcePhone),
+      raw_text: cleanText(record.text),
+      type: cleanText(streamType),
+      record_type: cleanText(record.record_type),
+      locality: cleanText(locality),
+      city: cleanText(city),
+      price_label: cleanText(record.price_label),
       price_numeric: record.price_numeric,
-      deal_type: record.deal_type,
-      asset_class: assetClass,
-      property_category: record.property_category === 'commercial' ? 'commercial' : 'residential',
-      property_use: propertyUse,
+      deal_type: cleanText(record.deal_type),
+      property_category: cleanText(record.property_category === 'commercial' ? 'commercial' : 'residential'),
       area_sqft: record.area_sqft,
       confidence_score: record.confidence_score,
-      is_global: false,
-      parsed_payload: buildParsedPayload(record, locality, city, sourcePhone),
       ingestion_status: 'accepted',
-      suppression_reason: null,
-      suppressed_at: null,
-      resolution_context: {
-        importer: 'wadata',
-        sourceFile: record.source_file,
-        sourceFiles: record.source_files,
-        segmentIndex: record.segment_index,
-        segmentCount: record.segment_count,
-        title: record.title,
-        qualityScore: record.confidence_score,
-        streamQuality: {
-          completenessScore: completeness.completeness_score,
-          isComplete: completeness.is_complete,
-          brokerContactValid: Boolean(sourcePhone),
-        },
-      },
       created_at: record.timestamp,
       _targetTable: targetTable,
     };
@@ -307,12 +316,12 @@ async function main() {
 
     batch.push(row);
     if (batch.length >= options.batchSize) {
-      inserted += await upsertBatch(tenantId, batch.splice(0, batch.length)) || 0;
-    }
+        inserted += await upsertBatch(batch.splice(0, batch.length));
+      }
   }
 
   if (!options.dryRun && batch.length) {
-    inserted += await upsertBatch(tenantId, batch.splice(0, batch.length)) || 0;
+    inserted += await upsertBatch(batch.splice(0, batch.length));
   }
 
   console.log(
