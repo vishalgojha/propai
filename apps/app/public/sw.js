@@ -1,4 +1,4 @@
-const CACHE_NAME = "propai-shell-v1";
+const CACHE_NAME = "propai-shell-v2";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icon-192", "/icon", "/apple-icon", "/favicon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -56,6 +56,10 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  if (url.pathname.startsWith("/_next/")) {
     return;
   }
 
