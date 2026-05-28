@@ -30,6 +30,10 @@ type LiveIgrFetchResult = {
 };
 
 const IGR_PORTAL_URL = 'https://freesearchigrservice.maharashtra.gov.in/';
+const IGR_PORTAL_URLS = [
+    IGR_PORTAL_URL,
+    'https://igrmaharashtra.gov.in/',
+];
 const CAMOUFOX_BASE_URL = (process.env.CAMOFOX_URL || process.env.CAMOUFOX_URL || '').replace(/\/$/, '') || 'http://127.0.0.1:9377';
 const CAMOUFOX_USER_ID = 'propai-igr';
 const NAVIGATE_TIMEOUT_MS = 30_000;
@@ -217,69 +221,136 @@ export class IgrLiveFetchService {
         }
     }
 
-    private async fillAndSearch(tabId: string, buildingName: string, year: number): Promise<string> {
+    private async fillAndSearch(tabId: string, searchTerm: string, year: number): Promise<{ triggered: boolean; reason: string }> {
         const camoufox = this.getCamoufox()!;
 
-        // Set year dropdown
-        await camoufox.evaluate(tabId, `
+        const result = await camoufox.evaluate<string>(tabId, `
             (() => {
-                const y = document.getElementById('ddlFromYear');
-                if (!y) return 'no_year_select';
-                y.value = '${year}';
-                y.dispatchEvent(new Event('change', { bubbles: true }));
-                return 'year_set=' + y.value;
-            })()
-        `);
-
-        // Type building name into area text field
-        await camoufox.evaluate(tabId, `
-            (() => {
-                const t = document.getElementById('txtAreaName');
-                if (!t) return 'no_area_field';
-                t.value = '${buildingName.replace(/'/g, "\\'")}';
-                t.dispatchEvent(new Event('input', { bubbles: true }));
-                t.dispatchEvent(new Event('change', { bubbles: true }));
-                return 'area_set=' + t.value;
-            })()
-        `);
-
-        // Try to click search button — try multiple selectors
-        const searchSelectors = [
-            "input[type='submit']",
-            "button[type='submit']",
-            "#btnSearch",
-            "input[value='Search']",
-            "input[value='search']",
-        ];
-
-        for (const selector of searchSelectors) {
-            const clicked = await camoufox.evaluate<boolean>(tabId, `
-                (() => {
-                    const el = document.querySelector('${selector}');
-                    if (el) { el.click(); return true; }
+                const searchTerm = ${JSON.stringify(searchTerm)};
+                const year = ${year};
+                const lower = (value) => String(value || '').toLowerCase();
+                const candidates = Array.from(document.querySelectorAll('select, input, textarea, button, a'));
+                const haystack = (el) => [
+                    el.id,
+                    el.name,
+                    el.getAttribute('placeholder'),
+                    el.getAttribute('aria-label'),
+                    el.getAttribute('title'),
+                    el.textContent,
+                    el.className,
+                ].filter(Boolean).join(' ').toLowerCase();
+                const dispatch = (el) => {
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                };
+                const setValue = (el, value) => {
+                    if (!el) return false;
+                    if (el.tagName === 'SELECT') {
+                        const hasExact = Array.from(el.options || []).some((opt) => lower(opt.value) === lower(value) || lower(opt.text) === lower(value));
+                        if (hasExact) {
+                            el.value = String(value);
+                        } else if (Array.from(el.options || []).length > 0) {
+                            const matchingOption = Array.from(el.options || []).find((opt) => lower(opt.text).includes(String(value).toLowerCase()) || lower(opt.value).includes(String(value).toLowerCase()));
+                            if (matchingOption) {
+                                el.value = matchingOption.value;
+                            } else {
+                                el.value = String(value);
+                            }
+                        } else {
+                            el.value = String(value);
+                        }
+                        dispatch(el);
+                        return true;
+                    }
+                    if ('value' in el) {
+                        el.value = String(value);
+                        dispatch(el);
+                        return true;
+                    }
                     return false;
-                })()
-            `);
-            if (clicked) break;
-        }
+                };
+                const click = (el) => {
+                    if (!el) return false;
+                    try {
+                        el.click();
+                        return true;
+                    } catch {
+                        return false;
+                    }
+                };
 
-        return 'search_triggered';
+                const yearField = candidates.find((el) => {
+                    if (el.tagName !== 'SELECT') return false;
+                    const hay = haystack(el);
+                    return hay.includes('year') || hay.includes('fromyear') || Array.from(el.options || []).some((opt) => lower(opt.value).includes(String(year)) || lower(opt.text).includes(String(year)));
+                });
+                if (yearField) {
+                    setValue(yearField, String(year));
+                }
+
+                const textField = candidates.find((el) => {
+                    if (!['INPUT', 'TEXTAREA'].includes(el.tagName)) return false;
+                    const hay = haystack(el);
+                    return ['area', 'locality', 'building', 'property', 'village', 'search', 'sro', 'name'].some((token) => hay.includes(token));
+                }) || candidates.find((el) => ['INPUT', 'TEXTAREA'].includes(el.tagName) && !el.type);
+                if (textField) {
+                    setValue(textField, searchTerm);
+                }
+
+                const searchButton = candidates.find((el) => {
+                    const hay = haystack(el);
+                    return (
+                        (el.tagName === 'BUTTON' || (el.tagName === 'INPUT' && ['submit', 'button'].includes(String(el.type || '').toLowerCase())))
+                        && ['search', 'find', 'submit', 'go'].some((token) => hay.includes(token))
+                    );
+                });
+                if (searchButton && click(searchButton)) {
+                    return JSON.stringify({ triggered: true, reason: 'button' });
+                }
+
+                const form = document.querySelector('form');
+                if (form) {
+                    const submit = form.querySelector("button,input[type='submit'],input[type='button']");
+                    if (submit && click(submit)) {
+                        return JSON.stringify({ triggered: true, reason: 'form-submit' });
+                    }
+                    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                    return JSON.stringify({ triggered: true, reason: 'form-event' });
+                }
+
+                return JSON.stringify({
+                    triggered: Boolean(yearField || textField),
+                    reason: yearField || textField ? 'filled-only' : 'no-match',
+                });
+            })()
+        `);
+
+        try {
+            const parsed = JSON.parse(result || '{}') as { triggered?: boolean; reason?: string };
+            return {
+                triggered: Boolean(parsed.triggered),
+                reason: String(parsed.reason || 'unknown'),
+            };
+        } catch {
+            return {
+                triggered: false,
+                reason: 'unparseable',
+            };
+        }
     }
 
-    private async tryPortalPath(tabId: string, buildingName: string, year: number): Promise<Array<Record<string, string>>> {
+    private async tryPortalPath(tabId: string, searchTerm: string, year: number): Promise<{ rows: Array<Record<string, string>>; reason: string }> {
         const camoufox = this.getCamoufox()!;
-
-        await camoufox.navigate(tabId, IGR_PORTAL_URL);
         await camoufox.waitForPageLoad(tabId);
         await new Promise((r) => setTimeout(r, FORM_FILL_DELAY_MS));
 
-        const status = await this.fillAndSearch(tabId, buildingName, year);
-        if (status !== 'search_triggered') {
-            return [];
+        const status = await this.fillAndSearch(tabId, searchTerm, year);
+        if (!status.triggered) {
+            return { rows: [], reason: status.reason };
         }
 
         await new Promise((r) => setTimeout(r, RESULTS_WAIT_MS));
-        return this.extractResults(tabId);
+        return { rows: await this.extractResults(tabId), reason: status.reason };
     }
 
     async fetchAndStore(input: LiveIgrFetchInput): Promise<LiveIgrFetchResult> {
@@ -313,7 +384,7 @@ export class IgrLiveFetchService {
         const searchYears = [currentYear, currentYear - 1, currentYear - 2];
 
         for (let attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt += 1) {
-            const tabId = await camoufox.createTab(IGR_PORTAL_URL);
+            const tabId = await camoufox.createTab(IGR_PORTAL_URLS[0]);
             if (!tabId) {
                 return { success: false, error: 'Failed to create browser tab.', searchQuery };
             }
@@ -323,9 +394,15 @@ export class IgrLiveFetchService {
                 await new Promise((r) => setTimeout(r, 2000));
 
                 for (const year of searchYears) {
-                    const rows = await this.tryPortalPath(tabId, buildingName || locality || '', year);
-                    if (rows.length > 0) {
-                        return this.saveBestMatch(rows, { buildingName, locality, searchQuery });
+                    for (const portalUrl of IGR_PORTAL_URLS) {
+                        await camoufox.navigate(tabId, portalUrl);
+                        await camoufox.waitForPageLoad(tabId);
+                        await new Promise((r) => setTimeout(r, 1500));
+
+                        const attemptResult = await this.tryPortalPath(tabId, buildingName || locality || '', year);
+                        if (attemptResult.rows.length > 0) {
+                            return this.saveBestMatch(attemptResult.rows, { buildingName, locality, searchQuery });
+                        }
                     }
                 }
             } catch (error: unknown) {

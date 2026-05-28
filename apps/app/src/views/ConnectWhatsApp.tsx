@@ -211,8 +211,9 @@ export const ConnectWhatsApp: React.FC = () => {
     }, []);
 
     const submitConnect = async (options?: { force?: boolean }) => {
-        if (anySession && !options?.force) {
-            setError('A session already exists. Disconnect it first before connecting a new one.');
+        const activeSession = status?.sessions?.find((s) => ['connected', 'connecting', 'reconnecting'].includes(s.status));
+        if (activeSession && !options?.force) {
+            setError('An active session already exists. Disconnect it first before connecting a new one.');
             return;
         }
         const normPhone = phone.replace(/\D/g, '');
@@ -333,7 +334,7 @@ export const ConnectWhatsApp: React.FC = () => {
 
     const connected = status?.sessions?.some((s) => s.status === 'connected');
     const connecting = status?.sessions?.some((s) => ['connecting', 'reconnecting'].includes(s.status));
-    const anySession = status?.sessions?.length > 0;
+    const activeSession = status?.sessions?.find((s) => ['connected', 'connecting', 'reconnecting'].includes(s.status));
     const connectingSession = status?.sessions?.find((s) => ['connecting', 'reconnecting'].includes(s.status));
 
     return (
@@ -423,10 +424,10 @@ export const ConnectWhatsApp: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                ) : anySession ? (
+                ) : activeSession ? (
                     <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-center">
-                        <p className="text-[14px] font-medium text-amber-300">A session already exists</p>
-                        <p className="mt-1 text-[12px] text-amber-400/70">Disconnect the existing session before connecting a new one.</p>
+                        <p className="text-[14px] font-medium text-amber-300">An active session already exists</p>
+                        <p className="mt-1 text-[12px] text-amber-400/70">Disconnect the active session before connecting a new one.</p>
                         <button onClick={handleDisconnect} className="mt-3 rounded-xl border border-red-500/30 px-4 py-2 text-[13px] font-semibold text-red-400 transition hover:bg-red-500/10">
                             Disconnect Existing
                         </button>
