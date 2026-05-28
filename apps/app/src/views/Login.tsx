@@ -9,7 +9,6 @@ import { track } from '../services/analytics';
 import { cn } from '../lib/utils';
 import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK } from '../lib/propai';
 import { buildFullName } from '../lib/names';
-import { backendApiUrl } from '../services/apiBase';
 import { deleteCookie, readCookie, writeCookie } from '../services/browserCookies';
 import {
   ArrowRightIcon,
@@ -59,7 +58,6 @@ const proofPoints = [
 
 const fallback = ['3BHK Bandra West 1.8Cr sale, owner direct', '2BHK Powai requirement, budget 70 lakh', 'Remind me to call Rahul tomorrow 10am', 'Show me hot leads from this week'];
 const CACHE_KEY = 'propai.examplePrompts.v2';
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 function useExamplePrompts(): string[] {
   const [prompts, setPrompts] = useState<string[]>([]);
@@ -76,18 +74,7 @@ function useExamplePrompts(): string[] {
       }
     } catch { /* ignore */ }
 
-    if (!backendApiUrl) return;
-    fetch(`${backendApiUrl}/example-prompts`, { signal: AbortSignal.timeout?.(5000) ?? undefined })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data?.prompts?.length === 4) {
-          setPrompts(data.prompts);
-          try { localStorage.setItem(CACHE_KEY, JSON.stringify({ prompts: data.prompts, expiry: Date.now() + CACHE_TTL })); } catch { /* ignore */ }
-        } else {
-          setPrompts(fallback);
-        }
-      })
-      .catch(() => setPrompts(fallback));
+    setPrompts(fallback);
   }, []);
 
   return prompts.length === 4 ? prompts : fallback;
@@ -196,11 +183,9 @@ export const Login: React.FC = () => {
 
     const checkApi = async () => {
       try {
-        const base = backendApi.defaults.baseURL || '/api';
-        const healthUrl = base.endsWith('/api') ? `${base.slice(0, -4)}/health` : `${base}/health`;
-        const response = await fetch(healthUrl);
+        const response = await backendApi.get('/health', { timeout: 5000 });
         if (!cancelled) {
-          setApiStatus(response.ok ? 'online' : 'offline');
+          setApiStatus(response.status >= 200 && response.status < 300 ? 'online' : 'offline');
         }
       } catch {
         if (!cancelled) {
