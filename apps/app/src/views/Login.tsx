@@ -103,6 +103,24 @@ async function attemptBrowserPasswordSignIn(email: string, password: string) {
   return data;
 }
 
+function isNetworkLikeAuthError(error: any) {
+  const code = String(error?.code || '').trim();
+  const message = String(error?.message || error?.response?.data?.error || error?.response?.data?.message || '').toLowerCase();
+  const status = Number(error?.response?.status || 0);
+
+  return (
+    code === 'ERR_NETWORK'
+    || code === 'ECONNABORTED'
+    || message.includes('network error')
+    || message.includes('failed to fetch')
+    || message.includes('cors')
+    || message.includes('timed out')
+    || status === 502
+    || status === 503
+    || status === 504
+  );
+}
+
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -198,45 +216,83 @@ export const Login: React.FC = () => {
         return;
       }
 
-      const response = await backendApi.post(ENDPOINTS.auth.password, {
-        mode,
-        email: normalizedEmail,
-        password,
-        fullName,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        phone: mode === 'signup' ? ensureIndiaPrefix(phoneNumber) : phoneNumber,
-        referralCode: mode === 'signup' ? referralCode || undefined : undefined,
-      });
-      const session = response.data?.session;
-      if (response.data.success && session?.access_token) {
+      const loginWithBrowserSupabase = async (fallbackReason: string) => {
+        if (mode === 'signup') {
+          throw new Error(fallbackReason);
+        }
+
+        const fallbackSession = await attemptBrowserPasswordSignIn(normalizedEmail, password);
+        const fallbackUser = (fallbackSession.user || {}) as Record<string, any>;
         login(
-          response.data?.user?.email || normalizedEmail,
+          fallbackUser.email || normalizedEmail,
           {
-            ...buildSessionFromSupabase(response.data?.user?.email || normalizedEmail, session),
-            id: response.data?.user?.id,
+            ...buildSessionFromSupabase(fallbackUser.email || normalizedEmail, fallbackSession.session),
+            id: fallbackUser.id,
             appRole: resolveAppRole(
-              response.data?.user?.email || normalizedEmail,
-              response.data?.profile?.appRole || response.data?.user?.appRole
+              fallbackUser.email || normalizedEmail,
+              fallbackUser.user_metadata?.app_role || fallbackUser.user_metadata?.appRole,
             ),
-            subscription: response.data?.subscription,
-            referral: response.data?.referral || null,
           },
           rememberMe,
         );
-        if (mode === 'signup') {
-          deleteCookie(REFERRAL_STORAGE_KEY);
-          setReferralCode('');
-          setReferralLabel('');
-        }
-        track(mode === 'signup' ? 'signup_success' : 'signin_success', {
+        track('signin_success', {
           remember: rememberMe,
-          has_email: Boolean(response.data?.user?.email || email),
+          has_email: Boolean(fallbackUser.email || email),
+          auth_path: 'browser-supabase-fallback',
         });
         navigate(nextPath, { replace: true });
-      } else {
-        track(mode === 'signup' ? 'signup_failed' : 'signin_failed');
-        setError('Login failed. Please try again.');
+      };
+
+      try {
+        const response = await backendApi.post(ENDPOINTS.auth.password, {
+          mode,
+          email: normalizedEmail,
+          password,
+          fullName,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          phone: mode === 'signup' ? ensureIndiaPrefix(phoneNumber) : phoneNumber,
+          referralCode: mode === 'signup' ? referralCode || undefined : undefined,
+        });
+        const session = response.data?.session;
+        if (response.data.success && session?.access_token) {
+          login(
+            response.data?.user?.email || normalizedEmail,
+            {
+              ...buildSessionFromSupabase(response.data?.user?.email || normalizedEmail, session),
+              id: response.data?.user?.id,
+              appRole: resolveAppRole(
+                response.data?.user?.email || normalizedEmail,
+                response.data?.profile?.appRole || response.data?.user?.appRole
+              ),
+              subscription: response.data?.subscription,
+              referral: response.data?.referral || null,
+            },
+            rememberMe,
+          );
+          if (mode === 'signup') {
+            deleteCookie(REFERRAL_STORAGE_KEY);
+            setReferralCode('');
+            setReferralLabel('');
+          }
+          track(mode === 'signup' ? 'signup_success' : 'signin_success', {
+            remember: rememberMe,
+            has_email: Boolean(response.data?.user?.email || email),
+            auth_path: 'backend',
+          });
+          navigate(nextPath, { replace: true });
+        } else {
+          track(mode === 'signup' ? 'signup_failed' : 'signin_failed');
+          setError('Login failed. Please try again.');
+        }
+      } catch (backendErr) {
+        if (mode === 'signin' && isNetworkLikeAuthError(backendErr)) {
+          setError('Backend sign-in is unavailable. Trying direct browser login...');
+          await loginWithBrowserSupabase('Backend sign-in is unavailable.');
+          return;
+        }
+
+        throw backendErr;
       }
     } catch (err) {
       track(mode === 'signup' ? 'signup_error' : 'signin_error');

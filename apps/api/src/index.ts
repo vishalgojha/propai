@@ -96,7 +96,7 @@ process.on('uncaughtException', (error) => {
 });
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 app.use(express.json({ limit: '25mb' }));
 
 app.use(ROUTE_PATHS.api.voiceListen, express.raw({ type: 'audio/wav', limit: '10mb' }));
