@@ -26,6 +26,7 @@ import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { track } from '../services/analytics';
 import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_ASSISTANT_PHONE_DIGITS, PROPAI_PLAN_CARDS } from '../lib/propai';
+import { useAuth } from '../context/AuthContext';
 
 type WhatsappSession = {
   label: string;
@@ -449,7 +450,20 @@ const sourcePill =
 const sourceFieldClassName =
   'w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] px-3 py-3 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]';
 
+const formatPlanLabel = (plan?: string | null) => {
+  const normalized = String(plan || '').trim();
+  if (!normalized) return '';
+
+  const lower = normalized.toLowerCase();
+  if (lower === 'free' || lower === 'trial') return 'Trial';
+  if (lower === 'starter') return 'Starter';
+  if (lower === 'pro') return 'Pro';
+  if (lower === 'team') return 'Team';
+  return normalized;
+};
+
 export const Sources: React.FC = () => {
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -556,12 +570,13 @@ export const Sources: React.FC = () => {
     status: 'disconnected',
     activeCount: 0,
     limit: 1,
-    plan: 'Trial',
+    plan: '',
     allowedOutboundSessionLabels: [],
     preferredOutboundSessionLabel: null,
     hasOutboundLaneRestriction: false,
     sessions: [],
   });
+  const [statusLoaded, setStatusLoaded] = useState(false);
   const [healthLogs, setHealthLogs] = useState<HealthLogsResponse | null>(null);
   const [isSubmittingSupportLogs, setIsSubmittingSupportLogs] = useState(false);
   const [supportLogsFeedback, setSupportLogsFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
@@ -630,6 +645,12 @@ export const Sources: React.FC = () => {
   }, [connectedSenderSessions, status.allowedOutboundSessionLabels, status.hasOutboundLaneRestriction]);
 
   const demoMode = process.env.NEXT_PUBLIC_WHATSAPP_DEMO_MODE === 'true';
+  const accessModelLabel = useMemo(() => {
+    const subscriptionPlan = user?.subscription?.plan || null;
+    const plan = subscriptionPlan || (statusLoaded ? status.plan : null);
+    const label = formatPlanLabel(plan);
+    return label || 'Loading…';
+  }, [status.plan, statusLoaded, user?.subscription?.plan]);
   const currentSessionAuditPending = Boolean(
     currentSession?.sessionData?.groupAuditPending
     && !currentSession?.sessionData?.groupAuditCompletedAt,
@@ -666,6 +687,7 @@ export const Sources: React.FC = () => {
     } catch (err) {
       console.error(handleApiError(err));
     } finally {
+      setStatusLoaded(true);
       setIsRefreshing(false);
     }
   }, []);
@@ -1793,7 +1815,7 @@ export const Sources: React.FC = () => {
             activeTab === 'audit' ? 'px-3 py-2' : 'px-4 py-3',
           )}>
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access model</p>
-            <p className="mt-1 text-[14px] font-bold text-[var(--text-primary)]">{status.plan || 'Trial'}</p>
+            <p className="mt-1 text-[14px] font-bold text-[var(--text-primary)]">{accessModelLabel}</p>
             {activeTab === 'audit' ? null : (
               <p className="text-[11px] text-[var(--text-secondary)]">Trial 7 days free, Pro ₹999/mo for 1 device, Team ₹999/seat/mo — each member links their own account.</p>
             )}
