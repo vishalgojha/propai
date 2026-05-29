@@ -62,6 +62,15 @@ const STANDARD_LOCALITIES = new Set([
   "Hiranandani Gardens",
 ]);
 
+type PublicStreamSource = "stream_items" | "stream_items_residential" | "stream_items_commercial";
+
+const PUBLIC_STREAM_SELECT = "id, tenant_id, canonical_record_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, parsed_payload, property_category, asset_class";
+const PUBLIC_SOURCE_TABLES: Array<{ table: PublicStreamSource; select: string; includeCanonical: boolean }> = [
+  { table: "stream_items", select: PUBLIC_STREAM_SELECT, includeCanonical: true },
+  { table: "stream_items_residential", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", ""), includeCanonical: false },
+  { table: "stream_items_commercial", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", ""), includeCanonical: false },
+];
+
 export interface PublicListing {
   id: string;
   title: string;
@@ -96,24 +105,16 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
 
   const normalizedLocality = normalizeLocalityQuery(locality);
 
-  let streamQuery = supabaseAdmin
-    .from("stream_items")
-    .select("id, tenant_id, canonical_record_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, parsed_payload, property_category, asset_class")
-    .neq("record_type", "buyer_requirement")
-    .order("created_at", { ascending: false });
-
-  if (normalizedLocality) {
-    streamQuery = streamQuery.eq("locality", normalizedLocality);
-  }
-
-  const [{ data: streamItems, error: streamError }, { data: profiles }] = await Promise.all([
-    streamQuery,
+  const [{ data: streamRows, error: streamError }, { data: residentialRows, error: residentialError }, { data: commercialRows, error: commercialError }, { data: profiles }] = await Promise.all([
+    fetchPublicSourceRows("stream_items", PUBLIC_STREAM_SELECT, normalizedLocality),
+    fetchPublicSourceRows("stream_items_residential", PUBLIC_STREAM_SELECT.replace(", canonical_record_id", ""), normalizedLocality),
+    fetchPublicSourceRows("stream_items_commercial", PUBLIC_STREAM_SELECT.replace(", canonical_record_id", ""), normalizedLocality),
     supabaseAdmin.from("profiles").select("id, phone, full_name"),
   ]);
 
-  if (streamError) {
-    throw new Error(streamError.message);
-  }
+  if (streamError) throw new Error(streamError.message);
+  if (residentialError) throw new Error(residentialError.message);
+  if (commercialError) throw new Error(commercialError.message);
 
   const brokerMap = new Map<string, { phone: string; fullName: string | null }>();
   for (const row of profiles || []) {
@@ -122,7 +123,9 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
     brokerMap.set(digits, { phone: digits, fullName: (row as any).full_name || null });
   }
 
-  const canonicalIds = [...new Set(((streamItems || []) as any[])
+  const combinedRows = [...((streamRows || []) as any[]), ...((residentialRows || []) as any[]), ...((commercialRows || []) as any[])];
+
+  const canonicalIds = [...new Set((combinedRows as any[])
     .map((row) => String(row.canonical_record_id || "").trim())
     .filter(Boolean))];
   const canonicalMap = new Map<string, Record<string, unknown>>();
@@ -137,7 +140,7 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
     }
   }
 
-  const listings = ((streamItems || []) as any[])
+  const listings = combinedRows
     .filter((row) => row.tenant_id)
     .filter((row) => {
       const locality = String(row.locality || '').trim().toLowerCase();
@@ -181,6 +184,40 @@ export async function fetchPublicListingBySlug(slug: string): Promise<PublicList
   return listings.find((listing) => listing.slug === slug || listing.id === slug) || null;
 }
 
+async function fetchPublicSourceRows(table: PublicStreamSource, select: string, normalizedLocality: string | null) {
+  let query = supabaseAdmin
+    .from(table)
+    .select(select)
+    .neq("record_type", "buyer_requirement")
+    .order("created_at", { ascending: false });
+
+  if (normalizedLocality) {
+    query = query.eq("locality", normalizedLocality);
+  }
+
+  return query;
+}
+
+async function findPublicSourceRow(listingId: string) {
+  for (const source of PUBLIC_SOURCE_TABLES) {
+    const { data, error } = await supabaseAdmin
+      .from(source.table)
+      .select(source.select)
+      .eq("id", listingId)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (data) {
+      return data as unknown as Record<string, unknown>;
+    }
+  }
+
+  return null;
+}
+
 export async function recordPublicWaClick(input: {
   listingId: string;
   forwardedFor: string;
@@ -190,12 +227,7 @@ export async function recordPublicWaClick(input: {
     throw new Error("Database not configured");
   }
 
-  const { data: row } = await supabaseAdmin
-    .from("stream_items")
-    .select("id, tenant_id, source_phone, raw_text, parsed_payload")
-    .eq("id", input.listingId)
-    .single()
-    .throwOnError();
+  const row = await findPublicSourceRow(input.listingId);
 
   if (!row) {
     return null;
@@ -246,11 +278,29 @@ export async function createPublicLead(input: {
     return "error";
   }
 
-  const { data: listing } = await supabaseAdmin
+  let listing = null as null | Record<string, unknown>;
+
+  const { data: primaryListing } = await supabaseAdmin
     .from("stream_items")
     .select("id, tenant_id, locality, parsed_payload")
     .eq("id", input.listingId)
     .maybeSingle();
+
+  listing = (primaryListing as unknown as Record<string, unknown> | null) || null;
+
+  if (!listing) {
+    for (const source of ["stream_items_residential", "stream_items_commercial"] as const) {
+      const { data } = await supabaseAdmin
+        .from(source)
+        .select("id, tenant_id, locality, parsed_payload")
+        .eq("id", input.listingId)
+        .maybeSingle();
+      if (data) {
+        listing = data as Record<string, unknown>;
+        break;
+      }
+    }
+  }
 
   if (!listing) {
     return "missing";
@@ -678,11 +728,17 @@ export async function fetchTodayParsedCount(): Promise<number> {
   if (!supabaseAdmin) return 0;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const { count } = await supabaseAdmin
-    .from("stream_items")
-    .select("*", { count: "exact", head: true })
-    .gte("created_at", today.toISOString());
-  return count || 0;
+  const sources = ["stream_items", "stream_items_residential", "stream_items_commercial"] as const;
+  const counts = await Promise.all(
+    sources.map(async (table) => {
+      const { count } = await supabaseAdmin
+        .from(table)
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", today.toISOString());
+      return count || 0;
+    }),
+  );
+  return counts.reduce((sum, value) => sum + value, 0);
 }
 
 export type CityLocality = {
@@ -740,14 +796,19 @@ function isValidFooterLocality(name: string): boolean {
 export async function fetchLocalitiesForFooter(minCount = 2): Promise<CityLocality[]> {
   if (!supabaseAdmin) return [];
   try {
-    const { data, error } = await supabaseAdmin
-      .from("stream_items")
-      .select("city, locality")
-      .not("locality", "is", null)
-      .neq("locality", "")
-      .limit(5000);
-    if (error || !data) return [];
-    const raw = (data as any[]).reduce<Record<string, { name: string; slug: string; city: string | null; count: number }>>((acc, row) => {
+    const sourceRows = await Promise.all(
+      ["stream_items", "stream_items_residential", "stream_items_commercial"].map(async (table) => {
+        const { data, error } = await supabaseAdmin
+          .from(table)
+          .select("city, locality")
+          .not("locality", "is", null)
+          .neq("locality", "")
+          .limit(5000);
+        return error || !data ? [] : (data as any[]);
+      }),
+    );
+    const rawRows = sourceRows.flat();
+    const raw = rawRows.reduce<Record<string, { name: string; slug: string; city: string | null; count: number }>>((acc, row) => {
       const loc = String(row.locality || "").trim();
       if (!isValidFooterLocality(loc)) return acc;
       const key = loc.toLowerCase();

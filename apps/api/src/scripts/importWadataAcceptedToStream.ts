@@ -278,6 +278,36 @@ async function upsertCanonicalBatch(rows: any[]): Promise<number> {
   return left + right;
 }
 
+async function upsertPublicStreamBatch(rows: any[]): Promise<number> {
+  if (!rows.length || !supabaseAdmin) return 0;
+
+  const payload = rows.map(({ _targetTable, ...row }) => row);
+  const { error } = await supabaseAdmin
+    .from('stream_items')
+    .upsert(payload, { onConflict: 'tenant_id,message_id' });
+
+  if (!error) {
+    return payload.length;
+  }
+
+  if (payload.length === 1) {
+    console.warn(JSON.stringify({
+      event: 'wadata_public_stream_row_skipped',
+      message_id: payload[0].message_id,
+      source_message_id: payload[0].source_message_id,
+      reason: error.message,
+    }));
+    return 0;
+  }
+
+  const midpoint = Math.floor(payload.length / 2);
+  const [left, right] = await Promise.all([
+    upsertPublicStreamBatch(payload.slice(0, midpoint)),
+    upsertPublicStreamBatch(payload.slice(midpoint)),
+  ]);
+  return left + right;
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const tenantId = options.tenantId || 'dry-run-tenant';
@@ -297,8 +327,10 @@ async function main() {
   const records = await readJsonl(inputPath);
   let processed = 0;
   let inserted = 0;
+  let publicInserted = 0;
   let canonicalInserted = 0;
   const batch: Array<Record<string, unknown> & { _targetTable: StreamTable }> = [];
+  const publicBatch: Array<Record<string, unknown>> = [];
   const canonicalBatch: Array<Record<string, unknown>> = [];
 
   for (const record of records) {
@@ -339,6 +371,15 @@ async function main() {
       ingestion_status: 'accepted',
       created_at: record.timestamp,
       _targetTable: targetTable,
+    };
+
+    const publicRow = {
+      ...row,
+      parsed_payload: buildParsedPayload(record, locality, city, sourcePhone),
+      property_use: inferPropertyUse(record),
+      floor_number: null,
+      total_floors: null,
+      furnishing: null,
     };
 
     const canonicalRow = {
@@ -388,15 +429,21 @@ async function main() {
     }
 
     batch.push(row);
+    publicBatch.push(publicRow);
     canonicalBatch.push(canonicalRow);
     if (batch.length >= options.batchSize) {
         inserted += await upsertBatch(batch.splice(0, batch.length));
+        publicInserted += await upsertPublicStreamBatch(publicBatch.splice(0, publicBatch.length));
         canonicalInserted += await upsertCanonicalBatch(canonicalBatch.splice(0, canonicalBatch.length));
       }
   }
 
   if (!options.dryRun && batch.length) {
     inserted += await upsertBatch(batch.splice(0, batch.length));
+  }
+
+  if (!options.dryRun && publicBatch.length) {
+    publicInserted += await upsertPublicStreamBatch(publicBatch.splice(0, publicBatch.length));
   }
 
   if (!options.dryRun && canonicalBatch.length) {
@@ -409,6 +456,7 @@ async function main() {
         input: inputPath,
         processed,
         inserted: options.dryRun ? 0 : inserted,
+        public_inserted: options.dryRun ? 0 : publicInserted,
         canonical_inserted: options.dryRun ? 0 : canonicalInserted,
         dry_run: options.dryRun,
         tenant: tenantId,
