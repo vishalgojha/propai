@@ -338,7 +338,7 @@ async function executeRoutedToolIntent(route: AgentRoutePlan, prompt: string): P
                     : null;
 
                 const rendered = [
-                    `Live IGR fetch was unavailable, so here is the latest local IGR record for **${transaction.building_name || buildingName}** (${transaction.locality || locality || 'Unknown locality'})`,
+                    `Live lookup was unavailable, so here is the latest local transaction record for **${transaction.building_name || buildingName}** (${transaction.locality || locality || 'Unknown locality'})`,
                     '',
                     `- Date: ${formatIgrDate(transaction.reg_date)}`,
                     `- Consideration: ${formatInr(transaction.consideration)}`,
@@ -353,19 +353,19 @@ async function executeRoutedToolIntent(route: AgentRoutePlan, prompt: string): P
                     handled: true,
                     reply: rendered,
                     agentResponse: toAgentResponse(rendered),
-                    capabilityHint: 'I now try live IGR/GRAS lookup first. Local data is only a fallback when the live source cannot be extracted reliably.',
+                    capabilityHint: 'I now try live latest-transaction lookup first. Local data is only a fallback when the live source cannot be extracted reliably.',
                     data: { transaction, locality_stats: stats, buildingName, locality, source: 'local_fallback' },
                 };
             }
 
             const rendered = buildingName || locality
                 ? `I could not extract a reliable live GRAS/IGR result for ${[buildingName, locality].filter(Boolean).join(', ')} right now, and there is no usable local fallback match either.`
-                : 'I could not resolve the building or locality clearly enough to search IGR data yet.';
+                : 'I could not resolve the building or locality clearly enough to search transaction data yet.';
             return {
                 handled: true,
                 reply: rendered,
                 agentResponse: toAgentResponse(rendered),
-                capabilityHint: 'Try the exact registered building name plus locality, for example: “Latest IGR for Kalpataru Magnus, Bandra East”. Live GRAS/IGR lookup is now attempted first.',
+                capabilityHint: 'Try the exact building name plus locality, for example: “Latest transaction for Kalpataru Magnus, Bandra East”. Live lookup is now attempted first.',
                 data: { buildingName, locality },
             };
         }
@@ -482,7 +482,7 @@ async function tryLiveIgrFallback(input: {
                 handled: true,
                 reply: `I couldn't find a reliable live IGR result for ${target} right now. Here are the closest web results I found:\n\n${searchResult.message}`,
                 agentResponse: toAgentResponse(`I couldn't find a reliable live IGR result for ${target} right now. Here are the closest web results I found:\n\n${searchResult.message}`),
-                capabilityHint: 'You can share the exact registered building name plus locality, and I will try both the local IGR dataset and a live GRAS/IGR web lookup.',
+                capabilityHint: 'You can share the exact building name plus locality, and I will try both the local IGR dataset and a live lookup.',
                 data: {
                     live_search_query: searchQuery,
                     live_search_results: items,
@@ -545,7 +545,7 @@ ${pageText.slice(0, 8000)}
                 handled: true,
                 reply: `I found a live IGR/GRAS source for ${target}, but could not confidently extract the transaction details.\n\nSource: ${candidateUrl}`,
                 agentResponse: toAgentResponse(`I found a live IGR/GRAS source for ${target}, but could not confidently extract the transaction details.\n\nSource: ${candidateUrl}`),
-                capabilityHint: 'You can retry with the exact registered building name and locality. I will try both local data and a live source lookup.',
+                capabilityHint: 'You can retry with the exact building name and locality. I will try both local data and a live source lookup.',
                 data: {
                     live_search_query: searchQuery,
                     live_source_url: candidateUrl,
@@ -570,7 +570,7 @@ ${pageText.slice(0, 8000)}
             handled: true,
             reply: rendered,
             agentResponse: toAgentResponse(rendered),
-            capabilityHint: 'I first check local IGR data, then fall back to a live GRAS/IGR web lookup when the local dataset has no match.',
+            capabilityHint: 'I first check local IGR data, then fall back to a live lookup when the local dataset has no match.',
             data: {
                 live_search_query: searchQuery,
                 live_source_url: candidateUrl,

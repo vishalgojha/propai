@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, Search, MapPin, Sparkles, Loader2 } from 'lucide-react';
+import { RefreshCw, Search, MapPin, Loader2 } from 'lucide-react';
 import { handleApiError } from '../services/api';
 import { fetchAndSaveLiveIgr, fetchIgrSearch, fetchBuildingNames, type IgrTransaction, type IgrSearchResponse } from '../services/igrApi';
 import { cn } from '../lib/utils';
@@ -32,7 +32,7 @@ function formatRate(transaction: IgrTransaction) {
 }
 
 function buildTransactionTitle(item: IgrTransaction) {
-  return [item.building_name, item.village_locality].filter(Boolean).join(' · ') || item.doc_number || 'IGR transaction';
+  return [item.building_name, item.village_locality].filter(Boolean).join(' · ') || item.doc_number || 'Transaction';
 }
 
 export default function IgrView() {
@@ -91,14 +91,14 @@ export default function IgrView() {
     try {
       const result = await fetchAndSaveLiveIgr(effectiveBuilding || undefined, effectiveLocality || undefined);
       if (!result.success) {
-        setError(result.error || 'Live IGR fetch failed.');
+        setError(result.error || 'Latest transaction refresh failed.');
         return;
       }
 
       setLiveMessage(
         result.saved
-          ? `Live IGR result saved${result.docNumber ? ` as ${result.docNumber}` : ''} from ${result.sourceUrl || 'live source'}.`
-          : `Live IGR source reached at ${result.sourceUrl || 'unknown source'}, but nothing was saved.`,
+          ? `Latest transaction refreshed${result.docNumber ? ` as ${result.docNumber}` : ''} from ${result.sourceUrl || 'live source'}.`
+          : `Latest transaction source reached at ${result.sourceUrl || 'unknown source'}, but nothing was saved.`,
       );
       await loadSearch(effectiveBuilding, effectiveLocality);
     } catch (reason) {
@@ -162,7 +162,7 @@ export default function IgrView() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-[var(--accent)]" />
-            <span className="text-[15px] font-bold text-[var(--text-primary)]">IGR</span>
+            <span className="text-[15px] font-bold text-[var(--text-primary)]">Transactions</span>
           </div>
           <div className="h-5 w-px bg-[var(--border)]" />
           <div className="flex items-center gap-4 text-[12px] text-[var(--text-secondary)]">
@@ -181,8 +181,8 @@ export default function IgrView() {
           disabled={submitting}
           className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[12px] font-semibold text-[#020f07] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          Fetch live IGR
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          Refresh latest
         </button>
       </div>
 
@@ -279,20 +279,20 @@ export default function IgrView() {
         {/* Latest transaction inline */}
         <div className={panelClass}>
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Latest IGR</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Latest transaction</p>
             <button
               type="button"
               onClick={() => void loadSearch()}
               className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              Refresh
+              Refresh latest
             </button>
           </div>
 
           {loading ? (
             <div className="mt-3 rounded-[14px] border border-dashed border-[color:var(--border)] px-4 py-6 text-center text-[12px] text-[var(--text-secondary)]">
-              Loading IGR data...
+              Loading transaction data...
             </div>
           ) : latest ? (
             <div className="mt-3 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg)] p-4">
@@ -356,7 +356,7 @@ export default function IgrView() {
             </div>
           ) : (
             <div className="mt-3 rounded-[14px] border border-dashed border-[color:var(--border)] px-4 py-6 text-center text-[12px] text-[var(--text-secondary)]">
-              Enter a building or locality to load saved IGR records.
+              Enter a building or locality to load saved transaction records.
             </div>
           )}
         </div>
@@ -396,7 +396,7 @@ export default function IgrView() {
           </div>
         ) : (
           <div className="mt-3 rounded-[14px] border border-dashed border-[color:var(--border)] px-4 py-8 text-center text-[12px] text-[var(--text-secondary)]">
-            No saved IGR transactions matched this search yet.
+            No saved transactions matched this search yet.
           </div>
         )}
       </div>
