@@ -39,7 +39,7 @@ export default function BrokerSignup() {
           <div className="rounded-[24px] border border-[color:var(--border-strong)] bg-[var(--bg-surface)] p-10 shadow-[0_32px_120px_rgba(0,0,0,0.5)]">
              <div className="text-center mb-10">
                 <h2 className="text-[24px] font-bold text-[var(--text-primary)]">Ready to amplify?</h2>
-                <p className="text-[13px] text-[var(--text-muted)] mt-2">No listing fees. No manual entry.</p>
+                <p className="text-[13px] text-[var(--text-muted)] mt-2">First month ₹1,999 including ₹500 of API keys, then ₹1,499/mo.</p>
              </div>
 
              <div className="space-y-6">
@@ -70,7 +70,7 @@ export default function BrokerSignup() {
 
              <div className="mt-10 p-6 rounded-[16px] bg-[var(--bg-base)] border border-dashed border-[color:var(--border)] italic">
                 <p className="text-[13px] text-[var(--text-secondary)] text-center">
-                  "PropAI has increased my high-end rental leads by 40% without me doing any extra work."
+                  "PropAI has increased my high-end rental leads without me doing extra manual entry."
                 </p>
                 <div className="text-[11px] font-bold text-center mt-3 uppercase tracking-widest text-[var(--text-muted)]">— Premium Mumbai Broker</div>
              </div>

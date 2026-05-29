@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import About from "@/pages/About";
 
 export const metadata: Metadata = {
-  title: "About PropAI Pulse — Find Off-Market Properties in Mumbai & Indian Cities",
+  title: "About PropAI Pulse — WhatsApp-native real estate intelligence for brokers",
   description:
-    "PropAI Pulse gives home buyers and renters early access to off-market properties in Mumbai, Thane, Pune, and across India. Real-time AI-powered listings sourced directly from broker WhatsApp groups. Connect with the listing broker in one click.",
+    "PropAI Pulse turns broker WhatsApp dumps into structured listings, requirements, and locality intelligence for Mumbai brokers. Built for live inventory, not stale portal reposts.",
     openGraph: {
-      title: "About PropAI Pulse — Off-Market Property Discovery",
+      title: "About PropAI Pulse — WhatsApp-native real estate intelligence",
       description:
-        "Find off-market homes and rentals in Mumbai, Thane, Pune, and across India. Real-time AI listings sourced from broker WhatsApp groups. Direct broker connect, zero stale data.",
+        "Turn broker WhatsApp dumps into structured listings, requirements, and locality intelligence. PropAI Pulse is built for live inventory, not stale portal reposts.",
       type: "website",
       locale: "en_IN",
     },
