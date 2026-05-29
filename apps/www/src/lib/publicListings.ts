@@ -475,10 +475,7 @@ function buildPublicListingTitle(input: {
   }
 
   if (sourceTitle && sourceTitle.length >= 12) {
-    const cleaned = sourceTitle
-      .replace(/\s+/g, ' ')
-      .replace(/\b(?:deposit|rent|sale|available|flexible|sqft|carpet|furnished|semi-furnished|unfurnished)\b.*$/i, '')
-      .trim();
+    const cleaned = sanitizeHeadline(sourceTitle);
     if (cleaned.length >= 12) {
       return cleaned;
     }
@@ -486,6 +483,16 @@ function buildPublicListingTitle(input: {
 
   const rawHeadline = inferTitle(input.rawText);
   return rawHeadline || 'Property Listing';
+}
+
+function sanitizeHeadline(value: string) {
+  return String(value || '')
+    .replace(/\b(?:\+?91[\s-]?)?[6-9]\d{9}\b/g, '')
+    .replace(/\b(?:deposit|rent|sale|available|flexible|sqft|carpet|furnished|semi-furnished|unfurnished|contact|call|whatsapp|prefer|corporate|working|months?|month|months deposit)\b.*$/i, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+,/g, ',')
+    .replace(/,+\s*$/g, '')
+    .trim();
 }
 
 function parseAreaSqft(...values: unknown[]) {
