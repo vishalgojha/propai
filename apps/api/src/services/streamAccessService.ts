@@ -13,10 +13,11 @@ export async function resolveStreamAccess(tenantId: string, email?: string | nul
     const subscription = await subscriptionService.getSubscription(tenantId, email);
     const plan = normalizePlanName(subscription.plan);
     const canViewStream = plan !== 'Trial';
+    const sharedStreamEnabled = String(process.env.STREAM_NETWORK_MODE_ENABLED || '').trim().toLowerCase() === 'true';
 
     return {
         plan,
         canViewStream,
-        networkMode: canViewStream,
+        networkMode: canViewStream && sharedStreamEnabled,
     };
 }
