@@ -98,7 +98,7 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
 
   let streamQuery = supabaseAdmin
     .from("stream_items")
-    .select("id, tenant_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, parsed_payload, property_category, asset_class")
+    .select("id, tenant_id, canonical_record_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, parsed_payload, property_category, asset_class")
     .neq("record_type", "buyer_requirement")
     .order("created_at", { ascending: false });
 
@@ -120,6 +120,21 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
     const digits = digitsOnly((row as any).phone);
     if (!digits) continue;
     brokerMap.set(digits, { phone: digits, fullName: (row as any).full_name || null });
+  }
+
+  const canonicalIds = [...new Set(((streamItems || []) as any[])
+    .map((row) => String(row.canonical_record_id || "").trim())
+    .filter(Boolean))];
+  const canonicalMap = new Map<string, Record<string, unknown>>();
+  if (canonicalIds.length > 0) {
+    const { data: canonicalRows } = await supabaseAdmin
+      .from("canonical_records")
+      .select("id, canonical_title, record_kind, deal_type, asset_class, property_category, locality, city, building_name, micro_location, bhk, area_sqft, price_numeric, price_label, furnishing, floor_number, total_floors, property_use, status")
+      .in("id", canonicalIds);
+
+    for (const row of canonicalRows || []) {
+      canonicalMap.set(String((row as any).id || ""), row as Record<string, unknown>);
+    }
   }
 
   const listings = ((streamItems || []) as any[])
@@ -155,7 +170,7 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
         && (row.confidence_score == null || Number(row.confidence_score) < 0.3);
       return !isJunk;
     })
-    .map((row) => normalizeStreamListing(row, brokerMap))
+    .map((row) => normalizeStreamListing(row, brokerMap, canonicalMap))
     .filter(Boolean);
 
   return dedupePublicListings(listings as PublicListing[]);
@@ -296,13 +311,12 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
   );
   const fallbackBroker = brokerDigits ? paidBrokerMap.get(brokerDigits) : null;
   const title = buildPublicListingTitle({
-    title: pickString(data.title, data.name, data.displayTitle) || inferTitle(rawText) || null,
+    title: pickString(data.title, data.name, data.displayTitle) || null,
     buildingName: pickString(data.buildingName, data.projectName, data.project_name) || null,
     locality,
     bhk,
     type,
     availability,
-    rawText,
   });
   const slug = generateListingSlug({
     bhk,
@@ -319,7 +333,6 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
     areaSqft,
     price: priceAmount,
     availability,
-    rawText,
   })) {
     return null;
   }
@@ -342,33 +355,37 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
   };
 }
 
-function normalizeStreamListing(row: any, paidBrokerMap: Map<string, { phone: string; fullName: string | null }>): PublicListing | null {
+function normalizeStreamListing(
+  row: any,
+  paidBrokerMap: Map<string, { phone: string; fullName: string | null }>,
+  canonicalMap: Map<string, Record<string, unknown>>,
+): PublicListing | null {
   const data = (row.parsed_payload || {}) as Record<string, unknown>;
   const rawText = String(row.raw_text || "");
+  const canonical = row.canonical_record_id ? canonicalMap.get(String(row.canonical_record_id)) || null : null;
   const location =
-    pickString(row.locality, data.locality, data.microLocation, data.buildingName, row.city) ||
+    pickString(canonical?.locality, row.locality, data.locality, data.microLocation, canonical?.micro_location, data.buildingName, row.city) ||
     inferLocation(rawText);
   const locality = normalizeLocality(location || "");
   if (!isListableLocation(locality)) return null;
-  const bhk = pickString(row.bhk, data.bhk) || inferBhk(rawText) || "Flexible";
-  const type = normalizeType(pickString(row.type, row.deal_type, data.type, data.deal_type), rawText);
-  const priceAmount = parsePriceAmount(row.price_numeric, row.price_label, rawText, type);
-  const floor = pickString((data as any).floor_number, (data as any).floorNumber) || null;
-  const furnishing = pickString(data.furnishing) || null;
-  const areaSqft = parseAreaSqft(row.area_sqft, data.area_sqft, data.areaSqft);
+  const bhk = pickString(canonical?.bhk, row.bhk, data.bhk) || inferBhk(rawText) || "Flexible";
+  const type = normalizeType(pickString(canonical?.deal_type, row.type, row.deal_type, data.type, data.deal_type), rawText);
+  const priceAmount = parsePriceAmount(canonical?.price_numeric ?? row.price_numeric, canonical?.price_label ?? row.price_label, rawText, type);
+  const floor = pickString(canonical?.floor_number, (data as any).floor_number, (data as any).floorNumber) || null;
+  const furnishing = pickString(canonical?.furnishing, data.furnishing) || null;
+  const areaSqft = parseAreaSqft(canonical?.area_sqft, row.area_sqft, data.area_sqft, data.areaSqft);
   const availability = pickString(data.availability, data.available_from, data.possession) || null;
   const brokerDigits = digitsOnly(
     pickString(row.source_phone, data.contactPhone, data.sourcePhone) || extractPhone(rawText)
   );
   const fallbackBroker = brokerDigits ? paidBrokerMap.get(brokerDigits) : null;
   const title = buildPublicListingTitle({
-    title: pickString(data.displayTitle, data.title, data.buildingName, data.microLocation) || inferTitle(rawText) || null,
-    buildingName: pickString(data.buildingName, data.microLocation) || null,
+    title: pickString(canonical?.canonical_title, data.displayTitle, data.title) || null,
+    buildingName: pickString(canonical?.building_name, data.buildingName, canonical?.micro_location, data.microLocation) || null,
     locality,
     bhk,
     type,
     availability,
-    rawText,
   });
   const slug = generateListingSlug({
     bhk,
@@ -385,7 +402,6 @@ function normalizeStreamListing(row: any, paidBrokerMap: Map<string, { phone: st
     areaSqft,
     price: priceAmount,
     availability,
-    rawText,
   })) {
     return null;
   }
@@ -460,7 +476,6 @@ function buildPublicListingTitle(input: {
   bhk: string | number;
   type: string;
   availability?: string | null;
-  rawText: string;
 }) {
   const sourceTitle = String(input.title || '').trim();
   const buildingName = String(input.buildingName || '').trim();
@@ -494,13 +509,12 @@ function buildPublicListingTitle(input: {
 
   if (sourceTitle && sourceTitle.length >= 12) {
     const cleaned = sanitizeHeadline(sourceTitle);
-    if (cleaned.length >= 12) {
+    if (cleaned.length >= 12 && !isNoisyHeadline(cleaned)) {
       return cleaned;
     }
   }
 
-  const rawHeadline = inferTitle(input.rawText);
-  return rawHeadline || 'Property Listing';
+  return 'Property Listing';
 }
 
 function sanitizeHeadline(value: string) {
@@ -511,6 +525,15 @@ function sanitizeHeadline(value: string) {
     .replace(/\s+,/g, ',')
     .replace(/,+\s*$/g, '')
     .trim();
+}
+
+function isNoisyHeadline(value: string) {
+  const normalized = normalizeListingText(value);
+  return (
+    /\b(?:contact|call|whatsapp|broker|owner direct|direct owner)\b/i.test(value) ||
+    /(?:\b\d{10}\b|\b91\d{10}\b)/.test(value) ||
+    normalized.length < 12
+  );
 }
 
 function parseAreaSqft(...values: unknown[]) {
@@ -538,18 +561,15 @@ function isTitleWorthyPublicListing(input: {
   areaSqft?: number | null;
   price?: number | null;
   availability?: string | null;
-  rawText: string;
 }) {
   const title = String(input.title || "").trim();
   const locality = String(input.locality || "").trim();
-  const rawText = String(input.rawText || "").trim();
   if (title.length < 12 || locality.length < 3) return false;
   if (/^(property listing|broker-sourced property)$/i.test(title)) return false;
+  if (/(?:\+?91[\s-]?)?[6-9]\d{9}/.test(title) || /\b(?:contact|call|whatsapp|broker)\b/i.test(title)) return false;
 
   const normalizedTitle = normalizeListingText(title);
-  const normalizedRaw = normalizeListingText(rawText);
-  const titleKeywords = `${normalizedTitle} ${normalizedRaw}`;
-  const hasTypeSignal = /\b(rent|sale|lease|requirement|wanted|office|shop|warehouse|plot|land|flat|apartment|villa|penthouse|studio|commercial|residential|pg|bare shell)\b/i.test(titleKeywords);
+  const hasTypeSignal = /\b(rent|sale|lease|requirement|wanted|office|shop|warehouse|plot|land|flat|apartment|villa|penthouse|studio|commercial|residential|pg|bare shell)\b/i.test(normalizedTitle);
   const hasSubstance = Boolean(
     (typeof input.bhk === "string" && input.bhk.trim() && !/^flexible$/i.test(input.bhk.trim())) ||
     (typeof input.bhk === "number" && Number.isFinite(input.bhk)) ||
@@ -559,7 +579,6 @@ function isTitleWorthyPublicListing(input: {
   );
 
   if (!hasTypeSignal || !hasSubstance) return false;
-  if (normalizedRaw.length < 20) return false;
 
   return true;
 }

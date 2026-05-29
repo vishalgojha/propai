@@ -44,14 +44,20 @@ export async function fetchLocalityStreamItems(localityName: string, days = 30, 
   if (!supabaseAdmin) return [];
 
   try {
+    const normalizedLocality = normalizeLocalityQuery(localityName);
     const since = new Date(Date.now() - days * 86_400_000).toISOString();
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("stream_items")
       .select("id, type, deal_type, bhk, price_label, price_numeric, locality, city, record_type, property_category, asset_class, created_at, raw_text, parsed_payload")
-      .ilike("locality", `%${localityName}%`)
       .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(limit);
+
+    if (normalizedLocality) {
+      query = query.eq("locality", normalizedLocality);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("[www] Failed to fetch locality stream items", error);
@@ -69,14 +75,20 @@ export async function fetchInsightStreamItems(localityName: string, periodStart:
   if (!supabaseAdmin) return [];
 
   try {
-    const { data, error } = await supabaseAdmin
+    const normalizedLocality = normalizeLocalityQuery(localityName);
+    let query = supabaseAdmin
       .from("stream_items")
       .select("id, type, deal_type, bhk, price_label, price_numeric, locality, city, record_type, property_category, asset_class, created_at, raw_text, parsed_payload")
-      .ilike("locality", `%${localityName}%`)
       .gte("created_at", periodStart)
       .lte("created_at", periodEnd)
       .order("created_at", { ascending: false })
       .limit(200);
+
+    if (normalizedLocality) {
+      query = query.eq("locality", normalizedLocality);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("[www] Failed to fetch insight stream items", error);
@@ -334,4 +346,14 @@ function trimDecimal(value: number) {
 function coerceNumber(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function normalizeLocalityQuery(value?: string | null) {
+  const text = String(value || "").replace(/\+/g, " ").trim();
+  if (!text) return "";
+  return text
+    .split(",")[0]
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }

@@ -12,8 +12,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     const dealType =
       listing.type === "Requirement" ? "Wanted" : listing.type === "Rent" ? "Available for rent" : "Available for sale";
     const title = `${listing.title} — ${dealType} in ${listing.locality} | PropAI Pulse`;
-    const description = listing.bhk
-      ? `${listing.bhk} in ${listing.locality}. ${listing.furnishing || ""} ${listing.area_sqft ? `· ${listing.area_sqft} sqft` : ""} · ₹${listing.price.toLocaleString()}`
+    const descriptionBits = [
+      listing.bhk ? `${String(listing.bhk).replace(/\s*BHK$/i, "")} BHK` : null,
+      listing.locality ? `in ${listing.locality}` : null,
+      listing.furnishing ? listing.furnishing : null,
+      listing.area_sqft ? `${listing.area_sqft} sqft` : null,
+      listing.price > 0 ? `₹${listing.price.toLocaleString()}` : "Price on request",
+    ].filter(Boolean);
+    const description = descriptionBits.length
+      ? descriptionBits.join(" · ")
       : `Off-market property in ${listing.locality}. Updated with real-time market intelligence.`;
     return {
       title,
@@ -46,7 +53,13 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     "@context": "https://schema.org",
     "@type": "RealEstateListing",
     name: initialListing.title,
-    description: initialListing.raw_text.slice(0, 500),
+    description: [
+      initialListing.type === "Requirement" ? "Wanted" : initialListing.type === "Rent" ? "Available for rent" : "Available for sale",
+      initialListing.bhk ? `${String(initialListing.bhk).replace(/\s*BHK$/i, "")} BHK` : null,
+      initialListing.locality ? `in ${initialListing.locality}` : null,
+      initialListing.furnishing || null,
+      initialListing.area_sqft ? `${initialListing.area_sqft} sqft` : null,
+    ].filter(Boolean).join(" "),
     url: `https://www.propai.live/listings/${initialListing.slug}`,
     offers: {
       "@type": "Offer",
