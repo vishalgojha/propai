@@ -646,6 +646,10 @@ export const Sources: React.FC = () => {
 
   const demoMode = process.env.NEXT_PUBLIC_WHATSAPP_DEMO_MODE === 'true';
   const accessModelLabel = useMemo(() => {
+    if (user?.appRole === 'super_admin') {
+      return 'Super Admin';
+    }
+
     const subscriptionPlan = user?.subscription?.plan || null;
     const plan = subscriptionPlan || (statusLoaded ? status.plan : null);
     const label = formatPlanLabel(plan);
@@ -1832,7 +1836,11 @@ export const Sources: React.FC = () => {
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access model</p>
             <p className="mt-1 text-[14px] font-bold text-[var(--text-primary)]">{accessModelLabel}</p>
             {activeTab === 'audit' ? null : (
-              <p className="text-[11px] text-[var(--text-secondary)]">Trial 7 days free, Pro ₹999/mo for 1 device, Team ₹999/seat/mo — each member links their own account.</p>
+              <p className="text-[11px] text-[var(--text-secondary)]">
+                {user?.appRole === 'super_admin'
+                  ? 'Owner access. Workspace limits do not apply to this account.'
+                  : 'Trial 7 days free, Pro ₹999/mo for 1 device, Team ₹999/seat/mo — each member links their own account.'}
+              </p>
             )}
             {isAtDeviceLimit ? (
               <div className="mt-2 space-y-2">
