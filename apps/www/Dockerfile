@@ -27,7 +27,7 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app/apps/www
 ENV NODE_ENV=production
-ENV PORT=3002
+ENV PORT=3000
 
 COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/apps/www/node_modules ./node_modules
@@ -37,6 +37,6 @@ COPY --from=builder /app/apps/www/public ./public
 COPY --from=builder /app/apps/www/package.json ./package.json
 COPY --from=builder /app/apps/www/next.config.mjs ./next.config.mjs
 
-EXPOSE 3002
+EXPOSE 3000
 
-CMD ["node_modules/.bin/next", "start", "-H", "0.0.0.0", "-p", "3002"]
+CMD ["node_modules/.bin/next", "start", "-H", "0.0.0.0", "-p", "3000"]
