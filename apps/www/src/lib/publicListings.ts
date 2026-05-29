@@ -261,7 +261,6 @@ function slugifyBhk(bhk: string) {
 function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; fullName: string | null }>): PublicListing | null {
   const data = (row.structured_data || {}) as Record<string, unknown>;
   const rawText = String(row.raw_text || "");
-  const title = pickString(data.title, data.name, data.displayTitle) || inferTitle(rawText) || "Property Listing";
   const location =
     pickString(data.location, data.locality, data.locality_canonical, data.address, data.area) ||
     inferLocation(rawText);
@@ -278,6 +277,15 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
     pickString(data.contact_number, data.phone, data.contactPhone, data.sourcePhone) || extractPhone(rawText)
   );
   const fallbackBroker = brokerDigits ? paidBrokerMap.get(brokerDigits) : null;
+  const title = buildPublicListingTitle({
+    title: pickString(data.title, data.name, data.displayTitle) || inferTitle(rawText) || null,
+    buildingName: pickString(data.buildingName, data.projectName, data.project_name) || null,
+    locality,
+    bhk,
+    type,
+    availability,
+    rawText,
+  });
   const slug = generateListingSlug({
     bhk,
     localitySlug: slugifyLocality(locality),
@@ -319,10 +327,6 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
 function normalizeStreamListing(row: any, paidBrokerMap: Map<string, { phone: string; fullName: string | null }>): PublicListing | null {
   const data = (row.parsed_payload || {}) as Record<string, unknown>;
   const rawText = String(row.raw_text || "");
-  const title =
-    pickString(data.displayTitle, data.title, data.buildingName, data.microLocation) ||
-    inferTitle(rawText) ||
-    "Property Listing";
   const location =
     pickString(row.locality, data.locality, data.microLocation, data.buildingName, row.city) ||
     inferLocation(rawText);
@@ -339,6 +343,15 @@ function normalizeStreamListing(row: any, paidBrokerMap: Map<string, { phone: st
     pickString(row.source_phone, data.contactPhone, data.sourcePhone) || extractPhone(rawText)
   );
   const fallbackBroker = brokerDigits ? paidBrokerMap.get(brokerDigits) : null;
+  const title = buildPublicListingTitle({
+    title: pickString(data.displayTitle, data.title, data.buildingName, data.microLocation) || inferTitle(rawText) || null,
+    buildingName: pickString(data.buildingName, data.microLocation) || null,
+    locality,
+    bhk,
+    type,
+    availability,
+    rawText,
+  });
   const slug = generateListingSlug({
     bhk,
     localitySlug: slugifyLocality(locality),
@@ -420,6 +433,59 @@ function isListableLocation(locality: string | null): locality is string {
 function inferBhk(rawText: string) {
   const match = rawText.match(/\b(\d(?:\.\d+)?)\s*bhk\b/i);
   return match ? `${match[1]}BHK` : null;
+}
+
+function buildPublicListingTitle(input: {
+  title?: string | null;
+  buildingName?: string | null;
+  locality: string;
+  bhk: string | number;
+  type: string;
+  availability?: string | null;
+  rawText: string;
+}) {
+  const sourceTitle = String(input.title || '').trim();
+  const buildingName = String(input.buildingName || '').trim();
+  const locality = String(input.locality || '').trim();
+  const bhkLabel = String(input.bhk || '').trim();
+  const normalizedBhk = /^flexible$/i.test(bhkLabel) ? null : bhkLabel;
+  const isRequirement = /^requirement$/i.test(String(input.type || '').trim());
+  const dealLabel = isRequirement
+    ? 'Requirement'
+    : /^rent$/i.test(String(input.type || '').trim())
+      ? 'for rent'
+      : 'for sale';
+
+  const structuredHeadline = [
+    isRequirement ? (normalizedBhk ? `${normalizedBhk} requirement` : 'Requirement') : normalizedBhk || null,
+    !isRequirement ? dealLabel : null,
+    locality ? `in ${locality}` : null,
+  ].filter(Boolean).join(' ');
+
+  const canonicalHeadline = structuredHeadline
+    ? structuredHeadline.replace(/\s+/g, ' ').trim()
+    : null;
+
+  if (canonicalHeadline && canonicalHeadline.length >= 12) {
+    return canonicalHeadline;
+  }
+
+  if (buildingName) {
+    return [buildingName, locality].filter(Boolean).join(', ') || buildingName;
+  }
+
+  if (sourceTitle && sourceTitle.length >= 12) {
+    const cleaned = sourceTitle
+      .replace(/\s+/g, ' ')
+      .replace(/\b(?:deposit|rent|sale|available|flexible|sqft|carpet|furnished|semi-furnished|unfurnished)\b.*$/i, '')
+      .trim();
+    if (cleaned.length >= 12) {
+      return cleaned;
+    }
+  }
+
+  const rawHeadline = inferTitle(input.rawText);
+  return rawHeadline || 'Property Listing';
 }
 
 function parseAreaSqft(...values: unknown[]) {
