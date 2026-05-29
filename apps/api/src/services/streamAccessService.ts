@@ -14,10 +14,11 @@ export async function resolveStreamAccess(tenantId: string, email?: string | nul
     const plan = normalizePlanName(subscription.plan);
     const canViewStream = plan !== 'Trial';
     const sharedStreamEnabled = String(process.env.STREAM_NETWORK_MODE_ENABLED || '').trim().toLowerCase() === 'true';
+    const isOwnerSuperAdmin = await subscriptionService.isOwnerSuperAdmin(tenantId, email).catch(() => false);
 
     return {
         plan,
         canViewStream,
-        networkMode: canViewStream && sharedStreamEnabled,
+        networkMode: isOwnerSuperAdmin || (canViewStream && sharedStreamEnabled),
     };
 }
