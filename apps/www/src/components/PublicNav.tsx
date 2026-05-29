@@ -34,9 +34,6 @@ export default function PublicNav() {
           <Link href="/about" className="shrink-0 rounded-full border border-transparent px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-colors hover:border-[color:var(--border)] hover:text-[var(--accent)]">
             About
           </Link>
-          <Link href="/pricing" className="shrink-0 rounded-full border border-transparent px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-colors hover:border-[color:var(--border)] hover:text-[var(--accent)]">
-            Pricing
-          </Link>
           <Link href="/mcp" className="shrink-0 rounded-full border border-transparent px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-colors hover:border-[color:var(--border)] hover:text-[var(--accent)]">
             MCP
           </Link>

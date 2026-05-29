@@ -24,13 +24,7 @@ export default function MCP() {
           It normalizes locality aliases, keeps the public site on live inventory, and gives brokers direct access
           to actionable market data instead of stale portal reposts.
         </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
-            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Pricing</div>
-            <div className="mt-2 text-[16px] font-bold text-[var(--text-primary)]">₹1,999 first month</div>
-            <div className="text-[13px] text-[var(--text-secondary)]">Includes ₹500 worth of API keys.</div>
-            <div className="mt-2 text-[16px] font-bold text-[var(--text-primary)]">₹1,499/mo after that</div>
-          </div>
+        <div className="grid gap-3 sm:grid-cols-1">
           <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
             <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">For agents</div>
             <div className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">

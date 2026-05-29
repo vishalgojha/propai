@@ -33,7 +33,6 @@ export default async function Footer() {
             <ul className="space-y-2">
               <li><Link href="/listings" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Browse Listings</Link></li>
               <li><Link href="/about" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">About PropAI</Link></li>
-              <li><Link href="/pricing" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Pricing</Link></li>
               <li><Link href="/contact" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Contact Us</Link></li>
               <li><Link href="/privacy" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Privacy Policy</Link></li>
               <li><Link href="/terms" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Terms &amp; Conditions</Link></li>
