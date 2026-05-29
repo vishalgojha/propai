@@ -1607,18 +1607,18 @@ export class ChannelService {
         sessionLabel?: string | null;
         category?: 'residential' | 'commercial' | null;
     }) {
-        const table = options?.category === 'commercial'
-            ? 'stream_items_commercial'
-            : 'stream_items_residential';
-
         const buildQuery = (acceptedOnly: boolean) => {
             let query = this.db
-                .from(table)
+                .from('stream_items')
                 .select('id', { count: 'exact', head: true })
                 .in('tenant_id', tenantIds);
 
             if (acceptedOnly) {
                 query = query.eq('ingestion_status', 'accepted');
+            }
+
+            if (options?.category) {
+                query = query.or(`property_category.eq.${options.category},asset_class.eq.${options.category}`);
             }
 
             if (options?.sessionGroupIds) {

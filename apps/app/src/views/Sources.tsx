@@ -550,6 +550,7 @@ export const Sources: React.FC = () => {
   const [groupOutboundText, setGroupOutboundText] = useState('');
   const [brokerOutboundText, setBrokerOutboundText] = useState('');
   const [leadOutboundText, setLeadOutboundText] = useState('');
+  const [connectMode, setConnectMode] = useState<'qr' | 'pairing'>('qr');
   const [parseDirectMessages, setParseDirectMessages] = useState(false);
   const [selfChatEnabled, setSelfChatEnabled] = useState(false);
   const [isSavingParsingPrefs, setIsSavingParsingPrefs] = useState(false);
@@ -1089,7 +1090,7 @@ export const Sources: React.FC = () => {
     console.log('[WhatsApp] connect submit', {
       pathname: location.pathname,
       phone: normalizedPhone,
-      mode: 'qr',
+      mode: connectMode,
     });
 
     // Save profile first
@@ -1109,7 +1110,7 @@ export const Sources: React.FC = () => {
     if (!deviceOwnerName && fullName) setDeviceOwnerName(fullName);
     if (!devicePhoneNumber && phoneNumber) setDevicePhoneNumber(phoneNumber);
 
-    await handleConnect('qr', { ownerName: nameToUse, phoneNumber: normalizedPhone });
+    await handleConnect(connectMode, { ownerName: nameToUse, phoneNumber: normalizedPhone });
   };
 
   const waitForArtifact = useCallback(async (
@@ -2438,7 +2439,7 @@ export const Sources: React.FC = () => {
                 />
               </label>
 
-               <label className="block">
+              <label className="block">
                 <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">WhatsApp number</span>
                 <div className="relative">
                   <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
@@ -2458,6 +2459,41 @@ export const Sources: React.FC = () => {
                   )}
                 </p>
               </label>
+
+              <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Connect mode</p>
+                    <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Use QR on desktop or pairing code from the broker phone.</p>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-surface)] p-1">
+                    <button
+                      type="button"
+                      onClick={() => setConnectMode('qr')}
+                      className={cn(
+                        'rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors',
+                        connectMode === 'qr'
+                          ? 'bg-[var(--accent)] text-[var(--bg-base)]'
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                      )}
+                    >
+                      QR scan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConnectMode('pairing')}
+                      className={cn(
+                        'rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors',
+                        connectMode === 'pairing'
+                          ? 'bg-[var(--accent)] text-[var(--bg-base)]'
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                      )}
+                    >
+                      Code-based
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               {error && (
                 <div className="rounded-[12px] border border-[color:rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] px-3 py-2.5 text-[12px] text-[var(--red)]">
