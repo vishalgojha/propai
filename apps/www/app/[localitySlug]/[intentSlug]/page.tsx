@@ -22,6 +22,7 @@ import {
 import { fetchLocalityStreamItems, type StreamMarketItem } from "../../../lib/market";
 import { getLocalityBySlug, neighbouringLocalities } from "../../../lib/localities";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 1800;
 
 type PageProps = {

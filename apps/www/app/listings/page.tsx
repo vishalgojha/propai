@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { fetchPublicListings } from "@/lib/publicListings";
 import Listings from "@/pages/Listings";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Off-Market Real Estate Listings | PropAI Pulse",
   description:

@@ -24,6 +24,7 @@ import {
   getLongTailRelatedIntents,
 } from "../../../lib/longtail";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 3600;
 
 type PageProps = {

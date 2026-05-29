@@ -1,6 +1,8 @@
 import { fetchPublicListings, fetchTodayParsedCount } from "@/lib/publicListings";
 import Home from "@/pages/Home";
 
+export const dynamic = "force-dynamic";
+
 export default async function Page() {
   let initialListings: Awaited<ReturnType<typeof fetchPublicListings>> = [];
   let todayCount = 0;
