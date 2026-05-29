@@ -136,8 +136,8 @@ export class WhatsAppHealthService {
     private eventLogSessionField: EventLogSessionField = 'session_label';
     private heartbeatTimer: NodeJS.Timeout | null = null;
     private heartbeatRunning = false;
-    private readonly heartbeatIntervalMs = Number(process.env.WHATSAPP_HEALTH_HEARTBEAT_MS || 90_000);
-    private readonly heartbeatReconnectAfterMs = Number(process.env.WHATSAPP_HEALTH_RECONNECT_AFTER_MS || 180_000);
+    private readonly heartbeatIntervalMs = Number(process.env.WHATSAPP_HEALTH_HEARTBEAT_MS || 15_000);
+    private readonly heartbeatReconnectAfterMs = Number(process.env.WHATSAPP_HEALTH_RECONNECT_AFTER_MS || 20_000);
 
     startHeartbeatLoop(sessionManager: HeartbeatSessionManager) {
         if (this.heartbeatTimer) {
