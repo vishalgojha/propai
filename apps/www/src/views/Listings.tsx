@@ -8,20 +8,56 @@ import ListingCard from '@/components/ListingCard';
 import { cn } from '@/lib/utils';
 import { neighbouringLocalities, slugifyLocalityName } from '../../lib/localities';
 
-export default function Listings({ initialListings = [] }: { initialListings?: PublicListing[] }) {
+function normalizeLocalityQuery(value?: string | null) {
+  const text = String(value || '').replace(/\+/g, ' ').trim();
+  if (!text) return '';
+  return text
+    .split(',')
+    [0]
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+export default function Listings({ initialListings = [], initialLocality = '' }: { initialListings?: PublicListing[]; initialLocality?: string }) {
+  const normalizedInitialLocality = normalizeLocalityQuery(initialLocality);
   const [listings, setListings] = useState<PublicListing[]>(initialListings);
   const [filters, setFilters] = useState(() => {
-    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
-    const locality = params.get('locality') || '';
-    const type = params.get('type') || 'All';
-    return { locality: locality.charAt(0).toUpperCase() + locality.slice(1), type: type === 'All' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1), sort: 'Newest' };
+    const type = 'All';
+    return { locality: normalizedInitialLocality, type, sort: 'Newest' };
   });
 
   useEffect(() => {
-    if (initialListings.length === 0) {
-      getListings().then(setListings);
-    }
-  }, []);
+    let cancelled = false;
+
+    const syncListings = async () => {
+      setFilters((current) => ({
+        ...current,
+        locality: normalizedInitialLocality,
+      }));
+
+      if (initialListings.length > 0) {
+        setListings(initialListings);
+        return;
+      }
+
+      try {
+        const fallbackListings = await getListings(normalizedInitialLocality || undefined);
+        if (!cancelled) {
+          setListings(fallbackListings);
+        }
+      } catch {
+        if (!cancelled) {
+          setListings([]);
+        }
+      }
+    };
+
+    void syncListings();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialListings, normalizedInitialLocality]);
 
   const filteredListings = listings.filter(l => {
     if (filters.type !== 'All' && l.type !== filters.type) return false;
@@ -43,14 +79,17 @@ export default function Listings({ initialListings = [] }: { initialListings?: P
       <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
         <div className="relative w-full md:max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-muted)]" />
-          <input 
-            type="text" 
-            placeholder="Search by locality..."
-            className="w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 pl-10 pr-4 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[color:var(--accent)]"
-            value={filters.locality}
-            onChange={(e) => setFilters(prev => ({ ...prev, locality: e.target.value }))}
-          />
-        </div>
+            <input 
+              type="text" 
+              placeholder="Search by locality..."
+              className="w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 pl-10 pr-4 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[color:var(--accent)]"
+              value={filters.locality}
+              onChange={(e) => {
+                const nextLocality = normalizeLocalityQuery(e.target.value);
+                setFilters(prev => ({ ...prev, locality: nextLocality }));
+              }}
+            />
+          </div>
 
         <div className="flex items-center gap-4 self-end md:self-auto">
           {/* View toggle removed to focus on vertical Airbnb-style cards */}
@@ -112,7 +151,10 @@ export default function Listings({ initialListings = [] }: { initialListings?: P
           <h2 className="text-xl font-bold text-[var(--text-primary)]">No listings match your filters</h2>
           <p className="text-[14px] text-[var(--text-secondary)] mt-2">Try adjusting your search criteria.</p>
           <button 
-            onClick={() => setFilters({ locality: '', type: 'All', sort: 'Newest' })}
+            onClick={() => {
+              setFilters({ locality: '', type: 'All', sort: 'Newest' });
+              setListings(initialListings);
+            }}
             className="mt-8 text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--accent)] hover:underline"
           >
             Reset all filters

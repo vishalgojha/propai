@@ -13,6 +13,16 @@ function isMissingIngestionStatusError(message?: string | null) {
 const streamTable = (category?: string) =>
   category === 'commercial' ? 'stream_items_commercial' : 'stream_items_residential';
 
+function normalizeLocalityFilter(value?: string | null) {
+  const text = String(value || '').replace(/\+/g, ' ').trim();
+  if (!text) return null;
+  return text
+    .split(',')[0]
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 export class StreamAPI {
     async getStreamItems(
         tenantId: string,
@@ -43,7 +53,10 @@ export class StreamAPI {
       }
 
       if (filters?.locality) {
-        query = query.ilike('locality', `%${filters.locality}%`);
+        const locality = normalizeLocalityFilter(filters.locality);
+        if (locality) {
+          query = query.eq('locality', locality);
+        }
       }
 
       if (filters?.minConfidence) {

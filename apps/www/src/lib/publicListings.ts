@@ -79,17 +79,35 @@ export interface PublicListing {
   broker_phone?: string;
 }
 
-export async function fetchPublicListings(): Promise<PublicListing[]> {
+function normalizeLocalityQuery(value?: string | null) {
+  const text = String(value || "").replace(/\+/g, " ").trim();
+  if (!text) return null;
+  return text
+    .split(",")[0]
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+export async function fetchPublicListings(locality?: string): Promise<PublicListing[]> {
   if (!supabaseAdmin) {
     throw new Error("Database not configured");
   }
 
+  const normalizedLocality = normalizeLocalityQuery(locality);
+
+  let streamQuery = supabaseAdmin
+    .from("stream_items")
+    .select("id, tenant_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, parsed_payload, property_category, asset_class")
+    .neq("record_type", "buyer_requirement")
+    .order("created_at", { ascending: false });
+
+  if (normalizedLocality) {
+    streamQuery = streamQuery.eq("locality", normalizedLocality);
+  }
+
   const [{ data: streamItems, error: streamError }, { data: profiles }] = await Promise.all([
-    supabaseAdmin
-      .from("stream_items")
-      .select("id, tenant_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, parsed_payload, property_category, asset_class")
-      .neq("record_type", "buyer_requirement")
-      .order("created_at", { ascending: false }),
+    streamQuery,
     supabaseAdmin.from("profiles").select("id, phone, full_name"),
   ]);
 

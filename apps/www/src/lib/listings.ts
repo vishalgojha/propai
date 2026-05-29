@@ -2,8 +2,12 @@ import type { PublicListing } from "@/lib/publicListings";
 
 export type { PublicListing };
 
-export async function getListings(): Promise<PublicListing[]> {
-  const res = await fetch('/api/listings');
+export async function getListings(locality?: string): Promise<PublicListing[]> {
+  const requestUrl = locality?.trim()
+    ? `/api/listings?locality=${encodeURIComponent(locality.trim())}`
+    : '/api/listings';
+
+  const res = await fetch(requestUrl);
   if (!res.ok) throw new Error(`Failed to fetch listings: ${res.status}`);
   const data = await res.json();
   return data.listings || [];
@@ -17,6 +21,5 @@ export async function getListingBySlug(slug: string): Promise<PublicListing | nu
 }
 
 export async function getListingsByLocality(locality: string): Promise<PublicListing[]> {
-  const all = await getListings();
-  return all.filter(l => l.locality.toLowerCase() === locality.toLowerCase());
+  return getListings(locality);
 }

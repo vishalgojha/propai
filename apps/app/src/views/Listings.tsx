@@ -327,6 +327,15 @@ const buildCopyText = (item: StreamItem) => {
   return lines.join('\n');
 };
 
+const normalizeLocalityQuery = (value?: string | null) =>
+  String(value || '')
+    .replace(/\+/g, ' ')
+    .trim()
+    .split(',')[0]
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 type StreamLocalityGroup = {
   locality: string;
   items: StreamItem[];
@@ -376,6 +385,8 @@ export const Listings: React.FC = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const channelId = searchParams.get('channel');
+  const localityParam = searchParams.get('locality') || '';
+  const localityFilter = React.useMemo(() => normalizeLocalityQuery(localityParam), [localityParam]);
   const [selectedSessionLabel, setSelectedSessionLabel] = React.useState<string | null>(() => {
     try {
       return window.localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
@@ -421,8 +432,13 @@ export const Listings: React.FC = () => {
 
   const serverFilters = React.useMemo(() => ({
     category: filterPropertyCategory as 'residential' | 'commercial',
+    locality: localityFilter || undefined,
     limit: STREAM_FETCH_LIMIT,
-  }), [filterPropertyCategory]);
+  }), [filterPropertyCategory, localityFilter]);
+  const queryScopeKey = React.useMemo(
+    () => [channelId || 'all', selectedSessionLabel || 'all', filterPropertyCategory, localityFilter || 'all'].join('|'),
+    [channelId, selectedSessionLabel, filterPropertyCategory, localityFilter],
+  );
   const canViewStream = React.useMemo(
     () => isSuperAdmin || canViewStreamPlan(user?.subscription?.plan),
     [isSuperAdmin, user?.subscription?.plan],
@@ -516,6 +532,20 @@ export const Listings: React.FC = () => {
       setIsLoading(false);
     }
   }, [canViewStream, channelId, selectedSessionLabel, serverFilters]);
+
+  React.useEffect(() => {
+    setStreamItems([]);
+    setStreamTotal(0);
+    setStreamSummary(null);
+    setVisibleCount(PAGE_SIZE);
+    setExpandedListingId(null);
+    setEditingListingId(null);
+    setOpenActionMenuId(null);
+    setSearchSuggestions([]);
+    setError(null);
+    setInfoMessage(null);
+    attemptedBackfillScopesRef.current.clear();
+  }, [queryScopeKey]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -854,7 +884,7 @@ if (brokerOnly) {
 
   React.useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [activeChannel?.id, search, quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory]);
+  }, [activeChannel?.id, search, quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory, localityFilter]);
 
   React.useEffect(() => {
     const fetch = async () => {

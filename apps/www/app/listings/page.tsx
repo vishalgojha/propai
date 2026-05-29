@@ -8,12 +8,21 @@ export const metadata: Metadata = {
     "Browse real-time off-market properties across India. Filter by locality, price, typology, and active market signal.",
 };
 
-export default async function Page() {
+function firstQueryValue(value?: string | string[]) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams?: { locality?: string | string[] };
+}) {
+  const initialLocality = firstQueryValue(searchParams?.locality)?.trim() || "";
   let initialListings: Awaited<ReturnType<typeof fetchPublicListings>> = [];
   try {
-    initialListings = await fetchPublicListings();
+    initialListings = await fetchPublicListings(initialLocality || undefined);
   } catch {
     // Fallback to client-side fetch on error
   }
-  return <Listings initialListings={initialListings} />;
+  return <Listings key={initialLocality || "all"} initialListings={initialListings} initialLocality={initialLocality} />;
 }
