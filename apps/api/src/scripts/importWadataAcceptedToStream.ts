@@ -171,15 +171,15 @@ function cleanText(value: unknown): string | null {
 function buildParsedPayload(record: AcceptedRecord, locality: string | null, city: string | null, sourcePhone: string | null) {
   return {
     origin: 'wadata',
-    chatName: record.chat_name,
-    sourceFile: record.source_file,
+    chatName: cleanText(record.chat_name),
+    sourceFile: cleanText(record.source_file),
     segmentIndex: record.segment_index,
     segmentCount: record.segment_count,
-    text: record.text,
-    title: record.title,
+    text: cleanText(record.text),
+    title: cleanText(record.title),
     confidenceScore: record.confidence_score,
     publishState: record.publish_state,
-    rejectionReason: record.rejection_reason,
+    rejectionReason: cleanText(record.rejection_reason),
     sourcePhone,
     locality,
     city,
@@ -187,7 +187,7 @@ function buildParsedPayload(record: AcceptedRecord, locality: string | null, cit
     recordType: record.record_type,
     propertyCategory: record.property_category,
     propertyUse: inferPropertyUse(record),
-    buildingName: record.building_name,
+    buildingName: cleanText(record.building_name),
     importedAt: new Date().toISOString(),
   };
 }
@@ -248,6 +248,36 @@ async function upsertBatch(rows: any[]): Promise<number> {
   return inserted;
 }
 
+async function upsertCanonicalBatch(rows: any[]): Promise<number> {
+  if (!rows.length || !supabaseAdmin) return 0;
+
+  const payload = rows.map(({ _targetTable, ...row }) => row);
+  const { error } = await supabaseAdmin
+    .from('stream_items')
+    .upsert(payload, { onConflict: 'tenant_id,message_id' });
+
+  if (!error) {
+    return payload.length;
+  }
+
+  if (payload.length === 1) {
+    console.warn(JSON.stringify({
+      event: 'wadata_canonical_row_skipped',
+      message_id: payload[0].message_id,
+      source_message_id: payload[0].source_message_id,
+      reason: error.message,
+    }));
+    return 0;
+  }
+
+  const midpoint = Math.floor(payload.length / 2);
+  const [left, right] = await Promise.all([
+    upsertCanonicalBatch(payload.slice(0, midpoint)),
+    upsertCanonicalBatch(payload.slice(midpoint)),
+  ]);
+  return left + right;
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const tenantId = options.tenantId || 'dry-run-tenant';
@@ -267,7 +297,9 @@ async function main() {
   const records = await readJsonl(inputPath);
   let processed = 0;
   let inserted = 0;
+  let canonicalInserted = 0;
   const batch: Array<Record<string, unknown> & { _targetTable: StreamTable }> = [];
+  const canonicalBatch: Array<Record<string, unknown>> = [];
 
   for (const record of records) {
     const normalized = normalizeLocality(record);
@@ -309,19 +341,66 @@ async function main() {
       _targetTable: targetTable,
     };
 
+    const canonicalRow = {
+      tenant_id: tenantId,
+      message_id: messageId,
+      source_message_id: `${record.source_file}:${record.message_index}:${record.segment_index}`,
+      source_group_id: cleanText(sourceGroupId),
+      source_group_name: cleanText(sourceGroupName),
+      source_phone: cleanText(sourcePhone),
+      raw_text: cleanText(record.text),
+      type: cleanText(streamType),
+      record_type: cleanText(record.record_type),
+      locality: cleanText(locality),
+      city: cleanText(city),
+      bhk: cleanText(record.bhk),
+      building_name: cleanText(record.building_name),
+      price_label: cleanText(record.price_label),
+      price_numeric: record.price_numeric,
+      deal_type: cleanText(record.deal_type),
+      asset_class: cleanText(record.property_category === 'commercial' ? 'commercial' : 'residential'),
+      property_category: cleanText(record.property_category === 'commercial' ? 'commercial' : 'residential'),
+      area_sqft: record.area_sqft,
+      furnishing: null,
+      floor_number: null,
+      total_floors: null,
+      property_use: inferPropertyUse(record),
+      confidence_score: record.confidence_score,
+      parsed_payload: buildParsedPayload(record, locality, city, sourcePhone),
+      ingestion_status: 'accepted',
+      suppression_reason: null,
+      suppressed_at: null,
+      resolution_context: {
+        origin: 'wadata',
+        chatName: cleanText(record.chat_name),
+        sourceFile: cleanText(record.source_file),
+        segmentIndex: record.segment_index,
+        segmentCount: record.segment_count,
+        title: cleanText(record.title),
+        publishState: record.publish_state,
+      },
+      created_at: record.timestamp,
+    };
+
     processed += 1;
     if (options.dryRun) {
       continue;
     }
 
     batch.push(row);
+    canonicalBatch.push(canonicalRow);
     if (batch.length >= options.batchSize) {
         inserted += await upsertBatch(batch.splice(0, batch.length));
+        canonicalInserted += await upsertCanonicalBatch(canonicalBatch.splice(0, canonicalBatch.length));
       }
   }
 
   if (!options.dryRun && batch.length) {
     inserted += await upsertBatch(batch.splice(0, batch.length));
+  }
+
+  if (!options.dryRun && canonicalBatch.length) {
+    canonicalInserted += await upsertCanonicalBatch(canonicalBatch.splice(0, canonicalBatch.length));
   }
 
   console.log(
@@ -330,6 +409,7 @@ async function main() {
         input: inputPath,
         processed,
         inserted: options.dryRun ? 0 : inserted,
+        canonical_inserted: options.dryRun ? 0 : canonicalInserted,
         dry_run: options.dryRun,
         tenant: tenantId,
       },

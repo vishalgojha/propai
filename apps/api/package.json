@@ -17,11 +17,12 @@
     "stream:backfill:locality": "ts-node src/scripts/backfillStreamLocality.ts",
     "stream:backfill:buildings": "ts-node src/scripts/backfillBuildingNames.ts",
     "stream:backfill:fields": "ts-node src/scripts/backfillMissingFields.ts",
+    "stream:backfill:canonical": "ts-node src/scripts/backfillCanonicalStreamItems.ts",
     "stream:cleanup": "ts-node src/scripts/cleanInvalidStreamItems.ts",
     "stream:cleanup:dry": "ts-node src/scripts/cleanInvalidStreamItems.ts --dry-run",
     "import:wadata": "ts-node src/scripts/importWhatsappExports.ts",
     "import:wadata:stream": "ts-node src/scripts/importWadataAcceptedToStream.ts",
-    "import:wadata:full": "ts-node src/scripts/importWhatsappExports.ts && ts-node src/scripts/importWadataAcceptedToStream.ts"
+    "import:wadata:full": "ts-node src/scripts/importWhatsappExports.ts && ts-node src/scripts/importWadataAcceptedToStream.ts && ts-node src/scripts/backfillCanonicalStreamItems.ts"
   },
   "keywords": [],
   "author": "",

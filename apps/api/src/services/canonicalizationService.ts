@@ -207,20 +207,6 @@ export class CanonicalizationService {
             };
         }
 
-        const [resResult, comResult] = await Promise.all([
-            db.from('stream_items_residential').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: true }).limit(limit),
-            db.from('stream_items_commercial').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: true }).limit(limit),
-        ]);
-        const data = [
-            ...(Array.isArray(resResult.data) ? resResult.data : []),
-            ...(Array.isArray(comResult.data) ? comResult.data : []),
-        ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).slice(0, limit);
-
-        let filteredData = data;
-        if (onlyMissing) {
-            filteredData = data.filter((item: any) => !item.canonical_record_id);
-        }
-
         const counts = {
             new: 0,
             matched: 0,
@@ -228,30 +214,101 @@ export class CanonicalizationService {
             failed: 0,
         };
 
-        for (const item of data || []) {
-            try {
-                const result = await this.canonicalizeStreamItem(item as StreamRow);
-                if (result) {
-                    counts[result.decision] += 1;
+        let scanned = 0;
+
+        if (onlyMissing) {
+            while (true) {
+                const { data, error } = await db
+                    .from('stream_items')
+                    .select('*')
+                    .eq('tenant_id', tenantId)
+                    .is('canonical_record_id', null)
+                    .order('created_at', { ascending: true })
+                    .order('id', { ascending: true })
+                    .limit(limit);
+
+                if (error) {
+                    throw error;
                 }
-            } catch (error) {
-                counts.failed += 1;
-                console.error('[Canonicalization] Backfill item failed', {
-                    tenantId,
-                    streamItemId: item.id,
-                    error,
-                });
+
+                const rows = Array.isArray(data) ? data : [];
+                if (rows.length === 0) {
+                    break;
+                }
+
+                for (const item of rows) {
+                    scanned += 1;
+                    try {
+                        const result = await this.canonicalizeStreamItem(item as StreamRow);
+                        if (result) {
+                            counts[result.decision] += 1;
+                        }
+                    } catch (error) {
+                        counts.failed += 1;
+                        console.error('[Canonicalization] Backfill item failed', {
+                            tenantId,
+                            streamItemId: item.id,
+                            error,
+                        });
+                    }
+                }
+
+                if (rows.length < limit) {
+                    break;
+                }
+            }
+        } else {
+            let offset = 0;
+            while (true) {
+                const { data, error } = await db
+                    .from('stream_items')
+                    .select('*')
+                    .eq('tenant_id', tenantId)
+                    .order('created_at', { ascending: true })
+                    .order('id', { ascending: true })
+                    .range(offset, offset + limit - 1);
+
+                if (error) {
+                    throw error;
+                }
+
+                const rows = Array.isArray(data) ? data : [];
+                if (rows.length === 0) {
+                    break;
+                }
+
+                for (const item of rows) {
+                    scanned += 1;
+                    try {
+                        const result = await this.canonicalizeStreamItem(item as StreamRow);
+                        if (result) {
+                            counts[result.decision] += 1;
+                        }
+                    } catch (error) {
+                        counts.failed += 1;
+                        console.error('[Canonicalization] Backfill item failed', {
+                            tenantId,
+                            streamItemId: item.id,
+                            error,
+                        });
+                    }
+                }
+
+                offset += rows.length;
+                if (rows.length < limit) {
+                    break;
+                }
             }
         }
 
-        const [resCount, comCount] = await Promise.all([
-            db.from('stream_items_residential').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).not('canonical_record_id', 'is', null),
-            db.from('stream_items_commercial').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).not('canonical_record_id', 'is', null),
-        ]);
-        const canonicalizedCount = (resCount.count || 0) + (comCount.count || 0);
+        const { count: canonicalizedCount } = await db
+            .from('stream_items')
+            .select('id', { count: 'exact', head: true })
+            .eq('tenant_id', tenantId)
+            .not('canonical_record_id', 'is', null);
 
         return {
-            scanned: (data || []).length,
+            scanned,
             processed: counts.new + counts.matched + counts.conflicted,
             ...counts,
             totalCanonicalizedStreamItems: canonicalizedCount || 0,
@@ -313,6 +370,16 @@ export class CanonicalizationService {
     }
 
     private async chooseMatch(item: StreamRow, fingerprint: string, candidates: CanonicalRow[]) {
+        const hasConfiguredAi =
+            Boolean(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY) ||
+            Boolean(process.env.GROQ_API_KEY) ||
+            Boolean(process.env.OPENROUTER_API_KEY) ||
+            Boolean(process.env.DOUBLEWORD_API_KEY);
+
+        if (!hasConfiguredAi) {
+            return this.fallbackMatchDecision(item, fingerprint, candidates);
+        }
+
         const systemPrompt = 'You are PropAI\'s canonical market matcher. Decide if a new parsed stream item matches one existing canonical record. Return valid JSON only.';
         const userPrompt = `New candidate:
 ${JSON.stringify({
@@ -360,23 +427,78 @@ Return only this JSON:
   "decision": "match" | "new" | "conflict",
   "canonicalRecordId": "uuid or null",
   "confidence": number,
-  "summary": "string or null",
-  "agreeingFields": ["field"],
-  "conflictingFields": ["field"]
+ "summary": "string or null",
+ "agreeingFields": ["field"],
+ "conflictingFields": ["field"]
 }`;
 
-        const raw = await aiService.chat(userPrompt, 'Auto', 'listing_parsing', item.tenant_id, systemPrompt);
-        const parsed = parseJson<Partial<MatchDecision>>(raw.text, 'Failed to parse canonical match result');
+        try {
+            const raw = await aiService.chat(userPrompt, 'Auto', 'listing_parsing', item.tenant_id, systemPrompt);
+            const parsed = parseJson<Partial<MatchDecision>>(raw.text, 'Failed to parse canonical match result');
+
+            return {
+                decision: parsed.decision === 'match' || parsed.decision === 'conflict' ? parsed.decision : 'new',
+                canonicalRecordId: parsed.canonicalRecordId && candidates.some((candidate) => candidate.id === parsed.canonicalRecordId)
+                    ? parsed.canonicalRecordId
+                    : null,
+                confidence: Math.max(0, Math.min(1, Number(parsed.confidence || 0))),
+                summary: parsed.summary ? String(parsed.summary) : null,
+                agreeingFields: Array.isArray(parsed.agreeingFields) ? parsed.agreeingFields.map((field) => String(field)) : [],
+                conflictingFields: Array.isArray(parsed.conflictingFields) ? parsed.conflictingFields.map((field) => String(field)) : [],
+            } satisfies MatchDecision;
+        } catch (error) {
+            console.warn('[Canonicalization] AI matcher unavailable, using deterministic fallback', {
+                streamItemId: item.id,
+                tenantId: item.tenant_id,
+                error: error instanceof Error ? error.message : String(error || 'Unknown error'),
+            });
+            return this.fallbackMatchDecision(item, fingerprint, candidates);
+        }
+    }
+
+    private fallbackMatchDecision(item: StreamRow, fingerprint: string, candidates: CanonicalRow[]) {
+        const normalizedFingerprint = fingerprint.trim().toLowerCase();
+        const exactFingerprintMatch = candidates.find((candidate) => String(candidate.semantic_fingerprint_text || '').trim().toLowerCase() === normalizedFingerprint);
+        if (exactFingerprintMatch) {
+            return {
+                decision: 'match',
+                canonicalRecordId: exactFingerprintMatch.id,
+                confidence: 0.98,
+                summary: 'Matched by identical semantic fingerprint.',
+                agreeingFields: ['semantic_fingerprint_text'],
+                conflictingFields: [],
+            } satisfies MatchDecision;
+        }
+
+        const sameLocationMatch = candidates.find((candidate) => {
+            const sameLocality = Boolean(item.locality) && String(candidate.locality || '').trim().toLowerCase() === String(item.locality || '').trim().toLowerCase();
+            const sameCity = Boolean(item.city) && String(candidate.city || '').trim().toLowerCase() === String(item.city || '').trim().toLowerCase();
+            const sameBhk = Boolean(item.bhk) && String(candidate.bhk || '').trim().toLowerCase() === String(item.bhk || '').trim().toLowerCase();
+            const samePrice = typeof item.price_numeric === 'number' && typeof candidate.price_numeric === 'number'
+                ? Math.abs(Number(candidate.price_numeric) - Number(item.price_numeric)) <= Math.max(Number(candidate.price_numeric) * 0.15, 250000)
+                : false;
+            const sameBuilding = Boolean(item.parsed_payload?.buildingName) && String(candidate.building_name || '').trim().toLowerCase() === String(item.parsed_payload?.buildingName || '').trim().toLowerCase();
+            return (sameLocality || sameCity) && (sameBuilding || sameBhk || samePrice);
+        });
+
+        if (sameLocationMatch) {
+            return {
+                decision: 'match',
+                canonicalRecordId: sameLocationMatch.id,
+                confidence: 0.82,
+                summary: 'Matched by locality and structured fields.',
+                agreeingFields: ['locality', 'city', 'bhk', 'price_numeric', 'building_name'],
+                conflictingFields: [],
+            } satisfies MatchDecision;
+        }
 
         return {
-            decision: parsed.decision === 'match' || parsed.decision === 'conflict' ? parsed.decision : 'new',
-            canonicalRecordId: parsed.canonicalRecordId && candidates.some((candidate) => candidate.id === parsed.canonicalRecordId)
-                ? parsed.canonicalRecordId
-                : null,
-            confidence: Math.max(0, Math.min(1, Number(parsed.confidence || 0))),
-            summary: parsed.summary ? String(parsed.summary) : null,
-            agreeingFields: Array.isArray(parsed.agreeingFields) ? parsed.agreeingFields.map((field) => String(field)) : [],
-            conflictingFields: Array.isArray(parsed.conflictingFields) ? parsed.conflictingFields.map((field) => String(field)) : [],
+            decision: 'new',
+            canonicalRecordId: null,
+            confidence: 0.7,
+            summary: 'AI unavailable; created a new canonical record.',
+            agreeingFields: [],
+            conflictingFields: [],
         } satisfies MatchDecision;
     }
 
@@ -536,10 +658,10 @@ Return only this JSON:
             canonical_match_confidence: decision.confidence,
             canonical_decision: decision.decision === 'conflict' ? 'conflicted' : decision.decision === 'match' ? 'matched' : 'new',
         };
-        await Promise.all([
-            db.from('stream_items_residential').update(updateData).eq('id', streamItemId),
-            db.from('stream_items_commercial').update(updateData).eq('id', streamItemId),
-        ]);
+        const { error } = await db.from('stream_items').update(updateData).eq('id', streamItemId);
+        if (error && !this.disableForMissingSchema(error, 'canonical stream item update')) {
+            throw error;
+        }
     }
 
     private async updateSourceReliability(item: StreamRow, decision: MatchDecision, matched: boolean) {
