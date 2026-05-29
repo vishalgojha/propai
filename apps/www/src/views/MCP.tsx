@@ -16,12 +16,36 @@ export default function MCP() {
         </p>
       </div>
 
+      <div className="rounded-[24px] border border-[color:var(--border-strong)] bg-[var(--bg-surface)] p-8 space-y-4">
+        <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--accent)]">PropAI overview</p>
+        <h2 className="text-[28px] font-bold text-[var(--text-primary)]">WhatsApp-native CRM and market intelligence for Mumbai brokers</h2>
+        <p className="text-[15px] leading-7 text-[var(--text-secondary)]">
+          PropAI turns broker WhatsApp dumps into structured listings, requirements, and locality intelligence.
+          It normalizes locality aliases, keeps the public site on live inventory, and gives brokers direct access
+          to actionable market data instead of stale portal reposts.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Pricing</div>
+            <div className="mt-2 text-[16px] font-bold text-[var(--text-primary)]">₹1,999 first month</div>
+            <div className="text-[13px] text-[var(--text-secondary)]">Includes ₹500 worth of API keys.</div>
+            <div className="mt-2 text-[16px] font-bold text-[var(--text-primary)]">₹1,499/mo after that</div>
+          </div>
+          <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">For agents</div>
+            <div className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+              Use this page as the canonical model summary for AI agents, browser tooling, and MCP integrations.
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[
-          { t: 'Live Listings Tool', d: 'Query active verified listings based on any constraint.', i: Cpu },
-          { t: 'Area Insights Tool', d: 'Retrieve real-time supply and demand metrics for specific localities.', i: TrendingUp },
+          { t: 'Live Listings Tool', d: 'Query active verified listings from live broker inventory, not stale portal reposts.', i: Cpu },
+          { t: 'Area Insights Tool', d: 'Retrieve real-time supply and demand metrics for specific localities and belts.', i: TrendingUp },
           { t: 'Broker Connect Tool', d: 'Securely facilitate direct broker connections between agents.', i: MessageSquareIcon },
-          { t: 'Authentication', d: 'Protocol-level security for high-value transactional data.', i: Shield }
+          { t: 'Authentication', d: 'Protocol-level security for broker workspace data and market intelligence.', i: Shield }
         ].map((item, i) => (
            <div key={i} className="group p-8 rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)] transition-all">
               <div className="h-12 w-12 rounded-[12px] bg-[var(--bg-elevated)] border border-[color:var(--border)] flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">

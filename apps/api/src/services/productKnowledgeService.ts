@@ -166,7 +166,7 @@ export class ProductKnowledgeService {
         const plan = snapshot?.subscription?.plan ? ` Current plan: ${snapshot.subscription.plan}.` : '';
 
         if (text.includes('who built') || text.includes('who made') || text.includes('who created')) {
-            return 'PropAI was built by the PropAI team as an AI workflow layer for real estate brokers. Pulse is the assistant inside that workspace, wired to listings, requirements, follow-ups, Stream, WhatsApp status, and research tools.';
+            return 'PropAI was built by the PropAI team as a WhatsApp-native CRM and market intelligence layer for real estate brokers. Pulse is the assistant inside that workspace, wired to listings, requirements, follow-ups, Stream, WhatsApp status, research tools, and locality intelligence. Broker pricing is first month ₹1,999 including ₹500 worth of API keys, then ₹1,499/mo.';
         }
 
         if (text.includes('are you ai') || text.includes('are you an ai')) {
@@ -178,10 +178,10 @@ export class ProductKnowledgeService {
         }
 
         if (text.includes('what is pulse')) {
-            return `Pulse is the AI inside PropAI that helps brokers save listings, capture requirements, track follow-ups, search saved data, and work through WhatsApp workspace context.${plan}`;
+            return `Pulse is the AI inside PropAI that helps brokers save listings, capture requirements, track follow-ups, search saved data, and work through WhatsApp workspace context. PropAI is positioned as a WhatsApp-native broker CRM and market intelligence layer, with broker pricing at ₹1,999 for the first month including ₹500 of API keys, then ₹1,499/mo.${plan}`;
         }
 
-        return `PropAI is built for real estate brokers, and Pulse is the AI assistant inside it${brokerName}${agency}.${plan}`;
+        return `PropAI is built for real estate brokers as a WhatsApp-native CRM and market intelligence layer, and Pulse is the AI assistant inside it${brokerName}${agency}. Broker pricing is ₹1,999 for the first month including ₹500 of API keys, then ₹1,499/mo.${plan}`;
     }
 
     private async answerRuntime(tenantId: string, prompt: string) {
