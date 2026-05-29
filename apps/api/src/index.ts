@@ -31,6 +31,7 @@ import { errorHandler } from './middleware/errorMiddleware';
 import { authMiddleware } from './middleware/authMiddleware';
 
 import { sessionManager } from './whatsapp/SessionManager';
+import { whatsappHealthService } from './services/whatsappHealthService';
 import { historySyncWorker } from './services/historySyncWorker';
 import { syndicationSyncJob } from './jobs/syndicationSyncJob';
 import { generateMarketInsightsJob } from './jobs/generateMarketInsights';
@@ -290,6 +291,7 @@ async function gracefulShutdown(signal: string) {
     // Disconnect all WhatsApp sessions cleanly to avoid "replaced" conflicts
     try {
         await sessionManager.disconnectAllSessions();
+        whatsappHealthService.stopHeartbeatLoop();
         console.log('[shutdown] All WhatsApp sessions disconnected.');
     } catch (error) {
         console.error('[shutdown] Error disconnecting WhatsApp sessions:', error);
@@ -360,6 +362,8 @@ server = app.listen(PORT, () => {
             } else {
                 console.log('[startup] System WhatsApp session disabled.');
             }
+
+            whatsappHealthService.startHeartbeatLoop(sessionManager);
 
             console.log('[startup] All initialization complete.');
         } catch (error) {
