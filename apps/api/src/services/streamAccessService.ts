@@ -12,10 +12,11 @@ export type StreamAccess = {
 export async function resolveStreamAccess(tenantId: string, email?: string | null): Promise<StreamAccess> {
     const subscription = await subscriptionService.getSubscription(tenantId, email);
     const plan = normalizePlanName(subscription.plan);
+    const canViewStream = plan !== 'Trial';
 
     return {
         plan,
-        canViewStream: plan !== 'Trial',
-        networkMode: plan === 'Pro',
+        canViewStream,
+        networkMode: canViewStream,
     };
 }
