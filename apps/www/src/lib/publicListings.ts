@@ -726,15 +726,14 @@ function normalizeListingText(value: string) {
 
 export async function fetchTodayParsedCount(): Promise<number> {
   if (!supabaseAdmin) return 0;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const sources = ["stream_items", "stream_items_residential", "stream_items_commercial"] as const;
   const counts = await Promise.all(
     sources.map(async (table) => {
       const { count } = await supabaseAdmin
         .from(table)
         .select("*", { count: "exact", head: true })
-        .gte("created_at", today.toISOString());
+        .gte("updated_at", since);
       return count || 0;
     }),
   );

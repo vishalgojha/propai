@@ -115,7 +115,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
       <section className="px-8 grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 max-w-7xl mx-auto">
         {[
           { label: 'Live Listings', value: liveCount.toLocaleString() },
-          { label: 'Parsed Today', value: todayCount.toLocaleString(), color: 'text-[var(--accent)]' },
+          { label: 'Fresh Today', value: todayCount.toLocaleString(), color: 'text-[var(--accent)]' },
           { label: 'Avg Listing Age', value: avgAgeDisplay }
         ].map((stat, i) => (
           <div key={i} className="bg-[var(--bg-surface)] border border-[color:var(--border)] rounded-[16px] p-6 shadow-sm hover:border-[color:var(--border-strong)] transition-all">
