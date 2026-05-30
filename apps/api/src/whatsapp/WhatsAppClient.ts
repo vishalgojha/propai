@@ -709,6 +709,29 @@ try {
         }
     }
 
+    async restartTransport(options: { usePairingCode?: string; phoneNumber?: string } = {}) {
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+        if (this.qrTimeoutTimer) {
+            clearTimeout(this.qrTimeoutTimer);
+            this.qrTimeoutTimer = null;
+        }
+
+        this.isConnecting = false;
+        this.connectionStatus = 'disconnected';
+
+        if (this.socket) {
+            await this.disposeSocket({ logout: false }).catch(() => undefined);
+        }
+
+        return this.connect({
+            usePairingCode: options.usePairingCode,
+            phoneNumber: options.phoneNumber || this.connectedPhoneNumber || undefined,
+        });
+    }
+
     async sendText(jid: string, text: string) {
         return this.sendMessage(jid, text);
     }

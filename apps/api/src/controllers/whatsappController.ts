@@ -9,7 +9,7 @@ import { workspaceMonitorService } from '../services/workspaceMonitorService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { workspaceActivityService } from '../services/workspaceActivityService';
 import { sendWhatsAppLifecycleEmail } from '../whatsapp/propaiRuntimeHooks';
-import { pushRecentAction } from '../services/identityService';
+import { pushRecentAction, syncBrokerIdentityPhone } from '../services/identityService';
 import { sessionEventService } from '../services/sessionEventService';
 import { emailNotificationService } from '../services/emailNotificationService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
@@ -1461,6 +1461,12 @@ export const saveProfile = async (req: Request, res: Response) => {
     if (upsertError) {
         return res.status(500).json({ error: upsertError.message || 'Failed to save profile' });
     }
+
+    await syncBrokerIdentityPhone(
+        tenantId,
+        lockedWorkspacePhone || normalizedPhone,
+        normalizedFullName,
+    ).catch(() => null);
 
     const { data, error } = await dbClient
         .from('profiles')

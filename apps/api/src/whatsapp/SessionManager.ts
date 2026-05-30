@@ -155,24 +155,23 @@ export class SessionManager {
         const existingClient = this.clients.get(fullKey);
         if (existingClient) {
             this.callbacks.set(fullKey, { onQR, onConnectionUpdate });
-
-            const existingQR = this.qrs.get(fullKey);
-            if (existingQR) {
-                onQR(existingQR);
-                return existingClient;
-            }
-
             const snapshot = existingClient.getStatusSnapshot();
             if (snapshot.status !== 'connected') {
-                await existingClient.connect({
+                this.qrs.delete(fullKey);
+                await existingClient.restartTransport({
                     usePairingCode: options.usePairingCode,
                     phoneNumber: options.phoneNumber,
                 });
-
                 const refreshedQR = this.qrs.get(fullKey);
                 if (refreshedQR) {
                     onQR(refreshedQR);
                 }
+                return existingClient;
+            }
+
+            const existingQR = this.qrs.get(fullKey);
+            if (existingQR) {
+                onQR(existingQR);
             }
 
             return existingClient;

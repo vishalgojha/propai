@@ -136,8 +136,8 @@ export class WhatsAppHealthService {
     private eventLogSessionField: EventLogSessionField = 'session_label';
     private heartbeatTimer: NodeJS.Timeout | null = null;
     private heartbeatRunning = false;
-    private readonly heartbeatIntervalMs = Number(process.env.WHATSAPP_HEALTH_HEARTBEAT_MS || 15_000);
-    private readonly heartbeatReconnectAfterMs = Number(process.env.WHATSAPP_HEALTH_RECONNECT_AFTER_MS || 20_000);
+    private readonly heartbeatIntervalMs = Number(process.env.WHATSAPP_HEALTH_HEARTBEAT_MS || 5_000);
+    private readonly heartbeatReconnectAfterMs = Number(process.env.WHATSAPP_HEALTH_RECONNECT_AFTER_MS || 10_000);
 
     startHeartbeatLoop(sessionManager: HeartbeatSessionManager) {
         if (this.heartbeatTimer) {
@@ -679,7 +679,11 @@ export class WhatsAppHealthService {
                 const dbStatus = String(row.status || 'disconnected').trim().toLowerCase();
                 const updatedAtMs = row.updated_at ? new Date(row.updated_at).getTime() : NaN;
                 const ageMs = Number.isFinite(updatedAtMs) ? Math.max(0, now - updatedAtMs) : Number.MAX_SAFE_INTEGER;
+                const sessionData = (row.session_data && typeof row.session_data === 'object') ? row.session_data as Record<string, unknown> : {};
+                const disconnectReason = String(sessionData.disconnectReason || '').trim().toLowerCase();
+                const autoReconnectBlocked = Boolean(sessionData.autoReconnectBlocked) || disconnectReason === 'replaced' || disconnectReason === 'logged_out';
                 const staleEnough = ageMs >= this.heartbeatReconnectAfterMs;
+                const canRecoverImmediately = dbStatus === 'disconnected' && !autoReconnectBlocked;
 
                 if (liveStatus === 'connected' || dbStatus === 'connected' && !staleEnough) {
                     continue;
@@ -693,6 +697,10 @@ export class WhatsAppHealthService {
                     continue;
                 }
 
+                if (!canRecoverImmediately && !staleEnough) {
+                    continue;
+                }
+
                 try {
                     await this.appendEvent(
                         tenantId,
@@ -703,6 +711,8 @@ export class WhatsAppHealthService {
                             previousStatus: dbStatus,
                             liveStatus: liveStatus || null,
                             ageMs,
+                            disconnectReason: disconnectReason || null,
+                            autoReconnectBlocked,
                         },
                     );
 

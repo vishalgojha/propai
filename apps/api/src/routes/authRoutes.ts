@@ -6,6 +6,7 @@ import { ROUTE_PATHS } from './routePaths';
 import { referralService } from '../services/referralService';
 import { subscriptionService } from '../services/subscriptionService';
 import { emailNotificationService } from '../services/emailNotificationService';
+import { syncBrokerIdentityPhone } from '../services/identityService';
 import { getPhoneOwnership, normalizePhone as normalizePhoneValue } from '../services/phoneOwnershipService';
 import {
     requestVerificationBodySchema,
@@ -260,6 +261,12 @@ async function upsertProfile(userId: string, email: string | null | undefined, f
         .upsert(payload, { onConflict: 'id' });
 
     if (error) throw error;
+
+    await syncBrokerIdentityPhone(
+        userId,
+        normalizedPhone || existingProfile?.phone || null,
+        fullName || existingProfile?.full_name || null,
+    ).catch(() => null);
 
     const profile = await getProfileById(userId, accessToken);
 

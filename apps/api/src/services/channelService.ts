@@ -2053,17 +2053,45 @@ private dailyBriefingSentKeys = new Set<string>();
             throw new Error(error.message);
         }
 
-        const tenantIds = Array.from(new Set([
+        const tenantIds = new Set<string>([
             tenantId,
             ...((data || []).map((row: any) => String(row.id || '')).filter(Boolean)),
-        ]));
+        ]);
+
+        const acceptedTenantTables = ['stream_items', 'stream_items_residential', 'stream_items_commercial'] as const;
+        for (const table of acceptedTenantTables) {
+            let offset = 0;
+            const pageSize = 1000;
+            while (true) {
+                const { data: rows, error: rowsError } = await this.db
+                    .from(table)
+                    .select('tenant_id')
+                    .eq('ingestion_status', 'accepted')
+                    .range(offset, offset + pageSize - 1);
+
+                if (rowsError) {
+                    throw new Error(rowsError.message);
+                }
+
+                const page = Array.isArray(rows) ? rows : [];
+                for (const row of page) {
+                    const id = String((row as any)?.tenant_id || '').trim();
+                    if (id) tenantIds.add(id);
+                }
+
+                if (page.length < pageSize) {
+                    break;
+                }
+                offset += pageSize;
+            }
+        }
 
         this.networkTenantIdsCache.set(cacheKey, {
-            tenantIds,
+            tenantIds: Array.from(tenantIds),
             expiresAt: Date.now() + (60 * 1000),
         });
 
-        return tenantIds;
+        return Array.from(tenantIds);
     }
 
     async listStreamItems(

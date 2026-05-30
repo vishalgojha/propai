@@ -1,4 +1,5 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
+import { normalizePhone as normalizeIndianPhone } from './phoneOwnershipService';
 
 const db = supabaseAdmin ?? supabase;
 
@@ -117,4 +118,42 @@ export async function pushRecentAction(brokerId: string, action: string): Promis
         .from('broker_identity')
         .update({ recent_actions: JSON.stringify(trimmed), updated_at: new Date().toISOString() })
         .eq('broker_id', brokerId);
+}
+
+export async function syncBrokerIdentityPhone(
+    brokerId: string,
+    phone?: string | null,
+    fullName?: string | null,
+): Promise<void> {
+    if (!brokerId) {
+        return;
+    }
+
+    const normalizedPhone = normalizeIndianPhone(phone);
+    const normalizedFullName = String(fullName || '').trim();
+
+    const payload: Record<string, unknown> = {
+        broker_id: brokerId,
+        updated_at: new Date().toISOString(),
+    };
+
+    if (normalizedPhone) {
+        payload.mobile = normalizedPhone;
+    }
+
+    if (normalizedFullName) {
+        payload.full_name = normalizedFullName;
+    }
+
+    if (!normalizedPhone && !normalizedFullName) {
+        return;
+    }
+
+    const { error } = await db
+        .from('broker_identity')
+        .upsert(payload, { onConflict: 'broker_id' });
+
+    if (error) {
+        throw error;
+    }
 }
