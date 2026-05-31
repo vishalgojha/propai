@@ -680,7 +680,6 @@ export const Sources: React.FC = () => {
     return connectedSenderSessions.filter((session) => status.allowedOutboundSessionLabels?.includes(session.label));
   }, [connectedSenderSessions, status.allowedOutboundSessionLabels, status.hasOutboundLaneRestriction]);
 
-  const demoMode = process.env.NEXT_PUBLIC_WHATSAPP_DEMO_MODE === 'true';
   const accessModelLabel = useMemo(() => {
     if (user?.appRole === 'super_admin') {
       return 'Super Admin';
@@ -1313,35 +1312,6 @@ export const Sources: React.FC = () => {
       phoneNumber: phoneNumberToUse,
       pathname: location.pathname,
     });
-
-    if (demoMode) {
-      setIsConnecting(true);
-      setScanProgress(0);
-      setConnectionArtifact({
-        mode: 'qr',
-        format: 'text',
-        value: `WA:${phoneNumberToUse}:${ownerNameToUse}`,
-      });
-      const interval = window.setInterval(() => {
-        setScanProgress((current) => {
-          const next = current + 14;
-          if (next >= 100) {
-            window.clearInterval(interval);
-            return 100;
-          }
-          return next;
-        });
-      }, 180);
-
-      window.setTimeout(() => {
-        setQrGeneratedAt(Date.now());
-        setQrTimeLeft(QR_FRESHNESS_SECONDS);
-        setStatus((current) => ({ ...current, status: 'connecting' }));
-        setIsConnecting(false);
-      }, 1200);
-
-      return;
-    }
 
     setIsConnecting(true);
     setError(null);
@@ -2875,7 +2845,7 @@ export const Sources: React.FC = () => {
                 </div>
               </div>
               <span className={cn(sourcePill, 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]')}>
-                {artifactMode === 'pairing' ? 'Pairing code' : demoMode ? 'Demo QR' : 'Live QR'}
+                {artifactMode === 'pairing' ? 'Pairing code' : 'Live QR'}
               </span>
             </div>
 
@@ -2927,7 +2897,21 @@ export const Sources: React.FC = () => {
             ) : null}
 
             <div className="mt-4">
-              {qrMarkup ? (
+              {artifactMode === 'pairing' && artifactValue ? (
+                <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-center">
+                  <div className="mx-auto w-fit rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-6 py-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+                      Pairing code
+                    </p>
+                    <p className="mt-2 text-[28px] font-semibold tracking-[0.18em] text-[var(--accent)]">
+                      {artifactValue}
+                    </p>
+                  </div>
+                  <p className="mt-3 text-[12px] leading-6 text-[var(--text-secondary)]">
+                    Open WhatsApp on the broker phone, go to Linked Devices, choose Link a Device, and enter the code above.
+                  </p>
+                </div>
+              ) : qrMarkup ? (
                 <div className={cn(
                   'flex min-h-[420px] items-center justify-center rounded-[12px] border border-[color:var(--border)] bg-white p-5 transition-opacity',
                   isQrExpired && 'opacity-55'
@@ -2936,15 +2920,6 @@ export const Sources: React.FC = () => {
                     className="w-full max-w-[320px]"
                     dangerouslySetInnerHTML={{ __html: qrMarkup }}
                   />
-                </div>
-              ) : artifactValue ? (
-                <div className="min-h-[420px] rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4">
-                  <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-                    {artifactMode === 'pairing' ? 'Pairing code' : 'QR payload'}
-                  </p>
-                  <p className="break-all rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 font-mono text-[15px] tracking-[0.14em] text-[var(--text-primary)]">
-                    {artifactValue}
-                  </p>
                 </div>
               ) : showConnectionArtifactPanel ? (
                 <div className="min-h-[420px] rounded-[12px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-5">
@@ -2966,9 +2941,11 @@ export const Sources: React.FC = () => {
               ) : (
                 <div className="flex min-h-[420px] items-center justify-center rounded-[12px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-5 text-center">
                   <div>
-                    <p className="text-[13px] font-semibold text-[var(--text-primary)]">QR only panel</p>
+                    <p className="text-[13px] font-semibold text-[var(--text-primary)]">
+                      {artifactMode === 'pairing' ? 'Pairing code panel' : 'QR panel'}
+                    </p>
                     <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
-                      The QR or pairing artifact for the selected broker number will always appear here, including when you connect a second number.
+                      The QR or pairing artifact for the selected broker number will appear here after you start a connect flow on the left.
                     </p>
                   </div>
                 </div>
