@@ -1,11 +1,9 @@
 import React from 'react';
 import {
-  BadgeIndianRupee,
   Building2,
   Check,
   Clock,
   Copy,
-  Hash,
   Link as LinkIcon,
   Loader2,
   MapPin,
@@ -39,17 +37,18 @@ const brokerNetworkViewFromPath = (pathname: string): BrokerNetworkView => {
   return 'contacts';
 };
 
-const formatPhone = (phone: string): string => {
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length === 10) return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
-  if (digits.length === 12 && digits.startsWith('91')) return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
-  return '—';
+const isLikelyBrokerName = (value: string): boolean => {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return false;
+  if (trimmed.length > 48) return false;
+  if (/^\+?\d[\d\s-()]{8,}$/.test(trimmed)) return false;
+  if (/^(?:91)?[6-9]\d{9}$/.test(trimmed.replace(/\D/g, ''))) return false;
+  return !/\b(contact|call|text|whatsapp|inspection|details|more|available|rent|sale)\b/i.test(trimmed);
 };
 
 const getBrokerLabel = (contact: { display_name: string | null; phone: string }): string => {
-  if (contact.display_name) return contact.display_name;
-  const formattedPhone = formatPhone(contact.phone);
-  return formattedPhone === '—' ? 'Broker' : formattedPhone;
+  if (contact.display_name && isLikelyBrokerName(contact.display_name)) return contact.display_name.trim();
+  return 'Caller ID pending';
 };
 
 const formatPrice = (value: number | null | undefined): string => {
@@ -82,6 +81,11 @@ const buildBrokerWhatsAppLink = (phone: string): string | null => {
   const normalized = digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
   const message = 'Hi, I found your number on PropAI and wanted to connect.';
   return `https://wa.me/91${normalized}?text=${encodeURIComponent(message)}`;
+};
+
+const getWhatsAppActionLabel = (phone: string): string => {
+  const digits = normalizePhoneDigits(phone);
+  return digits.length >= 10 ? 'Open WhatsApp' : 'wa.me';
 };
 
 const extractToken = (value: string): string => {
@@ -553,10 +557,9 @@ export const BrokerNetwork: React.FC = () => {
               <thead>
                 <tr className="border-b border-white/[0.04] text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
                   <th className="px-5 py-4">Broker</th>
-                  <th className="px-5 py-4">Phone</th>
+                  <th className="px-5 py-4">WhatsApp</th>
                   <th className="px-5 py-4">Areas</th>
-                  <th className="px-5 py-4">BHK</th>
-                  <th className="px-5 py-4">Price range</th>
+                  <th className="px-5 py-4">Groups</th>
                   <th className="px-5 py-4">Listings</th>
                   <th className="px-5 py-4">Last seen</th>
                 </tr>
@@ -594,14 +597,15 @@ export const BrokerNetwork: React.FC = () => {
                         target={buildBrokerWhatsAppLink(contact.phone) ? '_blank' : undefined}
                         rel={buildBrokerWhatsAppLink(contact.phone) ? 'noreferrer' : undefined}
                         className={cn(
-                          'inline-flex items-center gap-1 text-[13px] transition-colors',
+                          'inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors',
                           buildBrokerWhatsAppLink(contact.phone)
-                            ? 'text-[var(--accent)] hover:underline'
-                            : 'text-[var(--text-secondary)] pointer-events-none',
+                            ? 'text-[var(--accent)] hover:border-[color:var(--accent-border)]'
+                            : 'pointer-events-none text-[var(--text-muted)]',
                         )}
+                        aria-label={`Open WhatsApp chat for ${getBrokerLabel(contact)}`}
                       >
                         <Phone className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-                        {formatPhone(contact.phone)}
+                        {getWhatsAppActionLabel(contact.phone)}
                       </a>
                     </td>
                     <td className="px-5 py-4">
@@ -627,39 +631,10 @@ export const BrokerNetwork: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {contact.asset_types.length > 0 ? (
-                          contact.asset_types.slice(0, 3).map((asset) => (
-                            <span
-                              key={asset}
-                              className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]"
-                            >
-                              <Hash className="h-3 w-3" />
-                              {asset}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-[12px] text-[var(--text-muted)]">—</span>
-                        )}
-                        {contact.asset_types.length > 3 ? (
-                          <span className="text-[10px] text-[var(--text-muted)]">
-                            +{contact.asset_types.length - 3}
-                          </span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      {contact.price_range_low || contact.price_range_high ? (
-                        <span className="inline-flex items-center gap-1 text-[13px] text-[var(--text-secondary)]">
-                          <BadgeIndianRupee className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-                          {formatPrice(contact.price_range_low)}
-                          {contact.price_range_low !== contact.price_range_high ? (
-                            <> — {formatPrice(contact.price_range_high)}</>
-                          ) : null}
-                        </span>
-                      ) : (
-                        <span className="text-[12px] text-[var(--text-muted)]">—</span>
-                      )}
+                      <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)]">
+                        <UsersRound className="h-3 w-3" />
+                        {contact.group_count}
+                      </span>
                     </td>
                     <td className="px-5 py-4">
                       <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--accent)]">
@@ -692,7 +667,7 @@ export const BrokerNetwork: React.FC = () => {
                   <th className="px-5 py-4">Contact</th>
                   <th className="px-5 py-4">Shared groups</th>
                   <th className="px-5 py-4">Areas</th>
-                  <th className="px-5 py-4">BHK</th>
+                  <th className="px-5 py-4">WhatsApp</th>
                   <th className="px-5 py-4">Listings</th>
                   <th className="px-5 py-4">Last seen</th>
                 </tr>
@@ -715,10 +690,6 @@ export const BrokerNetwork: React.FC = () => {
                           <p className="font-semibold text-[var(--text-primary)]">
                             {getBrokerLabel(contact)}
                           </p>
-                          <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
-                            <Phone className="h-3 w-3" />
-                            {formatPhone(contact.phone)}
-                          </p>
                           <a
                             href={buildBrokerWhatsAppLink(contact.phone) || undefined}
                             target={buildBrokerWhatsAppLink(contact.phone) ? '_blank' : undefined}
@@ -729,8 +700,9 @@ export const BrokerNetwork: React.FC = () => {
                                 ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)] hover:brightness-110'
                                 : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-muted)] pointer-events-none',
                             )}
+                            aria-label={`Open WhatsApp chat for ${getBrokerLabel(contact)}`}
                           >
-                            Connect on WhatsApp
+                            {getWhatsAppActionLabel(contact.phone)}
                           </a>
                         </div>
                       </div>
@@ -778,21 +750,10 @@ export const BrokerNetwork: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {contact.asset_types.length > 0 ? (
-                          contact.asset_types.slice(0, 3).map((asset) => (
-                            <span
-                              key={asset}
-                              className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]"
-                            >
-                              <Hash className="h-3 w-3" />
-                              {asset}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-[12px] text-[var(--text-muted)]">—</span>
-                        )}
-                      </div>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)]">
+                        <Phone className="h-3 w-3 text-[var(--text-muted)]" />
+                        wa.me
+                      </span>
                     </td>
                     <td className="px-5 py-4">
                       <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--accent)]">
