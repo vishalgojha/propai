@@ -85,6 +85,24 @@ type SupportLogsResponse = {
   message: string;
 };
 
+type OfficialWhatsappCloudConfig = {
+  configured: boolean;
+  enabled: boolean;
+  phoneNumberId: string;
+  businessAccountId: string;
+  displayPhoneNumber: string;
+  apiVersion: string;
+  verifyTokenSet: boolean;
+  hasAccessToken: boolean;
+  webhookUrl: string;
+  row: {
+    sessionId: string;
+    label: string;
+    status: string;
+    lastSync: string | null;
+  } | null;
+};
+
 type ConnectionArtifact = {
   mode: 'qr' | 'pairing';
   format: 'text';
@@ -540,6 +558,17 @@ export const Sources: React.FC = () => {
   const [isApplyingGroupAudit, setIsApplyingGroupAudit] = useState(false);
   const [isAllowingAllRealEstate, setIsAllowingAllRealEstate] = useState(false);
   const [isResettingSession, setIsResettingSession] = useState(false);
+  const [officialCloudLoading, setOfficialCloudLoading] = useState(false);
+  const [officialCloudSaving, setOfficialCloudSaving] = useState(false);
+  const [officialCloudFeedback, setOfficialCloudFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+  const [officialCloudConfig, setOfficialCloudConfig] = useState<OfficialWhatsappCloudConfig | null>(null);
+  const [officialCloudPhoneNumberId, setOfficialCloudPhoneNumberId] = useState('');
+  const [officialCloudBusinessAccountId, setOfficialCloudBusinessAccountId] = useState('');
+  const [officialCloudDisplayPhoneNumber, setOfficialCloudDisplayPhoneNumber] = useState('');
+  const [officialCloudApiVersion, setOfficialCloudApiVersion] = useState('v20.0');
+  const [officialCloudVerifyToken, setOfficialCloudVerifyToken] = useState('');
+  const [officialCloudAccessToken, setOfficialCloudAccessToken] = useState('');
+  const [officialCloudEnabled, setOfficialCloudEnabled] = useState(true);
   const [selectedAuditParseIds, setSelectedAuditParseIds] = useState<string[]>([]);
   const [groupAuditSearchTerm, setGroupAuditSearchTerm] = useState('');
   const [groupAuditFilter, setGroupAuditFilter] = useState<GroupAuditFilter>('all');
@@ -763,6 +792,69 @@ export const Sources: React.FC = () => {
       setEventLogs([]);
     }
   }, []);
+
+  const fetchOfficialCloudConfig = useCallback(async () => {
+    if (activeTab !== 'setup') {
+      return;
+    }
+
+    setOfficialCloudLoading(true);
+    try {
+      const response = await backendApi.get(ENDPOINTS.whatsapp.cloudConfig);
+      const config = (response.data?.config || null) as OfficialWhatsappCloudConfig | null;
+      setOfficialCloudConfig(config);
+      setOfficialCloudPhoneNumberId(config?.phoneNumberId || '');
+      setOfficialCloudBusinessAccountId(config?.businessAccountId || '');
+      setOfficialCloudDisplayPhoneNumber(config?.displayPhoneNumber || '');
+      setOfficialCloudApiVersion(config?.apiVersion || 'v20.0');
+      setOfficialCloudEnabled(Boolean(config?.enabled));
+      setOfficialCloudVerifyToken('');
+      setOfficialCloudAccessToken('');
+    } catch (err) {
+      console.error(handleApiError(err));
+      setOfficialCloudFeedback({ tone: 'error', message: handleApiError(err) });
+    } finally {
+      setOfficialCloudLoading(false);
+    }
+  }, [activeTab]);
+
+  const saveOfficialCloudConfig = useCallback(async () => {
+    setOfficialCloudSaving(true);
+    setOfficialCloudFeedback(null);
+    try {
+      const response = await backendApi.post(ENDPOINTS.whatsapp.cloudConfig, {
+        enabled: officialCloudEnabled,
+        phoneNumberId: officialCloudPhoneNumberId,
+        businessAccountId: officialCloudBusinessAccountId,
+        displayPhoneNumber: officialCloudDisplayPhoneNumber,
+        apiVersion: officialCloudApiVersion,
+        verifyToken: officialCloudVerifyToken,
+        accessToken: officialCloudAccessToken,
+      });
+      const config = (response.data?.config || null) as OfficialWhatsappCloudConfig | null;
+      setOfficialCloudConfig(config);
+      setOfficialCloudPhoneNumberId(config?.phoneNumberId || officialCloudPhoneNumberId);
+      setOfficialCloudBusinessAccountId(config?.businessAccountId || officialCloudBusinessAccountId);
+      setOfficialCloudDisplayPhoneNumber(config?.displayPhoneNumber || officialCloudDisplayPhoneNumber);
+      setOfficialCloudApiVersion(config?.apiVersion || officialCloudApiVersion);
+      setOfficialCloudEnabled(Boolean(config?.enabled));
+      setOfficialCloudVerifyToken('');
+      setOfficialCloudAccessToken('');
+      setOfficialCloudFeedback({ tone: 'success', message: 'Official WhatsApp API config saved.' });
+    } catch (err) {
+      setOfficialCloudFeedback({ tone: 'error', message: handleApiError(err) });
+    } finally {
+      setOfficialCloudSaving(false);
+    }
+  }, [
+    officialCloudAccessToken,
+    officialCloudApiVersion,
+    officialCloudBusinessAccountId,
+    officialCloudDisplayPhoneNumber,
+    officialCloudEnabled,
+    officialCloudPhoneNumberId,
+    officialCloudVerifyToken,
+  ]);
 
   const fetchHealthLogs = useCallback(async () => {
     try {
@@ -1044,6 +1136,9 @@ export const Sources: React.FC = () => {
   }, [artifactMode, artifactValue]);
 
   useEffect(() => {
+    if (activeTab === 'setup') {
+      void fetchOfficialCloudConfig();
+    }
     if (activeTab === 'audit') {
       void fetchGroupAudit();
     }
@@ -1053,7 +1148,7 @@ export const Sources: React.FC = () => {
       void fetchHealth();
       void fetchHealthLogs();
     }
-  }, [activeTab, fetchGroupAudit, fetchOutboundWorkspace, fetchLogs, fetchHealth, fetchHealthLogs]);
+  }, [activeTab, fetchGroupAudit, fetchHealth, fetchHealthLogs, fetchLogs, fetchOfficialCloudConfig, fetchOutboundWorkspace]);
 
   useEffect(() => {
     if (!auditSessionLabel) {
@@ -1904,6 +1999,110 @@ export const Sources: React.FC = () => {
 
         </div>
       </div>
+      ) : null}
+
+      {activeTab === 'setup' ? (
+        <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Official WhatsApp API</p>
+              <h3 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">One official number for conversational AI. Replies stay free-form inside the 24-hour window.</h3>
+              <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
+                Use this for your Meta/Cloud API number. Brokers or clients message first, PropAI answers conversationally, and every inbound message can still feed the same parsing and stream pipeline.
+              </p>
+            </div>
+            <div className={cn('rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] font-medium text-[var(--text-secondary)]', officialCloudConfig?.enabled ? 'text-[var(--accent)]' : '')}>
+              {officialCloudLoading ? 'Loading config…' : officialCloudConfig?.configured ? (officialCloudConfig.enabled ? 'Official API enabled' : 'Official API saved, disabled') : 'Not configured'}
+            </div>
+          </div>
+
+          {officialCloudFeedback ? (
+            <div className={cn(
+              'mt-4 rounded-[10px] border px-3 py-2 text-[12px]',
+              officialCloudFeedback.tone === 'success'
+                ? 'border-[rgba(62,232,138,0.2)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
+                : 'border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
+            )}>
+              {officialCloudFeedback.message}
+            </div>
+          ) : null}
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Display phone</span>
+              <input
+                value={officialCloudDisplayPhoneNumber}
+                onChange={(event) => setOfficialCloudDisplayPhoneNumber(event.target.value)}
+                placeholder="+91..."
+                className={sourceFieldClassName}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Phone number ID</span>
+              <input
+                value={officialCloudPhoneNumberId}
+                onChange={(event) => setOfficialCloudPhoneNumberId(event.target.value)}
+                placeholder="123456789012345"
+                className={sourceFieldClassName}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Business account ID</span>
+              <input
+                value={officialCloudBusinessAccountId}
+                onChange={(event) => setOfficialCloudBusinessAccountId(event.target.value)}
+                placeholder="123456789012345"
+                className={sourceFieldClassName}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">API version</span>
+              <input
+                value={officialCloudApiVersion}
+                onChange={(event) => setOfficialCloudApiVersion(event.target.value)}
+                placeholder="v20.0"
+                className={sourceFieldClassName}
+              />
+            </label>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Webhook verify token</span>
+              <input
+                value={officialCloudVerifyToken}
+                onChange={(event) => setOfficialCloudVerifyToken(event.target.value)}
+                placeholder="Used for the Meta webhook verify challenge"
+                className={sourceFieldClassName}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access token</span>
+              <input
+                value={officialCloudAccessToken}
+                onChange={(event) => setOfficialCloudAccessToken(event.target.value)}
+                placeholder="Meta access token"
+                className={sourceFieldClassName}
+              />
+            </label>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1 text-[12px] text-[var(--text-secondary)]">
+              <p>Webhook URL: <span className="font-semibold text-[var(--text-primary)]">{officialCloudConfig?.webhookUrl || '/api/whatsapp/cloud/webhook'}</span></p>
+              <p>Enable this only for the official Cloud API number. It stays separate from the linked-device WhatsApp runtime.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void saveOfficialCloudConfig()}
+              className={sourcePrimaryButton}
+              disabled={officialCloudSaving || officialCloudLoading || !officialCloudPhoneNumberId}
+            >
+              <Smartphone className="h-4 w-4" />
+              {officialCloudSaving ? 'Saving...' : 'Save official API config'}
+            </button>
+          </div>
+        </div>
       ) : null}
 
       {activeTab === 'audit' ? (

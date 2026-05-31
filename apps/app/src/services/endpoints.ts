@@ -82,6 +82,8 @@ export const ENDPOINTS = {
     messages: '/whatsapp/messages',
     send: '/whatsapp/send',
     sendBulk: '/whatsapp/send-bulk',
+    cloudConfig: '/whatsapp/cloud/config',
+    cloudWebhook: '/whatsapp/cloud/webhook',
   },
   channels: {
     list: '/channels',

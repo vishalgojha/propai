@@ -25,6 +25,7 @@ import analyticsRoutes from './routes/analyticsRoutes';
 import vaultRoutes from './routes/vaultRoutes';
 import igrRoutes from './routes/igrRoutes';
 import locationRoutes from './routes/locationRoutes';
+import whatsappCloudRoutes from './routes/whatsappCloudRoutes';
 import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
@@ -179,6 +180,7 @@ app.post(ROUTE_PATHS.api.aiPropertySearch, (req, res) => {
 });
 
 app.use(ROUTE_PATHS.api.auth, authRoutes);
+app.use(ROUTE_PATHS.api.whatsappCloud, whatsappCloudRoutes);
 app.use(ROUTE_PATHS.api.whatsapp, authMiddleware, whatsappRoutes);
 app.use('/api/whatsapp/presence', authMiddleware, whatsappPresenceRoutes);
 // Intelligence API (standalone, behind feature flag)

@@ -24,6 +24,7 @@ export const ROUTE_PATHS = {
     examplePrompts: '/api/example-prompts',
     notifications: '/api/notifications',
     syndication: '/api/syndication',
+    whatsappCloud: '/api/whatsapp/cloud',
   },
   notifications: {
     subscribe: '/subscribe',
