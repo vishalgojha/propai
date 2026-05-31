@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Search, Filter, LayoutGrid, List as ListIcon, X } from 'lucide-react';
 import { getListings, type PublicListing } from '@/lib/listings';
@@ -20,11 +21,14 @@ function normalizeLocalityQuery(value?: string | null) {
 }
 
 export default function Listings({ initialListings = [], initialLocality = '' }: { initialListings?: PublicListing[]; initialLocality?: string }) {
+  const searchParams = useSearchParams();
+  const urlLocality = normalizeLocalityQuery(searchParams.get('locality'));
   const normalizedInitialLocality = normalizeLocalityQuery(initialLocality);
+  const effectiveInitialLocality = normalizedInitialLocality || urlLocality;
   const [listings, setListings] = useState<PublicListing[]>(initialListings);
   const [filters, setFilters] = useState(() => {
     const type = 'All';
-    return { locality: normalizedInitialLocality, type, sort: 'Newest' };
+    return { locality: effectiveInitialLocality, type, sort: 'Newest' };
   });
 
   useEffect(() => {
@@ -33,7 +37,7 @@ export default function Listings({ initialListings = [], initialLocality = '' }:
     const syncListings = async () => {
       setFilters((current) => ({
         ...current,
-        locality: normalizedInitialLocality,
+        locality: effectiveInitialLocality,
       }));
 
       if (initialListings.length > 0) {
@@ -42,7 +46,7 @@ export default function Listings({ initialListings = [], initialLocality = '' }:
       }
 
       try {
-        const fallbackListings = await getListings(normalizedInitialLocality || undefined);
+        const fallbackListings = await getListings(effectiveInitialLocality || undefined);
         if (!cancelled) {
           setListings(fallbackListings);
         }
@@ -57,11 +61,11 @@ export default function Listings({ initialListings = [], initialLocality = '' }:
     return () => {
       cancelled = true;
     };
-  }, [initialListings, normalizedInitialLocality]);
+  }, [effectiveInitialLocality, initialListings]);
 
   const filteredListings = listings.filter(l => {
     if (filters.type !== 'All' && l.type !== filters.type) return false;
-    if (filters.locality && !l.locality.toLowerCase().includes(filters.locality.toLowerCase())) return false;
+    if (filters.locality && slugifyLocalityName(l.locality) !== slugifyLocalityName(filters.locality)) return false;
     return true;
   });
 
@@ -71,7 +75,7 @@ export default function Listings({ initialListings = [], initialLocality = '' }:
     : [];
   const localityCounts = localityBelt.map((market) => ({
     ...market,
-    count: listings.filter((listing) => listing.locality.toLowerCase().includes(market.name.toLowerCase())).length,
+    count: listings.filter((listing) => slugifyLocalityName(listing.locality) === slugifyLocalityName(market.name)).length,
   }));
 
   return (
