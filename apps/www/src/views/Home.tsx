@@ -57,13 +57,13 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
 
   const liveCount = allListings.length;
   const freshListings = allListings.filter(l => {
-    const age = Date.now() - new Date(l.created_at).getTime();
+    const age = Date.now() - new Date(l.surfaced_at || l.created_at).getTime();
     return age < 7 * 24 * 60 * 60 * 1000;
   });
   const agePool = freshListings.length > 0 ? freshListings : allListings;
   const avgAgeMinutes = agePool.length > 0
     ? Math.round(agePool.reduce((sum, l) => {
-        const ms = Date.now() - new Date(l.created_at).getTime();
+        const ms = Date.now() - new Date(l.surfaced_at || l.created_at).getTime();
         return sum + ms / 60000;
       }, 0) / agePool.length)
     : 0;

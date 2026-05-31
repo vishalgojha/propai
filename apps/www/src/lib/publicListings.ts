@@ -64,7 +64,7 @@ const STANDARD_LOCALITIES = new Set([
 
 type PublicStreamSource = "stream_items" | "stream_items_residential" | "stream_items_commercial";
 
-const PUBLIC_STREAM_SELECT = "id, tenant_id, canonical_record_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, parsed_payload, property_category, asset_class";
+const PUBLIC_STREAM_SELECT = "id, tenant_id, canonical_record_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, updated_at, parsed_payload, property_category, asset_class";
 const PUBLIC_SOURCE_TABLES: Array<{ table: PublicStreamSource; select: string; includeCanonical: boolean }> = [
   { table: "stream_items", select: PUBLIC_STREAM_SELECT, includeCanonical: true },
   { table: "stream_items_residential", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", ""), includeCanonical: false },
@@ -83,9 +83,11 @@ export interface PublicListing {
   availability?: string;
   raw_text: string;
   created_at: string;
+  surfaced_at: string;
   slug: string;
   floor?: string;
   broker_phone?: string;
+  origin?: string;
 }
 
 function normalizeLocalityQuery(value?: string | null) {
@@ -344,6 +346,7 @@ function slugifyBhk(bhk: string) {
 function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; fullName: string | null }>): PublicListing | null {
   const data = (row.structured_data || {}) as Record<string, unknown>;
   const rawText = String(row.raw_text || "");
+  const origin = getListingOrigin(row, data);
   const location =
     pickString(data.location, data.locality, data.locality_canonical, data.address, data.area) ||
     inferLocation(rawText);
@@ -383,6 +386,15 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
     areaSqft,
     price: priceAmount,
     availability,
+  }) && !isSeededPublicListing({
+    origin,
+    title,
+    locality,
+    type,
+    bhk,
+    areaSqft,
+    price: priceAmount,
+    availability,
   })) {
     return null;
   }
@@ -398,10 +410,12 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
     furnishing: furnishing || undefined,
     availability: availability || undefined,
     raw_text: rawText,
-    created_at: row.created_at,
+    created_at: pickString(row.updated_at, row.created_at, data.importedAt) || row.created_at,
+    surfaced_at: pickString(data.importedAt, row.updated_at, row.created_at) || row.created_at,
     slug,
     floor: floor || undefined,
     broker_phone: brokerDigits ? `91${fallbackBroker?.phone || brokerDigits}` : undefined,
+    origin: origin || undefined,
   };
 }
 
@@ -412,6 +426,7 @@ function normalizeStreamListing(
 ): PublicListing | null {
   const data = (row.parsed_payload || {}) as Record<string, unknown>;
   const rawText = String(row.raw_text || "");
+  const origin = getListingOrigin(row, data);
   const canonical = row.canonical_record_id ? canonicalMap.get(String(row.canonical_record_id)) || null : null;
   const location =
     pickString(canonical?.locality, row.locality, data.locality, data.microLocation, canonical?.micro_location, data.buildingName, row.city) ||
@@ -452,6 +467,15 @@ function normalizeStreamListing(
     areaSqft,
     price: priceAmount,
     availability,
+  }) && !isSeededPublicListing({
+    origin,
+    title,
+    locality,
+    type,
+    bhk,
+    areaSqft,
+    price: priceAmount,
+    availability,
   })) {
     return null;
   }
@@ -467,10 +491,12 @@ function normalizeStreamListing(
     furnishing: furnishing || undefined,
     availability: availability || undefined,
     raw_text: rawText,
-    created_at: row.created_at,
+    created_at: pickString(data.importedAt, row.updated_at, row.created_at) || row.created_at,
+    surfaced_at: pickString(data.importedAt, row.updated_at, row.created_at) || row.created_at,
     slug,
     floor: floor || undefined,
     broker_phone: brokerDigits ? `91${fallbackBroker?.phone || brokerDigits}` : undefined,
+    origin: origin || undefined,
   };
 }
 
@@ -633,6 +659,48 @@ function isTitleWorthyPublicListing(input: {
   return true;
 }
 
+function isSeededWadata(origin: string | null) {
+  return String(origin || "").trim().toLowerCase() === "wadata";
+}
+
+function getListingOrigin(row: any, data: Record<string, unknown>) {
+  return (
+    pickString(data.origin, data.source, row.origin, row.source, row?.resolution_context?.origin) ||
+    null
+  );
+}
+
+function isSeededPublicListing(input: {
+  origin: string | null;
+  title: string;
+  locality: string;
+  type: string;
+  bhk?: string | number | null;
+  areaSqft?: number | null;
+  price?: number | null;
+  availability?: string | null;
+}) {
+  if (!isSeededWadata(input.origin)) return false;
+  if (String(input.locality || "").trim().length < 3) return false;
+
+  const normalizedTitle = normalizeListingText(input.title);
+  if (normalizedTitle.length < 8) return false;
+  if (/(?:\+?91[\s-]?)?[6-9]\d{9}/.test(input.title) || /\b(?:contact|call|whatsapp|broker)\b/i.test(input.title)) return false;
+  if (/^(property listing|broker-sourced property)$/i.test(input.title.trim())) return false;
+
+  const hasSubstance = Boolean(
+    (typeof input.bhk === "string" && input.bhk.trim() && !/^flexible$/i.test(input.bhk.trim())) ||
+    (typeof input.bhk === "number" && Number.isFinite(input.bhk)) ||
+    (typeof input.areaSqft === "number" && Number.isFinite(input.areaSqft) && input.areaSqft > 0) ||
+    (typeof input.price === "number" && Number.isFinite(input.price) && input.price > 0) ||
+    String(input.availability || "").trim()
+  );
+
+  const typeSignal = /\b(rent|sale|lease|requirement|wanted|office|shop|warehouse|plot|land|flat|apartment|villa|penthouse|studio|commercial|residential|pg|bare shell)\b/i.test(normalizedTitle);
+
+  return hasSubstance || typeSignal;
+}
+
 function parsePriceAmount(value: unknown, priceLabel: unknown, rawText: string, type: string) {
   const combinedText = `${String(priceLabel || "")} ${rawText}`.trim();
   const parsedNumeric = parsePrice(combinedText, type).numeric;
@@ -733,7 +801,7 @@ export async function fetchTodayParsedCount(): Promise<number> {
       const { count } = await supabaseAdmin
         .from(table)
         .select("*", { count: "exact", head: true })
-        .gte("updated_at", since);
+        .or(`updated_at.gte.${since},created_at.gte.${since}`);
       return count || 0;
     }),
   );
