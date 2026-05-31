@@ -78,6 +78,8 @@ export class WhatsAppClient {
     private circuitBreaker = new CircuitBreaker();
     private healthCheckInterval: NodeJS.Timeout | null = null;
     private autoSyncInterval: NodeJS.Timeout | null = null;
+    private replayTimer: NodeJS.Timeout | null = null;
+    private replayInProgress = false;
     private disconnectMeta: { reason: string | null; replaced: boolean; at: string | null } = {
         reason: null,
         replaced: false,
@@ -377,6 +379,10 @@ export class WhatsAppClient {
                             clearTimeout(this.qrTimeoutTimer);
                             this.qrTimeoutTimer = null;
                         }
+                        if (this.replayTimer) {
+                            clearTimeout(this.replayTimer);
+                            this.replayTimer = null;
+                        }
                         this.connectionStatus = 'connected';
                         this.reconnectAttempts = 0;
                         this.disconnectMeta = { reason: null, replaced: false, at: null };
@@ -386,6 +392,8 @@ export class WhatsAppClient {
                             this.reconnectTimer = null;
                         }
                         await this.persistStatus('connected');
+
+                        this.scheduleReplayAfterReconnect('connection.open');
 
                         this.scheduleGroupSync();
                         void this.autoSyncBrokerContacts();
@@ -436,6 +444,11 @@ export class WhatsAppClient {
                     }
 
                     await this.persistChatTitles(chats);
+                    await this.replayPersistedHistory({
+                        reason: 'messaging-history.set',
+                        chats,
+                        messages,
+                    });
 
                     for (const msg of messages) {
                         const remoteJid = String(msg?.key?.remoteJid || '').trim();
@@ -1023,6 +1036,10 @@ try {
         this.reconnectAttempts = 0;
         this.isConnecting = false;
         this.stopHealthCheck();
+        if (this.replayTimer) {
+            clearTimeout(this.replayTimer);
+            this.replayTimer = null;
+        }
 
         if (this.socket) {
             await this.disposeSocket({ logout: true });
@@ -1103,6 +1120,92 @@ try {
         };
 
         setTimeout(() => { void trySync(); }, 10_000);
+    }
+
+    private scheduleReplayAfterReconnect(reason: string) {
+        if (this.replayTimer) {
+            clearTimeout(this.replayTimer);
+        }
+
+        this.replayTimer = setTimeout(() => {
+            void this.replayPersistedHistory({ reason }).catch((error) => {
+                console.warn('[WhatsAppClient] Reconnect replay failed', {
+                    tenantId: this.tenantId,
+                    label: this.label,
+                    reason,
+                    error,
+                });
+            });
+        }, 15_000);
+    }
+
+    private async replayPersistedHistory(input: {
+        reason: string;
+        chats?: any[];
+        messages?: any[];
+    }) {
+        if (this.replayInProgress) {
+            return;
+        }
+
+        this.replayInProgress = true;
+        try {
+            const messages = Array.isArray(input.messages) ? input.messages : [];
+            const timestamps = messages
+                .map((message: any) => {
+                    const raw = message?.messageTimestamp || message?.timestamp || message?.created_at;
+                    const value = typeof raw === 'number'
+                        ? (raw > 1_000_000_000_000 ? raw : raw * 1000)
+                        : new Date(String(raw || '')).getTime();
+                    return Number.isFinite(value) ? value : null;
+                })
+                .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+
+            const earliest = timestamps.length > 0
+                ? new Date(Math.min(...timestamps)).toISOString()
+                : this.disconnectMeta.at || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+            const latest = timestamps.length > 0
+                ? new Date(Math.max(...timestamps)).toISOString()
+                : null;
+
+            const { channelService } = require('../services/channelService');
+
+            await whatsappHealthService.appendEvent(
+                this.tenantId,
+                this.label,
+                'history_replay_started',
+                `Replaying stored WhatsApp messages after reconnect (${input.reason}).`,
+                {
+                    reason: input.reason,
+                    from: earliest,
+                    to: latest,
+                    messageCount: messages.length,
+                },
+            );
+
+            await channelService.rebuildStreamFromMessages(this.tenantId, {
+                sessionLabel: this.label,
+                from: earliest,
+                to: latest,
+                limit: Math.min(Math.max(messages.length + 100, 500), 10000),
+            });
+
+            await whatsappHealthService.appendEvent(
+                this.tenantId,
+                this.label,
+                'history_replay_completed',
+                'Stored WhatsApp messages were replayed into Stream after reconnect.',
+                {
+                    reason: input.reason,
+                    from: earliest,
+                    to: latest,
+                    messageCount: messages.length,
+                },
+            );
+        } finally {
+            this.replayInProgress = false;
+        }
     }
 
     private async persistStatus(status: ConnectionStatus) {
