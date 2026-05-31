@@ -1149,8 +1149,11 @@ try {
         }
 
         this.replayInProgress = true;
+        let messages: any[] = [];
+        let earliest: string | null = null;
+        let latest: string | null = null;
         try {
-            const messages = Array.isArray(input.messages) ? input.messages : [];
+            messages = Array.isArray(input.messages) ? input.messages : [];
             const timestamps = messages
                 .map((message: any) => {
                     const raw = message?.messageTimestamp || message?.timestamp || message?.created_at;
@@ -1161,11 +1164,11 @@ try {
                 })
                 .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
 
-            const earliest = timestamps.length > 0
+            earliest = timestamps.length > 0
                 ? new Date(Math.min(...timestamps)).toISOString()
                 : this.disconnectMeta.at || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-            const latest = timestamps.length > 0
+            latest = timestamps.length > 0
                 ? new Date(Math.max(...timestamps)).toISOString()
                 : null;
 
@@ -1203,6 +1206,21 @@ try {
                     messageCount: messages.length,
                 },
             );
+        } catch (error) {
+            await whatsappHealthService.appendEvent(
+                this.tenantId,
+                this.label,
+                'history_replay_failed',
+                'Stored WhatsApp messages could not be replayed after reconnect.',
+                {
+                    reason: input.reason,
+                    from: earliest,
+                    to: latest,
+                    messageCount: messages.length,
+                    error: error instanceof Error ? error.message : String(error || 'Unknown error'),
+                },
+            );
+            throw error;
         } finally {
             this.replayInProgress = false;
         }

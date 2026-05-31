@@ -525,6 +525,8 @@ export class WhatsAppHealthService {
             };
         });
 
+        const replayStats = await this.getReplayStats24h(tenantId);
+
         return {
             sessions: sessionsWithReconnect,
             summary: {
@@ -533,6 +535,9 @@ export class WhatsAppHealthService {
                 healthState: this.deriveAggregateHealthState(sessions),
                 totalSessions: sessions.length,
                 reconnectingSessions: sessionsWithReconnect.filter(s => s.isReconnecting).length,
+                replayBacklog24h: Math.max(summary.messagesReceived24h - summary.messagesParsed24h, 0),
+                replayCompleted24h: replayStats.completedMessages24h,
+                replayFailed24h: replayStats.failedMessages24h,
             },
         };
     }
@@ -875,6 +880,33 @@ export class WhatsAppHealthService {
             return 'warning';
         }
         return sessions.length > 0 ? 'healthy' : 'warning';
+    }
+
+    private async getReplayStats24h(tenantId: string) {
+        const cutoff = new Date(Date.now() - DAY_MS).toISOString();
+        const { data, error } = await db
+            .from('whatsapp_event_logs')
+            .select('event_type, metadata, created_at')
+            .eq('tenant_id', tenantId)
+            .gte('created_at', cutoff)
+            .in('event_type', ['history_replay_completed', 'history_replay_failed']);
+
+        if (error || !Array.isArray(data)) {
+            return { completedMessages24h: 0, failedMessages24h: 0 };
+        }
+
+        const sumCount = (rows: any[], type: string) => rows
+            .filter((row) => String(row?.event_type || '') === type)
+            .reduce((total, row) => {
+                const metadata = row?.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {};
+                const rawCount = Number(metadata.messageCount ?? metadata.message_count ?? 0);
+                return total + (Number.isFinite(rawCount) ? rawCount : 0);
+            }, 0);
+
+        return {
+            completedMessages24h: sumCount(data, 'history_replay_completed'),
+            failedMessages24h: sumCount(data, 'history_replay_failed'),
+        };
     }
 
     private describeConnectionEvent(input: ConnectionSnapshotInput) {

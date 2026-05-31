@@ -143,6 +143,9 @@ type WhatsappHealthSummary = {
   messagesReceived24h: number;
   messagesParsed24h: number;
   messagesFailed24h: number;
+  replayBacklog24h?: number;
+  replayCompleted24h?: number;
+  replayFailed24h?: number;
   parserSuccessRate: number;
   healthState: 'healthy' | 'warning' | 'critical';
 };
@@ -418,6 +421,9 @@ const defaultHealthSummary: WhatsappHealthSummary = {
   messagesReceived24h: 0,
   messagesParsed24h: 0,
   messagesFailed24h: 0,
+  replayBacklog24h: 0,
+  replayCompleted24h: 0,
+  replayFailed24h: 0,
   parserSuccessRate: 100,
   healthState: 'warning',
 };
@@ -1772,14 +1778,16 @@ export const Sources: React.FC = () => {
       messagesReceived24h: selectedHealthSession.messagesReceived24h,
       messagesParsed24h: selectedHealthSession.messagesParsed24h,
       messagesFailed24h: selectedHealthSession.messagesFailed24h,
+      replayBacklog24h: Number((health.summary as WhatsappHealthSummary).replayBacklog24h || 0),
+      replayCompleted24h: Number((health.summary as WhatsappHealthSummary).replayCompleted24h || 0),
+      replayFailed24h: Number((health.summary as WhatsappHealthSummary).replayFailed24h || 0),
       parserSuccessRate: selectedHealthSession.parserSuccessRate,
       healthState: selectedHealthSession.healthState,
     };
   }, [health.summary, scopedGroupHealth, selectedHealthSession]);
-  const replayBacklog24h = Math.max(
-    Number(selectedHealthSummary.messagesReceived24h || 0) - Number(selectedHealthSummary.messagesParsed24h || 0),
-    0,
-  );
+  const replayBacklog24h = Math.max(Number(selectedHealthSummary.replayBacklog24h || 0), 0);
+  const replayCompleted24h = Math.max(Number(selectedHealthSummary.replayCompleted24h || 0), 0);
+  const replayFailed24h = Math.max(Number(selectedHealthSummary.replayFailed24h || 0), 0);
   const primaryHealthSession = selectedHealthSession;
   const staleGroupCount = scopedGroupHealth.filter((group) => group.status === 'stale').length;
   const activeGroupCount = scopedGroupHealth.filter((group) => group.status === 'active').length;
@@ -2305,6 +2313,8 @@ export const Sources: React.FC = () => {
               { label: 'Active groups today', value: String(activeGroupCount || selectedHealthSummary.activeGroups24h) },
               { label: 'Messages received', value: String(selectedHealthSummary.messagesReceived24h) },
               { label: 'Replay backlog', value: String(replayBacklog24h) },
+              { label: 'Replayed after reconnect', value: String(replayCompleted24h) },
+              { label: 'Needs review', value: String(replayFailed24h) },
               { label: 'Parsed into Pulse', value: `${selectedHealthSummary.messagesParsed24h} (${selectedHealthSummary.parserSuccessRate}%)` },
             ].map((card) => (
               <div key={card.label} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
