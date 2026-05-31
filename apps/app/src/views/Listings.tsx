@@ -921,10 +921,13 @@ if (brokerOnly) {
     if (!sentinel) return;
 
     const root = document.getElementById('main-scroll-container');
+    const loadMoreIfNeeded = () => {
+      setVisibleCount((current) => Math.min(current + PAGE_SIZE, visibleStream.length));
+    };
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0]?.isIntersecting) return;
-        setVisibleCount((current) => Math.min(current + PAGE_SIZE, visibleStream.length));
+        loadMoreIfNeeded();
       },
       {
         root,
@@ -934,8 +937,33 @@ if (brokerOnly) {
     );
 
     observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [visibleStream.length]);
+
+    const scrollTarget: Window | HTMLElement = root || window;
+    const handleScroll = () => {
+      if (visibleCount >= visibleStream.length) return;
+
+      if (scrollTarget instanceof Window) {
+        const distanceFromBottom = document.documentElement.scrollHeight - (window.scrollY + window.innerHeight);
+        if (distanceFromBottom <= 320) {
+          loadMoreIfNeeded();
+        }
+        return;
+      }
+
+      const distanceFromBottom = scrollTarget.scrollHeight - (scrollTarget.scrollTop + scrollTarget.clientHeight);
+      if (distanceFromBottom <= 320) {
+        loadMoreIfNeeded();
+      }
+    };
+
+    scrollTarget.addEventListener('scroll', handleScroll as EventListener, { passive: true });
+    handleScroll();
+
+    return () => {
+      observer.disconnect();
+      scrollTarget.removeEventListener('scroll', handleScroll as EventListener);
+    };
+  }, [visibleCount, visibleStream.length]);
 
   const renderedStream = React.useMemo(
     () => visibleStream.slice(0, visibleCount),
