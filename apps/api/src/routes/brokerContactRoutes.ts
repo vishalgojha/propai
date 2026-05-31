@@ -224,15 +224,22 @@ router.get('/', async (req, res) => {
     }
 
     try {
-      await brokerContactSyncService.syncFromStoredGroups(context.workspaceOwnerId);
+      if (!context.isSuperAdmin) {
+        await brokerContactSyncService.syncFromStoredGroups(context.workspaceOwnerId);
+      }
     } catch (syncError) {
       console.error('[BrokerContacts] Sync failed:', syncError);
     }
 
-    const { data: contacts, error } = await supabaseAdmin!
+    let query = supabaseAdmin!
       .from('broker_contacts')
-      .select('*')
-      .eq('tenant_id', context.workspaceOwnerId);
+      .select('*');
+
+    if (!context.isSuperAdmin) {
+      query = query.eq('tenant_id', context.workspaceOwnerId);
+    }
+
+    const { data: contacts, error } = await query;
 
     if (error) {
       console.error('[BrokerContacts] DB query failed:', error);
