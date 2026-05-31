@@ -317,6 +317,7 @@ export class WhatsAppClient {
                             this.qrTimeoutTimer = null;
                         }
                         this.connectionStatus = 'disconnected';
+                        this.isConnecting = false;
                         const statusCode = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode;
                         const replaced = this.isSessionReplaced(lastDisconnect?.error);
                         const shouldReconnect = statusCode !== DisconnectReason.loggedOut && !replaced;
@@ -364,6 +365,7 @@ export class WhatsAppClient {
                             console.log(
                                 `[WhatsAppClient] Scheduling reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${backoffMs}ms for ${this.tenantId}:${this.label}`
                             );
+                            this.connectionStatus = 'connecting';
                             await this.persistStatus('connecting');
                             this.reconnectTimer = setTimeout(() => {
                                 this.tryReconnect();
@@ -912,7 +914,7 @@ try {
         }
 
         try {
-            await this.connect({ usePairingCode: undefined, phoneNumber: this.connectedPhoneNumber });
+            await this.restartTransport({ phoneNumber: this.connectedPhoneNumber });
             this.circuitBreaker.recordSuccess();
         } catch (error) {
             this.circuitBreaker.recordFailure();
