@@ -71,6 +71,37 @@ const PUBLIC_SOURCE_TABLES: Array<{ table: PublicStreamSource; select: string; i
   { table: "stream_items_commercial", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", ""), includeCanonical: false },
 ];
 
+type CacheEntry<T> = {
+  expiresAt: number;
+  value: T;
+};
+
+const listingsCache = new Map<string, CacheEntry<PublicListing[]>>();
+const listingBySlugCache = new Map<string, CacheEntry<PublicListing | null>>();
+const todayCountCache = new Map<string, CacheEntry<number>>();
+const footerCache = new Map<string, CacheEntry<CityLocality[]>>();
+const DEFAULT_LISTINGS_TTL_MS = 20_000;
+const DEFAULT_SLUG_TTL_MS = 20_000;
+const DEFAULT_COUNT_TTL_MS = 30_000;
+const DEFAULT_FOOTER_TTL_MS = 5 * 60_000;
+
+function getCached<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function setCached<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T, ttlMs: number) {
+  cache.set(key, {
+    value,
+    expiresAt: Date.now() + Math.max(1, ttlMs),
+  });
+}
+
 export interface PublicListing {
   id: string;
   title: string;
@@ -106,6 +137,11 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
   }
 
   const normalizedLocality = normalizeLocalityQuery(locality);
+  const cacheKey = `public:listings:${normalizedLocality || 'all'}`;
+  const cachedListings = getCached(listingsCache, cacheKey);
+  if (cachedListings) {
+    return cachedListings;
+  }
 
   const [{ data: streamRows, error: streamError }, { data: residentialRows, error: residentialError }, { data: commercialRows, error: commercialError }, { data: profiles }] = await Promise.all([
     fetchPublicSourceRows("stream_items", PUBLIC_STREAM_SELECT, normalizedLocality),
@@ -178,12 +214,25 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
     .map((row) => normalizeStreamListing(row, brokerMap, canonicalMap))
     .filter(Boolean);
 
-  return dedupePublicListings(listings as PublicListing[]);
+  const finalListings = dedupePublicListings(listings as PublicListing[]);
+  setCached(listingsCache, cacheKey, finalListings, DEFAULT_LISTINGS_TTL_MS);
+  return finalListings;
 }
 
 export async function fetchPublicListingBySlug(slug: string): Promise<PublicListing | null> {
+  const normalizedSlug = String(slug || '').trim();
+  if (!normalizedSlug) return null;
+
+  const cacheKey = `public:slug:${normalizedSlug}`;
+  const cached = getCached(listingBySlugCache, cacheKey);
+  if (cached !== null) {
+    return cached;
+  }
+
   const listings = await fetchPublicListings();
-  return listings.find((listing) => listing.slug === slug || listing.id === slug) || null;
+  const listing = listings.find((entry) => entry.slug === normalizedSlug || entry.id === normalizedSlug) || null;
+  setCached(listingBySlugCache, cacheKey, listing, DEFAULT_SLUG_TTL_MS);
+  return listing;
 }
 
 async function fetchPublicSourceRows(table: PublicStreamSource, select: string, normalizedLocality: string | null) {
@@ -794,6 +843,10 @@ function normalizeListingText(value: string) {
 
 export async function fetchTodayParsedCount(): Promise<number> {
   if (!supabaseAdmin) return 0;
+  const cacheKey = 'public:today-count';
+  const cached = getCached(todayCountCache, cacheKey);
+  if (cached !== null) return cached;
+
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const sources = ["stream_items", "stream_items_residential", "stream_items_commercial"] as const;
   const counts = await Promise.all(
@@ -805,7 +858,9 @@ export async function fetchTodayParsedCount(): Promise<number> {
       return count || 0;
     }),
   );
-  return counts.reduce((sum, value) => sum + value, 0);
+  const total = counts.reduce((sum, value) => sum + value, 0);
+  setCached(todayCountCache, cacheKey, total, DEFAULT_COUNT_TTL_MS);
+  return total;
 }
 
 export type CityLocality = {
@@ -863,6 +918,12 @@ function isValidFooterLocality(name: string): boolean {
 export async function fetchLocalitiesForFooter(minCount = 2): Promise<CityLocality[]> {
   if (!supabaseAdmin) return [];
   try {
+    const cacheKey = `public:footer:${minCount}`;
+    const cached = getCached(footerCache, cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const sourceRows = await Promise.all(
       ["stream_items", "stream_items_residential", "stream_items_commercial"].map(async (table) => {
         const { data, error } = await supabaseAdmin
@@ -916,6 +977,7 @@ export async function fetchLocalitiesForFooter(minCount = 2): Promise<CityLocali
       result.push({ city, localities });
     }
     result.sort((a, b) => (sortMap.get(a.city) ?? 99) - (sortMap.get(b.city) ?? 99));
+    setCached(footerCache, cacheKey, result, DEFAULT_FOOTER_TTL_MS);
     return result;
   } catch {
     return [];

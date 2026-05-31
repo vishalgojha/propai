@@ -5,11 +5,67 @@ import { getAnalytics as getAnalyticsData } from '../services/analyticsService';
 import { getTenantId, requireSuperAdmin, getErrorMessage, getErrorStatus, isOwnerSuperAdminEmail } from '../utils/controllerHelpers';
 import { resolveStreamAccess, STREAM_ACCESS_DENIED_MESSAGE } from '../services/streamAccessService';
 import '../types/express';
+import { getCachedValue, invalidateCachedValues, setCachedValue } from '../utils/responseCache';
 
 const VALID_STREAM_TYPES = new Set(['Rent', 'Sale', 'Requirement', 'Pre-leased', 'Lease']);
 const VALID_CONFIDENCE_BANDS = new Set(['low', 'medium', 'high']);
 const VALID_TIME_BANDS = new Set(['1h', '4h', '1d', '7d']);
 const VALID_FRESHNESS_BANDS = new Set(['1h', '6h']);
+const STREAM_ITEMS_CACHE_TTL_MS = 15_000;
+const STREAM_SUMMARY_CACHE_TTL_MS = 20_000;
+
+function normalizeCacheSegment(value: unknown) {
+    return encodeURIComponent(String(value ?? '').trim() || 'all');
+}
+
+function buildStreamItemsCacheKey(
+    tenantId: string,
+    networkMode: boolean,
+    channelId: string | null,
+    sessionLabel: string | null,
+    limit: number,
+    filters: StreamListFilters,
+) {
+    return [
+        'stream-items',
+        tenantId,
+        networkMode ? 'network' : 'local',
+        normalizeCacheSegment(channelId),
+        normalizeCacheSegment(sessionLabel),
+        String(limit),
+        normalizeCacheSegment(filters.search),
+        normalizeCacheSegment(filters.category),
+        normalizeCacheSegment(filters.locality),
+        normalizeCacheSegment(filters.bhk),
+        normalizeCacheSegment(filters.minConfidence),
+        normalizeCacheSegment((filters.types || []).join(',')),
+        normalizeCacheSegment((filters.confidenceBands || []).join(',')),
+        normalizeCacheSegment((filters.timeBands || []).join(',')),
+        normalizeCacheSegment((filters.freshnessBands || []).join(',')),
+        normalizeCacheSegment(filters.source),
+        filters.brokerOnly ? '1' : '0',
+    ].join('|');
+}
+
+function buildStreamSummaryCacheKey(
+    tenantId: string,
+    networkMode: boolean,
+    channelId: string | null,
+    sessionLabel: string | null,
+) {
+    return [
+        'stream-summary',
+        tenantId,
+        networkMode ? 'network' : 'local',
+        normalizeCacheSegment(channelId),
+        normalizeCacheSegment(sessionLabel),
+    ].join('|');
+}
+
+function invalidateStreamCaches(tenantId: string) {
+    invalidateCachedValues(`stream-items|${tenantId}|`);
+    invalidateCachedValues(`stream-summary|${tenantId}|`);
+}
 
 function readCsvParam(value: unknown) {
     if (typeof value !== 'string') {
@@ -82,6 +138,11 @@ export const listStreamItems = async (req: Request, res: Response) => {
         const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 500;
         const filters = parseStreamFilters(req.query);
         const networkMode = access.networkMode;
+        const cacheKey = buildStreamItemsCacheKey(tenantId, networkMode, channelId, sessionLabel, Number.isFinite(limit) ? Number(limit) : 500, filters);
+        const cached = getCachedValue<{ items: unknown[]; network_mode: boolean; total: number }>(cacheKey);
+        if (cached) {
+            return res.json(cached);
+        }
         const items = await channelService.listStreamItems(
             tenantId,
             accessToken,
@@ -92,11 +153,13 @@ export const listStreamItems = async (req: Request, res: Response) => {
             req.user?.email,
             filters,
         );
-        res.json({
+        const payload = {
             items,
             network_mode: networkMode,
             total: items.length,
-        });
+        };
+        setCachedValue(cacheKey, payload, STREAM_ITEMS_CACHE_TTL_MS);
+        res.json(payload);
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load stream items') });
     }
@@ -133,11 +196,18 @@ export const listStreamSummary = async (req: Request, res: Response) => {
         const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : null;
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
         const networkMode = access.networkMode;
+        const cacheKey = buildStreamSummaryCacheKey(tenantId, networkMode, channelId, sessionLabel);
+        const cached = getCachedValue<{ oneHour: number; fourHours: number; oneDay: number; sevenDays: number; allTime: number; network_mode: boolean }>(cacheKey);
+        if (cached) {
+            return res.json(cached);
+        }
         const summary = await channelService.getStreamSummary(tenantId, channelId, sessionLabel, networkMode);
-        res.json({
+        const payload = {
             ...summary,
             network_mode: networkMode,
-        });
+        };
+        setCachedValue(cacheKey, payload, STREAM_SUMMARY_CACHE_TTL_MS);
+        res.json(payload);
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load stream summary') });
     }
@@ -158,6 +228,7 @@ export const rebuildStream = async (req: Request, res: Response) => {
             sessionLabel,
             remoteJid,
         });
+        invalidateStreamCaches(tenantId);
         res.json({ success: true, ...result });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to rebuild stream from saved messages') });
@@ -195,6 +266,7 @@ export const correctStreamItem = async (req: Request, res: Response) => {
                  parseNotes: req.body?.parseNotes,
              },
          );
+         invalidateStreamCaches(tenantId);
          res.json({ success: true, item: corrected });
      } catch (error: unknown) {
          res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to correct stream item') });
@@ -205,6 +277,7 @@ export const markChannelRead = async (req: Request, res: Response) => {
     try {
         const tenantId = getTenantId(req);
         await channelService.markChannelRead(tenantId, String(req.params.channelId || ''));
+        invalidateStreamCaches(tenantId);
         res.json({ success: true });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to mark channel as read') });
@@ -222,6 +295,7 @@ export const attachStreamItemToChannel = async (req: Request, res: Response) => 
         }
 
         await channelService.attachStreamItemToChannel(tenantId, channelId, streamItemId);
+        invalidateStreamCaches(tenantId);
         res.json({ success: true });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to save stream item to channel') });
