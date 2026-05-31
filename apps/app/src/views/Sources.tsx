@@ -1776,6 +1776,10 @@ export const Sources: React.FC = () => {
       healthState: selectedHealthSession.healthState,
     };
   }, [health.summary, scopedGroupHealth, selectedHealthSession]);
+  const replayBacklog24h = Math.max(
+    Number(selectedHealthSummary.messagesReceived24h || 0) - Number(selectedHealthSummary.messagesParsed24h || 0),
+    0,
+  );
   const primaryHealthSession = selectedHealthSession;
   const staleGroupCount = scopedGroupHealth.filter((group) => group.status === 'stale').length;
   const activeGroupCount = scopedGroupHealth.filter((group) => group.status === 'active').length;
@@ -2300,6 +2304,7 @@ export const Sources: React.FC = () => {
               { label: 'Groups detected', value: String(selectedHealthSummary.groupCount) },
               { label: 'Active groups today', value: String(activeGroupCount || selectedHealthSummary.activeGroups24h) },
               { label: 'Messages received', value: String(selectedHealthSummary.messagesReceived24h) },
+              { label: 'Replay backlog', value: String(replayBacklog24h) },
               { label: 'Parsed into Pulse', value: `${selectedHealthSummary.messagesParsed24h} (${selectedHealthSummary.parserSuccessRate}%)` },
             ].map((card) => (
               <div key={card.label} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
@@ -2549,6 +2554,9 @@ export const Sources: React.FC = () => {
                   <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{displayCurrentConnectionNumber}</p>
                   <p className="mt-1 text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{displayCurrentConnectionName}</p>
                   <p className="mt-2 text-[11px] text-[var(--text-secondary)]">{status.activeCount}/{status.limit} numbers connected on this workspace</p>
+                  <p className="mt-2 inline-flex rounded-full border border-[color:rgba(62,232,138,0.2)] bg-[rgba(62,232,138,0.08)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
+                    Replay backlog: {replayBacklog24h} messages waiting
+                  </p>
                 </div>
                 {disconnectTargetLabel && currentSessionStatus !== 'disconnected' && (
                   <div className="flex flex-wrap items-center gap-2">
