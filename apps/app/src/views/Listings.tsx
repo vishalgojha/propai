@@ -37,6 +37,8 @@ const ALL_BHK = ['1 BHK', '2 BHK', '3 BHK', '4+ BHK'] as const;
 const ALL_PROPERTY_CATEGORIES = ['residential', 'commercial'] as const;
 const BROKER_TAG_PATTERN = /\b(broker|broking|agnt|agent)\b/i;
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
+const BROKER_DECORATION_PATTERN = /[\p{Extended_Pictographic}\u200d\uFE0F]/gu;
+const BROKER_SYMBOL_PATTERN = /[•·▪▫◆◇★☆⬤◉○●⬛⬜◼◻⬢⬡⬆⬇⬅➡↔↕]/gu;
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'vishal@propai.live',
   'vishalojha@gmail.com',
@@ -142,6 +144,37 @@ const stripSnippetNoise = (raw: string) => {
     .trim();
 };
 
+const stripBrokerDecorations = (raw: string) =>
+  String(raw || '')
+    .normalize('NFKC')
+    .replace(BROKER_DECORATION_PATTERN, ' ')
+    .replace(BROKER_SYMBOL_PATTERN, ' ')
+    .replace(/[|]{2,}/g, ' ')
+    .replace(/[<>]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const sanitizeBrokerText = (raw: string) => {
+  const text = stripBrokerDecorations(redactPhoneNumbers(raw));
+  if (!text) return '';
+
+  const visibleLines = text
+    .split('\n')
+    .map((line) => stripBrokerDecorations(line))
+    .filter(Boolean)
+    .filter((line) => {
+      const lowered = line.toLowerCase();
+      if (lowered.startsWith('forwarded')) return false;
+      if (lowered.startsWith('>')) return false;
+      if (lowered.startsWith('sent from')) return false;
+      if (lowered.startsWith('from:')) return false;
+      if (/^(regards|thanks|thank you|cheers|warm regards|kind regards|best)\b/i.test(lowered)) return false;
+      return /[\p{L}\p{N}]/u.test(line);
+    });
+
+  return stripHiddenLines(visibleLines.join('\n'));
+};
+
 const stripPriceNoise = (raw: string) =>
   raw
     .replace(/budget\s*--?/gi, '')
@@ -166,7 +199,7 @@ const normalizePriceDisplay = (item: StreamItem) => {
 };
 
 const buildSnippet = (item: StreamItem) => {
-  const cleaned = stripSnippetNoise(String(item.rawText || item.description || ''));
+  const cleaned = stripSnippetNoise(sanitizeBrokerText(String(item.rawText || item.description || '')));
   if (cleaned.length < 20) {
     return { label: 'low signal', isLowSignal: true };
   }
@@ -414,13 +447,14 @@ const summarizeIgrBuildingIntel = (buildingName?: string | null, transactions?: 
 };
 
 const buildCopyText = (item: StreamItem) => {
+  const snippet = buildSnippet(item);
   const lines = [
     getRecordLabel(item),
     getTypeLabel(item),
     item.location || '—',
     item.bhk || '—',
     normalizePriceDisplay(item).label || 'Price on request',
-    redactPhoneNumbers(item.rawText || item.description || ''),
+    snippet.isLowSignal ? 'low signal' : snippet.label,
   ].filter(Boolean);
   return lines.join('\n');
 };
@@ -1402,6 +1436,207 @@ if (brokerOnly) {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFilters((current) => !current)}
+            className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
+          >
+            {showFilters ? 'Hide filters' : 'Show filters'}
+            {activeFilterCount > 0 ? (
+              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[10px] font-black text-[#02130a]">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </button>
+          {activeFilterCount > 0 ? (
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className="rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--text-primary)]"
+            >
+              Clear all
+            </button>
+          ) : null}
+        </div>
+        <p className="text-[11px] text-[var(--text-secondary)]">
+          Filter by type, freshness, confidence, source, and broker-only signals.
+        </p>
+      </div>
+
+      {showFilters ? (
+        <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+          <div className="flex flex-wrap gap-2">
+            {STREAM_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => applyPreset(preset.id)}
+                className={cn(
+                  'rounded-full border px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors',
+                  isPresetActive(preset.id)
+                    ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                    : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                )}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Signal type</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {ALL_TYPES.map((type) => {
+                  const active = quickTypes.includes(type as StreamItem['type']);
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setQuickTypes((current) => toggleSelection(current, type as StreamItem['type']))}
+                      className={cn(
+                        'rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                        active
+                          ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                          : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                      )}
+                    >
+                      {type}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">BHK</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {ALL_BHK.map((bhk) => {
+                  const active = filterBhk === bhk;
+                  return (
+                    <button
+                      key={bhk}
+                      type="button"
+                      onClick={() => setFilterBhk((current) => (current === bhk ? 'all' : bhk))}
+                      className={cn(
+                        'rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                        active
+                          ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                          : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                      )}
+                    >
+                      {bhk}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Freshness</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[
+                  { label: '1h', band: '1h' as const },
+                  { label: '6h', band: '6h' as const },
+                ].map(({ label, band }) => {
+                  const active = quickFreshnessBands.includes(band);
+                  return (
+                    <button
+                      key={band}
+                      type="button"
+                      onClick={() => setQuickFreshnessBands((current) => toggleSelection(current, band))}
+                      className={cn(
+                        'rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                        active
+                          ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                          : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                      )}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Confidence</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(['low', 'medium', 'high'] as const).map((band) => {
+                  const active = quickConfidenceBands.includes(band);
+                  return (
+                    <button
+                      key={band}
+                      type="button"
+                      onClick={() => setQuickConfidenceBands((current) => toggleSelection(current, band))}
+                      className={cn(
+                        'rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                        active
+                          ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                          : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                      )}
+                    >
+                      {band}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Source</p>
+              <select
+                value={filterSource}
+                onChange={(event) => setFilterSource(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none transition-colors focus:border-[color:var(--accent-border)]"
+              >
+                <option value="all">All sources</option>
+                {uniqueSources.map((source) => (
+                  <option key={source} value={source}>
+                    {source}
+                  </option>
+                ))}
+              </select>
+              <label className="mt-3 inline-flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+                <input
+                  type="checkbox"
+                  checked={brokerOnly}
+                  onChange={(event) => setBrokerOnly(event.target.checked)}
+                  className="h-4 w-4 rounded border-[color:var(--border)] bg-[var(--bg-base)] text-[var(--accent)]"
+                />
+                Broker-only text
+              </label>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Time window</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(['1h', '4h', '1d', '7d'] as const).map((band) => {
+                  const active = quickTimeBands.includes(band);
+                  return (
+                    <button
+                      key={band}
+                      type="button"
+                      onClick={() => setQuickTimeBands((current) => toggleSelection(current, band))}
+                      className={cn(
+                        'rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                        active
+                          ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                          : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                      )}
+                    >
+                      {band}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="glass-panel overflow-hidden rounded-2xl border-[color:var(--border)]">
         <div className="overflow-x-auto">
           {isLoading ? (
@@ -1448,8 +1683,9 @@ if (brokerOnly) {
                     const isExpanded = expandedListingId === listing.id;
                     const recordLabel = getRecordLabel(listing);
                     const typeLabel = getTypeLabel(listing);
-                    const rawNote = redactPhoneNumbers(listing.rawText || listing.description || '');
-                    const cleanNote = stripHiddenLines(rawNote);
+                    const rawNote = listing.rawText || listing.description || '';
+                    const cleanNote = sanitizeBrokerText(rawNote);
+                    const snippet = buildSnippet(listing);
                     const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
                     const buildingIntel = summarizeIgrBuildingIntel(listing.buildingName, listing.igrTransactions);
 
@@ -1500,6 +1736,11 @@ if (brokerOnly) {
                               {buildingIntel ? (
                                 <div className="text-[11px] text-[var(--text-secondary)]">
                                   Intel: <span className="font-semibold text-[var(--text-primary)]">{buildingIntel.latest}</span>
+                                </div>
+                              ) : null}
+                              {!snippet.isLowSignal ? (
+                                <div className="text-[11px] text-[var(--text-secondary)]">
+                                  Signal: <span className="font-semibold text-[var(--text-primary)]">{snippet.label}</span>
                                 </div>
                               ) : null}
                             </div>
