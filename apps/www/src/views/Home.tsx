@@ -111,7 +111,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
   
   // Dynamic parsed activity ticker data
   const [tickerItems, setTickerItems] = useState<string[]>([
-    "⚡ Parser verified 3 BHK Off-Market in Bandra West • 12s ago",
+    "⚡ Parser verified 3 BHK Broker-Group listing in Bandra West • 12s ago",
     "⚡ Direct broker inventory updated in Juhu (₹2.1L/mo) • 48s ago",
     "⚡ 1 BHK executive deal parsed in Andheri West • 2m ago",
     "⚡ Verified WhatsApp signal added for Powai Lake View • 5m ago"
@@ -172,7 +172,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
         "⚡ Signal parsed: 2 BHK available immediately in Chembur",
         "⚡ Direct WhatsApp match for Worli ocean view apartment",
         "⚡ 3 BHK rental price revised to ₹1.75L in Bandra West",
-        "⚡ Off-market signals matched: 4 BHK premium deal in Juhu"
+        "⚡ Broker-Network signals matched: 4 BHK premium deal in Juhu"
       ];
       const randomActivity = activities[Math.floor(Math.random() * activities.length)];
       setTickerItems(prev => [randomActivity + " • Just now", ...prev.slice(0, 3)]);
@@ -218,7 +218,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
   // Launch lead qualification chat widget
   const startBrokerChat = useCallback((listingItem: PublicListing) => {
     const names = ["Rohan Mehta", "Vikram Shah", "Nisha Pujari", "Amit Sharma", "Karan Malhotra"];
-    const agencies = ["Elite Mumbai Realtors", "Bespoke Off-Market Desk", "Bandra Property Group", "Worli Luxury Assets", "Hiranandani Specialist"];
+    const agencies = ["Elite Mumbai Realtors", "Bespoke Broker-Group Desk", "Bandra Property Group", "Worli Luxury Assets", "Hiranandani Specialist"];
     const avatars = ["RM", "VS", "NP", "AS", "KM"];
     const phone = listingItem.broker_phone || '919820098200';
     
@@ -340,7 +340,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
             setChatStage('done');
             setChatMessages(prev => [...prev, { 
               sender: 'broker', 
-              text: `Success! Match found. Verified Broker ${activeBroker?.name || 'Rohan'} (${activeBroker?.agency || 'Bandra Property Group'}) has received your pre-qualification credentials and is preparing the off-market walkthrough schedule. He will ping you on WhatsApp shortly!`, 
+              text: `Success! Match found. Verified Broker ${activeBroker?.name || 'Rohan'} (${activeBroker?.agency || 'Bandra Property Group'}) has received your pre-qualification credentials and is preparing the direct walkthrough schedule. He will ping you on WhatsApp shortly!`, 
               time: brokerTime 
             }]);
           } else {
@@ -506,18 +506,51 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
       <header className="relative z-10 px-6 pt-12 pb-8 flex flex-col items-center text-center max-w-5xl mx-auto">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[var(--accent-glow)] border border-[color:var(--accent-border)] rounded-full mb-6">
           <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
-          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">India's Premier Off-Market Real Estate Node</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">India's Premier Broker-Network Real Estate Stream</span>
         </div>
         
         <h1 className="text-[44px] sm:text-[62px] font-black leading-[1.05] tracking-[-0.04em] text-[var(--text-primary)] font-display max-w-4xl mb-4">
-          Capture off-market <br />
+          Capture direct broker <br />
           <span className="text-[var(--accent)] relative inline-block neon-text-glow min-w-[200px]">{rotatingWord}</span> <br className="hidden sm:inline" />
           Before they hit the portals.
         </h1>
         
         <p className="text-[var(--text-secondary)] text-[14px] sm:text-[16px] max-w-2xl mb-8 mx-auto leading-relaxed">
-          PropAI bypasses typical listing bloat. We parse real-time broker communication pipelines using advanced AI to index verified off-market leads directly.
+          PropAI bypasses typical listing bloat. We parse real-time broker communication pipelines using advanced AI to index verified B2B broker-network streams directly.
         </p>
+
+        <div className="mb-8 inline-flex flex-wrap items-center justify-center gap-3 rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)]/75 px-4 py-3 text-left shadow-[0_12px_40px_rgba(0,0,0,0.18)]">
+          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--accent)]">
+            <Shield className="h-3.5 w-3.5" />
+            Public MCP docs
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Link
+              href="/mcp"
+              className="rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)] transition-colors hover:brightness-110"
+            >
+              MCP
+            </Link>
+            <Link
+              href="/mcp/docs"
+              className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
+            >
+              Docs
+            </Link>
+            <Link
+              href="/mcp/security"
+              className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
+            >
+              Security
+            </Link>
+            <Link
+              href="/llms.txt"
+              className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
+            >
+              llms.txt
+            </Link>
+          </div>
+        </div>
 
         {/* Global Search Bar */}
         <div className="w-full max-w-xl mx-auto bg-[var(--bg-surface)]/85 backdrop-blur-md rounded-[20px] p-2 border border-white/5 shadow-[0_20px_50px_rgba(0,0,0,0.4)] hover:border-[var(--accent)]/15 transition-all duration-300 flex items-center gap-2">
@@ -599,7 +632,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               {[
                 { label: 'Active Signals Listed', value: liveCount.toLocaleString(), icon: Compass, color: 'text-white' },
-                { label: 'Fresh Off-Market Signals Today', value: (todayCount || 142).toLocaleString(), icon: Sparkles, color: 'text-[var(--accent)]' },
+                { label: 'Fresh Broker-Network Streams Today', value: (todayCount || 142).toLocaleString(), icon: Sparkles, color: 'text-[var(--accent)]' },
                 { label: 'Avg Signal Aging Velocity', value: avgAgeDisplay, icon: Calendar, color: 'text-white' }
               ].map((stat, i) => (
                 <div key={i} className="bg-[var(--bg-surface)]/45 backdrop-blur-md rounded-2xl p-5 flex items-center justify-between hover:bg-[var(--bg-surface)]/65 transition-all">
@@ -637,13 +670,13 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                   <div className="bg-[var(--bg-surface)]/45 backdrop-blur-md rounded-[20px] p-12 text-center space-y-4">
                     <Compass className="h-10 w-10 text-[var(--accent)] mx-auto animate-spin" />
                     <h3 className="text-[14px] font-bold text-[var(--text-primary)]">Syncing seeded listings...</h3>
-                    <p className="text-[11px] text-[var(--text-secondary)]">Connecting to the live off-market database pipeline.</p>
+                    <p className="text-[11px] text-[var(--text-secondary)]">Connecting to the live broker-network database pipeline.</p>
                   </div>
                 ) : listings.length === 0 ? (
                   <div className="bg-[var(--bg-surface)]/45 backdrop-blur-md rounded-[20px] p-12 text-center space-y-4">
                     <AlertCircle className="h-10 w-10 text-[var(--text-muted)] mx-auto" />
                     <h3 className="text-[16px] font-bold text-[var(--text-primary)]">No active signals in this viewport</h3>
-                    <p className="text-[12px] text-[var(--text-secondary)]">The locality may not have active off-market leads surfaced today.</p>
+                    <p className="text-[12px] text-[var(--text-secondary)]">The locality may not have active broker-group leads surfaced today.</p>
                     <button 
                       onClick={() => { handleSearch(''); selectLocality(null); }}
                       className="px-4 py-2 bg-[var(--accent)] text-[var(--on-propai-green)] font-bold text-[11px] rounded-lg uppercase tracking-wider"
@@ -714,7 +747,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/3 pb-5">
                       <div className="flex items-center gap-2">
                         <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.15em] bg-[var(--accent-glow)] text-[var(--accent)] border border-[color:var(--accent-border)]">
-                          Exclusive Off-Market {selectedListing.type}
+                          Verified Broker-Network {selectedListing.type}
                         </span>
                         <span className="px-2 py-1 rounded-full text-[9px] font-bold text-[var(--text-muted)] bg-[var(--bg-surface)]/80 flex items-center gap-1">
                           <CheckCircle className="h-3 w-3 text-[var(--accent)]" /> Verified Signal
@@ -740,7 +773,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     {/* Pricing Desk Card */}
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       <div className="bg-[var(--bg-surface)]/45 rounded-2xl p-4">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Off-Market Rent</div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Broker Rent Demand</div>
                         <div className="text-[22px] font-black text-[var(--accent)] mt-1 tracking-tight">
                           ₹{selectedListing.price.toLocaleString()}
                           <span className="text-[11px] font-semibold text-[var(--text-muted)]">/mo</span>
@@ -826,7 +859,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                 <div>
                   <h3 className="text-[20px] font-black tracking-tight text-[var(--text-primary)] font-display">AI Locality Signal Matrix</h3>
                   <p className="text-[13px] text-[var(--text-secondary)] mt-1.5 leading-relaxed">
-                    Interactive vector node cluster of off-market real estate hubs in Mumbai. Click on any neighborhood node to instantly filter corresponding verified live feeds.
+                    Interactive vector node cluster of high-speed B2B broker networks in Mumbai. Click on any neighborhood node to instantly filter corresponding verified live feeds.
                   </p>
                 </div>
 
@@ -836,8 +869,8 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-primary)]">Live Heat Spot Cues</span>
                   </div>
                   <div className="space-y-2 text-[11px] text-[var(--text-secondary)] leading-relaxed">
-                    <p>🔥 <strong>Green Nodes (Glow)</strong> indicate high off-market velocity. Properties closed here within an average of 48 hours of surfacing.</p>
-                    <p>📊 <strong>Demand Index</strong> calculates search-to-broker matching volume relative to off-market inventory ratios.</p>
+                    <p>🔥 <strong>Green Nodes (Glow)</strong> indicate high broadcast velocity. Properties closed here within an average of 48 hours of surfacing in broker groups.</p>
+                    <p>📊 <strong>Demand Index</strong> calculates search-to-broker matching volume relative to broker group broadcast volume.</p>
                   </div>
                 </div>
 
@@ -862,8 +895,8 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                         <div className="font-bold text-[var(--text-primary)] mt-0.5">{hoveredLocality.demandIndex}% (High)</div>
                       </div>
                       <div>
-                        <span className="text-[var(--text-secondary)]">Off-Market Advantage</span>
-                        <div className="font-bold text-blue-400 mt-0.5">{hoveredLocality.delta} Delta</div>
+                        <span className="text-[var(--text-secondary)]">Broker Group Delta</span>
+                        <div className="font-bold text-blue-400 mt-0.5">{hoveredLocality.delta} Advantage</div>
                       </div>
                     </div>
                   </div>
@@ -1053,8 +1086,8 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
             {/* Visual Graph and Data metrics (8 columns) */}
             <div className="lg:col-span-8 glass-panel rounded-[28px] p-6 sm:p-8 space-y-8 border border-white/3">
               <div>
-                <h3 className="text-[20px] font-black tracking-tight text-[var(--text-primary)] font-display">Off-Market Price Delta Growth Index</h3>
-                <p className="text-[13px] text-[var(--text-secondary)] mt-1">Real-time aggregate tracking of average off-market property valuations compared to standard retail portal asking rates.</p>
+                <h3 className="text-[20px] font-black tracking-tight text-[var(--text-primary)] font-display">B2B Broker Broadcast Pricing Delta</h3>
+                <p className="text-[13px] text-[var(--text-secondary)] mt-1">Real-time aggregate tracking of average broker group property valuations compared to standard retail portal asking rates.</p>
               </div>
 
               {/* Dynamic canvas element */}
@@ -1072,10 +1105,10 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                 <div className="p-4 rounded-xl bg-[var(--bg-surface)]/60 space-y-1.5">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4.5 w-4.5 text-[var(--accent)]" />
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-white">Off-Market Speed advantage</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-white">Direct Broadcast Speed</span>
                   </div>
                   <p className="text-[11.5px] text-[var(--text-secondary)] leading-relaxed">
-                    By bypassing the portals, properties on PropAI are finalized inside 48 hours. Retail portals typically retain properties for an average of 42 days before closing.
+                    By aggregating live professional broker WhatsApp groups, properties are captured and closed in hours. Retail portals typically retain properties for 42 days.
                   </p>
                 </div>
                 <div className="p-4 rounded-xl bg-[var(--bg-surface)]/60 space-y-1.5">
@@ -1084,7 +1117,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     <span className="text-[11px] font-bold uppercase tracking-wider text-white">Aggregated Locality Viability</span>
                   </div>
                   <p className="text-[11.5px] text-[var(--text-secondary)] leading-relaxed">
-                    Bandra West and Powai are experiencing high supply volatility (ratios exceeding 1:4 matching rate requests), making off-market negotiation highly flexible.
+                    Bandra West and Powai are experiencing high supply volatility (ratios exceeding 1:4 matching rate requests), making peer-to-peer co-broking highly flexible.
                   </p>
                 </div>
               </div>
@@ -1123,9 +1156,9 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
               {/* Data Transparency Note Card */}
               <div className="glass-panel rounded-[24px] p-6 border border-white/3 space-y-3">
                 <Shield className="h-7 w-7 text-[var(--accent)]" />
-                <h4 className="text-[14px] font-bold text-white">Bespoke Off-Market Ledger</h4>
+                <h4 className="text-[14px] font-bold text-white">Live B2B Broker Ledger</h4>
                 <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
-                  Our algorithm processes thousands of secure, closed broker networks and communications daily to cross-reference data and guarantee 100% validity of each listed signal.
+                  Our system parses and structures thousands of private professional broker WhatsApp broadcasts daily, capturing fresh, authentic property flows with zero retail noise.
                 </p>
               </div>
             </div>
@@ -1143,7 +1176,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
               <div>
                 <h2 className="text-[20px] sm:text-[24px] font-black text-[var(--text-primary)] font-display">Transform the way you hunt rentals</h2>
                 <p className="mt-1 text-[13px] text-[var(--text-secondary)] leading-relaxed max-w-md">
-                  Ditch stale retail listing websites. Browse verified live streams, inspect off-market fact sheets, and connect directly with verified brokers immediately.
+                  Ditch stale retail listing websites. Browse verified live streams, inspect direct broker group details, and connect with verified co-brokers immediately.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
