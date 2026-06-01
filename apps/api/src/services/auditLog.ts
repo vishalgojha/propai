@@ -9,7 +9,10 @@ export type AuditAction =
     | 'group_updated'
     | 'system_session_restart'
     | 'backfill_listings'
-    | 'backfill_public_listings';
+    | 'backfill_public_listings'
+    | 'scout_task_created'
+    | 'scout_task_updated'
+    | 'scout_task_deleted';
 
 export type AuditEvent = {
     id: string;

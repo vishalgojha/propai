@@ -23,6 +23,32 @@ type WorkspaceHealth = {
   lastUpdatedAt: string | null;
 };
 
+type ScoutTaskRow = {
+  id: string;
+  agent_type: string;
+  tenant_id: string | null;
+  title: string;
+  source: string;
+  source_url: string | null;
+  context: string | null;
+  angle: string | null;
+  draft: string | null;
+  channel: string;
+  status: string;
+  priority: string;
+  notes: string | null;
+  metadata: Record<string, unknown> | null;
+  created_by: string | null;
+  created_by_email: string | null;
+  updated_by: string | null;
+  updated_by_email: string | null;
+  approved_at: string | null;
+  sent_at: string | null;
+  discarded_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 function getWorkspaceHealthStatus(row: Record<string, unknown>) {
   return String(row?.connection_status || row?.status || row?.connectionStatus || 'disconnected');
 }
@@ -408,6 +434,229 @@ export const getAdminAuditLog = async (req: Request, res: Response) => {
   } catch (error: unknown) {
     const statusCode = error instanceof HttpError ? error.statusCode : 500;
     res.status(statusCode).json({ error: error instanceof Error ? error.message : 'Failed to load audit log' });
+  }
+};
+
+function normalizeScoutTask(row: Partial<ScoutTaskRow>) {
+  return {
+    id: row.id,
+    agentType: row.agent_type || 'scout',
+    tenantId: row.tenant_id || null,
+    title: row.title || '',
+    source: row.source || '',
+    sourceUrl: row.source_url || '',
+    context: row.context || '',
+    angle: row.angle || '',
+    draft: row.draft || '',
+    channel: row.channel || 'email',
+    status: row.status || 'needs_review',
+    priority: row.priority || 'medium',
+    notes: row.notes || '',
+    metadata: row.metadata || {},
+    createdBy: row.created_by || null,
+    createdByEmail: row.created_by_email || null,
+    updatedBy: row.updated_by || null,
+    updatedByEmail: row.updated_by_email || null,
+    approvedAt: row.approved_at || null,
+    sentAt: row.sent_at || null,
+    discardedAt: row.discarded_at || null,
+    createdAt: row.created_at || new Date().toISOString(),
+    updatedAt: row.updated_at || new Date().toISOString(),
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Scout queue
+// ────────────────────────────────────────────────────────────────────────────
+export const listScoutTasks = async (req: Request, res: Response) => {
+  try {
+    await requireSuperAdmin(req);
+    if (!supabaseAdmin) return res.status(503).json({ error: 'Supabase admin unavailable' });
+
+    const agentType = String(req.query.agentType || 'scout').trim() || 'scout';
+    const status = String(req.query.status || '').trim();
+    const priority = String(req.query.priority || '').trim();
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+
+    let query = supabaseAdmin
+      .from('super_admin_agent_tasks')
+      .select('*')
+      .eq('agent_type', agentType)
+      .order('updated_at', { ascending: false })
+      .limit(limit);
+
+    if (status) query = query.eq('status', status);
+    if (priority) query = query.eq('priority', priority);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json({ success: true, tasks: (data || []).map((row) => normalizeScoutTask(row as Partial<ScoutTaskRow>)) });
+  } catch (error: unknown) {
+    const statusCode = error instanceof HttpError ? error.statusCode : 500;
+    res.status(statusCode).json({ error: error instanceof Error ? error.message : 'Failed to load scout tasks' });
+  }
+};
+
+export const createScoutTask = async (req: Request, res: Response) => {
+  try {
+    await requireSuperAdmin(req);
+    if (!supabaseAdmin) return res.status(503).json({ error: 'Supabase admin unavailable' });
+
+    const { adminId, adminEmail } = getAdminInfo(req);
+    const status = String(req.body?.status || 'needs_review').trim() || 'needs_review';
+    const now = new Date().toISOString();
+    const payload = {
+      agent_type: String(req.body?.agentType || 'scout').trim() || 'scout',
+      tenant_id: req.body?.tenantId || null,
+      title: String(req.body?.title || '').trim(),
+      source: String(req.body?.source || '').trim(),
+      source_url: String(req.body?.sourceUrl || '').trim() || null,
+      context: String(req.body?.context || '').trim(),
+      angle: String(req.body?.angle || '').trim(),
+      draft: String(req.body?.draft || '').trim(),
+      channel: String(req.body?.channel || 'email').trim() || 'email',
+      status,
+      priority: String(req.body?.priority || 'medium').trim() || 'medium',
+      notes: String(req.body?.notes || '').trim() || null,
+      metadata: req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {},
+      created_by: adminId,
+      created_by_email: adminEmail,
+      updated_by: adminId,
+      updated_by_email: adminEmail,
+      approved_at: status === 'approved' ? now : null,
+      sent_at: status === 'sent' ? now : null,
+      discarded_at: status === 'discarded' ? now : null,
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from('super_admin_agent_tasks')
+      .insert(payload)
+      .select('*')
+      .single();
+
+    if (error || !data) throw error || new Error('Failed to create scout task');
+
+    recordAuditEvent({
+      action: 'scout_task_created',
+      adminId,
+      adminEmail,
+      targetId: data.id,
+      payload: { agentType: data.agent_type, title: data.title, source: data.source, channel: data.channel },
+    });
+
+    res.json({ success: true, task: normalizeScoutTask(data as Partial<ScoutTaskRow>) });
+  } catch (error: unknown) {
+    const statusCode = error instanceof HttpError ? error.statusCode : 500;
+    res.status(statusCode).json({ error: error instanceof Error ? error.message : 'Failed to create scout task' });
+  }
+};
+
+export const updateScoutTask = async (req: Request, res: Response) => {
+  try {
+    await requireSuperAdmin(req);
+    if (!supabaseAdmin) return res.status(503).json({ error: 'Supabase admin unavailable' });
+
+    const taskId = String(req.params.taskId || '').trim();
+    if (!taskId) return res.status(400).json({ error: 'Scout task ID is required' });
+
+    const { adminId, adminEmail } = getAdminInfo(req);
+    const patch: Record<string, unknown> = {
+      updated_by: adminId,
+      updated_by_email: adminEmail,
+    };
+
+    const mapping: Array<[string, string]> = [
+      ['agentType', 'agent_type'],
+      ['tenantId', 'tenant_id'],
+      ['title', 'title'],
+      ['source', 'source'],
+      ['sourceUrl', 'source_url'],
+      ['context', 'context'],
+      ['angle', 'angle'],
+      ['draft', 'draft'],
+      ['channel', 'channel'],
+      ['status', 'status'],
+      ['priority', 'priority'],
+      ['notes', 'notes'],
+      ['metadata', 'metadata'],
+    ];
+    for (const [inputKey, columnKey] of mapping) {
+      if (req.body?.[inputKey] !== undefined) {
+        patch[columnKey] = req.body[inputKey];
+      }
+    }
+
+    const nextStatus = String(patch.status || '').trim();
+    const now = new Date().toISOString();
+    if (nextStatus === 'approved') {
+      patch.approved_at = now;
+      patch.sent_at = null;
+      patch.discarded_at = null;
+    } else if (nextStatus === 'sent') {
+      patch.sent_at = now;
+      patch.discarded_at = null;
+    } else if (nextStatus === 'discarded') {
+      patch.discarded_at = now;
+      patch.sent_at = null;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('super_admin_agent_tasks')
+      .update(patch)
+      .eq('id', taskId)
+      .select('*')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Scout task not found' });
+
+    recordAuditEvent({
+      action: 'scout_task_updated',
+      adminId,
+      adminEmail,
+      targetId: data.id,
+      payload: { patch },
+    });
+
+    res.json({ success: true, task: normalizeScoutTask(data as Partial<ScoutTaskRow>) });
+  } catch (error: unknown) {
+    const statusCode = error instanceof HttpError ? error.statusCode : 500;
+    res.status(statusCode).json({ error: error instanceof Error ? error.message : 'Failed to update scout task' });
+  }
+};
+
+export const deleteScoutTask = async (req: Request, res: Response) => {
+  try {
+    await requireSuperAdmin(req);
+    if (!supabaseAdmin) return res.status(503).json({ error: 'Supabase admin unavailable' });
+
+    const taskId = String(req.params.taskId || '').trim();
+    if (!taskId) return res.status(400).json({ error: 'Scout task ID is required' });
+
+    const { adminId, adminEmail } = getAdminInfo(req);
+    const { data, error } = await supabaseAdmin
+      .from('super_admin_agent_tasks')
+      .delete()
+      .eq('id', taskId)
+      .select('id, title, source, agent_type')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Scout task not found' });
+
+    recordAuditEvent({
+      action: 'scout_task_deleted',
+      adminId,
+      adminEmail,
+      targetId: data.id,
+      payload: { title: data.title, source: data.source, agentType: data.agent_type },
+    });
+
+    res.json({ success: true });
+  } catch (error: unknown) {
+    const statusCode = error instanceof HttpError ? error.statusCode : 500;
+    res.status(statusCode).json({ error: error instanceof Error ? error.message : 'Failed to delete scout task' });
   }
 };
 

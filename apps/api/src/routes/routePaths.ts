@@ -113,6 +113,8 @@ export const ROUTE_PATHS = {
     updateWorkspaceGroup: '/workspaces/:tenantId/groups/:groupJid',
     backfillListings: '/backfill/listings',
     backfillPublicListings: '/backfill/public-listings',
+    scoutTasks: '/scout/tasks',
+    scoutTask: '/scout/tasks/:taskId',
   },
   workspace: {
     overview: '/overview',

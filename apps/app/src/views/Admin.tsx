@@ -93,6 +93,25 @@ type ScoutLead = {
   notes?: string;
 };
 
+type ScoutTaskApiRow = {
+  id: string;
+  agentType?: string;
+  tenantId?: string | null;
+  title: string;
+  source: string;
+  sourceUrl?: string | null;
+  context?: string | null;
+  angle?: string | null;
+  draft?: string | null;
+  channel?: ScoutChannel;
+  status?: ScoutStatus;
+  priority?: ScoutLead['priority'];
+  notes?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
 const formatDate = (value?: string | number | null) =>
   value ? new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : 'Not set';
 
@@ -102,60 +121,16 @@ const adminSecondaryButton =
   'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-all hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)]';
 const adminPill =
   'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em]';
-const scoutStorageKey = 'propai.super-admin.scout-queue.v1';
-
-const scoutSeedData: ScoutLead[] = [
-  {
-    id: 'scout-thane-pricing',
-    title: 'Thane market discussion',
-    source: 'r/Mumbai',
-    sourceUrl: 'https://reddit.com/r/mumbai',
-    context: 'People are comparing Thane West and nearby micro-markets for current rent and sale levels.',
-    angle: 'Offer a clean locality pulse with live inventory trends and a public-safe market page',
-    draft: 'Hi, I saw the discussion on Thane pricing. PropAI Pulse has a public locality page and a broker-safe market view that can help readers compare current activity without exposing private data. If you want, I can share a short chart or summary.',
-    channel: 'comment',
-    status: 'needs_review',
-    priority: 'high',
-    createdAt: Date.now() - 1000 * 60 * 60 * 6,
-    updatedAt: Date.now() - 1000 * 60 * 60 * 2,
-    notes: 'Useful for Google/AI visibility and local authority signals.',
-  },
-  {
-    id: 'scout-bandra-off-market',
-    title: 'Bandra off-market thread',
-    source: 'Broker newsletter',
-    sourceUrl: 'https://propai.live/locality/bandra-west',
-    context: 'An editor is asking for off-market Bandra inventory with proper locality context.',
-    angle: 'Share a public-safe market snapshot and invite access to the broker workflow',
-    draft: 'Hi, we track off-market broker signals in Bandra West and nearby belts. PropAI Pulse turns WhatsApp inventory into a clean locality-first view, and the public pages can support a market story. Happy to share a short summary if useful.',
-    channel: 'email',
-    status: 'draft',
-    priority: 'medium',
-    createdAt: Date.now() - 1000 * 60 * 60 * 24,
-    updatedAt: Date.now() - 1000 * 60 * 60 * 24,
-  },
-  {
-    id: 'scout-mcp-discovery',
-    title: 'AI search / MCP mention',
-    source: 'Tech blog',
-    sourceUrl: 'https://propai.live/mcp/docs',
-    context: 'Someone is writing about AI assistants and searchable property data.',
-    angle: 'Link to public docs and the locality index, not to private broker data',
-    draft: 'Hi, PropAI Pulse publishes public docs for AI assistants and a clean locality index for crawlers. The private MCP server stays permissioned, but the public documentation explains the concept clearly. If helpful, we can share the public-safe overview.',
-    channel: 'email',
-    status: 'approved',
-    priority: 'low',
-    createdAt: Date.now() - 1000 * 60 * 60 * 42,
-    updatedAt: Date.now() - 1000 * 60 * 60 * 5,
-  },
-];
 
 export const Admin: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = React.useState<'overview' | 'partners' | 'groups' | 'audit' | 'system' | 'scout'>('overview');
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState<string | null>(null);
+  const [scoutLoading, setScoutLoading] = React.useState(false);
+  const [scoutSavingId, setScoutSavingId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const scoutSaveTimersRef = React.useRef<Record<string, number | undefined>>({});
   
   // Workspace Data
   const [summary, setSummary] = React.useState<AdminSummary>({ totalWorkspaces: 0, trialWorkspaces: 0, connectedWorkspaces: 0, messagesParsed24h: 0 });
@@ -176,10 +151,9 @@ export const Admin: React.FC = () => {
   const [auditLog, setAuditLog] = React.useState<AuditEvent[]>([]);
 
   // Scout queue
-  const [scoutQueue, setScoutQueue] = React.useState<ScoutLead[]>(scoutSeedData);
+  const [scoutQueue, setScoutQueue] = React.useState<ScoutLead[]>([]);
   const [scoutFilter, setScoutFilter] = React.useState<'all' | ScoutStatus>('all');
-  const [scoutSelectedId, setScoutSelectedId] = React.useState<string>(scoutSeedData[0]?.id || '');
-  const [scoutHydrated, setScoutHydrated] = React.useState(false);
+  const [scoutSelectedId, setScoutSelectedId] = React.useState<string>('');
   const [scoutDraft, setScoutDraft] = React.useState({
     title: '',
     source: '',
@@ -193,34 +167,42 @@ export const Admin: React.FC = () => {
 
   const isSuperAdmin = user?.appRole === 'super_admin';
 
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(scoutStorageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as ScoutLead[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setScoutQueue(parsed);
-          setScoutSelectedId((current) => current || parsed[0].id);
-        }
-      }
-    } catch (readErr) {
-      console.error('Failed to restore scout queue', readErr);
-    } finally {
-      setScoutHydrated(true);
-    }
+  const toScoutLead = React.useCallback((row: ScoutTaskApiRow): ScoutLead => {
+    const createdAt = row.createdAt ? new Date(row.createdAt).getTime() : Date.now();
+    const updatedAt = row.updatedAt ? new Date(row.updatedAt).getTime() : createdAt;
+    return {
+      id: row.id,
+      title: row.title || '',
+      source: row.source || '',
+      sourceUrl: row.sourceUrl || '',
+      context: row.context || '',
+      angle: row.angle || '',
+      draft: row.draft || '',
+      channel: row.channel || 'email',
+      status: row.status || 'needs_review',
+      priority: row.priority || 'medium',
+      createdAt,
+      updatedAt,
+      notes: row.notes || undefined,
+    };
+  }, []);
+
+  React.useEffect(() => () => {
+    Object.values(scoutSaveTimersRef.current).forEach((timer) => {
+      if (timer) window.clearTimeout(timer);
+    });
+    scoutSaveTimersRef.current = {};
   }, []);
 
   React.useEffect(() => {
-    if (!scoutHydrated || typeof window === 'undefined') return;
-    window.localStorage.setItem(scoutStorageKey, JSON.stringify(scoutQueue));
-  }, [scoutQueue, scoutHydrated]);
-
-  React.useEffect(() => {
-    if (!scoutSelectedId && scoutQueue.length > 0) {
+    if (scoutQueue.length === 0) {
+      setScoutSelectedId('');
+      return;
+    }
+    if (!scoutSelectedId || !scoutQueue.some((lead) => lead.id === scoutSelectedId)) {
       setScoutSelectedId(scoutQueue[0].id);
     }
-  }, [scoutSelectedId, scoutQueue]);
+  }, [scoutQueue, scoutSelectedId]);
 
   const loadAdminData = React.useCallback(async (page = 1) => {
     setIsLoading(true);
@@ -271,6 +253,79 @@ export const Admin: React.FC = () => {
     }
   }, []);
 
+  const loadScoutTasks = React.useCallback(async () => {
+    setScoutLoading(true);
+    setError(null);
+    try {
+      const response = await backendApi.get(ENDPOINTS.admin.scoutTasks, {
+        params: {
+          agentType: 'scout',
+          limit: 100,
+        },
+      });
+      const tasks = Array.isArray(response.data?.tasks)
+        ? (response.data.tasks as ScoutTaskApiRow[]).map((task) => toScoutLead(task))
+        : [];
+      setScoutQueue(tasks);
+      setScoutSelectedId((current) => {
+        if (current && tasks.some((task) => task.id === current)) return current;
+        return tasks[0]?.id || '';
+      });
+    } catch (err) {
+      setError(handleApiError(err));
+      setScoutQueue([]);
+      setScoutSelectedId('');
+    } finally {
+      setScoutLoading(false);
+    }
+  }, [toScoutLead]);
+
+  const saveScoutTaskPatch = React.useCallback(async (leadId: string, patch: Partial<ScoutLead>, opts?: { immediate?: boolean }) => {
+    const doRequest = async () => {
+      setScoutSavingId(leadId);
+      try {
+        const response = await backendApi.patch(ENDPOINTS.admin.scoutTask(leadId), {
+          ...patch,
+          agentType: 'scout',
+        });
+        if (response.data?.task) {
+          const updated = toScoutLead(response.data.task as ScoutTaskApiRow);
+          setScoutQueue((current) => current.map((lead) => (lead.id === leadId ? updated : lead)));
+        }
+      } catch (err) {
+        setError(handleApiError(err));
+      } finally {
+        setScoutSavingId(null);
+      }
+    };
+
+    setScoutQueue((current) =>
+      current.map((lead) =>
+        lead.id === leadId
+          ? { ...lead, ...patch, updatedAt: Date.now() }
+          : lead,
+      ),
+    );
+
+    if (opts?.immediate) {
+      const timer = scoutSaveTimersRef.current[leadId];
+      if (timer) {
+        window.clearTimeout(timer);
+        scoutSaveTimersRef.current[leadId] = undefined;
+      }
+      await doRequest();
+      return;
+    }
+
+    const timer = scoutSaveTimersRef.current[leadId];
+    if (timer) window.clearTimeout(timer);
+    scoutSaveTimersRef.current[leadId] = window.setTimeout(() => {
+      void doRequest().finally(() => {
+        scoutSaveTimersRef.current[leadId] = undefined;
+      });
+    }, 350);
+  }, [toScoutLead]);
+
   const loadAuditLog = React.useCallback(async () => {
     try {
       const res = await backendApi.get(ENDPOINTS.admin.audit);
@@ -288,12 +343,14 @@ export const Admin: React.FC = () => {
     
     if (activeTab === 'overview' || activeTab === 'partners') {
       void loadAdminData(pagination.page);
+    } else if (activeTab === 'scout') {
+      void loadScoutTasks();
     } else if (activeTab === 'system') {
       void loadImpersonations();
     } else if (activeTab === 'audit') {
       void loadAuditLog();
     }
-  }, [isSuperAdmin, activeTab, search, filterPlan, filterStatus]);
+  }, [isSuperAdmin, activeTab, search, filterPlan, filterStatus, loadScoutTasks]);
 
   React.useEffect(() => {
     if (isSuperAdmin && activeTab === 'groups' && selectedWorkspaceId) {
@@ -382,51 +439,46 @@ export const Admin: React.FC = () => {
     return current || scoutQueue[0] || null;
   }, [scoutQueue, scoutSelectedId]);
 
-  const persistScoutLead = React.useCallback((leadId: string, patch: Partial<ScoutLead>) => {
-    setScoutQueue((current) =>
-      current.map((lead) =>
-        lead.id === leadId
-          ? { ...lead, ...patch, updatedAt: Date.now() }
-          : lead,
-      ),
-    );
-  }, []);
-
-  const addScoutDraft = () => {
+  const addScoutDraft = async () => {
     setError(null);
     if (!scoutDraft.title.trim() || !scoutDraft.source.trim() || !scoutDraft.draft.trim()) {
       setError('Scout draft needs a title, source, and pitch before it can be added.');
       return;
     }
-    const next: ScoutLead = {
-      id: `scout-${Date.now()}`,
-      title: scoutDraft.title.trim(),
-      source: scoutDraft.source.trim(),
-      sourceUrl: scoutDraft.sourceUrl.trim(),
-      context: scoutDraft.context.trim(),
-      angle: scoutDraft.angle.trim(),
-      draft: scoutDraft.draft.trim(),
-      channel: scoutDraft.channel,
-      status: 'needs_review',
-      priority: scoutDraft.priority,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    setScoutQueue((current) => [next, ...current]);
-    setScoutSelectedId(next.id);
-    setScoutDraft({
-      title: '',
-      source: '',
-      sourceUrl: '',
-      context: '',
-      angle: '',
-      draft: '',
-      channel: 'email',
-      priority: 'medium',
-    });
+    try {
+      const response = await backendApi.post(ENDPOINTS.admin.scoutTasks, {
+        agentType: 'scout',
+        title: scoutDraft.title.trim(),
+        source: scoutDraft.source.trim(),
+        sourceUrl: scoutDraft.sourceUrl.trim() || undefined,
+        context: scoutDraft.context.trim(),
+        angle: scoutDraft.angle.trim(),
+        draft: scoutDraft.draft.trim(),
+        channel: scoutDraft.channel,
+        status: 'needs_review',
+        priority: scoutDraft.priority,
+      });
+      if (response.data?.task) {
+        const next = toScoutLead(response.data.task as ScoutTaskApiRow);
+        setScoutQueue((current) => [next, ...current.filter((lead) => lead.id !== next.id)]);
+        setScoutSelectedId(next.id);
+        setScoutDraft({
+          title: '',
+          source: '',
+          sourceUrl: '',
+          context: '',
+          angle: '',
+          draft: '',
+          channel: 'email',
+          priority: 'medium',
+        });
+      }
+    } catch (err) {
+      setError(handleApiError(err));
+    }
   };
 
-  const generateScoutDraft = () => {
+  const generateScoutDraft = async () => {
     if (!selectedScoutLead) return;
     const sourceLine = selectedScoutLead.sourceUrl ? `Reference: ${selectedScoutLead.sourceUrl}` : `Source: ${selectedScoutLead.source}`;
     const safePitch = [
@@ -439,25 +491,30 @@ export const Admin: React.FC = () => {
     ]
       .filter(Boolean)
       .join(' ');
-    persistScoutLead(selectedScoutLead.id, { draft: safePitch, status: 'needs_review' });
+    await saveScoutTaskPatch(selectedScoutLead.id, { draft: safePitch, status: 'needs_review' }, { immediate: true });
   };
 
   const copyScoutDraft = async (lead: ScoutLead) => {
     await navigator.clipboard.writeText(lead.draft);
   };
 
-  const removeScoutLead = (leadId: string) => {
-    setScoutQueue((current) => {
-      const nextQueue = current.filter((lead) => lead.id !== leadId);
-      if (scoutSelectedId === leadId) {
-        setScoutSelectedId(nextQueue[0]?.id || '');
-      }
-      return nextQueue;
-    });
+  const removeScoutLead = async (leadId: string) => {
+    try {
+      await backendApi.delete(ENDPOINTS.admin.scoutTask(leadId));
+      setScoutQueue((current) => {
+        const nextQueue = current.filter((lead) => lead.id !== leadId);
+        if (scoutSelectedId === leadId) {
+          setScoutSelectedId(nextQueue[0]?.id || '');
+        }
+        return nextQueue;
+      });
+    } catch (err) {
+      setError(handleApiError(err));
+    }
   };
 
-  const markScoutStatus = (leadId: string, status: ScoutStatus) => {
-    persistScoutLead(leadId, { status });
+  const markScoutStatus = async (leadId: string, status: ScoutStatus) => {
+    await saveScoutTaskPatch(leadId, { status }, { immediate: true });
   };
 
   if (!isSuperAdmin) {
@@ -491,10 +548,16 @@ export const Admin: React.FC = () => {
           </div>
           <button
             type="button"
-            onClick={() => activeTab === 'audit' ? loadAuditLog() : activeTab === 'system' ? loadImpersonations() : loadAdminData(pagination.page)}
+            onClick={() => activeTab === 'audit'
+              ? loadAuditLog()
+              : activeTab === 'system'
+                ? loadImpersonations()
+                : activeTab === 'scout'
+                  ? void loadScoutTasks()
+                  : loadAdminData(pagination.page)}
             className={cn(adminSecondaryButton, 'rounded-full')}
           >
-            <RefreshIcon className={cn('h-4 w-4', isLoading && 'animate-spin')} />
+            <RefreshIcon className={cn('h-4 w-4', (isLoading || (activeTab === 'scout' && scoutLoading)) && 'animate-spin')} />
             Refresh
           </button>
         </div>
@@ -891,7 +954,7 @@ export const Admin: React.FC = () => {
                 />
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button type="button" onClick={addScoutDraft} className={adminPrimaryButton}>
+                  <button type="button" onClick={() => void addScoutDraft()} className={adminPrimaryButton}>
                     <SparklesIcon className="h-3.5 w-3.5" />
                     Add to review queue
                   </button>
@@ -941,7 +1004,11 @@ export const Admin: React.FC = () => {
                 </div>
 
                 <div className="mt-4 space-y-3">
-                  {scoutFiltered.length === 0 ? (
+                  {scoutLoading ? (
+                    <div className="rounded-[14px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-8 text-center text-[13px] text-[var(--text-secondary)]">
+                      Loading scout queue...
+                    </div>
+                  ) : scoutFiltered.length === 0 ? (
                     <div className="rounded-[14px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-8 text-center text-[13px] text-[var(--text-secondary)]">
                       No scout drafts in this filter. Add one from the form above.
                     </div>
@@ -1019,7 +1086,7 @@ export const Admin: React.FC = () => {
                                 type="button"
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  markScoutStatus(lead.id, 'approved');
+                                  void markScoutStatus(lead.id, 'approved');
                                 }}
                                 className={adminSecondaryButton}
                               >
@@ -1030,7 +1097,7 @@ export const Admin: React.FC = () => {
                                 type="button"
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  removeScoutLead(lead.id);
+                                  void removeScoutLead(lead.id);
                                 }}
                                 className={cn(adminSecondaryButton, 'text-red-300 hover:border-red-500/30 hover:bg-red-500/10')}
                               >
@@ -1065,18 +1132,18 @@ export const Admin: React.FC = () => {
                   <div className="mt-4 space-y-3">
                     <input
                       value={selectedScoutLead.title}
-                      onChange={(e) => persistScoutLead(selectedScoutLead.id, { title: e.target.value })}
+                      onChange={(e) => void saveScoutTaskPatch(selectedScoutLead.id, { title: e.target.value })}
                       className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                     />
                     <input
                       value={selectedScoutLead.source}
-                      onChange={(e) => persistScoutLead(selectedScoutLead.id, { source: e.target.value })}
+                      onChange={(e) => void saveScoutTaskPatch(selectedScoutLead.id, { source: e.target.value })}
                       className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                     />
                     <div className="flex items-center gap-2">
                       <input
                         value={selectedScoutLead.sourceUrl}
-                        onChange={(e) => persistScoutLead(selectedScoutLead.id, { sourceUrl: e.target.value })}
+                        onChange={(e) => void saveScoutTaskPatch(selectedScoutLead.id, { sourceUrl: e.target.value })}
                         className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                       />
                       {selectedScoutLead.sourceUrl ? (
@@ -1093,19 +1160,19 @@ export const Admin: React.FC = () => {
                     </div>
                     <textarea
                       value={selectedScoutLead.context}
-                      onChange={(e) => persistScoutLead(selectedScoutLead.id, { context: e.target.value })}
+                      onChange={(e) => void saveScoutTaskPatch(selectedScoutLead.id, { context: e.target.value })}
                       rows={3}
                       className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                     />
                     <textarea
                       value={selectedScoutLead.angle}
-                      onChange={(e) => persistScoutLead(selectedScoutLead.id, { angle: e.target.value })}
+                      onChange={(e) => void saveScoutTaskPatch(selectedScoutLead.id, { angle: e.target.value })}
                       rows={2}
                       className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                     />
                     <textarea
                       value={selectedScoutLead.draft}
-                      onChange={(e) => persistScoutLead(selectedScoutLead.id, { draft: e.target.value, status: 'needs_review' })}
+                      onChange={(e) => void saveScoutTaskPatch(selectedScoutLead.id, { draft: e.target.value, status: 'needs_review' })}
                       rows={8}
                       className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                     />
@@ -1113,7 +1180,7 @@ export const Admin: React.FC = () => {
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       <select
                         value={selectedScoutLead.channel}
-                        onChange={(e) => persistScoutLead(selectedScoutLead.id, { channel: e.target.value as ScoutChannel })}
+                        onChange={(e) => void saveScoutTaskPatch(selectedScoutLead.id, { channel: e.target.value as ScoutChannel })}
                         className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                       >
                         <option value="email">Email</option>
@@ -1123,7 +1190,7 @@ export const Admin: React.FC = () => {
                       </select>
                       <select
                         value={selectedScoutLead.priority}
-                        onChange={(e) => persistScoutLead(selectedScoutLead.id, { priority: e.target.value as ScoutLead['priority'] })}
+                        onChange={(e) => void saveScoutTaskPatch(selectedScoutLead.id, { priority: e.target.value as ScoutLead['priority'] })}
                         className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                       >
                         <option value="high">High</option>
@@ -1132,7 +1199,7 @@ export const Admin: React.FC = () => {
                       </select>
                       <select
                         value={selectedScoutLead.status}
-                        onChange={(e) => persistScoutLead(selectedScoutLead.id, { status: e.target.value as ScoutStatus })}
+                        onChange={(e) => void saveScoutTaskPatch(selectedScoutLead.id, { status: e.target.value as ScoutStatus }, { immediate: true })}
                         className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)] sm:col-span-1"
                       >
                         <option value="draft">Draft</option>
@@ -1144,15 +1211,15 @@ export const Admin: React.FC = () => {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={generateScoutDraft} className={adminSecondaryButton}>
+                      <button type="button" onClick={() => void generateScoutDraft()} className={adminSecondaryButton} disabled={scoutSavingId === selectedScoutLead.id}>
                         <SparklesIcon className="h-3.5 w-3.5" />
                         Generate draft
                       </button>
-                      <button type="button" onClick={() => markScoutStatus(selectedScoutLead.id, 'approved')} className={adminPrimaryButton}>
+                      <button type="button" onClick={() => void markScoutStatus(selectedScoutLead.id, 'approved')} className={adminPrimaryButton} disabled={scoutSavingId === selectedScoutLead.id}>
                         <CheckIcon className="h-3.5 w-3.5" />
                         Approve
                       </button>
-                      <button type="button" onClick={() => markScoutStatus(selectedScoutLead.id, 'sent')} className={adminSecondaryButton}>
+                      <button type="button" onClick={() => void markScoutStatus(selectedScoutLead.id, 'sent')} className={adminSecondaryButton} disabled={scoutSavingId === selectedScoutLead.id}>
                         <MailIcon className="h-3.5 w-3.5" />
                         Mark sent
                       </button>

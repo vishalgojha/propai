@@ -12,12 +12,19 @@ import {
     getAdminAuditLog,
     backfillListings,
     backfillPublicListings,
+    listScoutTasks,
+    createScoutTask,
+    updateScoutTask,
+    deleteScoutTask,
 } from '../controllers/adminController';
 import {
     listWorkspacesQuerySchema,
     updateSubscriptionBodySchema,
     updateGroupBodySchema,
     getAuditLogQuerySchema,
+    listScoutTasksQuerySchema,
+    upsertScoutTaskBodySchema,
+    scoutTaskIdParamSchema,
 } from '../schemas/adminSchemas';
 
 const router = Router();
@@ -36,6 +43,12 @@ router.get('/impersonations', listImpersonations);
 
 // Audit log
 router.get('/audit', validate(getAuditLogQuerySchema, 'query'), getAdminAuditLog);
+
+// Scout queue
+router.get('/scout/tasks', validate(listScoutTasksQuerySchema, 'query'), listScoutTasks);
+router.post('/scout/tasks', validate(upsertScoutTaskBodySchema), createScoutTask);
+router.patch('/scout/tasks/:taskId', validate(scoutTaskIdParamSchema, 'params'), validate(upsertScoutTaskBodySchema), updateScoutTask);
+router.delete('/scout/tasks/:taskId', validate(scoutTaskIdParamSchema, 'params'), deleteScoutTask);
 
 // Backfill
 router.post('/backfill/listings', backfillListings);

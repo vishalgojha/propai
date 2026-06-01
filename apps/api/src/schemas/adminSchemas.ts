@@ -28,3 +28,30 @@ export const updateGroupBodySchema = z.object({
 export const getAuditLogQuerySchema = z.object({
     limit: z.coerce.number().int().min(1).max(200).optional().default(50),
 });
+
+export const listScoutTasksQuerySchema = z.object({
+    agentType: z.string().optional().default('scout'),
+    status: z.string().optional(),
+    priority: z.string().optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+});
+
+export const upsertScoutTaskBodySchema = z.object({
+    agentType: z.string().min(1).optional(),
+    title: z.string().min(1),
+    source: z.string().min(1),
+    sourceUrl: z.string().optional(),
+    context: z.string().optional().default(''),
+    angle: z.string().optional().default(''),
+    draft: z.string().optional().default(''),
+    channel: z.enum(['email', 'dm', 'comment', 'partnership']).optional().default('email'),
+    status: z.enum(['draft', 'needs_review', 'approved', 'sent', 'discarded']).optional().default('needs_review'),
+    priority: z.enum(['low', 'medium', 'high']).optional().default('medium'),
+    notes: z.string().optional(),
+    tenantId: z.string().uuid().optional().nullable(),
+    metadata: z.record(z.any()).optional(),
+});
+
+export const scoutTaskIdParamSchema = z.object({
+    taskId: z.string().uuid(),
+});
