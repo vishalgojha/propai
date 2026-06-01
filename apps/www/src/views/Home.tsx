@@ -521,39 +521,6 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
           PropAI bypasses stale property websites. We structure real-time professional broker broadcasts using AI to index authentic, active listings straight from private network streams.
         </p>
 
-        <div className="mb-8 inline-flex flex-wrap items-center justify-center gap-3 rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)]/75 px-4 py-3 text-left shadow-[0_12px_40px_rgba(0,0,0,0.18)]">
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--accent)]">
-            <Shield className="h-3.5 w-3.5" />
-            Public MCP docs
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <Link
-              href="/mcp"
-              className="rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)] transition-colors hover:brightness-110"
-            >
-              MCP
-            </Link>
-            <Link
-              href="/mcp/docs"
-              className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
-            >
-              Docs
-            </Link>
-            <Link
-              href="/mcp/security"
-              className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
-            >
-              Security
-            </Link>
-            <Link
-              href="/llms.txt"
-              className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
-            >
-              llms.txt
-            </Link>
-          </div>
-        </div>
-
         {/* Global Search Bar */}
         <div className="w-full max-w-xl mx-auto bg-[var(--bg-surface)]/85 backdrop-blur-md rounded-[20px] p-2 border border-white/5 shadow-[0_20px_50px_rgba(0,0,0,0.4)] hover:border-[var(--accent)]/15 transition-all duration-300 flex items-center gap-2">
           <div className="flex-1 flex items-center gap-3 px-3">
@@ -1327,7 +1294,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
 
       {/* ADVANCED FLOATING BROKER CHAT SIMULATOR DRAWER */}
       {chatOpen && activeBroker && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end animate-fade-in select-none">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end animate-fade-in">
           <div className="absolute inset-0" onClick={() => setChatOpen(false)} />
           
           <div className="w-full max-w-md h-full bg-[var(--bg-surface)] border-l border-white/5 flex flex-col relative z-10 animate-stream-in shadow-2xl">

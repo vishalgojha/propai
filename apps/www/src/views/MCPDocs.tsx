@@ -15,7 +15,7 @@ export default function MCPDocs() {
         </h1>
         <p className="max-w-3xl text-[16px] leading-8 text-[var(--text-secondary)]">
           This public documentation explains the MCP concept at a high level. It is designed for crawlers,
-          LLMs, and developer agents that need to understand what PropAI MCP can do without exposing the private
+          LLMs, and AI assistants that need to understand what PropAI MCP can do without exposing the private
           production server or private broker data.
         </p>
       </section>
@@ -107,7 +107,7 @@ export default function MCPDocs() {
         <div className="rounded-[22px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--accent)]">Agent discovery</p>
           <h2 className="mt-2 text-[22px] font-bold text-[var(--text-primary)]">
-            One crawlable entry point for LLMs and AI agents
+            One crawlable entry point for LLMs and AI assistants
           </h2>
           <p className="mt-3 text-[14px] leading-7 text-[var(--text-secondary)]">
             These files summarize the public MCP surface without exposing private endpoints or broker data.

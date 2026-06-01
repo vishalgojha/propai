@@ -22,7 +22,7 @@ export default function MCP() {
               PropAI MCP
             </h1>
             <p className="max-w-3xl text-[16px] leading-8 text-[var(--text-secondary)] md:text-[18px]">
-              PropAI MCP is a secure authenticated interface for AI agents and brokers to query live real-time broker
+              PropAI MCP is a secure authenticated interface for AI assistants and brokers to query live real-time broker
               WhatsApp network streams from PropAI Pulse. Production access is Supabase-authenticated, role-based, and
               limited to permissioned broker tools.
             </p>
@@ -116,7 +116,7 @@ export default function MCP() {
               Built for AI agents, not public scraping
             </h2>
             <p className="mt-3 text-[15px] leading-7 text-[var(--text-secondary)]">
-              The public MCP layer explains how PropAI works for search engines, LLMs, and developer agents. The
+              The public MCP layer explains how PropAI works for search engines, LLMs, and AI assistants. The
               private server remains behind Supabase auth, role checks, and audit controls.
             </p>
           </div>

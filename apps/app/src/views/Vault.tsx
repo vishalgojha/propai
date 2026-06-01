@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import backendApi, { handleApiError } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { ZapIcon, ListingIcon, RequirementIcon, MessageCircleIcon, AlertTriangleIcon } from '../lib/icons';
-import { splitMultiListing } from '../../../../packages/price-parser/src/splitter';
+import { splitMultiListing } from '../lib/vaultSplitter';
 
 type TabId = 'listings' | 'requirements';
 type VaultEntryType = 'listing' | 'requirement';

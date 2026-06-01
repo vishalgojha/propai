@@ -73,11 +73,6 @@ export default async function Footer() {
             <ul className="space-y-2">
               <li><Link href="/listings" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Browse Listings</Link></li>
               <li><Link href="/about" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">About PropAI</Link></li>
-              <li><Link href="/mcp" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">PropAI MCP</Link></li>
-              <li><Link href="/mcp/docs" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">MCP Docs</Link></li>
-              <li><Link href="/mcp/security" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">MCP Security</Link></li>
-              <li><Link href="/llms.txt" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">llms.txt</Link></li>
-              <li><Link href="/ai.txt" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">ai.txt</Link></li>
               <li><Link href="/contact" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Contact Us</Link></li>
               <li><Link href="/privacy" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Privacy Policy</Link></li>
               <li><Link href="/terms" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Terms &amp; Conditions</Link></li>
@@ -88,6 +83,7 @@ export default async function Footer() {
             <h4 className="mb-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">Company</h4>
             <ul className="space-y-2">
               <li><Link href="https://app.propai.live" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">For Brokers</Link></li>
+              <li><Link href="/mcp" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">AI Tools</Link></li>
               <li><Link href="/refund" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Refund Policy</Link></li>
               <li><Link href="/cancellation" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Cancellation Policy</Link></li>
               <li><Link href="/contact" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Support</Link></li>
