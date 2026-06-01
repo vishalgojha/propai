@@ -4,9 +4,9 @@ import backendApi, { handleApiError } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import {
-  BhkGapChart,
   DailySupplyDemandChart,
   NetDemandChart,
+  UnitGapChart,
   TypeDistributionChart,
   VelocityLineChart,
 } from './AnalyticsCharts';
@@ -127,6 +127,7 @@ const Analytics: React.FC = () => {
     () => [...(intelData?.marketPulse || [])].sort((left, right) => (right.listings + right.requirements) - (left.listings + left.requirements)),
     [intelData?.marketPulse],
   );
+  const unitDemand = useMemo(() => intelData?.bhkDemand || [], [intelData?.bhkDemand]);
   const selectedBroker = useMemo(
     () => (intelData?.brokerLeaderboard || []).find((broker) => broker.phone === selectedBrokerPhone) || null,
     [intelData?.brokerLeaderboard, selectedBrokerPhone],
@@ -225,7 +226,7 @@ const Analytics: React.FC = () => {
                   <MiniMetric label="Requirements" value={formatInteger(item.requirements)} />
                 </div>
                 <div className="mt-4 text-[12px] text-[var(--text-secondary)]">
-                  Top: {item.topBhk || 'Mixed BHK'}
+                  Top unit: {item.topBhk || 'Mixed inventory'}
                 </div>
               </article>
             ))}
@@ -239,8 +240,8 @@ const Analytics: React.FC = () => {
             <ChartPanel label="Daily supply vs demand">
               <DailySupplyDemandChart rows={dailyVolume} />
             </ChartPanel>
-            <ChartPanel label="BHK demand gap" dataTour="intelligence-bhk">
-              <BhkGapChart rows={intelData?.bhkDemand || []} />
+            <ChartPanel label="Unit-size gap" dataTour="intelligence-bhk">
+              <UnitGapChart rows={unitDemand} />
             </ChartPanel>
           </section>
           <section className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
@@ -248,9 +249,12 @@ const Analytics: React.FC = () => {
               <TypeDistributionChart values={intelData?.myInventory?.byType || {}} />
             </ChartPanel>
             <div className={panelClass}>
-              <div className={panelLabelClass}>Demand gap detail</div>
+              <div className={panelLabelClass}>Unit mix detail</div>
+              <p className="mb-3 text-[11px] text-[var(--text-muted)]">
+                Residential BHK is one slice. Commercial and mixed inventory should be read alongside type split and locality pulse.
+              </p>
               <div className="space-y-2">
-                {(intelData?.bhkDemand || []).map((row) => (
+                {unitDemand.map((row) => (
                   <div key={row.bhk} className="grid grid-cols-[70px_1fr_56px] items-center gap-3 text-[12px]">
                     <span className="font-semibold text-[var(--text-secondary)]">{row.bhk}</span>
                     <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-surface)]">

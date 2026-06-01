@@ -106,7 +106,7 @@ export function DailySupplyDemandChart({ rows }: { rows: DailyVolume[] }) {
   );
 }
 
-export function BhkGapChart({ rows }: { rows: BhkDemand[] }) {
+export function UnitGapChart({ rows }: { rows: BhkDemand[] }) {
   const data = {
     labels: rows.map((row) => row.bhk),
     datasets: [
