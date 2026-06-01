@@ -506,17 +506,17 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
       <header className="relative z-10 px-6 pt-12 pb-8 flex flex-col items-center text-center max-w-5xl mx-auto">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[var(--accent-glow)] border border-[color:var(--accent-border)] rounded-full mb-6">
           <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
-          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">India's Premier Broker-Network Real Estate Stream</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">India's First Real-Time Broker Network Stream</span>
         </div>
         
         <h1 className="text-[44px] sm:text-[62px] font-black leading-[1.05] tracking-[-0.04em] text-[var(--text-primary)] font-display max-w-4xl mb-4">
-          Capture direct broker <br />
+          Access verified broker <br />
           <span className="text-[var(--accent)] relative inline-block neon-text-glow min-w-[200px]">{rotatingWord}</span> <br className="hidden sm:inline" />
           Before they hit the portals.
         </h1>
         
         <p className="text-[var(--text-secondary)] text-[14px] sm:text-[16px] max-w-2xl mb-8 mx-auto leading-relaxed">
-          PropAI bypasses typical listing bloat. We parse real-time broker communication pipelines using advanced AI to index verified B2B broker-network streams directly.
+          PropAI bypasses stale property websites. We structure real-time professional broker broadcasts using AI to index authentic, active listings straight from private network streams.
         </p>
 
         <div className="mb-8 inline-flex flex-wrap items-center justify-center gap-3 rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)]/75 px-4 py-3 text-left shadow-[0_12px_40px_rgba(0,0,0,0.18)]">
