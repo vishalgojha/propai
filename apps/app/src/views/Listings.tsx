@@ -30,6 +30,8 @@ import { fetchWaClickStats, exportWaClickCsv, type WaClickStats } from '../servi
 const formatChannelTitle = (name: string) => `#${name}`;
 const PAGE_SIZE = 20;
 const STREAM_FETCH_LIMIT = 500;
+const STREAM_VIEW_CACHE_VERSION = 1;
+const STREAM_VIEW_CACHE_TTL_MS = 2 * 60 * 1000;
 const ALL_TYPES = ['Rent', 'Sale', 'Requirement', 'Pre-leased', 'Lease'] as const;
 const ALL_BHK = ['1 BHK', '2 BHK', '3 BHK', '4+ BHK'] as const;
 const ALL_PROPERTY_CATEGORIES = ['residential', 'commercial'] as const;
@@ -55,6 +57,67 @@ const STREAM_PRESETS: Array<{ id: StreamPresetId; label: string }> = [
   { id: 'requirements', label: '📋 Requirements' },
   { id: 'high_confidence', label: '⭐ High Confidence' },
 ];
+
+type StreamViewCache = {
+  version: number;
+  cachedAt: number;
+  items: StreamItem[];
+  channels: PersonalChannel[];
+  summary: StreamSummaryResponse | null;
+  total: number;
+  networkMode: boolean;
+};
+
+const getStreamViewCacheKey = (scopeKey: string) => `propai.stream_view.${scopeKey}`;
+
+const readStreamViewCache = (scopeKey: string): StreamViewCache | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(getStreamViewCacheKey(scopeKey));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<StreamViewCache> | null;
+    if (!parsed || parsed.version !== STREAM_VIEW_CACHE_VERSION || !Array.isArray(parsed.items) || !Array.isArray(parsed.channels)) {
+      return null;
+    }
+
+    if (typeof parsed.cachedAt !== 'number' || Date.now() - parsed.cachedAt > STREAM_VIEW_CACHE_TTL_MS) {
+      return null;
+    }
+
+    return {
+      version: STREAM_VIEW_CACHE_VERSION,
+      cachedAt: parsed.cachedAt,
+      items: parsed.items as StreamItem[],
+      channels: parsed.channels as PersonalChannel[],
+      summary: parsed.summary && typeof parsed.summary === 'object' ? parsed.summary as StreamSummaryResponse : null,
+      total: Number(parsed.total || 0),
+      networkMode: Boolean(parsed.networkMode),
+    };
+  } catch {
+    return null;
+  }
+};
+
+const writeStreamViewCache = (scopeKey: string, payload: Omit<StreamViewCache, 'version' | 'cachedAt'>) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    const nextCache: StreamViewCache = {
+      version: STREAM_VIEW_CACHE_VERSION,
+      cachedAt: Date.now(),
+      ...payload,
+    };
+    window.sessionStorage.setItem(getStreamViewCacheKey(scopeKey), JSON.stringify(nextCache));
+  } catch {
+    // Ignore storage failures.
+  }
+};
 
 const stripSnippetNoise = (raw: string) => {
   const lines = raw
@@ -410,6 +473,8 @@ export const Listings: React.FC = () => {
   const [streamNetworkMode, setStreamNetworkMode] = React.useState(false);
   const [streamSummary, setStreamSummary] = React.useState<StreamSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isRefreshingStream, setIsRefreshingStream] = React.useState(false);
+  const [hasCachedStreamView, setHasCachedStreamView] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [infoMessage, setInfoMessage] = React.useState<string | null>(null);
   const [showFilters, setShowFilters] = React.useState(false);
@@ -453,6 +518,7 @@ export const Listings: React.FC = () => {
   const loadData = React.useCallback(async () => {
     if (!canViewStream) {
       setIsLoading(false);
+      setIsRefreshingStream(false);
       setError(null);
       setInfoMessage(null);
       setChannels([]);
@@ -463,7 +529,8 @@ export const Listings: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
+    setIsLoading(!hasCachedStreamView);
+    setIsRefreshingStream(hasCachedStreamView);
     setError(null);
     try {
       const targetSessionLabel = selectedSessionLabel && selectedSessionLabel !== 'all' ? selectedSessionLabel : undefined;
@@ -502,6 +569,13 @@ export const Listings: React.FC = () => {
       setStreamItems(items);
       setStreamNetworkMode(Boolean(streamResponse.network_mode));
       setStreamTotal(streamResponse.total || items.length);
+      writeStreamViewCache(queryScopeKey, {
+        items,
+        channels: channelRecords,
+        summary: null,
+        total: streamResponse.total || items.length,
+        networkMode: Boolean(streamResponse.network_mode),
+      });
 
       void Promise.allSettled([
         fetchStreamStats(),
@@ -517,6 +591,13 @@ export const Listings: React.FC = () => {
           setStreamTotal(nextTotal);
           setStreamSummary(summary);
           setStreamNetworkMode(Boolean(summary?.network_mode ?? streamResponse.network_mode));
+          writeStreamViewCache(queryScopeKey, {
+            items,
+            channels: channelRecords,
+            summary,
+            total: nextTotal,
+            networkMode: Boolean(summary?.network_mode ?? streamResponse.network_mode),
+          });
         })
         .catch(() => {
           setStreamTotal(streamResponse.total || items.length);
@@ -529,20 +610,38 @@ export const Listings: React.FC = () => {
       }
     } catch (err) {
       setError(handleApiError(err));
-      setStreamItems([]);
-      setStreamTotal(0);
-      setStreamNetworkMode(false);
-      setStreamSummary(null);
-      setChannels([]);
+      if (!hasCachedStreamView) {
+        setStreamItems([]);
+        setStreamTotal(0);
+        setStreamNetworkMode(false);
+        setStreamSummary(null);
+        setChannels([]);
+      }
     } finally {
       setIsLoading(false);
+      setIsRefreshingStream(false);
     }
-  }, [canViewStream, channelId, selectedSessionLabel, serverFilters]);
+  }, [canViewStream, channelId, hasCachedStreamView, queryScopeKey, selectedSessionLabel, serverFilters]);
 
   React.useEffect(() => {
-    setStreamItems([]);
-    setStreamTotal(0);
-    setStreamSummary(null);
+    const cached = readStreamViewCache(queryScopeKey);
+    if (cached) {
+      setHasCachedStreamView(true);
+      setStreamItems(cached.items);
+      setChannels(cached.channels);
+      setStreamSummary(cached.summary);
+      setStreamTotal(cached.total);
+      setStreamNetworkMode(cached.networkMode);
+      setIsLoading(false);
+    } else {
+      setHasCachedStreamView(false);
+      setStreamItems([]);
+      setStreamTotal(0);
+      setStreamSummary(null);
+      setStreamNetworkMode(false);
+      setChannels([]);
+      setIsLoading(true);
+    }
     setVisibleCount(PAGE_SIZE);
     setExpandedListingId(null);
     setEditingListingId(null);
@@ -1137,8 +1236,15 @@ if (brokerOnly) {
                 {visibleStream.length} items
               </div>
             </div>
-          </div>
         </div>
+      </div>
+
+      {isRefreshingStream && !isLoading ? (
+        <div className="flex items-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-[11px] text-[var(--text-secondary)]">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--accent)]" />
+          Refreshing cached stream in the background...
+        </div>
+      ) : null}
 
       <div className="flex items-center gap-3 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-2.5 text-[11px]">
         <Signal className={cn(
