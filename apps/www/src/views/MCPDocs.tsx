@@ -102,6 +102,39 @@ export default function MCPDocs() {
           Production access remains private, Supabase-authenticated, and permissioned.
         </p>
       </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <div className="rounded-[22px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--accent)]">Agent discovery</p>
+          <h2 className="mt-2 text-[22px] font-bold text-[var(--text-primary)]">
+            One crawlable entry point for LLMs and AI agents
+          </h2>
+          <p className="mt-3 text-[14px] leading-7 text-[var(--text-secondary)]">
+            These files summarize the public MCP surface without exposing private endpoints or broker data.
+          </p>
+          <div className="mt-5 space-y-2 text-[13px]">
+            <Link href="/llms.txt" className="block rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 text-[var(--text-primary)] hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]">
+              /llms.txt
+            </Link>
+            <Link href="/ai.txt" className="block rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 text-[var(--text-primary)] hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]">
+              /ai.txt
+            </Link>
+          </div>
+        </div>
+
+        <div className="rounded-[22px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">Reference summary</p>
+          <div className="mt-4 rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[13px] leading-7 text-[var(--text-secondary)]">
+            Public MCP docs point to:
+            <ul className="mt-3 space-y-2">
+              <li>• <span className="text-[var(--text-primary)]">/mcp</span> for overview</li>
+              <li>• <span className="text-[var(--text-primary)]">/mcp/docs</span> for public documentation</li>
+              <li>• <span className="text-[var(--text-primary)]">/mcp/security</span> for security policy</li>
+              <li>• <span className="text-[var(--text-primary)]">/mcp/manifest</span> for machine-readable metadata</li>
+            </ul>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
