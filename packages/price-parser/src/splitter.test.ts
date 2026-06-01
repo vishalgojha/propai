@@ -73,4 +73,13 @@ describe('splitMultiListing', () => {
       'Lease & Outright listing @ BKC-X\n\n2BHK Outright: 2.5cr\n',
     ]);
   });
+
+  it('splits follow-on flat mentions into separate records', () => {
+    const raw = 'Andheri West\n2 bhk for sale in DLH Mamta\n(D. N. Nagar)\n580 carpet.\nWith O.C.\n1 car parking.\nPrice- 2.30 cr.\n1 more flat in DLH Mamta.\n711 carpet.\nPrice- 2.80 cr.';
+
+    expect(splitMultiListing(raw)).toEqual([
+      'Andheri West\n\n2 bhk for sale in DLH Mamta\n(D. N. Nagar)\n580 carpet.\nWith O.C.\n1 car parking.\nPrice- 2.30 cr.\n',
+      'Andheri West\n\n1 more flat in DLH Mamta.\n711 carpet.\nPrice- 2.80 cr.\n',
+    ]);
+  });
 });

@@ -1485,7 +1485,24 @@ if (brokerOnly) {
                             )}
                           </td>
                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
-                            {formatLocalityCell(listing.location)}
+                            <div className="space-y-1">
+                              <div>{formatLocalityCell(listing.location)}</div>
+                              {listing.buildingName ? (
+                                <div className="text-[11px] text-[var(--text-secondary)]">
+                                  Building: <span className="font-semibold text-[var(--text-primary)]">{listing.buildingName}</span>
+                                </div>
+                              ) : null}
+                              {listing.microLocation ? (
+                                <div className="text-[11px] text-[var(--text-secondary)]">
+                                  Micro: <span className="font-semibold text-[var(--text-primary)]">{listing.microLocation}</span>
+                                </div>
+                              ) : null}
+                              {buildingIntel ? (
+                                <div className="text-[11px] text-[var(--text-secondary)]">
+                                  Intel: <span className="font-semibold text-[var(--text-primary)]">{buildingIntel.latest}</span>
+                                </div>
+                              ) : null}
+                            </div>
                           </td>
                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
                              {filterPropertyCategory === 'commercial'

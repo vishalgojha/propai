@@ -4,6 +4,7 @@ const PRICE_PATTERN_GLOBAL = /(?:₹|rs\.?|inr)?\s*\d+(?:\.\d+)?\s*(?:cr|crore|c
 const NUMBERED_PATTERN = /^\s*(?:\d+[\.\)]|[•▪►➜➤])\s*/i;
 const FLOOR_BHK_PATTERN = /\b\d{1,2}(?:st|nd|rd|th)?\s+floor\b.*\b\d+(?:\.\d+)?\s*bhk\b/i;
 const OPTIONS_PATTERN = /\b(?:multiple options|various options)\b/i;
+const FOLLOW_ON_UNIT_PATTERN = /\b(?:1\s+more\s+(?:flat|unit|option|apartment)|one\s+more\s+(?:flat|unit|option|apartment)|another\s+(?:flat|unit|option|apartment)|more\s+(?:flat|unit|option|apartment)s?)\b/i;
 const RENT_MARKER_PATTERN = /\b(?:rent|lease|leave and license|leave & license|l&l|ll)\b/i;
 const SALE_MARKER_PATTERN = /\b(?:sale|outright)\b/i;
 const DEAL_MARKER_PATTERN = /\b(?:rent|lease|leave and license|leave & license|l&l|ll|sale|outright)\b/i;
@@ -61,6 +62,7 @@ function isListingStart(line: string) {
   const cleaned = stripNumberPrefix(line);
   if (FLOOR_BHK_PATTERN.test(cleaned)) return true;
   if (BHK_PATTERN.test(cleaned)) return true;
+  if (FOLLOW_ON_UNIT_PATTERN.test(cleaned)) return true;
   return false;
 }
 
