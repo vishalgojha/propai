@@ -11,6 +11,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
     { url: baseUrl, priority: 1.0, changeFrequency: "hourly" },
     { url: `${baseUrl}/listings`, priority: 0.9, changeFrequency: "always" },
+    { url: `${baseUrl}/mcp`, priority: 0.7, changeFrequency: "monthly" },
+    { url: `${baseUrl}/mcp/docs`, priority: 0.7, changeFrequency: "monthly" },
+    { url: `${baseUrl}/mcp/security`, priority: 0.6, changeFrequency: "monthly" },
+    { url: `${baseUrl}/mcp/manifest`, priority: 0.5, changeFrequency: "monthly" },
     { url: `${baseUrl}/insights`, priority: 0.8, changeFrequency: "weekly" },
     { url: `${baseUrl}/blog`, priority: 0.7, changeFrequency: "weekly" },
     { url: `${baseUrl}/contact`, priority: 0.5 },

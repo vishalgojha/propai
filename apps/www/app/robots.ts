@@ -4,7 +4,13 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
-      allow: "/",
+      allow: [
+        "/",
+        "/mcp",
+        "/mcp/docs",
+        "/mcp/security",
+        "/mcp/manifest",
+      ],
     },
     sitemap: [
       "https://www.propai.live/sitemap.xml",
