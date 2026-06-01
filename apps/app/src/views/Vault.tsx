@@ -2,23 +2,11 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import backendApi, { handleApiError } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { ZapIcon, ListingIcon, RequirementIcon, MessageCircleIcon, PlusIcon, AlertTriangleIcon } from '../lib/icons';
+import { ZapIcon, ListingIcon, RequirementIcon, MessageCircleIcon, AlertTriangleIcon } from '../lib/icons';
+import { splitMultiListing } from '../../../../packages/price-parser/src/splitter';
 
 type TabId = 'listings' | 'requirements';
 type VaultEntryType = 'listing' | 'requirement';
-
-type VaultEntry = {
-  id: string;
-  type: VaultEntryType;
-  locality: string;
-  bhk: string;
-  dealType: 'rent' | 'sale' | 'lease';
-  price: string;
-  budget: string;
-  furnishing: string;
-  areaSqft: string;
-  notes: string;
-};
 
 type VaultListing = {
   id: string;
@@ -38,6 +26,22 @@ type VaultRequirement = {
   created_at: string;
 };
 
+type VaultDraftPreview = {
+  id: string;
+  type: VaultEntryType;
+  locality: string;
+  bhk: string;
+  dealType: 'rent' | 'sale' | 'lease';
+  price: string;
+  budget: string;
+  furnishing: string;
+  areaSqft: string;
+  notes: string;
+  rawText: string;
+  missing: string[];
+  sourceHint: string;
+};
+
 const panelClass = 'rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4 md:p-5';
 const panelLabelClass = 'text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]';
 const accentButtonClass =
@@ -45,20 +49,186 @@ const accentButtonClass =
 const ghostButtonClass =
   'inline-flex items-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2.5 text-[12px] font-semibold text-[var(--text-primary)] transition-all duration-150 hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)]';
 
-const createVaultEntry = (type: VaultEntryType): VaultEntry => ({
-  id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-  type,
-  locality: '',
-  bhk: '',
-  dealType: 'rent',
-  price: '',
-  budget: '',
-  furnishing: '',
-  areaSqft: '',
-  notes: '',
-});
+const FREEFORM_INPUT_HINT = `Paste broker text here. One listing or requirement per block is fine.
+
+Example:
+2 bhk for sale in DLH Mamta
+580 carpet
+Price 2.30 cr
+1 car parking
+With OC
+
+Need 3 bhk on rent in Bandra West
+Budget 2.5 lakh`;
+
+const BROKER_DECORATION_PATTERN = /[\p{Extended_Pictographic}\u200d\uFE0F]/gu;
+const BROKER_SYMBOL_PATTERN = /[•·▪▫◆◇★☆⬤◉○●⬛⬜◼◻⬢⬡⬆⬇⬅➡↔↕]/gu;
+const normalizeDraftText = (value: string) =>
+  String(value || '')
+    .replace(/\r/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .normalize('NFKC');
+
+const stripBrokerDecorations = (value: string) =>
+  normalizeDraftText(value)
+    .replace(BROKER_DECORATION_PATTERN, ' ')
+    .replace(BROKER_SYMBOL_PATTERN, ' ')
+    .replace(/[|]{2,}/g, ' ')
+    .replace(/[<>]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const cleanDraftLines = (value: string) =>
+  normalizeDraftText(value)
+    .split('\n')
+    .map((line) => stripBrokerDecorations(line).trim())
+    .filter(Boolean)
+    .filter((line) => {
+      const lowered = line.toLowerCase();
+      if (lowered.startsWith('forwarded')) return false;
+      if (lowered.startsWith('>')) return false;
+      if (lowered.startsWith('sent from')) return false;
+      if (lowered.startsWith('from:')) return false;
+      if (/^(regards|thanks|thank you|cheers|warm regards|kind regards|best)\b/i.test(lowered)) return false;
+      return /[\p{L}\p{N}]/u.test(line);
+    });
+
+const inferDealType = (text: string): VaultDraftPreview['dealType'] => {
+  const lowered = text.toLowerCase();
+  if (/\b(lease|leasable|leave and license|leave & license|l&l|ll)\b/i.test(lowered)) return 'lease';
+  if (/\b(sale|sell|outright|buy)\b/i.test(lowered)) return 'sale';
+  return 'rent';
+};
+
+const inferType = (text: string): VaultEntryType => {
+  const lowered = text.toLowerCase();
+  if (/\b(requirement|requirement|need|wanted|looking for|wanted|searching|client wants|want)\b/i.test(lowered)) {
+    return 'requirement';
+  }
+  return 'listing';
+};
+
+const inferBhk = (text: string) => {
+  const match = text.match(/\b(\d+(?:\.\d+)?)\s*[- ]?\s*bhk\b|\b(\d+(?:\.\d+)?)bhk\b/i);
+  return match?.[1] || match?.[2] ? `${match[1] || match[2]} BHK` : '';
+};
+
+const inferAreaSqft = (text: string) => {
+  const match = text.match(/\b(\d{2,5}(?:,\d{3})?(?:\.\d+)?)\s*(?:sq\s*ft|sqft|sft|sf|carpet|carpet area)\b/i);
+  return match ? String(Number(match[1].replace(/,/g, ''))) : '';
+};
+
+const inferPriceOrBudget = (text: string, dealType: VaultDraftPreview['dealType']) => {
+  const match = text.match(/(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|lakh|lakhs|lac|lacs|l|k|thousand)?/i);
+  if (!match) return '';
+
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) return '';
+
+  const unit = String(match[2] || '').toLowerCase();
+  let numeric = amount;
+  if (unit === 'cr' || unit === 'crore' || unit === 'crores') numeric = amount * 10000000;
+  else if (unit === 'lakh' || unit === 'lakhs' || unit === 'lac' || unit === 'lacs' || unit === 'l') numeric = amount * 100000;
+  else if (unit === 'k' || unit === 'thousand') numeric = amount * 1000;
+
+  if (numeric >= 10000000) {
+    return `₹${(numeric / 10000000).toFixed(2).replace(/\.00$/, '')} Cr${dealType === 'rent' ? '/mo' : ''}`;
+  }
+  if (numeric >= 100000) {
+    return `₹${(numeric / 100000).toFixed(1).replace(/\.0$/, '')} Lakh${dealType === 'rent' ? '/mo' : ''}`;
+  }
+  if (numeric >= 1000) {
+    return `₹${Math.round(numeric / 1000)}k${dealType === 'rent' ? '/mo' : ''}`;
+  }
+  return `₹${Math.round(numeric).toLocaleString('en-IN')}${dealType === 'rent' ? '/mo' : ''}`;
+};
+
+const inferFurnishing = (text: string) => {
+  const lowered = text.toLowerCase();
+  if (/\bfully[-\s]?furnished\b/i.test(lowered)) return 'Fully furnished';
+  if (/\bsemi[-\s]?furnished\b/i.test(lowered)) return 'Semi-furnished';
+  if (/\bunfurnished\b/i.test(lowered)) return 'Unfurnished';
+  if (/\bbare shell\b/i.test(lowered)) return 'Bareshell';
+  return '';
+};
+
+const inferLocality = (text: string) => {
+  const lines = cleanDraftLines(text);
+  const firstLine = lines[0] || '';
+  const candidate = firstLine
+    .replace(/^[\-•\d.)\s]+/, '')
+    .replace(/\b(for rent|for sale|for lease|rent|sale|lease|requirement|require|wanted|looking for)\b/ig, ' ')
+    .replace(/\b(\d+(?:\.\d+)?\s*bhk)\b/ig, ' ')
+    .replace(/\b(\d{2,5}(?:,\d{3})?(?:\.\d+)?\s*(?:sq\s*ft|sqft|sft|sf|carpet|carpet area))\b/ig, ' ')
+    .replace(/\b(price|budget|deposit)\b.*$/i, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!candidate || candidate.length < 3) return '';
+
+  const cleaned = candidate
+    .replace(/^[^a-zA-Z0-9]+/, '')
+    .replace(/[.,;:]+$/, '')
+    .trim();
+
+  if (!cleaned || cleaned.length < 3) return '';
+  if (/^(need|wanted|looking|client|available|flat|office|shop|warehouse)$/i.test(cleaned)) return '';
+  return cleaned;
+};
+
+const splitVaultDraftBlocks = (rawText: string) => {
+  const source = normalizeDraftText(rawText).trim();
+  if (!source) return [];
+
+  const paragraphBlocks = source.split(/\n{2,}/g).map((block) => block.trim()).filter(Boolean);
+  if (paragraphBlocks.length > 1) {
+    return paragraphBlocks.flatMap((block) => splitMultiListing(block));
+  }
+
+  return splitMultiListing(source);
+};
+
+const parseVaultDraft = (rawText: string): VaultDraftPreview[] => {
+  const blocks = splitVaultDraftBlocks(rawText);
+  if (!blocks.length) return [];
+
+  return blocks
+    .map((block, index) => {
+      const cleanedLines = cleanDraftLines(block);
+      const cleanText = cleanedLines.join(' ').replace(/\s+/g, ' ').trim();
+      const type = inferType(cleanText);
+      const dealType = inferDealType(cleanText);
+      const bhk = inferBhk(cleanText);
+      const locality = inferLocality(cleanText);
+      const areaSqft = inferAreaSqft(cleanText);
+      const priceOrBudget = inferPriceOrBudget(cleanText, dealType);
+      const furnishing = inferFurnishing(cleanText);
+      const notes = cleanedLines.slice(1).join('\n').trim();
+      const missing: string[] = [];
+
+      if (!locality) missing.push('locality');
+      if (!bhk && type === 'listing') missing.push('BHK');
+      if (!priceOrBudget) missing.push(type === 'listing' ? 'price' : 'budget');
+      if (type === 'listing' && !areaSqft) missing.push('area');
+
+      return {
+        id: `${index}-${block.slice(0, 32)}`,
+        type,
+        locality,
+        bhk,
+        dealType,
+        price: type === 'listing' ? priceOrBudget : '',
+        budget: type === 'requirement' ? priceOrBudget : '',
+        furnishing,
+        areaSqft,
+        notes,
+        rawText: cleanText,
+        missing,
+        sourceHint: cleanedLines[0] || 'Broker text',
+      };
+    })
+    .filter((item) => item.rawText.length > 0);
+};
 
 function formatDate(dateStr: string) {
   try {
@@ -95,10 +265,10 @@ export const VaultView: React.FC = () => {
   const [requirements, setRequirements] = useState<VaultRequirement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [entries, setEntries] = useState<VaultEntry[]>(() => [createVaultEntry('listing')]);
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [postSuccess, setPostSuccess] = useState<string | null>(null);
+  const [freeformDraft, setFreeformDraft] = useState('');
 
   const plan = user?.subscription?.plan || 'Free';
   const isSuperAdmin = user?.appRole === 'super_admin';
@@ -136,41 +306,22 @@ export const VaultView: React.FC = () => {
 
   const activeItems = tab === 'listings' ? listings : requirements;
 
-  const updateEntry = useCallback((id: string, patch: Partial<VaultEntry>) => {
-    setEntries((current) => current.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
-  }, []);
-
-  const addEntry = useCallback((type: VaultEntryType) => {
-    setEntries((current) => [...current, createVaultEntry(type)]);
-  }, []);
-
-  const removeEntry = useCallback((id: string) => {
-    setEntries((current) => (current.length > 1 ? current.filter((entry) => entry.id !== id) : current));
-  }, []);
-
-  const clearEntries = useCallback(() => {
-    setEntries([createVaultEntry('listing')]);
+  const clearDraft = useCallback(() => {
+    setFreeformDraft('');
     setPostError(null);
     setPostSuccess(null);
   }, []);
 
   const submitEntries = useCallback(async () => {
-    const normalizedEntries = entries.map((entry) => ({
-      ...entry,
-      locality: entry.locality.trim(),
-      bhk: entry.bhk.trim(),
-      furnishing: entry.furnishing.trim(),
-      notes: entry.notes.trim(),
-      price: entry.price.trim(),
-      budget: entry.budget.trim(),
-    }));
+    const parsed = parseVaultDraft(freeformDraft);
+    if (parsed.length === 0) {
+      setPostError('Paste broker text first. Pulse needs at least one listing or requirement block to parse.');
+      return;
+    }
 
-    const missing = normalizedEntries.find((entry) =>
-      !entry.locality || !entry.bhk || !entry.dealType || (entry.type === 'listing' ? !entry.price : !entry.budget),
-    );
-
-    if (missing) {
-      setPostError('Fill locality, BHK, deal type, and price/budget for every row before posting.');
+    const invalid = parsed.find((item) => item.missing.length > 0);
+    if (invalid) {
+      setPostError(`Fill the missing ${invalid.missing.join(', ')} in the highlighted block before posting.`);
       return;
     }
 
@@ -180,19 +331,37 @@ export const VaultView: React.FC = () => {
 
     try {
       const response = await backendApi.post('/api/vault/post', {
-        items: normalizedEntries,
+        items: parsed.map((item) => ({
+          type: item.type,
+          locality: item.locality,
+          bhk: item.bhk,
+          dealType: item.dealType,
+          price: item.type === 'listing' ? item.price : null,
+          budget: item.type === 'requirement' ? item.budget : null,
+          furnishing: item.furnishing || '',
+          areaSqft: item.areaSqft || '',
+          notes: item.notes || item.rawText,
+        })),
       });
 
       const postedCount = Number(response.data?.listings || 0) + Number(response.data?.requirements || 0);
       setPostSuccess(response.data?.message || `Saved ${postedCount} manual item(s).`);
-      clearEntries();
+      clearDraft();
       await loadVault();
     } catch (err) {
       setPostError(handleApiError(err));
     } finally {
       setPosting(false);
     }
-  }, [clearEntries, entries, loadVault]);
+  }, [clearDraft, freeformDraft, loadVault]);
+
+  const parsedDrafts = React.useMemo(() => parseVaultDraft(freeformDraft), [freeformDraft]);
+  const draftSummary = React.useMemo(() => {
+    const listings = parsedDrafts.filter((item) => item.type === 'listing').length;
+    const requirements = parsedDrafts.filter((item) => item.type === 'requirement').length;
+    const missingCount = parsedDrafts.reduce((count, item) => count + item.missing.length, 0);
+    return { listings, requirements, missingCount };
+  }, [parsedDrafts]);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
@@ -224,24 +393,15 @@ export const VaultView: React.FC = () => {
             <div className="max-w-2xl">
               <p className={panelLabelClass}>Manual posting</p>
               <h2 className="mt-1 text-[18px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
-                Post multiple listings and requirements in one batch.
+                Paste broker text once. Pulse parses the rows in the background.
               </h2>
               <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
-                Use this when you do not want to scan WhatsApp groups. Add as many rows as needed, then post them to the vault and shared stream in one go.
+                Use this when you do not want to scan WhatsApp groups. Paste one or many listings / requirements,
+                let Pulse parse the structure, and then post the cleaned batch to Vault and the shared stream in one go.
               </p>
               <p className="mt-2 text-[11px] text-[var(--text-muted)]">
                 Starter / 499 is scan-only. Manual posting opens on the 1499 / 1999 paid plans and owner accounts.
               </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button className={ghostButtonClass} onClick={() => addEntry('listing')}>
-                <PlusIcon className="h-4 w-4" strokeWidth={2} />
-                Add listing
-              </button>
-              <button className={ghostButtonClass} onClick={() => addEntry('requirement')}>
-                <PlusIcon className="h-4 w-4" strokeWidth={2} />
-                Add requirement
-              </button>
             </div>
           </div>
 
@@ -257,152 +417,159 @@ export const VaultView: React.FC = () => {
             </div>
           ) : null}
 
-          <div className="space-y-3">
-            {entries.map((entry, index) => (
-              <div key={entry.id} className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+          <div className="grid gap-4 lg:grid-cols-[1.3fr_0.9fr]">
+            <div className="space-y-3">
+              <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                      Row {index + 1}
-                    </p>
-                    <p className="mt-1 text-[13px] font-semibold text-[var(--text-primary)]">
-                      {entry.type === 'listing' ? 'Listing' : 'Requirement'}
-                    </p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Freeform Vault</p>
+                    <p className="mt-1 text-[13px] font-semibold text-[var(--text-primary)]">Paste raw broker text or multiple blocks</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeEntry(entry.id)}
-                    className="text-[11px] font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                    disabled={entries.length === 1}
-                  >
-                    Remove
-                  </button>
+                  <div className="text-right text-[10px] text-[var(--text-muted)]">
+                    <p>{draftSummary.listings} listings</p>
+                    <p>{draftSummary.requirements} requirements</p>
+                  </div>
                 </div>
-
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <label className="space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Type</span>
-                    <select
-                      value={entry.type}
-                      onChange={(event) => updateEntry(entry.id, { type: event.target.value as VaultEntryType })}
-                      className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                    >
-                      <option value="listing">Listing</option>
-                      <option value="requirement">Requirement</option>
-                    </select>
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Locality</span>
-                    <input
-                      type="text"
-                      value={entry.locality}
-                      onChange={(event) => updateEntry(entry.id, { locality: event.target.value })}
-                      placeholder="Bandra West"
-                      className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                    />
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">BHK</span>
-                    <input
-                      type="text"
-                      value={entry.bhk}
-                      onChange={(event) => updateEntry(entry.id, { bhk: event.target.value })}
-                      placeholder="2 BHK"
-                      className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                    />
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Deal type</span>
-                    <select
-                      value={entry.dealType}
-                      onChange={(event) => updateEntry(entry.id, { dealType: event.target.value as VaultEntry['dealType'] })}
-                      className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                    >
-                      <option value="rent">Rent</option>
-                      <option value="sale">Sale</option>
-                      <option value="lease">Lease</option>
-                    </select>
-                  </label>
-                  {entry.type === 'listing' ? (
-                    <>
-                      <label className="space-y-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Price</span>
-                        <input
-                          type="text"
-                          value={entry.price}
-                          onChange={(event) => updateEntry(entry.id, { price: event.target.value })}
-                          placeholder="2.8 Cr"
-                          className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                        />
-                      </label>
-                      <label className="space-y-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Area (sqft)</span>
-                        <input
-                          type="text"
-                          value={entry.areaSqft}
-                          onChange={(event) => updateEntry(entry.id, { areaSqft: event.target.value })}
-                          placeholder="580"
-                          className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                        />
-                      </label>
-                      <label className="space-y-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Furnishing</span>
-                        <input
-                          type="text"
-                          value={entry.furnishing}
-                          onChange={(event) => updateEntry(entry.id, { furnishing: event.target.value })}
-                          placeholder="Semi-furnished"
-                          className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                        />
-                      </label>
-                      <div />
-                    </>
-                  ) : (
-                    <>
-                      <label className="space-y-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Budget</span>
-                        <input
-                          type="text"
-                          value={entry.budget}
-                          onChange={(event) => updateEntry(entry.id, { budget: event.target.value })}
-                          placeholder="2.5 Cr"
-                          className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                        />
-                      </label>
-                      <div />
-                    </>
-                  )}
-                  <label className="space-y-1.5 md:col-span-2">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Notes</span>
-                    <textarea
-                      value={entry.notes}
-                      onChange={(event) => updateEntry(entry.id, { notes: event.target.value })}
-                      placeholder="Extra details, parking, OC, building name, caller note..."
-                      rows={3}
-                      className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                    />
-                  </label>
+                <textarea
+                  value={freeformDraft}
+                  onChange={(event) => setFreeformDraft(event.target.value)}
+                  placeholder={FREEFORM_INPUT_HINT}
+                  rows={14}
+                  className="mt-4 w-full rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[13px] leading-6 text-[var(--text-primary)] outline-none transition-colors focus:border-[color:var(--accent-border)]"
+                />
+                <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[var(--text-secondary)]">
+                  <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5">
+                    Paste one broker message or many separated by blank lines.
+                  </span>
+                  <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5">
+                    Pulse highlights missing locality, BHK, price/budget, and area before posting.
+                  </span>
                 </div>
               </div>
-            ))}
-          </div>
 
-          <div className="flex flex-col gap-3 border-t border-[color:var(--border)] pt-4 md:flex-row md:items-center md:justify-between">
-            <p className="text-[11px] text-[var(--text-muted)]">
-              Batch posting saves every listing and requirement to Vault in one submission.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" className={ghostButtonClass} onClick={clearEntries}>
-                Clear all
-              </button>
-              <button
-                type="button"
-                className={accentButtonClass}
-                onClick={() => void submitEntries()}
-                disabled={posting}
-              >
-                {posting ? 'Posting...' : 'Post batch'}
-              </button>
+              <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Parse preview</p>
+                {parsedDrafts.length === 0 ? (
+                  <p className="mt-2 text-[12px] text-[var(--text-secondary)]">Paste broker text above to see parsed rows and missing details.</p>
+                ) : (
+                  <div className="mt-3 space-y-3">
+                    {parsedDrafts.map((item, index) => (
+                      <div key={item.id} className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                              Parsed row {index + 1}
+                            </p>
+                            <p className="mt-1 text-[13px] font-semibold text-[var(--text-primary)]">
+                              {item.type === 'listing' ? 'Listing' : 'Requirement'} · {item.dealType.toUpperCase()}
+                            </p>
+                          </div>
+                          <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${
+                            item.missing.length > 0
+                              ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                              : 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                          }`}>
+                            {item.missing.length > 0 ? 'Needs detail' : 'Ready'}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] text-[var(--text-primary)]">
+                            {item.locality || 'Locality missing'}
+                          </span>
+                          <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] text-[var(--text-primary)]">
+                            {item.bhk || 'BHK missing'}
+                          </span>
+                          <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] text-[var(--text-primary)]">
+                            {item.type === 'listing' ? (item.price || 'Price missing') : (item.budget || 'Budget missing')}
+                          </span>
+                          <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] text-[var(--text-primary)]">
+                            {item.areaSqft ? `${item.areaSqft} sqft` : 'Area missing'}
+                          </span>
+                          {item.furnishing ? (
+                            <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] text-[var(--text-primary)]">
+                              {item.furnishing}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {item.missing.length > 0 ? (
+                          <p className="mt-3 text-[11px] text-amber-300">
+                            Missing before posting: {item.missing.join(', ')}.
+                          </p>
+                        ) : (
+                          <p className="mt-3 text-[11px] text-[var(--text-secondary)]">
+                            Ready to post. Pulse will keep the cleaned row and raw text together.
+                          </p>
+                        )}
+                        <details className="mt-3">
+                          <summary className="cursor-pointer text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                            Show cleaned broker text
+                          </summary>
+                          <pre className="mt-2 whitespace-pre-wrap break-words rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[12px] leading-6 text-[var(--text-primary)]">
+                            {item.rawText}
+                          </pre>
+                        </details>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">What Pulse checks</p>
+                <ul className="mt-3 space-y-2 text-[12px] leading-6 text-[var(--text-secondary)]">
+                  <li>• Locality / micro-market</li>
+                  <li>• BHK or requirement size</li>
+                  <li>• Price or budget</li>
+                  <li>• Area and furnishing when present</li>
+                  <li>• It keeps the raw broker note for review</li>
+                </ul>
+                <div className="mt-4 flex flex-col gap-2 text-[11px] text-[var(--text-secondary)]">
+                  <p className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">
+                    If something is missing, Pulse will highlight it here before posting.
+                  </p>
+                  <p className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">
+                    You can paste messy broker copy. The parser cleans it and the backend validates it again.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Batch status</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
+                    <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Parsed</p>
+                    <p className="mt-1 text-[20px] font-bold text-[var(--text-primary)]">{parsedDrafts.length}</p>
+                  </div>
+                  <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
+                    <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">Needs detail</p>
+                    <p className="mt-1 text-[20px] font-bold text-[var(--text-primary)]">{draftSummary.missingCount}</p>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={ghostButtonClass}
+                    onClick={clearDraft}
+                  >
+                    Clear draft
+                  </button>
+                  <button
+                    type="button"
+                    className={accentButtonClass}
+                    onClick={() => void submitEntries()}
+                    disabled={posting}
+                  >
+                    {posting ? 'Posting...' : 'Post batch'}
+                  </button>
+                </div>
+                <p className="mt-3 text-[11px] text-[var(--text-muted)]">
+                  Starter / 499 remains scan-only. Paid posting plans can use this composer.
+                </p>
+              </div>
             </div>
           </div>
         </div>
