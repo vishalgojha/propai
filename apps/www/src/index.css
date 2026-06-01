@@ -29,6 +29,8 @@
   --text-secondary: var(--color-text-secondary);
   --text-muted: var(--color-text-muted);
   --text-ghost: var(--color-text-ghost);
+  --border: var(--color-border);
+  --border-strong: var(--color-border-strong);
 
   --color-accent: #3EE88A;
   --accent: var(--color-accent);
@@ -83,6 +85,8 @@
   --text-secondary: var(--color-text-secondary);
   --text-muted: var(--color-text-muted);
   --text-ghost: var(--color-text-ghost);
+  --border: var(--color-border);
+  --border-strong: var(--color-border-strong);
 
   --color-accent-dim: #f0fdf4;
   --accent-dim: var(--color-accent-dim);
