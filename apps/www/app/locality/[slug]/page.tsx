@@ -114,6 +114,15 @@ export default async function Page({ params }: PageProps) {
       },
     })),
   };
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://www.propai.live/" },
+      { "@type": "ListItem", position: 2, name: "Localities", item: "https://www.propai.live/localities" },
+      { "@type": "ListItem", position: 3, name: localityName, item: `https://www.propai.live/locality/${slug}` },
+    ],
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-12 space-y-12">
@@ -121,11 +130,19 @@ export default async function Page({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
 
       <section className="space-y-6">
         <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-          <Link href="/insights" className="hover:text-[var(--accent)]">
-            Market insights
+          <Link href="/" className="hover:text-[var(--accent)]">
+            Home
+          </Link>
+          <span>/</span>
+          <Link href="/localities" className="hover:text-[var(--accent)]">
+            Localities
           </Link>
           <span>/</span>
           <span>{localityName}</span>

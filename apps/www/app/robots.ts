@@ -10,10 +10,12 @@ export default function robots(): MetadataRoute.Robots {
         "/mcp/docs",
         "/mcp/security",
         "/mcp/manifest",
+        "/localities",
       ],
     },
     sitemap: [
       "https://www.propai.live/sitemap.xml",
+      "https://www.propai.live/sitemap-localities.xml",
       "https://www.propai.live/news-sitemap.xml",
     ],
   };
