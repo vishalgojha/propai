@@ -18,6 +18,7 @@
     "stream:backfill:buildings": "ts-node src/scripts/backfillBuildingNames.ts",
     "stream:backfill:fields": "ts-node src/scripts/backfillMissingFields.ts",
     "stream:backfill:canonical": "ts-node src/scripts/backfillCanonicalStreamItems.ts",
+    "stream:backfill:saved": "ts-node src/scripts/rebuildSavedMessages.ts",
     "stream:cleanup": "ts-node src/scripts/cleanInvalidStreamItems.ts",
     "stream:cleanup:dry": "ts-node src/scripts/cleanInvalidStreamItems.ts --dry-run",
     "import:wadata": "ts-node src/scripts/importWhatsappExports.ts",

@@ -276,7 +276,6 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
 
   // Open Chat Simulator with a specific broker
   const startBrokerChat = useCallback((listingItem: PublicListing) => {
-    // Generate beautiful random broker profiles if not present
     const names = ["Rohan Mehta", "Vikram Shah", "Nisha Pujari", "Amit Sharma", "Karan Malhotra"];
     const agencies = ["Elite Mumbai Realtors", "Bespoke Off-Market Desk", "Bandra Property Group", "Worli Luxury Assets", "Hiranandani Specialist"];
     const avatars = ["RM", "VS", "NP", "AS", "KM"];
@@ -334,11 +333,9 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
     if (activeTab === 'analytics' && canvasRef.current) {
       const ctx = canvasRef.current.getContext('2d');
       if (ctx) {
-        // Clear canvas
         ctx.clearRect(0, 0, 500, 220);
         
-        // Background mesh lines
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.015)';
         ctx.lineWidth = 1;
         for (let i = 0; i < 500; i += 40) {
           ctx.beginPath();
@@ -353,26 +350,22 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
           ctx.stroke();
         }
 
-        // Draw Line Chart: Rent Growth Trend
         const points = [140, 138, 142, 148, 155, 152, 160, 168, 175, 172, 185, 192];
         const width = 500;
         const height = 220;
         const padding = 25;
         const step = (width - padding * 2) / (points.length - 1);
         
-        // Gradient fill for area
         const fillGrad = ctx.createLinearGradient(0, 0, 0, height);
-        fillGrad.addColorStop(0, 'rgba(62, 232, 138, 0.15)');
+        fillGrad.addColorStop(0, 'rgba(62, 232, 138, 0.12)');
         fillGrad.addColorStop(1, 'rgba(62, 232, 138, 0)');
 
-        // Stroke gradient for line
         const lineGrad = ctx.createLinearGradient(0, 0, width, 0);
         lineGrad.addColorStop(0, '#3EE88A');
         lineGrad.addColorStop(1, '#60a5fa');
 
         ctx.beginPath();
         points.forEach((val, idx) => {
-          // Map value (130 - 200) to height (padding - height-padding)
           const y = height - padding - ((val - 130) / 70) * (height - padding * 2);
           const x = padding + idx * step;
           if (idx === 0) {
@@ -382,28 +375,25 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
           }
         });
         
-        // Copy path for stroke
         ctx.strokeStyle = lineGrad;
         ctx.lineWidth = 3.5;
-        ctx.shadowColor = 'rgba(62, 232, 138, 0.3)';
-        ctx.shadowBlur = 10;
+        ctx.shadowColor = 'rgba(62, 232, 138, 0.2)';
+        ctx.shadowBlur = 8;
         ctx.stroke();
-        ctx.shadowBlur = 0; // Reset shadow
+        ctx.shadowBlur = 0;
 
-        // Close path for fill
         ctx.lineTo(padding + (points.length - 1) * step, height - padding);
         ctx.lineTo(padding, height - padding);
         ctx.closePath();
         ctx.fillStyle = fillGrad;
         ctx.fill();
 
-        // Draw active nodes
         points.forEach((val, idx) => {
           const y = height - padding - ((val - 130) / 70) * (height - padding * 2);
           const x = padding + idx * step;
           ctx.beginPath();
           ctx.arc(x, y, 4, 0, Math.PI * 2);
-          ctx.fillStyle = idx === points.length - 1 ? '#3EE88A' : '#1e293b';
+          ctx.fillStyle = idx === points.length - 1 ? '#3EE88A' : '#070b11';
           ctx.strokeStyle = '#3EE88A';
           ctx.lineWidth = 2;
           ctx.fill();
@@ -448,7 +438,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
       <div className="absolute inset-0 cyber-grid pointer-events-none opacity-[0.25] z-0" />
 
       {/* Real-time Parsed Activity Feed Ticker */}
-      <div className="w-full bg-[var(--bg-elevated)] border-b border-[color:var(--border)] py-2.5 relative z-10">
+      <div className="w-full bg-[var(--bg-elevated)] border-b border-transparent py-2.5 relative z-10">
         <div className="max-w-7xl mx-auto px-6 overflow-hidden flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="flex h-2 w-2 relative">
@@ -466,7 +456,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
             </div>
           </div>
           
-          <div className="hidden md:flex items-center gap-1.5 text-[10px] font-bold text-[var(--text-muted)] bg-[var(--bg-base)] px-2.5 py-1 rounded-md border border-[color:var(--border)]">
+          <div className="hidden md:flex items-center gap-1.5 text-[10px] font-bold text-[var(--text-muted)] bg-[var(--bg-surface)] px-2.5 py-1 rounded-md">
             <Shield className="h-3.5 w-3.5 text-[var(--accent)]" />
             <span>99.8% System Integrity</span>
           </div>
@@ -490,8 +480,8 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
           PropAI bypasses typical listing bloat. We parse real-time broker communication pipelines using advanced AI to index verified off-market leads directly.
         </p>
 
-        {/* Global Search Bar */}
-        <div className="w-full max-w-xl mx-auto bg-[var(--bg-surface)]/85 backdrop-blur-md rounded-[20px] p-2 border border-[color:var(--border-strong)] shadow-[0_20px_50px_rgba(0,0,0,0.3)] hover:border-[color:var(--accent-border)] transition-all duration-300 flex items-center gap-2">
+        {/* Global Search Bar (Faint Translucent border for clean borderless styling) */}
+        <div className="w-full max-w-xl mx-auto bg-[var(--bg-surface)]/85 backdrop-blur-md rounded-[20px] p-2 border border-white/5 shadow-[0_20px_50px_rgba(0,0,0,0.4)] hover:border-[var(--accent)]/15 transition-all duration-300 flex items-center gap-2">
           <div className="flex-1 flex items-center gap-3 px-3">
             <Search className="h-4.5 w-4.5 text-[var(--text-muted)]" />
             <input 
@@ -516,16 +506,16 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
         </div>
       </header>
 
-      {/* Segmented Application Tab Navigation */}
+      {/* Segmented Application Tab Navigation (Borderless container styling) */}
       <section className="relative z-10 max-w-7xl mx-auto px-6 mb-10">
-        <div className="flex justify-center border-b border-[color:var(--border)]">
-          <div className="flex bg-[var(--bg-elevated)] p-1 rounded-xl border border-[color:var(--border)] shadow-inner">
+        <div className="flex justify-center border-b border-white/3">
+          <div className="flex bg-[var(--bg-elevated)] p-1 rounded-xl shadow-inner">
             <button 
               onClick={() => setActiveTab('feed')}
               className={cn(
                 "flex items-center gap-2 px-5 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-[0.08em] transition-all",
                 activeTab === 'feed' 
-                  ? "bg-[var(--bg-surface)] text-[var(--accent)] border border-[color:var(--border-strong)] shadow-sm font-black" 
+                  ? "bg-[var(--bg-surface)] text-[var(--accent)] shadow-md font-black" 
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               )}
             >
@@ -537,7 +527,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
               className={cn(
                 "flex items-center gap-2 px-5 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-[0.08em] transition-all",
                 activeTab === 'map' 
-                  ? "bg-[var(--bg-surface)] text-[var(--accent)] border border-[color:var(--border-strong)] shadow-sm font-black" 
+                  ? "bg-[var(--bg-surface)] text-[var(--accent)] shadow-md font-black" 
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               )}
             >
@@ -549,7 +539,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
               className={cn(
                 "flex items-center gap-2 px-5 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-[0.08em] transition-all",
                 activeTab === 'analytics' 
-                  ? "bg-[var(--bg-surface)] text-[var(--accent)] border border-[color:var(--border-strong)] shadow-sm font-black" 
+                  ? "bg-[var(--bg-surface)] text-[var(--accent)] shadow-md font-black" 
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               )}
             >
@@ -566,19 +556,19 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
         {/* TAB 1: DOUBLE-PANEL PROPERTY STREAM */}
         {activeTab === 'feed' && (
           <div className="space-y-8 animate-stream-in">
-            {/* Metric Micro-Grid */}
+            {/* Metric Micro-Grid (Borderless stats blocks) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               {[
                 { label: 'Active Signals Listed', value: liveCount.toLocaleString(), icon: Compass, color: 'text-white' },
                 { label: 'Fresh Off-Market Signals Today', value: (todayCount || 24).toLocaleString(), icon: Sparkles, color: 'text-[var(--accent)]' },
                 { label: 'Avg Signal Aging Velocity', value: avgAgeDisplay, icon: Calendar, color: 'text-white' }
               ].map((stat, i) => (
-                <div key={i} className="glass-panel rounded-[18px] p-5 flex items-center justify-between hover:border-[color:var(--border-strong)] transition-all">
+                <div key={i} className="bg-[var(--bg-surface)]/45 backdrop-blur-md rounded-2xl p-5 flex items-center justify-between hover:bg-[var(--bg-surface)]/65 transition-all">
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] mb-1">{stat.label}</div>
                     <div className={cn("text-[20px] font-black tracking-tight", stat.color)}>{stat.value}</div>
                   </div>
-                  <div className="p-3 rounded-xl bg-[var(--bg-base)] border border-[color:var(--border)]">
+                  <div className="p-3 rounded-xl bg-[var(--bg-surface)]/80">
                     <stat.icon className="h-5 w-5 text-[var(--accent)] opacity-80" />
                   </div>
                 </div>
@@ -588,9 +578,9 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
             {/* Double-Panel Split Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               
-              {/* Left Column: Property List (45%) */}
-              <div className="lg:col-span-5 space-y-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
-                <div className="flex items-center justify-between mb-2">
+              {/* Left Column: Property List (45% - Borderless flowing rows) */}
+              <div className="lg:col-span-5 space-y-3 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="flex items-center justify-between mb-1.5">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
                     {selectedLocality ? `Locality: ${selectedLocality} (${listings.length})` : `All Verified Streams (${listings.length})`}
                   </div>
@@ -605,7 +595,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                 </div>
 
                 {listings.length === 0 ? (
-                  <div className="glass-panel rounded-[20px] p-12 text-center space-y-4">
+                  <div className="bg-[var(--bg-surface)]/45 backdrop-blur-md rounded-[20px] p-12 text-center space-y-4">
                     <AlertCircle className="h-10 w-10 text-[var(--text-muted)] mx-auto" />
                     <h3 className="text-[16px] font-bold text-[var(--text-primary)]">No properties found</h3>
                     <p className="text-[12px] text-[var(--text-secondary)]">Try resetting filters or modifying your search keywords.</p>
@@ -622,15 +612,15 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                       key={item.id}
                       onClick={() => setSelectedListing(item)}
                       className={cn(
-                        "text-left cursor-pointer rounded-[20px] border p-4.5 transition-all duration-300 animate-stream-in",
+                        "text-left cursor-pointer p-4 rounded-2xl transition-all duration-300 animate-stream-in",
                         selectedListing?.id === item.id 
-                          ? "bg-[var(--bg-surface)] border-[color:var(--accent-border)] shadow-[0_4px_20px_-4px_rgba(62,232,138,0.15)]" 
-                          : "bg-[var(--bg-elevated)]/50 border-[color:var(--border)] hover:border-[color:var(--border-strong)] hover:bg-[var(--bg-elevated)]"
+                          ? "bg-[var(--bg-surface)] border border-[color:var(--accent-border)] shadow-[0_4px_25px_-5px_rgba(62,232,138,0.12)]" 
+                          : "bg-transparent border border-transparent hover:bg-[var(--bg-elevated)]/40"
                       )}
                     >
                       <div className="flex justify-between items-start gap-2">
                         <div>
-                          <h4 className="text-[14px] font-bold text-[var(--text-primary)] leading-[1.3] line-clamp-1 group-hover:text-[var(--accent)] transition-colors">
+                          <h4 className="text-[14px] font-bold text-[var(--text-primary)] leading-[1.3] line-clamp-1">
                             {item.title}
                           </h4>
                           <div className="flex items-center gap-1 mt-1 text-[11px] text-[var(--text-secondary)]">
@@ -646,7 +636,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                         </span>
                       </div>
 
-                      <div className="mt-3 flex justify-between items-center pt-3 border-t border-[color:var(--border)]">
+                      <div className="mt-3 flex justify-between items-center pt-3 border-t border-white/2">
                         <div className="text-[15px] font-black text-[var(--text-primary)]">
                           ₹{item.price >= 100000 ? `${(item.price / 100000).toFixed(1)}L` : item.price.toLocaleString()}
                           {item.type === 'Rent' && <span className="text-[10px] font-medium text-[var(--text-muted)]">/mo</span>}
@@ -654,12 +644,12 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                         
                         <div className="flex gap-2">
                           {item.bhk && (
-                            <span className="text-[9px] font-bold px-2 py-1 rounded bg-[var(--bg-base)] text-[var(--text-secondary)] border border-[color:var(--border)]">
+                            <span className="text-[9px] font-bold px-2 py-1 rounded bg-[var(--bg-surface)]/80 text-[var(--text-secondary)]">
                               {item.bhk}
                             </span>
                           )}
                           {item.area_sqft && (
-                            <span className="text-[9px] font-bold px-2 py-1 rounded bg-[var(--bg-base)] text-[var(--text-secondary)] border border-[color:var(--border)]">
+                            <span className="text-[9px] font-bold px-2 py-1 rounded bg-[var(--bg-surface)]/80 text-[var(--text-secondary)]">
                               {item.area_sqft} Sqft
                             </span>
                           )}
@@ -670,18 +660,18 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                 )}
               </div>
 
-              {/* Right Column: Listing Detail Inspection Desk (55%) */}
+              {/* Right Column: Listing Detail Inspection Desk (55% - Ultra clean design without harsh boxy grids) */}
               <div className="lg:col-span-7">
                 {selectedListing ? (
-                  <div className="glass-panel rounded-[24px] p-6 sm:p-8 space-y-6 sticky top-24 border-[color:var(--border-strong)] transition-all duration-300">
+                  <div className="glass-panel rounded-[24px] p-6 sm:p-8 space-y-6 sticky top-24 border border-white/3 transition-all duration-300">
                     
                     {/* Header Detail Badge */}
-                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[color:var(--border)] pb-5">
+                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/3 pb-5">
                       <div className="flex items-center gap-2">
-                        <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.1em] bg-[var(--accent-glow)] text-[var(--accent)] border border-[color:var(--accent-border)]">
+                        <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.15em] bg-[var(--accent-glow)] text-[var(--accent)] border border-[color:var(--accent-border)]">
                           Exclusive Off-Market {selectedListing.type}
                         </span>
-                        <span className="px-2 py-1 rounded-full text-[9px] font-bold text-[var(--text-muted)] bg-[var(--bg-base)] border border-[color:var(--border)] flex items-center gap-1">
+                        <span className="px-2 py-1 rounded-full text-[9px] font-bold text-[var(--text-muted)] bg-[var(--bg-surface)]/80 flex items-center gap-1">
                           <CheckCircle className="h-3 w-3 text-[var(--accent)]" /> Verified Signal
                         </span>
                       </div>
@@ -702,30 +692,30 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                       </div>
                     </div>
 
-                    {/* Pricing Desk Card */}
+                    {/* Pricing Desk Card (Borderless segments) */}
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      <div className="bg-[var(--bg-base)] rounded-2xl p-4 border border-[color:var(--border)]">
+                      <div className="bg-[var(--bg-surface)]/45 rounded-2xl p-4">
                         <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Off-Market Rent</div>
                         <div className="text-[22px] font-black text-[var(--accent)] mt-1 tracking-tight">
                           ₹{selectedListing.price.toLocaleString()}
                           <span className="text-[11px] font-semibold text-[var(--text-muted)]">/mo</span>
                         </div>
                       </div>
-                      <div className="bg-[var(--bg-base)] rounded-2xl p-4 border border-[color:var(--border)]">
+                      <div className="bg-[var(--bg-surface)]/45 rounded-2xl p-4">
                         <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Local Premium Delta</div>
                         <div className="text-[20px] font-black text-blue-400 mt-1 flex items-center gap-1">
                           <TrendingUp className="h-4.5 w-4.5" />
                           <span>+14.8%</span>
                         </div>
                       </div>
-                      <div className="bg-[var(--bg-base)] rounded-2xl p-4 border border-[color:var(--border)] col-span-2 md:col-span-1">
+                      <div className="bg-[var(--bg-surface)]/45 rounded-2xl p-4 col-span-2 md:col-span-1">
                         <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">AI Matching Confidence</div>
                         <div className="text-[20px] font-black text-purple-400 mt-1">98.4%</div>
                       </div>
                     </div>
 
-                    {/* Listing Attributes */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[var(--bg-surface)] p-4 rounded-2xl border border-[color:var(--border)]">
+                    {/* Listing Attributes (Borderless info bar) */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[var(--bg-base)]/40 p-4 rounded-2xl">
                       <div>
                         <div className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-wider">Size</div>
                         <div className="text-[13px] font-bold text-[var(--text-primary)] mt-0.5">{selectedListing.area_sqft || 1450} Sqft</div>
@@ -744,11 +734,11 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                       </div>
                     </div>
 
-                    {/* Raw parsed communication logs */}
+                    {/* Raw parsed communication logs (Borderless console container) */}
                     <div className="space-y-2">
                       <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Parsed Communication Signal (Raw Node)</div>
-                      <div className="bg-[var(--bg-base)] p-4 rounded-2xl border border-[color:var(--border)] font-mono text-[11px] text-[var(--text-secondary)] leading-relaxed relative overflow-hidden select-text">
-                        <div className="absolute top-2 right-2 flex items-center gap-1 text-[9px] bg-[var(--bg-elevated)] px-2 py-0.5 rounded border border-[color:var(--border)]">
+                      <div className="bg-[var(--bg-base)]/50 p-4 rounded-2xl font-mono text-[11px] text-[var(--text-secondary)] leading-relaxed relative overflow-hidden select-text">
+                        <div className="absolute top-2 right-2 flex items-center gap-1 text-[9px] bg-[var(--bg-surface)] px-2 py-0.5 rounded">
                           <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)] animate-live-pulse" />
                           <span>AI Organiser</span>
                         </div>
@@ -756,7 +746,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                       </div>
                     </div>
 
-                    {/* Direct Connect Action Area */}
+                    {/* Direct Connect Action Area (Extremely subtle/borderless secondary buttons) */}
                     <div className="flex flex-col sm:flex-row gap-3 pt-2">
                       <button 
                         onClick={() => startBrokerChat(selectedListing)}
@@ -767,7 +757,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                       </button>
                       <button 
                         onClick={() => startBrokerChat(selectedListing)}
-                        className="flex items-center justify-center gap-2 h-13 px-6 rounded-2xl border border-[color:var(--border)] bg-[var(--bg-base)] text-[12px] font-black uppercase tracking-[0.08em] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+                        className="flex items-center justify-center gap-2 h-13 px-6 rounded-2xl bg-[var(--bg-hover)]/40 hover:bg-[var(--bg-hover)]/70 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--text-primary)] active:scale-[0.98] transition-all"
                       >
                         <FileText className="h-4.5 w-4.5 text-blue-400" />
                         <span>Off-Market Verification Sheet</span>
@@ -776,7 +766,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
 
                   </div>
                 ) : (
-                  <div className="glass-panel rounded-[24px] p-16 text-center space-y-4 border-[color:var(--border)]">
+                  <div className="glass-panel rounded-[24px] p-16 text-center space-y-4 border border-white/3">
                     <Compass className="h-12 w-12 text-[var(--text-muted)] mx-auto animate-spin" style={{ animationDuration: '6s' }} />
                     <h3 className="text-[18px] font-bold text-[var(--text-primary)]">Select a signal to inspect</h3>
                     <p className="text-[13px] text-[var(--text-secondary)]">Click any property in the live feed to open the full inspection workspace.</p>
@@ -790,7 +780,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
 
         {/* TAB 2: INTERACTIVE SVG-BASED HEATMAP OF MUMBAI */}
         {activeTab === 'map' && (
-          <div className="glass-panel rounded-[28px] p-6 sm:p-8 animate-stream-in relative border-[color:var(--border-strong)]">
+          <div className="glass-panel rounded-[28px] p-6 sm:p-8 animate-stream-in relative border border-white/3">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               
               {/* Map Info Panel (left 4 columns) */}
@@ -802,12 +792,12 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                   </p>
                 </div>
 
-                <div className="space-y-3 bg-[var(--bg-surface)] p-4.5 rounded-2xl border border-[color:var(--border)]">
+                <div className="space-y-3 bg-[var(--bg-surface)] p-4.5 rounded-2xl">
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-live-pulse" />
                     <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-primary)]">Live Heat Spot Cues</span>
                   </div>
-                  <div className="space-y-2 text-[11px] text-[var(--text-secondary)]">
+                  <div className="space-y-2 text-[11px] text-[var(--text-secondary)] leading-relaxed">
                     <p>🔥 <strong>Green Nodes (Glow)</strong> indicate high off-market velocity. Properties closed here within an average of 48 hours of surfacing.</p>
                     <p>📊 <strong>Demand Index</strong> calculates search-to-broker matching volume relative to off-market inventory ratios.</p>
                   </div>
@@ -840,22 +830,20 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     </div>
                   </div>
                 ) : (
-                  <div className="p-5 rounded-2xl bg-[var(--bg-base)] border border-[color:var(--border)] text-center text-[12px] text-[var(--text-secondary)]">
+                  <div className="p-5 rounded-2xl bg-[var(--bg-base)]/40 text-center text-[12px] text-[var(--text-secondary)]">
                     Hover over map nodes to fetch micro-market intelligence indices.
                   </div>
                 )}
               </div>
 
               {/* Vector SVG Map Container (right 8 columns) */}
-              <div className="lg:col-span-8 flex justify-center relative overflow-hidden bg-[var(--bg-base)] rounded-2xl border border-[color:var(--border)] p-4">
+              <div className="lg:col-span-8 flex justify-center relative overflow-hidden bg-[var(--bg-base)] rounded-2xl p-4">
                 
-                {/* SVG Visual Matrix */}
                 <svg 
                   viewBox="0 0 500 450" 
                   className="w-full max-w-[500px] h-[360px] sm:h-[450px] relative z-10 transition-all duration-300"
                   onMouseMove={handleMapMouseMove}
                 >
-                  {/* Styled Grid Base lines in SVG */}
                   <defs>
                     <radialGradient id="mapGlow" cx="50%" cy="50%" r="50%">
                       <stop offset="0%" stopColor="rgba(62,232,138,0.15)" />
@@ -865,7 +853,6 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
 
                   <rect width="100%" height="100%" fill="transparent" />
                   
-                  {/* Dynamic Glowing background underneath hovered items */}
                   {hoveredLocality && (
                     <circle 
                       cx={hoveredLocality.x} 
@@ -876,24 +863,21 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     />
                   )}
 
-                  {/* Stylized Vector Landmass / Coastal Lines of Mumbai */}
                   <path 
                     d="M 120 40 Q 150 70 170 120 T 190 200 T 210 260 T 230 320 T 250 400 L 260 420 L 210 420 Q 170 360 150 300 T 110 210 T 80 150 Z" 
                     fill="rgba(255,255,255,0.015)" 
-                    stroke="rgba(255,255,255,0.05)" 
+                    stroke="rgba(255,255,255,0.03)" 
                     strokeWidth="2" 
                     strokeDasharray="4 2" 
                   />
 
-                  {/* Interconnected Network Grid paths */}
                   <path 
                     d="M 130 80 L 140 150 L 180 220 L 210 310 L 230 360 L 330 250 L 320 130 L 130 80 M 180 220 L 330 250 M 140 150 L 320 130" 
                     fill="none" 
-                    stroke="rgba(62, 232, 138, 0.05)" 
+                    stroke="rgba(62, 232, 138, 0.04)" 
                     strokeWidth="1.5" 
                   />
 
-                  {/* Vector Nodes */}
                   {MAP_LOCALITIES.map((loc) => {
                     const isHovered = hoveredLocality?.id === loc.id;
                     return (
@@ -907,7 +891,6 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                           setActiveTab('feed');
                         }}
                       >
-                        {/* Glowing radial wave for active/hovered items */}
                         {(loc.hot || isHovered) && (
                           <circle 
                             cx={loc.x} 
@@ -919,7 +902,6 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                           />
                         )}
                         
-                        {/* Central Node Dot */}
                         <circle 
                           cx={loc.x} 
                           cy={loc.y} 
@@ -930,7 +912,6 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                           className="transition-all duration-200"
                         />
 
-                        {/* Locality text tag above point */}
                         <text 
                           x={loc.x} 
                           y={loc.y - 12} 
@@ -947,15 +928,14 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                   })}
                 </svg>
 
-                {/* SVG Floating Premium Tooltip inside viewport */}
                 {hoveredLocality && (
                   <div 
-                    className="absolute z-30 pointer-events-none bg-[var(--bg-surface)] border border-[color:var(--border-strong)] p-3.5 rounded-xl shadow-xl w-48 text-left space-y-2 animate-stream-in"
+                    className="absolute z-30 pointer-events-none bg-[var(--bg-surface)] border border-white/5 p-3.5 rounded-xl shadow-xl w-48 text-left space-y-2 animate-stream-in"
                     style={{ 
                       left: `${tooltipPos.x}px`, 
                       top: `${tooltipPos.y}px`,
                       backdropFilter: 'blur(12px)',
-                      background: 'rgba(10, 15, 22, 0.9)'
+                      background: 'rgba(7, 11, 17, 0.92)'
                     }}
                   >
                     <div className="flex justify-between items-center">
@@ -990,14 +970,14 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-stream-in">
             
             {/* Visual Graph and Data metrics (8 columns) */}
-            <div className="lg:col-span-8 glass-panel rounded-[28px] p-6 sm:p-8 space-y-8 border-[color:var(--border-strong)]">
+            <div className="lg:col-span-8 glass-panel rounded-[28px] p-6 sm:p-8 space-y-8 border border-white/3">
               <div>
                 <h3 className="text-[20px] font-black tracking-tight text-[var(--text-primary)] font-display">Off-Market Price Delta Growth Index</h3>
                 <p className="text-[13px] text-[var(--text-secondary)] mt-1">Real-time aggregate tracking of average off-market property valuations compared to standard retail portal asking rates.</p>
               </div>
 
               {/* Dynamic canvas element */}
-              <div className="w-full bg-[var(--bg-base)] rounded-2xl border border-[color:var(--border)] p-4 flex justify-center">
+              <div className="w-full bg-[var(--bg-base)] rounded-2xl p-4 flex justify-center">
                 <canvas 
                   ref={canvasRef} 
                   width="500" 
@@ -1006,9 +986,9 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                 />
               </div>
 
-              {/* Analytics insights bullet points */}
+              {/* Analytics insights bullet points (Borderless segment cards) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[color:var(--border)] space-y-1.5">
+                <div className="p-4 rounded-xl bg-[var(--bg-surface)]/60 space-y-1.5">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4.5 w-4.5 text-[var(--accent)]" />
                     <span className="text-[11px] font-bold uppercase tracking-wider text-white">Off-Market Speed advantage</span>
@@ -1017,7 +997,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     By bypassing the portals, properties on PropAI are finalized inside 48 hours. Retail portals typically retain properties for an average of 42 days before closing.
                   </p>
                 </div>
-                <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[color:var(--border)] space-y-1.5">
+                <div className="p-4 rounded-xl bg-[var(--bg-surface)]/60 space-y-1.5">
                   <div className="flex items-center gap-2">
                     <BarChart3 className="h-4.5 w-4.5 text-blue-400" />
                     <span className="text-[11px] font-bold uppercase tracking-wider text-white">Aggregated Locality Viability</span>
@@ -1029,9 +1009,9 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
               </div>
             </div>
 
-            {/* Lateral Info Panel (4 columns) */}
+            {/* Lateral Info Panel (4 columns - Borderless components) */}
             <div className="lg:col-span-4 space-y-6">
-              <div className="glass-panel rounded-[28px] p-6 space-y-6 border-[color:var(--border-strong)]">
+              <div className="glass-panel rounded-[28px] p-6 space-y-6 border border-white/3">
                 <h4 className="text-[16px] font-black tracking-tight text-[var(--text-primary)] font-display">Locality Intelligence Rankings</h4>
                 
                 <div className="space-y-4">
@@ -1041,7 +1021,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     { rank: '03', name: 'Powai', rent: '₹75K', score: 92, state: 'High Velocity' },
                     { rank: '04', name: 'Juhu', rent: '₹2.1L', score: 91, state: 'Stale Supply' }
                   ].map((loc, i) => (
-                    <div key={i} className="flex items-center justify-between border-b border-[color:var(--border)] pb-3 last:border-0 last:pb-0">
+                    <div key={i} className="flex items-center justify-between border-b border-white/2 pb-3 last:border-0 last:pb-0">
                       <div className="flex items-center gap-3">
                         <span className="text-[12px] font-black text-[var(--text-muted)] font-mono">{loc.rank}</span>
                         <div>
@@ -1060,7 +1040,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
               </div>
 
               {/* Data Transparency Note Card */}
-              <div className="glass-panel rounded-[24px] p-6 border-[color:var(--border-strong)] space-y-3">
+              <div className="glass-panel rounded-[24px] p-6 border border-white/3 space-y-3">
                 <Shield className="h-7 w-7 text-[var(--accent)]" />
                 <h4 className="text-[14px] font-bold text-white">Bespoke Off-Market Ledger</h4>
                 <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
@@ -1077,7 +1057,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
       {/* Floating Call to Action Section (Only shown when not browsing feed double-panel) */}
       {activeTab !== 'feed' && (
         <section className="relative z-10 mx-auto max-w-5xl px-6 mt-16 animate-stream-in">
-          <div className="glass-panel rounded-[24px] p-6 sm:p-8 border-[color:var(--border-strong)]">
+          <div className="glass-panel rounded-[24px] p-6 sm:p-8 border border-white/3">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-[20px] sm:text-[24px] font-black text-[var(--text-primary)] font-display">Transform the way you hunt rentals</h2>
@@ -1092,7 +1072,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                 >
                   Open Stream Desk
                 </button>
-                <Link href="/broker/signup" className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-5 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all">
+                <Link href="/broker/signup" className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-white/5 bg-[var(--bg-elevated)] px-5 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all">
                   For Brokers Desk
                 </Link>
               </div>
@@ -1101,19 +1081,16 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
         </section>
       )}
 
-      {/* ADVANCED FLOATING BROKER CHAT SIMULATOR DRAWER */}
+      {/* ADVANCED FLOATING BROKER CHAT SIMULATOR DRAWER (Seamless translucent border layout) */}
       {chatOpen && activeBroker && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end animate-fade-in select-none">
-          {/* Background overlay click closer */}
           <div className="absolute inset-0" onClick={() => setChatOpen(false)} />
           
-          {/* Sliding Chat Container */}
-          <div className="w-full max-w-md h-full bg-[var(--bg-surface)] border-l border-[color:var(--border-strong)] flex flex-col relative z-10 animate-stream-in shadow-2xl">
+          <div className="w-full max-w-md h-full bg-[var(--bg-surface)] border-l border-white/5 flex flex-col relative z-10 animate-stream-in shadow-2xl">
             
             {/* Chat Header */}
-            <div className="p-4 border-b border-[color:var(--border)] flex items-center justify-between bg-[var(--bg-elevated)]">
+            <div className="p-4 flex items-center justify-between bg-[var(--bg-elevated)]">
               <div className="flex items-center gap-3">
-                {/* Avatar Badge */}
                 <div className="w-10 h-10 rounded-xl bg-[var(--accent-glow)] border border-[color:var(--accent-border)] flex items-center justify-center text-[var(--accent)] font-black text-sm">
                   {activeBroker.avatar}
                 </div>
@@ -1146,7 +1123,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
             </div>
 
             {/* Chat Info stats bar */}
-            <div className="bg-[var(--bg-base)] px-4 py-2 border-b border-[color:var(--border)] flex items-center justify-between text-[9px] text-[var(--text-secondary)] font-bold">
+            <div className="bg-[var(--bg-base)] px-4 py-2 border-b border-white/2 flex items-center justify-between text-[9px] text-[var(--text-secondary)] font-bold">
               <span>💼 EXPERIENCE: {activeBroker.experience}</span>
               <span>🔑 RECENT DEALS: {activeBroker.recentDeals} closed</span>
             </div>
@@ -1161,20 +1138,18 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     msg.sender === 'user' ? "ml-auto items-end" : "mr-auto items-start"
                   )}
                 >
-                  {/* Chat Message Bubble */}
                   <div 
                     className={cn(
                       "p-3.5 rounded-2xl text-[12px] leading-relaxed shadow-sm",
                       msg.sender === 'user' 
                         ? "bg-[var(--accent)] text-[var(--on-propai-green)] rounded-tr-none font-medium" 
-                        : "bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[color:var(--border)] rounded-tl-none font-medium select-text"
+                        : "bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-white/3 rounded-tl-none font-medium select-text"
                     )}
                   >
                     {msg.text}
 
-                    {/* Fact Sheet unlock custom mechanism */}
                     {msg.isSheetLink && (
-                      <div className="mt-3.5 p-3 rounded-xl bg-[var(--bg-surface)] border border-[color:var(--border-strong)] space-y-2">
+                      <div className="mt-3.5 p-3 rounded-xl bg-[var(--bg-surface)] border border-white/5 space-y-2">
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-[var(--accent)]" />
                           <span className="text-[10px] font-bold text-white uppercase tracking-wider">off-market-ledger.pdf</span>
@@ -1191,15 +1166,13 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     )}
                   </div>
                   
-                  {/* Message timestamp */}
                   <span className="text-[9px] text-[var(--text-muted)] mt-1 font-semibold">{msg.time}</span>
                 </div>
               ))}
 
-              {/* Typing indicator bubble */}
               {isTyping && (
                 <div className="mr-auto flex flex-col items-start max-w-[80%] animate-stream-in">
-                  <div className="p-3.5 rounded-2xl bg-[var(--bg-elevated)] border border-[color:var(--border)] rounded-tl-none flex items-center gap-1">
+                  <div className="p-3.5 rounded-2xl bg-[var(--bg-elevated)] border border-white/3 rounded-tl-none flex items-center gap-1">
                     <span className="h-2 w-2 rounded-full bg-[var(--accent)] dot-bounce-1" />
                     <span className="h-2 w-2 rounded-full bg-[var(--accent)] dot-bounce-2" />
                     <span className="h-2 w-2 rounded-full bg-[var(--accent)] dot-bounce-3" />
@@ -1210,7 +1183,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
             </div>
 
             {/* Chat Preset Helper Queries */}
-            <div className="p-3 border-t border-[color:var(--border)] bg-[var(--bg-surface)] flex flex-wrap gap-2">
+            <div className="p-3 border-t border-white/2 bg-[var(--bg-surface)] flex flex-wrap gap-2">
               {[
                 "Is the security deposit negotiable?",
                 "Can I visit tomorrow morning?",
@@ -1219,7 +1192,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                 <button 
                   key={i}
                   onClick={() => sendChatMessage(query)}
-                  className="px-3.5 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[color:var(--border)] hover:border-[color:var(--accent-border)] hover:text-[var(--accent)] text-[10px] font-bold text-[var(--text-secondary)] transition-all text-left"
+                  className="px-3.5 py-2 rounded-xl bg-[var(--bg-elevated)] hover:text-[var(--accent)] text-[10px] font-bold text-[var(--text-secondary)] transition-all text-left"
                 >
                   {query}
                 </button>
@@ -1227,7 +1200,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
             </div>
 
             {/* Chat Direct input bar */}
-            <div className="p-4 border-t border-[color:var(--border)] bg-[var(--bg-elevated)] flex gap-2">
+            <div className="p-4 border-t border-white/2 bg-[var(--bg-elevated)] flex gap-2">
               <input 
                 type="text" 
                 placeholder="Ask Rohan anything about deposit, walk-throughs..." 
@@ -1237,7 +1210,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     e.currentTarget.value = '';
                   }
                 }}
-                className="flex-1 bg-[var(--bg-base)] border border-[color:var(--border)] rounded-xl px-4 py-2.5 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[color:var(--accent-border)] transition-colors"
+                className="flex-1 bg-[var(--bg-base)] border border-white/3 rounded-xl px-4 py-2.5 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/30 transition-colors"
               />
               <button 
                 onClick={(e) => {

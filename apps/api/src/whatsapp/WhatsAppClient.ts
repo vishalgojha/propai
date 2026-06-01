@@ -94,10 +94,18 @@ export class WhatsAppClient {
     }
 
     private getReconnectBackoffMs() {
-        const exponential = Math.min(1_500 * Math.pow(1.8, Math.max(0, this.reconnectAttempts - 1)), 45_000);
-        const fatigueBonus = Math.min(7_500, Math.max(0, this.reconnectAttempts - 2) * 900);
+        if (this.reconnectAttempts <= 0) {
+            return this.humanizeDelay(750, 0.25, 450);
+        }
+
+        if (this.reconnectAttempts === 1) {
+            return this.humanizeDelay(1_200, 0.28, 600);
+        }
+
+        const exponential = Math.min(1_200 * Math.pow(1.65, Math.max(0, this.reconnectAttempts - 2)), 18_000);
+        const fatigueBonus = Math.min(3_500, Math.max(0, this.reconnectAttempts - 3) * 450);
         const base = exponential + fatigueBonus;
-        return this.humanizeDelay(base, 0.32, 1_250);
+        return this.humanizeDelay(base, 0.24, 900);
     }
 
     private mapBaileysStatus(code?: number | null): 'server_ack' | 'delivered' | 'read' | 'played' | null {
@@ -750,6 +758,7 @@ try {
 
         this.isConnecting = false;
         this.connectionStatus = 'disconnected';
+        this.disconnectMeta = { reason: null, replaced: false, at: null };
 
         if (this.socket) {
             await this.disposeSocket({ logout: false }).catch(() => undefined);
