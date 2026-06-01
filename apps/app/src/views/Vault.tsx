@@ -2,10 +2,23 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import backendApi, { handleApiError } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { ZapIcon, ListingIcon, RequirementIcon, MessageCircleIcon, PlusIcon, XIcon, AlertTriangleIcon } from '../lib/icons';
+import { ZapIcon, ListingIcon, RequirementIcon, MessageCircleIcon, PlusIcon, AlertTriangleIcon } from '../lib/icons';
 
 type TabId = 'listings' | 'requirements';
-type IntakeMode = 'listing' | 'requirement';
+type VaultEntryType = 'listing' | 'requirement';
+
+type VaultEntry = {
+  id: string;
+  type: VaultEntryType;
+  locality: string;
+  bhk: string;
+  dealType: 'rent' | 'sale' | 'lease';
+  price: string;
+  budget: string;
+  furnishing: string;
+  areaSqft: string;
+  notes: string;
+};
 
 type VaultListing = {
   id: string;
@@ -31,6 +44,21 @@ const accentButtonClass =
   'inline-flex items-center gap-2 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-5 py-3 text-[12px] font-bold uppercase tracking-[0.06em] text-[#020f07] shadow-[0_8px_20px_rgba(62,232,138,0.15)] transition-all duration-150 hover:-translate-y-[0.5px] hover:brightness-95';
 const ghostButtonClass =
   'inline-flex items-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2.5 text-[12px] font-semibold text-[var(--text-primary)] transition-all duration-150 hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)]';
+
+const createVaultEntry = (type: VaultEntryType): VaultEntry => ({
+  id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  type,
+  locality: '',
+  bhk: '',
+  dealType: 'rent',
+  price: '',
+  budget: '',
+  furnishing: '',
+  areaSqft: '',
+  notes: '',
+});
 
 function formatDate(dateStr: string) {
   try {
@@ -59,24 +87,6 @@ function describeRequirement(item: VaultRequirement): string {
   return parts.length > 0 ? parts.join(' · ') : item.raw_text?.slice(0, 80) || 'Requirement';
 }
 
-const LISTING_SCHEMA = [
-  { field: 'location', question: 'What location should we extract?', hint: 'Use the locality or area from the message.' },
-  { field: 'bhk', question: 'What BHK should we extract?', hint: 'Example: 1 BHK, 2 BHK, 3 BHK.' },
-  { field: 'price', question: 'What price should we extract?', hint: 'Use the final numeric asking price.' },
-  { field: 'carpet_area', question: 'What carpet area should we extract?', hint: 'Optional if not mentioned.' },
-  { field: 'furnishing', question: 'What furnishing should we extract?', hint: 'Unfurnished, semi-furnished, or fully-furnished.' },
-  { field: 'possession_date', question: 'What possession date should we extract?', hint: 'Optional if not mentioned.' },
-  { field: 'contact_number', question: 'What contact number should we extract?', hint: 'Use the broker or owner phone if present.' },
-];
-
-const REQUIREMENT_SCHEMA = [
-  { field: 'location_pref', question: 'What location preference should we extract?', hint: 'Use the buyer’s target locality or area.' },
-  { field: 'budget', question: 'What budget should we extract?', hint: 'Use the maximum budget or target range.' },
-  { field: 'timeline', question: 'What timeline should we extract?', hint: 'Example: immediate, this month, next month.' },
-  { field: 'possession', question: 'What possession requirement should we extract?', hint: 'Example: ready, within 30 days, flexible.' },
-  { field: 'contact_number', question: 'What contact number should we extract?', hint: 'Use the buyer phone if present.' },
-];
-
 export const VaultView: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -85,16 +95,22 @@ export const VaultView: React.FC = () => {
   const [requirements, setRequirements] = useState<VaultRequirement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [intakeMode, setIntakeMode] = useState<IntakeMode | null>(null);
+  const [entries, setEntries] = useState<VaultEntry[]>(() => [createVaultEntry('listing')]);
+  const [posting, setPosting] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
+  const [postSuccess, setPostSuccess] = useState<string | null>(null);
 
   const plan = user?.subscription?.plan || 'Free';
-  const canUseParser = plan === 'Trial' || plan === 'Starter' || plan === 'Pro';
+  const isSuperAdmin = user?.appRole === 'super_admin';
+  const canUseManualPosting = isSuperAdmin || plan === 'Pro';
 
-  useEffect(() => {
-    if (!user?.token) return;
+  const loadVault = useCallback(() => {
+    if (!user?.token) return Promise.resolve();
     let mounted = true;
+    setLoading(true);
+    setError(null);
 
-    backendApi
+    return backendApi
       .get<{ listings: VaultListing[]; requirements: VaultRequirement[] }>('/api/vault')
       .then((res) => {
         if (!mounted) return;
@@ -107,9 +123,12 @@ export const VaultView: React.FC = () => {
       .finally(() => {
         if (mounted) setLoading(false);
       });
-
-    return () => { mounted = false; };
   }, [user?.token]);
+
+  useEffect(() => {
+    if (!user?.token) return;
+    void loadVault();
+  }, [loadVault, user?.token]);
 
   const askPulse = (context: string) => {
     navigate(`/agent?prompt=${encodeURIComponent(context)}`);
@@ -117,18 +136,63 @@ export const VaultView: React.FC = () => {
 
   const activeItems = tab === 'listings' ? listings : requirements;
 
-  const startIntake = useCallback((mode: IntakeMode) => {
-    setIntakeMode(mode);
-    const schema = mode === 'listing' ? LISTING_SCHEMA : REQUIREMENT_SCHEMA;
-    const prompt = [
-      `Start a new ${mode} intake.`,
-      `Use the parser schema fields exactly in this order: ${schema.map((item) => item.field).join(', ')}.`,
-      'Ask exactly one question at a time, wait for the answer, and never render a form.',
-      ...schema.map((item, index) => `${index + 1}. [${item.field}] ${item.question} (${item.hint})`),
-      'Keep the interaction deterministic and schema-driven.',
-    ].join(' ');
-    askPulse(prompt);
+  const updateEntry = useCallback((id: string, patch: Partial<VaultEntry>) => {
+    setEntries((current) => current.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
   }, []);
+
+  const addEntry = useCallback((type: VaultEntryType) => {
+    setEntries((current) => [...current, createVaultEntry(type)]);
+  }, []);
+
+  const removeEntry = useCallback((id: string) => {
+    setEntries((current) => (current.length > 1 ? current.filter((entry) => entry.id !== id) : current));
+  }, []);
+
+  const clearEntries = useCallback(() => {
+    setEntries([createVaultEntry('listing')]);
+    setPostError(null);
+    setPostSuccess(null);
+  }, []);
+
+  const submitEntries = useCallback(async () => {
+    const normalizedEntries = entries.map((entry) => ({
+      ...entry,
+      locality: entry.locality.trim(),
+      bhk: entry.bhk.trim(),
+      furnishing: entry.furnishing.trim(),
+      notes: entry.notes.trim(),
+      price: entry.price.trim(),
+      budget: entry.budget.trim(),
+    }));
+
+    const missing = normalizedEntries.find((entry) =>
+      !entry.locality || !entry.bhk || !entry.dealType || (entry.type === 'listing' ? !entry.price : !entry.budget),
+    );
+
+    if (missing) {
+      setPostError('Fill locality, BHK, deal type, and price/budget for every row before posting.');
+      return;
+    }
+
+    setPosting(true);
+    setPostError(null);
+    setPostSuccess(null);
+
+    try {
+      const response = await backendApi.post('/api/vault/post', {
+        items: normalizedEntries,
+      });
+
+      const postedCount = Number(response.data?.listings || 0) + Number(response.data?.requirements || 0);
+      setPostSuccess(response.data?.message || `Saved ${postedCount} manual item(s).`);
+      clearEntries();
+      await loadVault();
+    } catch (err) {
+      setPostError(handleApiError(err));
+    } finally {
+      setPosting(false);
+    }
+  }, [clearEntries, entries, loadVault]);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
@@ -154,71 +218,206 @@ export const VaultView: React.FC = () => {
         </div>
       </div>
 
-      {/* Post buttons */}
-      {canUseParser && !intakeMode && (
-        <div className="flex gap-3">
-          <button className={ghostButtonClass} onClick={() => startIntake('listing')}>
-            <PlusIcon className="h-4 w-4" strokeWidth={2} />
-            Open Listing Intake
-          </button>
-          <button className={ghostButtonClass} onClick={() => startIntake('requirement')}>
-            <PlusIcon className="h-4 w-4" strokeWidth={2} />
-            Open Requirement Intake
-          </button>
+      {canUseManualPosting ? (
+        <div className={`${panelClass} space-y-4`}>
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="max-w-2xl">
+              <p className={panelLabelClass}>Manual posting</p>
+              <h2 className="mt-1 text-[18px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
+                Post multiple listings and requirements in one batch.
+              </h2>
+              <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">
+                Use this when you do not want to scan WhatsApp groups. Add as many rows as needed, then post them to the vault and shared stream in one go.
+              </p>
+              <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                Starter / 499 is scan-only. Manual posting opens on the 1499 / 1999 paid plans and owner accounts.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className={ghostButtonClass} onClick={() => addEntry('listing')}>
+                <PlusIcon className="h-4 w-4" strokeWidth={2} />
+                Add listing
+              </button>
+              <button className={ghostButtonClass} onClick={() => addEntry('requirement')}>
+                <PlusIcon className="h-4 w-4" strokeWidth={2} />
+                Add requirement
+              </button>
+            </div>
+          </div>
+
+          {postError ? (
+            <div className="rounded-[14px] border border-red-500/30 bg-red-500/10 px-4 py-3 text-[12px] text-red-200">
+              {postError}
+            </div>
+          ) : null}
+
+          {postSuccess ? (
+            <div className="rounded-[14px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 text-[12px] text-[var(--accent)]">
+              {postSuccess}
+            </div>
+          ) : null}
+
+          <div className="space-y-3">
+            {entries.map((entry, index) => (
+              <div key={entry.id} className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                      Row {index + 1}
+                    </p>
+                    <p className="mt-1 text-[13px] font-semibold text-[var(--text-primary)]">
+                      {entry.type === 'listing' ? 'Listing' : 'Requirement'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeEntry(entry.id)}
+                    className="text-[11px] font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                    disabled={entries.length === 1}
+                  >
+                    Remove
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Type</span>
+                    <select
+                      value={entry.type}
+                      onChange={(event) => updateEntry(entry.id, { type: event.target.value as VaultEntryType })}
+                      className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                    >
+                      <option value="listing">Listing</option>
+                      <option value="requirement">Requirement</option>
+                    </select>
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Locality</span>
+                    <input
+                      type="text"
+                      value={entry.locality}
+                      onChange={(event) => updateEntry(entry.id, { locality: event.target.value })}
+                      placeholder="Bandra West"
+                      className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                    />
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">BHK</span>
+                    <input
+                      type="text"
+                      value={entry.bhk}
+                      onChange={(event) => updateEntry(entry.id, { bhk: event.target.value })}
+                      placeholder="2 BHK"
+                      className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                    />
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Deal type</span>
+                    <select
+                      value={entry.dealType}
+                      onChange={(event) => updateEntry(entry.id, { dealType: event.target.value as VaultEntry['dealType'] })}
+                      className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                    >
+                      <option value="rent">Rent</option>
+                      <option value="sale">Sale</option>
+                      <option value="lease">Lease</option>
+                    </select>
+                  </label>
+                  {entry.type === 'listing' ? (
+                    <>
+                      <label className="space-y-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Price</span>
+                        <input
+                          type="text"
+                          value={entry.price}
+                          onChange={(event) => updateEntry(entry.id, { price: event.target.value })}
+                          placeholder="2.8 Cr"
+                          className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                        />
+                      </label>
+                      <label className="space-y-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Area (sqft)</span>
+                        <input
+                          type="text"
+                          value={entry.areaSqft}
+                          onChange={(event) => updateEntry(entry.id, { areaSqft: event.target.value })}
+                          placeholder="580"
+                          className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                        />
+                      </label>
+                      <label className="space-y-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Furnishing</span>
+                        <input
+                          type="text"
+                          value={entry.furnishing}
+                          onChange={(event) => updateEntry(entry.id, { furnishing: event.target.value })}
+                          placeholder="Semi-furnished"
+                          className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                        />
+                      </label>
+                      <div />
+                    </>
+                  ) : (
+                    <>
+                      <label className="space-y-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Budget</span>
+                        <input
+                          type="text"
+                          value={entry.budget}
+                          onChange={(event) => updateEntry(entry.id, { budget: event.target.value })}
+                          placeholder="2.5 Cr"
+                          className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                        />
+                      </label>
+                      <div />
+                    </>
+                  )}
+                  <label className="space-y-1.5 md:col-span-2">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Notes</span>
+                    <textarea
+                      value={entry.notes}
+                      onChange={(event) => updateEntry(entry.id, { notes: event.target.value })}
+                      placeholder="Extra details, parking, OC, building name, caller note..."
+                      rows={3}
+                      className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                    />
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-[color:var(--border)] pt-4 md:flex-row md:items-center md:justify-between">
+            <p className="text-[11px] text-[var(--text-muted)]">
+              Batch posting saves every listing and requirement to Vault in one submission.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className={ghostButtonClass} onClick={clearEntries}>
+                Clear all
+              </button>
+              <button
+                type="button"
+                className={accentButtonClass}
+                onClick={() => void submitEntries()}
+                disabled={posting}
+              >
+                {posting ? 'Posting...' : 'Post batch'}
+              </button>
+            </div>
+          </div>
         </div>
-      )}
-      {!canUseParser && !intakeMode && (
+      ) : (
         <div className={`${panelClass} flex items-center gap-3 border-[var(--amber)]`}>
           <AlertTriangleIcon className="h-5 w-5 shrink-0 text-[var(--amber)]" strokeWidth={1.5} />
           <div className="flex-1">
-            <p className="text-[13px] font-semibold text-[var(--text-primary)]">Parser access unavailable</p>
+            <p className="text-[13px] font-semibold text-[var(--text-primary)]">Manual Vault posting unavailable</p>
             <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
-              Trial and paid plans can use the global parser. Upgrade or activate a trial to continue.
+              Starter / 499 is scan-only. Upgrade to a paid posting plan to batch post listings and requirements from Vault.
             </p>
           </div>
           <button className={accentButtonClass} onClick={() => navigate('/pricing')}>
             Upgrade
           </button>
-        </div>
-      )}
-
-      {intakeMode && (
-        <div className={`${panelClass} space-y-4`}>
-          <div className="flex items-center justify-between">
-            <p className="text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--accent)]">
-              {intakeMode === 'listing' ? 'Listing Parser Schema' : 'Requirement Parser Schema'}
-            </p>
-            <button className="text-[var(--text-muted)] hover:text-[var(--text-primary)]" onClick={() => setIntakeMode(null)}>
-              <XIcon className="h-4 w-4" strokeWidth={2} />
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            <p className="text-[12px] text-[var(--text-secondary)]">
-              Pulse will ask these parser-schema questions one at a time, in this exact order.
-            </p>
-            <div className="grid gap-3">
-              {(intakeMode === 'listing' ? LISTING_SCHEMA : REQUIREMENT_SCHEMA).map((item, index) => (
-                <div key={item.field} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg)] p-4">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                    Question {index + 1}
-                  </p>
-                  <p className="mt-2 text-[13px] font-semibold text-[var(--text-primary)]">{item.question}</p>
-                  <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{item.hint}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] text-[var(--text-muted)]">
-              This keeps intake deterministic and aligned with the backend parser schema.
-            </p>
-            <button className={accentButtonClass} onClick={() => startIntake(intakeMode)}>
-              <MessageCircleIcon className="h-4 w-4" strokeWidth={1.5} />
-              Start schema flow
-            </button>
-          </div>
         </div>
       )}
 

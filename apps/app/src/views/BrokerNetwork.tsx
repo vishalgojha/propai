@@ -356,7 +356,7 @@ export const BrokerNetwork: React.FC = () => {
             )}
           >
             <ShieldCheck className="h-4 w-4" />
-            Partners
+            Partner / Team
           </button>
         </div>
         {activeView === 'overlaps' ? (
@@ -394,8 +394,8 @@ export const BrokerNetwork: React.FC = () => {
             <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[13px] font-semibold text-[var(--text-primary)]">Invite a partner</p>
-                  <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">Generate a private link for a trusted broker. Active partners can pull your shared listing feed.</p>
+                  <p className="text-[13px] font-semibold text-[var(--text-primary)]">Invite a partner or team</p>
+                  <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">Generate a private link for a trusted broker or workspace member. Active partners can pull your shared listing feed.</p>
                 </div>
                 <button
                   type="button"
@@ -428,7 +428,7 @@ export const BrokerNetwork: React.FC = () => {
             </div>
 
             <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
-              <p className="text-[13px] font-semibold text-[var(--text-primary)]">Accept a partner invite</p>
+              <p className="text-[13px] font-semibold text-[var(--text-primary)]">Accept a partner / team invite</p>
               <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">Paste a full invite link or token from another broker workspace.</p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <input
@@ -459,7 +459,7 @@ export const BrokerNetwork: React.FC = () => {
           ) : partners.length === 0 ? (
             <div className="rounded-[18px] border border-dashed border-[color:var(--border)] px-4 py-16 text-center text-sm text-[var(--text-secondary)]">
               <ShieldCheck className="mx-auto mb-3 h-8 w-8 opacity-40" />
-              No syndication partners yet. Invite a trusted broker or accept an invite to start sharing listings.
+              No partner / team connections yet. Invite a trusted broker or accept an invite to start sharing listings.
             </div>
           ) : (
             <div className="overflow-hidden rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)]">
@@ -467,7 +467,7 @@ export const BrokerNetwork: React.FC = () => {
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-white/[0.04] text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-                      <th className="px-5 py-4">Partner</th>
+                      <th className="px-5 py-4">Partner / Team</th>
                       <th className="px-5 py-4">Direction</th>
                       <th className="px-5 py-4">Scope</th>
                       <th className="px-5 py-4">Status</th>
@@ -490,7 +490,7 @@ export const BrokerNetwork: React.FC = () => {
                               {(partner.partnerName || 'P')[0].toUpperCase()}
                             </div>
                             <div>
-                              <p className="font-semibold text-[var(--text-primary)]">{partner.partnerName || 'Partner'}</p>
+                              <p className="font-semibold text-[var(--text-primary)]">{partner.partnerName || 'Partner / Team'}</p>
                               <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">{partner.id}</p>
                             </div>
                           </div>

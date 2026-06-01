@@ -99,6 +99,7 @@ export const Layout: React.FC = () => {
   const disconnectedSnapshotCountRef = React.useRef<number>(0);
 
   const getPageTitle = (path: string) => {
+    if (path.startsWith('/broker-network/partners')) return 'Partner / Team';
     if (path.startsWith('/broker-network')) return 'Broker Network';
     if (path.startsWith('/whatsapp')) return 'WhatsApp';
     if (path.startsWith('/vault')) return 'Vault';
