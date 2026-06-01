@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { fetchPublicListingBySlug, type PublicListing } from "@/lib/publicListings";
+import { fetchPublicListingBySlug, fetchRelatedListings, type PublicListing } from "@/lib/publicListings";
 import ListingDetail from "@/pages/ListingDetail";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -43,8 +43,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   let initialListing: PublicListing | null = null;
+  let initialRelated: PublicListing[] = [];
   try {
     initialListing = await fetchPublicListingBySlug(slug);
+    if (initialListing) {
+      initialRelated = await fetchRelatedListings(initialListing);
+    }
   } catch {
     // Fallback to client-side fetch
   }
@@ -80,7 +84,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(listingJsonLd) }}
         />
       ) : null}
-      <ListingDetail slug={slug} initialListing={initialListing} />
+      <ListingDetail slug={slug} initialListing={initialListing} initialRelated={initialRelated} />
     </>
   );
 }
+

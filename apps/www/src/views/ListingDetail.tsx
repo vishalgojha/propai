@@ -20,33 +20,44 @@ function buildDescription(listing: PublicListing): string {
   return parts.join(' ') || 'Direct Realtor listing';
 }
 
-export default function ListingDetail({ slug, initialListing = null }: { slug: string; initialListing?: PublicListing | null }) {
+export default function ListingDetail({ 
+  slug, 
+  initialListing = null, 
+  initialRelated = [] 
+}: { 
+  slug: string; 
+  initialListing?: PublicListing | null; 
+  initialRelated?: PublicListing[];
+}) {
   const [listing, setListing] = useState<PublicListing | null>(initialListing);
   const [loading, setLoading] = useState(!initialListing);
-  const [related, setRelated] = useState<PublicListing[]>([]);
+  const [related, setRelated] = useState<PublicListing[]>(initialRelated);
 
   useEffect(() => {
     if (slug && !initialListing) {
       setLoading(true);
-      getListingBySlug(slug).then(data => {
-        setListing(data);
-        if (data) {
-          getListings().then(all => {
-             const others = all.filter(l => l.id !== data.id);
-             const sameLocality = others.filter(l => l.locality === data.locality);
-             setRelated(sameLocality.length >= 3 ? sameLocality.slice(0, 3) : others.slice(0, 3));
-          });
-        }
-        setLoading(false);
-      });
-    } else if (listing) {
-      getListings().then(all => {
-         const others = all.filter(l => l.id !== listing.id);
-         const sameLocality = others.filter(l => l.locality === listing.locality);
-         setRelated(sameLocality.length >= 3 ? sameLocality.slice(0, 3) : others.slice(0, 3));
-      });
+      fetch(`/api/listings?slug=${encodeURIComponent(slug)}`)
+        .then(res => {
+          if (!res.ok) throw new Error("Failed to fetch");
+          return res.json();
+        })
+        .then(data => {
+          setListing(data.listing || null);
+          setRelated(data.related || []);
+          setLoading(false);
+        })
+        .catch(() => {
+          setListing(null);
+          setRelated([]);
+          setLoading(false);
+        });
+    } else {
+      setListing(initialListing);
+      setRelated(initialRelated || []);
+      setLoading(false);
     }
-  }, [slug]);
+  }, [slug, initialListing, initialRelated]);
+
 
   if (loading) {
     return (

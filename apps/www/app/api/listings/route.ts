@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchPublicListingBySlug, fetchPublicListings } from "@/lib/publicListings";
+import { fetchPublicListingBySlug, fetchPublicListings, fetchRelatedListings } from "@/lib/publicListings";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,8 @@ export async function GET(request: Request) {
 
     if (slug) {
       const listing = await fetchPublicListingBySlug(slug);
-      return NextResponse.json({ listing });
+      const related = listing ? await fetchRelatedListings(listing) : [];
+      return NextResponse.json({ listing, related });
     }
 
     const listings = await fetchPublicListings(locality || undefined);
@@ -23,3 +24,4 @@ export async function GET(request: Request) {
     );
   }
 }
+

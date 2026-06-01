@@ -1004,3 +1004,72 @@ export async function fetchLocalitiesForFooter(minCount = 2): Promise<CityLocali
 function slugifyLocality(locality: string) {
   return locality.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
+
+export async function fetchRelatedListings(listing: PublicListing, limit = 3): Promise<PublicListing[]> {
+  if (!listing) return [];
+
+  // 1. Fetch all listings in the same locality
+  let candidates = await fetchPublicListings(listing.locality);
+
+  // Exclude current listing
+  candidates = candidates.filter(c => c.id !== listing.id);
+
+  // Helper to score similarity (higher = better match)
+  const getScore = (c: PublicListing) => {
+    let score = 0;
+    // Pillar B: Same deal type (Rent/Sale) is highly preferred
+    if (c.type === listing.type) {
+      score += 100;
+    }
+    // Pillar C: Price similarity
+    if (listing.price > 0 && c.price > 0) {
+      const ratio = Math.max(c.price / listing.price, listing.price / c.price);
+      if (ratio <= 1.25) {
+        score += 50; // Price within 25% corridor
+      } else if (ratio <= 1.5) {
+        score += 20; // Price within 50% corridor
+      } else {
+        score += 10 / ratio; // Degrades with price ratio
+      }
+    }
+    // Configuration match (BHK)
+    if (c.bhk && listing.bhk && String(c.bhk).toLowerCase() === String(listing.bhk).toLowerCase()) {
+      score += 30;
+    }
+    return score;
+  };
+
+  // Sort candidates by score descending
+  const scored = candidates.map(c => ({ candidate: c, score: getScore(c) }));
+  scored.sort((a, b) => b.score - a.score);
+
+  const related = scored.map(s => s.candidate).slice(0, limit);
+
+  // Fallback 1: Neighboring localities if same-locality candidates are insufficient
+  if (related.length < limit) {
+    const neighborNames = neighbouringLocalities(slugifyLocality(listing.locality), 2).map(n => n.name);
+    for (const name of neighborNames) {
+      if (related.length >= limit) break;
+      let neighborListings = await fetchPublicListings(name);
+      neighborListings = neighborListings.filter(c => c.id !== listing.id && !related.some(r => r.id === c.id));
+
+      const neighborScored = neighborListings.map(c => ({ candidate: c, score: getScore(c) }));
+      neighborScored.sort((a, b) => b.score - a.score);
+
+      const toAdd = neighborScored.map(s => s.candidate).slice(0, limit - related.length);
+      related.push(...toAdd);
+    }
+  }
+
+  // Fallback 2: Global recent fallback if still under-populated
+  if (related.length < limit) {
+    const globalListings = await fetchPublicListings();
+    const fallbackListings = globalListings
+      .filter(c => c.id !== listing.id && !related.some(r => r.id === c.id))
+      .slice(0, limit - related.length);
+    related.push(...fallbackListings);
+  }
+
+  return related;
+}
+
