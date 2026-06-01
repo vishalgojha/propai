@@ -55,7 +55,7 @@ export default async function Footer() {
               <span className="text-[18px] font-bold tracking-tighter text-[var(--text-primary)]">Pulse</span>
             </div>
             <p className="text-[13px] leading-6 text-[var(--text-secondary)] max-w-xs">
-              Real-time off-market real estate intelligence across Indian micro-markets.
+              Real-time broker-network real estate intelligence across Indian micro-markets.
             </p>
           </div>
 
@@ -73,6 +73,11 @@ export default async function Footer() {
             <ul className="space-y-2">
               <li><Link href="/listings" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Browse Listings</Link></li>
               <li><Link href="/about" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">About PropAI</Link></li>
+              <li><Link href="/mcp" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">PropAI MCP</Link></li>
+              <li><Link href="/mcp/docs" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">MCP Docs</Link></li>
+              <li><Link href="/mcp/security" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">MCP Security</Link></li>
+              <li><Link href="/llms.txt" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">llms.txt</Link></li>
+              <li><Link href="/ai.txt" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">ai.txt</Link></li>
               <li><Link href="/contact" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Contact Us</Link></li>
               <li><Link href="/privacy" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Privacy Policy</Link></li>
               <li><Link href="/terms" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Terms &amp; Conditions</Link></li>
