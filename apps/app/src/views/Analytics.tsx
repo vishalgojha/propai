@@ -64,7 +64,7 @@ type IntelligenceResult = {
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'pulse', label: 'Market Pulse' },
-  { id: 'supply', label: 'Supply vs Demand' },
+  { id: 'supply', label: 'Observed Activity' },
   { id: 'velocity', label: 'Velocity' },
   { id: 'brokers', label: 'Brokers' },
   { id: 'inventory', label: 'Inventory' },
@@ -144,6 +144,7 @@ const Analytics: React.FC = () => {
   const totalRequirements = intelData?.myInventory?.totalRequirements || 0;
   const supplyDemandRatio = totalListings > 0 ? totalRequirements / totalListings : 0;
   const inventoryScopeLabel = intelData?.scope === 'all_accounts' ? 'All Accounts' : 'My';
+  const observedRowsLabel = formatInteger(intelData?.validRows);
 
   if (loading) {
     return <div className="p-6 text-[12px] text-[var(--text-secondary)]">Loading intelligence...</div>;
@@ -159,7 +160,10 @@ const Analytics: React.FC = () => {
         <div>
           <h1 className="text-[26px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Intelligence</h1>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
-            PropAI · {intelData?.scope === 'all_accounts' ? 'All account signals' : 'Workspace signals'} · {formatInteger(intelData?.validRows)} valid parsed rows
+            PropAI · {intelData?.scope === 'all_accounts' ? 'All account signals' : 'Workspace signals'} · {observedRowsLabel} observed rows
+          </p>
+          <p className="mt-2 max-w-2xl text-[12px] leading-6 text-[var(--text-secondary)]">
+            This view shows what the system has actually seen in broker data. It is a signal summary, not a guaranteed market truth.
           </p>
         </div>
         <div className="flex w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-1 sm:w-auto">
@@ -182,9 +186,9 @@ const Analytics: React.FC = () => {
       </header>
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Valid Stream" value={formatInteger(intelData?.validRows)} />
-        <KpiCard label="Requirements" value={formatInteger(totalRequirements)} />
-        <KpiCard label="Supply/Demand Ratio" value={`${formatRatio(supplyDemandRatio)}x`} />
+        <KpiCard label="Observed Rows" value={formatInteger(intelData?.validRows)} />
+        <KpiCard label="Observed Requirements" value={formatInteger(totalRequirements)} />
+        <KpiCard label="Observed Ratio" value={`${formatRatio(supplyDemandRatio)}x`} />
         <KpiCard label="Active Brokers" value={formatInteger(intelData?.activeBrokerCount ?? intelData?.brokerLeaderboard?.length)} />
       </section>
 
@@ -237,10 +241,10 @@ const Analytics: React.FC = () => {
       {activeTab === 'supply' && (
         <TabState error={intelError} empty={!intelData}>
           <section className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            <ChartPanel label="Daily supply vs demand">
+            <ChartPanel label="Daily observed listings vs requirements">
               <DailySupplyDemandChart rows={dailyVolume} />
             </ChartPanel>
-            <ChartPanel label="Unit-size gap" dataTour="intelligence-bhk">
+            <ChartPanel label="Unit-size gap from observed rows" dataTour="intelligence-bhk">
               <UnitGapChart rows={unitDemand} />
             </ChartPanel>
           </section>
@@ -444,10 +448,10 @@ function VelocityCallout({ rows }: { rows: IntelligenceResult['velocity'] }) {
   const tone = avgNetDemand > 0 ? 'demand' : avgNetDemand < 0 ? 'supply' : 'balanced';
   const message =
     tone === 'demand'
-      ? 'Demand has outpaced supply for the past 7 days'
+      ? 'Observed requirements have outpaced observed listings for the past 7 days'
       : tone === 'supply'
-        ? 'Supply has outpaced demand for the past 7 days'
-        : 'Supply and demand are balanced this week';
+        ? 'Observed listings have outpaced observed requirements for the past 7 days'
+        : 'Observed listings and requirements are balanced this week';
 
   return (
     <div
