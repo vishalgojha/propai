@@ -14,13 +14,13 @@ export default function BrokerSignup() {
               We organize your active inventory and show it to qualified buyers. 100% streamlined. 100% direct connection to your phone.
             </p>
             <p className="text-[13px] text-[var(--text-muted)] max-w-lg">
-              Broker onboarding is handled inside the protected workspace after approval.
+              Realtor onboarding is handled inside the protected workspace after approval.
             </p>
           </div>
 
           <div className="grid gap-8">
             {[
-              { t: 'Automated Feed', d: 'Connect your verified broker workflow and keep active inventory visible automatically.', i: Zap },
+              { t: 'Automated Feed', d: 'Connect your verified Realtor workflow and keep active inventory visible automatically.', i: Zap },
               { t: 'Direct Connections', d: 'Buyers contact you directly on your phone. We don\'t stand in between.', i: Target },
               { t: 'Market Insights', d: 'Get data on which of your listings are trending and where demand is peaking.', i: TrendingUp }
             ].map((feature, i) => (
@@ -42,12 +42,12 @@ export default function BrokerSignup() {
           <div className="glass-panel rounded-[24px] border border-white/5 bg-[var(--bg-surface)]/60 p-10 shadow-[0_32px_120px_rgba(0,0,0,0.5)]">
              <div className="text-center mb-10">
                 <h2 className="text-[24px] font-bold text-[var(--text-primary)]">Ready to amplify?</h2>
-                <p className="text-[13px] text-[var(--text-muted)] mt-2">Broker onboarding is shown after workspace approval.</p>
+                <p className="text-[13px] text-[var(--text-muted)] mt-2">Realtor onboarding is shown after workspace approval.</p>
              </div>
 
              <div className="space-y-6">
                 <div>
-                   <label className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-secondary)] mb-2 block">Phone Number</label>
+                   <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-secondary)] mb-2 block">Phone Number</label>
                    <input 
                     type="tel" 
                     placeholder="+91 98XXX XXXXX"
@@ -62,7 +62,7 @@ export default function BrokerSignup() {
                    </div>
                    <div className="flex gap-3 text-[12px] text-[var(--text-secondary)]">
                       <CheckCircle2 className="h-4 w-4 text-[var(--accent)] shrink-0" />
-                      <span>I am a RERA registered broker.</span>
+                      <span>I am a RERA registered Realtor.</span>
                    </div>
                 </div>
 
@@ -75,7 +75,7 @@ export default function BrokerSignup() {
                 <p className="text-[13px] text-[var(--text-secondary)] text-center">
                   "PropAI has increased my high-end rental leads without me doing extra manual entry."
                 </p>
-                <div className="text-[11px] font-bold text-center mt-3 uppercase tracking-widest text-[var(--text-muted)]">— Premium Mumbai Broker</div>
+                <div className="text-[11px] font-bold text-center mt-3 uppercase tracking-widest text-[var(--text-muted)]">— Premium Mumbai Realtor</div>
              </div>
           </div>
         </div>

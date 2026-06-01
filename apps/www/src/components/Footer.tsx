@@ -55,7 +55,7 @@ export default async function Footer() {
               <span className="text-[18px] font-bold tracking-tighter text-[var(--text-primary)]">Pulse</span>
             </div>
             <p className="text-[13px] leading-6 text-[var(--text-secondary)] max-w-xs">
-              Real-time broker-network real estate intelligence across Indian micro-markets.
+              Real-time Realtor-network real estate intelligence across Indian micro-markets.
             </p>
           </div>
 
@@ -83,7 +83,7 @@ export default async function Footer() {
           <div>
             <h4 className="mb-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">Company</h4>
             <ul className="space-y-2">
-              <li><Link href="https://app.propai.live" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">For Brokers</Link></li>
+              <li><Link href="https://app.propai.live" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">For Realtors</Link></li>
               <li><Link href="/mcp" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">AI Tools</Link></li>
               <li><Link href="/refund" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Refund Policy</Link></li>
               <li><Link href="/cancellation" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Cancellation Policy</Link></li>

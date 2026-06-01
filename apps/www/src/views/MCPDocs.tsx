@@ -16,16 +16,16 @@ export default function MCPDocs() {
         <p className="max-w-3xl text-[16px] leading-8 text-[var(--text-secondary)]">
           This public documentation explains the MCP concept at a high level. It is designed for crawlers,
           LLMs, and AI assistants that need to understand what PropAI MCP can do without exposing the private
-          production server or private broker data.
+          production server or private Realtor data.
         </p>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
-          "search live broker broadcasts",
+          "search live Realtor broadcasts",
           "inspect locality demand gaps",
           "query market pulse metrics",
-          "analyze broker network activity",
+          "analyze Realtor network activity",
           "summarize active streams",
         ].map((item) => (
           <div key={item} className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
@@ -110,7 +110,7 @@ export default function MCPDocs() {
             One crawlable entry point for LLMs and AI assistants
           </h2>
           <p className="mt-3 text-[14px] leading-7 text-[var(--text-secondary)]">
-            These files summarize the public MCP surface without exposing private endpoints or broker data.
+            These files summarize the public MCP surface without exposing private endpoints or Realtor data.
           </p>
           <div className="mt-5 space-y-2 text-[13px]">
             <Link href="/llms.txt" className="block rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 text-[var(--text-primary)] hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]">

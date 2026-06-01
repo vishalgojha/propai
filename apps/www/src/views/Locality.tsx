@@ -40,7 +40,7 @@ export default function Locality({ slug }: { slug: string }) {
             <div>
               <h1 className="text-[36px] font-bold text-[var(--text-primary)] leading-none md:text-[48px]">{localityName}</h1>
               <p className="mt-4 max-w-2xl text-[14px] leading-7 text-[var(--text-secondary)]">
-                Live inventory, requirement flow, and bounce-off markets for brokers working this belt.
+                Live inventory, requirement flow, and bounce-off markets for Realtors working this belt.
               </p>
             </div>
 

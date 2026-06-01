@@ -22,9 +22,9 @@ export default function MCP() {
               PropAI MCP
             </h1>
             <p className="max-w-3xl text-[16px] leading-8 text-[var(--text-secondary)] md:text-[18px]">
-              PropAI MCP is a secure authenticated interface for AI assistants and brokers to query live real-time broker
+              PropAI MCP is a secure authenticated interface for AI assistants and Realtors to query live real-time Realtor
               WhatsApp network streams from PropAI Pulse. Production access is Supabase-authenticated, role-based, and
-              limited to permissioned broker tools.
+              limited to permissioned Realtor tools.
             </p>
           </div>
 
@@ -51,7 +51,7 @@ export default function MCP() {
             {[
               "Supabase-authenticated access",
               "Role-based permissions",
-              "Broker-only private tools",
+              "Realtor-only private tools",
               "Public docs for AI agents",
             ].map((item) => (
               <div
@@ -79,7 +79,7 @@ export default function MCP() {
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--accent)]">What it does</p>
             <h2 className="mt-2 text-[26px] font-bold tracking-tight text-[var(--text-primary)] md:text-[32px]">
-              Query the market without exposing private broker data
+              Query the market without exposing private Realtor data
             </h2>
           </div>
           <Link

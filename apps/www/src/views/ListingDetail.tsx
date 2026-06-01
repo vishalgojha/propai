@@ -17,7 +17,7 @@ function buildDescription(listing: PublicListing): string {
   if (listing.furnishing) parts.push(`(${listing.furnishing})`);
   if (listing.area_sqft) parts.push(`${listing.area_sqft} sqft`);
   if (listing.availability) parts.push(`· ${listing.availability}`);
-  return parts.join(' ') || 'Direct broker listing';
+  return parts.join(' ') || 'Direct Realtor listing';
 }
 
 export default function ListingDetail({ slug, initialListing = null }: { slug: string; initialListing?: PublicListing | null }) {
@@ -162,7 +162,7 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
               </div>
             </div>
             <p className="text-[12px] leading-relaxed text-[var(--text-secondary)] font-medium">
-              Public pages show the market signal first. Broker contact stays explicit.
+              Public pages show the market signal first. Realtor contact stays explicit.
             </p>
             <div className="flex flex-col gap-3">
               <button
@@ -174,7 +174,7 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
                 className="flex items-center justify-center gap-3 rounded-[16px] bg-[var(--accent)] py-4 text-[13px] font-black uppercase tracking-[0.1em] text-[var(--on-propai-green)] shadow-[0_12px_32px_rgba(62,232,138,0.25)] transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
                 <MessageCircle className="h-5 w-5" />
-                Contact broker
+                Contact Realtor
               </button>
               <div className="grid grid-cols-2 gap-3">
                 <button className="flex items-center justify-center gap-2 rounded-[14px] bg-[var(--bg-elevated)]/40 hover:bg-[var(--bg-elevated)]/75 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--text-primary)] transition-all">
@@ -213,7 +213,7 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
         <div className="rounded-[24px] bg-[var(--bg-surface)]/60 backdrop-blur-md p-6 border border-white/2">
           <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">Public listing note</div>
           <p className="mt-3 text-[13px] leading-relaxed text-[var(--text-secondary)] font-medium">
-            Public pages should stay title-first, locality-first, and action-first. Anything extra should help the broker decide, not decorate the page.
+            Public pages should stay title-first, locality-first, and action-first. Anything extra should help the Realtor decide, not decorate the page.
           </p>
         </div>
       </div>

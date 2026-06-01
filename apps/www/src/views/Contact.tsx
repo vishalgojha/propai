@@ -9,7 +9,7 @@ export default function Contact() {
           <div className="space-y-4">
             <h1 className="text-[48px] font-bold text-[var(--text-primary)] leading-tight tracking-tight">Contact Us</h1>
             <p className="text-[17px] text-[var(--text-secondary)] leading-relaxed max-w-lg font-medium">
-              Have questions about our intelligence mesh or broker network? Reach out to our technical support team.
+              Have questions about our intelligence mesh or Realtor network? Reach out to our technical support team.
             </p>
           </div>
 

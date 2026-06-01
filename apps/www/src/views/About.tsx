@@ -7,17 +7,17 @@ export default function About() {
         <div className="space-y-4">
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--accent)]">About PropAI Pulse</p>
           <h1 className="text-[36px] md:text-[52px] font-bold leading-tight tracking-tight text-[var(--text-primary)]">
-            WhatsApp-native real estate intelligence for Mumbai brokers
+            WhatsApp-native real estate intelligence for Mumbai Realtors
           </h1>
         </div>
 
         <p className="text-[16px] leading-8 text-[var(--text-secondary)]">
-          PropAI Pulse turns broker WhatsApp dumps into structured listings, requirements, and locality intelligence.
-          It is built for Indian real estate brokers who want live inventory, not stale portal reposts.
+          PropAI Pulse turns Realtor WhatsApp dumps into structured listings, requirements, and locality intelligence.
+          It is built for Indian real estate Realtors who want live inventory, not stale portal reposts.
         </p>
 
         <p className="text-[16px] leading-8 text-[var(--text-secondary)]">
-          The system parses raw broker messages, strips boilerplate, detects whether a message is a listing or a requirement,
+          The system parses raw Realtor messages, strips boilerplate, detects whether a message is a listing or a requirement,
           and normalizes locality aliases like BKC, JVPD, Carter Road, and Linking Road into canonical market records.
         </p>
 
@@ -28,7 +28,7 @@ export default function About() {
 
         <p className="text-[16px] leading-8 text-[var(--text-secondary)]">
           PropAI Pulse also provides a native MCP (Model Context Protocol) surface for AI agents and LLMs.
-          The platform is built by Chaos Craft Labs in Mumbai, India. For broker tools and team workspace features,
+          The platform is built by Chaos Craft Labs in Mumbai, India. For Realtor tools and team workspace features,
           visit app.propai.live.
         </p>
       </div>
