@@ -243,7 +243,7 @@ async function fetchPublicSourceRows(table: PublicStreamSource, select: string, 
     .order("created_at", { ascending: false });
 
   if (normalizedLocality) {
-    query = query.eq("locality", normalizedLocality);
+    query = query.ilike("locality", normalizedLocality);
   }
 
   return query;

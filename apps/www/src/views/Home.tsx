@@ -189,7 +189,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
       setListings(allListings.slice(0, 15));
       setSelectedListing(allListings[0] || null);
     } else {
-      const filtered = allListings.filter(l => l.locality === localityName);
+      const filtered = allListings.filter(l => l.locality.trim().toLowerCase() === localityName.trim().toLowerCase());
       setListings(filtered.slice(0, 15));
       setSelectedListing(filtered[0] || null);
     }

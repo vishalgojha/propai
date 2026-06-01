@@ -26,6 +26,7 @@ export default async function Footer() {
                       <Link
                         key={loc.slug}
                         href={`/listings?locality=${encodeURIComponent(loc.name)}`}
+                        target="_self"
                         className="flex items-center justify-between gap-3 rounded-[14px] px-3 py-2.5 transition-colors hover:bg-[var(--bg-elevated)]"
                       >
                         <div className="min-w-0">
