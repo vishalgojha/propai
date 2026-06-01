@@ -67,8 +67,8 @@ type PublicStreamSource = "stream_items" | "stream_items_residential" | "stream_
 const PUBLIC_STREAM_SELECT = "id, tenant_id, canonical_record_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, updated_at, parsed_payload, property_category, asset_class";
 const PUBLIC_SOURCE_TABLES: Array<{ table: PublicStreamSource; select: string; includeCanonical: boolean }> = [
   { table: "stream_items", select: PUBLIC_STREAM_SELECT, includeCanonical: true },
-  { table: "stream_items_residential", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", ""), includeCanonical: false },
-  { table: "stream_items_commercial", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", ""), includeCanonical: false },
+  { table: "stream_items_residential", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", ""), includeCanonical: false },
+  { table: "stream_items_commercial", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", ""), includeCanonical: false },
 ];
 
 type CacheEntry<T> = {
@@ -145,8 +145,8 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
 
   const [{ data: streamRows, error: streamError }, { data: residentialRows, error: residentialError }, { data: commercialRows, error: commercialError }, { data: profiles }] = await Promise.all([
     fetchPublicSourceRows("stream_items", PUBLIC_STREAM_SELECT, normalizedLocality),
-    fetchPublicSourceRows("stream_items_residential", PUBLIC_STREAM_SELECT.replace(", canonical_record_id", ""), normalizedLocality),
-    fetchPublicSourceRows("stream_items_commercial", PUBLIC_STREAM_SELECT.replace(", canonical_record_id", ""), normalizedLocality),
+    fetchPublicSourceRows("stream_items_residential", PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", ""), normalizedLocality),
+    fetchPublicSourceRows("stream_items_commercial", PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", ""), normalizedLocality),
     supabaseAdmin.from("profiles").select("id, phone, full_name"),
   ]);
 
@@ -861,10 +861,17 @@ export async function fetchTodayParsedCount(): Promise<number> {
   const sources = ["stream_items", "stream_items_residential", "stream_items_commercial"] as const;
   const counts = await Promise.all(
     sources.map(async (table) => {
-      const { count } = await supabaseAdmin
+      let query = supabaseAdmin
         .from(table)
-        .select("*", { count: "exact", head: true })
-        .or(`updated_at.gte.${since},created_at.gte.${since}`);
+        .select("*", { count: "exact", head: true });
+      
+      if (table === "stream_items") {
+        query = query.or(`updated_at.gte.${since},created_at.gte.${since}`);
+      } else {
+        query = query.gte("created_at", since);
+      }
+      
+      const { count } = await query;
       return count || 0;
     }),
   );
