@@ -8,6 +8,7 @@ import { ENDPOINTS } from '../services/endpoints';
 import { BookOpenIcon, MenuIcon, PowerIcon, LogoutIcon } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
 import { useTour } from '../hooks/useTour';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import { PROPAI_ASSISTANT_WA_LINK } from '../lib/propai';
 
 type WhatsAppSessionSummary = {
@@ -57,6 +58,7 @@ const SIDEBAR_COLLAPSED_STORAGE_KEY = 'propai.sidebar_collapsed';
 const MOBILE_COLLAPSE_BREAKPOINT = '(max-width: 1023px)';
 export const Layout: React.FC = () => {
   const { user, isLoading, logout } = useAuth();
+  usePushNotifications(user?.id || null);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();

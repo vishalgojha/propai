@@ -556,7 +556,7 @@ export class WhatsAppHealthService {
                 healthState: this.deriveAggregateHealthState(sessions),
                 totalSessions: sessions.length,
                 reconnectingSessions: sessionsWithReconnect.filter(s => s.isReconnecting).length,
-                replayBacklog24h: Math.max(summary.messagesReceived24h - summary.messagesParsed24h, 0),
+                replayBacklog24h: replayStats.pendingMessages24h,
                 replayCompleted24h: replayStats.completedMessages24h,
                 replayFailed24h: replayStats.failedMessages24h,
             },
@@ -929,16 +929,29 @@ export class WhatsAppHealthService {
 
     private async getReplayStats24h(tenantId: string) {
         const cutoff = new Date(Date.now() - DAY_MS).toISOString();
-        const { data, error } = await db
-            .from('whatsapp_event_logs')
-            .select('event_type, metadata, created_at')
-            .eq('tenant_id', tenantId)
-            .gte('created_at', cutoff)
-            .in('event_type', ['history_replay_completed', 'history_replay_failed']);
+        const [eventResult, rawDumpResult, streamResults] = await Promise.all([
+            db
+                .from('whatsapp_event_logs')
+                .select('event_type, metadata, created_at')
+                .eq('tenant_id', tenantId)
+                .gte('created_at', cutoff)
+                .in('event_type', ['history_replay_completed', 'history_replay_failed']),
+            db
+                .from('raw_dump')
+                .select('id, gate_status, received_at')
+                .eq('workspace_id', tenantId)
+                .gte('received_at', cutoff)
+                .eq('gate_status', 'passed'),
+            Promise.all([
+                db.from('stream_items').select('source_message_id').eq('tenant_id', tenantId).gte('created_at', cutoff),
+                db.from('stream_items_residential').select('source_message_id').eq('tenant_id', tenantId).gte('created_at', cutoff),
+                db.from('stream_items_commercial').select('source_message_id').eq('tenant_id', tenantId).gte('created_at', cutoff),
+            ]),
+        ]);
 
-        if (error || !Array.isArray(data)) {
-            return { completedMessages24h: 0, failedMessages24h: 0 };
-        }
+        const eventData = !eventResult.error && Array.isArray(eventResult.data) ? eventResult.data : [];
+        const rawDumpData = !rawDumpResult.error && Array.isArray(rawDumpResult.data) ? rawDumpResult.data : [];
+        const streamRows = streamResults.flatMap((result) => (!result.error && Array.isArray(result.data) ? result.data : []));
 
         const sumCount = (rows: any[], type: string) => rows
             .filter((row) => String(row?.event_type || '') === type)
@@ -948,9 +961,21 @@ export class WhatsAppHealthService {
                 return total + (Number.isFinite(rawCount) ? rawCount : 0);
             }, 0);
 
+        const parsedSourceIds = new Set(
+            streamRows
+                .map((row: any) => String(row?.source_message_id || '').trim())
+                .filter(Boolean),
+        );
+
+        const pendingMessages24h = rawDumpData
+            .map((row: any) => String(row?.id || '').trim())
+            .filter(Boolean)
+            .filter((rawId) => !parsedSourceIds.has(rawId)).length;
+
         return {
-            completedMessages24h: sumCount(data, 'history_replay_completed'),
-            failedMessages24h: sumCount(data, 'history_replay_failed'),
+            completedMessages24h: sumCount(eventData, 'history_replay_completed'),
+            failedMessages24h: sumCount(eventData, 'history_replay_failed'),
+            pendingMessages24h,
         };
     }
 

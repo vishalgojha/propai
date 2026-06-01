@@ -5,6 +5,7 @@ import { processWhatsAppInboundMessage } from '../channel-events/processors/proc
 import { processWhatsAppSessionEvent } from '../channel-events/processors/processWhatsAppSessionEvent';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { emailNotificationService } from '../services/emailNotificationService';
+import { notificationService } from '../services/notificationService';
 import { liveMonitorService } from '../services/liveMonitorService';
 
 const db = supabaseAdmin || supabase;
@@ -15,6 +16,13 @@ type LifecycleEmailInput = {
     phoneNumber?: string | null;
     fallbackEmail?: string | null;
     fallbackFullName?: string | null;
+};
+
+type LifecyclePushInput = {
+    tenantId: string;
+    label: string;
+    status: 'disconnected';
+    phoneNumber?: string | null;
 };
 
 export async function sendWhatsAppLifecycleEmail(input: LifecycleEmailInput) {
@@ -142,6 +150,73 @@ export async function sendWhatsAppLifecycleEmail(input: LifecycleEmailInput) {
     }
 }
 
+export async function sendWhatsAppDisconnectPush(input: LifecyclePushInput) {
+    const { tenantId, label, phoneNumber } = input;
+
+    if (tenantId === 'system') {
+        return;
+    }
+
+    const { data: sessionRow, error: sessionError } = await db
+        .from('whatsapp_sessions')
+        .select('session_data')
+        .eq('tenant_id', tenantId)
+        .eq('label', label)
+        .maybeSingle();
+
+    if (sessionError) {
+        console.error('[WhatsAppPush] Failed to load session row for disconnect push:', sessionError);
+    }
+
+    const sessionData = (sessionRow?.session_data && typeof sessionRow.session_data === 'object')
+        ? sessionRow.session_data as Record<string, any>
+        : {};
+    const lastPushStatus = typeof sessionData.lastDisconnectPushStatus === 'string'
+        ? sessionData.lastDisconnectPushStatus
+        : null;
+    const lastPushDelivery = typeof sessionData.lastDisconnectPushDelivery === 'string'
+        ? sessionData.lastDisconnectPushDelivery
+        : null;
+
+    if (lastPushStatus === 'disconnected' && lastPushDelivery === 'sent') {
+        return;
+    }
+
+    const title = 'WhatsApp disconnected';
+    const body = phoneNumber
+        ? `${phoneNumber} disconnected. Reconnect to keep parsing and replies running.`
+        : `${label} disconnected. Reconnect to keep parsing and replies running.`;
+
+    const delivery = await notificationService.sendToTenant(tenantId, title, body, {
+        tenantId,
+        label,
+        phoneNumber: phoneNumber || sessionData.phoneNumber || null,
+        status: 'disconnected',
+        action: 'whatsapp_reconnect',
+    });
+
+    if (delivery.skipped) {
+        return;
+    }
+
+    const nextSessionData = {
+        ...sessionData,
+        lastDisconnectPushStatus: 'disconnected',
+        lastDisconnectPushDelivery: delivery.sent > 0 ? 'sent' : 'no_subscriptions',
+        lastDisconnectPushAt: new Date().toISOString(),
+    };
+
+    const { error: updateError } = await db
+        .from('whatsapp_sessions')
+        .update({ session_data: nextSessionData })
+        .eq('tenant_id', tenantId)
+        .eq('label', label);
+
+    if (updateError) {
+        console.error('[WhatsAppPush] Failed to persist disconnect push marker:', updateError);
+    }
+}
+
 export function createPropAIRuntimeHooks(): WhatsAppRuntimeHooks {
     return {
         onMessage: async (event) => {
@@ -180,6 +255,14 @@ export function createPropAIRuntimeHooks(): WhatsAppRuntimeHooks {
                     ownerName: event.ownerName || null,
                     status: event.status,
                 });
+                if (event.status === 'disconnected') {
+                    await sendWhatsAppDisconnectPush({
+                        tenantId: event.tenantId,
+                        label: event.label,
+                        status: 'disconnected',
+                        phoneNumber: event.phoneNumber || null,
+                    });
+                }
 
                 if (event.status === 'connected') {
                     try {

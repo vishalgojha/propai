@@ -50,14 +50,14 @@ class NotificationService {
     async sendToTenant(tenantId: string, title: string, body: string, data?: Record<string, unknown>) {
         if (!this.isConfigured()) {
             console.warn('[NotificationService] VAPID keys not configured, skipping push');
-            return;
+            return { sent: 0, failed: 0, skipped: true as const };
         }
 
         let db;
         try {
             db = this.getDb();
         } catch {
-            return;
+            return { sent: 0, failed: 0, skipped: true as const };
         }
 
         const { data: subscriptions, error } = await db
@@ -67,15 +67,18 @@ class NotificationService {
 
         if (error) {
             console.error('[NotificationService] Failed to fetch subscriptions', error.message);
-            return;
+            return { sent: 0, failed: 0, skipped: true as const };
         }
 
         const payload = JSON.stringify({ title, body, data: data || {} });
+        let sent = 0;
+        let failed = 0;
 
         for (const row of (subscriptions || [])) {
             const sub = row.subscription as PushSubscription;
             try {
                 await webpush.sendNotification(sub, payload);
+                sent += 1;
             } catch (err: any) {
                 if (err.statusCode === 410 || err.statusCode === 404) {
                     await db
@@ -85,9 +88,12 @@ class NotificationService {
                         .filter('subscription->>endpoint', 'eq', sub.endpoint);
                 } else {
                     console.error('[NotificationService] Failed to send push', err.message);
+                    failed += 1;
                 }
             }
         }
+
+        return { sent, failed, skipped: false as const };
     }
 }
 
