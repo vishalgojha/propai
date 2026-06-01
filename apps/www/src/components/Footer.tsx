@@ -5,10 +5,10 @@ export default async function Footer() {
   const cities = await fetchLocalitiesForFooter(2);
 
   return (
-    <footer className="border-t border-[color:var(--border)] bg-[var(--bg-surface)] pt-12 pb-8">
+    <footer className="border-t border-white/3 bg-[var(--bg-surface)]/40 backdrop-blur-md pt-12 pb-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-5">
         {/* Top row: brand + quick links */}
-        <div className="grid grid-cols-1 gap-8 border-b border-[color:var(--border)] pb-10 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-8 border-b border-white/3 pb-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-[18px] font-bold tracking-tighter text-[var(--accent)]">PropAI</span>
@@ -76,7 +76,7 @@ export default async function Footer() {
                           </p>
                           <p className="text-[11px] text-[var(--text-secondary)]">{loc.count} live item{loc.count === 1 ? '' : 's'}</p>
                         </div>
-                        <span className="shrink-0 rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                        <span className="shrink-0 rounded-full border border-white/3 bg-[var(--bg-base)]/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
                           Open
                         </span>
                       </Link>
@@ -88,12 +88,12 @@ export default async function Footer() {
           </div>
         )}
 
-        <div className="mt-14 border-t border-[color:var(--border)] pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="mt-14 border-t border-white/3 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-[11px] text-[var(--text-muted)]">
             &copy; {new Date().getFullYear()} PropAI. Built for high-speed real estate.
           </p>
           <div className="flex gap-4">
-            <span className="text-[10px] font-semibold text-[var(--accent)] uppercase tracking-widest px-2 py-0.5 rounded border border-[color:var(--accent-border)] bg-[var(--accent-glow)]">Live System</span>
+            <span className="text-[10px] font-semibold text-[var(--accent)] uppercase tracking-widest px-2 py-0.5 rounded border border-[color:var(--accent-border)]/20 bg-[var(--accent-glow)]">Live System</span>
           </div>
         </div>
       </div>
