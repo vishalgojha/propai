@@ -2841,7 +2841,9 @@ export const Sources: React.FC = () => {
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
                     {artifactMode === 'pairing' ? 'WhatsApp pairing code' : 'WhatsApp QR'}
                   </p>
-                  <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">QR panel</h3>
+                  <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">
+                    {artifactMode === 'pairing' ? 'Pairing code panel' : 'QR panel'}
+                  </h3>
                 </div>
               </div>
               <span className={cn(sourcePill, 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]')}>
@@ -2903,7 +2905,7 @@ export const Sources: React.FC = () => {
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
                       Pairing code
                     </p>
-                    <p className="mt-2 text-[28px] font-semibold tracking-[0.18em] text-[var(--accent)]">
+                    <p className="mt-2 font-mono text-[32px] font-semibold tracking-[0.35em] text-[var(--accent)]">
                       {artifactValue}
                     </p>
                   </div>

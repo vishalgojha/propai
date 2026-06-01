@@ -2786,62 +2786,58 @@ private dailyBriefingSentKeys = new Set<string>();
 
             const targetTable = streamTableFor(parsed.propertyCategory, parsed.propertyUse, parsed.assetClass);
 
-            const { data, error } = await this.db
-                .from(targetTable)
-                .upsert({
-                    tenant_id: tenantId,
-                    session_label: message.session_label || 'workspace',
-                    message_id: parsed.messageId,
-                    source_message_id: String(message.id),
-                    source_thread_jid: message.remote_jid || null,
-                    source_group_id: parsed.sourceGroupId,
-                    source_group_name: parsed.sourceGroupName,
-                    source_phone: parsed.sourcePhone,
-                    content_hash: contentHash,
-                    raw_text: parsed.rawText,
-                    type: parsed.streamType,
-                    record_type: parsed.recordType,
-                    locality: parsed.locality,
-                    city: parsed.city,
-                    bhk: parsed.bhk,
-                    building_name: String(parsed.parsedPayload?.buildingName || '').trim() || null,
-                    price_label: parsed.priceLabel,
-                    price_numeric: parsed.priceNumeric,
-                    deal_type: parsed.dealType,
-                    asset_class: parsed.assetClass,
-                    property_category: parsed.propertyCategory,
-                    area_sqft: parsed.areaSqft,
-                    furnishing: parsed.furnishing,
-                    floor_number: parsed.floorNumber,
-                    total_floors: parsed.totalFloors,
-                    parking: parsed.parking,
-                    property_use: parsed.propertyUse,
-                    commercial_type: parsed.commercialType || null,
-                    fitout_status: parsed.fitoutStatus || null,
-                    workstations_count: parsed.workstationsCount || null,
-                    cabins_count: parsed.cabinsCount || null,
-                    broker_wa_me_links: parsed.brokerWaMeLinks || null,
-                    confidence_score: parsed.confidenceScore,
-                    is_global: this.isGlobalStreamCandidate(parsed, isAccepted),
-                    parsed_payload: parsedPayload,
-                    ingestion_status: qualityDecision.status,
-                    suppression_reason: qualityDecision.suppressionReason,
-                    suppressed_at: isAccepted ? null : new Date().toISOString(),
-                    resolution_context: {
-                        ...qualityDecision.resolutionContext,
-                        qualityMetrics: qualityDecision.metrics,
-                qualityScore: qualityDecision.qualityScore,
-                candidateMessageId: parsed.messageId,
-                streamQuality: {
-                    completenessScore: completeness.completeness_score,
-                    isComplete: completeness.is_complete,
-                    brokerContactValid: Boolean(parsed.sourcePhone),
+            const { data, error } = await this.upsertStreamItemWithSchemaFallback(targetTable, {
+                tenant_id: tenantId,
+                session_label: message.session_label || 'workspace',
+                message_id: parsed.messageId,
+                source_message_id: String(message.id),
+                source_thread_jid: message.remote_jid || null,
+                source_group_id: parsed.sourceGroupId,
+                source_group_name: parsed.sourceGroupName,
+                source_phone: parsed.sourcePhone,
+                content_hash: contentHash,
+                raw_text: parsed.rawText,
+                type: parsed.streamType,
+                record_type: parsed.recordType,
+                locality: parsed.locality,
+                city: parsed.city,
+                bhk: parsed.bhk,
+                building_name: String(parsed.parsedPayload?.buildingName || '').trim() || null,
+                price_label: parsed.priceLabel,
+                price_numeric: parsed.priceNumeric,
+                deal_type: parsed.dealType,
+                asset_class: parsed.assetClass,
+                property_category: parsed.propertyCategory,
+                area_sqft: parsed.areaSqft,
+                furnishing: parsed.furnishing,
+                floor_number: parsed.floorNumber,
+                total_floors: parsed.totalFloors,
+                parking: parsed.parking,
+                property_use: parsed.propertyUse,
+                commercial_type: parsed.commercialType || null,
+                fitout_status: parsed.fitoutStatus || null,
+                workstations_count: parsed.workstationsCount || null,
+                cabins_count: parsed.cabinsCount || null,
+                broker_wa_me_links: parsed.brokerWaMeLinks || null,
+                confidence_score: parsed.confidenceScore,
+                is_global: this.isGlobalStreamCandidate(parsed, isAccepted),
+                parsed_payload: parsedPayload,
+                ingestion_status: qualityDecision.status,
+                suppression_reason: qualityDecision.suppressionReason,
+                suppressed_at: isAccepted ? null : new Date().toISOString(),
+                resolution_context: {
+                    ...qualityDecision.resolutionContext,
+                    qualityMetrics: qualityDecision.metrics,
+                    qualityScore: qualityDecision.qualityScore,
+                    candidateMessageId: parsed.messageId,
+                    streamQuality: {
+                        completenessScore: completeness.completeness_score,
+                        isComplete: completeness.is_complete,
+                        brokerContactValid: Boolean(parsed.sourcePhone),
+                    },
                 },
-            },
-                    created_at: parsed.createdAt,
-                }, { onConflict: 'tenant_id,message_id' })
-                .select('*')
-                .single();
+                created_at: parsed.createdAt,
+            });
 
             if (error || !data) {
                 console.error('[ChannelService] Failed to upsert stream item', error);
@@ -2880,6 +2876,49 @@ private dailyBriefingSentKeys = new Set<string>();
         const groupContext = await this.loadGroupIngestionContext(tenantId, message.remote_jid);
         return (await this.parseMessage(tenantId, message))
             .map((candidate) => this.applyGroupContextToCandidate(candidate, groupContext));
+    }
+
+    private async upsertStreamItemWithSchemaFallback(
+        targetTable: StreamTable,
+        payload: Record<string, unknown>,
+    ) {
+        let nextPayload = { ...payload };
+
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            const { data, error } = await this.db
+                .from(targetTable)
+                .upsert(nextPayload, { onConflict: 'tenant_id,message_id' })
+                .select('*')
+                .single();
+
+            if (!error && data) {
+                return { data, error: null };
+            }
+
+            const message = String(error?.message || '').toLowerCase();
+            const match = message.match(/could not find the '([^']+)' column/i);
+            const missingColumn = match?.[1] || null;
+            const schemaError = ['PGRST204', '42703'].includes(String(error?.code || ''));
+
+            if (!schemaError || !missingColumn || !(missingColumn in nextPayload)) {
+                return { data, error };
+            }
+
+            console.warn('[ChannelService] Retrying stream upsert without missing column', {
+                targetTable,
+                missingColumn,
+                attempt,
+                messageId: String(nextPayload.message_id || ''),
+            });
+
+            const { [missingColumn]: _omitted, ...rest } = nextPayload;
+            nextPayload = rest;
+        }
+
+        return {
+            data: null,
+            error: new Error('Failed to upsert stream item after schema fallback retries'),
+        };
     }
 
     private async upsertPublicListing(tenantId: string, parsed: ParsedStreamCandidate, message: RawInboundMessage): Promise<void> {
