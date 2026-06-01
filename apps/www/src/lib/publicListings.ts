@@ -319,6 +319,7 @@ export async function createPublicLead(input: {
   referer: string;
   hostname: string;
   userAgent: string | null;
+  answers?: Record<string, unknown>;
 }) {
   if (!supabaseAdmin) {
     return "unavailable";
@@ -368,6 +369,7 @@ export async function createPublicLead(input: {
       locality: String((listing as any).locality || ""),
       submittedFrom: input.hostname,
       userAgent: input.userAgent,
+      qualification: input.answers || null,
     },
   });
 

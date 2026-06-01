@@ -6,7 +6,7 @@ export default function BrokerSignup() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
         <div className="space-y-12">
           <div className="space-y-4">
-            <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--accent)] bg-[var(--accent-glow)] px-3 py-1 rounded-full border border-[color:var(--accent-border)]">Free Direct Exposure</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--accent)] bg-[var(--accent-glow)] px-3 py-1 rounded-full border border-[color:var(--accent-border)]/20">Free Direct Exposure</span>
             <h1 className="text-[48px] md:text-[64px] font-bold text-[var(--text-primary)] leading-[1.05] tracking-tight">
               Get Your Listings on <span className="text-[var(--accent)]">PropAI Pulse</span>
             </h1>
@@ -25,7 +25,7 @@ export default function BrokerSignup() {
               { t: 'Market Insights', d: 'Get data on which of your listings are trending and where demand is peaking.', i: TrendingUp }
             ].map((feature, i) => (
               <div key={i} className="flex gap-5">
-                <div className="h-12 w-12 shrink-0 rounded-[12px] bg-[var(--bg-elevated)] border border-[color:var(--border)] flex items-center justify-center">
+                <div className="h-12 w-12 shrink-0 rounded-[12px] bg-[var(--bg-elevated)]/40 border border-white/3 flex items-center justify-center">
                   <feature.i className="h-6 w-6 text-[var(--accent)]" />
                 </div>
                 <div>
@@ -39,7 +39,7 @@ export default function BrokerSignup() {
 
         <div className="relative">
           <div className="absolute -z-10 -top-20 -right-20 h-[500px] w-[500px] bg-[var(--accent)]/5 rounded-full blur-[100px]" />
-          <div className="rounded-[24px] border border-[color:var(--border-strong)] bg-[var(--bg-surface)] p-10 shadow-[0_32px_120px_rgba(0,0,0,0.5)]">
+          <div className="glass-panel rounded-[24px] border border-white/5 bg-[var(--bg-surface)]/60 p-10 shadow-[0_32px_120px_rgba(0,0,0,0.5)]">
              <div className="text-center mb-10">
                 <h2 className="text-[24px] font-bold text-[var(--text-primary)]">Ready to amplify?</h2>
                 <p className="text-[13px] text-[var(--text-muted)] mt-2">Broker onboarding is shown after workspace approval.</p>
@@ -51,7 +51,7 @@ export default function BrokerSignup() {
                    <input 
                     type="tel" 
                     placeholder="+91 98XXX XXXXX"
-                    className="w-full rounded-[12px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-4 px-5 text-[14px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)] transition-all"
+                    className="w-full rounded-[12px] border border-white/5 bg-[var(--bg-elevated)]/40 py-4 px-5 text-[14px] text-[var(--text-primary)] outline-none focus:border-[var(--accent)]/30 focus:ring-1 focus:ring-[var(--accent)]/10 transition-all"
                    />
                 </div>
                 
@@ -71,7 +71,7 @@ export default function BrokerSignup() {
                 </button>
              </div>
 
-             <div className="mt-10 p-6 rounded-[16px] bg-[var(--bg-base)] border border-dashed border-[color:var(--border)] italic">
+             <div className="mt-10 p-6 rounded-[16px] bg-[var(--bg-base)]/40 border border-dashed border-white/5 italic">
                 <p className="text-[13px] text-[var(--text-secondary)] text-center">
                   "PropAI has increased my high-end rental leads without me doing extra manual entry."
                 </p>

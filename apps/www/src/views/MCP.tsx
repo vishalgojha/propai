@@ -4,7 +4,7 @@ export default function MCP() {
   return (
     <div className="mx-auto max-w-4xl px-5 py-16 space-y-16">
       <div className="space-y-6 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-glow)] px-4 py-1.5 mb-2 hover:scale-105 transition-transform cursor-pointer">
+        <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)]/20 bg-[var(--accent-glow)] px-4 py-1.5 mb-2 hover:scale-105 transition-transform cursor-pointer">
            <Code2 className="h-4 w-4 text-[var(--accent)]" />
            <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--accent)]">Protocol Specification v1.0</span>
         </div>
@@ -16,7 +16,7 @@ export default function MCP() {
         </p>
       </div>
 
-      <div className="rounded-[24px] border border-[color:var(--border-strong)] bg-[var(--bg-surface)] p-8 space-y-4">
+      <div className="glass-panel rounded-[24px] border border-white/5 bg-[var(--bg-surface)]/60 p-8 space-y-4">
         <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--accent)]">PropAI overview</p>
         <h2 className="text-[28px] font-bold text-[var(--text-primary)]">WhatsApp-native CRM and market intelligence for Mumbai brokers</h2>
         <p className="text-[15px] leading-7 text-[var(--text-secondary)]">
@@ -25,7 +25,7 @@ export default function MCP() {
           to actionable market data instead of stale portal reposts.
         </p>
         <div className="grid gap-3 sm:grid-cols-1">
-          <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+          <div className="rounded-[16px] border border-white/3 bg-[var(--bg-elevated)]/40 p-4">
             <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">For agents</div>
             <div className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
               Use this page as the canonical model summary for AI agents, browser tooling, and MCP integrations.
@@ -41,8 +41,8 @@ export default function MCP() {
           { t: 'Broker Connect Tool', d: 'Securely facilitate direct broker connections between agents.', i: MessageSquareIcon },
           { t: 'Authentication', d: 'Protocol-level security for broker workspace data and market intelligence.', i: Shield }
         ].map((item, i) => (
-           <div key={i} className="group p-8 rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)] transition-all">
-              <div className="h-12 w-12 rounded-[12px] bg-[var(--bg-elevated)] border border-[color:var(--border)] flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+           <div key={i} className="group p-8 rounded-[20px] border border-white/3 bg-[var(--bg-surface)]/60 hover:border-[color:var(--accent-border)]/40 hover:bg-[var(--bg-hover)] transition-all">
+              <div className="h-12 w-12 rounded-[12px] bg-[var(--bg-elevated)]/40 border border-white/3 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                 <item.i className="h-6 w-6 text-[var(--accent)]" />
               </div>
               <h3 className="text-[18px] font-bold text-[var(--text-primary)] mb-2">{item.t}</h3>
@@ -51,13 +51,13 @@ export default function MCP() {
         ))}
       </div>
 
-      <div className="rounded-[24px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] p-10 space-y-8">
+      <div className="glass-panel rounded-[24px] border border-white/5 bg-[var(--bg-elevated)]/40 p-10 space-y-8">
          <h3 className="text-[20px] font-bold text-[var(--text-primary)] flex items-center gap-2">
             <Wrench className="h-5 w-5 text-[var(--accent)]" />
             Standard Integration Example
          </h3>
 
-         <div className="rounded-[16px] bg-[#090d12] p-6 font-mono text-[13px] border border-[color:var(--border)] overflow-x-auto">
+         <div className="rounded-[16px] bg-[#090d12]/80 p-6 font-mono text-[13px] border border-white/3 overflow-x-auto">
             <div className="space-y-1">
                <div className="text-pink-400">const<span className="text-white"> mcp = </span>new<span className="text-yellow-400"> PropAIMCP</span><span className="text-white">({'{'}</span></div>
                <div className="pl-4 text-white">apiKey: <span className="text-green-400">'YOUR_MODEL_KEY'</span>,</div>
@@ -72,7 +72,7 @@ export default function MCP() {
             </div>
          </div>
 
-         <div className="flex justify-between items-center bg-[var(--accent-glow)] border border-[color:var(--accent-border)] p-4 rounded-[14px]">
+         <div className="flex justify-between items-center bg-[var(--accent-glow)] border border-[color:var(--accent-border)]/20 p-4 rounded-[14px]">
             <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--accent)]">Documentation Status: GA-Public</span>
             <button className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-[var(--text-primary)] hover:text-[var(--accent)]">
                Explore Full Spec <ArrowRight className="h-4 w-4" />

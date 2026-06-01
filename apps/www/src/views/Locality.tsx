@@ -31,7 +31,7 @@ export default function Locality({ slug }: { slug: string }) {
           Back to all areas
         </Link>
         
-        <div className="rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6 md:p-8">
+        <div className="glass-panel rounded-[24px] border border-white/3 bg-[var(--bg-surface)]/60 p-6 md:p-8">
           <div className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-[var(--accent)]" />
             <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Area Intelligence</span>
@@ -45,7 +45,7 @@ export default function Locality({ slug }: { slug: string }) {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+              <div className="rounded-[18px] border border-white/3 bg-[var(--bg-elevated)]/40 p-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[var(--accent-dim)]">
                     <TrendingUp className="h-5 w-5 text-[var(--accent)]" />
@@ -56,7 +56,7 @@ export default function Locality({ slug }: { slug: string }) {
                   </div>
                 </div>
               </div>
-              <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+              <div className="rounded-[18px] border border-white/3 bg-[var(--bg-elevated)]/40 p-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-blue-500/10">
                     <Building2 className="h-5 w-5 text-blue-400" />
@@ -76,7 +76,7 @@ export default function Locality({ slug }: { slug: string }) {
         {listings.length > 0 ? (
           listings.map(l => <ListingCard key={l.id} listing={l} />)
         ) : (
-          <div className="col-span-full py-32 text-center rounded-[20px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)]/30">
+          <div className="col-span-full py-32 text-center rounded-[20px] border border-dashed border-white/5 bg-[var(--bg-elevated)]/20">
             <p className="text-[var(--text-secondary)]">No active inventory in {localityName} right now. <Link href="/listings" className="text-[var(--accent)] font-bold">Browse all listings</Link></p>
           </div>
         )}

@@ -72,11 +72,14 @@ interface BrokerProfile {
   repliesText: string;
 }
 
+// 4-step lead qualification stages inside Pulse Chat Widget
+type ChatStage = 'name' | 'move_in' | 'profile' | 'deposit' | 'whatsapp' | 'submitting' | 'done' | 'error';
+
 export default function Home({ initialListings = [], todayCount = 0 }: { initialListings?: PublicListing[]; todayCount?: number }) {
   // Navigation & Interactive Tabs
   const [activeTab, setActiveTab] = useState<'feed' | 'map' | 'analytics'>('feed');
   
-  // Data States (Seeded directly from dynamic DB API, zero dummy listing hardcodes)
+  // Data States
   const [allListings, setAllListings] = useState<PublicListing[]>(initialListings);
   const [listings, setListings] = useState<PublicListing[]>(initialListings.slice(0, 15));
   const [selectedLocality, setSelectedLocality] = useState<string | null>(null);
@@ -92,8 +95,16 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
   const [hoveredLocality, setHoveredLocality] = useState<MapLocality | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
-  // Broker Chat Simulation States
+  // Real Dynamic Lead Qualification Chat State Machine
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatStage, setChatStage] = useState<ChatStage>('name');
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [answers, setAnswers] = useState({
+    moveInDate: '',
+    tenantProfile: '',
+    depositBudget: ''
+  });
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [activeBroker, setActiveBroker] = useState<BrokerProfile | null>(null);
@@ -204,7 +215,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
     setSelectedListing(filtered[0] || null);
   }, [allListings]);
 
-  // Open Chat Simulator with a specific broker
+  // Launch lead qualification chat widget
   const startBrokerChat = useCallback((listingItem: PublicListing) => {
     const names = ["Rohan Mehta", "Vikram Shah", "Nisha Pujari", "Amit Sharma", "Karan Malhotra"];
     const agencies = ["Elite Mumbai Realtors", "Bespoke Off-Market Desk", "Bandra Property Group", "Worli Luxury Assets", "Hiranandani Specialist"];
@@ -224,39 +235,135 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
     };
 
     setActiveBroker(broker);
+    setChatStage('name');
+    setClientName('');
+    setClientPhone('');
+    setAnswers({ moveInDate: '', tenantProfile: '', depositBudget: '' });
+    
     setChatMessages([
-      { sender: 'broker', text: `Hi there! I parsed the off-market signal for the "${listingItem.title}" in ${listingItem.locality}. It's currently exclusive inventory and has not hit the portals yet. What details can I help you unlock?`, time: '12:50 PM' }
+      { sender: 'broker', text: `Hi, I am Pulse, your automated real estate coordinator. Let's pre-qualify your profile in 60 seconds to connect you directly with the matching broker! What is your full name?`, time: '12:50 PM' }
     ]);
     setChatOpen(true);
   }, []);
 
-  // Send Chat message and simulate responses
+  // Real dynamic lead qualification steps submission
   const sendChatMessage = useCallback((text: string) => {
     const userTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setChatMessages(prev => [...prev, { sender: 'user', text, time: userTime }]);
     setIsTyping(true);
 
-    setTimeout(() => {
-      let brokerResponse = "";
-      let isSheetLink = false;
-      const t = text.toLowerCase();
-
-      if (t.includes('negotiable') || t.includes('price') || t.includes('deposit')) {
-        brokerResponse = "Yes! The owner prefers a corporate lease profile. If you have a solid MNC tenant backing or immediate move-in, they are willing to negotiate the security deposit from 6 months down to 4 months. The rent can also see a 5% flexibility for quick closure.";
-      } else if (t.includes('walkthrough') || t.includes('visit') || t.includes('tomorrow')) {
-        brokerResponse = "Absolutely. I have keys available. We can schedule a physical walkthrough tomorrow between 10:00 AM and 2:00 PM. Please drop your direct WhatsApp contact number so I can share the building location and parking pass.";
-      } else if (t.includes('off-market') || t.includes('details') || t.includes('sheet') || t.includes('lock')) {
-        brokerResponse = "Excellent choice. I have uploaded the exclusive verification sheet. This includes: Carpet area certificate, building NOC, society compliance checklist, and exact pricing margins.";
-        isSheetLink = true;
-      } else {
-        brokerResponse = "Great question. The property has high privacy, keyless biometric access, 100% power backup, and is located in a highly premium lane with excellent connectivity. I can share the society handbook right away.";
-      }
-
+    setTimeout(async () => {
       const brokerTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      setChatMessages(prev => [...prev, { sender: 'broker', text: brokerResponse, time: brokerTime, isSheetLink }]);
-      setIsTyping(false);
-    }, 1200);
-  }, []);
+      
+      if (chatStage === 'name') {
+        const cleanName = text.trim();
+        setClientName(cleanName);
+        setChatStage('move_in');
+        setChatMessages(prev => [...prev, { 
+          sender: 'broker', 
+          text: `Nice to meet you, ${cleanName}! When are you planning to move into the property?`, 
+          time: brokerTime 
+        }]);
+        setIsTyping(false);
+      } 
+      else if (chatStage === 'move_in') {
+        const answerVal = text.trim();
+        setAnswers(prev => ({ ...prev, moveInDate: answerVal }));
+        setChatStage('profile');
+        setChatMessages(prev => [...prev, { 
+          sender: 'broker', 
+          text: `Got it. What is your leasing profile? Who will be staying in the flat?`, 
+          time: brokerTime 
+        }]);
+        setIsTyping(false);
+      } 
+      else if (chatStage === 'profile') {
+        const answerVal = text.trim();
+        setAnswers(prev => ({ ...prev, tenantProfile: answerVal }));
+        setChatStage('deposit');
+        setChatMessages(prev => [...prev, { 
+          sender: 'broker', 
+          text: `Understood. Are you comfortable with paying 4 to 6 months of security deposit?`, 
+          time: brokerTime 
+        }]);
+        setIsTyping(false);
+      } 
+      else if (chatStage === 'deposit') {
+        const answerVal = text.trim();
+        setAnswers(prev => ({ ...prev, depositBudget: answerVal }));
+        setChatStage('whatsapp');
+        setChatMessages(prev => [...prev, { 
+          sender: 'broker', 
+          text: `Perfect. Finally, what is your direct WhatsApp mobile number so we can register the walkthrough invite and coordinate the pass?`, 
+          time: brokerTime 
+        }]);
+        setIsTyping(false);
+      } 
+      else if (chatStage === 'whatsapp') {
+        const phoneVal = text.trim();
+        setClientPhone(phoneVal);
+        setChatStage('submitting');
+        
+        // Push intermediate status bubble
+        setChatMessages(prev => [...prev, { 
+          sender: 'broker', 
+          text: `Registering qualified match in database...`, 
+          time: brokerTime 
+        }]);
+
+        try {
+          if (!selectedListing) throw new Error("No listing selected");
+          
+          const payload = {
+            listingId: selectedListing.id,
+            name: clientName,
+            phone: phoneVal,
+            answers: {
+              moveInDate: answers.moveInDate,
+              tenantProfile: answers.tenantProfile,
+              depositBudget: answers.depositBudget
+            }
+          };
+
+          const res = await fetch('/api/leads', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await res.json();
+
+          if (data && data.status === 'ok') {
+            setChatStage('done');
+            setChatMessages(prev => [...prev, { 
+              sender: 'broker', 
+              text: `Success! Match found. Verified Broker ${activeBroker?.name || 'Rohan'} (${activeBroker?.agency || 'Bandra Property Group'}) has received your pre-qualification credentials and is preparing the off-market walkthrough schedule. He will ping you on WhatsApp shortly!`, 
+              time: brokerTime 
+            }]);
+          } else {
+            setChatStage('error');
+            setChatMessages(prev => [...prev, { 
+              sender: 'broker', 
+              text: `Oops! There was a verification issue. Please check that you submitted a valid 10-digit Indian WhatsApp mobile number.`, 
+              time: brokerTime 
+            }]);
+          }
+        } catch (err) {
+          console.error("AJAX Lead qualification insert failed:", err);
+          setChatStage('error');
+          setChatMessages(prev => [...prev, { 
+            sender: 'broker', 
+            text: `Connection error. We couldn't register your profile. Please check your network and try again.`, 
+            time: brokerTime 
+          }]);
+        }
+        setIsTyping(false);
+      }
+    }, 1000);
+  }, [chatStage, clientName, answers, selectedListing, activeBroker]);
 
   // Canvas drawing for Analytics
   useEffect(() => {
@@ -343,7 +450,6 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
   };
 
   // Base metrics derived strictly from dynamic listings DB
-  // Real database seeded listings count (34k+ base scale, strictly increments dynamically)
   const baseSeededCount = 34182;
   const liveCount = baseSeededCount + allListings.length;
   
@@ -1037,9 +1143,9 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                 <div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[13px] font-bold text-[var(--text-primary)]">{activeBroker.name}</span>
-                    <span className="flex h-2 w-2 relative">
+                    <span className="flex h-2.5 w-2.5 relative">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--accent)] opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--accent)]"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[var(--accent)]"></span>
                     </span>
                   </div>
                   <span className="text-[10px] text-[var(--text-secondary)] font-medium block">
@@ -1087,19 +1193,23 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                   >
                     {msg.text}
 
-                    {msg.isSheetLink && (
+                    {/* Direct message on WhatsApp after lead completion */}
+                    {msg.isSheetLink && chatStage === 'done' && (
                       <div className="mt-3.5 p-3 rounded-xl bg-[var(--bg-surface)] border border-white/5 space-y-2">
                         <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-[var(--accent)]" />
-                          <span className="text-[10px] font-bold text-white uppercase tracking-wider">off-market-ledger.pdf</span>
+                          <MessageCircle className="h-4.5 w-4.5 text-[var(--accent)]" />
+                          <span className="text-[10px] font-bold text-white uppercase tracking-wider">Direct WhatsApp Chat</span>
                         </div>
-                        <div className="text-[9px] text-[var(--text-secondary)]">Verified: NOC, Society Rules, Floorplan</div>
+                        <div className="text-[9px] text-[var(--text-secondary)]">Ping Rohan directly to arrange pass.</div>
                         <button 
-                          onClick={() => alert("Verification ledger unlocked! Initiating secure PDF generation...")}
+                          onClick={() => {
+                            const textMessage = encodeURIComponent(`Hi, I qualified with Pulse for your listing "${selectedListing?.title}" in ${selectedListing?.locality}. I would like to lock in details!`);
+                            window.open(`https://wa.me/${activeBroker.phone}?text=${textMessage}`, '_blank');
+                          }}
                           className="w-full h-8 flex items-center justify-center gap-1.5 rounded-lg bg-[var(--accent)] text-[var(--on-propai-green)] text-[10px] font-black uppercase tracking-wider"
                         >
-                          <Zap className="h-3 w-3" />
-                          <span>Unlock Verification Ledger</span>
+                          <Send className="h-3 w-3" />
+                          <span>Direct Chat Now</span>
                         </button>
                       </div>
                     )}
@@ -1121,37 +1231,71 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
               )}
             </div>
 
-            {/* Chat Preset Helper Queries */}
+            {/* Chat Preset Helper Queries (Real multi-choice state options) */}
             <div className="p-3 border-t border-white/2 bg-[var(--bg-surface)] flex flex-wrap gap-2">
-              {[
-                "Is the security deposit negotiable?",
-                "Can I visit tomorrow morning?",
-                "Unlock Off-Market Verification Sheet"
-              ].map((query, i) => (
-                <button 
-                  key={i}
-                  onClick={() => sendChatMessage(query)}
-                  className="px-3.5 py-2 rounded-xl bg-[var(--bg-elevated)] hover:text-[var(--accent)] text-[10px] font-bold text-[var(--text-secondary)] transition-all text-left"
-                >
-                  {query}
-                </button>
-              ))}
+              {chatStage === 'move_in' && (
+                ["Immediate", "15 Days", "1 Month", "Flexible"].map((query, i) => (
+                  <button 
+                    key={i}
+                    onClick={() => sendChatMessage(query)}
+                    className="px-3.5 py-2 rounded-xl bg-[var(--bg-elevated)] hover:text-[var(--accent)] text-[10.5px] font-bold text-[var(--text-secondary)] transition-all"
+                  >
+                    {query}
+                  </button>
+                ))
+              )}
+              
+              {chatStage === 'profile' && (
+                ["Corporate MNC Lease", "Salaried Family", "Bachelors", "Other Profile"].map((query, i) => (
+                  <button 
+                    key={i}
+                    onClick={() => sendChatMessage(query)}
+                    className="px-3.5 py-2 rounded-xl bg-[var(--bg-elevated)] hover:text-[var(--accent)] text-[10.5px] font-bold text-[var(--text-secondary)] transition-all"
+                  >
+                    {query}
+                  </button>
+                ))
+              )}
+
+              {chatStage === 'deposit' && (
+                ["Yes, comfortable", "No, prefer 3-4m limit", "Flexible / Negotiable"].map((query, i) => (
+                  <button 
+                    key={i}
+                    onClick={() => sendChatMessage(query)}
+                    className="px-3.5 py-2 rounded-xl bg-[var(--bg-elevated)] hover:text-[var(--accent)] text-[10.5px] font-bold text-[var(--text-secondary)] transition-all"
+                  >
+                    {query}
+                  </button>
+                ))
+              )}
+
+              {chatStage === 'whatsapp' && (
+                <div className="text-[9.5px] text-[var(--text-muted)] font-semibold p-1">
+                  Type your 10-digit Indian WhatsApp number below and click Send.
+                </div>
+              )}
             </div>
 
             {/* Chat Direct input bar */}
             <div className="p-4 border-t border-white/2 bg-[var(--bg-elevated)] flex gap-2">
               <input 
                 type="text" 
-                placeholder="Ask Rohan anything about deposit, walk-throughs..." 
+                disabled={chatStage === 'submitting' || chatStage === 'done' || chatStage === 'move_in' || chatStage === 'profile' || chatStage === 'deposit'}
+                placeholder={
+                  chatStage === 'name' ? "Enter your full name..." :
+                  chatStage === 'whatsapp' ? "Enter 10-digit WhatsApp number (e.g. 9820012345)..." :
+                  chatStage === 'done' ? "Pre-qualification complete!" : "Select option from presets above..."
+                }
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.currentTarget.value.trim()) {
                     sendChatMessage(e.currentTarget.value);
                     e.currentTarget.value = '';
                   }
                 }}
-                className="flex-1 bg-[var(--bg-base)] border border-white/3 rounded-xl px-4 py-2.5 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/30 transition-colors"
+                className="flex-1 bg-[var(--bg-base)] border border-white/3 rounded-xl px-4 py-2.5 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/30 transition-colors disabled:opacity-50"
               />
               <button 
+                disabled={chatStage === 'submitting' || chatStage === 'done' || chatStage === 'move_in' || chatStage === 'profile' || chatStage === 'deposit'}
                 onClick={(e) => {
                   const input = e.currentTarget.previousElementSibling as HTMLInputElement;
                   if (input && input.value.trim()) {
@@ -1159,7 +1303,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     input.value = '';
                   }
                 }}
-                className="w-10 h-10 flex items-center justify-center bg-[var(--accent)] text-[var(--on-propai-green)] rounded-xl shadow-md hover:brightness-110 active:scale-[0.96] transition-all"
+                className="w-10 h-10 flex items-center justify-center bg-[var(--accent)] text-[var(--on-propai-green)] rounded-xl shadow-md hover:brightness-110 active:scale-[0.96] transition-all disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />
               </button>

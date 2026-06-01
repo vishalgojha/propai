@@ -113,27 +113,28 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
         <span className="max-w-[220px] truncate text-[var(--text-primary)]">{listing.title}</span>
       </nav>
 
-      <section className="rounded-[28px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.24)] md:p-8">
+      {/* Main detail wrapper - clean borderless glass panel */}
+      <section className="rounded-[28px] border border-white/3 bg-[var(--bg-surface)]/60 backdrop-blur-md p-6 shadow-[0_24px_70px_rgba(0,0,0,0.24)] md:p-8">
         <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em]">
           <span className="inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-glow)] px-3 py-1 text-[var(--accent)]">
             {listing.type}
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[var(--text-muted)]">
-            <Clock className="h-3 w-3" />
+          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-elevated)]/85 px-3 py-1 text-[var(--text-secondary)]">
+            <Clock className="h-3 w-3 text-[var(--accent)]" />
             {formatDistanceToNow(new Date(listing.created_at))} ago
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[var(--text-secondary)]">
-            <MapPin className="h-3 w-3" />
+          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-elevated)]/85 px-3 py-1 text-[var(--text-secondary)]">
+            <MapPin className="h-3 w-3 text-[var(--accent)]" />
             {listing.locality}
           </span>
         </div>
 
         <div className="mt-6 grid gap-8 lg:grid-cols-[1.35fr_0.65fr] lg:items-start">
           <div className="space-y-6">
-            <h1 className="text-[34px] font-bold leading-[1.05] tracking-tight text-[var(--text-primary)] md:text-[46px]">
+            <h1 className="text-[34px] font-bold leading-[1.05] tracking-tight text-[var(--text-primary)] md:text-[46px] font-display">
               {listing.title}
             </h1>
-            <p className="max-w-3xl text-[15px] leading-7 text-[var(--text-secondary)]">
+            <p className="max-w-3xl text-[15px] leading-7 text-[var(--text-secondary)] font-medium">
               {description}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -146,39 +147,41 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
               ]
                 .filter(Boolean)
                 .map((stat, index) => (
-                  <span key={index} className="inline-flex items-center rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-medium text-[var(--text-secondary)]">
-                    {stat.label}: <span className="ml-1 text-[var(--text-primary)]">{stat.value}</span>
+                  <span key={index} className="inline-flex items-center rounded-full bg-[var(--bg-elevated)]/80 px-3.5 py-1.5 text-[11px] font-medium text-[var(--text-secondary)]">
+                    {stat.label}: <span className="ml-1 text-[var(--text-primary)] font-bold">{stat.value}</span>
                   </span>
                 ))}
             </div>
           </div>
 
-          <aside className="rounded-[22px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-5">
-            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">Asking price</div>
-            <div className="mt-2 text-[34px] font-bold tracking-tight text-[var(--accent)]">
-              {listing.price && listing.price > 0 ? `₹${listing.price.toLocaleString()}` : 'Price on Request'}
+          <aside className="rounded-[22px] bg-[var(--bg-surface)] p-5 border border-white/3 shadow-sm space-y-4">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">Asking price</div>
+              <div className="mt-2 text-[34px] font-black tracking-tight text-[var(--accent)]">
+                {listing.price && listing.price > 0 ? `₹${listing.price.toLocaleString()}` : 'Price on Request'}
+              </div>
             </div>
-            <p className="mt-3 text-[12px] leading-6 text-[var(--text-secondary)]">
+            <p className="text-[12px] leading-relaxed text-[var(--text-secondary)] font-medium">
               Public pages show the market signal first. Broker contact stays explicit.
             </p>
-            <div className="mt-5 flex flex-col gap-3">
+            <div className="flex flex-col gap-3">
               <button
                 onClick={() => {
                   const phone = listing.broker_phone || '';
                   const text = encodeURIComponent(`Hi, I am interested in ${listing.title} in ${listing.locality} (via PropAI)`);
                   window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
                 }}
-                className="flex items-center justify-center gap-3 rounded-[16px] bg-[var(--accent)] py-4 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--on-propai-green)] shadow-[0_12px_32px_rgba(62,232,138,0.25)] transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="flex items-center justify-center gap-3 rounded-[16px] bg-[var(--accent)] py-4 text-[13px] font-black uppercase tracking-[0.1em] text-[var(--on-propai-green)] shadow-[0_12px_32px_rgba(62,232,138,0.25)] transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
                 <MessageCircle className="h-5 w-5" />
                 Contact broker
               </button>
               <div className="grid grid-cols-2 gap-3">
-                <button className="flex items-center justify-center gap-2 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-base)] py-3 text-[11px] font-bold uppercase tracking-wider text-[var(--text-primary)] transition-all hover:bg-[var(--bg-hover)]">
+                <button className="flex items-center justify-center gap-2 rounded-[14px] bg-[var(--bg-elevated)]/40 hover:bg-[var(--bg-elevated)]/75 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--text-primary)] transition-all">
                   <Heart className="h-4 w-4" />
                   Save
                 </button>
-                <button className="flex items-center justify-center gap-2 rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-base)] py-3 text-[11px] font-bold uppercase tracking-wider text-[var(--text-primary)] transition-all hover:bg-[var(--bg-hover)]">
+                <button className="flex items-center justify-center gap-2 rounded-[14px] bg-[var(--bg-elevated)]/40 hover:bg-[var(--bg-elevated)]/75 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--text-primary)] transition-all">
                   <Share2 className="h-4 w-4" />
                   Share
                 </button>
@@ -200,16 +203,16 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
           ]
             .filter(Boolean)
             .map((stat, index) => (
-              <div key={index} className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+              <div key={index} className="rounded-[18px] bg-[var(--bg-surface)]/60 backdrop-blur-md p-4.5 border border-white/2">
                 <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">{stat.label}</div>
-                <div className="mt-2 text-[16px] font-bold text-[var(--text-primary)]">{stat.value}</div>
+                <div className="mt-2 text-[16px] font-black text-[var(--text-primary)]">{stat.value}</div>
               </div>
             ))}
         </div>
 
-        <div className="rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+        <div className="rounded-[24px] bg-[var(--bg-surface)]/60 backdrop-blur-md p-6 border border-white/2">
           <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">Public listing note</div>
-          <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">
+          <p className="mt-3 text-[13px] leading-relaxed text-[var(--text-secondary)] font-medium">
             Public pages should stay title-first, locality-first, and action-first. Anything extra should help the broker decide, not decorate the page.
           </p>
         </div>
@@ -217,12 +220,12 @@ export default function ListingDetail({ slug, initialListing = null }: { slug: s
 
       {related.length > 0 && (
         <section className="pt-10 space-y-6">
-          <div className="flex items-baseline justify-between border-b border-[color:var(--border)] pb-4">
+          <div className="flex items-baseline justify-between border-b border-white/2 pb-4">
             <div className="space-y-1">
-              <h3 className="text-[24px] font-bold text-[var(--text-primary)]">More in this market</h3>
+              <h3 className="text-[24px] font-bold text-[var(--text-primary)] font-display">More in this market</h3>
               <p className="text-[14px] font-medium text-[var(--text-secondary)]">Fresh public listings from the same locality belt.</p>
             </div>
-            <Link href="/listings" className="text-[12px] font-bold uppercase tracking-[0.2em] text-[var(--accent)] transition-all hover:brightness-110">
+            <Link href="/listings" className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--accent)] transition-all hover:brightness-110">
               View all listings
             </Link>
           </div>
