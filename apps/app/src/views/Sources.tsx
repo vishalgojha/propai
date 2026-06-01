@@ -467,6 +467,14 @@ const getHealthTone = (state: WhatsappHealthSummary['healthState'] | WhatsappHea
 
 const sourcePrimaryButton =
   'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] shadow-[0_10px_28px_rgba(62,232,138,0.18)] transition-all duration-150 hover:-translate-y-[1px] hover:brightness-95 disabled:opacity-50 disabled:hover:translate-y-0';
+const OWNER_SUPER_ADMIN_EMAILS = new Set([
+  'vishal@chaoscraftlabs.com',
+  'vishal@chaoscraftslabs.com',
+  'chariotrealty@gmail.com',
+  'hello@chaoscraftlabs.com',
+  'ojha007@gmail.com',
+  'hello@propai.live',
+]);
 const sourceSecondaryButton =
   'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-all duration-150 hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)]';
 const sourcePill =
@@ -659,7 +667,8 @@ export const Sources: React.FC = () => {
   );
   const currentSessionSelfChatEnabled =
     currentSession?.sessionData?.selfChatEnabled ?? currentSession?.sessionData?.self_chat_enabled ?? true;
-  const isAtDeviceLimit = status.activeCount >= status.limit && !currentSession;
+  const isSuperAdmin = user?.appRole === 'super_admin' || OWNER_SUPER_ADMIN_EMAILS.has(String(user?.email || '').trim().toLowerCase());
+  const isAtDeviceLimit = !isSuperAdmin && status.activeCount >= status.limit && !currentSession;
   const primaryConnectedSession = useMemo(
     () => status.sessions.find((session) => session.status === 'connected') || null,
     [status.sessions],
@@ -681,7 +690,7 @@ export const Sources: React.FC = () => {
   }, [connectedSenderSessions, status.allowedOutboundSessionLabels, status.hasOutboundLaneRestriction]);
 
   const accessModelLabel = useMemo(() => {
-    if (user?.appRole === 'super_admin') {
+    if (isSuperAdmin) {
       return 'Super Admin';
     }
 
@@ -689,7 +698,7 @@ export const Sources: React.FC = () => {
     const plan = subscriptionPlan || (statusLoaded ? status.plan : null);
     const label = formatPlanLabel(plan);
     return label || 'Loading…';
-  }, [status.plan, statusLoaded, user?.subscription?.plan]);
+  }, [isSuperAdmin, status.plan, statusLoaded, user?.subscription?.plan]);
   const currentSessionAuditPending = Boolean(
     currentSession?.sessionData?.groupAuditPending
     && !currentSession?.sessionData?.groupAuditCompletedAt,

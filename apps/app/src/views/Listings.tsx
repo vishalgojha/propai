@@ -39,6 +39,12 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'vishal@propai.live',
   'vishalojha@gmail.com',
   'vishal.ojha@propai.live',
+  'vishal@chaoscraftlabs.com',
+  'vishal@chaoscraftslabs.com',
+  'chariotrealty@gmail.com',
+  'hello@chaoscraftlabs.com',
+  'ojha007@gmail.com',
+  'hello@propai.live',
 ]);
 type StreamPresetId = 'fresh' | 'rental' | 'sale' | 'pre_leased' | 'requirements' | 'high_confidence';
 const STREAM_PRESETS: Array<{ id: StreamPresetId; label: string }> = [

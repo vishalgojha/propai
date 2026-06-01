@@ -60,6 +60,10 @@ interface AuthContextType {
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'vishal@chaoscraftlabs.com',
   'vishal@chaoscraftslabs.com',
+  'chariotrealty@gmail.com',
+  'hello@chaoscraftlabs.com',
+  'ojha007@gmail.com',
+  'hello@propai.live',
 ]);
 
 const resolveAppRole = (email?: string | null, appRole?: string) => {
