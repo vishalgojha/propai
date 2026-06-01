@@ -176,6 +176,24 @@ const inferLocality = (text: string) => {
   return cleaned;
 };
 
+const summarizePreviewStatus = (item: VaultDraftPreview) => {
+  if (item.missing.length > 0) {
+    return `Missing ${item.missing.join(', ')}.`;
+  }
+
+  const found = [
+    item.locality ? 'locality' : '',
+    item.bhk ? 'BHK' : '',
+    item.type === 'listing' ? (item.price ? 'price' : '') : (item.budget ? 'budget' : ''),
+    item.areaSqft ? 'area' : '',
+    item.furnishing ? 'furnishing' : '',
+  ].filter(Boolean);
+
+  return found.length > 0
+    ? `Ready: found ${found.join(', ')}.`
+    : 'Ready to post.';
+};
+
 const splitVaultDraftBlocks = (rawText: string) => {
   const source = normalizeDraftText(rawText).trim();
   if (!source) return [];
@@ -473,6 +491,14 @@ export const VaultView: React.FC = () => {
                           </span>
                         </div>
 
+                        <p
+                          className={`mt-2 text-[11px] ${
+                            item.missing.length > 0 ? 'text-amber-300' : 'text-[var(--text-secondary)]'
+                          }`}
+                        >
+                          {summarizePreviewStatus(item)}
+                        </p>
+
                         <div className="mt-3 flex flex-wrap gap-2">
                           <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] text-[var(--text-primary)]">
                             {item.locality || 'Locality missing'}
@@ -495,7 +521,7 @@ export const VaultView: React.FC = () => {
 
                         {item.missing.length > 0 ? (
                           <p className="mt-3 text-[11px] text-amber-300">
-                            Missing before posting: {item.missing.join(', ')}.
+                            Fill these before posting: {item.missing.join(', ')}.
                           </p>
                         ) : (
                           <p className="mt-3 text-[11px] text-[var(--text-secondary)]">
