@@ -37,6 +37,13 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function LocalitiesPage() {
   const cityGroups = await fetchLocalitiesForFooter(1);
   const visibleCityGroups = cityGroups.length > 0 ? cityGroups : fallbackCityGroups();
+  const localityCountMap = new Map(
+    visibleCityGroups.flatMap((group) => group.localities.map((loc) => [loc.slug, loc.count] as const)),
+  );
+  const topLocalities = TOP_LOCALITIES.slice(0, 10).map((locality) => ({
+    ...locality,
+    count: localityCountMap.get(locality.slug) || 0,
+  }));
   const localityIntentLinks = TOP_LOCALITIES.slice(0, 12).flatMap((locality) =>
     getLongTailRelatedIntents("2-bhk-rent", 4).map((intent) => ({
       locality,
@@ -91,6 +98,72 @@ export default async function LocalitiesPage() {
           <p className="max-w-2xl text-[15px] leading-7 text-[var(--text-secondary)]">
             This hub links every public locality page and the search pages brokers and crawlers can use to move from a market belt into a canonical long-tail page.
           </p>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-lg border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">How to browse</div>
+          <h2 className="mt-2 text-[20px] font-bold text-[var(--text-primary)]">Start with the city, then the belt, then the exact market.</h2>
+          <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">
+            If you know the area, open the locality page directly. If you know the need, use a long-tail page like rent, sale, office, or requirement. The hub keeps both paths linked.
+          </p>
+        </div>
+        <div className="rounded-lg border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">What this page shows</div>
+          <h2 className="mt-2 text-[20px] font-bold text-[var(--text-primary)]">Public locality pages, market belts, and canonical search pages.</h2>
+          <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">
+            The directory is built for humans, Google, and AI assistants. It stays public-safe while still linking the right market layers together.
+          </p>
+        </div>
+        <div className="rounded-lg border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Top markets</div>
+          <h2 className="mt-2 text-[20px] font-bold text-[var(--text-primary)]">The first 10 localities get the strongest directory exposure.</h2>
+          <p className="mt-3 text-[13px] leading-6 text-[var(--text-secondary)]">
+            These are the markets most likely to have live inventory, nearby fallback belts, and long-tail pages ready for indexing.
+          </p>
+        </div>
+      </section>
+
+      <section className="space-y-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-[22px] font-bold text-[var(--text-primary)]">Priority locality blocks</h2>
+            <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
+              The highest-priority locality pages, shown with live public counts when available.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {topLocalities.map((locality) => (
+            <Link
+              key={locality.slug}
+              href={`/locality/${locality.slug}`}
+              className="rounded-lg border border-[color:var(--border)] bg-[var(--bg-surface)] p-5 transition-colors hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-elevated)]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-[16px] font-bold text-[var(--text-primary)]">{locality.name}</h3>
+                  <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
+                    {locality.count} live item{locality.count === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                  Top
+                </span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {getLongTailRelatedIntents("2-bhk-rent", 3).map((intent) => (
+                  <span
+                    key={intent.slug}
+                    className="rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]"
+                  >
+                    {intent.label}
+                  </span>
+                ))}
+              </div>
+            </Link>
+          ))}
         </div>
       </section>
 
