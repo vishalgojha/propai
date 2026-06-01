@@ -1165,132 +1165,130 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
       )}
 
       {/* FAQ Section */}
-      {activeTab !== 'feed' && (
-        <section className="relative z-10 mx-auto max-w-5xl px-6 mt-16 pb-12 animate-stream-in">
-          <div className="text-center mb-10">
-            <h2 className="text-[24px] sm:text-[32px] font-black text-[var(--text-primary)] font-display">
-              Frequently Asked Questions
-            </h2>
-            <p className="mt-2 text-[13px] text-[var(--text-secondary)] max-w-lg mx-auto">
-              Everything you need to know about India's first real-time Realtor network stream.
-            </p>
-          </div>
+      <section className="relative z-10 mx-auto max-w-5xl px-6 mt-16 pb-12 animate-stream-in">
+        <div className="text-center mb-10">
+          <h2 className="text-[24px] sm:text-[32px] font-black text-[var(--text-primary)] font-display">
+            Frequently Asked Questions
+          </h2>
+          <p className="mt-2 text-[13px] text-[var(--text-secondary)] max-w-lg mx-auto">
+            Everything you need to know about India's first real-time Realtor network stream.
+          </p>
+        </div>
 
-          <div className="space-y-4">
-            {[
-              {
-                q: "What is PropAI Pulse and how does it beat traditional property portals?",
-                a: "Traditional property portals are filled with stale, duplicate, or bait listings uploaded weeks ago to capture leads. PropAI Pulse is a real-time aggregator that parses active co-Realtoring broadcasts and requirements directly from closed, private professional Realtor WhatsApp communication groups in Mumbai. You see active inventory within minutes of Realtors sharing them, straight from the source."
-              },
-              {
-                q: "How does PropAI guarantee listings are active and not fake?",
-                a: "Our system structures broadcasts from private Realtor-only co-Realtoring groups where professionals share actual inventory they need to close immediately. Because Realtors co-Realtor directly within their peer groups, posting fake listings or stale inventory would ruin their professional reputation. This structural alignment guarantees that the feeds are 100% authentic and active."
-              },
-              {
-                q: "How do I connect with the professional Realtor who posted a listing?",
-                a: "Once you find a suitable property or requirement stream on our dashboard, you can unlock the direct details and connect with the professional Realtor who posted the broadcast. PropAI Pulse acts as a direct communication bridge, allowing you to negotiate or schedule walkthroughs immediately via WhatsApp with no middleman markup."
-              },
-              {
-                q: "What micro-markets does PropAI Pulse cover?",
-                a: "We offer comprehensive real-time coverage across Mumbai's premium residential and commercial micro-markets, including Bandra West, Juhu, Andheri West, Powai, Worli, Chembur, and Thane. We are continuously adding active Realtor networks in Pune and Bangalore as we expand our coverage."
-              },
-              {
-                q: "How often is the Realtor property stream updated?",
-                a: "Our AI parser monitors private Realtor communication pipelines 24/7. Listings, requirements, and pricing revisions are captured, parsed, and updated on our Stream Desk within minutes of being broadcast by Realtors, ensuring you always get the freshest data in the market."
-              }
-            ].map((faq, index) => {
-              const isOpen = activeFaq === index;
-              return (
+        <div className="space-y-4">
+          {[
+            {
+              q: "What is PropAI Pulse and how does it beat traditional property portals?",
+              a: "Traditional property portals are filled with stale, duplicate, or bait listings uploaded weeks ago to capture leads. PropAI Pulse is a real-time aggregator that parses active co-Realtoring broadcasts and requirements directly from closed, private professional Realtor WhatsApp communication groups in Mumbai. You see active inventory within minutes of Realtors sharing them, straight from the source."
+            },
+            {
+              q: "How does PropAI guarantee listings are active and not fake?",
+              a: "Our system structures broadcasts from private Realtor-only co-Realtoring groups where professionals share actual inventory they need to close immediately. Because Realtors co-Realtor directly within their peer groups, posting fake listings or stale inventory would ruin their professional reputation. This structural alignment guarantees that the feeds are 100% authentic and active."
+            },
+            {
+              q: "How do I connect with the professional Realtor who posted a listing?",
+              a: "Once you find a suitable property or requirement stream on our dashboard, you can unlock the direct details and connect with the professional Realtor who posted the broadcast. PropAI Pulse acts as a direct communication bridge, allowing you to negotiate or schedule walkthroughs immediately via WhatsApp with no middleman markup."
+            },
+            {
+              q: "What micro-markets does PropAI Pulse cover?",
+              a: "We offer comprehensive real-time coverage across Mumbai's premium residential and commercial micro-markets, including Bandra West, Juhu, Andheri West, Powai, Worli, Chembur, and Thane. We are continuously adding active Realtor networks in Pune and Bangalore as we expand our coverage."
+            },
+            {
+              q: "How often is the Realtor property stream updated?",
+              a: "Our AI parser monitors private Realtor communication pipelines 24/7. Listings, requirements, and pricing revisions are captured, parsed, and updated on our Stream Desk within minutes of being broadcast by Realtors, ensuring you always get the freshest data in the market."
+            }
+          ].map((faq, index) => {
+            const isOpen = activeFaq === index;
+            return (
+              <div 
+                key={index} 
+                className={cn(
+                  "glass-panel rounded-[20px] border border-white/3 transition-all duration-300",
+                  isOpen ? "bg-[var(--accent-glow)] border-[color:var(--accent-border)]" : "hover:border-white/10"
+                )}
+              >
+                <button
+                  onClick={() => setActiveFaq(isOpen ? null : index)}
+                  className="w-full flex items-center justify-between p-5 text-left outline-none cursor-pointer"
+                >
+                  <span className="text-[14px] font-bold text-white pr-4">
+                    {faq.q}
+                  </span>
+                  <ChevronDown 
+                    className={cn(
+                      "h-4.5 w-4.5 text-[var(--text-secondary)] transition-transform duration-300",
+                      isOpen && "transform rotate-180 text-[var(--accent)]"
+                    )} 
+                  />
+                </button>
                 <div 
-                  key={index} 
                   className={cn(
-                    "glass-panel rounded-[20px] border border-white/3 transition-all duration-300",
-                    isOpen ? "bg-[var(--accent-glow)] border-[color:var(--accent-border)]" : "hover:border-white/10"
+                    "overflow-hidden transition-all duration-300 ease-in-out px-5",
+                    isOpen ? "max-h-[200px] pb-5" : "max-h-0"
                   )}
                 >
-                  <button
-                    onClick={() => setActiveFaq(isOpen ? null : index)}
-                    className="w-full flex items-center justify-between p-5 text-left outline-none cursor-pointer"
-                  >
-                    <span className="text-[14px] font-bold text-white pr-4">
-                      {faq.q}
-                    </span>
-                    <ChevronDown 
-                      className={cn(
-                        "h-4.5 w-4.5 text-[var(--text-secondary)] transition-transform duration-300",
-                        isOpen && "transform rotate-180 text-[var(--accent)]"
-                      )} 
-                    />
-                  </button>
-                  <div 
-                    className={cn(
-                      "overflow-hidden transition-all duration-300 ease-in-out px-5",
-                      isOpen ? "max-h-[200px] pb-5" : "max-h-0"
-                    )}
-                  >
-                    <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed">
-                      {faq.a}
-                    </p>
-                  </div>
+                  <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed">
+                    {faq.a}
+                  </p>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
+        </div>
 
-          {/* FAQ schema for Search Engine / LLM crawlers */}
-          <script
-            type="application/ld+json"
-            dangerouslySetInnerHTML={{
-              __html: JSON.stringify({
-                "@context": "https://schema.org",
-                "@type": "FAQPage",
-                "mainEntity": [
-                  {
-                    "@type": "Question",
-                    "name": "What is PropAI Pulse and how does it beat traditional property portals?",
-                    "acceptedAnswer": {
-                      "@type": "Answer",
-                      "text": "Traditional property portals are filled with stale, duplicate, or bait listings uploaded weeks ago to capture leads. PropAI Pulse is a real-time aggregator that parses active co-Realtoring broadcasts and requirements directly from closed, private professional Realtor WhatsApp communication groups in Mumbai. You see active inventory within minutes of Realtors sharing them, straight from the source."
-                    }
-                  },
-                  {
-                    "@type": "Question",
-                    "name": "How does PropAI guarantee listings are active and not fake?",
-                    "acceptedAnswer": {
-                      "@type": "Answer",
-                      "text": "Our system structures broadcasts from private Realtor-only co-Realtoring groups where professionals share actual inventory they need to close immediately. Because Realtors co-Realtor directly within their peer groups, posting fake listings or stale inventory would ruin their professional reputation. This structural alignment guarantees that the feeds are 100% authentic and active."
-                    }
-                  },
-                  {
-                    "@type": "Question",
-                    "name": "How do I connect with the professional Realtor who posted a listing?",
-                    "acceptedAnswer": {
-                      "@type": "Answer",
-                      "text": "Once you find a suitable property or requirement stream on our dashboard, you can unlock the direct details and connect with the professional Realtor who posted the broadcast. PropAI Pulse acts as a direct communication bridge, allowing you to negotiate or schedule walkthroughs immediately via WhatsApp with no middleman markup."
-                    }
-                  },
-                  {
-                    "@type": "Question",
-                    "name": "What micro-markets does PropAI Pulse cover?",
-                    "acceptedAnswer": {
-                      "@type": "Answer",
-                      "text": "We offer comprehensive real-time coverage across Mumbai's premium residential and commercial micro-markets, including Bandra West, Juhu, Andheri West, Powai, Worli, Chembur, and Thane. We are continuously adding active Realtor networks in Pune and Bangalore as we expand our coverage."
-                    }
-                  },
-                  {
-                    "@type": "Question",
-                    "name": "How often is the Realtor property stream updated?",
-                    "acceptedAnswer": {
-                      "@type": "Answer",
-                      "text": "Our AI parser monitors private Realtor communication pipelines 24/7. Listings, requirements, and pricing revisions are captured, parsed, and updated on our Stream Desk within minutes of being broadcast by Realtors, ensuring you always get the freshest data in the market."
-                    }
+        {/* FAQ schema for Search Engine / LLM crawlers */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              "mainEntity": [
+                {
+                  "@type": "Question",
+                  "name": "What is PropAI Pulse and how does it beat traditional property portals?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Traditional property portals are filled with stale, duplicate, or bait listings uploaded weeks ago to capture leads. PropAI Pulse is a real-time aggregator that parses active co-Realtoring broadcasts and requirements directly from closed, private professional Realtor WhatsApp communication groups in Mumbai. You see active inventory within minutes of Realtors sharing them, straight from the source."
                   }
-                ]
-              })
-            }}
-          />
-        </section>
-      )}
+                },
+                {
+                  "@type": "Question",
+                  "name": "How does PropAI guarantee listings are active and not fake?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Our system structures broadcasts from private Realtor-only co-Realtoring groups where professionals share actual inventory they need to close immediately. Because Realtors co-Realtor directly within their peer groups, posting fake listings or stale inventory would ruin their professional reputation. This structural alignment guarantees that the feeds are 100% authentic and active."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "How do I connect with the professional Realtor who posted a listing?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Once you find a suitable property or requirement stream on our dashboard, you can unlock the direct details and connect with the professional Realtor who posted the broadcast. PropAI Pulse acts as a direct communication bridge, allowing you to negotiate or schedule walkthroughs immediately via WhatsApp with no middleman markup."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "What micro-markets does PropAI Pulse cover?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "We offer comprehensive real-time coverage across Mumbai's premium residential and commercial micro-markets, including Bandra West, Juhu, Andheri West, Powai, Worli, Chembur, and Thane. We are continuously adding active Realtor networks in Pune and Bangalore as we expand our coverage."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "How often is the Realtor property stream updated?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Our AI parser monitors private Realtor communication pipelines 24/7. Listings, requirements, and pricing revisions are captured, parsed, and updated on our Stream Desk within minutes of being broadcast by Realtors, ensuring you always get the freshest data in the market."
+                  }
+                }
+              ]
+            })
+          }}
+        />
+      </section>
 
       {/* ADVANCED FLOATING BROKER CHAT SIMULATOR DRAWER */}
       {chatOpen && activeBroker && (
