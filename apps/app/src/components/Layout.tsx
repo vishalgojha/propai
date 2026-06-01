@@ -56,6 +56,7 @@ const normalizeWhatsAppSession = (session: unknown): WhatsAppSessionSummary | nu
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'propai.sidebar_collapsed';
 const MOBILE_COLLAPSE_BREAKPOINT = '(max-width: 1023px)';
+const WHATSAPP_DISCONNECT_GRACE_MS = 90_000;
 export const Layout: React.FC = () => {
   const { user, isLoading, logout } = useAuth();
   usePushNotifications(user?.id || null);
@@ -93,6 +94,9 @@ export const Layout: React.FC = () => {
     sessions: [],
     selectedSessionLabel: null,
   });
+  const lastHealthyWhatsappStatusRef = React.useRef<WhatsAppStatusSummary | null>(null);
+  const lastHealthyWhatsappStatusAtRef = React.useRef<number>(0);
+  const disconnectedSnapshotCountRef = React.useRef<number>(0);
 
   const getPageTitle = (path: string) => {
     if (path.startsWith('/broker-network')) return 'Broker Network';
@@ -176,42 +180,70 @@ export const Layout: React.FC = () => {
   }, [syncSelectedSession]);
 
   const loadWhatsappStatus = React.useCallback(async (cancelled = false) => {
-      try {
-        const response = await backendApi.get(ENDPOINTS.whatsapp.status);
-        if (!cancelled && response.data) {
-          const sessions = Array.isArray(response.data.sessions)
-            ? response.data.sessions.map(normalizeWhatsAppSession).filter((session): session is WhatsAppSessionSummary => Boolean(session))
-            : [];
-          const connectedSessions = sessions.filter((session) => session.status === 'connected');
-          const preferredLabel = selectedSessionLabel && sessions.some((session) => session.label === selectedSessionLabel)
-            ? selectedSessionLabel
-            : connectedSessions[0]?.label || sessions[0]?.label || null;
-          const selectedSession = preferredLabel
-            ? sessions.find((session) => session.label === preferredLabel) || null
-            : null;
+    try {
+      const response = await backendApi.get(ENDPOINTS.whatsapp.status);
+      if (!cancelled && response.data) {
+        const sessions = Array.isArray(response.data.sessions)
+          ? response.data.sessions.map(normalizeWhatsAppSession).filter((session): session is WhatsAppSessionSummary => Boolean(session))
+          : [];
+        const connectedSessions = sessions.filter((session) => session.status === 'connected');
+        const preferredLabel = selectedSessionLabel && sessions.some((session) => session.label === selectedSessionLabel)
+          ? selectedSessionLabel
+          : connectedSessions[0]?.label || sessions[0]?.label || null;
+        const selectedSession = preferredLabel
+          ? sessions.find((session) => session.label === preferredLabel) || null
+          : null;
 
-          if (!selectedSessionLabel && preferredLabel) {
-            syncSelectedSession(preferredLabel);
-          }
-
-          setWhatsappStatus({
-            status: selectedSession?.status || response.data.status || 'disconnected',
-            connectedPhoneNumber: selectedSession?.phoneNumber || response.data.connectedPhoneNumber || null,
-            connectedOwnerName: selectedSession?.ownerName || response.data.connectedOwnerName || null,
-            activeCount: response.data.activeCount || 0,
-            limit: response.data.limit || 0,
-            sessions,
-            selectedSessionLabel: preferredLabel,
-          });
+        if (!selectedSessionLabel && preferredLabel) {
+          syncSelectedSession(preferredLabel);
         }
-      } catch {
-        // Keep the last known status on transient request failures so route
-        // changes or brief API hiccups do not look like a WhatsApp disconnect.
+
+        const nextSnapshot: WhatsAppStatusSummary = {
+          status: selectedSession?.status || response.data.status || 'disconnected',
+          connectedPhoneNumber: selectedSession?.phoneNumber || response.data.connectedPhoneNumber || null,
+          connectedOwnerName: selectedSession?.ownerName || response.data.connectedOwnerName || null,
+          activeCount: response.data.activeCount || 0,
+          limit: response.data.limit || 0,
+          sessions,
+          selectedSessionLabel: preferredLabel,
+        };
+
+        if (nextSnapshot.status === 'connected') {
+          disconnectedSnapshotCountRef.current = 0;
+          lastHealthyWhatsappStatusRef.current = nextSnapshot;
+          lastHealthyWhatsappStatusAtRef.current = Date.now();
+          setWhatsappStatus(nextSnapshot);
+          return;
+        }
+
+        if (nextSnapshot.status === 'connecting' || nextSnapshot.status === 'reconnecting') {
+          disconnectedSnapshotCountRef.current = 0;
+          setWhatsappStatus(nextSnapshot);
+          return;
+        }
+
+        disconnectedSnapshotCountRef.current += 1;
+        const hasRecentHealthyState =
+          Boolean(lastHealthyWhatsappStatusRef.current) &&
+          Date.now() - lastHealthyWhatsappStatusAtRef.current < WHATSAPP_DISCONNECT_GRACE_MS;
+
+        if (hasRecentHealthyState && disconnectedSnapshotCountRef.current < 2) {
+          return;
+        }
+
+        setWhatsappStatus(nextSnapshot);
       }
+    } catch {
+      // Keep the last known status on transient request failures so route
+      // changes or brief API hiccups do not look like a WhatsApp disconnect.
+    }
   }, [selectedSessionLabel, syncSelectedSession]);
 
   React.useEffect(() => {
     if (!user?.token) {
+      lastHealthyWhatsappStatusRef.current = null;
+      lastHealthyWhatsappStatusAtRef.current = 0;
+      disconnectedSnapshotCountRef.current = 0;
       setWhatsappStatus({
         status: 'disconnected',
         connectedPhoneNumber: null,
@@ -234,6 +266,26 @@ export const Layout: React.FC = () => {
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+    };
+  }, [loadWhatsappStatus, user?.token]);
+
+  React.useEffect(() => {
+    if (!user?.token) {
+      return;
+    }
+
+    const refreshOnVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void loadWhatsappStatus(false);
+      }
+    };
+
+    window.addEventListener('focus', refreshOnVisibility);
+    document.addEventListener('visibilitychange', refreshOnVisibility);
+
+    return () => {
+      window.removeEventListener('focus', refreshOnVisibility);
+      document.removeEventListener('visibilitychange', refreshOnVisibility);
     };
   }, [loadWhatsappStatus, user?.token]);
 
