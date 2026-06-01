@@ -82,7 +82,7 @@ export default async function Footer() {
           <div>
             <h4 className="mb-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">Company</h4>
             <ul className="space-y-2">
-              <li><Link href="/broker/signup" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">For Brokers</Link></li>
+              <li><Link href="https://app.propai.live" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">For Brokers</Link></li>
               <li><Link href="/refund" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Refund Policy</Link></li>
               <li><Link href="/cancellation" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Cancellation Policy</Link></li>
               <li><Link href="/contact" className="text-[13px] text-[var(--text-secondary)] hover:text-[var(--accent)]">Support</Link></li>

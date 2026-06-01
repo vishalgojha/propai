@@ -1,5 +1,5 @@
-import BrokerSignup from "@/pages/BrokerSignup";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <BrokerSignup />;
+  redirect("https://app.propai.live");
 }

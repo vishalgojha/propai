@@ -37,7 +37,7 @@ export default function PublicNav() {
           <Link href="/mcp" className="shrink-0 rounded-full border border-transparent px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-colors hover:border-[color:var(--border)] hover:text-[var(--accent)]">
             MCP
           </Link>
-          <Link href="/broker/signup" className="shrink-0 rounded-full border border-transparent px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-colors hover:border-[color:var(--border)] hover:text-[var(--accent)]">
+          <Link href="https://app.propai.live" className="shrink-0 rounded-full border border-transparent px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-colors hover:border-[color:var(--border)] hover:text-[var(--accent)]">
             For brokers
           </Link>
           <Link href="/contact" className="shrink-0 rounded-full border border-transparent px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-colors hover:border-[color:var(--border)] hover:text-[var(--accent)]">

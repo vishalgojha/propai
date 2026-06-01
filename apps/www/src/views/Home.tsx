@@ -1110,7 +1110,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                 >
                   Open Stream Desk
                 </button>
-                <Link href="/broker/signup" className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-white/5 bg-[var(--bg-elevated)] px-5 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all">
+                <Link href="https://app.propai.live" className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-white/5 bg-[var(--bg-elevated)] px-5 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all">
                   For Brokers Desk
                 </Link>
               </div>
