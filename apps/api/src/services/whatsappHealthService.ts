@@ -136,6 +136,7 @@ export class WhatsAppHealthService {
     private eventLogSessionField: EventLogSessionField = 'session_label';
     private heartbeatTimer: NodeJS.Timeout | null = null;
     private heartbeatRunning = false;
+    private heartbeatLoopActive = false;
     private readonly heartbeatIntervalMs = Number(process.env.WHATSAPP_HEALTH_HEARTBEAT_MS || 5_000);
     private readonly heartbeatReconnectAfterMs = Number(process.env.WHATSAPP_HEALTH_RECONNECT_AFTER_MS || 10_000);
 
@@ -144,24 +145,44 @@ export class WhatsAppHealthService {
             return;
         }
 
+        this.heartbeatLoopActive = true;
+        const scheduleNextSweep = (delayMs: number) => {
+            if (!this.heartbeatLoopActive) {
+                return;
+            }
+
+            if (this.heartbeatTimer) {
+                clearTimeout(this.heartbeatTimer);
+            }
+
+            this.heartbeatTimer = setTimeout(() => {
+                if (!this.heartbeatLoopActive) {
+                    return;
+                }
+
+                void this.runHeartbeatSweep(sessionManager).catch((error) => {
+                    console.warn('[WhatsAppHealthService] Heartbeat sweep failed', error);
+                }).finally(() => {
+                    scheduleNextSweep(this.getHumanHeartbeatDelay());
+                });
+            }, delayMs);
+
+            if (typeof this.heartbeatTimer.unref === 'function') {
+                this.heartbeatTimer.unref();
+            }
+        };
+
         void this.runHeartbeatSweep(sessionManager).catch((error) => {
             console.warn('[WhatsAppHealthService] Initial heartbeat sweep failed', error);
+        }).finally(() => {
+            scheduleNextSweep(this.getHumanHeartbeatDelay());
         });
-
-        this.heartbeatTimer = setInterval(() => {
-            void this.runHeartbeatSweep(sessionManager).catch((error) => {
-                console.warn('[WhatsAppHealthService] Heartbeat sweep failed', error);
-            });
-        }, this.heartbeatIntervalMs);
-
-        if (typeof this.heartbeatTimer.unref === 'function') {
-            this.heartbeatTimer.unref();
-        }
     }
 
     stopHeartbeatLoop() {
+        this.heartbeatLoopActive = false;
         if (this.heartbeatTimer) {
-            clearInterval(this.heartbeatTimer);
+            clearTimeout(this.heartbeatTimer);
             this.heartbeatTimer = null;
         }
     }
@@ -707,6 +728,7 @@ export class WhatsAppHealthService {
                 }
 
                 try {
+                    const reconnectDelayMs = this.getHumanReconnectDelay(ageMs, Number(liveSession?.reconnectAttempts || row.session_data?.reconnectAttempts || 0));
                     await this.appendEvent(
                         tenantId,
                         sessionLabel,
@@ -718,8 +740,13 @@ export class WhatsAppHealthService {
                             ageMs,
                             disconnectReason: disconnectReason || null,
                             autoReconnectBlocked,
+                            reconnectDelayMs,
                         },
                     );
+
+                    if (reconnectDelayMs > 0) {
+                        await new Promise((resolve) => setTimeout(resolve, reconnectDelayMs));
+                    }
 
                     await sessionManager.createSession(tenantId, () => {}, () => {}, {
                         label: sessionLabel,
@@ -763,6 +790,24 @@ export class WhatsAppHealthService {
         } finally {
             this.heartbeatRunning = false;
         }
+    }
+
+    private getHumanHeartbeatDelay() {
+        const base = Math.max(3_000, this.heartbeatIntervalMs);
+        return this.withJitter(base, 0.28, 2_500);
+    }
+
+    private getHumanReconnectDelay(ageMs: number, reconnectAttempts: number) {
+        const ageFactor = ageMs >= DAY_MS ? 1.2 : ageMs >= 60_000 ? 0.9 : 0.6;
+        const attemptFactor = Math.max(0, reconnectAttempts) * 650;
+        const base = Math.min(12_000, 1_500 + attemptFactor + Math.round(ageFactor * 1_200));
+        return this.withJitter(base, 0.35, 1_000);
+    }
+
+    private withJitter(baseMs: number, spreadRatio: number, minimumMs: number) {
+        const spread = Math.max(0, Math.round(baseMs * spreadRatio));
+        const offset = Math.round((Math.random() * (spread * 2)) - spread);
+        return Math.max(minimumMs, baseMs + offset);
     }
 
     private async countActiveGroups24h(tenantId: string, sessionLabel: string, ensureGroupId?: string, ensureTimestamp?: string) {

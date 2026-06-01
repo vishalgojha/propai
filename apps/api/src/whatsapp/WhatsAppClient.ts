@@ -77,6 +77,7 @@ export class WhatsAppClient {
     private qrTimeoutTimer: NodeJS.Timeout | null = null;
     private circuitBreaker = new CircuitBreaker();
     private healthCheckInterval: NodeJS.Timeout | null = null;
+    private healthCheckRunning = false;
     private autoSyncInterval: NodeJS.Timeout | null = null;
     private replayTimer: NodeJS.Timeout | null = null;
     private replayInProgress = false;
@@ -85,6 +86,19 @@ export class WhatsAppClient {
         replaced: false,
         at: null,
     };
+
+    private humanizeDelay(baseMs: number, spreadRatio = 0.25, minimumMs = 500) {
+        const spread = Math.max(0, Math.round(baseMs * spreadRatio));
+        const offset = Math.round((Math.random() * (spread * 2)) - spread);
+        return Math.max(minimumMs, baseMs + offset);
+    }
+
+    private getReconnectBackoffMs() {
+        const exponential = Math.min(1_500 * Math.pow(1.8, Math.max(0, this.reconnectAttempts - 1)), 45_000);
+        const fatigueBonus = Math.min(7_500, Math.max(0, this.reconnectAttempts - 2) * 900);
+        const base = exponential + fatigueBonus;
+        return this.humanizeDelay(base, 0.32, 1_250);
+    }
 
     private mapBaileysStatus(code?: number | null): 'server_ack' | 'delivered' | 'read' | 'played' | null {
         switch (code) {
@@ -361,7 +375,7 @@ export class WhatsAppClient {
                             this.reconnectAttempts++;
                             this.circuitBreaker.recordFailure();
 
-                            const backoffMs = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+                            const backoffMs = this.getReconnectBackoffMs();
                             console.log(
                                 `[WhatsAppClient] Scheduling reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${backoffMs}ms for ${this.tenantId}:${this.label}`
                             );
@@ -924,8 +938,19 @@ try {
 
     private startHealthCheck() {
         if (this.healthCheckInterval) return;
-        
-        const interval = setInterval(() => {
+        this.healthCheckRunning = true;
+
+        const scheduleNextCheck = () => {
+            if (!this.healthCheckRunning) {
+                return;
+            }
+
+            const delay = this.humanizeDelay(30_000, 0.35, 20_000);
+            this.healthCheckInterval = setTimeout(() => {
+                if (!this.healthCheckRunning) {
+                    return;
+                }
+
             if (this.circuitBreaker.state === 'open') {
                 const timeSinceFailure = Date.now() - this.circuitBreaker.lastFailureTime;
                 if (timeSinceFailure >= 60000) {
@@ -933,13 +958,21 @@ try {
                     this.tryReconnect();
                 }
             }
-        }, 30000);
-        this.healthCheckInterval = interval;
+                scheduleNextCheck();
+            }, delay);
+
+            if (typeof this.healthCheckInterval.unref === 'function') {
+                this.healthCheckInterval.unref();
+            }
+        };
+
+        scheduleNextCheck();
     }
 
     private stopHealthCheck() {
+        this.healthCheckRunning = false;
         if (this.healthCheckInterval) {
-            clearInterval(this.healthCheckInterval);
+            clearTimeout(this.healthCheckInterval);
             this.healthCheckInterval = null;
         }
     }
@@ -1113,7 +1146,11 @@ try {
 
             attempt++;
             if (attempt < maxRetries) {
-                const delay = Math.min(10000 * Math.pow(1.5, attempt - 1), 60000);
+                const delay = this.humanizeDelay(
+                    Math.min(10_000 * Math.pow(1.5, attempt - 1), 60_000),
+                    0.28,
+                    2_500,
+                );
                 setTimeout(() => { void trySync(); }, delay);
             } else {
                 console.warn(`[WhatsAppClient] Group sync exhausted ${maxRetries} retries for ${this.tenantId}:${this.label}, syncing anyway`);
@@ -1121,7 +1158,7 @@ try {
             }
         };
 
-        setTimeout(() => { void trySync(); }, 10_000);
+        setTimeout(() => { void trySync(); }, this.humanizeDelay(10_000, 0.35, 2_000));
     }
 
     private scheduleReplayAfterReconnect(reason: string) {

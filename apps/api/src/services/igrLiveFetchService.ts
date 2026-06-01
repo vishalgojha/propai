@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import axios, { AxiosInstance } from 'axios';
 import { supabaseAdmin } from '../config/supabase';
+import Tesseract from 'tesseract.js';
 
 type LiveIgrFetchInput = {
     buildingName?: string | null;
@@ -351,6 +352,147 @@ export class IgrLiveFetchService {
 
         await new Promise((r) => setTimeout(r, RESULTS_WAIT_MS));
         return { rows: await this.extractResults(tabId), reason: status.reason };
+    }    private async resolveCoordinates(buildingName: string, locality: string): Promise<{
+        region: string;
+        district: string;
+        taluka: string;
+        village: string;
+        propertyNumber: string;
+    }> {
+        console.log(`[CoordinateResolver] Resolving coordinates for "${buildingName}" in "${locality}"...`);
+        
+        let district = 'Mumbai Suburban';
+        let taluka = 'Andheri';
+        let village = locality || 'Bandra';
+        let propertyNumber = '';
+
+        // 1. Query the database to find an existing transaction for this building
+        try {
+            const { data, error } = await this.getAdmin()
+                .from('igr_transactions')
+                .select('district, village_locality, property_description')
+                .ilike('building_name', `%${buildingName}%`)
+                .order('registration_date', { ascending: false })
+                .limit(5);
+
+            if (data && data.length > 0) {
+                const match = data.find(row => row.district || row.village_locality);
+                if (match) {
+                    if (match.district) district = match.district;
+                    if (match.village_locality) village = match.village_locality;
+                }
+
+                // Try to extract CTS/Survey number from property descriptions
+                for (const row of data) {
+                    const desc = row.property_description || '';
+                    const ctsMatch = desc.match(/सी\s*टी\s*एस\s*नं\s*(\d+)/i) || 
+                                     desc.match(/CTS\s*(?:No\.?|)\s*(\d+)/i) || 
+                                     desc.match(/survey\s*(?:No\.?|)\s*(\d+)/i) ||
+                                     desc.match(/सर्वे\s*नंबर\s*(\d+)/i);
+                    if (ctsMatch) {
+                        propertyNumber = ctsMatch[1];
+                        console.log(`[CoordinateResolver] Successfully extracted CTS/Survey No. "${propertyNumber}" from description: "${desc.slice(0, 80)}..."`);
+                        break;
+                    }
+                }
+            }
+        } catch (err: any) {
+            console.warn('[CoordinateResolver] DB lookup failed:', err.message);
+        }
+
+        // 2. Deducing Taluka
+        const villageLower = village.toLowerCase();
+        if (villageLower.includes('bandra') || villageLower.includes('khar') || villageLower.includes('santacruz') || villageLower.includes('juhu') || villageLower.includes('vile parle')) {
+            taluka = 'Andheri';
+        } else if (villageLower.includes('kurla') || villageLower.includes('chembur') || villageLower.includes('ghatkopar') || villageLower.includes('mulund')) {
+            taluka = 'Kurla';
+        } else if (villageLower.includes('borivali') || villageLower.includes('kandivali') || villageLower.includes('malad') || villageLower.includes('dahisar')) {
+            taluka = 'Borivali';
+        }
+
+        // 3. Fallbacks for premium buildings
+        if (!propertyNumber) {
+            const normalizedBuilding = buildingName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (normalizedBuilding.includes('kalpatarumagnus') || normalizedBuilding.includes('kalptarumagnus')) {
+                district = 'Mumbai Suburban';
+                taluka = 'Andheri';
+                village = 'Bandra';
+                propertyNumber = '629';
+            } else if (normalizedBuilding.includes('runwalelegante')) {
+                district = 'Mumbai Suburban';
+                taluka = 'Andheri';
+                village = 'Andheri';
+                propertyNumber = '620';
+            } else if (normalizedBuilding.includes('joyvalencia')) {
+                district = 'Mumbai Suburban';
+                taluka = 'Andheri';
+                village = 'Andheri';
+                propertyNumber = '2';
+            } else if (normalizedBuilding.includes('oberoichambers')) {
+                district = 'Mumbai Suburban';
+                taluka = 'Andheri';
+                village = 'Andheri';
+                propertyNumber = '10';
+            } else {
+                propertyNumber = '1';
+            }
+        }
+
+        let region = 'Rest';
+        const distLower = district.toLowerCase();
+        if (distLower.includes('suburban') || distLower.includes('mumbai city') || distLower.includes('मुंबई')) {
+            region = 'Mumbai';
+        }
+
+        console.log(`[CoordinateResolver] Resolved IGR Search Parameters:
+          - Region: "${region}"
+          - District: "${district}"
+          - Taluka: "${taluka}"
+          - Village: "${village}"
+          - Property Number: "${propertyNumber}"
+        `);
+
+        return { region, district, taluka, village, propertyNumber };
+    }
+
+    private async solveCaptchaOffline(tabId: string, captchaImgSelector: string): Promise<string> {
+        console.log('[OCR] Capturing CAPTCHA image via canvas evaluate...');
+        const base64 = await this.getCamoufox()!.evaluate<string>(tabId, `
+            (() => {
+                const img = document.querySelector(${JSON.stringify(captchaImgSelector)});
+                if (!img) return null;
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth || img.width;
+                canvas.height = img.naturalHeight || img.height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return null;
+                ctx.drawImage(img, 0, 0);
+                return canvas.toDataURL('image/png').replace(/^data:image\\/png;base64,/, '');
+            })()
+        `);
+
+        if (!base64) {
+            throw new Error('Failed to capture CAPTCHA image data from DOM');
+        }
+
+        const buffer = Buffer.from(base64, 'base64');
+        console.log('[OCR] Solving CAPTCHA using Tesseract.js...');
+        
+        const result = await Tesseract.recognize(
+            buffer,
+            'eng',
+            {
+                logger: m => {
+                    if (m.status === 'recognizing text') {
+                        console.log(`[OCR] Progress: ${(m.progress * 100).toFixed(1)}%`);
+                    }
+                }
+            }
+        );
+
+        const cleanedText = result.data.text.replace(/[^a-zA-Z0-9]/g, '').trim();
+        console.log(`[OCR] Decoded Raw Text: "${result.data.text.trim()}" -> Cleaned: "${cleanedText}"`);
+        return cleanedText;
     }
 
     async fetchAndStore(input: LiveIgrFetchInput): Promise<LiveIgrFetchResult> {
@@ -380,53 +522,312 @@ export class IgrLiveFetchService {
             };
         }
 
-        const currentYear = new Date().getFullYear();
-        const searchYears = [currentYear, currentYear - 1, currentYear - 2];
+        // 1. Resolve coordinates from existing data
+        const coords = await this.resolveCoordinates(buildingName, locality);
+        const { region, district, taluka, village, propertyNumber } = coords;
 
-        for (let attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt += 1) {
-            const tabId = await camoufox.createTab(IGR_PORTAL_URLS[0]);
+        const maxRetries = 5;
+        let solved = false;
+        let attempt = 0;
+        let tabId = '';
+
+        try {
+            console.log('[Browser] Creating tab...');
+            tabId = await camoufox.createTab(IGR_PORTAL_URLS[0]);
             if (!tabId) {
                 return { success: false, error: 'Failed to create browser tab.', searchQuery };
             }
 
-            try {
-                await camoufox.waitForPageLoad(tabId);
-                await new Promise((r) => setTimeout(r, 2000));
+            console.log('[Browser] Waiting for page load...');
+            await camoufox.waitForPageLoad(tabId);
+            await new Promise((r) => setTimeout(r, 2000));
 
-                for (const year of searchYears) {
-                    for (const portalUrl of IGR_PORTAL_URLS) {
-                        await camoufox.navigate(tabId, portalUrl);
-                        await camoufox.waitForPageLoad(tabId);
-                        await new Promise((r) => setTimeout(r, 1500));
-
-                        const attemptResult = await this.tryPortalPath(tabId, buildingName || locality || '', year);
-                        if (attemptResult.rows.length > 0) {
-                            return this.saveBestMatch(attemptResult.rows, { buildingName, locality, searchQuery });
-                        }
-                    }
-                }
-            } catch (error: unknown) {
-                console.error('[IgrLiveFetchService] Browser automation error:', error);
-                if (attempt === MAX_RETRY_ATTEMPTS - 1) {
-                    return {
-                        success: false,
-                        error: `Browser automation failed after ${MAX_RETRY_ATTEMPTS} attempts: ${(error as Error).message}`,
-                        searchQuery,
-                    };
-                }
-            } finally {
-                await camoufox.closeTab(tabId);
+            // Select Region
+            let regionSelector = '';
+            if (region.toLowerCase().includes('mumbai')) {
+                regionSelector = 'input[value*="Mumbai"], #btnMumbai, input[id*="Mumbai"]';
+            } else if (region.toLowerCase().includes('urban')) {
+                regionSelector = 'input[value*="Urban"], #btnUrban, input[id*="Urban"]';
+            } else {
+                regionSelector = 'input[value*="Rest"], #btnRest, input[id*="Rest"]';
             }
 
-            await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
-        }
+            console.log(`[Locality] Selecting Region: "${region}"...`);
+            const regionClicked = await camoufox.evaluate<boolean>(tabId, `
+                (() => {
+                    const el = document.querySelector(${JSON.stringify(regionSelector)});
+                    if (el) {
+                        el.click();
+                        return true;
+                    }
+                    return false;
+                })()
+            `);
 
-        return {
-            success: false,
-            error: 'No matching IGR transactions found for the specified building/locality.',
-            searchQuery,
-            extracted: null,
-        };
+            if (regionClicked) {
+                console.log('[Locality] Clicked Region button, waiting for District dropdown (2.5s)...');
+                await new Promise((r) => setTimeout(r, 2500));
+            }
+
+            // Discover and map form elements dynamically
+            const selectors = await camoufox.evaluate<{
+                districtSelector: string;
+                talukaSelector: string;
+                villageSelector: string;
+                yearSelector: string;
+                propertyNumSelector: string;
+                captchaInputSelector: string;
+                captchaImgSelector: string;
+            }>(tabId, `
+                (() => {
+                    const selects = Array.from(document.querySelectorAll('select')).map(e => ({ id: e.id, name: e.name }));
+                    const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="password"]')).map(e => ({ id: e.id, name: e.name }));
+                    const images = Array.from(document.querySelectorAll('img')).map(e => ({ id: e.id, src: e.src }));
+
+                    const districtSelector = selects.find(s => s.id.toLowerCase().includes('district') || s.id.toLowerCase().includes('ddldist'))?.id 
+                        ? '#' + selects.find(s => s.id.toLowerCase().includes('district') || s.id.toLowerCase().includes('ddldist')).id 
+                        : '#ddlDistrict';
+
+                    const talukaSelector = selects.find(s => s.id.toLowerCase().includes('taluka') || s.id.toLowerCase().includes('ddltal') || s.id.toLowerCase().includes('tahsil'))?.id 
+                        ? '#' + selects.find(s => s.id.toLowerCase().includes('taluka') || s.id.toLowerCase().includes('ddltal') || s.id.toLowerCase().includes('tahsil')).id 
+                        : '#ddlTaluka';
+
+                    const villageSelector = selects.find(s => s.id.toLowerCase().includes('village') || s.id.toLowerCase().includes('ddlvil'))?.id 
+                        ? '#' + selects.find(s => s.id.toLowerCase().includes('village') || s.id.toLowerCase().includes('ddlvil')).id 
+                        : '#ddlVillage';
+
+                    const yearSelector = selects.find(s => s.id.toLowerCase().includes('year') || s.id.toLowerCase().includes('ddlyear'))?.id 
+                        ? '#' + selects.find(s => s.id.toLowerCase().includes('year') || s.id.toLowerCase().includes('ddlyear')).id 
+                        : '#ddlFromYear';
+
+                    const propertyNumSelector = inputs.find(i => i.id.toLowerCase().includes('attribute') || i.id.toLowerCase().includes('property') || i.id.toLowerCase().includes('txtprop') || i.id.toLowerCase().includes('survey'))?.id
+                        ? '#' + inputs.find(i => i.id.toLowerCase().includes('attribute') || i.id.toLowerCase().includes('property') || i.id.toLowerCase().includes('txtprop') || i.id.toLowerCase().includes('survey')).id
+                        : '#txtAttributeValue';
+
+                    const captchaInputSelector = inputs.find(i => i.id.toLowerCase().includes('img') || i.id.toLowerCase().includes('captcha') || i.id.toLowerCase().includes('txtcap'))?.id
+                        ? '#' + inputs.find(i => i.id.toLowerCase().includes('img') || i.id.toLowerCase().includes('captcha') || i.id.toLowerCase().includes('txtcap')).id
+                        : '#txtImg';
+
+                    const captchaImgSelector = images.find(i => i.id.toLowerCase().includes('captcha') || i.src.toLowerCase().includes('captcha'))?.id
+                        ? '#' + images.find(i => i.id.toLowerCase().includes('captcha') || i.src.toLowerCase().includes('captcha')).id
+                        : '#imgCaptcha';
+
+                    return {
+                        districtSelector,
+                        talukaSelector,
+                        villageSelector,
+                        yearSelector,
+                        propertyNumSelector,
+                        captchaInputSelector,
+                        captchaImgSelector
+                    };
+                })()
+            `);
+
+            if (!selectors) {
+                return { success: false, error: 'Failed to auto-discover form elements on search page.', searchQuery };
+            }
+
+            const {
+                districtSelector,
+                villageSelector,
+                yearSelector,
+                propertyNumSelector,
+                captchaInputSelector,
+                captchaImgSelector
+            } = selectors;
+
+            console.log('[Form] Selecting District...');
+            await camoufox.evaluate<void>(tabId, `
+                (() => {
+                    const select = document.querySelector(${JSON.stringify(districtSelector)});
+                    if (!select) return;
+                    
+                    const targetDistrict = ${JSON.stringify(district)}.toLowerCase();
+                    const options = Array.from(select.options);
+                    const match = options.find(o => o.text.toLowerCase().includes(targetDistrict) || o.value.includes(targetDistrict)) || options[options.length - 1];
+                    
+                    if (match) {
+                        select.value = match.value;
+                        select.dispatchEvent(new Event('change', { bubbles: true }));
+                        if (typeof __doPostBack === 'function') {
+                            __doPostBack('ddlDistrict', '');
+                        }
+                    }
+                })()
+            `);
+            console.log('[Form] Waiting for District postback (2.5s)...');
+            await new Promise((r) => setTimeout(r, 2500));
+
+            // Select Village (single vs multiple dropdowns)
+            console.log('[Form] Selecting Village/Area...');
+            await camoufox.evaluate<void>(tabId, `
+                (() => {
+                    const selects = Array.from(document.querySelectorAll('select')).map(s => s.id);
+                    const geoSelects = selects.filter(id => id !== 'ddlFromYear' && id !== 'ddlDistrict');
+                    const targetVillage = ${JSON.stringify(village)}.toLowerCase();
+
+                    if (geoSelects.length === 1) {
+                        const areaFilter = document.querySelector('#txtAreaName');
+                        if (areaFilter) {
+                            areaFilter.value = ${JSON.stringify(village)};
+                            areaFilter.dispatchEvent(new Event('change', { bubbles: true }));
+                            if (typeof __doPostBack === 'function') {
+                                __doPostBack('txtAreaName', '');
+                            }
+                        }
+                    }
+                })()
+            `);
+            console.log('[Form] Waiting for Area Filter postback (2.5s)...');
+            await new Promise((r) => setTimeout(r, 2500));
+
+            // Set final selection for village, year and property number
+            const targetYear = new Date().getFullYear() - 1; // 2025/2024 to probe
+            console.log(`[Form] Setting final inputs (Year: ${targetYear}, PropNo: ${propertyNumber})...`);
+            await camoufox.evaluate<void>(tabId, `
+                (() => {
+                    const selects = Array.from(document.querySelectorAll('select')).map(s => s.id);
+                    const geoSelects = selects.filter(id => id !== 'ddlFromYear' && id !== 'ddlDistrict');
+                    if (geoSelects.length > 0) {
+                        const villageSelect = document.querySelector('#' + geoSelects[0]);
+                        if (villageSelect) {
+                            const opt = Array.from(villageSelect.options).find(o => o.text.toLowerCase().includes(${JSON.stringify(village)}.toLowerCase()) || o.value.toLowerCase().includes(${JSON.stringify(village)}.toLowerCase())) || villageSelect.options[villageSelect.options.length - 1];
+                            if (opt) {
+                                villageSelect.value = opt.value;
+                                villageSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                        }
+                    }
+
+                    const yearSelect = document.querySelector(${JSON.stringify(yearSelector)});
+                    if (yearSelect) {
+                        const opt = Array.from(yearSelect.options).find(o => o.text.includes(${JSON.stringify(targetYear.toString())}) || o.value.includes(${JSON.stringify(targetYear.toString())}));
+                        if (opt) {
+                            yearSelect.value = opt.value;
+                        }
+                    }
+
+                    const propInput = document.querySelector(${JSON.stringify(propertyNumSelector)});
+                    if (propInput) {
+                        propInput.value = ${JSON.stringify(propertyNumber)};
+                        propInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                })()
+            `);
+            await new Promise((r) => setTimeout(r, 1000));
+
+            // Captcha solving loop
+            while (!solved && attempt < maxRetries) {
+                attempt++;
+                console.log(`\n--- [CAPTCHA] Solve Attempt ${attempt}/${maxRetries} ---`);
+
+                const oldCaptchaSrc = await camoufox.evaluate<string>(tabId, `
+                    document.querySelector(${JSON.stringify(captchaImgSelector)})?.getAttribute('src') || ''
+                `);
+
+                let captchaText = '';
+                try {
+                    captchaText = await this.solveCaptchaOffline(tabId, captchaImgSelector);
+                } catch (err: any) {
+                    console.error('[CAPTCHA] OCR solver failed:', err.message);
+                    await camoufox.evaluate<void>(tabId, `
+                        document.querySelector(${JSON.stringify(captchaImgSelector)})?.click();
+                    `);
+                    await new Promise((r) => setTimeout(r, 2000));
+                    continue;
+                }
+
+                if (!captchaText || captchaText.length < 3) {
+                    console.log('[CAPTCHA] OCR returned invalid code. Refreshing...');
+                    await camoufox.evaluate<void>(tabId, `
+                        document.querySelector(${JSON.stringify(captchaImgSelector)})?.click();
+                    `);
+                    await new Promise((r) => setTimeout(r, 2000));
+                    continue;
+                }
+
+                console.log(`[CAPTCHA] Inputting solved code: "${captchaText}"`);
+                await camoufox.evaluate<void>(tabId, `
+                    (() => {
+                        const input = document.querySelector(${JSON.stringify(captchaInputSelector)});
+                        if (input) {
+                            input.value = ${JSON.stringify(captchaText)};
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    })()
+                `);
+                await new Promise((r) => setTimeout(r, 500));
+
+                console.log('[Form] Submitting search...');
+                await camoufox.evaluate<void>(tabId, `
+                    (() => {
+                        const btn = document.querySelector('#btnSearch') || document.querySelector('input[type="submit"][id*="Search"]');
+                        if (btn) btn.click();
+                    })()
+                `);
+
+                // Wait 4 seconds for AJAX response
+                await new Promise((r) => setTimeout(r, 4000));
+
+                const errorMsg = await camoufox.evaluate<string>(tabId, `
+                    (() => {
+                        const label = document.querySelector('[id*="lblerr"], [id*="lblError"], [id*="lblimg"], .alert-danger, .error-message');
+                        return label ? label.textContent.trim() : null;
+                    })()
+                `);
+
+                if (errorMsg && (errorMsg.toLowerCase().includes('captcha') || errorMsg.toLowerCase().includes('invalid') || errorMsg.includes('Correct'))) {
+                    console.log(`❌ [CAPTCHA] Server rejected captcha: "${errorMsg}". Retrying...`);
+                    
+                    console.log('[CAPTCHA] Waiting for new Captcha image to load...');
+                    let srcChanged = false;
+                    for (let t = 0; t < 10; t++) {
+                        const newSrc = await camoufox.evaluate<string>(tabId, `
+                            document.querySelector(${JSON.stringify(captchaImgSelector)})?.getAttribute('src') || ''
+                        `);
+                        if (newSrc && newSrc !== oldCaptchaSrc) {
+                            srcChanged = true;
+                            break;
+                        }
+                        await new Promise((r) => setTimeout(r, 500));
+                    }
+
+                    if (!srcChanged) {
+                        console.log('[CAPTCHA] Force refreshing Captcha image...');
+                        await camoufox.evaluate<void>(tabId, `
+                            document.querySelector(${JSON.stringify(captchaImgSelector)})?.click();
+                        `);
+                        await new Promise((r) => setTimeout(r, 2000));
+                    }
+                } else {
+                    console.log('✅ [CAPTCHA] Submission succeeded!');
+                    solved = true;
+                }
+            }
+
+            if (!solved) {
+                return { success: false, error: 'Failed to bypass CAPTCHA after max attempts.', searchQuery };
+            }
+
+            // Extract results
+            console.log('[Scraper] Parsing search results table...');
+            const rows = await this.extractResults(tabId);
+            if (rows.length === 0) {
+                return { success: false, error: 'No matching transaction records found on the portal.', searchQuery };
+            }
+
+            console.log(`🎉 [Scraper] Successfully extracted ${rows.length} records! Saving best match...`);
+            return this.saveBestMatch(rows, { buildingName, locality, searchQuery });
+
+        } catch (err: any) {
+            console.error('[IgrLiveFetchService] Error during fetchAndStore:', err.message);
+            return { success: false, error: `Live fetch failed: ${err.message}`, searchQuery };
+        } finally {
+            if (tabId) {
+                await camoufox.closeTab(tabId).catch(() => {});
+            }
+        }
     }
 
     private async saveBestMatch(
