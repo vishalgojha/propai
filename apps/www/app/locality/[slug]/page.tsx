@@ -156,6 +156,30 @@ export default async function Page({ params }: PageProps) {
             current requirements, price movement, and nearby bounce-off markets.
           </p>
         </div>
+        <div className="rounded-lg border border-[color:var(--border)] bg-[var(--bg-surface)] p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Browse by market belt</h2>
+              <p className="mt-1 text-[13px] text-[var(--text-secondary)]">
+                Jump to nearby localities brokers usually compare against {localityName}.
+              </p>
+            </div>
+            <Link href="/localities" className="text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--accent)] hover:underline">
+              Open locality directory
+            </Link>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {neighbours.map((market) => (
+              <Link
+                key={market.slug}
+                href={`/locality/${market.slug}`}
+                className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)] hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
+              >
+                {market.name}
+              </Link>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
