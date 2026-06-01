@@ -473,9 +473,28 @@ export const VaultView: React.FC = () => {
           </p>
           <p className="mt-1 text-[11px] text-[var(--text-muted)]">
             {tab === 'listings'
-              ? 'Listings you save or create through Pulse will appear here.'
-              : 'Buyer requirements you capture through Pulse will appear here.'}
+              ? 'Listings appear here when Pulse parses WhatsApp inventory or when a paid posting plan submits them manually.'
+              : 'Requirements appear here when Pulse parses buyer intent or when a paid posting plan submits them manually.'}
           </p>
+          <div className="mx-auto mt-4 max-w-2xl rounded-[14px] border border-[color:var(--border)] bg-[var(--bg)] px-4 py-3 text-left">
+            <p className="text-[11px] font-semibold text-[var(--text-primary)]">
+              Plan split
+            </p>
+            <div className="mt-2 grid gap-2 md:grid-cols-2">
+              <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Starter / 499</p>
+                <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
+                  Scan-only. It can read WhatsApp streams, but it does not open Vault manual posting.
+                </p>
+              </div>
+              <div className="rounded-[12px] border border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.06)] p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">1499 / 1999 paid plans</p>
+                <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
+                  Manual posting is available here. Add listings or requirements in one batch and push them into Vault.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="grid gap-2">

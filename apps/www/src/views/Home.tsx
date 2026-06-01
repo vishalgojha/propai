@@ -135,13 +135,13 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
 
   // Hydrate data from DB (No fallback mock listings allowed)
   useEffect(() => {
-    setLoading(true);
     if (initialListings && initialListings.length > 0) {
       setAllListings(initialListings);
       setListings(initialListings.slice(0, 15));
       setSelectedListing(initialListings[0]);
       setLoading(false);
     } else {
+      setLoading(true);
       // Dynamic client-side fetch from the actual API to pull seeded items
       getListings()
         .then(data => {
@@ -469,7 +469,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
   const avgAgeDisplay = avgAgeMinutes < 60 ? `${avgAgeMinutes} Mins` : `${Math.round(avgAgeMinutes / 60)} Hrs`;
 
   return (
-    <div className="min-h-screen pb-24 relative overflow-hidden select-none">
+    <div className="min-h-screen pb-24 relative overflow-hidden">
       
       {/* Decorative radial gradients */}
       <div className="absolute top-[10%] left-[-10%] w-[35rem] h-[35rem] bg-[var(--accent-glow)] rounded-full blur-[140px] opacity-70 pointer-events-none z-0" />
