@@ -5,7 +5,7 @@ import { MCP_CAPABILITIES } from "@/lib/mcp";
 export const metadata: Metadata = {
   title: "PropAI MCP | Private authenticated market intelligence interface",
   description:
-    "PropAI MCP is a secure authenticated interface for AI agents and brokers to query verified B2B broker WhatsApp network streams.",
+    "PropAI MCP is a secure authenticated interface for AI agents and brokers to query live B2B broker WhatsApp network streams.",
   alternates: {
     canonical: "https://www.propai.live/mcp",
   },

@@ -48,7 +48,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const title = `Property listings in ${localityName} - PropAI Pulse`;
-  const description = `Browse ${listingCount} live broker-verified listings and requirements in ${localityName}. Updated continuously. Rentals, sales, and more.`;
+  const description = `Browse ${listingCount} live broker group listings and requirements in ${localityName}. Updated continuously. Rentals, sales, and more.`;
 
   return {
     title,
@@ -98,7 +98,7 @@ export default async function Page({ params }: PageProps) {
     "@context": "https://schema.org",
     "@type": "ItemList",
     name: `Property listings in ${localityName}`,
-    description: `Live broker-verified listings in ${localityName}`,
+    description: `Live broker group listings in ${localityName}`,
     numberOfItems: listings.length,
     itemListElement: listings.slice(0, 10).map((item, index) => ({
       "@type": "ListItem",
@@ -313,7 +313,7 @@ export default async function Page({ params }: PageProps) {
             answer={
               faqAverageRent
                 ? `Recent 2 BHK rental signals in ${localityName} average around ${formatPriceShort(faqAverageRent)} per month, depending on furnishing, building grade, and exact lane.`
-                : `2 BHK rents in ${localityName} vary by building quality, furnishing, parking, and distance from transit. Live rent data is refreshed as new verified inventory appears.`
+                : `2 BHK rents in ${localityName} vary by building quality, furnishing, parking, and distance from transit. Live rent data is refreshed as new active inventory appears.`
             }
           />
           <FaqItem

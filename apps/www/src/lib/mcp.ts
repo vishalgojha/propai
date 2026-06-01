@@ -11,7 +11,7 @@ export const MCP_CAPABILITIES = [
 export const MCP_PUBLIC_TOOLS = [
   {
     name: "search_market_signals",
-    description: "Search verified broker broadcast streams with locality, intent, and freshness filters.",
+    description: "Search live broker broadcast streams with locality, intent, and freshness filters.",
   },
   {
     name: "get_locality_pulse",

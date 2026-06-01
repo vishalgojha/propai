@@ -111,10 +111,10 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
   
   // Dynamic parsed activity ticker data
   const [tickerItems, setTickerItems] = useState<string[]>([
-    "⚡ Parser verified 3 BHK Broker-Group listing in Bandra West • 12s ago",
+    "⚡ Active 3 BHK Broker-Group listing parsed in Bandra West • 12s ago",
     "⚡ Direct broker inventory updated in Juhu (₹2.1L/mo) • 48s ago",
     "⚡ 1 BHK executive deal parsed in Andheri West • 2m ago",
-    "⚡ Verified WhatsApp signal added for Powai Lake View • 5m ago"
+    "⚡ Real-time WhatsApp signal added for Powai Lake View • 5m ago"
   ]);
 
   // Analytics Canvas Ref
@@ -340,7 +340,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
             setChatStage('done');
             setChatMessages(prev => [...prev, { 
               sender: 'broker', 
-              text: `Success! Match found. Verified Broker ${activeBroker?.name || 'Rohan'} (${activeBroker?.agency || 'Bandra Property Group'}) has received your pre-qualification credentials and is preparing the direct walkthrough schedule. He will ping you on WhatsApp shortly!`, 
+              text: `Success! Match found. Professional Broker ${activeBroker?.name || 'Rohan'} (${activeBroker?.agency || 'Bandra Property Group'}) has received your pre-qualification credentials and is preparing the direct walkthrough schedule. He will ping you on WhatsApp shortly!`, 
               time: brokerTime 
             }]);
           } else {
@@ -510,7 +510,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
         </div>
         
         <h1 className="text-[44px] sm:text-[62px] font-black leading-[1.05] tracking-[-0.04em] text-[var(--text-primary)] font-display max-w-4xl mb-4">
-          Access verified broker <br />
+          Access direct broker <br />
           <span className="text-[var(--accent)] relative inline-block neon-text-glow min-w-[200px]">{rotatingWord}</span> <br className="hidden sm:inline" />
           Before they hit the portals.
         </h1>
@@ -654,7 +654,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
               <div className="lg:col-span-5 space-y-3 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-                    {selectedLocality ? `Locality: ${selectedLocality} (${listings.length})` : `All Verified Streams (${listings.length})`}
+                    {selectedLocality ? `Locality: ${selectedLocality} (${listings.length})` : `All Live Streams (${listings.length})`}
                   </div>
                   {selectedLocality && (
                     <button 
@@ -747,10 +747,10 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/3 pb-5">
                       <div className="flex items-center gap-2">
                         <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.15em] bg-[var(--accent-glow)] text-[var(--accent)] border border-[color:var(--accent-border)]">
-                          Verified Broker-Network {selectedListing.type}
+                          Direct Broker-Network {selectedListing.type}
                         </span>
                         <span className="px-2 py-1 rounded-full text-[9px] font-bold text-[var(--text-muted)] bg-[var(--bg-surface)]/80 flex items-center gap-1">
-                          <CheckCircle className="h-3 w-3 text-[var(--accent)]" /> Verified Signal
+                          <CheckCircle className="h-3 w-3 text-[var(--accent)]" /> Live Broadcast
                         </span>
                       </div>
                       
@@ -859,7 +859,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                 <div>
                   <h3 className="text-[20px] font-black tracking-tight text-[var(--text-primary)] font-display">AI Locality Signal Matrix</h3>
                   <p className="text-[13px] text-[var(--text-secondary)] mt-1.5 leading-relaxed">
-                    Interactive vector node cluster of high-speed B2B broker networks in Mumbai. Click on any neighborhood node to instantly filter corresponding verified live feeds.
+                    Interactive vector node cluster of high-speed B2B broker networks in Mumbai. Click on any neighborhood node to instantly filter corresponding active live feeds.
                   </p>
                 </div>
 
@@ -1176,7 +1176,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
               <div>
                 <h2 className="text-[20px] sm:text-[24px] font-black text-[var(--text-primary)] font-display">Transform the way you hunt rentals</h2>
                 <p className="mt-1 text-[13px] text-[var(--text-secondary)] leading-relaxed max-w-md">
-                  Ditch stale retail listing websites. Browse verified live streams, inspect direct broker group details, and connect with verified co-brokers immediately.
+                  Ditch stale retail listing websites. Browse live group streams, inspect direct broker group details, and connect with professional co-brokers immediately.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">

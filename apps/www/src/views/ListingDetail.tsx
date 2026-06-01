@@ -17,7 +17,7 @@ function buildDescription(listing: PublicListing): string {
   if (listing.furnishing) parts.push(`(${listing.furnishing})`);
   if (listing.area_sqft) parts.push(`${listing.area_sqft} sqft`);
   if (listing.availability) parts.push(`· ${listing.availability}`);
-  return parts.join(' ') || 'Verified property listing';
+  return parts.join(' ') || 'Direct broker listing';
 }
 
 export default function ListingDetail({ slug, initialListing = null }: { slug: string; initialListing?: PublicListing | null }) {

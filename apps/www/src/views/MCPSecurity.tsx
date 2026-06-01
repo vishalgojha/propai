@@ -37,7 +37,7 @@ export default function MCPSecurity() {
           <div className="mt-4 space-y-4 text-[14px] leading-7 text-[var(--text-secondary)]">
             <p>
               MCP requests are permissioned before any private tool runs. The goal is to give agents a safe path to
-              verified market intelligence without exposing the raw operating layer.
+              structured market intelligence without exposing the raw operating layer.
             </p>
             <p>
               The public docs are aligned with protected-resource metadata and OAuth-style discovery patterns, but the

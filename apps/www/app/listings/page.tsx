@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Direct Broker-Network Real Estate Listings | PropAI Pulse",
   description:
-    "Browse real-time property streams parsed directly from verified broker peer-to-peer WhatsApp communication channels. 100% authentic and fresh.",
+    "Browse real-time property streams parsed directly from professional broker peer-to-peer WhatsApp communication channels. 100% authentic and fresh.",
 };
 
 function firstQueryValue(value?: string | string[]) {
