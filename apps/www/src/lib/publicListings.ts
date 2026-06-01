@@ -635,7 +635,7 @@ function buildPublicListingTitle(input: {
   }
 
   if (sourceTitle && sourceTitle.length >= 12) {
-    const cleaned = sanitizeHeadline(sourceTitle);
+    const cleaned = sanitizeHeadline(sourceTitle, locality);
     if (cleaned.length >= 12 && !isNoisyHeadline(cleaned)) {
       return cleaned;
     }
@@ -644,14 +644,22 @@ function buildPublicListingTitle(input: {
   return 'Property Listing';
 }
 
-function sanitizeHeadline(value: string) {
-  return String(value || '')
+function sanitizeHeadline(value: string, locality?: string) {
+  let cleaned = String(value || '')
     .replace(/\b(?:\+?91[\s-]?)?[6-9]\d{9}\b/g, '')
     .replace(/\b(?:deposit|rent|sale|available|flexible|sqft|carpet|furnished|semi-furnished|unfurnished|contact|call|whatsapp|prefer|corporate|working|months?|month|months deposit)\b.*$/i, '')
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+,/g, ',')
-    .replace(/,+\s*$/g, '')
+    .replace(/[.,\s]+$/g, '')
     .trim();
+
+  if (locality) {
+    const escapedLocality = locality.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const regex = new RegExp(`[,\\s\\.\\-]+${escapedLocality}\\s*$`, 'i');
+    cleaned = cleaned.replace(regex, '').trim();
+  }
+
+  return cleaned;
 }
 
 function isNoisyHeadline(value: string) {

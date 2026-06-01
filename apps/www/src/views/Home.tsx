@@ -792,20 +792,13 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     </div>
 
                     {/* Direct Connect Action Area */}
-                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                    <div className="flex pt-2">
                       <button 
                         onClick={() => startBrokerChat(selectedListing)}
-                        className="flex-1 flex items-center justify-center gap-2.5 h-13 px-6 rounded-2xl bg-[var(--accent)] text-[var(--on-propai-green)] text-[12px] font-black uppercase tracking-[0.08em] shadow-[0_12px_24px_rgba(62,232,138,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all"
+                        className="w-full flex items-center justify-center gap-2.5 h-13 px-6 rounded-2xl bg-[var(--accent)] text-[var(--on-propai-green)] text-[12px] font-black uppercase tracking-[0.08em] shadow-[0_12px_24px_rgba(62,232,138,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all"
                       >
                         <MessageCircle className="h-4.5 w-4.5" />
                         <span>Connect & Negotiate Instantly</span>
-                      </button>
-                      <button 
-                        onClick={() => startBrokerChat(selectedListing)}
-                        className="flex items-center justify-center gap-2 h-13 px-6 rounded-2xl bg-[var(--bg-hover)]/40 hover:bg-[var(--bg-hover)]/70 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--text-primary)] active:scale-[0.98] transition-all"
-                      >
-                        <FileText className="h-4.5 w-4.5 text-blue-400" />
-                        <span>Off-Market Verification Sheet</span>
                       </button>
                     </div>
 
