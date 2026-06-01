@@ -83,6 +83,21 @@ function splitInlineUnits(line: string) {
     }
   }
 
+  const bhkMatches = [...line.matchAll(BHK_PATTERN_GLOBAL)];
+  if (bhkMatches.length >= 2) {
+    const repeatedBhkChunks = bhkMatches
+      .map((match, index) => {
+        const start = match.index ?? 0;
+        const end = bhkMatches[index + 1]?.index ?? line.length;
+        return line.slice(start, end).trim();
+      })
+      .filter(Boolean);
+
+    if (repeatedBhkChunks.length >= 2) {
+      return repeatedBhkChunks;
+    }
+  }
+
   return [line];
 }
 

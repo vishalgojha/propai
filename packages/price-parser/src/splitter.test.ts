@@ -46,6 +46,15 @@ describe('splitMultiListing', () => {
     ]);
   });
 
+  it('splits repeated bhk mentions that appear on the same line', () => {
+    const raw = 'Andheri West\n2BHK sale 1.2cr Andheri West 4BHK sale 2.5cr Andheri West';
+
+    expect(splitMultiListing(raw)).toEqual([
+      'Andheri West\n\n2BHK sale 1.2cr Andheri West\n',
+      'Andheri West\n\n4BHK sale 2.5cr Andheri West\n',
+    ]);
+  });
+
   it('splits floor-wise listings into separate records', () => {
     const raw = 'Raheja Classique, Andheri West\n4th floor 2BHK 1.2cr\n8th floor 2BHK 1.35cr\n12th floor 3BHK 1.9cr';
 
