@@ -342,7 +342,7 @@ export class WhatsAppClient {
                         this.isConnecting = false;
                         const statusCode = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode;
                         const replaced = this.isSessionReplaced(lastDisconnect?.error);
-                        const shouldReconnect = statusCode !== DisconnectReason.loggedOut && !replaced;
+                        const shouldReconnect = !replaced;
                         const disconnectReason = replaced
                             ? 'replaced'
                             : statusCode === DisconnectReason.loggedOut
@@ -363,13 +363,6 @@ export class WhatsAppClient {
                         console.warn(
                             `[WhatsAppClient] Connection closed for ${this.tenantId}:${this.label} (${disconnectReason}). autoReconnect=${shouldReconnect}`
                         );
-
-                        if (statusCode === DisconnectReason.loggedOut) {
-                            await this.storage.deleteSession?.({
-                                tenantId: this.tenantId,
-                                label: this.label,
-                            });
-                        }
 
                         if (replaced) {
                             this.reconnectAttempts = 0;

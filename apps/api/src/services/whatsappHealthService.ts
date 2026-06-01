@@ -707,7 +707,7 @@ export class WhatsAppHealthService {
                 const ageMs = Number.isFinite(updatedAtMs) ? Math.max(0, now - updatedAtMs) : Number.MAX_SAFE_INTEGER;
                 const sessionData = (row.session_data && typeof row.session_data === 'object') ? row.session_data as Record<string, unknown> : {};
                 const disconnectReason = String(sessionData.disconnectReason || '').trim().toLowerCase();
-                const autoReconnectBlocked = Boolean(sessionData.autoReconnectBlocked) || disconnectReason === 'replaced' || disconnectReason === 'logged_out';
+                const autoReconnectBlocked = Boolean(sessionData.autoReconnectBlocked) || disconnectReason === 'replaced';
                 const staleEnough = ageMs >= this.heartbeatReconnectAfterMs;
                 const canRecoverImmediately = dbStatus === 'disconnected' && !autoReconnectBlocked;
 
