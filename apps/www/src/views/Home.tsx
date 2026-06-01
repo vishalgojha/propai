@@ -884,37 +884,80 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                 >
                   <defs>
                     <radialGradient id="mapGlow" cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stopColor="rgba(62,232,138,0.15)" />
+                      <stop offset="0%" stopColor="rgba(62,232,138,0.22)" />
                       <stop offset="100%" stopColor="rgba(0,0,0,0)" />
                     </radialGradient>
+                    <linearGradient id="landGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="rgba(62,232,138,0.02)" />
+                      <stop offset="100%" stopColor="rgba(62,232,138,0.003)" />
+                    </linearGradient>
+                    <pattern id="radarGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+                      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255, 255, 255, 0.018)" strokeWidth="0.75"/>
+                      <circle cx="40" cy="0" r="1" fill="rgba(62, 232, 138, 0.12)"/>
+                    </pattern>
                   </defs>
 
-                  <rect width="100%" height="100%" fill="transparent" />
+                  {/* Grid System Background */}
+                  <rect width="100%" height="100%" fill="url(#radarGrid)" rx="16" />
                   
+                  {/* Subtle Coordinate Text at Edges */}
+                  <text x="15" y="20" fill="rgba(255,255,255,0.18)" fontSize="7" fontWeight="bold" fontFamily="monospace">LAT: 19.0760° N</text>
+                  <text x="15" y="32" fill="rgba(255,255,255,0.18)" fontSize="7" fontWeight="bold" fontFamily="monospace">LON: 72.8777° E</text>
+                  <text x="480" y="20" fill="rgba(255,255,255,0.18)" fontSize="7" fontWeight="bold" fontFamily="monospace" textAnchor="end">SYS: ACTIVE</text>
+                  <text x="480" y="32" fill="rgba(255,255,255,0.18)" fontSize="7" fontWeight="bold" fontFamily="monospace" textAnchor="end">SCALE: 1:45,000</text>
+                  
+                  {/* Radar/Sonar Pulsing Sweep line across map */}
+                  <line x1="0" y1="225" x2="500" y2="225" stroke="rgba(62,232,138,0.035)" strokeWidth="1" strokeDasharray="5 5" className="animate-pulse" />
+                  <line x1="250" y1="0" x2="250" y2="450" stroke="rgba(62,232,138,0.035)" strokeWidth="1" strokeDasharray="5 5" className="animate-pulse" />
+
                   {hoveredLocality && (
                     <circle 
                       cx={hoveredLocality.x} 
                       cy={hoveredLocality.y} 
-                      r="120" 
+                      r="130" 
                       fill="url(#mapGlow)" 
-                      className="transition-all duration-300 pointer-events-none" 
+                      className="transition-all duration-300 pointer-events-none animate-pulse" 
                     />
                   )}
 
+                  {/* Organic glowing Mumbai Coastline landmass */}
+                  {/* Blurred Back-Glow Coastline */}
                   <path 
-                    d="M 120 40 Q 150 70 170 120 T 190 200 T 210 260 T 230 320 T 250 400 L 260 420 L 210 420 Q 170 360 150 300 T 110 210 T 80 150 Z" 
-                    fill="rgba(255,255,255,0.015)" 
-                    stroke="rgba(255,255,255,0.03)" 
-                    strokeWidth="2" 
-                    strokeDasharray="4 2" 
+                    d="M 90 20 C 100 60, 80 100, 100 130 C 110 150, 130 160, 130 190 C 130 210, 150 240, 160 270 C 170 300, 190 320, 195 340 C 200 360, 180 390, 190 430 L 225 430 C 230 390, 240 370, 240 340 C 240 310, 230 280, 220 250 C 210 220, 230 190, 250 160 C 270 130, 280 100, 290 50 Z" 
+                    fill="url(#landGrad)" 
+                    stroke="rgba(62, 232, 138, 0.14)" 
+                    strokeWidth="6" 
+                    className="opacity-40 blur-[4px] pointer-events-none"
+                  />
+                  {/* Sharp Front Coastline */}
+                  <path 
+                    d="M 90 20 C 100 60, 80 100, 100 130 C 110 150, 130 160, 130 190 C 130 210, 150 240, 160 270 C 170 300, 190 320, 195 340 C 200 360, 180 390, 190 430 L 225 430 C 230 390, 240 370, 240 340 C 240 310, 230 280, 220 250 C 210 220, 230 190, 250 160 C 270 130, 280 100, 290 50 Z" 
+                    fill="transparent" 
+                    stroke="rgba(62, 232, 138, 0.28)" 
+                    strokeWidth="1.75" 
+                    strokeDasharray="1 1"
+                    className="pointer-events-none"
                   />
 
-                  <path 
-                    d="M 130 80 L 140 150 L 180 220 L 210 310 L 230 360 L 330 250 L 320 130 L 130 80 M 180 220 L 330 250 M 140 150 L 320 130" 
-                    fill="none" 
-                    stroke="rgba(62, 232, 138, 0.04)" 
-                    strokeWidth="1.5" 
-                  />
+                  {/* Neural Coordinate Network Grid (Physical/Logical commute matching rails) */}
+                  {/* Western Line: Juhu - Andheri West */}
+                  <line x1="140" y1="150" x2="130" y2="80" stroke="rgba(62, 232, 138, 0.12)" strokeWidth="1" strokeDasharray="3 3" />
+                  {/* Western Line: Juhu - Bandra West */}
+                  <line x1="140" y1="150" x2="180" y2="220" stroke="rgba(62, 232, 138, 0.12)" strokeWidth="1" strokeDasharray="3 3" />
+                  {/* Western Line: Bandra West - Worli */}
+                  <line x1="180" y1="220" x2="210" y2="310" stroke="rgba(62, 232, 138, 0.12)" strokeWidth="1.25" strokeDasharray="3 3" />
+                  {/* Western Line: Worli - Lower Parel */}
+                  <line x1="210" y1="310" x2="230" y2="360" stroke="rgba(62, 232, 138, 0.12)" strokeWidth="1.25" strokeDasharray="3 3" />
+                  
+                  {/* Central-Eastern Line: Andheri West - Powai */}
+                  <line x1="130" y1="80" x2="320" y2="130" stroke="rgba(62, 232, 138, 0.1)" strokeWidth="1" strokeDasharray="4 4" />
+                  {/* Central-Eastern Line: Powai - Chembur */}
+                  <line x1="320" y1="130" x2="330" y2="250" stroke="rgba(62, 232, 138, 0.12)" strokeWidth="1.25" strokeDasharray="3 3" />
+                  {/* Central-Eastern Line: Chembur - Lower Parel */}
+                  <line x1="330" y1="250" x2="230" y2="360" stroke="rgba(62, 232, 138, 0.1)" strokeWidth="1" strokeDasharray="4 4" />
+                  
+                  {/* Northern Line: Thane West - Powai */}
+                  <line x1="420" y1="60" x2="320" y2="130" stroke="rgba(62, 232, 138, 0.12)" strokeWidth="1" strokeDasharray="3 3" />
 
                   {MAP_LOCALITIES.map((loc) => {
                     const isHovered = hoveredLocality?.id === loc.id;
