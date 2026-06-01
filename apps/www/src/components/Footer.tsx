@@ -7,8 +7,47 @@ export default async function Footer() {
   return (
     <footer className="border-t border-white/3 bg-[var(--bg-surface)]/40 backdrop-blur-md pt-12 pb-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-5">
-        {/* Top row: brand + quick links */}
-        <div className="grid grid-cols-1 gap-8 border-b border-white/3 pb-10 sm:grid-cols-2 lg:grid-cols-4">
+        
+        {/* Relational locality grid: placed at the top of the footer */}
+        {cities.length > 0 && (
+          <div className="border-b border-white/3 pb-10">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Related markets</h2>
+                <p className="mt-2 text-[13px] text-[var(--text-secondary)]">Flat locality rails with live counts and bounce-off links.</p>
+              </div>
+            </div>
+            <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-4">
+              {cities.map((cityGroup) => (
+                <div key={cityGroup.city}>
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">{cityGroup.city}</h3>
+                  <div className="mt-3 space-y-1.5">
+                    {cityGroup.localities.slice(0, 8).map((loc) => (
+                      <Link
+                        key={loc.slug}
+                        href={`/listings?locality=${encodeURIComponent(loc.name)}`}
+                        className="flex items-center justify-between gap-3 rounded-[14px] px-3 py-2.5 transition-colors hover:bg-[var(--bg-elevated)]"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-semibold text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors">
+                            {loc.name}
+                          </p>
+                          <p className="text-[11px] text-[var(--text-secondary)]">{loc.count} live item{loc.count === 1 ? '' : 's'}</p>
+                        </div>
+                        <span className="shrink-0 rounded-full border border-white/3 bg-[var(--bg-base)]/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                          Open
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Brand + quick links: placed at the bottom of the footer (above copyright) */}
+        <div className="grid grid-cols-1 gap-8 pt-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-[18px] font-bold tracking-tighter text-[var(--accent)]">PropAI</span>
@@ -49,44 +88,6 @@ export default async function Footer() {
             </ul>
           </div>
         </div>
-
-        {/* Bottom row: relational locality grid */}
-        {cities.length > 0 && (
-          <div className="pt-12">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Related markets</h2>
-                <p className="mt-2 text-[13px] text-[var(--text-secondary)]">Flat locality rails with live counts and bounce-off links.</p>
-              </div>
-            </div>
-            <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-4">
-              {cities.map((cityGroup) => (
-                <div key={cityGroup.city}>
-                  <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">{cityGroup.city}</h3>
-                  <div className="mt-3 space-y-1.5">
-                    {cityGroup.localities.slice(0, 8).map((loc) => (
-                      <Link
-                        key={loc.slug}
-                        href={`/listings?locality=${encodeURIComponent(loc.name)}`}
-                        className="flex items-center justify-between gap-3 rounded-[14px] px-3 py-2.5 transition-colors hover:bg-[var(--bg-elevated)]"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-[13px] font-semibold text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors">
-                            {loc.name}
-                          </p>
-                          <p className="text-[11px] text-[var(--text-secondary)]">{loc.count} live item{loc.count === 1 ? '' : 's'}</p>
-                        </div>
-                        <span className="shrink-0 rounded-full border border-white/3 bg-[var(--bg-base)]/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                          Open
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div className="mt-14 border-t border-white/3 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-[11px] text-[var(--text-muted)]">
