@@ -3,7 +3,7 @@ import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
-import { AlertTriangleIcon, CheckCircleIcon, LoaderIcon, RefreshIcon, ShieldIcon, SmartphoneIcon, CreditCardIcon, LogoutIcon, ArrowRightIcon, GroupsIcon, SearchIcon, WorkflowIcon } from '../lib/icons';
+import { AlertTriangleIcon, BotIcon, CheckCircleIcon, CopyIcon, LinkIcon, LoaderIcon, MailIcon, RefreshIcon, ShieldIcon, SmartphoneIcon, CreditCardIcon, LogoutIcon, SparklesIcon, TrashIcon, ArrowRightIcon, GroupsIcon, SearchIcon, WorkflowIcon, CheckIcon } from '../lib/icons';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 type WorkspaceRecord = {
@@ -75,6 +75,24 @@ type ImpersonationSession = {
   expiresAt: number;
 };
 
+type ScoutStatus = 'draft' | 'needs_review' | 'approved' | 'sent' | 'discarded';
+type ScoutChannel = 'email' | 'dm' | 'comment' | 'partnership';
+type ScoutLead = {
+  id: string;
+  title: string;
+  source: string;
+  sourceUrl: string;
+  context: string;
+  angle: string;
+  draft: string;
+  channel: ScoutChannel;
+  status: ScoutStatus;
+  priority: 'high' | 'medium' | 'low';
+  createdAt: number;
+  updatedAt: number;
+  notes?: string;
+};
+
 const formatDate = (value?: string | number | null) =>
   value ? new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : 'Not set';
 
@@ -84,10 +102,57 @@ const adminSecondaryButton =
   'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-all hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)]';
 const adminPill =
   'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em]';
+const scoutStorageKey = 'propai.super-admin.scout-queue.v1';
+
+const scoutSeedData: ScoutLead[] = [
+  {
+    id: 'scout-thane-pricing',
+    title: 'Thane market discussion',
+    source: 'r/Mumbai',
+    sourceUrl: 'https://reddit.com/r/mumbai',
+    context: 'People are comparing Thane West and nearby micro-markets for current rent and sale levels.',
+    angle: 'Offer a clean locality pulse with live inventory trends and a public-safe market page',
+    draft: 'Hi, I saw the discussion on Thane pricing. PropAI Pulse has a public locality page and a broker-safe market view that can help readers compare current activity without exposing private data. If you want, I can share a short chart or summary.',
+    channel: 'comment',
+    status: 'needs_review',
+    priority: 'high',
+    createdAt: Date.now() - 1000 * 60 * 60 * 6,
+    updatedAt: Date.now() - 1000 * 60 * 60 * 2,
+    notes: 'Useful for Google/AI visibility and local authority signals.',
+  },
+  {
+    id: 'scout-bandra-off-market',
+    title: 'Bandra off-market thread',
+    source: 'Broker newsletter',
+    sourceUrl: 'https://propai.live/locality/bandra-west',
+    context: 'An editor is asking for off-market Bandra inventory with proper locality context.',
+    angle: 'Share a public-safe market snapshot and invite access to the broker workflow',
+    draft: 'Hi, we track off-market broker signals in Bandra West and nearby belts. PropAI Pulse turns WhatsApp inventory into a clean locality-first view, and the public pages can support a market story. Happy to share a short summary if useful.',
+    channel: 'email',
+    status: 'draft',
+    priority: 'medium',
+    createdAt: Date.now() - 1000 * 60 * 60 * 24,
+    updatedAt: Date.now() - 1000 * 60 * 60 * 24,
+  },
+  {
+    id: 'scout-mcp-discovery',
+    title: 'AI search / MCP mention',
+    source: 'Tech blog',
+    sourceUrl: 'https://propai.live/mcp/docs',
+    context: 'Someone is writing about AI assistants and searchable property data.',
+    angle: 'Link to public docs and the locality index, not to private broker data',
+    draft: 'Hi, PropAI Pulse publishes public docs for AI assistants and a clean locality index for crawlers. The private MCP server stays permissioned, but the public documentation explains the concept clearly. If helpful, we can share the public-safe overview.',
+    channel: 'email',
+    status: 'approved',
+    priority: 'low',
+    createdAt: Date.now() - 1000 * 60 * 60 * 42,
+    updatedAt: Date.now() - 1000 * 60 * 60 * 5,
+  },
+];
 
 export const Admin: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = React.useState<'overview' | 'partners' | 'groups' | 'audit' | 'system'>('overview');
+  const [activeTab, setActiveTab] = React.useState<'overview' | 'partners' | 'groups' | 'audit' | 'system' | 'scout'>('overview');
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -110,7 +175,52 @@ export const Admin: React.FC = () => {
   const [impersonations, setImpersonations] = React.useState<ImpersonationSession[]>([]);
   const [auditLog, setAuditLog] = React.useState<AuditEvent[]>([]);
 
+  // Scout queue
+  const [scoutQueue, setScoutQueue] = React.useState<ScoutLead[]>(scoutSeedData);
+  const [scoutFilter, setScoutFilter] = React.useState<'all' | ScoutStatus>('all');
+  const [scoutSelectedId, setScoutSelectedId] = React.useState<string>(scoutSeedData[0]?.id || '');
+  const [scoutHydrated, setScoutHydrated] = React.useState(false);
+  const [scoutDraft, setScoutDraft] = React.useState({
+    title: '',
+    source: '',
+    sourceUrl: '',
+    context: '',
+    angle: '',
+    draft: '',
+    channel: 'email' as ScoutChannel,
+    priority: 'medium' as ScoutLead['priority'],
+  });
+
   const isSuperAdmin = user?.appRole === 'super_admin';
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(scoutStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as ScoutLead[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setScoutQueue(parsed);
+          setScoutSelectedId((current) => current || parsed[0].id);
+        }
+      }
+    } catch (readErr) {
+      console.error('Failed to restore scout queue', readErr);
+    } finally {
+      setScoutHydrated(true);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!scoutHydrated || typeof window === 'undefined') return;
+    window.localStorage.setItem(scoutStorageKey, JSON.stringify(scoutQueue));
+  }, [scoutQueue, scoutHydrated]);
+
+  React.useEffect(() => {
+    if (!scoutSelectedId && scoutQueue.length > 0) {
+      setScoutSelectedId(scoutQueue[0].id);
+    }
+  }, [scoutSelectedId, scoutQueue]);
 
   const loadAdminData = React.useCallback(async (page = 1) => {
     setIsLoading(true);
@@ -263,6 +373,93 @@ export const Admin: React.FC = () => {
     }
   };
 
+  const scoutFiltered = React.useMemo(
+    () => scoutQueue.filter((lead) => (scoutFilter === 'all' ? true : lead.status === scoutFilter)),
+    [scoutQueue, scoutFilter],
+  );
+  const selectedScoutLead = React.useMemo(() => {
+    const current = scoutQueue.find((lead) => lead.id === scoutSelectedId);
+    return current || scoutQueue[0] || null;
+  }, [scoutQueue, scoutSelectedId]);
+
+  const persistScoutLead = React.useCallback((leadId: string, patch: Partial<ScoutLead>) => {
+    setScoutQueue((current) =>
+      current.map((lead) =>
+        lead.id === leadId
+          ? { ...lead, ...patch, updatedAt: Date.now() }
+          : lead,
+      ),
+    );
+  }, []);
+
+  const addScoutDraft = () => {
+    setError(null);
+    if (!scoutDraft.title.trim() || !scoutDraft.source.trim() || !scoutDraft.draft.trim()) {
+      setError('Scout draft needs a title, source, and pitch before it can be added.');
+      return;
+    }
+    const next: ScoutLead = {
+      id: `scout-${Date.now()}`,
+      title: scoutDraft.title.trim(),
+      source: scoutDraft.source.trim(),
+      sourceUrl: scoutDraft.sourceUrl.trim(),
+      context: scoutDraft.context.trim(),
+      angle: scoutDraft.angle.trim(),
+      draft: scoutDraft.draft.trim(),
+      channel: scoutDraft.channel,
+      status: 'needs_review',
+      priority: scoutDraft.priority,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    setScoutQueue((current) => [next, ...current]);
+    setScoutSelectedId(next.id);
+    setScoutDraft({
+      title: '',
+      source: '',
+      sourceUrl: '',
+      context: '',
+      angle: '',
+      draft: '',
+      channel: 'email',
+      priority: 'medium',
+    });
+  };
+
+  const generateScoutDraft = () => {
+    if (!selectedScoutLead) return;
+    const sourceLine = selectedScoutLead.sourceUrl ? `Reference: ${selectedScoutLead.sourceUrl}` : `Source: ${selectedScoutLead.source}`;
+    const safePitch = [
+      `Hi, I saw your piece on ${selectedScoutLead.title}.`,
+      selectedScoutLead.context,
+      `PropAI Pulse can share a public-safe market summary, locality page, or broker workflow context without exposing private broker data.`,
+      selectedScoutLead.angle,
+      sourceLine,
+      'If useful, I can send a short note or data snapshot that fits your audience.',
+    ]
+      .filter(Boolean)
+      .join(' ');
+    persistScoutLead(selectedScoutLead.id, { draft: safePitch, status: 'needs_review' });
+  };
+
+  const copyScoutDraft = async (lead: ScoutLead) => {
+    await navigator.clipboard.writeText(lead.draft);
+  };
+
+  const removeScoutLead = (leadId: string) => {
+    setScoutQueue((current) => {
+      const nextQueue = current.filter((lead) => lead.id !== leadId);
+      if (scoutSelectedId === leadId) {
+        setScoutSelectedId(nextQueue[0]?.id || '');
+      }
+      return nextQueue;
+    });
+  };
+
+  const markScoutStatus = (leadId: string, status: ScoutStatus) => {
+    persistScoutLead(leadId, { status });
+  };
+
   if (!isSuperAdmin) {
     return (
       <div className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-8">
@@ -315,6 +512,7 @@ export const Admin: React.FC = () => {
           { id: 'overview', label: 'Overview' },
           { id: 'partners', label: 'Partners & Billing' },
           { id: 'groups', label: 'Group Directory' },
+          { id: 'scout', label: 'Scout' },
           { id: 'audit', label: 'Audit Log' },
           { id: 'system', label: 'System & Sessions' },
         ].map((tab) => (
@@ -588,6 +786,419 @@ export const Admin: React.FC = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── SCOUT ───────────────────────────────────────────────────────────── */}
+      {activeTab === 'scout' && (
+        <div className="space-y-6">
+          <div className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5 md:p-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div className="max-w-3xl">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
+                  <BotIcon className="h-3.5 w-3.5" />
+                  Private scout queue
+                </div>
+                <h3 className="mt-4 text-[22px] font-bold tracking-[-0.03em] text-[var(--text-primary)] md:text-[28px]">
+                  Draft outreach, review it, then decide.
+                </h3>
+                <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
+                  This is a human-in-the-loop growth workspace. It surfaces useful targets, drafts a pitch, and leaves the final send decision to you.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.08em]">
+                <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>{scoutQueue.length} leads</span>
+                <span className={cn(adminPill, 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]')}>Human review only</span>
+                <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>No auto-post</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[1.45fr_1fr]">
+            <div className="space-y-4">
+              <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h4 className="text-[14px] font-bold text-[var(--text-primary)]">Add a new scout draft</h4>
+                    <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Paste a target, context, and pitch. The item lands in review, never auto-sends.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.08em]">
+                    <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>Email / DM / comment</span>
+                    <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>PR / outreach / partnership</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <input
+                    value={scoutDraft.title}
+                    onChange={(e) => setScoutDraft((curr) => ({ ...curr, title: e.target.value }))}
+                    placeholder="Target title"
+                    className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                  />
+                  <input
+                    value={scoutDraft.source}
+                    onChange={(e) => setScoutDraft((curr) => ({ ...curr, source: e.target.value }))}
+                    placeholder="Source / publication"
+                    className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                  />
+                  <input
+                    value={scoutDraft.sourceUrl}
+                    onChange={(e) => setScoutDraft((curr) => ({ ...curr, sourceUrl: e.target.value }))}
+                    placeholder="Target URL (optional)"
+                    className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)] md:col-span-2"
+                  />
+                  <select
+                    value={scoutDraft.channel}
+                    onChange={(e) => setScoutDraft((curr) => ({ ...curr, channel: e.target.value as ScoutChannel }))}
+                    className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                  >
+                    <option value="email">Email</option>
+                    <option value="dm">DM</option>
+                    <option value="comment">Comment</option>
+                    <option value="partnership">Partnership</option>
+                  </select>
+                  <select
+                    value={scoutDraft.priority}
+                    onChange={(e) => setScoutDraft((curr) => ({ ...curr, priority: e.target.value as ScoutLead['priority'] }))}
+                    className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                  >
+                    <option value="high">High priority</option>
+                    <option value="medium">Medium priority</option>
+                    <option value="low">Low priority</option>
+                  </select>
+                </div>
+
+                <textarea
+                  value={scoutDraft.context}
+                  onChange={(e) => setScoutDraft((curr) => ({ ...curr, context: e.target.value }))}
+                  rows={3}
+                  placeholder="Observed context"
+                  className="mt-3 w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                />
+                <textarea
+                  value={scoutDraft.angle}
+                  onChange={(e) => setScoutDraft((curr) => ({ ...curr, angle: e.target.value }))}
+                  rows={2}
+                  placeholder="Suggested angle"
+                  className="mt-3 w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                />
+                <textarea
+                  value={scoutDraft.draft}
+                  onChange={(e) => setScoutDraft((curr) => ({ ...curr, draft: e.target.value }))}
+                  rows={5}
+                  placeholder="Draft pitch"
+                  className="mt-3 w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                />
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" onClick={addScoutDraft} className={adminPrimaryButton}>
+                    <SparklesIcon className="h-3.5 w-3.5" />
+                    Add to review queue
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScoutDraft({
+                        title: '',
+                        source: '',
+                        sourceUrl: '',
+                        context: '',
+                        angle: '',
+                        draft: '',
+                        channel: 'email',
+                        priority: 'medium',
+                      });
+                    }}
+                    className={adminSecondaryButton}
+                  >
+                    Clear form
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h4 className="text-[14px] font-bold text-[var(--text-primary)]">Review queue</h4>
+                    <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Review, edit, approve, or discard before anything is sent.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(['all', 'draft', 'needs_review', 'approved', 'sent', 'discarded'] as const).map((status) => (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => setScoutFilter(status)}
+                        className={cn(
+                          adminSecondaryButton,
+                          'px-3 py-2 text-[10px]',
+                          scoutFilter === status && 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]',
+                        )}
+                      >
+                        {status === 'all' ? 'All' : status.replace(/_/g, ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {scoutFiltered.length === 0 ? (
+                    <div className="rounded-[14px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-8 text-center text-[13px] text-[var(--text-secondary)]">
+                      No scout drafts in this filter. Add one from the form above.
+                    </div>
+                  ) : (
+                    scoutFiltered.map((lead) => {
+                      const isSelected = lead.id === scoutSelectedId;
+                      return (
+                        <button
+                          key={lead.id}
+                          type="button"
+                          onClick={() => setScoutSelectedId(lead.id)}
+                          className={cn(
+                            'w-full rounded-[16px] border p-4 text-left transition-all',
+                            isSelected
+                              ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)]/20 shadow-[0_0_0_1px_rgba(62,232,138,0.12)]'
+                              : 'border-[color:var(--border)] bg-[var(--bg-elevated)] hover:border-[color:var(--accent-border)]',
+                          )}
+                        >
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-[14px] font-bold text-[var(--text-primary)]">{lead.title}</p>
+                                <span className={cn(
+                                  adminPill,
+                                  lead.status === 'approved'
+                                    ? 'border-green-500/30 bg-green-500/10 text-green-400'
+                                    : lead.status === 'sent'
+                                      ? 'border-blue-500/30 bg-blue-500/10 text-blue-400'
+                                      : lead.status === 'discarded'
+                                        ? 'border-red-500/30 bg-red-500/10 text-red-400'
+                                        : 'border-[color:var(--border)] text-[var(--text-secondary)]',
+                                )}>
+                                  {lead.status.replace(/_/g, ' ')}
+                                </span>
+                                <span className={cn(
+                                  adminPill,
+                                  lead.priority === 'high'
+                                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                                    : 'border-[color:var(--border)] text-[var(--text-secondary)]',
+                                )}>
+                                  {lead.priority}
+                                </span>
+                              </div>
+                              <p className="mt-2 text-[12px] text-[var(--text-secondary)]">
+                                {lead.source}
+                                {lead.sourceUrl ? (
+                                  <a
+                                    href={lead.sourceUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="ml-2 inline-flex items-center gap-1 text-[var(--accent)] hover:underline"
+                                    onClick={(event) => event.stopPropagation()}
+                                  >
+                                    <LinkIcon className="h-3 w-3" />
+                                    Open source
+                                  </a>
+                                ) : null}
+                              </p>
+                              <p className="mt-2 text-[12px] leading-6 text-[var(--text-secondary)]">{lead.context}</p>
+                              <p className="mt-2 text-[11px] leading-6 text-[var(--text-muted)]">{lead.angle}</p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void copyScoutDraft(lead);
+                                }}
+                                className={adminSecondaryButton}
+                              >
+                                <CopyIcon className="h-3.5 w-3.5" />
+                                Copy
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  markScoutStatus(lead.id, 'approved');
+                                }}
+                                className={adminSecondaryButton}
+                              >
+                                <CheckIcon className="h-3.5 w-3.5" />
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  removeScoutLead(lead.id);
+                                }}
+                                className={cn(adminSecondaryButton, 'text-red-300 hover:border-red-500/30 hover:bg-red-500/10')}
+                              >
+                                <TrashIcon className="h-3.5 w-3.5" />
+                                Discard
+                              </button>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4 sticky top-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-[14px] font-bold text-[var(--text-primary)]">Selected draft</h4>
+                    <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Edit this item before you approve or send it.</p>
+                  </div>
+                  {selectedScoutLead ? (
+                    <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>
+                      {selectedScoutLead.channel}
+                    </span>
+                  ) : null}
+                </div>
+
+                {selectedScoutLead ? (
+                  <div className="mt-4 space-y-3">
+                    <input
+                      value={selectedScoutLead.title}
+                      onChange={(e) => persistScoutLead(selectedScoutLead.id, { title: e.target.value })}
+                      className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                    />
+                    <input
+                      value={selectedScoutLead.source}
+                      onChange={(e) => persistScoutLead(selectedScoutLead.id, { source: e.target.value })}
+                      className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={selectedScoutLead.sourceUrl}
+                        onChange={(e) => persistScoutLead(selectedScoutLead.id, { sourceUrl: e.target.value })}
+                        className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                      />
+                      {selectedScoutLead.sourceUrl ? (
+                        <a
+                          href={selectedScoutLead.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={adminSecondaryButton}
+                        >
+                          <LinkIcon className="h-3.5 w-3.5" />
+                          Open
+                        </a>
+                      ) : null}
+                    </div>
+                    <textarea
+                      value={selectedScoutLead.context}
+                      onChange={(e) => persistScoutLead(selectedScoutLead.id, { context: e.target.value })}
+                      rows={3}
+                      className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                    />
+                    <textarea
+                      value={selectedScoutLead.angle}
+                      onChange={(e) => persistScoutLead(selectedScoutLead.id, { angle: e.target.value })}
+                      rows={2}
+                      className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                    />
+                    <textarea
+                      value={selectedScoutLead.draft}
+                      onChange={(e) => persistScoutLead(selectedScoutLead.id, { draft: e.target.value, status: 'needs_review' })}
+                      rows={8}
+                      className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                    />
+
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      <select
+                        value={selectedScoutLead.channel}
+                        onChange={(e) => persistScoutLead(selectedScoutLead.id, { channel: e.target.value as ScoutChannel })}
+                        className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                      >
+                        <option value="email">Email</option>
+                        <option value="dm">DM</option>
+                        <option value="comment">Comment</option>
+                        <option value="partnership">Partnership</option>
+                      </select>
+                      <select
+                        value={selectedScoutLead.priority}
+                        onChange={(e) => persistScoutLead(selectedScoutLead.id, { priority: e.target.value as ScoutLead['priority'] })}
+                        className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+                      >
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                      </select>
+                      <select
+                        value={selectedScoutLead.status}
+                        onChange={(e) => persistScoutLead(selectedScoutLead.id, { status: e.target.value as ScoutStatus })}
+                        className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)] sm:col-span-1"
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="needs_review">Needs review</option>
+                        <option value="approved">Approved</option>
+                        <option value="sent">Sent</option>
+                        <option value="discarded">Discarded</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={generateScoutDraft} className={adminSecondaryButton}>
+                        <SparklesIcon className="h-3.5 w-3.5" />
+                        Generate draft
+                      </button>
+                      <button type="button" onClick={() => markScoutStatus(selectedScoutLead.id, 'approved')} className={adminPrimaryButton}>
+                        <CheckIcon className="h-3.5 w-3.5" />
+                        Approve
+                      </button>
+                      <button type="button" onClick={() => markScoutStatus(selectedScoutLead.id, 'sent')} className={adminSecondaryButton}>
+                        <MailIcon className="h-3.5 w-3.5" />
+                        Mark sent
+                      </button>
+                      <button type="button" onClick={() => void copyScoutDraft(selectedScoutLead)} className={adminSecondaryButton}>
+                        <CopyIcon className="h-3.5 w-3.5" />
+                        Copy draft
+                      </button>
+                    </div>
+
+                    <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Review notes</p>
+                      <ul className="mt-3 space-y-2 text-[12px] leading-6 text-[var(--text-secondary)]">
+                        <li>• Keep approval human-led. This queue does not auto-send.</li>
+                        <li>• Use public-safe PropAI pages when linking out.</li>
+                        <li>• If the angle is thin, discard it before it reaches outreach.</li>
+                      </ul>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-[14px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-8 text-center text-[13px] text-[var(--text-secondary)]">
+                    No scout draft selected.
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                  <ShieldIcon className="h-3.5 w-3.5 text-[var(--accent)]" />
+                  Scout safeguards
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {[
+                    { label: 'Human review', copy: 'Every draft stops here until a super admin approves it.' },
+                    { label: 'No spam loop', copy: 'The module is for targeted PR and partnership drafts only.' },
+                    { label: 'Private context', copy: 'It stays inside the owner panel and does not expose private data.' },
+                    { label: 'Crawl safe', copy: 'Outbound references should point to public-safe pages only.' },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+                      <p className="text-[12px] font-semibold text-[var(--text-primary)]">{item.label}</p>
+                      <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">{item.copy}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

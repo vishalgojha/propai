@@ -16,6 +16,10 @@ export type LongTailIntent = {
 };
 
 export const LONGTAIL_INTENT_SLUGS = [
+  "rent",
+  "sale",
+  "price",
+  "reviews",
   "1-bhk-rent",
   "2-bhk-rent",
   "3-bhk-rent",
@@ -236,6 +240,51 @@ function getLongTailIntentBySlugFromPattern(slug: string): LongTailIntent {
   };
 }
 
-const FIXED_LONGTAIL_INTENTS: Record<string, LongTailIntent> = Object.fromEntries(
-  LONGTAIL_INTENT_SLUGS.map((slug) => [slug, getLongTailIntentBySlugFromPattern(slug)]),
-);
+const FIXED_LONGTAIL_INTENTS: Record<string, LongTailIntent> = {
+  "rent": {
+    slug: "rent",
+    label: "Properties for Rent",
+    deal: "rent",
+    bhkMin: null,
+    bhkMax: null,
+    assetHints: [],
+    requiresCommercial: false,
+    requirementOnly: false,
+  },
+  "sale": {
+    slug: "sale",
+    label: "Properties for Sale",
+    deal: "sale",
+    bhkMin: null,
+    bhkMax: null,
+    assetHints: [],
+    requiresCommercial: false,
+    requirementOnly: false,
+  },
+  "price": {
+    slug: "price",
+    label: "Market Prices and Trends",
+    deal: null,
+    bhkMin: null,
+    bhkMax: null,
+    assetHints: [],
+    requiresCommercial: false,
+    requirementOnly: false,
+  },
+  "reviews": {
+    slug: "reviews",
+    label: "Realtor Reviews and Insights",
+    deal: null,
+    bhkMin: null,
+    bhkMax: null,
+    assetHints: [],
+    requiresCommercial: false,
+    requirementOnly: false,
+  },
+  ...Object.fromEntries(
+    LONGTAIL_INTENT_SLUGS.filter((slug) => !["rent", "sale", "price", "reviews"].includes(slug)).map((slug) => [
+      slug,
+      getLongTailIntentBySlugFromPattern(slug),
+    ]),
+  ),
+};
