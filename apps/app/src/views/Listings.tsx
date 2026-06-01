@@ -384,6 +384,35 @@ const formatIgrCompact = (transaction: StreamItem['igrTransactions'][number]) =>
   return `${price} · ${date} · ${rate}`;
 };
 
+const summarizeIgrBuildingIntel = (buildingName?: string | null, transactions?: StreamItem['igrTransactions']) => {
+  const trimmedBuildingName = String(buildingName || '').trim();
+  const rows = Array.isArray(transactions) ? transactions.filter(Boolean) : [];
+  const latest = rows[0] || null;
+
+  if (!trimmedBuildingName && !latest) {
+    return null;
+  }
+
+  const latestRate = latest?.price_per_sqft != null && Number.isFinite(latest.price_per_sqft)
+    ? `₹${Math.round(latest.price_per_sqft).toLocaleString('en-IN')}/sqft`
+    : null;
+  const latestPrice = latest?.consideration != null && Number.isFinite(latest.consideration)
+    ? formatPriceNumeric(latest.consideration)
+    : null;
+  const latestDate = latest?.reg_date
+    ? new Date(latest.reg_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })
+    : null;
+
+  return {
+    title: trimmedBuildingName || latest?.building_name || 'Building intel',
+    subtitle: rows.length > 0
+      ? `${rows.length} recent registration${rows.length === 1 ? '' : 's'}`
+      : 'Awaiting transaction history',
+    latest: [latestPrice, latestDate, latestRate].filter(Boolean).join(' · ') || 'Latest registration not parsed yet',
+    locality: latest?.locality || null,
+  };
+};
+
 const buildCopyText = (item: StreamItem) => {
   const lines = [
     getRecordLabel(item),
@@ -1422,6 +1451,7 @@ if (brokerOnly) {
                     const rawNote = redactPhoneNumbers(listing.rawText || listing.description || '');
                     const cleanNote = stripHiddenLines(rawNote);
                     const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
+                    const buildingIntel = summarizeIgrBuildingIntel(listing.buildingName, listing.igrTransactions);
 
                     return (
                       <React.Fragment key={listing.id}>
@@ -1505,6 +1535,27 @@ if (brokerOnly) {
                               <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4">
                                 <div className="grid gap-3 md:grid-cols-2">
                                   <div className="space-y-3">
+                                    {buildingIntel ? (
+                                      <div className="rounded-[16px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]/30 p-4">
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">Building intel</p>
+                                        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+                                          <div className="min-w-0">
+                                            <p className="text-[14px] font-semibold text-[var(--text-primary)]">
+                                              {buildingIntel.title}
+                                            </p>
+                                            <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+                                              {buildingIntel.subtitle}
+                                              {buildingIntel.locality ? ` · ${buildingIntel.locality}` : ''}
+                                            </p>
+                                          </div>
+                                          <div className="text-right">
+                                            <p className="text-[11px] font-semibold text-[var(--text-primary)]">
+                                              {buildingIntel.latest}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : null}
                                     {listing.microLocation ? (
                                       <div>
                                         <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Micro Location</p>
