@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     ].filter(Boolean);
     const description = descriptionBits.length
       ? descriptionBits.join(" · ")
-      : `Off-market property in ${listing.locality}. Updated with real-time market intelligence.`;
+      : `Verified property listing in ${listing.locality} aggregated from private broker groups with real-time market intelligence.`;
     return {
       title,
       description,

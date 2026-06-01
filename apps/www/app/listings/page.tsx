@@ -5,9 +5,9 @@ import Listings from "@/pages/Listings";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Off-Market Real Estate Listings | PropAI Pulse",
+  title: "Direct Broker-Network Real Estate Listings | PropAI Pulse",
   description:
-    "Browse real-time off-market properties across India. Filter by locality, price, typology, and active market signal.",
+    "Browse real-time property streams parsed directly from verified broker peer-to-peer WhatsApp communication channels. 100% authentic and fresh.",
 };
 
 function firstQueryValue(value?: string | string[]) {

@@ -22,7 +22,7 @@ export default function MCPDocs() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
-          "search verified off-market signals",
+          "search live broker broadcasts",
           "inspect locality demand gaps",
           "query market pulse metrics",
           "analyze broker network activity",

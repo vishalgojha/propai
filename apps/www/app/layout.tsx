@@ -6,9 +6,9 @@ import ThemeProvider from "@/components/ThemeProvider";
 import "../src/index.css";
 
 export const metadata: Metadata = {
-  title: "PropAI Pulse | Real-Time Off-Market Real Estate",
+  title: "PropAI Pulse | Live Broker-Network Real Estate",
   description:
-    "Access India's off-market property inventory with real-time AI market signals across top localities.",
+    "Access India's direct broker-network property inventory, parsed in real-time from active professional WhatsApp groups with 100% authenticity.",
   metadataBase: new URL("https://www.propai.live"),
   manifest: "/manifest.webmanifest",
   appleWebApp: {

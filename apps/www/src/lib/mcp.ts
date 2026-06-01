@@ -1,7 +1,7 @@
 export const MCP_PUBLIC_DOCS_URL = "https://www.propai.live/mcp/docs";
 
 export const MCP_CAPABILITIES = [
-  "search verified off-market signals",
+  "search live broker broadcasts",
   "inspect locality demand gaps",
   "query market pulse metrics",
   "analyze broker network activity",
@@ -11,7 +11,7 @@ export const MCP_CAPABILITIES = [
 export const MCP_PUBLIC_TOOLS = [
   {
     name: "search_market_signals",
-    description: "Search verified off-market signals with locality, intent, and freshness filters.",
+    description: "Search verified broker broadcast streams with locality, intent, and freshness filters.",
   },
   {
     name: "get_locality_pulse",
@@ -66,7 +66,7 @@ export const MCP_SECURITY_POINTS = [
 
 export const MCP_MANIFEST = {
   name: "PropAI MCP",
-  description: "Private authenticated MCP interface for PropAI Pulse off-market real estate intelligence.",
+  description: "Private authenticated MCP interface for PropAI Pulse B2B broker network intelligence.",
   public_docs: MCP_PUBLIC_DOCS_URL,
   auth: "Supabase authentication required",
   access: "Private / permissioned",
