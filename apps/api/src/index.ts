@@ -86,6 +86,33 @@ function getSupabaseProjectRef() {
     }
 }
 
+function classifySupabaseHealthError(error: any) {
+    const code = String(error?.code || error?.statusCode || error?.status || '').trim();
+    const message = String(error?.message || '').toLowerCase();
+
+    if (code === '401' || code === '403' || message.includes('jwt') || message.includes('invalid api key') || message.includes('bad jwt')) {
+        return 'unauthorized';
+    }
+
+    if (
+        message.includes('enotfound')
+        || message.includes('eai_again')
+        || message.includes('econnreset')
+        || message.includes('econnrefused')
+        || message.includes('fetch failed')
+        || message.includes('network')
+        || message.includes('timeout')
+    ) {
+        return 'network';
+    }
+
+    if (code === '42P01' || message.includes('does not exist') || message.includes('schema cache')) {
+        return 'schema';
+    }
+
+    return code || 'unknown';
+}
+
 process.on('unhandledRejection', (reason) => {
     console.error('Unhandled promise rejection:', reason);
 });
@@ -223,7 +250,13 @@ app.get(ROUTE_PATHS.api.health, async (req, res) => {
         if (sbUrl && sbKey) {
             const sb = createClient(sbUrl, sbKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
             const { error } = await sb.from('whatsapp_sessions').select('id').limit(1);
-            health.database = error ? 'degraded' : 'connected';
+            if (error) {
+                health.database = 'degraded';
+                health.databaseReason = classifySupabaseHealthError(error);
+                health.databaseMessage = String(error.message || '').slice(0, 180);
+            } else {
+                health.database = 'connected';
+            }
         }
     } catch {
         health.database = 'unreachable';
