@@ -30,6 +30,7 @@ import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
 import { authMiddleware } from './middleware/authMiddleware';
+import { serverClientOptions } from './config/supabase';
 
 import { sessionManager } from './whatsapp/SessionManager';
 import { whatsappHealthService } from './services/whatsappHealthService';
@@ -165,7 +166,7 @@ app.get(ROUTE_PATHS.api.examplePrompts, async (req, res) => {
     if (!sbUrl || !sbKey) {
       return res.json({ prompts: staticFallback() });
     }
-    const sb = createClient(sbUrl, sbKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    const sb = createClient(sbUrl, sbKey, serverClientOptions);
     const [resData, comData] = await Promise.all([
       sb.from('stream_items_residential').select('bhk, locality, price_label, record_type, city').neq('record_type', 'buyer_requirement').not('bhk', 'is', null).not('locality', 'is', null).not('price_label', 'is', null).limit(20).order('created_at', { ascending: false }),
       sb.from('stream_items_commercial').select('bhk, locality, price_label, record_type, city').neq('record_type', 'buyer_requirement').not('bhk', 'is', null).not('locality', 'is', null).not('price_label', 'is', null).limit(20).order('created_at', { ascending: false }),
@@ -248,7 +249,7 @@ app.get(ROUTE_PATHS.api.health, async (req, res) => {
         const sbUrl = process.env.SUPABASE_URL || '';
         const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
         if (sbUrl && sbKey) {
-            const sb = createClient(sbUrl, sbKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+            const sb = createClient(sbUrl, sbKey, serverClientOptions);
             const { error } = await sb.from('whatsapp_sessions').select('id').limit(1);
             if (error) {
                 health.database = 'degraded';
