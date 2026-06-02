@@ -35,9 +35,9 @@
 ### Current Remote State
 
 - Latest local commits:
-  - `2484df4d` — `Refresh repo handoff instructions` (pushed)
-  - `fd1aa6e3` — `Add IGR enrichment queue and background trigger` (pushed)
-  - `0446e200` — `Remove WaBro Android app and port Base44 parser prompts` (pushed)
+  - `ee6f2568` — `Merge propai-ollama: add apps/ollama/Dockerfile for Coolify embedding service` (pushed)
+  - `efe76710` — `Clarify API health and login status` (pushed)
+  - `dca94f44` — `Add apps/ollama/Dockerfile for Coolify-deployed embedding service` (pushed)
 
 ### Operational Rules
 
@@ -70,3 +70,25 @@ For local dev, add to `apps/api/.env` and `apps/app/.env.local`.
 ### Supabase Dashboard
 
 - **Leaked Password Protection**: Requires Supabase **Pro Plan or higher** (free Plan does not include HaveIBeenPwned integration). Enable via Dashboard → Authentication → Settings → toggle ON.
+
+## Embedding Service (Ollama)
+
+`semantic_search` (MCP tool) and `semanticSearchListings` (API workflow) depend on a self-hosted Ollama server that produces 768-dim vectors consumed by the `match_listings` pgvector RPC.
+
+- **Coolify project**: `PropAi Pulse` (`cq4v70slt7on9vk2davp6f9q`)
+- **Coolify app**: `ollama` (UUID `f60zbro04gyeig7xnkvck0zr`)
+- **Endpoint**: `http://116.202.9.89:11434` (env var `HETZNER_EMBED_URL`, defaults match)
+- **Model**: `nomic-embed-text` (768-dim, F16, ~274 MB, nomic-bert family)
+- **Persistent volume**: `/data/coolify/applications/ollama-data/ollama` → container `/root/.ollama` (host fs_path bind mount, is_directory)
+- **Image**: `ollama/ollama:latest` (Dockerfile marker in `apps/ollama/Dockerfile`)
+- **Resource limits**: 2 GB RAM, 2 CPU, health check disabled (Ollama has no `GET /health`)
+- **Restart**: Coolify default `unless-stopped`
+
+### If Ollama goes down
+
+The API `/health` route now reports `embedding: unreachable|no_model|connected` and flips the overall status to `degraded` (HTTP 503). `semanticSearchListings` automatically falls back to keyword `searchListings` with a `_Note: ... used keyword search instead._` annotation in the reply.
+
+To recover:
+1. Coolify UI → PropAI Pulse → `ollama` → check status, redeploy if `exited`
+2. If the persistent volume is intact, the model survives — just restart
+3. If the model is gone (e.g. volume wiped), exec into the container and run `ollama pull nomic-embed-text` (or call `POST /api/pull` from the host)

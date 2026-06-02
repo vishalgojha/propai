@@ -262,8 +262,27 @@ app.get(ROUTE_PATHS.api.health, async (req, res) => {
         health.database = 'unreachable';
     }
 
+    // Check Ollama embedding service (powers semantic_search and embedStreamItem)
+    try {
+        const { checkEmbeddingHealth } = await import('./services/embeddingService');
+        const embHealth = await checkEmbeddingHealth();
+        if (embHealth.ok) {
+            health.embedding = 'connected';
+        } else if (embHealth.error && /not found|model/i.test(embHealth.error)) {
+            health.embedding = 'no_model';
+            health.embeddingError = embHealth.error;
+        } else {
+            health.embedding = 'unreachable';
+            health.embeddingError = embHealth.error;
+        }
+    } catch (e: any) {
+        health.embedding = 'unreachable';
+        health.embeddingError = e?.message || 'health check threw';
+    }
+
     const dbStatus = health.database as string | undefined;
-    if (dbStatus === 'unreachable' || dbStatus === 'degraded') {
+    const embStatus = health.embedding as string | undefined;
+    if (dbStatus === 'unreachable' || dbStatus === 'degraded' || embStatus === 'unreachable' || embStatus === 'no_model') {
         health.status = 'degraded';
         return res.status(503).json(health);
     }

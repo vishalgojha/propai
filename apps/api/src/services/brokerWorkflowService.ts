@@ -788,24 +788,36 @@ export class BrokerWorkflowService {
     }
 
     private async semanticSearchListings(tenantId: string, prompt: string): Promise<WorkflowResult> {
+        const noteAndMerge = async (fallback: WorkflowResult, reason: string, detail?: string): Promise<WorkflowResult> => {
+            const note = detail
+                ? `_Note: semantic search was unavailable (${detail}), used keyword search instead._`
+                : `_Note: semantic search was unavailable, used keyword search instead._`;
+            if (fallback.handled) {
+                return {
+                    handled: true,
+                    reply: `${fallback.reply}\n\n${note}`,
+                    data: { type: 'semantic_search_fallback', reason, detail, items: fallback.data },
+                };
+            }
+            return {
+                handled: true,
+                reply: `Semantic search is unavailable right now (${detail || reason}). Try a more specific query like "2BHK Bandra under 3Cr" and I will run a keyword search.`,
+                data: { type: 'semantic_search_fallback', reason, detail },
+            };
+        };
+
         try {
             const { generateEmbedding, checkEmbeddingHealth } = await import('../services/embeddingService');
             const health = await checkEmbeddingHealth();
             if (!health.ok) {
-                return {
-                    handled: true,
-                    reply: 'Semantic search is wired, but the embedding service is not reachable right now. I can still search saved CRM records by keyword.',
-                    data: { type: 'semantic_search_unavailable', reason: 'embedder_unavailable', detail: health.error },
-                };
+                const fallback = await this.searchListings(tenantId, prompt);
+                return await noteAndMerge(fallback, 'embedder_unavailable', health.error);
             }
 
             const embedding = await generateEmbedding(prompt);
             if (!embedding) {
-                return {
-                    handled: true,
-                    reply: 'Embedding generation failed. Try again or fall back to keyword search.',
-                    data: { type: 'semantic_search_unavailable', reason: 'embedding_failed' },
-                };
+                const fallback = await this.searchListings(tenantId, prompt);
+                return await noteAndMerge(fallback, 'embedding_failed');
             }
             const { data, error } = await this.admin.rpc('match_listings', {
                 query_embedding: embedding,
@@ -825,11 +837,8 @@ export class BrokerWorkflowService {
                 data: { type: 'semantic_search', items: data || [] },
             };
         } catch (e: any) {
-            return {
-                handled: true,
-                reply: `Semantic search is wired, but it could not run right now: ${e.message}`,
-                data: { type: 'semantic_search_failed' },
-            };
+            const fallback = await this.searchListings(tenantId, prompt);
+            return await noteAndMerge(fallback, 'semantic_failed', e.message);
         }
     }
 
