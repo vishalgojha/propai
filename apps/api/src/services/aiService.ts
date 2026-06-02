@@ -71,6 +71,18 @@ export class AIService {
     private openRouterModel = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
     private doublewordBaseURL = process.env.DOUBLEWORD_BASE_URL || 'https://api.doubleword.ai/v1';
     private doublewordModel = process.env.DOUBLEWORD_MODEL || 'Qwen/Qwen3.6-35B-A3B-FP8';
+    private readonly providerLogAt = new Map<string, number>();
+
+    private shouldLogProvider(key: string, cooldownMs: number) {
+        const now = Date.now();
+        const lastAt = this.providerLogAt.get(key) || 0;
+        if (now - lastAt < cooldownMs) {
+            return false;
+        }
+
+        this.providerLogAt.set(key, now);
+        return true;
+    }
 
     async chat(
         prompt: string,
@@ -101,9 +113,11 @@ export class AIService {
                             response.usage.promptTokens,
                             response.usage.completionTokens,
                         ),
-                    }).catch((usageError) => {
-                        console.error('[AIService] Failed to record AI usage', usageError);
-                    });
+                        }).catch((usageError) => {
+                            if (this.shouldLogProvider('record_usage_failed', 15 * 60_000)) {
+                                console.error('[AIService] Failed to record AI usage', usageError);
+                            }
+                        });
                 }
                 return {
                     ...response,
@@ -113,9 +127,11 @@ export class AIService {
                 const responseBody = error?.response?.data ? JSON.stringify(error.response.data).slice(0, 500) : '';
                 const message = error instanceof Error ? error.message : 'AI provider unavailable';
                 errors.push({ provider, message });
-                console.error(`AI Error with ${provider}, falling back...`, error);
-                if (responseBody) {
-                    console.error(`[${provider}] Response body:`, responseBody);
+                if (this.shouldLogProvider(`provider_error:${provider}`, 5 * 60_000)) {
+                    console.error(`AI Error with ${provider}, falling back...`, error);
+                    if (responseBody) {
+                        console.error(`[${provider}] Response body:`, responseBody);
+                    }
                 }
             }
         }
