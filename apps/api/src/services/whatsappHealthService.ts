@@ -137,6 +137,7 @@ export class WhatsAppHealthService {
     private heartbeatTimer: NodeJS.Timeout | null = null;
     private heartbeatRunning = false;
     private heartbeatLoopActive = false;
+    private readonly heartbeatLogAt = new Map<string, number>();
     private readonly heartbeatIntervalMs = Number(process.env.WHATSAPP_HEALTH_HEARTBEAT_MS || 2_500);
     private readonly heartbeatReconnectAfterMs = Number(process.env.WHATSAPP_HEALTH_RECONNECT_AFTER_MS || 5_000);
 
@@ -654,6 +655,17 @@ export class WhatsAppHealthService {
         await this.logEvent(tenantId, sessionLabel, eventType, message, metadata);
     }
 
+    private shouldLogHeartbeat(key: string, cooldownMs: number) {
+        const now = Date.now();
+        const lastAt = this.heartbeatLogAt.get(key) || 0;
+        if (now - lastAt < cooldownMs) {
+            return false;
+        }
+
+        this.heartbeatLogAt.set(key, now);
+        return true;
+    }
+
     private async runHeartbeatSweep(sessionManager: HeartbeatSessionManager) {
         if (this.heartbeatRunning) {
             return;
@@ -667,7 +679,9 @@ export class WhatsAppHealthService {
                 .not('tenant_id', 'is', null);
 
             if (error) {
-                console.warn('[WhatsAppHealthService] Heartbeat sweep could not load persisted sessions', error);
+                if (this.shouldLogHeartbeat('heartbeat_sweep_load_error', 5 * 60_000)) {
+                    console.warn('[WhatsAppHealthService] Heartbeat sweep could not load persisted sessions', error);
+                }
                 return;
             }
 
@@ -728,20 +742,22 @@ export class WhatsAppHealthService {
 
                 try {
                     const reconnectDelayMs = this.getHumanReconnectDelay(ageMs, Number(liveSession?.reconnectAttempts || row.session_data?.reconnectAttempts || 0));
-                    await this.appendEvent(
-                        tenantId,
-                        sessionLabel,
-                        'heartbeat_reconnect_attempt',
-                        `Heartbeat detected a stale WhatsApp session for ${sessionLabel}.`,
-                        {
-                            previousStatus: dbStatus,
-                            liveStatus: liveStatus || null,
-                            ageMs,
-                            disconnectReason: disconnectReason || null,
-                            autoReconnectBlocked,
-                            reconnectDelayMs,
-                        },
-                    );
+                    if (this.shouldLogHeartbeat(`heartbeat_reconnect_attempt:${tenantId}:${sessionLabel}`, 15 * 60_000)) {
+                        await this.appendEvent(
+                            tenantId,
+                            sessionLabel,
+                            'heartbeat_reconnect_attempt',
+                            `Heartbeat detected a stale WhatsApp session for ${sessionLabel}.`,
+                            {
+                                previousStatus: dbStatus,
+                                liveStatus: liveStatus || null,
+                                ageMs,
+                                disconnectReason: disconnectReason || null,
+                                autoReconnectBlocked,
+                                reconnectDelayMs,
+                            },
+                        );
+                    }
 
                     if (reconnectDelayMs > 0) {
                         await new Promise((resolve) => setTimeout(resolve, reconnectDelayMs));
@@ -754,36 +770,42 @@ export class WhatsAppHealthService {
                         skipLimitCheck: true,
                     });
 
-                    await this.appendEvent(
-                        tenantId,
-                        sessionLabel,
-                        'heartbeat_reconnect',
-                        `Heartbeat restarted the WhatsApp session for ${sessionLabel} using stored auth.`,
-                        {
-                            previousStatus: dbStatus,
-                            liveStatus: liveStatus || null,
-                            ageMs,
-                        },
-                    );
+                    if (this.shouldLogHeartbeat(`heartbeat_reconnect:${tenantId}:${sessionLabel}`, 15 * 60_000)) {
+                        await this.appendEvent(
+                            tenantId,
+                            sessionLabel,
+                            'heartbeat_reconnect',
+                            `Heartbeat restarted the WhatsApp session for ${sessionLabel} using stored auth.`,
+                            {
+                                previousStatus: dbStatus,
+                                liveStatus: liveStatus || null,
+                                ageMs,
+                            },
+                        );
+                    }
                 } catch (error) {
-                    console.warn('[WhatsAppHealthService] Heartbeat reconnect failed', {
-                        tenantId,
-                        sessionLabel,
-                        error,
-                    });
+                    if (this.shouldLogHeartbeat(`heartbeat_reconnect_failed:${tenantId}:${sessionLabel}`, 10 * 60_000)) {
+                        console.warn('[WhatsAppHealthService] Heartbeat reconnect failed', {
+                            tenantId,
+                            sessionLabel,
+                            error,
+                        });
+                    }
 
-                    await this.appendEvent(
-                        tenantId,
-                        sessionLabel,
-                        'heartbeat_reconnect_failed',
-                        `Heartbeat could not restart WhatsApp session ${sessionLabel}.`,
-                        {
-                            previousStatus: dbStatus,
-                            liveStatus: liveStatus || null,
-                            ageMs,
-                            error: error instanceof Error ? error.message : String(error || 'Unknown error'),
-                        },
-                    );
+                    if (this.shouldLogHeartbeat(`heartbeat_reconnect_failed_event:${tenantId}:${sessionLabel}`, 10 * 60_000)) {
+                        await this.appendEvent(
+                            tenantId,
+                            sessionLabel,
+                            'heartbeat_reconnect_failed',
+                            `Heartbeat could not restart WhatsApp session ${sessionLabel}.`,
+                            {
+                                previousStatus: dbStatus,
+                                liveStatus: liveStatus || null,
+                                ageMs,
+                                error: error instanceof Error ? error.message : String(error || 'Unknown error'),
+                            },
+                        );
+                    }
                 }
             }
         } finally {

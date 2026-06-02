@@ -86,11 +86,23 @@ export class WhatsAppClient {
         replaced: false,
         at: null,
     };
+    private readonly reconnectLogAt = new Map<string, number>();
 
     private humanizeDelay(baseMs: number, spreadRatio = 0.25, minimumMs = 500) {
         const spread = Math.max(0, Math.round(baseMs * spreadRatio));
         const offset = Math.round((Math.random() * (spread * 2)) - spread);
         return Math.max(minimumMs, baseMs + offset);
+    }
+
+    private shouldLogReconnect(key: string, cooldownMs: number) {
+        const now = Date.now();
+        const lastAt = this.reconnectLogAt.get(key) || 0;
+        if (now - lastAt < cooldownMs) {
+            return false;
+        }
+
+        this.reconnectLogAt.set(key, now);
+        return true;
     }
 
     private getReconnectBackoffMs() {
@@ -233,14 +245,16 @@ export class WhatsAppClient {
 
         const connectionTimeout = setTimeout(() => {
             if (this.connectionStatus === 'connecting') {
-                console.warn(`[WhatsAppClient] Connection timeout for ${this.tenantId}:${this.label} after 45s. Forcing disconnect.`);
+                if (this.shouldLogReconnect('connection_timeout', 5 * 60_000)) {
+                    console.warn(`[WhatsAppClient] Connection timeout for ${this.tenantId}:${this.label} after 45s. Forcing disconnect.`);
+                }
                 this.connectionStatus = 'disconnected';
                 this.isConnecting = false;
                 this.persistStatus('disconnected').catch(() => {});
             }
         }, 45000);
 
-        if (this.reconnectAttempts > 0) {
+        if (this.reconnectAttempts > 0 && (this.reconnectAttempts === 1 || this.reconnectAttempts === this.maxReconnectAttempts || this.reconnectAttempts % 3 === 0)) {
             console.log(`[WhatsAppClient] Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} for ${this.tenantId}:${this.label}`);
         }
 
@@ -360,14 +374,18 @@ export class WhatsAppClient {
                             this.reconnectTimer = null;
                         }
 
-                        console.warn(
-                            `[WhatsAppClient] Connection closed for ${this.tenantId}:${this.label} (${disconnectReason}). autoReconnect=${shouldReconnect}`
-                        );
+                        if (this.shouldLogReconnect(`connection_closed:${disconnectReason}`, 60_000)) {
+                            console.warn(
+                                `[WhatsAppClient] Connection closed for ${this.tenantId}:${this.label} (${disconnectReason}). autoReconnect=${shouldReconnect}`
+                            );
+                        }
 
                         if (replaced) {
                             this.reconnectAttempts = 0;
                             this.circuitBreaker.recordFailure();
-                            console.warn(`[WhatsAppClient] Session replaced by another linked device; auto-reconnect blocked for ${this.tenantId}:${this.label}`);
+                            if (this.shouldLogReconnect('session_replaced', 15 * 60_000)) {
+                                console.warn(`[WhatsAppClient] Session replaced by another linked device; auto-reconnect blocked for ${this.tenantId}:${this.label}`);
+                            }
                             await this.persistStatus('disconnected');
                             return;
                         }
@@ -377,9 +395,11 @@ export class WhatsAppClient {
                             this.circuitBreaker.recordFailure();
 
                             const backoffMs = this.getReconnectBackoffMs();
-                            console.log(
-                                `[WhatsAppClient] Scheduling reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${backoffMs}ms for ${this.tenantId}:${this.label}`
-                            );
+                            if (this.reconnectAttempts === 1 || this.reconnectAttempts === this.maxReconnectAttempts || this.reconnectAttempts % 3 === 0) {
+                                console.log(
+                                    `[WhatsAppClient] Scheduling reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${backoffMs}ms for ${this.tenantId}:${this.label}`
+                                );
+                            }
                             this.connectionStatus = 'connecting';
                             await this.persistStatus('connecting');
                             this.reconnectTimer = setTimeout(() => {
@@ -925,7 +945,9 @@ try {
 
     private async tryReconnect() {
         if (!this.circuitBreaker.canAttempt()) {
-            console.log(`[WhatsAppClient] Circuit breaker ${this.circuitBreaker.state} for ${this.tenantId}:${this.label}`);
+            if (this.shouldLogReconnect('circuit_breaker_open', 5 * 60_000)) {
+                console.log(`[WhatsAppClient] Circuit breaker ${this.circuitBreaker.state} for ${this.tenantId}:${this.label}`);
+            }
             return;
         }
 
@@ -934,7 +956,9 @@ try {
             this.circuitBreaker.recordSuccess();
         } catch (error) {
             this.circuitBreaker.recordFailure();
-            console.error(`[WhatsAppClient] Reconnect failed:`, error);
+            if (this.shouldLogReconnect('reconnect_failed', 60_000)) {
+                console.error(`[WhatsAppClient] Reconnect failed:`, error);
+            }
         }
     }
 
@@ -949,14 +973,16 @@ try {
 
             const delay = this.humanizeDelay(30_000, 0.35, 20_000);
             this.healthCheckInterval = setTimeout(() => {
-                if (!this.healthCheckRunning) {
-                    return;
-                }
+            if (!this.healthCheckRunning) {
+                return;
+            }
 
             if (this.circuitBreaker.state === 'open') {
                 const timeSinceFailure = Date.now() - this.circuitBreaker.lastFailureTime;
                 if (timeSinceFailure >= 60000) {
-                    console.log(`[WhatsAppClient] Health check: attempting half-open for ${this.tenantId}:${this.label}`);
+                    if (this.shouldLogReconnect('health_check_half_open', 5 * 60_000)) {
+                        console.log(`[WhatsAppClient] Health check: attempting half-open for ${this.tenantId}:${this.label}`);
+                    }
                     this.tryReconnect();
                 }
             }
@@ -1170,12 +1196,14 @@ try {
 
         this.replayTimer = setTimeout(() => {
             void this.replayPersistedHistory({ reason }).catch((error) => {
-                console.warn('[WhatsAppClient] Reconnect replay failed', {
-                    tenantId: this.tenantId,
-                    label: this.label,
-                    reason,
-                    error,
-                });
+                if (this.shouldLogReconnect('replay_failed', 5 * 60_000)) {
+                    console.warn('[WhatsAppClient] Reconnect replay failed', {
+                        tenantId: this.tenantId,
+                        label: this.label,
+                        reason,
+                        error,
+                    });
+                }
             });
         }, 15_000);
     }
