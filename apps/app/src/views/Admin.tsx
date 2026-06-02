@@ -470,6 +470,18 @@ export const Admin: React.FC = () => {
     () => scoutQueue.filter((lead) => (scoutFilter === 'all' ? true : lead.status === scoutFilter)),
     [scoutQueue, scoutFilter],
   );
+  const workerTypeCounts = React.useMemo(() => {
+    const base: Record<AgentType, number> = {
+      scout: 0,
+      seo: 0,
+      analyst: 0,
+      integrity: 0,
+    };
+    scoutQueue.forEach((lead) => {
+      base[lead.agentType] = (base[lead.agentType] || 0) + 1;
+    });
+    return base;
+  }, [scoutQueue]);
   const selectedScoutLead = React.useMemo(() => {
     const current = scoutQueue.find((lead) => lead.id === scoutSelectedId);
     return current || scoutQueue[0] || null;
@@ -959,6 +971,48 @@ export const Admin: React.FC = () => {
                 <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>No auto-post</span>
               </div>
             </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {(Object.keys(WORKER_TYPE_META) as AgentType[]).map((type) => {
+              const meta = WORKER_TYPE_META[type];
+              const count = workerTypeCounts[type];
+              const isActive = workerType === type;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => {
+                    setWorkerType(type);
+                    setScoutDraft((current) => ({ ...current, agentType: type }));
+                    setScoutFilter('all');
+                    setScoutSelectedId('');
+                  }}
+                  className={cn(
+                    'rounded-[16px] border p-4 text-left transition-all',
+                    isActive
+                      ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)]/20 shadow-[0_0_0_1px_rgba(62,232,138,0.12)]'
+                      : 'border-[color:var(--border)] bg-[var(--bg-surface)] hover:border-[color:var(--accent-border)]',
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">{meta.label}</p>
+                      <p className="mt-1 text-[13px] font-semibold text-[var(--text-primary)]">{meta.badge}</p>
+                    </div>
+                    <span className={cn(
+                      adminPill,
+                      isActive
+                        ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                        : 'border-[color:var(--border)] text-[var(--text-secondary)]',
+                    )}>
+                      {count}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-[12px] leading-6 text-[var(--text-secondary)]">{meta.copy}</p>
+                </button>
+              );
+            })}
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1.45fr_1fr]">
