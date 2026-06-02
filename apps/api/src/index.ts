@@ -254,6 +254,11 @@ app.get(ROUTE_PATHS.api.health, async (req, res) => {
                 health.database = 'degraded';
                 health.databaseReason = classifySupabaseHealthError(error);
                 health.databaseMessage = String(error.message || '').slice(0, 180);
+                console.warn('[API health] Supabase query returned error', {
+                    databaseReason: health.databaseReason,
+                    databaseMessage: health.databaseMessage,
+                    supabaseProjectRef: health.supabaseProjectRef,
+                });
             } else {
                 health.database = 'connected';
             }
@@ -262,6 +267,11 @@ app.get(ROUTE_PATHS.api.health, async (req, res) => {
         health.database = 'unreachable';
         health.databaseReason = classifySupabaseHealthError(error);
         health.databaseMessage = String(error?.message || error || 'health check threw').slice(0, 180);
+        console.warn('[API health] Supabase health check threw', {
+            databaseReason: health.databaseReason,
+            databaseMessage: health.databaseMessage,
+            supabaseProjectRef: health.supabaseProjectRef,
+        });
     }
 
     // Check Ollama embedding service (powers semantic_search and embedStreamItem)
