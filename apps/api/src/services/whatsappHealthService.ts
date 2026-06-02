@@ -664,7 +664,7 @@ export class WhatsAppHealthService {
             const { data, error } = await db
                 .from('whatsapp_sessions')
                 .select('tenant_id, label, status, owner_name, updated_at, session_data, creds, keys')
-                .neq('tenant_id', 'system');
+                .not('tenant_id', 'is', null);
 
             if (error) {
                 console.warn('[WhatsAppHealthService] Heartbeat sweep could not load persisted sessions', error);

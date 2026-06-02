@@ -238,7 +238,7 @@ export class WhatsAppCloudApiService {
             .from('whatsapp_sessions')
             .select('session_id, tenant_id, label, owner_name, status, session_data, updated_at, last_sync')
             .eq('label', SESSION_LABEL)
-            .neq('tenant_id', 'system');
+            .not('tenant_id', 'is', null);
 
         if (error) {
             throw error;
