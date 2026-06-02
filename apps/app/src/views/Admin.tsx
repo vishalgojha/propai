@@ -1,4 +1,5 @@
 import React from 'react';
+import { useSearchParams } from 'react-router-dom';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { useAuth } from '../context/AuthContext';
@@ -155,14 +156,23 @@ const adminSecondaryButton =
 const adminPill =
   'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em]';
 
+function parseAgentType(value: string | null): AgentType {
+  return value === 'scout' || value === 'seo' || value === 'analyst' || value === 'integrity' ? value : 'seo';
+}
+
+function parseScoutStatus(value: string | null): 'all' | ScoutStatus {
+  return value === 'draft' || value === 'needs_review' || value === 'approved' || value === 'sent' || value === 'discarded' ? value : 'all';
+}
+
 export const Admin: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = React.useState<'overview' | 'partners' | 'groups' | 'audit' | 'system' | 'scout'>('overview');
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState<string | null>(null);
   const [scoutLoading, setScoutLoading] = React.useState(false);
   const [scoutSavingId, setScoutSavingId] = React.useState<string | null>(null);
-  const [workerType, setWorkerType] = React.useState<AgentType>('seo');
+  const [workerType, setWorkerType] = React.useState<AgentType>(() => parseAgentType(searchParams.get('worker')));
   const [error, setError] = React.useState<string | null>(null);
   const scoutSaveTimersRef = React.useRef<Record<string, number | undefined>>({});
   
@@ -186,7 +196,7 @@ export const Admin: React.FC = () => {
 
   // Worker queue
   const [scoutQueue, setScoutQueue] = React.useState<ScoutLead[]>([]);
-  const [scoutFilter, setScoutFilter] = React.useState<'all' | ScoutStatus>('all');
+  const [scoutFilter, setScoutFilter] = React.useState<'all' | ScoutStatus>(() => parseScoutStatus(searchParams.get('filter')));
   const [scoutSelectedId, setScoutSelectedId] = React.useState<string>('');
   const [scoutDraft, setScoutDraft] = React.useState({
     agentType: 'seo' as AgentType,
@@ -201,6 +211,18 @@ export const Admin: React.FC = () => {
   });
 
   const isSuperAdmin = user?.appRole === 'super_admin';
+
+  React.useEffect(() => {
+    const nextWorkerType = parseAgentType(searchParams.get('worker'));
+    const nextScoutFilter = parseScoutStatus(searchParams.get('filter'));
+    if (nextWorkerType !== workerType) {
+      setWorkerType(nextWorkerType);
+      setScoutDraft((current) => ({ ...current, agentType: nextWorkerType }));
+    }
+    if (nextScoutFilter !== scoutFilter) {
+      setScoutFilter(nextScoutFilter);
+    }
+  }, [searchParams, scoutFilter, workerType]);
 
   const toScoutLead = React.useCallback((row: ScoutTaskApiRow): ScoutLead => {
     const createdAt = row.createdAt ? new Date(row.createdAt).getTime() : Date.now();
@@ -487,6 +509,19 @@ export const Admin: React.FC = () => {
     return current || scoutQueue[0] || null;
   }, [scoutQueue, scoutSelectedId]);
   const selectedWorkerMeta = WORKER_TYPE_META[workerType];
+  const syncWorkerRoute = React.useCallback((next: { workerType?: AgentType; scoutFilter?: 'all' | ScoutStatus }) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const nextWorkerType = next.workerType || workerType;
+    const nextScoutFilter = next.scoutFilter || scoutFilter;
+
+    params.set('worker', nextWorkerType);
+    if (nextScoutFilter === 'all') {
+      params.delete('filter');
+    } else {
+      params.set('filter', nextScoutFilter);
+    }
+    setSearchParams(params, { replace: true });
+  }, [scoutFilter, searchParams, setSearchParams, workerType]);
 
   const addScoutDraft = async () => {
     setError(null);
@@ -1008,6 +1043,7 @@ export const Admin: React.FC = () => {
                       setScoutDraft((current) => ({ ...current, agentType: type }));
                       setScoutFilter('all');
                       setScoutSelectedId('');
+                      syncWorkerRoute({ workerType: type, scoutFilter: 'all' });
                     }}
                       className={cn(
                         adminSecondaryButton,
@@ -1186,7 +1222,10 @@ export const Admin: React.FC = () => {
                       <button
                         key={status}
                         type="button"
-                        onClick={() => setScoutFilter(status)}
+                        onClick={() => {
+                          setScoutFilter(status);
+                          syncWorkerRoute({ scoutFilter: status });
+                        }}
                         className={cn(
                           adminSecondaryButton,
                           'px-3 py-2 text-[10px]',
@@ -1412,6 +1451,7 @@ export const Admin: React.FC = () => {
                         onChange={(e) => {
                           const nextAgentType = e.target.value as AgentType;
                           setWorkerType(nextAgentType);
+                          syncWorkerRoute({ workerType: nextAgentType });
                           void saveScoutTaskPatch(selectedScoutLead.id, { agentType: nextAgentType });
                         }}
                         className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)] sm:col-span-3"
