@@ -569,6 +569,61 @@ export const Admin: React.FC = () => {
     await saveScoutTaskPatch(selectedScoutLead.id, { draft: safePitch, status: 'needs_review' }, { immediate: true });
   };
 
+  const applyIntegrityPreset = async (preset: 'crawl' | 'canonical' | 'freshness' | 'performance') => {
+    if (!selectedScoutLead) return;
+    const currentTitle = selectedScoutLead.title.trim() || 'PropAI public surface';
+    const presets: Record<typeof preset, { context: string; angle: string; draft: string }> = {
+      crawl: {
+        context: 'Observed crawl coverage or discovery issue on a public PropAI page.',
+        angle: 'Verify whether the page is linked, in sitemap, and returning a crawlable response.',
+        draft: [
+          `Integrity check: confirm crawlability for ${currentTitle}.`,
+          'Review internal linking, sitemap coverage, and robots eligibility.',
+          'Flag any orphaned route, redirect loop, or blocked surface before it affects discovery.',
+        ].join(' '),
+      },
+      canonical: {
+        context: 'Observed canonical or duplicate-content risk across public surfaces.',
+        angle: 'Verify that the page has a self-referential canonical and unique title structure.',
+        draft: [
+          `Integrity check: confirm canonical hygiene for ${currentTitle}.`,
+          'Review title uniqueness, canonical tags, and duplicate page variants.',
+          'Flag any collision that could confuse indexing or dilute the public surface.',
+        ].join(' '),
+      },
+      freshness: {
+        context: 'Observed freshness issue where surfaced counts or public content look stale.',
+        angle: 'Verify freshness timestamps, cache behavior, and whether the page is revalidating correctly.',
+        draft: [
+          `Integrity check: confirm freshness behavior for ${currentTitle}.`,
+          'Review stale cache windows, refresh timestamps, and visible freshness counters.',
+          'Flag anything that makes the public surface look frozen or outdated.',
+        ].join(' '),
+      },
+      performance: {
+        context: 'Observed performance degradation or slow render on a public page.',
+        angle: 'Verify response timing, blocking assets, and whether the page is loading within acceptable limits.',
+        draft: [
+          `Integrity check: confirm performance behavior for ${currentTitle}.`,
+          'Review page latency, render blocking, and any repeated fetches that delay the surface.',
+          'Flag any slow query, heavy script, or repeated load that could hurt crawlability.',
+        ].join(' '),
+      },
+    };
+    const next = presets[preset];
+    await saveScoutTaskPatch(
+      selectedScoutLead.id,
+      {
+        agentType: 'integrity',
+        context: next.context,
+        angle: next.angle,
+        draft: next.draft,
+        status: 'needs_review',
+      },
+      { immediate: true },
+    );
+  };
+
   const copyScoutDraft = async (lead: ScoutLead) => {
     await navigator.clipboard.writeText(lead.draft);
   };
@@ -1323,6 +1378,33 @@ export const Admin: React.FC = () => {
                       rows={8}
                       className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                     />
+
+                    {selectedScoutLead.agentType === 'integrity' ? (
+                      <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Integrity quick actions</p>
+                        <p className="mt-1 text-[12px] leading-6 text-[var(--text-secondary)]">
+                          Use these presets for crawl, canonical, freshness, or performance checks on public surfaces.
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button type="button" onClick={() => void applyIntegrityPreset('crawl')} className={adminSecondaryButton}>
+                            <SearchIcon className="h-3.5 w-3.5" />
+                            Crawl
+                          </button>
+                          <button type="button" onClick={() => void applyIntegrityPreset('canonical')} className={adminSecondaryButton}>
+                            <ShieldIcon className="h-3.5 w-3.5" />
+                            Canonical
+                          </button>
+                          <button type="button" onClick={() => void applyIntegrityPreset('freshness')} className={adminSecondaryButton}>
+                            <RefreshIcon className="h-3.5 w-3.5" />
+                            Freshness
+                          </button>
+                          <button type="button" onClick={() => void applyIntegrityPreset('performance')} className={adminSecondaryButton}>
+                            <WorkflowIcon className="h-3.5 w-3.5" />
+                            Performance
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
 
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       <select
