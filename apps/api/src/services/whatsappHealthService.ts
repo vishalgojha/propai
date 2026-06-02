@@ -663,7 +663,7 @@ export class WhatsAppHealthService {
         try {
             const { data, error } = await db
                 .from('whatsapp_sessions')
-                .select('tenant_id, label, status, owner_name, phone_number, updated_at, session_data, creds, keys')
+                .select('tenant_id, label, status, owner_name, updated_at, session_data, creds, keys')
                 .neq('tenant_id', 'system');
 
             if (error) {
@@ -684,7 +684,6 @@ export class WhatsAppHealthService {
                 label?: string | null;
                 status?: string | null;
                 owner_name?: string | null;
-                phone_number?: string | null;
                 updated_at?: string | null;
                 session_data?: Record<string, unknown> | null;
                 creds?: unknown;
@@ -751,7 +750,7 @@ export class WhatsAppHealthService {
                     await sessionManager.createSession(tenantId, () => {}, () => {}, {
                         label: sessionLabel,
                         ownerName: String(row.owner_name || row.session_data?.ownerName || '').trim() || undefined,
-                        phoneNumber: String(row.phone_number || row.session_data?.phoneNumber || '').trim() || undefined,
+                        phoneNumber: String(row.session_data?.phoneNumber || row.session_data?.displayPhoneNumber || '').trim() || undefined,
                         skipLimitCheck: true,
                     });
 

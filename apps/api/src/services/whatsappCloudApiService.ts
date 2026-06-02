@@ -121,7 +121,7 @@ export class WhatsAppCloudApiService {
     async getConfig(tenantId: string) {
         const { data, error } = await db
             .from('whatsapp_sessions')
-            .select('session_id, tenant_id, label, phone_number, owner_name, status, session_data, updated_at, last_sync')
+            .select('session_id, tenant_id, label, owner_name, status, session_data, updated_at, last_sync')
             .eq('tenant_id', tenantId)
             .eq('label', SESSION_LABEL)
             .maybeSingle();
@@ -139,7 +139,7 @@ export class WhatsAppCloudApiService {
             enabled: Boolean(sessionData.enabled || row?.status === 'connected'),
             phoneNumberId: String(sessionData.phoneNumberId || ''),
             businessAccountId: String(sessionData.businessAccountId || ''),
-            displayPhoneNumber: String(sessionData.displayPhoneNumber || row?.phone_number || ''),
+            displayPhoneNumber: String(sessionData.displayPhoneNumber || ''),
             apiVersion: String(sessionData.apiVersion || getApiVersion()),
             verifyTokenSet: Boolean(sessionData.webhookVerifyTokenSet),
             hasAccessToken,
@@ -236,7 +236,7 @@ export class WhatsAppCloudApiService {
 
         const { data, error } = await db
             .from('whatsapp_sessions')
-            .select('session_id, tenant_id, label, phone_number, owner_name, status, session_data, updated_at, last_sync')
+            .select('session_id, tenant_id, label, owner_name, status, session_data, updated_at, last_sync')
             .eq('label', SESSION_LABEL)
             .neq('tenant_id', 'system');
 
@@ -419,7 +419,7 @@ export class WhatsAppCloudApiService {
                 await whatsappHealthService.upsertConnectionSnapshot({
                     tenantId,
                     sessionLabel,
-                    phoneNumber: value?.metadata?.display_phone_number || configRow.phone_number || null,
+                    phoneNumber: value?.metadata?.display_phone_number || configRow.session_data?.displayPhoneNumber || null,
                     ownerName: configRow.owner_name || 'Official WhatsApp',
                     status: 'connected',
                 }).catch(() => undefined);
