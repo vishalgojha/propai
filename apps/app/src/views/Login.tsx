@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LegalFooter } from '../components/LegalFooter';
 import backendApi, { handleApiError } from '../services/api';
+import { backendApiUrl } from '../services/apiBase';
 import { ENDPOINTS } from '../services/endpoints';
 import { buildSessionFromSupabase } from '../services/authSession';
 import { track } from '../services/analytics';
@@ -179,15 +180,24 @@ export const Login: React.FC = () => {
     let cancelled = false;
 
     const checkApi = async () => {
+      const apiRoot = backendApiUrl.replace(/\/api$/, '');
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 5000);
       try {
-        const response = await backendApi.get('/health', { timeout: 5000 });
+        const response = await fetch(`${apiRoot}/health`, {
+          signal: controller.signal,
+          cache: 'no-store',
+          credentials: 'omit',
+        });
         if (!cancelled) {
-          setApiStatus(response.status >= 200 && response.status < 300 ? 'online' : 'offline');
+          setApiStatus(response.ok ? 'online' : 'offline');
         }
       } catch {
         if (!cancelled) {
           setApiStatus('offline');
         }
+      } finally {
+        window.clearTimeout(timeout);
       }
     };
 

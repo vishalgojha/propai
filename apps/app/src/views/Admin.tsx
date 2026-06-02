@@ -522,6 +522,20 @@ export const Admin: React.FC = () => {
     }
     setSearchParams(params, { replace: true });
   }, [scoutFilter, searchParams, setSearchParams, workerType]);
+  const copyWorkerBoardLink = React.useCallback(async () => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('worker', workerType);
+      if (scoutFilter === 'all') {
+        url.searchParams.delete('filter');
+      } else {
+        url.searchParams.set('filter', scoutFilter);
+      }
+      await navigator.clipboard.writeText(url.toString());
+    } catch (err) {
+      setError(handleApiError(err));
+    }
+  }, [scoutFilter, workerType]);
 
   const addScoutDraft = async () => {
     setError(null);
@@ -1060,6 +1074,10 @@ export const Admin: React.FC = () => {
                 <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>{scoutQueue.length} leads</span>
                 <span className={cn(adminPill, 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]')}>Human review only</span>
                 <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>No auto-post</span>
+                <button type="button" onClick={() => void copyWorkerBoardLink()} className={cn(adminSecondaryButton, 'px-3 py-1.5 text-[10px]')}>
+                  <CopyIcon className="h-3 w-3" />
+                  Copy link
+                </button>
               </div>
             </div>
           </div>
