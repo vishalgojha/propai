@@ -30,7 +30,6 @@ import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
 import { authMiddleware } from './middleware/authMiddleware';
-import { serverClientOptions } from './config/supabase';
 
 import { sessionManager } from './whatsapp/SessionManager';
 import { whatsappHealthService } from './services/whatsappHealthService';
@@ -114,6 +113,40 @@ function classifySupabaseHealthError(error: any) {
     return code || 'unknown';
 }
 
+async function probeSupabaseRest(sbUrl: string, sbKey: string, table: string, params: Record<string, string> = {}) {
+    const url = new URL(`/rest/v1/${table}`, sbUrl);
+    Object.entries(params).forEach(([key, value]) => {
+        url.searchParams.set(key, value);
+    });
+
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+            apikey: sbKey,
+            Authorization: `Bearer ${sbKey}`,
+            Accept: 'application/json',
+        },
+        cache: 'no-store',
+    });
+
+    const text = await response.text();
+    let payload: any = null;
+    try {
+        payload = text ? JSON.parse(text) : null;
+    } catch {
+        payload = null;
+    }
+
+    if (!response.ok) {
+        const errorMessage = Array.isArray(payload)
+            ? text
+            : String(payload?.message || payload?.error || text || response.statusText || 'Supabase REST probe failed');
+        return { ok: false, status: response.status, error: errorMessage };
+    }
+
+    return { ok: true, data: payload };
+}
+
 process.on('unhandledRejection', (reason) => {
     console.error('Unhandled promise rejection:', reason);
 });
@@ -160,20 +193,34 @@ app.get(ROUTE_PATHS.api.propertiesSearch, (req, res) => {
 // Public route — example prompts for login page
 app.get(ROUTE_PATHS.api.examplePrompts, async (req, res) => {
   try {
-    const { createClient } = await import('@supabase/supabase-js');
     const sbUrl = process.env.SUPABASE_URL || '';
     const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
     if (!sbUrl || !sbKey) {
       return res.json({ prompts: staticFallback() });
     }
-    const sb = createClient(sbUrl, sbKey, serverClientOptions);
     const [resData, comData] = await Promise.all([
-      sb.from('stream_items_residential').select('bhk, locality, price_label, record_type, city').neq('record_type', 'buyer_requirement').not('bhk', 'is', null).not('locality', 'is', null).not('price_label', 'is', null).limit(20).order('created_at', { ascending: false }),
-      sb.from('stream_items_commercial').select('bhk, locality, price_label, record_type, city').neq('record_type', 'buyer_requirement').not('bhk', 'is', null).not('locality', 'is', null).not('price_label', 'is', null).limit(20).order('created_at', { ascending: false }),
+      probeSupabaseRest(sbUrl, sbKey, 'stream_items_residential', {
+        select: 'bhk,locality,price_label,record_type,city',
+        record_type: 'neq.buyer_requirement',
+        bhk: 'not.is.null',
+        locality: 'not.is.null',
+        price_label: 'not.is.null',
+        order: 'created_at.desc',
+        limit: '20',
+      }),
+      probeSupabaseRest(sbUrl, sbKey, 'stream_items_commercial', {
+        select: 'bhk,locality,price_label,record_type,city',
+        record_type: 'neq.buyer_requirement',
+        bhk: 'not.is.null',
+        locality: 'not.is.null',
+        price_label: 'not.is.null',
+        order: 'created_at.desc',
+        limit: '20',
+      }),
     ]);
     const data = [
-      ...(Array.isArray(resData.data) ? resData.data : []),
-      ...(Array.isArray(comData.data) ? comData.data : []),
+      ...(resData.ok && Array.isArray(resData.data) ? resData.data : []),
+      ...(comData.ok && Array.isArray(comData.data) ? comData.data : []),
     ];
 
     if (!data || !data.length) {
@@ -245,16 +292,18 @@ app.get(ROUTE_PATHS.api.health, async (req, res) => {
 
     // Check Supabase connectivity
     try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const sbUrl = process.env.SUPABASE_URL || '';
-        const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
-        if (sbUrl && sbKey) {
-            const sb = createClient(sbUrl, sbKey, serverClientOptions);
-            const { error } = await sb.from('whatsapp_sessions').select('id').limit(1);
-            if (error) {
+    const { createClient } = await import('@supabase/supabase-js');
+    const sbUrl = process.env.SUPABASE_URL || '';
+    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+    if (sbUrl && sbKey) {
+            const probe = await probeSupabaseRest(sbUrl, sbKey, 'whatsapp_sessions', {
+                select: 'id',
+                limit: '1',
+            });
+            if (!probe.ok) {
                 health.database = 'degraded';
-                health.databaseReason = classifySupabaseHealthError(error);
-                health.databaseMessage = String(error.message || '').slice(0, 180);
+                health.databaseReason = classifySupabaseHealthError(probe.error);
+                health.databaseMessage = String(probe.error || '').slice(0, 180);
                 console.warn('[API health] Supabase query returned error', {
                     databaseReason: health.databaseReason,
                     databaseMessage: health.databaseMessage,
