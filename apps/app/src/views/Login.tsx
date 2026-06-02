@@ -135,7 +135,7 @@ export const Login: React.FC = () => {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'degraded' | 'offline'>('checking');
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -189,8 +189,18 @@ export const Login: React.FC = () => {
           cache: 'no-store',
           credentials: 'omit',
         });
+        const payload = await response.json().catch(() => null);
         if (!cancelled) {
-          setApiStatus(response.ok ? 'online' : 'offline');
+          if (response.ok) {
+            setApiStatus('online');
+          } else if (response.status >= 500 && response.status < 600) {
+            setApiStatus('degraded');
+          } else {
+            setApiStatus('offline');
+          }
+          if (payload?.status === 'degraded' && !response.ok) {
+            setApiStatus('degraded');
+          }
         }
       } catch {
         if (!cancelled) {
@@ -366,7 +376,7 @@ export const Login: React.FC = () => {
               <span>Email login | Stream | Follow-up</span>
               <span className={cn('ml-2', authPill)}>
                 <span className={apiStatus === 'online' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : apiStatus === 'offline' ? 'h-2 w-2 rounded-full bg-[var(--red)]' : 'h-2 w-2 rounded-full bg-[var(--amber)]'} />
-                {apiStatus === 'online' ? 'API connected' : apiStatus === 'offline' ? 'API offline' : 'Checking API'}
+                {apiStatus === 'online' ? 'API connected' : apiStatus === 'degraded' ? 'API degraded' : apiStatus === 'offline' ? 'API offline' : 'Checking API'}
               </span>
             </div>
           </AuthCard>
