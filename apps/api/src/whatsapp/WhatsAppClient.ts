@@ -1128,10 +1128,14 @@ try {
                 .eq('tenant_id', this.tenantId);
 
             if (count === 0) {
-                console.log(`[WhatsAppClient] No broker contacts for ${this.tenantId}, auto-syncing from groups...`);
+                if (this.shouldLogReconnect('auto_sync_start', 6 * 60 * 60_000)) {
+                    console.log(`[WhatsAppClient] No broker contacts for ${this.tenantId}, auto-syncing from groups...`);
+                }
                 const { brokerContactSyncService } = require('../services/brokerContactSyncService');
                 const result = await brokerContactSyncService.syncFromStoredGroups(this.tenantId, { minOverlap: 2 });
-                console.log(`[WhatsAppClient] Auto-sync complete: ${result.contactsUpserted} contacts from ${result.groupsScanned} stored groups`);
+                if (this.shouldLogReconnect('auto_sync_complete', 6 * 60 * 60_000)) {
+                    console.log(`[WhatsAppClient] Auto-sync complete: ${result.contactsUpserted} contacts from ${result.groupsScanned} stored groups`);
+                }
             }
 
             this.autoSyncInterval = setInterval(async () => {
@@ -1139,11 +1143,15 @@ try {
                     const { brokerContactSyncService } = require('../services/brokerContactSyncService');
                     await brokerContactSyncService.syncFromStoredGroups(this.tenantId, { minOverlap: 2 });
                 } catch (e) {
-                    console.error('[WhatsAppClient] Scheduled broker contact sync failed:', e);
+                    if (this.shouldLogReconnect('scheduled_broker_contact_sync_failed', 30 * 60_000)) {
+                        console.error('[WhatsAppClient] Scheduled broker contact sync failed:', e);
+                    }
                 }
             }, 24 * 60 * 60 * 1000);
         } catch (e) {
-            console.error('[WhatsAppClient] Auto-sync broker contacts failed:', e);
+            if (this.shouldLogReconnect('auto_sync_broker_contacts_failed', 30 * 60_000)) {
+                console.error('[WhatsAppClient] Auto-sync broker contacts failed:', e);
+            }
         }
     }
 
@@ -1181,7 +1189,9 @@ try {
                 );
                 setTimeout(() => { void trySync(); }, delay);
             } else {
-                console.warn(`[WhatsAppClient] Group sync exhausted ${maxRetries} retries for ${this.tenantId}:${this.label}, syncing anyway`);
+                if (this.shouldLogReconnect('group_sync_exhausted', 15 * 60_000)) {
+                    console.warn(`[WhatsAppClient] Group sync exhausted ${maxRetries} retries for ${this.tenantId}:${this.label}, syncing anyway`);
+                }
                 await this.persistStatus('connected').catch(() => undefined);
             }
         };
