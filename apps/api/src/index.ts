@@ -292,36 +292,25 @@ app.get(ROUTE_PATHS.api.health, async (req, res) => {
 
     // Check Supabase connectivity
     try {
-    const { createClient } = await import('@supabase/supabase-js');
-    const sbUrl = process.env.SUPABASE_URL || '';
-    const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
-    if (sbUrl && sbKey) {
-            const probe = await probeSupabaseRest(sbUrl, sbKey, 'whatsapp_sessions', {
-                select: 'id',
-                limit: '1',
-            });
-            if (!probe.ok) {
+        const { createClient } = await import('@supabase/supabase-js');
+        const sbUrl = process.env.SUPABASE_URL || '';
+        const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+        if (sbUrl && sbKey) {
+            const sb = createClient(sbUrl, sbKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+            const { error } = await sb.from('whatsapp_sessions').select('id').limit(1);
+            if (error) {
                 health.database = 'degraded';
-                health.databaseReason = classifySupabaseHealthError(probe.error);
-                health.databaseMessage = String(probe.error || '').slice(0, 180);
-                console.warn('[API health] Supabase query returned error', {
-                    databaseReason: health.databaseReason,
-                    databaseMessage: health.databaseMessage,
-                    supabaseProjectRef: health.supabaseProjectRef,
-                });
+                health.databaseReason = classifySupabaseHealthError(error);
+                health.databaseMessage = String(error.message || '').slice(0, 180);
             } else {
                 health.database = 'connected';
             }
         }
-    } catch (error: any) {
+    } catch (e: any) {
         health.database = 'unreachable';
-        health.databaseReason = classifySupabaseHealthError(error);
-        health.databaseMessage = String(error?.message || error || 'health check threw').slice(0, 180);
-        console.warn('[API health] Supabase health check threw', {
-            databaseReason: health.databaseReason,
-            databaseMessage: health.databaseMessage,
-            supabaseProjectRef: health.supabaseProjectRef,
-        });
+        health.databaseError = String(e?.message || e || 'unknown').slice(0, 240);
+        health.databaseErrorStack = String(e?.stack || '').slice(0, 600);
+        console.error('[health] supabase check threw:', e?.message || e, e?.stack);
     }
 
     // Check Ollama embedding service (powers semantic_search and embedStreamItem)
