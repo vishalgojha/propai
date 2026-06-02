@@ -154,12 +154,19 @@ function parseAmount(text: string): number | null {
 
 export class IgrLiveFetchService {
     private camoufox: CamoufoxIgrClient | null = null;
+    private readonly verboseIgrLogs = process.env.IGR_VERBOSE_LOGS === 'true';
 
     private getCamoufox(): CamoufoxIgrClient | null {
         if (this.camoufox === null) {
             this.camoufox = new CamoufoxIgrClient();
         }
         return this.camoufox;
+    }
+
+    private verboseLog(...args: unknown[]) {
+        if (this.verboseIgrLogs) {
+            console.log(...args);
+        }
     }
 
     private getAdmin() {
@@ -359,7 +366,7 @@ export class IgrLiveFetchService {
         village: string;
         propertyNumber: string;
     }> {
-        console.log(`[CoordinateResolver] Resolving coordinates for "${buildingName}" in "${locality}"...`);
+        this.verboseLog(`[CoordinateResolver] Resolving coordinates for "${buildingName}" in "${locality}"...`);
         
         let district = 'Mumbai Suburban';
         let taluka = 'Andheri';
@@ -391,7 +398,7 @@ export class IgrLiveFetchService {
                                      desc.match(/सर्वे\s*नंबर\s*(\d+)/i);
                     if (ctsMatch) {
                         propertyNumber = ctsMatch[1];
-                        console.log(`[CoordinateResolver] Successfully extracted CTS/Survey No. "${propertyNumber}" from description: "${desc.slice(0, 80)}..."`);
+                        this.verboseLog(`[CoordinateResolver] Successfully extracted CTS/Survey No. "${propertyNumber}" from description: "${desc.slice(0, 80)}..."`);
                         break;
                     }
                 }
@@ -444,7 +451,7 @@ export class IgrLiveFetchService {
             region = 'Mumbai';
         }
 
-        console.log(`[CoordinateResolver] Resolved IGR Search Parameters:
+        this.verboseLog(`[CoordinateResolver] Resolved IGR Search Parameters:
           - Region: "${region}"
           - District: "${district}"
           - Taluka: "${taluka}"
@@ -456,7 +463,7 @@ export class IgrLiveFetchService {
     }
 
     private async solveCaptchaOffline(tabId: string, captchaImgSelector: string): Promise<string> {
-        console.log('[OCR] Capturing CAPTCHA image via canvas evaluate...');
+        this.verboseLog('[OCR] Capturing CAPTCHA image via canvas evaluate...');
         const base64 = await this.getCamoufox()!.evaluate<string>(tabId, `
             (() => {
                 const img = document.querySelector(${JSON.stringify(captchaImgSelector)});
@@ -476,7 +483,7 @@ export class IgrLiveFetchService {
         }
 
         const buffer = Buffer.from(base64, 'base64');
-        console.log('[OCR] Solving CAPTCHA using Tesseract.js...');
+        this.verboseLog('[OCR] Solving CAPTCHA using Tesseract.js...');
         
         const result = await Tesseract.recognize(
             buffer,
@@ -484,14 +491,14 @@ export class IgrLiveFetchService {
             {
                 logger: m => {
                     if (m.status === 'recognizing text') {
-                        console.log(`[OCR] Progress: ${(m.progress * 100).toFixed(1)}%`);
+                        this.verboseLog(`[OCR] Progress: ${(m.progress * 100).toFixed(1)}%`);
                     }
                 }
             }
         );
 
         const cleanedText = result.data.text.replace(/[^a-zA-Z0-9]/g, '').trim();
-        console.log(`[OCR] Decoded Raw Text: "${result.data.text.trim()}" -> Cleaned: "${cleanedText}"`);
+        this.verboseLog(`[OCR] Decoded Raw Text: "${result.data.text.trim()}" -> Cleaned: "${cleanedText}"`);
         return cleanedText;
     }
 
@@ -532,13 +539,13 @@ export class IgrLiveFetchService {
         let tabId = '';
 
         try {
-            console.log('[Browser] Creating tab...');
+            this.verboseLog('[Browser] Creating tab...');
             tabId = await camoufox.createTab(IGR_PORTAL_URLS[0]);
             if (!tabId) {
                 return { success: false, error: 'Failed to create browser tab.', searchQuery };
             }
 
-            console.log('[Browser] Waiting for page load...');
+            this.verboseLog('[Browser] Waiting for page load...');
             await camoufox.waitForPageLoad(tabId);
             await new Promise((r) => setTimeout(r, 2000));
 
@@ -552,7 +559,7 @@ export class IgrLiveFetchService {
                 regionSelector = 'input[value*="Rest"], #btnRest, input[id*="Rest"]';
             }
 
-            console.log(`[Locality] Selecting Region: "${region}"...`);
+            this.verboseLog(`[Locality] Selecting Region: "${region}"...`);
             const regionClicked = await camoufox.evaluate<boolean>(tabId, `
                 (() => {
                     const el = document.querySelector(${JSON.stringify(regionSelector)});
@@ -565,7 +572,7 @@ export class IgrLiveFetchService {
             `);
 
             if (regionClicked) {
-                console.log('[Locality] Clicked Region button, waiting for District dropdown (2.5s)...');
+                this.verboseLog('[Locality] Clicked Region button, waiting for District dropdown (2.5s)...');
                 await new Promise((r) => setTimeout(r, 2500));
             }
 
@@ -637,7 +644,7 @@ export class IgrLiveFetchService {
                 captchaImgSelector
             } = selectors;
 
-            console.log('[Form] Selecting District...');
+            this.verboseLog('[Form] Selecting District...');
             await camoufox.evaluate<void>(tabId, `
                 (() => {
                     const select = document.querySelector(${JSON.stringify(districtSelector)});
@@ -656,11 +663,11 @@ export class IgrLiveFetchService {
                     }
                 })()
             `);
-            console.log('[Form] Waiting for District postback (2.5s)...');
+            this.verboseLog('[Form] Waiting for District postback (2.5s)...');
             await new Promise((r) => setTimeout(r, 2500));
 
             // Select Village (single vs multiple dropdowns)
-            console.log('[Form] Selecting Village/Area...');
+            this.verboseLog('[Form] Selecting Village/Area...');
             await camoufox.evaluate<void>(tabId, `
                 (() => {
                     const selects = Array.from(document.querySelectorAll('select')).map(s => s.id);
@@ -679,12 +686,12 @@ export class IgrLiveFetchService {
                     }
                 })()
             `);
-            console.log('[Form] Waiting for Area Filter postback (2.5s)...');
+            this.verboseLog('[Form] Waiting for Area Filter postback (2.5s)...');
             await new Promise((r) => setTimeout(r, 2500));
 
             // Set final selection for village, year and property number
             const targetYear = new Date().getFullYear() - 1; // 2025/2024 to probe
-            console.log(`[Form] Setting final inputs (Year: ${targetYear}, PropNo: ${propertyNumber})...`);
+            this.verboseLog(`[Form] Setting final inputs (Year: ${targetYear}, PropNo: ${propertyNumber})...`);
             await camoufox.evaluate<void>(tabId, `
                 (() => {
                     const selects = Array.from(document.querySelectorAll('select')).map(s => s.id);
@@ -720,7 +727,7 @@ export class IgrLiveFetchService {
             // Captcha solving loop
             while (!solved && attempt < maxRetries) {
                 attempt++;
-                console.log(`\n--- [CAPTCHA] Solve Attempt ${attempt}/${maxRetries} ---`);
+                this.verboseLog(`\n--- [CAPTCHA] Solve Attempt ${attempt}/${maxRetries} ---`);
 
                 const oldCaptchaSrc = await camoufox.evaluate<string>(tabId, `
                     document.querySelector(${JSON.stringify(captchaImgSelector)})?.getAttribute('src') || ''
@@ -739,7 +746,7 @@ export class IgrLiveFetchService {
                 }
 
                 if (!captchaText || captchaText.length < 3) {
-                    console.log('[CAPTCHA] OCR returned invalid code. Refreshing...');
+                    this.verboseLog('[CAPTCHA] OCR returned invalid code. Refreshing...');
                     await camoufox.evaluate<void>(tabId, `
                         document.querySelector(${JSON.stringify(captchaImgSelector)})?.click();
                     `);
@@ -747,7 +754,7 @@ export class IgrLiveFetchService {
                     continue;
                 }
 
-                console.log(`[CAPTCHA] Inputting solved code: "${captchaText}"`);
+                this.verboseLog(`[CAPTCHA] Inputting solved code: "${captchaText}"`);
                 await camoufox.evaluate<void>(tabId, `
                     (() => {
                         const input = document.querySelector(${JSON.stringify(captchaInputSelector)});
@@ -759,7 +766,7 @@ export class IgrLiveFetchService {
                 `);
                 await new Promise((r) => setTimeout(r, 500));
 
-                console.log('[Form] Submitting search...');
+                this.verboseLog('[Form] Submitting search...');
                 await camoufox.evaluate<void>(tabId, `
                     (() => {
                         const btn = document.querySelector('#btnSearch') || document.querySelector('input[type="submit"][id*="Search"]');
@@ -778,9 +785,9 @@ export class IgrLiveFetchService {
                 `);
 
                 if (errorMsg && (errorMsg.toLowerCase().includes('captcha') || errorMsg.toLowerCase().includes('invalid') || errorMsg.includes('Correct'))) {
-                    console.log(`❌ [CAPTCHA] Server rejected captcha: "${errorMsg}". Retrying...`);
+                    this.verboseLog(`❌ [CAPTCHA] Server rejected captcha: "${errorMsg}". Retrying...`);
                     
-                    console.log('[CAPTCHA] Waiting for new Captcha image to load...');
+                    this.verboseLog('[CAPTCHA] Waiting for new Captcha image to load...');
                     let srcChanged = false;
                     for (let t = 0; t < 10; t++) {
                         const newSrc = await camoufox.evaluate<string>(tabId, `
@@ -794,14 +801,14 @@ export class IgrLiveFetchService {
                     }
 
                     if (!srcChanged) {
-                        console.log('[CAPTCHA] Force refreshing Captcha image...');
+                        this.verboseLog('[CAPTCHA] Force refreshing Captcha image...');
                         await camoufox.evaluate<void>(tabId, `
                             document.querySelector(${JSON.stringify(captchaImgSelector)})?.click();
                         `);
                         await new Promise((r) => setTimeout(r, 2000));
                     }
                 } else {
-                    console.log('✅ [CAPTCHA] Submission succeeded!');
+                    this.verboseLog('✅ [CAPTCHA] Submission succeeded!');
                     solved = true;
                 }
             }
@@ -811,13 +818,13 @@ export class IgrLiveFetchService {
             }
 
             // Extract results
-            console.log('[Scraper] Parsing search results table...');
+            this.verboseLog('[Scraper] Parsing search results table...');
             const rows = await this.extractResults(tabId);
             if (rows.length === 0) {
                 return { success: false, error: 'No matching transaction records found on the portal.', searchQuery };
             }
 
-            console.log(`🎉 [Scraper] Successfully extracted ${rows.length} records! Saving best match...`);
+            this.verboseLog(`🎉 [Scraper] Successfully extracted ${rows.length} records! Saving best match...`);
             return this.saveBestMatch(rows, { buildingName, locality, searchQuery });
 
         } catch (err: any) {
