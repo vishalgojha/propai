@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+const agentTypeSchema = z.enum(['scout', 'seo', 'analyst', 'integrity']);
+
 export const listWorkspacesQuerySchema = z.object({
     search: z.string().optional(),
     plan: z.string().optional(),
@@ -30,14 +32,14 @@ export const getAuditLogQuerySchema = z.object({
 });
 
 export const listScoutTasksQuerySchema = z.object({
-    agentType: z.string().optional().default('scout'),
+    agentType: agentTypeSchema.optional().default('scout'),
     status: z.string().optional(),
     priority: z.string().optional(),
     limit: z.coerce.number().int().min(1).max(100).optional().default(50),
 });
 
 export const upsertScoutTaskBodySchema = z.object({
-    agentType: z.string().min(1).optional(),
+    agentType: agentTypeSchema.optional().default('scout'),
     title: z.string().min(1),
     source: z.string().min(1),
     sourceUrl: z.string().optional(),

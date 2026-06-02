@@ -75,10 +75,12 @@ type ImpersonationSession = {
   expiresAt: number;
 };
 
+type AgentType = 'scout' | 'seo' | 'analyst' | 'integrity';
 type ScoutStatus = 'draft' | 'needs_review' | 'approved' | 'sent' | 'discarded';
 type ScoutChannel = 'email' | 'dm' | 'comment' | 'partnership';
 type ScoutLead = {
   id: string;
+  agentType: AgentType;
   title: string;
   source: string;
   sourceUrl: string;
@@ -95,7 +97,7 @@ type ScoutLead = {
 
 type ScoutTaskApiRow = {
   id: string;
-  agentType?: string;
+  agentType?: AgentType;
   tenantId?: string | null;
   title: string;
   source: string;
@@ -110,6 +112,37 @@ type ScoutTaskApiRow = {
   metadata?: Record<string, unknown> | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+};
+
+const WORKER_TYPE_META: Record<AgentType, { label: string; title: string; copy: string; badge: string; suggestion: string }> = {
+  scout: {
+    label: 'Scout',
+    title: 'Targeted outreach scout',
+    copy: 'Draft human-reviewed outreach for publications, partners, and high-value leads.',
+    badge: 'PR / partnerships',
+    suggestion: 'Use a public-safe PropAI page or a direct editorial angle.',
+  },
+  seo: {
+    label: 'SEO worker',
+    title: 'Programmatic SEO worker',
+    copy: 'Draft indexable locality, sitemap, and crawl-growth tasks from observed market data.',
+    badge: 'Locality / sitemap',
+    suggestion: 'Focus on public-safe locality pages, unique signals, and crawlable hubs.',
+  },
+  analyst: {
+    label: 'Analyst',
+    title: 'Market analysis worker',
+    copy: 'Turn raw broker signals into locality intel, market notes, and comparison prompts.',
+    badge: 'Market intel',
+    suggestion: 'Stay inside observed data and avoid claiming absolute supply or demand.',
+  },
+  integrity: {
+    label: 'Integrity',
+    title: 'System integrity worker',
+    copy: 'Track freshness, performance, canonical coverage, and crawlability issues.',
+    badge: 'QA / uptime',
+    suggestion: 'Report a concrete issue and the page or signal affected.',
+  },
 };
 
 const formatDate = (value?: string | number | null) =>
@@ -129,6 +162,7 @@ export const Admin: React.FC = () => {
   const [isSaving, setIsSaving] = React.useState<string | null>(null);
   const [scoutLoading, setScoutLoading] = React.useState(false);
   const [scoutSavingId, setScoutSavingId] = React.useState<string | null>(null);
+  const [workerType, setWorkerType] = React.useState<AgentType>('seo');
   const [error, setError] = React.useState<string | null>(null);
   const scoutSaveTimersRef = React.useRef<Record<string, number | undefined>>({});
   
@@ -150,11 +184,12 @@ export const Admin: React.FC = () => {
   const [impersonations, setImpersonations] = React.useState<ImpersonationSession[]>([]);
   const [auditLog, setAuditLog] = React.useState<AuditEvent[]>([]);
 
-  // Scout queue
+  // Worker queue
   const [scoutQueue, setScoutQueue] = React.useState<ScoutLead[]>([]);
   const [scoutFilter, setScoutFilter] = React.useState<'all' | ScoutStatus>('all');
   const [scoutSelectedId, setScoutSelectedId] = React.useState<string>('');
   const [scoutDraft, setScoutDraft] = React.useState({
+    agentType: 'seo' as AgentType,
     title: '',
     source: '',
     sourceUrl: '',
@@ -172,6 +207,7 @@ export const Admin: React.FC = () => {
     const updatedAt = row.updatedAt ? new Date(row.updatedAt).getTime() : createdAt;
     return {
       id: row.id,
+      agentType: (row.agentType as AgentType) || 'scout',
       title: row.title || '',
       source: row.source || '',
       sourceUrl: row.sourceUrl || '',
@@ -253,13 +289,13 @@ export const Admin: React.FC = () => {
     }
   }, []);
 
-  const loadScoutTasks = React.useCallback(async () => {
+  const loadScoutTasks = React.useCallback(async (nextAgentType: AgentType = workerType) => {
     setScoutLoading(true);
     setError(null);
     try {
       const response = await backendApi.get(ENDPOINTS.admin.scoutTasks, {
         params: {
-          agentType: 'scout',
+          agentType: nextAgentType,
           limit: 100,
         },
       });
@@ -278,7 +314,7 @@ export const Admin: React.FC = () => {
     } finally {
       setScoutLoading(false);
     }
-  }, [toScoutLead]);
+  }, [toScoutLead, workerType]);
 
   const saveScoutTaskPatch = React.useCallback(async (leadId: string, patch: Partial<ScoutLead>, opts?: { immediate?: boolean }) => {
     const doRequest = async () => {
@@ -286,7 +322,7 @@ export const Admin: React.FC = () => {
       try {
         const response = await backendApi.patch(ENDPOINTS.admin.scoutTask(leadId), {
           ...patch,
-          agentType: 'scout',
+          agentType: (patch.agentType as AgentType) || workerType,
         });
         if (response.data?.task) {
           const updated = toScoutLead(response.data.task as ScoutTaskApiRow);
@@ -324,7 +360,7 @@ export const Admin: React.FC = () => {
         scoutSaveTimersRef.current[leadId] = undefined;
       });
     }, 350);
-  }, [toScoutLead]);
+  }, [toScoutLead, workerType]);
 
   const loadAuditLog = React.useCallback(async () => {
     try {
@@ -344,13 +380,13 @@ export const Admin: React.FC = () => {
     if (activeTab === 'overview' || activeTab === 'partners') {
       void loadAdminData(pagination.page);
     } else if (activeTab === 'scout') {
-      void loadScoutTasks();
+      void loadScoutTasks(workerType);
     } else if (activeTab === 'system') {
       void loadImpersonations();
     } else if (activeTab === 'audit') {
       void loadAuditLog();
     }
-  }, [isSuperAdmin, activeTab, search, filterPlan, filterStatus, loadScoutTasks]);
+  }, [isSuperAdmin, activeTab, search, filterPlan, filterStatus, loadScoutTasks, workerType]);
 
   React.useEffect(() => {
     if (isSuperAdmin && activeTab === 'groups' && selectedWorkspaceId) {
@@ -438,16 +474,17 @@ export const Admin: React.FC = () => {
     const current = scoutQueue.find((lead) => lead.id === scoutSelectedId);
     return current || scoutQueue[0] || null;
   }, [scoutQueue, scoutSelectedId]);
+  const selectedWorkerMeta = WORKER_TYPE_META[workerType];
 
   const addScoutDraft = async () => {
     setError(null);
     if (!scoutDraft.title.trim() || !scoutDraft.source.trim() || !scoutDraft.draft.trim()) {
-      setError('Scout draft needs a title, source, and pitch before it can be added.');
+      setError('Worker draft needs a title, source, and pitch before it can be added.');
       return;
     }
     try {
       const response = await backendApi.post(ENDPOINTS.admin.scoutTasks, {
-        agentType: 'scout',
+        agentType: workerType,
         title: scoutDraft.title.trim(),
         source: scoutDraft.source.trim(),
         sourceUrl: scoutDraft.sourceUrl.trim() || undefined,
@@ -460,9 +497,10 @@ export const Admin: React.FC = () => {
       });
       if (response.data?.task) {
         const next = toScoutLead(response.data.task as ScoutTaskApiRow);
-        setScoutQueue((current) => [next, ...current.filter((lead) => lead.id !== next.id)]);
-        setScoutSelectedId(next.id);
-        setScoutDraft({
+      setScoutQueue((current) => [next, ...current.filter((lead) => lead.id !== next.id)]);
+      setScoutSelectedId(next.id);
+      setScoutDraft({
+          agentType: workerType,
           title: '',
           source: '',
           sourceUrl: '',
@@ -481,16 +519,41 @@ export const Admin: React.FC = () => {
   const generateScoutDraft = async () => {
     if (!selectedScoutLead) return;
     const sourceLine = selectedScoutLead.sourceUrl ? `Reference: ${selectedScoutLead.sourceUrl}` : `Source: ${selectedScoutLead.source}`;
-    const safePitch = [
-      `Hi, I saw your piece on ${selectedScoutLead.title}.`,
-      selectedScoutLead.context,
-      `PropAI Pulse can share a public-safe market summary, locality page, or broker workflow context without exposing private broker data.`,
-      selectedScoutLead.angle,
-      sourceLine,
-      'If useful, I can send a short note or data snapshot that fits your audience.',
-    ]
-      .filter(Boolean)
-      .join(' ');
+    const safePitchByType: Record<AgentType, string> = {
+      scout: [
+        `Hi, I saw your piece on ${selectedScoutLead.title}.`,
+        selectedScoutLead.context,
+        'PropAI Pulse can share a public-safe market summary or partner note without exposing private broker data.',
+        selectedScoutLead.angle,
+        sourceLine,
+        'If useful, I can send a short note or data snapshot that fits your audience.',
+      ].filter(Boolean).join(' '),
+      seo: [
+        `Hi, I saw your page or thread on ${selectedScoutLead.title}.`,
+        selectedScoutLead.context,
+        'PropAI Pulse can provide a crawl-safe locality page, sitemap support, and public-facing market context from observed data.',
+        selectedScoutLead.angle,
+        sourceLine,
+        'If useful, I can share a public-safe page or summary that helps the right market surface in search.',
+      ].filter(Boolean).join(' '),
+      analyst: [
+        `Hi, I saw your analysis on ${selectedScoutLead.title}.`,
+        selectedScoutLead.context,
+        'PropAI Pulse can share observed broker-signal summaries, locality demand context, and comparison notes from the data actually seen.',
+        selectedScoutLead.angle,
+        sourceLine,
+        'If useful, I can send a concise market read that stays within observed data only.',
+      ].filter(Boolean).join(' '),
+      integrity: [
+        `Hi, I saw the issue noted for ${selectedScoutLead.title}.`,
+        selectedScoutLead.context,
+        'PropAI Pulse can help verify freshness, canonical coverage, or performance notes for the public surfaces.',
+        selectedScoutLead.angle,
+        sourceLine,
+        'If useful, I can send a short system note or QA summary that stays public-safe.',
+      ].filter(Boolean).join(' '),
+    };
+        const safePitch = safePitchByType[selectedScoutLead.agentType || workerType];
     await saveScoutTaskPatch(selectedScoutLead.id, { draft: safePitch, status: 'needs_review' }, { immediate: true });
   };
 
@@ -553,7 +616,7 @@ export const Admin: React.FC = () => {
               : activeTab === 'system'
                 ? loadImpersonations()
                 : activeTab === 'scout'
-                  ? void loadScoutTasks()
+                  ? void loadScoutTasks(workerType)
                   : loadAdminData(pagination.page)}
             className={cn(adminSecondaryButton, 'rounded-full')}
           >
@@ -575,7 +638,7 @@ export const Admin: React.FC = () => {
           { id: 'overview', label: 'Overview' },
           { id: 'partners', label: 'Partners & Billing' },
           { id: 'groups', label: 'Group Directory' },
-          { id: 'scout', label: 'Scout' },
+          { id: 'scout', label: 'Workers' },
           { id: 'audit', label: 'Audit Log' },
           { id: 'system', label: 'System & Sessions' },
         ].map((tab) => (
@@ -860,14 +923,35 @@ export const Admin: React.FC = () => {
               <div className="max-w-3xl">
                 <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
                   <BotIcon className="h-3.5 w-3.5" />
-                  Private scout queue
+                  Private worker queue
                 </div>
                 <h3 className="mt-4 text-[22px] font-bold tracking-[-0.03em] text-[var(--text-primary)] md:text-[28px]">
-                  Draft outreach, review it, then decide.
+                  {selectedWorkerMeta.title}
                 </h3>
                 <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                  This is a human-in-the-loop growth workspace. It surfaces useful targets, drafts a pitch, and leaves the final send decision to you.
+                  {selectedWorkerMeta.copy}
                 </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {(Object.keys(WORKER_TYPE_META) as AgentType[]).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                    onClick={() => {
+                      setWorkerType(type);
+                      setScoutDraft((current) => ({ ...current, agentType: type }));
+                      setScoutFilter('all');
+                      setScoutSelectedId('');
+                    }}
+                      className={cn(
+                        adminSecondaryButton,
+                        'px-3 py-2 text-[10px]',
+                        workerType === type && 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]',
+                      )}
+                    >
+                      {WORKER_TYPE_META[type].label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.08em]">
                 <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>{scoutQueue.length} leads</span>
@@ -882,12 +966,14 @@ export const Admin: React.FC = () => {
               <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <h4 className="text-[14px] font-bold text-[var(--text-primary)]">Add a new scout draft</h4>
-                    <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Paste a target, context, and pitch. The item lands in review, never auto-sends.</p>
+                    <h4 className="text-[14px] font-bold text-[var(--text-primary)]">Add a new {selectedWorkerMeta.label.toLowerCase()} draft</h4>
+                    <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
+                      Paste a target, context, and pitch. {selectedWorkerMeta.badge}. The item lands in review, never auto-sends.
+                    </p>
                   </div>
                   <div className="flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.08em]">
                     <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>Email / DM / comment</span>
-                    <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>PR / outreach / partnership</span>
+                    <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>{selectedWorkerMeta.badge}</span>
                   </div>
                 </div>
 
@@ -895,19 +981,19 @@ export const Admin: React.FC = () => {
                   <input
                     value={scoutDraft.title}
                     onChange={(e) => setScoutDraft((curr) => ({ ...curr, title: e.target.value }))}
-                    placeholder="Target title"
+                    placeholder={workerType === 'seo' ? 'Locality / market page' : 'Target title'}
                     className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                   />
                   <input
                     value={scoutDraft.source}
                     onChange={(e) => setScoutDraft((curr) => ({ ...curr, source: e.target.value }))}
-                    placeholder="Source / publication"
+                    placeholder={workerType === 'seo' ? 'Source / hub page' : 'Source / publication'}
                     className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                   />
                   <input
                     value={scoutDraft.sourceUrl}
                     onChange={(e) => setScoutDraft((curr) => ({ ...curr, sourceUrl: e.target.value }))}
-                    placeholder="Target URL (optional)"
+                    placeholder={workerType === 'seo' ? 'Page URL / sitemap target (optional)' : 'Target URL (optional)'}
                     className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)] md:col-span-2"
                   />
                   <select
@@ -935,21 +1021,21 @@ export const Admin: React.FC = () => {
                   value={scoutDraft.context}
                   onChange={(e) => setScoutDraft((curr) => ({ ...curr, context: e.target.value }))}
                   rows={3}
-                  placeholder="Observed context"
+                  placeholder={workerType === 'seo' ? 'Observed crawl / locality context' : workerType === 'analyst' ? 'Observed market context' : 'Observed context'}
                   className="mt-3 w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                 />
                 <textarea
                   value={scoutDraft.angle}
                   onChange={(e) => setScoutDraft((curr) => ({ ...curr, angle: e.target.value }))}
                   rows={2}
-                  placeholder="Suggested angle"
+                  placeholder={workerType === 'seo' ? 'Suggested SEO angle' : 'Suggested angle'}
                   className="mt-3 w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                 />
                 <textarea
                   value={scoutDraft.draft}
                   onChange={(e) => setScoutDraft((curr) => ({ ...curr, draft: e.target.value }))}
                   rows={5}
-                  placeholder="Draft pitch"
+                  placeholder={workerType === 'seo' ? 'Draft SEO note / public-safe update' : 'Draft pitch'}
                   className="mt-3 w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[13px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
                 />
 
@@ -962,6 +1048,7 @@ export const Admin: React.FC = () => {
                     type="button"
                     onClick={() => {
                       setScoutDraft({
+                        agentType: workerType,
                         title: '',
                         source: '',
                         sourceUrl: '',
@@ -1006,11 +1093,11 @@ export const Admin: React.FC = () => {
                 <div className="mt-4 space-y-3">
                   {scoutLoading ? (
                     <div className="rounded-[14px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-8 text-center text-[13px] text-[var(--text-secondary)]">
-                      Loading scout queue...
+                      Loading worker queue...
                     </div>
                   ) : scoutFiltered.length === 0 ? (
                     <div className="rounded-[14px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-8 text-center text-[13px] text-[var(--text-secondary)]">
-                      No scout drafts in this filter. Add one from the form above.
+                      No worker drafts in this filter. Add one from the form above.
                     </div>
                   ) : (
                     scoutFiltered.map((lead) => {
@@ -1031,6 +1118,12 @@ export const Admin: React.FC = () => {
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="text-[14px] font-bold text-[var(--text-primary)]">{lead.title}</p>
+                                <span className={cn(
+                                  adminPill,
+                                  'border-[color:var(--border)] text-[var(--text-secondary)]',
+                                )}>
+                                  {WORKER_TYPE_META[lead.agentType].label}
+                                </span>
                                 <span className={cn(
                                   adminPill,
                                   lead.status === 'approved'
@@ -1123,7 +1216,7 @@ export const Admin: React.FC = () => {
                   </div>
                   {selectedScoutLead ? (
                     <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>
-                      {selectedScoutLead.channel}
+                      {WORKER_TYPE_META[selectedScoutLead.agentType].label} · {selectedScoutLead.channel}
                     </span>
                   ) : null}
                 </div>
@@ -1179,6 +1272,19 @@ export const Admin: React.FC = () => {
 
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       <select
+                        value={selectedScoutLead.agentType}
+                        onChange={(e) => {
+                          const nextAgentType = e.target.value as AgentType;
+                          setWorkerType(nextAgentType);
+                          void saveScoutTaskPatch(selectedScoutLead.id, { agentType: nextAgentType });
+                        }}
+                        className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)] sm:col-span-3"
+                      >
+                        {((Object.keys(WORKER_TYPE_META) as AgentType[]).map((type) => (
+                          <option key={type} value={type}>{WORKER_TYPE_META[type].label}</option>
+                        )))}
+                      </select>
+                      <select
                         value={selectedScoutLead.channel}
                         onChange={(e) => void saveScoutTaskPatch(selectedScoutLead.id, { channel: e.target.value as ScoutChannel })}
                         className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
@@ -1211,9 +1317,9 @@ export const Admin: React.FC = () => {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => void generateScoutDraft()} className={adminSecondaryButton} disabled={scoutSavingId === selectedScoutLead.id}>
+                  <button type="button" onClick={() => void generateScoutDraft()} className={adminSecondaryButton} disabled={scoutSavingId === selectedScoutLead.id}>
                         <SparklesIcon className="h-3.5 w-3.5" />
-                        Generate draft
+                        Generate {WORKER_TYPE_META[selectedScoutLead.agentType].label}
                       </button>
                       <button type="button" onClick={() => void markScoutStatus(selectedScoutLead.id, 'approved')} className={adminPrimaryButton} disabled={scoutSavingId === selectedScoutLead.id}>
                         <CheckIcon className="h-3.5 w-3.5" />
@@ -1240,7 +1346,7 @@ export const Admin: React.FC = () => {
                   </div>
                 ) : (
                   <div className="mt-4 rounded-[14px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-8 text-center text-[13px] text-[var(--text-secondary)]">
-                    No scout draft selected.
+                    No worker draft selected.
                   </div>
                 )}
               </div>
@@ -1248,7 +1354,7 @@ export const Admin: React.FC = () => {
               <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
                 <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   <ShieldIcon className="h-3.5 w-3.5 text-[var(--accent)]" />
-                  Scout safeguards
+                  Worker safeguards
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   {[
