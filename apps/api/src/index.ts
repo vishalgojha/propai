@@ -258,8 +258,10 @@ app.get(ROUTE_PATHS.api.health, async (req, res) => {
                 health.database = 'connected';
             }
         }
-    } catch {
+    } catch (error: any) {
         health.database = 'unreachable';
+        health.databaseReason = classifySupabaseHealthError(error);
+        health.databaseMessage = String(error?.message || error || 'health check threw').slice(0, 180);
     }
 
     // Check Ollama embedding service (powers semantic_search and embedStreamItem)
