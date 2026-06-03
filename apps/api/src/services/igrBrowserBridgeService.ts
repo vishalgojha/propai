@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 type LiveIgrFetchInput = {
   buildingName?: string | null;
@@ -26,29 +25,10 @@ function stringifyError(error: unknown): string {
   return String(error || 'Unknown helper failure');
 }
 
-function resolveScriptPath(): string {
-  const configuredPath = normalize(process.env.IGR_BROWSER_HELPER_SCRIPT);
-  if (configuredPath) {
-    return configuredPath;
-  }
-
-  const localWorkerCandidates = [
-    path.join(process.cwd(), 'dist', 'scripts', 'igrBrowserWorker.js'),
-    path.join(process.cwd(), 'dist', 'scripts', 'igrBrowserWorker.cjs'),
-  ];
-
-  const localWorker = localWorkerCandidates.find((candidate) => existsSync(candidate));
-  if (localWorker) {
-    return localWorker;
-  }
-
-  return '/home/vishal/browser automation for igr/scrape-igr.js';
-}
-
 export class IgrBrowserBridgeService {
   private readonly enabled = process.env.IGR_BROWSER_HELPER_ENABLED !== 'false';
   private readonly nodeBin = normalize(process.env.IGR_BROWSER_HELPER_NODE || process.execPath);
-  private readonly scriptPath = resolveScriptPath();
+  private readonly scriptPath = path.join(process.cwd(), 'dist', 'scripts', 'igrBrowserWorker.js');
   private readonly cwd = normalize(process.env.IGR_BROWSER_HELPER_CWD || path.dirname(this.scriptPath));
   private readonly timeoutMs = Math.max(
     30_000,
@@ -56,7 +36,7 @@ export class IgrBrowserBridgeService {
   );
 
   private buildRunnerCode(scriptPath: string, input: LiveIgrFetchInput): string {
-    const moduleUrl = pathToFileURL(scriptPath).href;
+    const moduleUrl = `file://${scriptPath}`;
     const payload = JSON.stringify({
       buildingName: normalize(input.buildingName),
       locality: normalize(input.locality),
@@ -131,10 +111,10 @@ export class IgrBrowserBridgeService {
       };
     }
 
-    if (!this.scriptPath || !existsSync(this.scriptPath)) {
+    if (!existsSync(this.scriptPath)) {
       return {
         success: false,
-        error: `IGR browser helper script not found at "${this.scriptPath}"`,
+        error: `Bundled IGR browser worker not found at "${this.scriptPath}"`,
         source: 'igr_browser_helper',
       };
     }
