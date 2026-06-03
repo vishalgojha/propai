@@ -292,16 +292,17 @@ app.get(ROUTE_PATHS.api.health, async (req, res) => {
 
     // Check Supabase connectivity
     try {
-        const { createClient } = await import('@supabase/supabase-js');
         const sbUrl = process.env.SUPABASE_URL || '';
         const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
         if (sbUrl && sbKey) {
-            const sb = createClient(sbUrl, sbKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
-            const { error } = await sb.from('whatsapp_sessions').select('id').limit(1);
-            if (error) {
+            const probe = await probeSupabaseRest(sbUrl, sbKey, 'whatsapp_sessions', {
+                select: 'id',
+                limit: '1',
+            });
+            if (!probe.ok) {
                 health.database = 'degraded';
-                health.databaseReason = classifySupabaseHealthError(error);
-                health.databaseMessage = String(error.message || '').slice(0, 180);
+                health.databaseReason = classifySupabaseHealthError({ message: probe.error, statusCode: probe.status });
+                health.databaseMessage = String(probe.error || '').slice(0, 180);
             } else {
                 health.database = 'connected';
             }
@@ -456,19 +457,31 @@ server = app.listen(PORT, () => {
                 return;
             }
 
-            historySyncWorker.start();
-            syndicationSyncJob.start();
-            generateMarketInsightsJob.start();
-            igrEnrichmentJob.start();
-            followUpOverdueJob.start();
+            whatsappHealthService.startHeartbeatLoop(sessionManager);
 
             if (ENABLE_SYSTEM_WHATSAPP_SESSION) {
-                await sessionManager.initSystemSession();
+                void sessionManager.initSystemSession().catch((error) => {
+                    console.error('[startup] Failed to initialize system WhatsApp session:', error);
+                });
             } else {
                 console.log('[startup] System WhatsApp session disabled.');
             }
 
-            whatsappHealthService.startHeartbeatLoop(sessionManager);
+            const backgroundJobs: Array<[string, () => void]> = [
+                ['historySyncWorker', () => historySyncWorker.start()],
+                ['syndicationSyncJob', () => syndicationSyncJob.start()],
+                ['generateMarketInsightsJob', () => generateMarketInsightsJob.start()],
+                ['igrEnrichmentJob', () => igrEnrichmentJob.start()],
+                ['followUpOverdueJob', () => followUpOverdueJob.start()],
+            ];
+
+            for (const [name, starter] of backgroundJobs) {
+                try {
+                    starter();
+                } catch (error) {
+                    console.error(`[startup] ${name} failed to start:`, error);
+                }
+            }
 
             console.log('[startup] All initialization complete.');
         } catch (error) {

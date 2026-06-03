@@ -38,6 +38,7 @@ type HeartbeatSessionSnapshot = {
 
 type HeartbeatSessionManager = {
     getAllSessions(): HeartbeatSessionSnapshot[];
+    rehydratePersistedSessions?: () => Promise<void>;
     createSession(
         tenantId: string,
         onQR: (qr: string) => void,
@@ -138,8 +139,10 @@ export class WhatsAppHealthService {
     private heartbeatRunning = false;
     private heartbeatLoopActive = false;
     private readonly heartbeatLogAt = new Map<string, number>();
+    private readonly heartbeatRehydrateAt = new Map<string, number>();
     private readonly heartbeatIntervalMs = Number(process.env.WHATSAPP_HEALTH_HEARTBEAT_MS || 2_500);
     private readonly heartbeatReconnectAfterMs = Number(process.env.WHATSAPP_HEALTH_RECONNECT_AFTER_MS || 5_000);
+    private readonly heartbeatRehydrateAfterMs = Number(process.env.WHATSAPP_HEALTH_REHYDRATE_AFTER_MS || 5 * 60_000);
 
     startHeartbeatLoop(sessionManager: HeartbeatSessionManager) {
         if (this.heartbeatTimer) {
@@ -666,6 +669,36 @@ export class WhatsAppHealthService {
         return true;
     }
 
+    private async maybeRehydrateMissingSessions(sessionManager: HeartbeatSessionManager) {
+        if (typeof sessionManager.rehydratePersistedSessions !== 'function') {
+            return;
+        }
+
+        const liveSessions = sessionManager.getAllSessions();
+        if (liveSessions.length > 0) {
+            return;
+        }
+
+        const now = Date.now();
+        const lastAt = this.heartbeatRehydrateAt.get('missing_sessions') || 0;
+        if (now - lastAt < this.heartbeatRehydrateAfterMs) {
+            return;
+        }
+
+        this.heartbeatRehydrateAt.set('missing_sessions', now);
+        if (this.shouldLogHeartbeat('heartbeat_rehydrate_missing_sessions', 10 * 60_000)) {
+            console.warn('[WhatsAppHealthService] No live WhatsApp sessions found; attempting to rehydrate persisted sessions.');
+        }
+
+        try {
+            await sessionManager.rehydratePersistedSessions();
+        } catch (error) {
+            if (this.shouldLogHeartbeat('heartbeat_rehydrate_missing_sessions_failed', 10 * 60_000)) {
+                console.warn('[WhatsAppHealthService] Rehydrating persisted WhatsApp sessions failed', error);
+            }
+        }
+    }
+
     private async runHeartbeatSweep(sessionManager: HeartbeatSessionManager) {
         if (this.heartbeatRunning) {
             return;
@@ -673,6 +706,7 @@ export class WhatsAppHealthService {
 
         this.heartbeatRunning = true;
         try {
+            await this.maybeRehydrateMissingSessions(sessionManager);
             const { data, error } = await db
                 .from('whatsapp_sessions')
                 .select('tenant_id, label, status, owner_name, updated_at, session_data, creds, keys')
