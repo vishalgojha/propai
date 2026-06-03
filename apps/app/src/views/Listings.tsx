@@ -34,6 +34,7 @@ const STREAM_VIEW_CACHE_VERSION = 1;
 const STREAM_VIEW_CACHE_TTL_MS = 2 * 60 * 1000;
 const ALL_TYPES = ['Rent', 'Sale', 'Requirement', 'Pre-leased', 'Lease'] as const;
 const ALL_BHK = ['1 BHK', '2 BHK', '3 BHK', '4+ BHK'] as const;
+const ALL_COMMERCIAL_FACETS = ['Office', 'Retail', 'Shop', 'Showroom', 'Warehouse', 'Pre-leased'] as const;
 const ALL_PROPERTY_CATEGORIES = ['residential', 'commercial'] as const;
 const BROKER_TAG_PATTERN = /\b(broker|broking|agnt|agent)\b/i;
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
@@ -284,6 +285,32 @@ const normalizeSearchText = (value: string) =>
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+const getCommercialFacetText = (item: StreamItem) =>
+  normalizeSearchText(
+    [
+      item.commercialType,
+      item.propertyUse,
+      item.assetClass,
+      item.fitoutStatus,
+      item.description,
+      item.title,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  );
+
+const matchesCommercialFacet = (item: StreamItem, facet: string) => {
+  if (facet === 'all') return true;
+  const normalizedFacet = normalizeSearchText(facet);
+  const haystack = getCommercialFacetText(item);
+
+  if (!normalizedFacet) {
+    return true;
+  }
+
+  return haystack.includes(normalizedFacet);
+};
 
 const isConfidenceInBand = (confidence: number, band: 'low' | 'medium' | 'high') => {
   if (band === 'high') return confidence >= 70;
@@ -542,6 +569,7 @@ export const Listings: React.FC = () => {
   const [infoMessage, setInfoMessage] = React.useState<string | null>(null);
   const [showFilters, setShowFilters] = React.useState(false);
   const [filterBhk, setFilterBhk] = React.useState<string>('all');
+  const [filterCommercialFacet, setFilterCommercialFacet] = React.useState<string>('all');
   const [filterSource, setFilterSource] = React.useState<string>('all');
   const [brokerOnly, setBrokerOnly] = React.useState(false);
   const [quickTypes, setQuickTypes] = React.useState<Array<StreamItem['type']>>([]);
@@ -563,6 +591,19 @@ export const Listings: React.FC = () => {
   const isSuperAdmin =
     user?.appRole === 'super_admin' ||
     OWNER_SUPER_ADMIN_EMAILS.has(String(user?.email || '').trim().toLowerCase());
+
+  React.useEffect(() => {
+    if (filterPropertyCategory === 'commercial') {
+      if (filterBhk !== 'all') {
+        setFilterBhk('all');
+      }
+      return;
+    }
+
+    if (filterCommercialFacet !== 'all') {
+      setFilterCommercialFacet('all');
+    }
+  }, [filterPropertyCategory, filterBhk, filterCommercialFacet]);
 
   const serverFilters = React.useMemo(() => ({
     category: filterPropertyCategory as 'residential' | 'commercial',
@@ -903,12 +944,16 @@ export const Listings: React.FC = () => {
       filtered = filtered.filter((item) => quickTypes.includes(item.type));
     }
 
-    if (filterBhk !== 'all') {
+    if (filterPropertyCategory === 'residential' && filterBhk !== 'all') {
       if (filterBhk === '4+ BHK') {
         filtered = filtered.filter((item) => /4\+?\s*bhk/i.test(item.bhk));
       } else {
         filtered = filtered.filter((item) => item.bhk.toLowerCase().includes(filterBhk.toLowerCase().replace(' bhk', '')));
       }
+    }
+
+    if (filterPropertyCategory === 'commercial' && filterCommercialFacet !== 'all') {
+      filtered = filtered.filter((item) => matchesCommercialFacet(item, filterCommercialFacet));
     }
 
     if (quickConfidenceBands.length > 0) {
@@ -963,20 +1008,24 @@ if (brokerOnly) {
     filtered = filtered.filter((item) => (item.propertyCategory || 'residential') === filterPropertyCategory);
 
     return filtered;
-  }, [streamItems, search, quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory]);
+  }, [streamItems, search, quickTypes, filterBhk, filterCommercialFacet, quickConfidenceBands, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory]);
 
   const activeFilterCount = React.useMemo(() => {
     let count = 0;
     if (quickTypes.length > 0) count++;
     if (quickTimeBands.length > 0) count++;
-    if (filterBhk !== 'all') count++;
+    if (filterPropertyCategory === 'commercial') {
+      if (filterCommercialFacet !== 'all') count++;
+    } else if (filterBhk !== 'all') {
+      count++;
+    }
     if (quickConfidenceBands.length > 0) count++;
     if (quickFreshnessBands.length > 0) count++;
     if (filterSource !== 'all') count++;
     if (brokerOnly) count++;
     if (filterPropertyCategory !== 'all') count++;
     return count;
-  }, [quickTypes, quickTimeBands, filterBhk, quickConfidenceBands, quickFreshnessBands, filterSource, brokerOnly, filterPropertyCategory]);
+  }, [quickTypes, quickTimeBands, filterBhk, filterCommercialFacet, quickConfidenceBands, quickFreshnessBands, filterSource, brokerOnly, filterPropertyCategory]);
 
   const clearAllFilters = () => {
     setQuickTypes([]);
@@ -984,6 +1033,7 @@ if (brokerOnly) {
     setQuickConfidenceBands([]);
     setQuickFreshnessBands([]);
     setFilterBhk('all');
+    setFilterCommercialFacet('all');
     setFilterSource('all');
     setBrokerOnly(false);
     setSearch('');
@@ -1510,29 +1560,55 @@ if (brokerOnly) {
               </div>
             </div>
 
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">BHK</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {ALL_BHK.map((bhk) => {
-                  const active = filterBhk === bhk;
-                  return (
-                    <button
-                      key={bhk}
-                      type="button"
-                      onClick={() => setFilterBhk((current) => (current === bhk ? 'all' : bhk))}
-                      className={cn(
-                        'rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                        active
-                          ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
-                          : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
-                      )}
-                    >
-                      {bhk}
-                    </button>
-                  );
-                })}
+            {filterPropertyCategory === 'commercial' ? (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Commercial type</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {ALL_COMMERCIAL_FACETS.map((facet) => {
+                    const active = filterCommercialFacet === facet;
+                    return (
+                      <button
+                        key={facet}
+                        type="button"
+                        onClick={() => setFilterCommercialFacet((current) => (current === facet ? 'all' : facet))}
+                        className={cn(
+                          'rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                          active
+                            ? 'border-purple-500/70 bg-purple-500/20 text-purple-300'
+                            : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                        )}
+                      >
+                        {facet}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">BHK</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {ALL_BHK.map((bhk) => {
+                    const active = filterBhk === bhk;
+                    return (
+                      <button
+                        key={bhk}
+                        type="button"
+                        onClick={() => setFilterBhk((current) => (current === bhk ? 'all' : bhk))}
+                        className={cn(
+                          'rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
+                          active
+                            ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                            : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                        )}
+                      >
+                        {bhk}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Freshness</p>
