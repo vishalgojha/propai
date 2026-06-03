@@ -494,7 +494,19 @@ export const listScoutTasks = async (req: Request, res: Response) => {
     res.json({ success: true, tasks: (data || []).map((row) => normalizeScoutTask(row as Partial<ScoutTaskRow>)) });
   } catch (error: unknown) {
     const statusCode = error instanceof HttpError ? error.statusCode : 500;
-    res.status(statusCode).json({ error: error instanceof Error ? error.message : 'Failed to load scout tasks' });
+    const message = error instanceof Error ? error.message : 'Failed to load scout tasks';
+    if (
+      message.includes('super_admin_agent_tasks') ||
+      message.includes('does not exist') ||
+      message.includes('column') && message.includes('does not exist')
+    ) {
+      return res.json({
+        success: true,
+        tasks: [],
+        note: 'Scout queue table is not ready yet. Showing an empty queue so the admin board stays usable.',
+      });
+    }
+    res.status(statusCode).json({ error: message || 'Failed to load scout tasks' });
   }
 };
 

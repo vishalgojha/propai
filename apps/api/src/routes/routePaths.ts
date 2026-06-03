@@ -43,6 +43,17 @@ export const ROUTE_PATHS = {
   },
   broadcast: {
     parse: '/parse',
+    campaigns: '/campaigns',
+    campaignById: '/campaigns/:id',
+    campaignPopulate: '/campaigns/:id/populate',
+    campaignStart: '/campaigns/:id/start',
+    campaignCancel: '/campaigns/:id/cancel',
+    campaignRecipients: '/campaigns/:id/recipients',
+    campaignStats: '/campaigns/:id/stats',
+    openwaHealth: '/openwa/health',
+    openwaSession: '/openwa/session',
+    openwaQR: '/openwa/qr',
+    webhook: '/webhook/openwa',
   },
   auth: {
     requestVerification: '/request-verification',

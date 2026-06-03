@@ -115,6 +115,8 @@ type ScoutTaskApiRow = {
   updatedAt?: string | null;
 };
 
+const scoutCacheKey = (agentType: AgentType) => `propai:admin:scout-tasks:${agentType}`;
+
 const WORKER_TYPE_META: Record<AgentType, { label: string; title: string; copy: string; badge: string; suggestion: string }> = {
   scout: {
     label: 'Scout',
@@ -198,6 +200,7 @@ export const Admin: React.FC = () => {
   const [scoutQueue, setScoutQueue] = React.useState<ScoutLead[]>([]);
   const [scoutFilter, setScoutFilter] = React.useState<'all' | ScoutStatus>(() => parseScoutStatus(searchParams.get('filter')));
   const [scoutSelectedId, setScoutSelectedId] = React.useState<string>('');
+  const [scoutNotice, setScoutNotice] = React.useState<string | null>(null);
   const [scoutDraft, setScoutDraft] = React.useState({
     agentType: 'seo' as AgentType,
     title: '',
@@ -262,6 +265,32 @@ export const Admin: React.FC = () => {
     }
   }, [scoutQueue, scoutSelectedId]);
 
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const cached = window.localStorage.getItem(scoutCacheKey(workerType));
+    if (!cached) return;
+    try {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed)) {
+        const tasks = parsed.map((task) => toScoutLead(task as ScoutTaskApiRow));
+        setScoutQueue(tasks);
+        setScoutSelectedId((current) => current && tasks.some((task) => task.id === current) ? current : (tasks[0]?.id || ''));
+        setScoutNotice(`Loaded ${tasks.length} cached worker tasks while refreshing the live queue.`);
+      }
+    } catch {
+      // Ignore cache parse errors and let the live request decide the state.
+    }
+  }, [toScoutLead, workerType]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(scoutCacheKey(workerType), JSON.stringify(scoutQueue));
+    } catch {
+      // Ignore storage failures; the live queue still works when available.
+    }
+  }, [scoutQueue, workerType]);
+
   const loadAdminData = React.useCallback(async (page = 1) => {
     setIsLoading(true);
     setError(null);
@@ -313,7 +342,7 @@ export const Admin: React.FC = () => {
 
   const loadScoutTasks = React.useCallback(async (nextAgentType: AgentType = workerType) => {
     setScoutLoading(true);
-    setError(null);
+    setScoutNotice(null);
     try {
       const response = await backendApi.get(ENDPOINTS.admin.scoutTasks, {
         params: {
@@ -329,10 +358,12 @@ export const Admin: React.FC = () => {
         if (current && tasks.some((task) => task.id === current)) return current;
         return tasks[0]?.id || '';
       });
+      if (response.data?.note) {
+        setScoutNotice(String(response.data.note));
+      }
     } catch (err) {
-      setError(handleApiError(err));
-      setScoutQueue([]);
-      setScoutSelectedId('');
+      const message = handleApiError(err);
+      setScoutNotice(`${message}. Showing cached worker tasks if available.`);
     } finally {
       setScoutLoading(false);
     }
@@ -1257,6 +1288,11 @@ export const Admin: React.FC = () => {
                 </div>
 
                 <div className="mt-4 space-y-3">
+                  {scoutNotice ? (
+                    <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[12px] text-[var(--text-secondary)]">
+                      {scoutNotice}
+                    </div>
+                  ) : null}
                   {scoutLoading ? (
                     <div className="rounded-[14px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-8 text-center text-[13px] text-[var(--text-secondary)]">
                       Loading worker queue...
