@@ -1,147 +1,84 @@
-import axios from 'axios';
+import { sessionManager } from '../whatsapp/SessionManager';
 
-const OPENWA_BASE_URL = process.env.OPENWA_API_URL || 'http://localhost:2785';
-const OPENWA_API_KEY = process.env.OPENWA_API_KEY || '';
-const OPENWA_SESSION_NAME = process.env.OPENWA_SESSION_NAME || 'broadcast';
-
-interface OpenWASendTextResponse {
+type SendResult = {
   success: boolean;
   messageId?: string;
   error?: string;
+};
+
+function asErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message || fallback;
+  if (typeof error === 'string' && error.trim()) return error.trim();
+  return fallback;
 }
 
-interface OpenWASendMediaResponse {
-  success: boolean;
-  messageId?: string;
-  error?: string;
+async function getSystemSession() {
+  return sessionManager.getSession('system', 'System');
 }
 
-export class OpenWAService {
-  private getHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (OPENWA_API_KEY) {
-      headers['X-API-Key'] = OPENWA_API_KEY;
+async function sendText(chatId: string, text: string): Promise<SendResult> {
+  try {
+    const client = await getSystemSession();
+    if (!client) {
+      return { success: false, error: 'System WhatsApp session is not connected' };
     }
-    return headers;
-  }
 
-  private getApiUrl(path: string): string {
-    return `${OPENWA_BASE_URL}/api${path}`;
+    const result = await client.sendText(chatId, text);
+    const messageId = String((result as any)?.key?.id || (result as any)?.id || '');
+    return { success: true, messageId: messageId || undefined };
+  } catch (error) {
+    return { success: false, error: asErrorMessage(error, 'Failed to send WhatsApp message') };
   }
+}
 
-  async healthCheck(): Promise<boolean> {
+async function sendWithFallback(chatId: string, text: string, mediaUrl?: string | null): Promise<SendResult> {
+  try {
+    const client = await getSystemSession();
+    if (!client) {
+      return { success: false, error: 'System WhatsApp session is not connected' };
+    }
+
+    if (mediaUrl) {
+      const result = await client.sendMedia(chatId, {
+        url: mediaUrl,
+        caption: text,
+      });
+      const messageId = String((result as any)?.key?.id || (result as any)?.id || '');
+      return { success: true, messageId: messageId || undefined };
+    }
+
+    return sendText(chatId, text);
+  } catch (error) {
+    return { success: false, error: asErrorMessage(error, 'Failed to send WhatsApp message') };
+  }
+}
+
+export const openWAService = {
+  healthCheck: async (): Promise<boolean> => {
     try {
-      const response = await axios.get(this.getApiUrl('/health'), { timeout: 5000 });
-      return response.status === 200;
+      const status = await sessionManager.getSystemStatus();
+      return Boolean(status.connected);
     } catch {
       return false;
     }
-  }
+  },
 
-  async sendText(chatId: string, text: string): Promise<OpenWASendTextResponse> {
+  getSessionStatus: async (): Promise<{ status: string; connected: boolean }> => {
     try {
-      const response = await axios.post(
-        this.getApiUrl(`/sessions/${OPENWA_SESSION_NAME}/messages/send-text`),
-        { chatId, text },
-        { headers: this.getHeaders(), timeout: 30000 },
-      );
-
-      return {
-        success: true,
-        messageId: response.data?.messageId || response.data?.id,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error?.response?.data?.error || error?.message || 'Failed to send message',
-      };
-    }
-  }
-
-  async sendMedia(
-    chatId: string,
-    mediaUrl: string,
-    caption?: string,
-    mediaType?: 'image' | 'video' | 'document' | 'audio',
-  ): Promise<OpenWASendMediaResponse> {
-    try {
-      const body: Record<string, unknown> = { chatId, mediaUrl };
-      if (caption) body.caption = caption;
-      if (mediaType) body.mediaType = mediaType;
-
-      const response = await axios.post(
-        this.getApiUrl(`/sessions/${OPENWA_SESSION_NAME}/messages/send-media`),
-        body,
-        { headers: this.getHeaders(), timeout: 60000 },
-      );
-
-      return {
-        success: true,
-        messageId: response.data?.messageId || response.data?.id,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error?.response?.data?.error || error?.message || 'Failed to send media',
-      };
-    }
-  }
-
-  async sendWithFallback(
-    chatId: string,
-    text: string,
-    mediaUrl?: string,
-    mediaType?: 'image' | 'video' | 'document' | 'audio',
-  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    if (mediaUrl) {
-      const mediaResult = await this.sendMedia(chatId, mediaUrl, text, mediaType);
-      if (mediaResult.success) {
-        return { success: true, messageId: mediaResult.messageId };
-      }
-      return mediaResult;
-    }
-
-    return this.sendText(chatId, text);
-  }
-
-  async getSessionStatus(): Promise<string> {
-    try {
-      const response = await axios.get(
-        this.getApiUrl(`/sessions/${OPENWA_SESSION_NAME}`),
-        { headers: this.getHeaders(), timeout: 5000 },
-      );
-      return response.data?.status || 'unknown';
+      return await sessionManager.getSystemStatus();
     } catch {
-      return 'unreachable';
+      return { status: 'disconnected', connected: false };
     }
-  }
+  },
 
-  async startSession(): Promise<{ success: boolean; qrCode?: string }> {
+  getQRCode: async (): Promise<string | null> => {
     try {
-      const response = await axios.post(
-        this.getApiUrl(`/sessions/${OPENWA_SESSION_NAME}/start`),
-        {},
-        { headers: this.getHeaders(), timeout: 10000 },
-      );
-      return { success: true, qrCode: response.data?.qrCode };
-    } catch (error: any) {
-      return { success: false };
-    }
-  }
-
-  async getQRCode(): Promise<string | null> {
-    try {
-      const response = await axios.get(
-        this.getApiUrl(`/sessions/${OPENWA_SESSION_NAME}/qr`),
-        { headers: this.getHeaders(), timeout: 5000 },
-      );
-      return response.data?.qrCode || null;
+      return sessionManager.getSystemQR();
     } catch {
       return null;
     }
-  }
-}
+  },
 
-export const openWAService = new OpenWAService();
+  sendText,
+  sendWithFallback,
+};

@@ -266,7 +266,7 @@ export class BroadcastCampaignService {
   }
 
   async updateRecipientStatus(
-    openwaMessageId: string,
+    messageId: string,
     status: RecipientStatus,
     errorMessage?: string,
   ): Promise<void> {
@@ -284,7 +284,7 @@ export class BroadcastCampaignService {
     const { error } = await db
       .from('broadcast_recipients')
       .update(updates)
-      .eq('openwa_message_id', openwaMessageId);
+      .eq('openwa_message_id', messageId);
 
     if (error) throw new Error(error.message);
   }

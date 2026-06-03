@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { broadcastCampaignService } from '../services/broadcastCampaignService';
 import { broadcastExecutor } from '../services/broadcastExecutor';
-import { openWAService } from '../services/openWAService';
 
 function firstString(value: unknown): string {
   if (typeof value === 'string') return value.trim();
@@ -10,7 +9,7 @@ function firstString(value: unknown): string {
 
 function paramId(req: Request): string {
   const id = req.params.id;
-  return Array.isArray(id) ? id[0] : id;
+  return Array.isArray(id) ? String(id[0] || '') : String(id || '');
 }
 
 export const createCampaign = async (req: Request, res: Response) => {
@@ -255,50 +254,5 @@ export const getCampaignStats = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || 'Failed to get stats' });
-  }
-};
-
-export const openWAHealth = async (req: Request, res: Response) => {
-  try {
-    const healthy = await openWAService.healthCheck();
-    return res.json({ success: true, healthy, url: process.env.OPENWA_API_URL || 'http://localhost:2785' });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || 'Health check failed' });
-  }
-};
-
-export const openWASessionStatus = async (req: Request, res: Response) => {
-  try {
-    const status = await openWAService.getSessionStatus();
-    return res.json({ success: true, status });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || 'Failed to get session status' });
-  }
-};
-
-export const openWAQRCode = async (req: Request, res: Response) => {
-  try {
-    const qrCode = await openWAService.getQRCode();
-    if (!qrCode) {
-      return res.status(400).json({ error: 'No QR code available. Session may already be connected.' });
-    }
-    return res.json({ success: true, qrCode });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || 'Failed to get QR code' });
-  }
-};
-
-export const openWAWebhook = async (req: Request, res: Response) => {
-  try {
-    const { messageId, status, error } = req.body || {};
-
-    if (!messageId || !status) {
-      return res.status(400).json({ error: 'messageId and status are required' });
-    }
-
-    await broadcastCampaignService.updateRecipientStatus(messageId, status, error);
-    return res.json({ success: true });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || 'Failed to process webhook' });
   }
 };

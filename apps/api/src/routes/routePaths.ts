@@ -50,10 +50,6 @@ export const ROUTE_PATHS = {
     campaignCancel: '/campaigns/:id/cancel',
     campaignRecipients: '/campaigns/:id/recipients',
     campaignStats: '/campaigns/:id/stats',
-    openwaHealth: '/openwa/health',
-    openwaSession: '/openwa/session',
-    openwaQR: '/openwa/qr',
-    webhook: '/webhook/openwa',
   },
   auth: {
     requestVerification: '/request-verification',

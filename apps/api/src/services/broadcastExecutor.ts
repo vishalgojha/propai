@@ -1,7 +1,9 @@
-import { broadcastCampaignService, RecipientStatus } from './broadcastCampaignService';
-import { openWAService } from './openWAService';
+import { broadcastCampaignService } from './broadcastCampaignService';
+import { sessionManager } from '../whatsapp/SessionManager';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const BROADCAST_SESSION_LABEL = process.env.BROADCAST_SESSION_LABEL || 'broadcast';
 
 export class BroadcastExecutor {
   private runningCampaigns = new Map<string, boolean>();
@@ -19,7 +21,8 @@ export class BroadcastExecutor {
       if (campaign.status !== 'sending') throw new Error('Campaign is not in sending status');
       if (!campaign.accepted_risk) throw new Error('Risk not accepted for this campaign');
 
-      const { data: recipients, error } = await (await import('../config/supabase')).supabaseAdmin!
+      const { supabaseAdmin } = await import('../config/supabase');
+      const { data: recipients, error } = await supabaseAdmin!
         .from('broadcast_recipients')
         .select('id, phone, status')
         .eq('campaign_id', campaignId)
@@ -32,6 +35,11 @@ export class BroadcastExecutor {
         return;
       }
 
+      const client = await sessionManager.getSession(campaign.tenant_id, BROADCAST_SESSION_LABEL);
+      if (!client) {
+        throw new Error(`Broadcast session '${BROADCAST_SESSION_LABEL}' is not connected. Connect it first.`);
+      }
+
       const delayMs = campaign.delay_between_messages_ms || 5000;
       const maxFailures = Math.max(10, Math.floor(recipients.length * 0.2));
       let consecutiveFailures = 0;
@@ -42,31 +50,28 @@ export class BroadcastExecutor {
         }
 
         const phone = recipient.phone.replace(/[^0-9]/g, '');
-        const chatId = `${phone}@c.us`;
+        const remoteJid = `${phone}@s.whatsapp.net`;
 
-        let result: { success: boolean; messageId?: string; error?: string };
+        try {
+          if (campaign.media_url) {
+            await client.sendMedia(remoteJid, {
+              url: campaign.media_url,
+              caption: campaign.message,
+            });
+          } else {
+            await client.sendText(remoteJid, campaign.message);
+          }
 
-        if (campaign.media_url) {
-          result = await openWAService.sendWithFallback(
-            chatId,
-            campaign.message,
-            campaign.media_url || undefined,
-          );
-        } else {
-          result = await openWAService.sendText(chatId, campaign.message);
-        }
-
-        if (result.success) {
           await broadcastCampaignService.updateRecipientStatus(
-            result.messageId || `manual:${recipient.id}`,
+            `baileys:${recipient.id}`,
             'sent',
           );
           consecutiveFailures = 0;
-        } else {
+        } catch (error: any) {
           await broadcastCampaignService.updateRecipientStatus(
-            `manual:${recipient.id}`,
+            `baileys:${recipient.id}`,
             'failed',
-            result.error,
+            error?.message || 'Failed to send',
           );
           consecutiveFailures++;
 
