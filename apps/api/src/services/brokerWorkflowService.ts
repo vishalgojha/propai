@@ -579,8 +579,8 @@ export class BrokerWorkflowService {
     private async searchListings(tenantId: string, prompt: string): Promise<WorkflowResult> {
         const criteria = this.buildSearchCriteria(prompt);
         const [resResult, comResult] = await Promise.all([
-            this.admin.from('stream_items_residential').select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status, building_name, broker_name').eq('tenant_id', tenantId).eq('record_type', 'listing').not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(250),
-            this.admin.from('stream_items_commercial').select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status, building_name, broker_name').eq('tenant_id', tenantId).eq('record_type', 'listing').not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(250),
+            this.admin.from('stream_items_residential').select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status').eq('tenant_id', tenantId).eq('record_type', 'listing').not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(250),
+            this.admin.from('stream_items_commercial').select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status').eq('tenant_id', tenantId).eq('record_type', 'listing').not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(250),
         ]);
         const data = [
             ...(Array.isArray(resResult.data) ? resResult.data : []),
@@ -985,8 +985,8 @@ export class BrokerWorkflowService {
         };
 
         const [resResult, comResult] = await Promise.all([
-            this.admin.from('stream_items_residential').select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status, building_name, broker_name').eq('tenant_id', tenantId).eq('record_type', 'listing').not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(250),
-            this.admin.from('stream_items_commercial').select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status, building_name, broker_name').eq('tenant_id', tenantId).eq('record_type', 'listing').not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(250),
+            this.admin.from('stream_items_residential').select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status').eq('tenant_id', tenantId).eq('record_type', 'listing').not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(250),
+            this.admin.from('stream_items_commercial').select('id, locality, city, bhk, price_label, price_numeric, area_sqft, property_category, raw_text, created_at, parsed_payload, record_type, type, source_phone, ingestion_status').eq('tenant_id', tenantId).eq('record_type', 'listing').not('ingestion_status', 'in', '("suppressed","expired")').order('created_at', { ascending: false }).limit(250),
         ]);
         const data = [
             ...(Array.isArray(resResult.data) ? resResult.data : []),
