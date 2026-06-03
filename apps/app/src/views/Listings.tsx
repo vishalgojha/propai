@@ -431,6 +431,32 @@ const formatLocalityCell = (value?: string | null) => {
   return text;
 };
 
+const buildStreamDedupeKey = (item: StreamItem) =>
+  normalizeSearchText(
+    [
+      item.type,
+      item.recordType,
+      item.location,
+      item.buildingName,
+      item.microLocation,
+      item.price,
+      item.bhk,
+      item.areaSqft,
+      item.furnishing,
+      item.floorNumber,
+      item.totalFloors,
+      item.propertyUse,
+      item.commercialType,
+      item.fitoutStatus,
+      item.workstationsCount,
+      item.cabinsCount,
+      item.description,
+      item.rawText,
+    ]
+      .filter((value) => value != null && String(value).trim().length > 0)
+      .join('|'),
+  );
+
 const formatIgrCompact = (transaction: StreamItem['igrTransactions'][number]) => {
   const price = transaction?.consideration != null && Number.isFinite(transaction.consideration)
     ? formatPriceNumeric(transaction.consideration)
@@ -1189,10 +1215,19 @@ if (brokerOnly) {
   );
   const renderedGroups = React.useMemo<StreamLocalityGroup[]>(() => {
     const groups = new Map<string, StreamLocalityGroup>();
+    const groupSeenKeys = new Map<string, Set<string>>();
 
     for (const item of renderedStream) {
       const locality = String(item.location || '').trim();
       if (!locality) continue;
+
+      const dedupeKey = buildStreamDedupeKey(item);
+      const seenKeys = groupSeenKeys.get(locality) || new Set<string>();
+      if (seenKeys.has(dedupeKey)) {
+        continue;
+      }
+      seenKeys.add(dedupeKey);
+      groupSeenKeys.set(locality, seenKeys);
 
       const timestamp = item.createdAt ? new Date(item.createdAt).getTime() : 0;
       const existing = groups.get(locality);
@@ -1806,7 +1841,7 @@ if (brokerOnly) {
                               ) : null}
                               {listing.microLocation ? (
                                 <div className="text-[11px] text-[var(--text-secondary)]">
-                                  Micro: <span className="font-semibold text-[var(--text-primary)]">{listing.microLocation}</span>
+                                  Landmark: <span className="font-semibold text-[var(--text-primary)]">{listing.microLocation}</span>
                                 </div>
                               ) : null}
                               {buildingIntel ? (
@@ -1892,7 +1927,7 @@ if (brokerOnly) {
                                     ) : null}
                                     {listing.microLocation ? (
                                       <div>
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Micro Location</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Landmark</p>
                                         <p className="mt-1 text-[13px] text-[var(--text-primary)]">{listing.microLocation}</p>
                                       </div>
                                     ) : null}
