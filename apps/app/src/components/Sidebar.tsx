@@ -24,6 +24,7 @@ import {
   InboxIcon,
   MessageSquareIcon,
   TerminalIcon,
+  BroadcastIcon,
 } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
 import { useInbox } from '../hooks/useInbox';
@@ -46,6 +47,7 @@ const NAV_ITEMS = [
   { label: 'WhatsApp', path: '/whatsapp/setup', icon: GroupsIcon },
   { label: 'WA Logs', path: '/wa-logs', icon: MessageSquareIcon },
   { label: 'Broker Network', path: '/broker-network/contacts', icon: UsersIcon },
+  { label: 'Broadcast', path: '/broadcast', icon: BroadcastIcon },
   { label: 'Partner / Team', path: '/broker-network/partners', icon: UsersIcon },
   { label: 'Profile & Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },

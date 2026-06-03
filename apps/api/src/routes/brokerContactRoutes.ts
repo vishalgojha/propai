@@ -173,6 +173,31 @@ function aggregateContactsFromGroups(rows: WhatsAppGroupRow[]): BrokerContactAgg
   return Array.from(byPhone.values());
 }
 
+router.get('/lists', async (req, res) => {
+  try {
+    const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
+
+    if (!supabaseAdmin) {
+      return res.status(503).json({ error: 'Database admin client is not configured' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('broadcast_lists')
+      .select('id, name, contact_count, auto_generated')
+      .eq('tenant_id', context.workspaceOwnerId)
+      .order('contact_count', { ascending: false });
+
+    if (error) {
+      return res.status(500).json({ error: 'Failed to fetch broadcast lists', details: error.message });
+    }
+
+    res.json({ lists: data || [] });
+  } catch (error: unknown) {
+    console.error('[BrokerContacts] Lists error:', error);
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load broadcast lists') });
+  }
+});
+
 router.get('/overlaps', async (req, res) => {
   try {
     const context = await workspaceAccessService.resolveContext((req as any).user ?? {});

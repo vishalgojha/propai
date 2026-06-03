@@ -130,6 +130,16 @@ export const ENDPOINTS = {
   brokerContacts: {
     list: '/broker-contacts',
     overlaps: '/broker-contacts/overlaps',
+    lists: '/broker-contacts/lists',
+  },
+  broadcast: {
+    campaigns: '/broadcast/campaigns',
+    campaignById: (id: string) => `/broadcast/campaigns/${encodeURIComponent(id)}`,
+    campaignPopulate: (id: string) => `/broadcast/campaigns/${encodeURIComponent(id)}/populate`,
+    campaignStart: (id: string) => `/broadcast/campaigns/${encodeURIComponent(id)}/start`,
+    campaignCancel: (id: string) => `/broadcast/campaigns/${encodeURIComponent(id)}/cancel`,
+    campaignRecipients: (id: string) => `/broadcast/campaigns/${encodeURIComponent(id)}/recipients`,
+    campaignStats: (id: string) => `/broadcast/campaigns/${encodeURIComponent(id)}/stats`,
   },
   syndication: {
     invite: '/syndication/invite',
