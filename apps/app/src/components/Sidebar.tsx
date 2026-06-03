@@ -48,7 +48,7 @@ const NAV_ITEMS = [
   { label: 'WA Logs', path: '/wa-logs', icon: MessageSquareIcon },
   { label: 'Broker Network', path: '/broker-network/contacts', icon: UsersIcon },
   { label: 'Broadcast', path: '/broadcast', icon: BroadcastIcon },
-  { label: 'Partner / Team', path: '/broker-network/partners', icon: UsersIcon },
+  { label: 'Syndication', path: '/broker-network/partners', icon: UsersIcon },
   { label: 'Profile & Team', path: '/team', icon: ShieldIcon },
   { label: 'Admin', path: '/admin', icon: ShieldIcon },
   { label: 'AI Usage', path: '/ai-usage', icon: CreditCardIcon },
