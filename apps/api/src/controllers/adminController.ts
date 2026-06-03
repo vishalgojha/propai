@@ -309,6 +309,10 @@ export const impersonateWorkspace = async (req: Request, res: Response) => {
     const tenantId = String(req.params.tenantId || '').trim();
     const { adminId, adminEmail } = getAdminInfo(req);
 
+    if (!isOwnerSuperAdminEmail(adminEmail)) {
+      return res.status(403).json({ error: 'Only owner super admin accounts can impersonate workspaces' });
+    }
+
     const { data: profile, error } = await supabaseAdmin
       .from('profiles')
       .select('id, email, full_name, app_role')

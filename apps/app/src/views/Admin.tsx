@@ -470,6 +470,12 @@ export const Admin: React.FC = () => {
   };
 
   const impersonatePartner = async (tenantId: string) => {
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm(
+        'Open this workspace as a time-limited debug session? This action is logged and only available to owner super admins.',
+      );
+      if (!confirmed) return;
+    }
     setIsSaving(tenantId + '_imp');
     setError(null);
     try {
@@ -755,6 +761,9 @@ export const Admin: React.FC = () => {
             <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
               Manage partner workspaces, review system health, impersonate accounts for debugging, and view the global audit log.
             </p>
+            <p className="mt-2 max-w-2xl text-[12px] leading-6 text-[var(--text-secondary)]">
+              Workspace impersonation is a logged, time-limited debug session for owner super admins only.
+            </p>
           </div>
           <button
             type="button"
@@ -952,7 +961,7 @@ export const Admin: React.FC = () => {
                           className={cn(adminPrimaryButton, 'w-full')}
                         >
                           <LogoutIcon className="h-3 w-3" />
-                          Access Workspace
+                          Debug access
                         </button>
                       </div>
                     </div>
