@@ -57,15 +57,18 @@ export const BroadcastView: React.FC = () => {
 
   const loadData = React.useCallback(async () => {
     try {
-      const [campaignsRes, listsRes] = await Promise.all([
-        backendApi.get(ENDPOINTS.broadcast.campaigns),
-        backendApi.get(ENDPOINTS.brokerContacts.lists),
-      ]);
-      setCampaigns(campaignsRes.data.campaigns || []);
+      const listsRes = await backendApi.get(ENDPOINTS.brokerContacts.lists);
       setLists(listsRes.data.lists || []);
       if (listsRes.data.lists?.length > 0 && !selectedListId) {
         setSelectedListId(listsRes.data.lists[0].id);
       }
+    } catch (err: any) {
+      console.error('Failed to load broadcast lists:', handleApiError(err));
+    }
+
+    try {
+      const campaignsRes = await backendApi.get(ENDPOINTS.broadcast.campaigns);
+      setCampaigns(campaignsRes.data.campaigns || []);
     } catch (err: any) {
       setError(handleApiError(err));
     } finally {
