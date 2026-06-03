@@ -316,7 +316,7 @@ export const Layout: React.FC = () => {
     const label = selectedSession.phoneNumber || selectedSession.ownerName || selectedSession.label;
     return {
       tone: isReconnecting ? 'amber' : 'red',
-      title: isReconnecting ? 'WhatsApp is reconnecting' : 'WhatsApp is disconnected',
+      title: isReconnecting ? 'Selected WhatsApp session is reconnecting' : 'Selected WhatsApp session is disconnected',
       body: isReconnecting
         ? `Keep this open while PropAI retries ${label}. If it stalls, reconnect now.`
         : `Reconnect ${label} now so parsing and replies keep running.`,

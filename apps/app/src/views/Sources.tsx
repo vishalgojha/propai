@@ -1763,6 +1763,8 @@ export const Sources: React.FC = () => {
   const isCurrentSessionConnecting = currentSessionStatus === 'connecting' || currentSessionStatus === 'reconnecting';
   const displayCurrentConnectionNumber = isCurrentSessionConnected ? displayConnectedNumber : displaySelectedDeviceNumber;
   const displayCurrentConnectionName = isCurrentSessionConnected ? displayConnectedName : displaySelectedDeviceName;
+  const workspaceConnectedCount = status.activeCount || 0;
+  const hasOtherConnectedSessions = workspaceConnectedCount > (isCurrentSessionConnected ? 1 : 0);
   const selectedOutboundSession = allowedConnectedSenderSessions.find((session) => session.label === outboundSessionKey) || null;
   const outboundSenderDescription = selectedOutboundSession
     ? normalizePhoneNumber(selectedOutboundSession.phoneNumber || '') === MARKETING_AGENT_PHONE
@@ -2727,7 +2729,9 @@ export const Sources: React.FC = () => {
             <div className="mt-5 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Current connection</p>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                    {isCurrentSessionConnected ? 'Current connection' : 'Selected session'}
+                  </p>
                   <p className="mt-1 text-[18px] font-bold text-[var(--text-primary)]">
                     {currentSessionStatus === 'connected'
                       ? 'Connected'
@@ -2741,7 +2745,12 @@ export const Sources: React.FC = () => {
                   </p>
                   <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{displayCurrentConnectionNumber}</p>
                   <p className="mt-1 text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{displayCurrentConnectionName}</p>
-                  <p className="mt-2 text-[11px] text-[var(--text-secondary)]">{status.activeCount}/{status.limit} numbers connected on this workspace</p>
+                  <p className="mt-2 text-[11px] text-[var(--text-secondary)]">{workspaceConnectedCount}/{status.limit} numbers connected on this workspace</p>
+                  {hasOtherConnectedSessions && !isCurrentSessionConnected ? (
+                    <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                      Another WhatsApp number is still connected. This selected session is the one reconnecting.
+                    </p>
+                  ) : null}
                   <p className="mt-2 inline-flex rounded-full border border-[color:rgba(62,232,138,0.2)] bg-[rgba(62,232,138,0.08)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
                     Replay backlog: {replayBacklog24h} messages waiting
                   </p>
