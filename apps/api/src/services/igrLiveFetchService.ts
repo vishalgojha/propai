@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import axios, { AxiosInstance } from 'axios';
 import { supabaseAdmin } from '../config/supabase';
 import Tesseract from 'tesseract.js';
+import { igrBrowserBridgeService } from './igrBrowserBridgeService';
 
 type LiveIgrFetchInput = {
     buildingName?: string | null;
@@ -511,8 +512,34 @@ export class IgrLiveFetchService {
             return { success: false, error: 'Provide a building name or locality.', searchQuery };
         }
 
+        const helperResult = await igrBrowserBridgeService.fetchRows({ buildingName, locality });
+        if (helperResult.success && helperResult.rows && helperResult.rows.length > 0) {
+            const helperSave = await this.saveBestMatch(helperResult.rows, { buildingName, locality, searchQuery });
+            if (helperSave.success) {
+                this.verboseLog('[IGR] Browser helper fetch completed successfully', {
+                    source: helperResult.source || 'igr_browser_helper',
+                    rowCount: helperResult.rows.length,
+                });
+                return helperSave;
+            }
+
+            return helperSave;
+        }
+        if (!helperResult.success && helperResult.error) {
+            this.verboseLog('[IGR] Browser helper unavailable, falling back to Camoufox flow', {
+                error: helperResult.error,
+            });
+        }
+
         const camoufox = this.getCamoufox();
         if (!camoufox) {
+            if (!helperResult.success) {
+                return {
+                    success: false,
+                    error: `${helperResult.error || 'IGR browser helper failed'}; Camoufox browser is not configured. Set CAMOFOX_URL env var to point to the browser server.`,
+                    searchQuery,
+                };
+            }
             return {
                 success: false,
                 error: 'Camoufox browser is not configured. Set CAMOFOX_URL env var to point to the browser server.',
@@ -522,6 +549,9 @@ export class IgrLiveFetchService {
 
         const isHealthy = await camoufox.health();
         if (!isHealthy) {
+            if (helperResult.success && helperResult.rows && helperResult.rows.length === 0) {
+                this.verboseLog('[IGR] Browser helper returned no rows, falling back to Camoufox portal flow');
+            }
             return {
                 success: false,
                 error: `Camoufox browser is unreachable at ${CAMOUFOX_BASE_URL}. Check that the browser server is running and CAMOFOX_URL is set correctly.`,
