@@ -119,8 +119,40 @@ const inferAreaSqft = (text: string) => {
 };
 
 const inferPriceOrBudget = (text: string, dealType: VaultDraftPreview['dealType']) => {
-  const match = text.match(/(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|lakh|lakhs|lac|lacs|l|k|thousand)?/i);
-  if (!match) return '';
+  const lines = cleanDraftLines(text);
+  const candidateLines = lines.length > 0 ? lines : [String(text || '')];
+  const prioritizedPatterns = [
+    /(?:price|budget|deposit|rent|lease|sale|asking|offer|quote)\b[^0-9₹]*(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|lakh|lakhs|lac|lacs|l|k|thousand)\b/i,
+    /(?:₹|rs\.?|inr)\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|lakh|lakhs|lac|lacs|l|k|thousand)\b/i,
+    /\b(\d+(?:\.\d+)?)\s*(cr|crore|crores|lakh|lakhs|lac|lacs|l|k|thousand)\b/i,
+  ];
+
+  let match: RegExpMatchArray | null = null;
+  for (const line of candidateLines) {
+    const lowered = line.toLowerCase();
+    const isPriceLike = /\b(price|budget|deposit|rent|lease|sale|asking|offer|quote|amount|token|renting)\b/i.test(lowered)
+      || /(?:₹|rs\.?|inr)/i.test(lowered)
+      || /\b(cr|crore|crores|lakh|lakhs|lac|lacs|l|k|thousand)\b/i.test(lowered);
+    if (!isPriceLike) {
+      continue;
+    }
+
+    for (const pattern of prioritizedPatterns) {
+      const candidate = line.match(pattern);
+      if (candidate) {
+        match = candidate;
+        break;
+      }
+    }
+
+    if (match) {
+      break;
+    }
+  }
+
+  if (!match) {
+    return '';
+  }
 
   const amount = Number(match[1]);
   if (!Number.isFinite(amount)) return '';
@@ -155,12 +187,15 @@ const inferFurnishing = (text: string) => {
 const inferLocality = (text: string) => {
   const lines = cleanDraftLines(text);
   const firstLine = lines[0] || '';
-  const candidate = firstLine
+  const tailMatch = firstLine.match(/\b(?:in|at|near|opp(?:osite)?|beside|adj(?:acent)?\s+to)\b\s+(.+)$/i);
+  const candidateSource = tailMatch?.[1] || firstLine;
+  const candidate = candidateSource
     .replace(/^[\-•\d.)\s]+/, '')
-    .replace(/\b(for rent|for sale|for lease|rent|sale|lease|requirement|require|wanted|looking for)\b/ig, ' ')
+    .replace(/\b(?:for rent|for sale|for lease|rent|sale|lease|requirement|require|wanted|looking for|need|available)\b/ig, ' ')
     .replace(/\b(\d+(?:\.\d+)?\s*bhk)\b/ig, ' ')
     .replace(/\b(\d{2,5}(?:,\d{3})?(?:\.\d+)?\s*(?:sq\s*ft|sqft|sft|sf|carpet|carpet area))\b/ig, ' ')
     .replace(/\b(price|budget|deposit)\b.*$/i, ' ')
+    .replace(/\b(on|in|at)\b\s*$/i, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -172,7 +207,7 @@ const inferLocality = (text: string) => {
     .trim();
 
   if (!cleaned || cleaned.length < 3) return '';
-  if (/^(need|wanted|looking|client|available|flat|office|shop|warehouse)$/i.test(cleaned)) return '';
+  if (/^(need|wanted|looking|client|available|flat|office|shop|warehouse|sale|rent|lease)$/i.test(cleaned)) return '';
   return cleaned;
 };
 
