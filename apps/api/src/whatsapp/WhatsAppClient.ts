@@ -295,6 +295,7 @@ export class WhatsAppClient {
             });
 
             console.log(`[WhatsAppClient] Socket created for ${this.tenantId}:${this.label}, waiting for QR...`);
+            let pairingCodeRequested = false;
 
             if (this.qrTimeoutTimer) {
                 clearTimeout(this.qrTimeoutTimer);
@@ -303,15 +304,6 @@ export class WhatsAppClient {
                 console.warn(`[WhatsAppClient] QR timeout for ${this.tenantId}:${this.label} after 30s. Socket state: ${this.socket ? 'alive' : 'null'}, connection: ${this.connectionStatus}`);
                 this.qrTimeoutTimer = null;
             }, 30000);
-
-            if (options.usePairingCode) {
-                const code = await this.socket.requestPairingCode(options.usePairingCode);
-                if (this.qrTimeoutTimer) {
-                    clearTimeout(this.qrTimeoutTimer);
-                    this.qrTimeoutTimer = null;
-                }
-                await this.emitQR(code);
-            }
 
             this.socket.ev.on('connection.update', async (update: any) => {
                 try {
@@ -324,7 +316,20 @@ export class WhatsAppClient {
                         this.qrTimeoutTimer = null;
                     }
 
-                    if (qr && !options.usePairingCode) {
+                    if (qr && options.usePairingCode && !pairingCodeRequested) {
+                        pairingCodeRequested = true;
+                        const socket = this.socket;
+                        if (!socket) {
+                            pairingCodeRequested = false;
+                            return;
+                        }
+                        const code = await socket.requestPairingCode(options.usePairingCode);
+                        if (this.qrTimeoutTimer) {
+                            clearTimeout(this.qrTimeoutTimer);
+                            this.qrTimeoutTimer = null;
+                        }
+                        await this.emitQR(code);
+                    } else if (qr && !options.usePairingCode) {
                         await this.emitQR(qr);
                     }
 
