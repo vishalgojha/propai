@@ -26,12 +26,29 @@ function stringifyError(error: unknown): string {
   return String(error || 'Unknown helper failure');
 }
 
+function resolveScriptPath(): string {
+  const configuredPath = normalize(process.env.IGR_BROWSER_HELPER_SCRIPT);
+  if (configuredPath) {
+    return configuredPath;
+  }
+
+  const localWorkerCandidates = [
+    path.join(process.cwd(), 'dist', 'scripts', 'igrBrowserWorker.js'),
+    path.join(process.cwd(), 'dist', 'scripts', 'igrBrowserWorker.cjs'),
+  ];
+
+  const localWorker = localWorkerCandidates.find((candidate) => existsSync(candidate));
+  if (localWorker) {
+    return localWorker;
+  }
+
+  return '/home/vishal/browser automation for igr/scrape-igr.js';
+}
+
 export class IgrBrowserBridgeService {
   private readonly enabled = process.env.IGR_BROWSER_HELPER_ENABLED !== 'false';
   private readonly nodeBin = normalize(process.env.IGR_BROWSER_HELPER_NODE || process.execPath);
-  private readonly scriptPath = normalize(
-    process.env.IGR_BROWSER_HELPER_SCRIPT || '/home/vishal/browser automation for igr/scrape-igr.js',
-  );
+  private readonly scriptPath = resolveScriptPath();
   private readonly cwd = normalize(process.env.IGR_BROWSER_HELPER_CWD || path.dirname(this.scriptPath));
   private readonly timeoutMs = Math.max(
     30_000,
