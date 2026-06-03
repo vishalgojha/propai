@@ -173,6 +173,22 @@ function aggregateContactsFromGroups(rows: WhatsAppGroupRow[]): BrokerContactAgg
   return Array.from(byPhone.values());
 }
 
+router.post('/lists/generate', async (req, res) => {
+  try {
+    const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
+
+    if (!supabaseAdmin) {
+      return res.status(503).json({ error: 'Database admin client is not configured' });
+    }
+
+    const result = await brokerContactSyncService.syncFromStoredGroups(context.workspaceOwnerId);
+    res.json({ success: true, ...result });
+  } catch (error: unknown) {
+    console.error('[BrokerContacts] Generate lists error:', error);
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to generate broadcast lists') });
+  }
+});
+
 router.get('/lists', async (req, res) => {
   try {
     const context = await workspaceAccessService.resolveContext((req as any).user ?? {});

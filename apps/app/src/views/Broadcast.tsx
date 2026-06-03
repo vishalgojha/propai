@@ -54,6 +54,20 @@ export const BroadcastView: React.FC = () => {
   const [expandedCampaign, setExpandedCampaign] = React.useState<string | null>(null);
   const [campaignStats, setCampaignStats] = React.useState<Record<string, CampaignStats | null>>({});
   const [error, setError] = React.useState<string | null>(null);
+  const [generatingLists, setGeneratingLists] = React.useState(false);
+
+  const handleGenerateLists = async () => {
+    setGeneratingLists(true);
+    setError(null);
+    try {
+      await backendApi.post(ENDPOINTS.brokerContacts.generateLists);
+      await loadData();
+    } catch (err: any) {
+      setError(handleApiError(err));
+    } finally {
+      setGeneratingLists(false);
+    }
+  };
 
   const loadData = React.useCallback(async () => {
     try {
@@ -364,18 +378,39 @@ export const BroadcastView: React.FC = () => {
 
               {audienceMode === 'list' && (
                 <label className="block">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Select List</span>
-                  <select
-                    value={selectedListId}
-                    onChange={(e) => setSelectedListId(e.target.value)}
-                    className="mt-1 w-full rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-xs text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                  >
-                    {lists.map((list) => (
-                      <option key={list.id} value={list.id}>
-                        {list.name} ({list.contact_count})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Select List</span>
+                    <button
+                      onClick={handleGenerateLists}
+                      disabled={generatingLists}
+                      className={cn(
+                        'text-[10px] font-medium transition-colors',
+                        generatingLists ? 'text-[var(--text-muted)] cursor-not-allowed' : 'text-[var(--accent)] hover:underline',
+                      )}
+                    >
+                      {generatingLists ? 'Generating...' : '↻ Generate from Broker Network'}
+                    </button>
+                  </div>
+                  {lists.length === 0 ? (
+                    <div className="mt-2 rounded-[8px] border border-dashed border-[color:var(--border)] px-3 py-4 text-center">
+                      <p className="text-xs text-[var(--text-secondary)]">No broadcast lists yet</p>
+                      <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+                        Click "Generate from Broker Network" to create lists like "Bandra Brokers", "Powai Brokers" from your parsed WhatsApp groups.
+                      </p>
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedListId}
+                      onChange={(e) => setSelectedListId(e.target.value)}
+                      className="mt-1 w-full rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-xs text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                    >
+                      {lists.map((list) => (
+                        <option key={list.id} value={list.id}>
+                          {list.name} ({list.contact_count})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </label>
               )}
 

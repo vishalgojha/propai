@@ -131,6 +131,7 @@ export const ENDPOINTS = {
     list: '/broker-contacts',
     overlaps: '/broker-contacts/overlaps',
     lists: '/broker-contacts/lists',
+    generateLists: '/broker-contacts/lists/generate',
   },
   broadcast: {
     campaigns: '/broadcast/campaigns',
