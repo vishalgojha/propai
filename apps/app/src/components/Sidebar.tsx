@@ -50,7 +50,7 @@ const NAV_ITEMS = [
   { label: 'Broadcast', path: '/broadcast', icon: BroadcastIcon },
   { label: 'Syndication', path: '/broker-network/partners', icon: UsersIcon },
   { label: 'Profile & Team', path: '/team', icon: ShieldIcon },
-  { label: 'Admin', path: '/admin', icon: ShieldIcon },
+  { label: 'Super Admin', path: '/admin', icon: ShieldIcon },
   { label: 'AI Usage', path: '/ai-usage', icon: CreditCardIcon },
   { label: 'Pricing', path: '/pricing', icon: CreditCardIcon },
   { label: 'Docs', path: '/docs', icon: BookOpenIcon },
@@ -270,7 +270,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
         return false;
       }
 
-      return item.label === 'Admin' || item.label === 'AI Usage' ? isSuperAdmin : true;
+      return item.label === 'Super Admin' || item.label === 'AI Usage' ? isSuperAdmin : true;
     }),
     [canViewStream, isSuperAdmin],
   );
