@@ -32,6 +32,16 @@ type ConnectionArtifact = {
     value: string;
 };
 
+const normalizePairingCode = (value: string | null | undefined): string | null => {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+    const compact = raw.replace(/[\s-]/g, '');
+    if (!/^[A-Za-z0-9]{6,12}$/.test(compact)) return null;
+    if (/[#:,@/\\]/.test(raw)) return null;
+    if (/linked_devices|qr|artifact|pair/i.test(raw)) return null;
+    return compact;
+};
+
 export const ConnectWhatsApp: React.FC = () => {
     const { user } = useAuth();
     const initialNames = splitFullName(getPreferredName({
@@ -191,7 +201,17 @@ export const ConnectWhatsApp: React.FC = () => {
 
                 const nextArtifact = response.data?.artifact || null;
                 if (nextArtifact?.value && nextArtifact.mode === modeToWaitFor) {
-                    return nextArtifact;
+                    if (modeToWaitFor === 'pairing') {
+                        const pairingCode = normalizePairingCode(nextArtifact.value);
+                        if (pairingCode) {
+                            return {
+                                ...nextArtifact,
+                                value: pairingCode,
+                            };
+                        }
+                    } else {
+                        return nextArtifact;
+                    }
                 }
 
                 const sessionReady = String(response.data?.message || '').toLowerCase().includes('already connected');
@@ -238,9 +258,22 @@ export const ConnectWhatsApp: React.FC = () => {
             if (resp.data?.connected) {
                 setArtifact(null);
             } else {
-                const next = resp.data?.artifact || await waitForArtifact(resp.data?.label || `device-${normPhone}`, mode);
-                setArtifact(next);
-                setQrGeneratedAt(Date.now());
+                const immediateArtifact = resp.data?.artifact || null;
+                if (immediateArtifact?.value && immediateArtifact.mode === 'pairing') {
+                    const pairingCode = normalizePairingCode(immediateArtifact.value);
+                    if (pairingCode) {
+                        setArtifact({ ...immediateArtifact, value: pairingCode });
+                        setQrGeneratedAt(Date.now());
+                    } else {
+                        const next = await waitForArtifact(resp.data?.label || `device-${normPhone}`, mode);
+                        setArtifact(next);
+                        setQrGeneratedAt(next ? Date.now() : null);
+                    }
+                } else {
+                    const next = immediateArtifact || await waitForArtifact(resp.data?.label || `device-${normPhone}`, mode);
+                    setArtifact(next);
+                    setQrGeneratedAt(next ? Date.now() : null);
+                }
             }
             await fetchStatus();
         } catch (err) {
