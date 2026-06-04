@@ -427,6 +427,22 @@ const buildSessionLabel = (ownerName?: string, phoneNumber?: string) => {
   return result.slice(0, 60) || 'owner-device';
 };
 
+const normalizePairingCode = (value?: string | null) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  const compact = raw.replace(/[\s-]+/g, '').toUpperCase();
+  if (!/^[A-Z0-9]{6,12}$/.test(compact)) {
+    return null;
+  }
+
+  if (/[#@:\/\\]/.test(compact)) {
+    return null;
+  }
+
+  return compact;
+};
+
 const QR_FRESHNESS_SECONDS = 45;
 const QR_POLL_ATTEMPTS = 90;
 const QR_POLL_INTERVAL_MS = 1000;
@@ -1242,14 +1258,17 @@ export const Sources: React.FC = () => {
 
         if (response.data?.artifact?.value) {
           if (expectedMode === 'pairing') {
-            return {
-              mode: 'pairing',
-              format: 'text',
-              value: response.data.artifact.value,
-            };
+            const pairingCode = normalizePairingCode(response.data.artifact.value);
+            if (pairingCode) {
+              return {
+                mode: 'pairing',
+                format: 'text',
+                value: pairingCode,
+              };
+            }
+          } else {
+            return response.data.artifact;
           }
-
-          return response.data.artifact;
         }
 
         if (!response.data?.artifact) {
@@ -1352,7 +1371,9 @@ export const Sources: React.FC = () => {
       } else {
         const nextArtifact = response.data?.artifact
           || (response.data?.pairingCode
-            ? { mode: 'pairing' as const, format: 'text' as const, value: response.data.pairingCode }
+            ? normalizePairingCode(response.data.pairingCode)
+              ? { mode: 'pairing' as const, format: 'text' as const, value: normalizePairingCode(response.data.pairingCode)! }
+              : null
             : null)
           || (response.data?.qr
             ? { mode: 'qr' as const, format: 'text' as const, value: response.data.qr }

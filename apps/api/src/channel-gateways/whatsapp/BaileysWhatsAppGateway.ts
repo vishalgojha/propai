@@ -35,15 +35,29 @@ type RuntimeSnapshot = {
 };
 
 function buildArtifact(mode: WhatsAppConnectMode, value?: string | null): WhatsAppConnectionArtifact {
-    const normalized = String(value || '').trim();
-    if (!normalized) {
+    const raw = String(value || '').trim();
+    if (!raw) {
         return null;
+    }
+
+    if (mode === 'pairing') {
+        const compact = raw.replace(/[\s-]+/g, '').toUpperCase();
+        const looksLikePairingCode = /^[A-Z0-9]{6,12}$/.test(compact) && !/[#@:\/\\]/.test(compact);
+        if (!looksLikePairingCode) {
+            return null;
+        }
+
+        return {
+            mode,
+            format: 'text',
+            value: compact,
+        };
     }
 
     return {
         mode,
         format: 'text',
-        value: normalized,
+        value: raw,
     };
 }
 
