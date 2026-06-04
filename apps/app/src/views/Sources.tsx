@@ -665,7 +665,25 @@ export const Sources: React.FC = () => {
   const activeSessionLabel = pendingConnection?.label || expectedSessionLabel;
   const activeConnectionPhone = pendingConnection?.phoneNumber || normalizedDevicePhone;
   const activeConnectionOwnerName = pendingConnection?.ownerName || deviceOwnerName;
+  const primaryConnectedSession = useMemo(
+    () => status.sessions.find((session) => session.status === 'connected') || null,
+    [status.sessions],
+  );
   const currentSession = useMemo(() => {
+    const connectedExactMatch = status.sessions.find(
+      (session) => session.label === activeSessionLabel && session.status === 'connected',
+    );
+    if (connectedExactMatch) return connectedExactMatch;
+
+    const connectedPhoneMatch = activeConnectionPhone
+      ? status.sessions.find(
+          (session) => session.status === 'connected' && normalizePhoneNumber(session.phoneNumber || '') === activeConnectionPhone,
+        )
+      : null;
+    if (connectedPhoneMatch) return connectedPhoneMatch;
+
+    if (primaryConnectedSession) return primaryConnectedSession;
+
     const exactMatch = status.sessions.find((session) => session.label === activeSessionLabel);
     if (exactMatch) return exactMatch;
 
@@ -684,7 +702,15 @@ export const Sources: React.FC = () => {
     }
 
     return null;
-  }, [activeConnectionOwnerName, activeConnectionPhone, activeSessionLabel, status.connectedOwnerName, status.connectedPhoneNumber, status.sessions]);
+  }, [
+    activeConnectionOwnerName,
+    activeConnectionPhone,
+    activeSessionLabel,
+    primaryConnectedSession,
+    status.connectedOwnerName,
+    status.connectedPhoneNumber,
+    status.sessions,
+  ]);
   const currentSessionStatus = currentSession?.status || (pendingConnection || connectionArtifact ? 'connecting' : 'disconnected');
   const artifactValue = connectionArtifact?.value || null;
   const artifactMode = connectionArtifact?.mode || null;
@@ -696,10 +722,6 @@ export const Sources: React.FC = () => {
   const currentSessionLabel = currentSession?.label || null;
   const isSuperAdmin = user?.appRole === 'super_admin' || OWNER_SUPER_ADMIN_EMAILS.has(String(user?.email || '').trim().toLowerCase());
   const isAtDeviceLimit = !isSuperAdmin && status.activeCount >= status.limit && !currentSession;
-  const primaryConnectedSession = useMemo(
-    () => status.sessions.find((session) => session.status === 'connected') || null,
-    [status.sessions],
-  );
   const connectedSenderSessions = useMemo(
     () => status.sessions.filter((session) => session.status === 'connected'),
     [status.sessions],
