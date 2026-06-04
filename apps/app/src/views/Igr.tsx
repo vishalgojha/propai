@@ -148,6 +148,7 @@ export default function IgrView() {
     setBuildingName(name);
     setShowSuggestions(false);
     setSuggestions([]);
+    setError(null);
   };
 
   const savedCount = payload?.transactions?.length || 0;
@@ -196,7 +197,10 @@ export default function IgrView() {
               <div className="relative">
                 <input
                   value={buildingName}
-                  onChange={(event) => setBuildingName(event.target.value)}
+                  onChange={(event) => {
+                    setBuildingName(event.target.value);
+                    setError(null);
+                  }}
                   onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
                   placeholder="Kalpataru Magnus"
                   className={inputClass}
@@ -226,7 +230,10 @@ export default function IgrView() {
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Locality</label>
               <input
                 value={locality}
-                onChange={(event) => setLocality(event.target.value)}
+                onChange={(event) => {
+                  setLocality(event.target.value);
+                  setError(null);
+                }}
                 placeholder="Bandra East"
                 className={inputClass}
               />

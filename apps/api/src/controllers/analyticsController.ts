@@ -77,16 +77,28 @@ async function canReadAllAccounts(req: Request) {
 }
 
 async function queryStreamItems(tenantId: string, periodStart: string, allAccounts: boolean) {
-    const baseSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, bhk, broker_name, source_phone, confidence_score, created_at, is_read';
-    const safeSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, bhk, source_phone, confidence_score, created_at';
-    const withMatchesSelect = `${baseSelect}, channel_items(id, tenant_id)`;
-    const safeWithMatchesSelect = `${safeSelect}, channel_items(id, tenant_id)`;
+    const residentialBaseSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, bhk, broker_name, source_phone, confidence_score, created_at, is_read';
+    const commercialBaseSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, broker_name, source_phone, confidence_score, created_at, is_read';
+    const residentialSafeSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, bhk, broker_name, source_phone, confidence_score, created_at, is_read';
+    const commercialSafeSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, broker_name, source_phone, confidence_score, created_at, is_read';
+    const residentialWithMatchesSelect = `${residentialBaseSelect}, channel_items(id, tenant_id)`;
+    const commercialWithMatchesSelect = `${commercialBaseSelect}, channel_items(id, tenant_id)`;
+    const residentialSafeWithMatchesSelect = `${residentialSafeSelect}, channel_items(id, tenant_id)`;
+    const commercialSafeWithMatchesSelect = `${commercialSafeSelect}, channel_items(id, tenant_id)`;
 
     const run = async (excludeSuppressed: boolean, includeMatches: boolean, safeColumns = false) => {
         const buildQuery = (table: string) => {
+            const isCommercial = table === 'stream_items_commercial';
+            const selectClause = safeColumns
+                ? (includeMatches
+                    ? (isCommercial ? commercialSafeWithMatchesSelect : residentialSafeWithMatchesSelect)
+                    : (isCommercial ? commercialSafeSelect : residentialSafeSelect))
+                : (includeMatches
+                    ? (isCommercial ? commercialWithMatchesSelect : residentialWithMatchesSelect)
+                    : (isCommercial ? commercialBaseSelect : residentialBaseSelect));
             let query = db
                 .from(table)
-                .select(safeColumns ? (includeMatches ? safeWithMatchesSelect : safeSelect) : (includeMatches ? withMatchesSelect : baseSelect))
+                .select(selectClause)
                 .gte('created_at', periodStart)
                 .order('created_at', { ascending: false })
                 .limit(10000);
