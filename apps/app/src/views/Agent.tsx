@@ -36,6 +36,17 @@ type RuntimeStatusPayload = {
   providerOrder?: Array<'Google' | 'Groq' | 'OpenRouter' | 'Doubleword'>;
   defaultModel?: string;
   models?: Record<string, RuntimeModel>;
+  whatsapp?: {
+    status: 'connected' | 'connecting' | 'disconnected' | 'reconnecting';
+    connectedPhoneNumber?: string | null;
+    connectedOwnerName?: string | null;
+    activeCount?: number;
+    reconnectAttempts?: number;
+  };
+  browser?: {
+    available?: boolean;
+    liveBrowser?: boolean;
+  };
 };
 
 const quickActions = [
@@ -63,7 +74,7 @@ const starterMessages: ChatMessage[] = [
   {
     role: 'ai',
     content:
-      'Ask me in plain language. I can save listings, save buyer requirements, schedule follow-ups, check the follow-up queue, or search inventory.',
+      'Ask me in plain language. I can save listings, save buyer requirements, schedule follow-ups, check the follow-up queue, search inventory, or explain which live tools are up. WhatsApp is the main transport for group parsing and replies, so if it is disconnected I can still answer from CRM and web tools but live parsing pauses.',
     timestamp: 'Now',
   },
 ];
@@ -401,6 +412,21 @@ export const Agent: React.FC = () => {
       runtimeStatus?.preferredProvider ||
       null,
     [effectiveRuntimeOrder, runtimeStatus],
+  );
+  const whatsappRuntimeStatus = runtimeStatus?.whatsapp?.status || 'disconnected';
+  const browserRuntimeStatus = runtimeStatus?.browser?.liveBrowser
+    ? 'live'
+    : runtimeStatus?.browser?.available
+      ? 'available'
+      : 'offline';
+  const runtimeStatusPills = useMemo(
+    () =>
+      runtimeModels.map((model) => ({
+        provider: model.provider,
+        status: model?.status || 'offline',
+        model: model?.name || null,
+      })),
+    [runtimeModels],
   );
   const subscription = user?.subscription;
   const isTrial = subscription?.status === 'trial' || subscription?.status === 'trialing' || subscription?.plan === 'Free' || subscription?.plan === 'Trial';
@@ -1135,7 +1161,7 @@ export const Agent: React.FC = () => {
                     : 'Agent Chat'}
                 </h2>
                 <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Ask Pulse anything about your workspace.</p>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                   <div
                     className={cn(
                       'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]',
@@ -1175,6 +1201,70 @@ export const Agent: React.FC = () => {
                 <span>
                   {effectiveRuntimeOrder.join(' -> ')}
                 </span>
+              </div>
+              <div className="grid w-full gap-2 sm:w-[320px] sm:grid-cols-1">
+                <div className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">WhatsApp transport</span>
+                    <span
+                      className={cn(
+                        'text-[10px] font-semibold uppercase tracking-[0.12em]',
+                        whatsappRuntimeStatus === 'connected'
+                          ? 'text-[var(--accent)]'
+                          : whatsappRuntimeStatus === 'connecting' || whatsappRuntimeStatus === 'reconnecting'
+                            ? 'text-[var(--amber)]'
+                            : 'text-[var(--red)]',
+                      )}
+                    >
+                      {whatsappRuntimeStatus}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
+                    {runtimeStatus?.whatsapp?.connectedPhoneNumber
+                      ? `${runtimeStatus.whatsapp.connectedPhoneNumber}${runtimeStatus.whatsapp.connectedOwnerName ? ` · ${runtimeStatus.whatsapp.connectedOwnerName}` : ''}`
+                      : 'Live group parsing and replies pause until WhatsApp reconnects.'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">Agent tools</span>
+                    <span className={cn('text-[10px] font-semibold uppercase tracking-[0.12em]', availableProviderCount > 0 ? 'text-[var(--accent)]' : 'text-[var(--red)]')}>
+                      {availableProviderCount} ready
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
+                    AI providers, CRM, follow-ups, IGR, web, and browser tools can still work even if WhatsApp is down.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {runtimeStatusPills.map((pill) => (
+                      <span
+                        key={pill.provider}
+                        className={cn(
+                          'rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em]',
+                          pill.status === 'online'
+                            ? 'border-[rgba(62,232,138,0.28)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
+                            : pill.status === 'checking'
+                              ? 'border-[rgba(245,158,11,0.28)] bg-[rgba(245,158,11,0.08)] text-[var(--amber)]'
+                              : 'border-[rgba(239,68,68,0.28)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
+                        )}
+                      >
+                        {pill.provider} · {pill.status}
+                        {pill.model ? ` · ${pill.model}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">Browser layer</span>
+                    <span className={cn('text-[10px] font-semibold uppercase tracking-[0.12em]', browserRuntimeStatus === 'live' ? 'text-[var(--accent)]' : browserRuntimeStatus === 'available' ? 'text-[var(--amber)]' : 'text-[var(--red)]')}>
+                      {browserRuntimeStatus}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
+                    Used for web fetch, listing extraction, and portal checks. It is separate from the WhatsApp transport.
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 {showClearConfirm ? (

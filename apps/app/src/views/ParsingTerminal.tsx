@@ -64,6 +64,16 @@ type ParserEvent = {
   createdAt: string;
 };
 
+type TransportStatus = {
+  status: 'connected' | 'connecting' | 'reconnecting' | 'disconnected';
+  activeCount: number;
+  connectedPhoneNumber: string | null;
+  connectedOwnerName: string | null;
+  reconnectAttempts: number;
+  sessions: number;
+  label: string | null;
+};
+
 const terminalPanelClass =
   'terminal-panel rounded-none border border-[color:var(--accent-border)] bg-[rgba(9,13,18,0.94)]';
 
@@ -76,6 +86,7 @@ export default function ParsingTerminal() {
   const [error, setError] = React.useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = React.useState<Date | null>(null);
   const [isConnected, setIsConnected] = React.useState(false);
+  const [transportStatus, setTransportStatus] = React.useState<TransportStatus | null>(null);
   const [actionGroupId, setActionGroupId] = React.useState<string | null>(null);
   const [dismissedPromptIds, setDismissedPromptIds] = React.useState<string[]>([]);
   const [infoMessage, setInfoMessage] = React.useState<string | null>(null);
@@ -94,14 +105,23 @@ export default function ParsingTerminal() {
         || statusSessions[0]
         || null;
       const nextSessionLabel = String(primarySession?.label || statusResponse.data?.preferredOutboundSessionLabel || '').trim() || null;
+      const nextTransportStatus: TransportStatus = {
+        status: rawStatus === 'connected' || rawStatus === 'connecting' || rawStatus === 'reconnecting' ? rawStatus : 'disconnected',
+        activeCount: Number(statusResponse.data?.activeCount || 0),
+        connectedPhoneNumber: String(statusResponse.data?.connectedPhoneNumber || '').trim() || null,
+        connectedOwnerName: String(statusResponse.data?.connectedOwnerName || '').trim() || null,
+        reconnectAttempts: Number(
+          statusSessions.reduce((sum: number, session: any) => sum + Number(session?.reconnectAttempts || 0), 0) || 0,
+        ),
+        sessions: statusSessions.length,
+        label: nextSessionLabel,
+      };
 
       setIsConnected(nextConnected);
+      setTransportStatus(nextTransportStatus);
       setSessionLabel(nextSessionLabel);
 
       if (!nextConnected) {
-        setGroups([]);
-        setEvents([]);
-        setAuditSummary(null);
         setError(null);
         setLastRefresh(new Date());
         return;
@@ -321,6 +341,41 @@ export default function ParsingTerminal() {
             </div>
           </div>
         </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <TransportCard
+            label="WhatsApp transport"
+            value={
+              transportStatus?.status === 'connected'
+                ? 'Connected'
+                : transportStatus?.status === 'connecting'
+                  ? 'Connecting'
+                  : transportStatus?.status === 'reconnecting'
+                    ? 'Reconnecting'
+                    : 'Disconnected'
+            }
+            detail={
+              transportStatus?.connectedPhoneNumber
+                ? `${transportStatus.connectedPhoneNumber}${transportStatus.connectedOwnerName ? ` · ${transportStatus.connectedOwnerName}` : ''}`
+                : 'Live group parsing pauses until WhatsApp reconnects.'
+            }
+            tone={transportStatus?.status === 'connected' ? 'positive' : transportStatus?.status === 'reconnecting' || transportStatus?.status === 'connecting' ? 'warning' : 'danger'}
+            footer={`Sessions ${transportStatus?.sessions || 0} · reconnect attempts ${transportStatus?.reconnectAttempts || 0}`}
+          />
+          <TransportCard
+            label="Parser feed"
+            value={isConnected ? 'Live' : 'Paused'}
+            detail={isConnected ? 'Group audit and parse activity can refresh.' : 'No live group parsing while transport is down.'}
+            tone={isConnected ? 'positive' : 'warning'}
+            footer={`Session ${sessionLabel || 'unknown'}`}
+          />
+          <TransportCard
+            label="Agent tools"
+            value={auditSummary ? 'Observed data' : 'Tool ready'}
+            detail={auditSummary ? `${auditSummary.totalGroups} groups in the last synced snapshot.` : 'CRM, search, follow-ups, IGR, and web tools stay available independently of WhatsApp.'}
+            tone="neutral"
+            footer="WhatsApp is the live transport; tools are the assistant layer."
+          />
+        </div>
       </header>
 
       {error && (
@@ -394,7 +449,7 @@ export default function ParsingTerminal() {
             {loading ? (
               <TerminalEmpty text="Loading parser state" />
             ) : groups.length === 0 ? (
-              <TerminalEmpty text={isConnected ? 'No groups detected yet' : 'WhatsApp is disconnected'} />
+              <TerminalEmpty text={isConnected ? 'No groups detected yet' : 'WhatsApp is disconnected — live parsing is paused'} />
             ) : (
               groups.map((group, index) => (
                 <GroupRow key={`${group.sessionLabel}-${group.groupId}`} group={group} rowIndex={index} onToggle={handleSetGroupParsing} />
@@ -411,7 +466,7 @@ export default function ParsingTerminal() {
             />
             <div className="pulse-scrollbar max-h-[calc(50vh-120px)] space-y-0 overflow-y-auto">
             {events.length === 0 ? (
-              <TerminalEmpty text={isConnected ? 'Waiting for parsed broadcast items' : 'Connect WhatsApp to start parser monitoring'} />
+              <TerminalEmpty text={isConnected ? 'Waiting for parsed broadcast items' : 'Connect WhatsApp to resume parser monitoring'} />
             ) : (
               events.map((event, index) => (
                 <ParseEvent key={event.id} event={event} groups={groups} index={index} />
@@ -453,6 +508,38 @@ export default function ParsingTerminal() {
         </aside>
       </section>
     </main>
+  );
+}
+
+function TransportCard({
+  label,
+  value,
+  detail,
+  footer,
+  tone,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  footer: string;
+  tone: 'positive' | 'warning' | 'danger' | 'neutral';
+}) {
+  const toneClasses = {
+    positive: 'border-[rgba(62,232,138,0.28)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]',
+    warning: 'border-[rgba(245,158,11,0.28)] bg-[rgba(245,158,11,0.08)] text-[var(--amber)]',
+    danger: 'border-[rgba(239,68,68,0.28)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
+    neutral: 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-primary)]',
+  } as const;
+
+  return (
+    <div className={cn('rounded-none border px-4 py-3 font-mono text-[11px]', toneClasses[tone])}>
+      <p className="text-[9px] uppercase tracking-[0.18em] text-[var(--text-secondary)]">{label}</p>
+      <div className="mt-2 flex items-center gap-2">
+        <span className="text-[14px] font-bold uppercase tracking-[0.08em]">{value}</span>
+      </div>
+      <p className="mt-2 text-[10px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">{detail}</p>
+      <p className="mt-1 text-[9px] uppercase tracking-[0.14em] text-[var(--text-muted)]">{footer}</p>
+    </div>
   );
 }
 
