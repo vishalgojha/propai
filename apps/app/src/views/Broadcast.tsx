@@ -181,6 +181,15 @@ export const BroadcastView: React.FC = () => {
     }
   };
 
+  const handlePopulate = async (campaignId: string) => {
+    try {
+      await backendApi.post(ENDPOINTS.broadcast.campaignPopulate(campaignId));
+      await loadData();
+    } catch (err: any) {
+      setError(handleApiError(err));
+    }
+  };
+
   const statusBadge = (status: CampaignStatus) => {
     const colors: Record<CampaignStatus, string> = {
       draft: 'bg-gray-500/20 text-gray-300',
@@ -246,66 +255,65 @@ export const BroadcastView: React.FC = () => {
                   key={campaign.id}
                   className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-surface)]"
                 >
-                  <button
-                    onClick={() => setExpandedCampaign(isExpanded ? null : campaign.id)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-left"
-                  >
-                    <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <button
+                      onClick={() => {
+                        setExpandedCampaign(isExpanded ? null : campaign.id);
+                        if (!isExpanded && !campaignStats[campaign.id]) {
+                          fetchStats(campaign.id);
+                        }
+                      }}
+                      className="min-w-0 flex-1 text-left"
+                    >
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-[var(--text-primary)]">{campaign.name}</span>
                         {statusBadge(campaign.status)}
                       </div>
                       <p className="mt-1 truncate text-xs text-[var(--text-secondary)]">{campaign.message}</p>
+                    </button>
+                    <div className="ml-4 flex items-center gap-3">
+                      {campaign.status === 'draft' && campaign.total_recipients === 0 && (
+                        <button
+                          onClick={() => handlePopulate(campaign.id)}
+                          className="rounded-[6px] border border-[color:var(--accent-border)] px-3 py-1.5 text-xs font-semibold text-[var(--accent)] hover:bg-[var(--accent-dim)]"
+                        >
+                          Populate Recipients
+                        </button>
+                      )}
+                      {campaign.status === 'draft' && campaign.total_recipients > 0 && (
+                        <button
+                          onClick={() => handleStart(campaign.id)}
+                          className="rounded-[6px] bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110"
+                        >
+                          Send Now
+                        </button>
+                      )}
+                      {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
+                        <button
+                          onClick={() => handleDelete(campaign.id)}
+                          className="rounded-[6px] border border-red-500/30 px-2 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10"
+                        >
+                          Delete
+                        </button>
+                      )}
+                      <span className="text-xs text-[var(--text-secondary)]">{campaign.total_recipients} recipients</span>
                     </div>
-                    <div className="ml-4 flex items-center gap-4 text-xs text-[var(--text-secondary)]">
-                      <span>{campaign.total_recipients} recipients</span>
-                      <span className="text-[10px] text-[var(--text-muted)]">
-                        {new Date(campaign.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                      </span>
-                    </div>
-                  </button>
+                  </div>
 
-                  {isExpanded && stats && (
+                  {isExpanded && campaignStats[campaign.id] && (
                     <div className="border-t-[0.5px] border-[color:var(--border)] px-4 py-3">
                       <div className="grid grid-cols-4 gap-3 text-center">
                         {[
-                          { label: 'Sent', value: stats.sent, color: 'text-blue-300' },
-                          { label: 'Delivered', value: stats.delivered, color: 'text-green-300' },
-                          { label: 'Read', value: stats.read, color: 'text-[var(--accent)]' },
-                          { label: 'Failed', value: stats.failed, color: 'text-red-300' },
+                          { label: 'Sent', value: campaignStats[campaign.id]!.sent, color: 'text-blue-300' },
+                          { label: 'Delivered', value: campaignStats[campaign.id]!.delivered, color: 'text-green-300' },
+                          { label: 'Read', value: campaignStats[campaign.id]!.read, color: 'text-[var(--accent)]' },
+                          { label: 'Failed', value: campaignStats[campaign.id]!.failed, color: 'text-red-300' },
                         ].map((m) => (
                           <div key={m.label}>
                             <p className={cn('text-lg font-bold', m.color)}>{m.value}</p>
                             <p className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">{m.label}</p>
                           </div>
                         ))}
-                      </div>
-
-                      <div className="mt-4 flex gap-2">
-                        {campaign.status === 'draft' && (
-                          <button
-                            onClick={() => handleStart(campaign.id)}
-                            className="rounded-[6px] bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110"
-                          >
-                            Send Now
-                          </button>
-                        )}
-                        {(campaign.status === 'draft' || campaign.status === 'scheduled' || campaign.status === 'sending') && (
-                          <button
-                            onClick={() => handleCancel(campaign.id)}
-                            className="rounded-[6px] border border-[color:var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                          >
-                            Cancel
-                          </button>
-                        )}
-                        {campaign.status === 'draft' && (
-                          <button
-                            onClick={() => handleDelete(campaign.id)}
-                            className="rounded-[6px] border border-red-500/30 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10"
-                          >
-                            Delete
-                          </button>
-                        )}
                       </div>
                     </div>
                   )}
