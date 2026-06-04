@@ -465,7 +465,17 @@ const defaultHealthSummary: WhatsappHealthSummary = {
 const formatDateTime = (value?: string | null) => {
   if (!value) return 'No activity yet';
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? 'No activity yet' : parsed.toLocaleString();
+  if (Number.isNaN(parsed.getTime())) return 'No activity yet';
+
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Kolkata',
+  }).format(parsed);
 };
 
 const getHealthTone = (state: WhatsappHealthSummary['healthState'] | WhatsappHealthSession['healthState'] | WhatsappGroupHealth['status']) => {
@@ -683,6 +693,7 @@ export const Sources: React.FC = () => {
   );
   const currentSessionSelfChatEnabled =
     currentSession?.sessionData?.selfChatEnabled ?? currentSession?.sessionData?.self_chat_enabled ?? true;
+  const currentSessionLabel = currentSession?.label || null;
   const isSuperAdmin = user?.appRole === 'super_admin' || OWNER_SUPER_ADMIN_EMAILS.has(String(user?.email || '').trim().toLowerCase());
   const isAtDeviceLimit = !isSuperAdmin && status.activeCount >= status.limit && !currentSession;
   const primaryConnectedSession = useMemo(
@@ -758,7 +769,9 @@ export const Sources: React.FC = () => {
 
   const fetchLogs = useCallback(async () => {
     try {
-      const response = await backendApi.get(ENDPOINTS.whatsapp.messages);
+      const response = await backendApi.get(ENDPOINTS.whatsapp.messages, {
+        params: currentSessionLabel ? { sessionLabel: currentSessionLabel } : undefined,
+      });
       const nextLogs = (Array.isArray(response.data) ? response.data : [])
         .map((entry: any, index: number) => ({
           id: String(entry.id || `log-${index}`),
@@ -776,7 +789,7 @@ export const Sources: React.FC = () => {
       console.error(handleApiError(err));
       setLogs([]);
     }
-  }, []);
+  }, [currentSessionLabel]);
 
   const fetchHealth = useCallback(async () => {
     try {
