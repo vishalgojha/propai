@@ -181,12 +181,22 @@ export const BroadcastView: React.FC = () => {
     }
   };
 
+  const [populatingId, setPopulatingId] = React.useState<string | null>(null);
+
   const handlePopulate = async (campaignId: string) => {
+    setPopulatingId(campaignId);
+    setError(null);
     try {
-      await backendApi.post(ENDPOINTS.broadcast.campaignPopulate(campaignId));
+      const res = await backendApi.post(ENDPOINTS.broadcast.campaignPopulate(campaignId));
+      const count = res.data.recipientCount || 0;
+      if (count === 0) {
+        setError('No contacts found in selected lists. Go to Broker Network to sync contacts first.');
+      }
       await loadData();
     } catch (err: any) {
       setError(handleApiError(err));
+    } finally {
+      setPopulatingId(null);
     }
   };
 
@@ -274,10 +284,19 @@ export const BroadcastView: React.FC = () => {
                     <div className="ml-4 flex items-center gap-3">
                       {campaign.status === 'draft' && campaign.total_recipients === 0 && (
                         <button
-                          onClick={() => handlePopulate(campaign.id)}
-                          className="rounded-[6px] border border-[color:var(--accent-border)] px-3 py-1.5 text-xs font-semibold text-[var(--accent)] hover:bg-[var(--accent-dim)]"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePopulate(campaign.id);
+                          }}
+                          disabled={populatingId === campaign.id}
+                          className={cn(
+                            'rounded-[6px] border border-[color:var(--accent-border)] px-3 py-1.5 text-xs font-semibold transition-colors',
+                            populatingId === campaign.id
+                              ? 'cursor-not-allowed opacity-50 text-[var(--text-muted)]'
+                              : 'text-[var(--accent)] hover:bg-[var(--accent-dim)]',
+                          )}
                         >
-                          Populate Recipients
+                          {populatingId === campaign.id ? 'Populating...' : 'Populate Recipients'}
                         </button>
                       )}
                       {campaign.status === 'draft' && campaign.total_recipients > 0 && (
