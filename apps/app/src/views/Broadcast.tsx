@@ -422,6 +422,38 @@ export const BroadcastView: React.FC = () => {
                     <div className="mt-2 rounded-[8px] border border-dashed border-[color:var(--border)] px-3 py-4 text-center">
                       <p className="text-xs text-[var(--text-secondary)]">No broadcast lists yet</p>
                       <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+                        Click "Generate from Broker Network" to create lists from your WhatsApp groups.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <select
+                        value={selectedListId}
+                        onChange={(e) => setSelectedListId(e.target.value)}
+                        className="mt-1 w-full rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-xs text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
+                      >
+                        <option value="" disabled>Select a list</option>
+                        {lists.map((list) => (
+                          <option key={list.id} value={list.id}>
+                            {list.name} ({list.contact_count})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-[9px] text-[var(--text-muted)]">
+                        Lists are auto-generated from your parsed WhatsApp group participants.
+                      </p>
+                    </>
+                  )}
+                </label>
+              )}
+                    >
+                      {generatingLists ? 'Generating...' : '↻ Generate from Broker Network'}
+                    </button>
+                  </div>
+                  {lists.length === 0 ? (
+                    <div className="mt-2 rounded-[8px] border border-dashed border-[color:var(--border)] px-3 py-4 text-center">
+                      <p className="text-xs text-[var(--text-secondary)]">No broadcast lists yet</p>
+                      <p className="mt-1 text-[10px] text-[var(--text-muted)]">
                         Click "Generate from Broker Network" to create lists like "Bandra Brokers", "Powai Brokers" from your parsed WhatsApp groups.
                       </p>
                     </div>
@@ -483,10 +515,22 @@ export const BroadcastView: React.FC = () => {
 
               <button
                 onClick={handleCreate}
-                disabled={!campaignName.trim() || !message.trim() || !acceptedRisk || creating}
+                disabled={
+                  !campaignName.trim() ||
+                  !message.trim() ||
+                  !acceptedRisk ||
+                  creating ||
+                  (audienceMode === 'list' && !selectedListId) ||
+                  (audienceMode === 'custom' && !customPhones.trim())
+                }
                 className={cn(
                   'flex w-full items-center justify-center gap-2 rounded-[8px] px-4 py-2.5 text-xs font-semibold transition-colors',
-                  !campaignName.trim() || !message.trim() || !acceptedRisk || creating
+                  !campaignName.trim() ||
+                  !message.trim() ||
+                  !acceptedRisk ||
+                  creating ||
+                  (audienceMode === 'list' && !selectedListId) ||
+                  (audienceMode === 'custom' && !customPhones.trim())
                     ? 'cursor-not-allowed bg-gray-500/20 text-gray-400'
                     : 'bg-[var(--accent)] text-black hover:brightness-110',
                 )}
