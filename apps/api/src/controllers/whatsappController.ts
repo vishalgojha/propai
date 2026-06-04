@@ -57,6 +57,14 @@ function hasActiveSessionStatus(value?: unknown) {
     return status === 'connected' || status === 'connecting' || status === 'reconnecting';
 }
 
+function sessionStatusPriority(value?: unknown) {
+    const status = String(value || '').toLowerCase();
+    if (status === 'connected') return 3;
+    if (status === 'reconnecting') return 2;
+    if (status === 'connecting') return 1;
+    return 0;
+}
+
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T, label: string): Promise<T> {
     let timeoutHandle: NodeJS.Timeout | null = null;
 
@@ -622,7 +630,15 @@ export const getStatus = async (req: Request, res: Response) => {
             const phone = normalizePhone(row.phoneNumber as string | null | undefined);
             if (phone) {
                 const existing = seenPhones.get(phone);
-                if (!existing || new Date(String(row.lastSync || 0)) > new Date(String(existing.lastSync || 0))) {
+                const nextPriority = sessionStatusPriority(row.status);
+                const existingPriority = sessionStatusPriority(existing?.status);
+                const nextLastSync = new Date(String(row.lastSync || 0)).getTime();
+                const existingLastSync = new Date(String(existing?.lastSync || 0)).getTime();
+                if (
+                    !existing ||
+                    nextPriority > existingPriority ||
+                    (nextPriority === existingPriority && nextLastSync > existingLastSync)
+                ) {
                     seenPhones.set(phone, row);
                 }
             } else {
@@ -630,7 +646,14 @@ export const getStatus = async (req: Request, res: Response) => {
             }
         }
         const finalSessions = [...deduplicatedSessions, ...Array.from(seenPhones.values())]
-            .sort((a, b) => new Date(String(b.lastSync || 0)).getTime() - new Date(String(a.lastSync || 0)).getTime());
+            .sort((a, b) => {
+                const priorityDelta = sessionStatusPriority(b.status) - sessionStatusPriority(a.status);
+                if (priorityDelta !== 0) {
+                    return priorityDelta;
+                }
+
+                return new Date(String(b.lastSync || 0)).getTime() - new Date(String(a.lastSync || 0)).getTime();
+            });
 
         const connectedSessions = finalSessions.filter((session) => (session as Record<string, string>).status === 'connected');
         const reconnectingSessions = finalSessions.filter((session) => {
