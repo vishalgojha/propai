@@ -156,7 +156,23 @@ export class SessionManager {
         if (existingClient) {
             this.callbacks.set(fullKey, { onQR, onConnectionUpdate });
             const snapshot = existingClient.getStatusSnapshot();
-            if (snapshot.status !== 'connected') {
+            if (snapshot.status === 'connected') {
+                const existingQR = this.qrs.get(fullKey);
+                if (existingQR) {
+                    onQR(existingQR);
+                }
+                return existingClient;
+            }
+
+            if (snapshot.status === 'connecting' || snapshot.isReconnecting) {
+                const existingQR = this.qrs.get(fullKey);
+                if (existingQR) {
+                    onQR(existingQR);
+                }
+                return existingClient;
+            }
+
+            if (snapshot.status === 'disconnected') {
                 this.qrs.delete(fullKey);
                 await existingClient.restartTransport({
                     usePairingCode: options.usePairingCode,
@@ -168,13 +184,6 @@ export class SessionManager {
                 }
                 return existingClient;
             }
-
-            const existingQR = this.qrs.get(fullKey);
-            if (existingQR) {
-                onQR(existingQR);
-            }
-
-            return existingClient;
         }
 
         if (!options.skipLimitCheck) {
