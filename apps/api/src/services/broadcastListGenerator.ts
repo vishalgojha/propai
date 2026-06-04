@@ -2,6 +2,71 @@ import { supabaseAdmin } from '../config/supabase';
 
 const db = supabaseAdmin;
 
+const LOCALITY_POCKETS: Record<string, string[]> = {
+  'Bandra-Khar-Santacruz': [
+    'bandra west', 'bandra east', 'bandra',
+    'khar west', 'khar east', 'khar',
+    'santacruz west', 'santacruz east', 'santacruz',
+  ],
+  'Andheri-Jogeshwari': [
+    'andheri west', 'andheri east', 'andheri',
+    'jogeshwari west', 'jogeshwari east', 'jogeshwari',
+    'versova', 'lokhandwala',
+  ],
+  'Powai-Hiranandani': [
+    'powai', 'hiranandani', 'chandivali',
+    'saki naka', 'marol',
+  ],
+  'Lower Parel-Worli': [
+    'lower parel', 'parel', 'worli',
+    'prabhadevi', 'elphinstone road',
+    'mahalaxmi', 'byculla',
+  ],
+  'Goregaon-Malad-Kandivali': [
+    'goregaon west', 'goregaon east', 'goregaon',
+    'malad west', 'malad east', 'malad',
+    'kandivali west', 'kandivali east', 'kandivali',
+    'borivali west', 'borivali east', 'borivali',
+  ],
+  'Chembur-Ghatkopar': [
+    'chembur', 'ghatkopar west', 'ghatkopar east', 'ghatkopar',
+    'kurla', 'tilak nagar',
+  ],
+  'Dadar-Matunga-Sion': [
+    'dad ar west', 'dad ar east', 'dad ar',
+    'matunga', 'sion', 'wadala',
+    'mahim', 'dharavi',
+  ],
+  'South Mumbai': [
+    'colaba', 'cuffe parade', 'nariman point',
+    'churchgate', 'marine lines', 'fort',
+    'ballard estate', 'cst', 'kalbadevi',
+    'girgaon', 'grant road', 'tardeo',
+    'breach candy', 'pedder road',
+  ],
+  'Thane': [
+    'thane west', 'thane east', 'thane',
+    'kalwa', 'mumbra', 'diva',
+    'kopar khairane', 'vashi', 'nerul',
+    'belapur', 'kharghar', 'panvel',
+  ],
+  'Mulund-Bhandup': [
+    'mulund west', 'mulund east', 'mulund',
+    'bhandup west', 'bhandup east', 'bhandup',
+    'vikhroli', 'kanjurmarg',
+  ],
+};
+
+function resolvePocket(area: string): string {
+  const normalized = area.trim().toLowerCase();
+  for (const [pocket, areas] of Object.entries(LOCALITY_POCKETS)) {
+    if (areas.some((a) => normalized.includes(a) || a.includes(normalized))) {
+      return pocket;
+    }
+  }
+  return area.trim();
+}
+
 export async function generateBroadcastLists(tenantId: string): Promise<number> {
   const { data: contacts, error } = await db!
     .from('broker_contacts')
@@ -11,20 +76,22 @@ export async function generateBroadcastLists(tenantId: string): Promise<number> 
 
   if (error || !contacts?.length) return 0;
 
-  const areaMap = new Map<string, string[]>();
+  const pocketMap = new Map<string, Set<string>>();
 
   for (const contact of contacts) {
     for (const area of contact.inferred_areas) {
-      const existing = areaMap.get(area) || [];
-      existing.push(contact.id);
-      areaMap.set(area, existing);
+      const pocket = resolvePocket(area);
+      const existing = pocketMap.get(pocket) || new Set<string>();
+      existing.add(contact.id);
+      pocketMap.set(pocket, existing);
     }
   }
 
   let listsGenerated = 0;
 
-  for (const [area, contactIds] of areaMap) {
-    const name = `${area} Brokers`;
+  for (const [pocket, contactIdSet] of pocketMap) {
+    const contactIds = Array.from(contactIdSet);
+    const name = `${pocket} Brokers`;
 
     const { data: existing } = await db!
       .from('broadcast_lists')
@@ -46,12 +113,17 @@ export async function generateBroadcastLists(tenantId: string): Promise<number> 
         })
         .eq('id', listId);
     } else {
+      const sourceAreas = contacts
+        .filter((c) => contactIds.includes(c.id))
+        .flatMap((c) => c.inferred_areas)
+        .filter((a) => resolvePocket(a) === pocket);
+
       const { data: inserted } = await db!
         .from('broadcast_lists')
         .insert({
           tenant_id: tenantId,
           name,
-          areas: [area],
+          areas: Array.from(new Set(sourceAreas)),
           contact_count: contactIds.length,
           auto_generated: true,
         })
@@ -71,9 +143,9 @@ export async function generateBroadcastLists(tenantId: string): Promise<number> 
       .select('contact_id')
       .eq('list_id', listId);
 
-    const existingIds = new Set((existingRows.data || []).map(r => r.contact_id));
-    const toRemove = [...existingIds].filter(id => !contactIds.includes(id));
-    const toAdd = contactIds.filter(id => !existingIds.has(id));
+    const existingIds = new Set((existingRows.data || []).map((r: any) => r.contact_id));
+    const toRemove = [...existingIds].filter((id) => !contactIds.includes(id));
+    const toAdd = contactIds.filter((id) => !existingIds.has(id));
 
     if (toRemove.length) {
       await db!
@@ -86,11 +158,11 @@ export async function generateBroadcastLists(tenantId: string): Promise<number> 
     if (toAdd.length) {
       await db!
         .from('broadcast_list_contacts')
-        .insert(toAdd.map(cid => ({ list_id: listId, contact_id: cid })));
+        .insert(toAdd.map((cid) => ({ list_id: listId, contact_id: cid })));
     }
   }
 
-  const activeIds = contacts.map(c => c.id);
+  const activeIds = contacts.map((c) => c.id);
 
   const { data: allList } = await db!
     .from('broadcast_lists')
@@ -111,9 +183,9 @@ export async function generateBroadcastLists(tenantId: string): Promise<number> 
       .select('contact_id')
       .eq('list_id', allList.id);
 
-    const existingAllIds = new Set((existingAll.data || []).map(r => r.contact_id));
-    const toRemoveAll = [...existingAllIds].filter(id => !activeIds.includes(id));
-    const toAddAll = activeIds.filter(id => !existingAllIds.has(id));
+    const existingAllIds = new Set((existingAll.data || []).map((r: any) => r.contact_id));
+    const toRemoveAll = [...existingAllIds].filter((id) => !activeIds.includes(id));
+    const toAddAll = activeIds.filter((id) => !existingAllIds.has(id));
 
     if (toRemoveAll.length) {
       await db!
@@ -125,7 +197,7 @@ export async function generateBroadcastLists(tenantId: string): Promise<number> 
     if (toAddAll.length) {
       await db!
         .from('broadcast_list_contacts')
-        .insert(toAddAll.map(cid => ({ list_id: allList.id, contact_id: cid })));
+        .insert(toAddAll.map((cid) => ({ list_id: allList.id, contact_id: cid })));
     }
   } else {
     const { data: inserted } = await db!
@@ -143,7 +215,7 @@ export async function generateBroadcastLists(tenantId: string): Promise<number> 
     if (inserted) {
       listsGenerated++;
       await db!.from('broadcast_list_contacts').insert(
-        activeIds.map(cid => ({ list_id: inserted.id, contact_id: cid }))
+        activeIds.map((cid) => ({ list_id: inserted.id, contact_id: cid })),
       );
     }
   }
