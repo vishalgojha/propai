@@ -13,6 +13,7 @@ export type IgrTransaction = {
   lease_duration: number | null;
   property_description: string | null;
   building_name: string | null;
+  city?: string | null;
   buyer_name?: string | null;
   seller_name?: string | null;
   village_locality: string | null;
@@ -24,6 +25,7 @@ export type IgrTransaction = {
 export type IgrSearchResponse = {
   buildingName: string | null;
   locality: string | null;
+  city?: string | null;
   months: number;
   transactions: IgrTransaction[];
   latestTransaction: IgrTransaction | null;
@@ -48,11 +50,12 @@ export type IgrFetchResponse = {
   error?: string | null;
 };
 
-export async function fetchIgrSearch(buildingName?: string, locality?: string, months = 6, limit = 10) {
+export async function fetchIgrSearch(buildingName?: string, locality?: string, city?: string, months = 6, limit = 10) {
   const response = await backendApi.get<IgrSearchResponse>(ENDPOINTS.igr.search, {
     params: {
       building_name: buildingName || undefined,
       locality: locality || undefined,
+      city: city || undefined,
       months,
       limit,
     },
@@ -61,17 +64,18 @@ export async function fetchIgrSearch(buildingName?: string, locality?: string, m
 }
 
 export async function fetchBuildingNames(search?: string) {
-  const response = await backendApi.get<{ names: Array<{ name: string; count: number }> }>(
+  const response = await backendApi.get<{ names: Array<{ name: string; city: string | null; count: number }> }>(
     ENDPOINTS.igr.buildingNames,
     { params: { search: search || undefined } },
   );
   return response.data.names;
 }
 
-export async function fetchAndSaveLiveIgr(buildingName?: string, locality?: string) {
+export async function fetchAndSaveLiveIgr(buildingName?: string, locality?: string, city?: string) {
   const response = await backendApi.post<IgrFetchResponse>(ENDPOINTS.igr.fetch, {
     buildingName,
     locality,
+    city,
   });
   return response.data;
 }

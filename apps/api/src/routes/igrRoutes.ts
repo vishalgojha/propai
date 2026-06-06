@@ -23,30 +23,33 @@ router.get('/search', async (req, res) => {
     try {
         const buildingName = String(req.query.building_name || req.query.buildingName || '').trim();
         const locality = String(req.query.locality || '').trim();
+        const city = String(req.query.city || '').trim();
         const months = Math.min(Math.max(Number(req.query.months || 6) || 6, 1), 24);
         const limit = Math.min(Math.max(Number(req.query.limit || 10) || 10, 1), 25);
 
-        if (!buildingName && !locality) {
-            return res.status(400).json({ error: 'building_name or locality is required' });
+        if (!buildingName && !locality && !city) {
+            return res.status(400).json({ error: 'building_name, locality, or city is required' });
         }
 
         const [transactions, localityStats, latest] = await Promise.all([
             buildingName
-                ? igrQueryService.getRecentTransactionsForListing(buildingName, locality || null, limit)
+                ? igrQueryService.getRecentTransactionsForListing(buildingName, locality || null, city || null, limit)
                 : igrQueryService.searchTransactions({
                     locality: locality || undefined,
+                    city: city || undefined,
                 }),
             locality
                 ? igrQueryService.getLocalityStats(locality, months)
                 : Promise.resolve(null),
             buildingName
-                ? igrQueryService.getLastTransactionForBuilding(buildingName)
+                ? igrQueryService.getLastTransactionForBuilding(buildingName, locality || null, city || null)
                 : Promise.resolve(null),
         ]);
 
         return res.json({
             buildingName: buildingName || null,
             locality: locality || null,
+            city: city || null,
             months,
             transactions,
             latestTransaction: latest,
@@ -63,11 +66,12 @@ router.post('/fetch', async (req, res) => {
     try {
         const buildingName = String(req.body?.buildingName || req.body?.building_name || '').trim();
         const locality = String(req.body?.locality || '').trim();
+        const city = String(req.body?.city || '').trim();
 
-        if (!buildingName && !locality) {
+        if (!buildingName && !locality && !city) {
             return res.status(400).json({
                 success: false,
-                error: 'buildingName or locality is required',
+                error: 'buildingName, locality, or city is required',
             });
         }
 

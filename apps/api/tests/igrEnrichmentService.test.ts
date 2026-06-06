@@ -21,7 +21,7 @@ describe('IgrEnrichmentService seedBuildingName', () => {
   });
 
   it('writes a deterministic stream index seed row', async () => {
-    await igrEnrichmentService.seedBuildingName('Kalpataru Magnus', 'Bandra East');
+    await igrEnrichmentService.seedBuildingName('Kalpataru Magnus', 'Bandra East', 'Mumbai');
 
     expect(supabaseMocks.from).toHaveBeenCalledWith('igr_transactions');
     expect(supabaseMocks.upsert).toHaveBeenCalledWith(
@@ -31,6 +31,7 @@ describe('IgrEnrichmentService seedBuildingName', () => {
         building_name: 'Kalpataru Magnus',
         locality: 'Bandra East',
         village_locality: 'Bandra East',
+        city: 'Mumbai',
         source: 'stream_index_seed',
       }),
       expect.objectContaining({

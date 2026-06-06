@@ -2860,11 +2860,13 @@ private dailyBriefingSentKeys = new Set<string>();
                 void igrEnrichmentService.seedBuildingName(
                     String(parsed.parsedPayload?.buildingName || '').trim(),
                     parsed.locality || null,
+                    parsed.city || null,
                 ).catch((error) => {
                     console.error('[ChannelService] Failed to seed IGR building index', {
                         streamItemId: data.id,
                         buildingName: String(parsed.parsedPayload?.buildingName || '').trim(),
                         locality: parsed.locality || null,
+                        city: parsed.city || null,
                         error: error instanceof Error ? error.message : error,
                     });
                 });
@@ -4346,6 +4348,7 @@ ${rawText}
                     const transactions = await igrQueryService.getRecentTransactionsForListing(
                         candidate.buildingName,
                         candidate.location,
+                        null,
                         3,
                     );
                     cache.set(key, transactions);

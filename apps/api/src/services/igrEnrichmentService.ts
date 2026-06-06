@@ -10,6 +10,7 @@ type QueueRow = {
   stream_item_id: string | null;
   building_name: string;
   locality: string;
+  city: string | null;
   status: QueueStatus;
   last_checked_at: string | null;
   created_at: string;
@@ -26,9 +27,9 @@ function normalizeValue(value: string | null | undefined) {
   return String(value || '').trim();
 }
 
-function buildSeedDocNumber(buildingName: string, locality: string | null) {
+function buildSeedDocNumber(buildingName: string, locality: string | null, city: string | null) {
   const hash = createHash('sha256')
-    .update([normalizeValue(buildingName).toLowerCase(), normalizeValue(locality).toLowerCase()].join('|'))
+    .update([normalizeValue(buildingName).toLowerCase(), normalizeValue(locality).toLowerCase(), normalizeValue(city).toLowerCase()].join('|'))
     .digest('hex')
     .slice(0, 20);
   return `seed:${hash}`;
@@ -61,9 +62,10 @@ export class IgrEnrichmentService {
     return supabaseAdmin;
   }
 
-  async queueIfStale(buildingName: string, locality: string | null | undefined, streamItemId: string) {
+  async queueIfStale(buildingName: string, locality: string | null | undefined, streamItemId: string, city?: string | null | undefined) {
     const normalizedBuildingName = normalizeValue(buildingName);
     const normalizedLocality = normalizeValue(locality);
+    const normalizedCity = normalizeValue(city);
 
     if (!normalizedBuildingName) {
       if (normalizedLocality) {
@@ -83,6 +85,10 @@ export class IgrEnrichmentService {
       latestQuery = latestQuery.ilike('locality', `%${normalizedLocality}%`);
     }
 
+    if (normalizedCity) {
+      latestQuery = latestQuery.ilike('city', `%${normalizedCity}%`);
+    }
+
     const { data: latestRow, error: latestError } = await latestQuery.maybeSingle();
 
     if (latestError) {
@@ -97,31 +103,33 @@ export class IgrEnrichmentService {
     const { error: queueError } = await this.getAdmin()
       .from('igr_enrichment_queue')
       .upsert(
-        {
-          stream_item_id: streamItemId,
-          building_name: normalizedBuildingName,
-          locality: normalizedLocality,
-          status: 'pending',
-          last_checked_at: null,
-        },
-        { onConflict: 'building_name,locality' },
-      );
+          {
+            stream_item_id: streamItemId,
+            building_name: normalizedBuildingName,
+            locality: normalizedLocality,
+            city: normalizedCity,
+            status: 'pending',
+            last_checked_at: null,
+          },
+          { onConflict: 'building_name,locality,city' },
+        );
 
     if (queueError) {
       throw new Error(queueError.message);
     }
   }
 
-  async seedBuildingName(buildingName: string, locality: string | null | undefined) {
+  async seedBuildingName(buildingName: string, locality: string | null | undefined, city: string | null | undefined = null) {
     const normalizedBuildingName = normalizeValue(buildingName);
     const normalizedLocality = normalizeValue(locality);
+    const normalizedCity = normalizeValue(city);
 
     if (normalizedBuildingName.length < 3) {
       return;
     }
 
     const row = {
-      doc_number: buildSeedDocNumber(normalizedBuildingName, normalizedLocality || null),
+      doc_number: buildSeedDocNumber(normalizedBuildingName, normalizedLocality || null, normalizedCity || null),
       registration_date: buildSeedRegistrationDate(),
       sro_office: null,
       district: null,
@@ -136,6 +144,7 @@ export class IgrEnrichmentService {
       seller_name: null,
       village_locality: normalizedLocality || null,
       locality: normalizedLocality || null,
+      city: normalizedCity || null,
       area_sqft: null,
       source: 'stream_index_seed',
       scraped_at: new Date().toISOString(),
@@ -153,7 +162,7 @@ export class IgrEnrichmentService {
   async processQueue() {
     const { data, error } = await this.getAdmin()
       .from('igr_enrichment_queue')
-      .select('id, stream_item_id, building_name, locality, status, last_checked_at, created_at')
+      .select('id, stream_item_id, building_name, locality, city, status, last_checked_at, created_at')
       .eq('status', 'pending')
       .order('created_at', { ascending: true })
       .limit(10);
@@ -186,6 +195,7 @@ export class IgrEnrichmentService {
         await igrQueryService.getRecentTransactionsForListing(
           item.building_name,
           item.locality || null,
+          item.city || null,
           10,
         );
 
@@ -243,6 +253,7 @@ export class IgrEnrichmentService {
       igrQueryService.getRecentTransactionsForListing(
         normalizedBuildingName,
         normalizedLocality || null,
+        null,
         10,
       ),
       normalizedLocality

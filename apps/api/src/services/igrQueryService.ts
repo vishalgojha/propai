@@ -6,6 +6,7 @@ type TransactionRecord = {
   source: string | null;
   building_name: string | null;
   locality: string | null;
+  city: string | null;
   consideration: number | null;
   area_sqft: number | null;
   price_per_sqft: number | null;
@@ -18,6 +19,7 @@ type SearchQuery = {
   locality?: string;
   building?: string;
   minDate?: string;
+  city?: string;
 };
 
 type LocalityStats = {
@@ -84,6 +86,7 @@ export class IgrQueryService {
       source: typeof row.source === 'string' ? row.source : null,
       building_name: typeof row.building_name === 'string' ? row.building_name : null,
       locality: typeof row.locality === 'string' ? row.locality : null,
+      city: typeof row.city === 'string' ? row.city : null,
       consideration: toNumber(row.consideration),
       area_sqft: toNumber(row.area_sqft),
       price_per_sqft: toNumber(row.price_per_sqft),
@@ -91,9 +94,10 @@ export class IgrQueryService {
     };
   }
 
-  async getRecentTransactionsForListing(buildingName: string, locality?: string | null, limit = 3): Promise<IgrTransactionPreview[]> {
+  async getRecentTransactionsForListing(buildingName: string, locality?: string | null, city?: string | null, limit = 3): Promise<IgrTransactionPreview[]> {
     const trimmedBuilding = buildingName.trim();
     const trimmedLocality = String(locality || '').trim();
+    const trimmedCity = String(city || '').trim();
     const effectiveLimit = Math.max(1, Math.min(limit, 10));
 
     if (!trimmedBuilding) {
@@ -102,13 +106,17 @@ export class IgrQueryService {
 
     let directQuery = getClient()
       .from('igr_transactions')
-      .select('doc_number, reg_date, source, building_name, locality, consideration, area_sqft, price_per_sqft, config')
+      .select('doc_number, reg_date, source, building_name, locality, city, consideration, area_sqft, price_per_sqft, config')
       .ilike('building_name', `%${trimmedBuilding}%`)
       .order('reg_date', { ascending: false })
       .limit(effectiveLimit);
 
     if (trimmedLocality) {
       directQuery = directQuery.ilike('locality', `%${trimmedLocality}%`);
+    }
+
+    if (trimmedCity) {
+      directQuery = directQuery.ilike('city', `%${trimmedCity}%`);
     }
 
     const { data, error } = await directQuery;
@@ -138,13 +146,17 @@ export class IgrQueryService {
 
     let fuzzyQuery = getClient()
       .from('igr_transactions')
-      .select('doc_number, reg_date, source, building_name, locality, consideration, area_sqft, price_per_sqft, config')
+      .select('doc_number, reg_date, source, building_name, locality, city, consideration, area_sqft, price_per_sqft, config')
       .or(orQuery)
       .order('reg_date', { ascending: false })
       .limit(40);
 
     if (trimmedLocality) {
       fuzzyQuery = fuzzyQuery.ilike('locality', `%${trimmedLocality}%`);
+    }
+
+    if (trimmedCity) {
+      fuzzyQuery = fuzzyQuery.ilike('city', `%${trimmedCity}%`);
     }
 
     const { data: fuzzyRows, error: fuzzyError } = await fuzzyQuery;
@@ -188,17 +200,28 @@ export class IgrQueryService {
     return merged.slice(0, effectiveLimit);
   }
 
-  async getLastTransactionForBuilding(buildingName: string): Promise<TransactionRecord | null> {
+  async getLastTransactionForBuilding(buildingName: string, locality?: string | null, city?: string | null): Promise<TransactionRecord | null> {
     const name = buildingName.trim();
+    const trimmedLocality = String(locality || '').trim();
+    const trimmedCity = String(city || '').trim();
     if (!name) return null;
 
-    const { data, error } = await getClient()
+    let request = getClient()
       .from('igr_transactions')
-      .select('doc_number, reg_date, source, building_name, locality, consideration, area_sqft, price_per_sqft, config')
+      .select('doc_number, reg_date, source, building_name, locality, city, consideration, area_sqft, price_per_sqft, config')
       .ilike('building_name', `%${name}%`)
       .order('reg_date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+
+    if (trimmedLocality) {
+      request = request.ilike('locality', `%${trimmedLocality}%`);
+    }
+
+    if (trimmedCity) {
+      request = request.ilike('city', `%${trimmedCity}%`);
+    }
+
+    const { data, error } = await request.maybeSingle();
 
     if (error) {
       throw new Error(error.message);
@@ -217,7 +240,7 @@ export class IgrQueryService {
 
       const { data: fuzzyRows, error: fuzzyError } = await getClient()
         .from('igr_transactions')
-        .select('doc_number, reg_date, source, building_name, locality, consideration, area_sqft, price_per_sqft, config')
+        .select('doc_number, reg_date, source, building_name, locality, city, consideration, area_sqft, price_per_sqft, config')
         .or(orQuery)
         .order('reg_date', { ascending: false })
         .limit(40);
@@ -282,13 +305,13 @@ export class IgrQueryService {
     };
   }
 
-  async getBuildingNames(search?: string): Promise<Array<{ name: string; count: number }>> {
+  async getBuildingNames(search?: string): Promise<Array<{ name: string; city: string | null; count: number }>> {
     const searchTerm = normalizeSearchText(search);
     const minLength = searchTerm ? 1 : 3;
 
     let igrQuery = getClient()
       .from('igr_transactions')
-      .select('building_name');
+      .select('building_name, city');
 
     if (searchTerm) {
       igrQuery = igrQuery.ilike('building_name', `%${searchTerm}%`);
@@ -298,43 +321,55 @@ export class IgrQueryService {
     if (igrError) throw new Error(igrError.message);
 
     const [resStream, comStream] = await Promise.all([
-      getClient().from('stream_items_residential').select('building_name').ilike('building_name', `%${searchTerm || ''}%`),
-      getClient().from('stream_items_commercial').select('building_name').ilike('building_name', `%${searchTerm || ''}%`),
+      getClient().from('stream_items_residential').select('building_name, city').ilike('building_name', `%${searchTerm || ''}%`),
+      getClient().from('stream_items_commercial').select('building_name, city').ilike('building_name', `%${searchTerm || ''}%`),
     ]);
     const streamData = [
       ...(Array.isArray(resStream.data) ? resStream.data : []),
       ...(Array.isArray(comStream.data) ? comStream.data : []),
     ];
 
-    const freq = new Map<string, number>();
-    for (const row of (igrData || []) as Array<{ building_name: string | null }>) {
+    const freq = new Map<string, { name: string; city: string | null; count: number }>();
+    for (const row of (igrData || []) as Array<{ building_name: string | null; city: string | null }>) {
       const name = row.building_name?.trim();
+      const city = row.city?.trim() || null;
       if (name && name.length >= minLength) {
-        freq.set(name, (freq.get(name) || 0) + 1);
+        const key = `${name.toLowerCase()}|${city?.toLowerCase() || ''}`;
+        const existing = freq.get(key) || { name, city, count: 0 };
+        existing.count += 1;
+        freq.set(key, existing);
       }
     }
-    for (const row of (streamData || []) as Array<{ building_name: string | null }>) {
+    for (const row of (streamData || []) as Array<{ building_name: string | null; city: string | null }>) {
       const name = row.building_name?.trim();
+      const city = row.city?.trim() || null;
       if (name && name.length >= minLength) {
-        freq.set(name, (freq.get(name) || 0) + 1);
+        const key = `${name.toLowerCase()}|${city?.toLowerCase() || ''}`;
+        const existing = freq.get(key) || { name, city, count: 0 };
+        existing.count += 1;
+        freq.set(key, existing);
       }
     }
 
-    return Array.from(freq.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    return Array.from(freq.values())
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name) || String(a.city || '').localeCompare(String(b.city || '')))
       .slice(0, 20);
   }
 
   async searchTransactions(query: SearchQuery) {
     let request = getClient()
       .from('igr_transactions')
-      .select('doc_number, reg_date, source, building_name, locality, consideration, area_sqft, price_per_sqft, config, property_type, district')
+      .select('doc_number, reg_date, source, building_name, locality, city, consideration, area_sqft, price_per_sqft, config, property_type, district')
       .order('reg_date', { ascending: false })
       .limit(10);
 
     if (query.locality?.trim()) {
       request = request.ilike('locality', `%${query.locality.trim()}%`);
+    }
+
+    const cityFilter = query.city?.trim();
+    if (cityFilter) {
+      request = request.ilike('city', `%${cityFilter}%`);
     }
 
     if (query.building?.trim()) {

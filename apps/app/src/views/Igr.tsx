@@ -32,12 +32,13 @@ function formatRate(transaction: IgrTransaction) {
 }
 
 function buildTransactionTitle(item: IgrTransaction) {
-  return [item.building_name, item.village_locality].filter(Boolean).join(' · ') || item.doc_number || 'Transaction';
+  return [item.building_name, item.village_locality, item.city].filter(Boolean).join(' · ') || item.doc_number || 'Transaction';
 }
 
 export default function IgrView() {
   const [buildingName, setBuildingName] = React.useState('');
   const [locality, setLocality] = React.useState('');
+  const [city, setCity] = React.useState('');
   const [months, setMonths] = React.useState(6);
   const [loading, setLoading] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
@@ -45,15 +46,16 @@ export default function IgrView() {
   const [error, setError] = React.useState<string | null>(null);
   const [liveMessage, setLiveMessage] = React.useState<string | null>(null);
   const [payload, setPayload] = React.useState<IgrSearchResponse | null>(null);
-  const [suggestions, setSuggestions] = React.useState<Array<{ name: string; count: number }>>([]);
+  const [suggestions, setSuggestions] = React.useState<Array<{ name: string; city: string | null; count: number }>>([]);
   const [showSuggestions, setShowSuggestions] = React.useState(false);
   const suggestionsRef = React.useRef<HTMLDivElement>(null);
 
   const loadSearch = React.useCallback(async (building?: string, place?: string) => {
     const effectiveBuilding = String(building ?? buildingName).trim();
     const effectiveLocality = String(place ?? locality).trim();
+    const effectiveCity = city.trim();
 
-    if (!effectiveBuilding && !effectiveLocality) {
+    if (!effectiveBuilding && !effectiveLocality && !effectiveCity) {
       setPayload(null);
       setError(null);
       setLoading(false);
@@ -64,7 +66,7 @@ export default function IgrView() {
     setSearching(true);
     setError(null);
     try {
-      const data = await fetchIgrSearch(effectiveBuilding || undefined, effectiveLocality || undefined, months, 10);
+      const data = await fetchIgrSearch(effectiveBuilding || undefined, effectiveLocality || undefined, effectiveCity || undefined, months, 10);
       setPayload(data);
     } catch (reason) {
       setError(handleApiError(reason));
@@ -73,15 +75,16 @@ export default function IgrView() {
       setSearching(false);
       setLoading(false);
     }
-  }, [buildingName, locality, months]);
+  }, [buildingName, city, locality, months]);
 
   const latest = payload?.latestTransaction || payload?.transactions?.[0] || null;
 
   const triggerLiveFetch = async () => {
     const effectiveBuilding = buildingName.trim();
     const effectiveLocality = locality.trim();
-    if (!effectiveBuilding && !effectiveLocality) {
-      setError('Enter a building name or locality first.');
+    const effectiveCity = city.trim();
+    if (!effectiveBuilding && !effectiveLocality && !effectiveCity) {
+      setError('Enter a building name, locality, or city first.');
       return;
     }
 
@@ -89,7 +92,7 @@ export default function IgrView() {
     setError(null);
     setLiveMessage(null);
     try {
-      const result = await fetchAndSaveLiveIgr(effectiveBuilding || undefined, effectiveLocality || undefined);
+      const result = await fetchAndSaveLiveIgr(effectiveBuilding || undefined, effectiveLocality || undefined, effectiveCity || undefined);
       if (!result.success) {
         setError(result.error || 'Latest transaction refresh failed.');
         return;
@@ -144,8 +147,9 @@ export default function IgrView() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const selectSuggestion = (name: string) => {
+  const selectSuggestion = (name: string, nextCity?: string | null) => {
     setBuildingName(name);
+    setCity(nextCity || '');
     setShowSuggestions(false);
     setSuggestions([]);
     setError(null);
@@ -213,12 +217,12 @@ export default function IgrView() {
                   >
                     {suggestions.map((s) => (
                       <button
-                        key={s.name}
+                        key={`${s.name}|${s.city || ''}`}
                         type="button"
-                        onClick={() => selectSuggestion(s.name)}
+                        onClick={() => selectSuggestion(s.name, s.city)}
                         className="flex w-full items-center justify-between px-4 py-2 text-left text-[12px] text-[var(--text-primary)] transition hover:bg-[var(--accent-dim)]"
                       >
-                        <span>{s.name}</span>
+                        <span>{s.city ? `${s.name} · ${s.city}` : s.name}</span>
                         <span className="text-[10px] text-[var(--text-muted)]">{s.count}</span>
                       </button>
                     ))}
@@ -235,6 +239,18 @@ export default function IgrView() {
                   setError(null);
                 }}
                 placeholder="Bandra East"
+                className={inputClass}
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">City</label>
+              <input
+                value={city}
+                onChange={(event) => {
+                  setCity(event.target.value);
+                  setError(null);
+                }}
+                placeholder="Mumbai"
                 className={inputClass}
               />
             </div>

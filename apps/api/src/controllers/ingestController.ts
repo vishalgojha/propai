@@ -61,10 +61,12 @@ async function resolveAndUpdateBuildingMetadata(params: {
     messageId: string;
     buildingName?: string | null;
     locality?: string | null;
+    city?: string | null;
 }) {
     const { admin, rawText, streamItemId, messageId } = params;
     const initialBuildingName = String(params.buildingName || '').trim() || null;
     const currentLocality = String(params.locality || '').trim() || null;
+    const currentCity = String(params.city || '').trim() || null;
 
     const resolved = await buildingResolverService.resolveStreamItemMetadata(rawText, initialBuildingName);
     const resolvedBuildingName = resolved.buildingName;
@@ -110,11 +112,12 @@ async function resolveAndUpdateBuildingMetadata(params: {
     }
 
     if (resolvedBuildingName) {
-        await igrEnrichmentService.seedBuildingName(resolvedBuildingName, resolvedLocality || currentLocality);
+        await igrEnrichmentService.seedBuildingName(resolvedBuildingName, resolvedLocality || currentLocality, currentCity);
         await igrEnrichmentService.queueIfStale(
             resolvedBuildingName,
             resolvedLocality || currentLocality,
             streamItemId,
+            currentCity,
         );
     }
 }
@@ -243,21 +246,23 @@ export const ingestListings = async (req: Request, res: Response) => {
                 else {
                     streamOk++;
                     if (buildingName && insertedStreamItem?.id) {
-                        void igrEnrichmentService.seedBuildingName(buildingName, item.locality || null).catch((error) => {
+                        void igrEnrichmentService.seedBuildingName(buildingName, item.locality || null, item.city || null).catch((error) => {
                             console.error('[Ingest] Failed to seed IGR building index', {
                                 streamItemId: insertedStreamItem.id,
                                 buildingName,
                                 locality: item.locality || null,
+                                city: item.city || null,
                                 error: error instanceof Error ? error.message : error,
                             });
                         });
                         void igrEnrichmentService
-                            .queueIfStale(buildingName, item.locality || null, insertedStreamItem.id)
+                            .queueIfStale(buildingName, item.locality || null, insertedStreamItem.id, item.city || null)
                             .catch((error) => {
                                 console.error('[Ingest] Failed to queue IGR enrichment', {
                                     streamItemId: insertedStreamItem.id,
                                     buildingName,
                                     locality: item.locality || null,
+                                    city: item.city || null,
                                     error: error instanceof Error ? error.message : error,
                                 });
                             });
@@ -305,6 +310,7 @@ export const ingestListings = async (req: Request, res: Response) => {
                         messageId: splitMessageId,
                         buildingName,
                         locality: item.locality || null,
+                        city: item.city || null,
                     }).catch((error) => {
                         console.error('[Ingest] Failed to resolve building/locality metadata', {
                             streamItemId: insertedStreamItem.id,
