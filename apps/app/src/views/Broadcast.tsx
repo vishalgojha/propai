@@ -446,32 +446,6 @@ export const BroadcastView: React.FC = () => {
                   )}
                 </label>
               )}
-                    >
-                      {generatingLists ? 'Generating...' : '↻ Generate from Broker Network'}
-                    </button>
-                  </div>
-                  {lists.length === 0 ? (
-                    <div className="mt-2 rounded-[8px] border border-dashed border-[color:var(--border)] px-3 py-4 text-center">
-                      <p className="text-xs text-[var(--text-secondary)]">No broadcast lists yet</p>
-                      <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-                        Click "Generate from Broker Network" to create lists like "Bandra Brokers", "Powai Brokers" from your parsed WhatsApp groups.
-                      </p>
-                    </div>
-                  ) : (
-                    <select
-                      value={selectedListId}
-                      onChange={(e) => setSelectedListId(e.target.value)}
-                      className="mt-1 w-full rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-xs text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]"
-                    >
-                      {lists.map((list) => (
-                        <option key={list.id} value={list.id}>
-                          {list.name} ({list.contact_count})
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </label>
-              )}
 
               {audienceMode === 'custom' && (
                 <label className="block">
