@@ -159,7 +159,7 @@ export async function logToolCall(brokerId: string | undefined, toolName: string
   }
 }
 
-const DEFAULT_FRESHNESS_DAYS = 90;
+const FRESHNESS_DAYS = process.env.LISTING_FRESHNESS_DAYS ? parseInt(process.env.LISTING_FRESHNESS_DAYS, 10) : 0;
 
 export async function searchPublicListings(input: {
   locality?: string;
@@ -173,13 +173,16 @@ export async function searchPublicListings(input: {
   limit?: number;
 }) {
   const limit = clampLimit(input.limit);
-  const since = new Date(Date.now() - DEFAULT_FRESHNESS_DAYS * 86400000).toISOString();
   let query = supabase
     .from("public_listings")
     .select(PUBLIC_LISTING_COLUMNS)
-    .gte("message_timestamp", since)
     .order("message_timestamp", { ascending: false, nullsFirst: false })
     .limit(limit);
+
+  if (FRESHNESS_DAYS > 0) {
+    const since = new Date(Date.now() - FRESHNESS_DAYS * 86400000).toISOString();
+    query = query.gte("message_timestamp", since);
+  }
 
   if (input.listingKind) {
     query = query.eq("listing_type", input.listingKind === "listing" ? "listing_rent" : "requirement");
