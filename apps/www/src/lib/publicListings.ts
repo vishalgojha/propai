@@ -612,13 +612,32 @@ function inferLocation(rawText: string) {
     "fort", "kalbadevi", "byculla", "mahim", "matunga", "sion", "kings circle",
     "wadala", "parel", "lower parel", "prabhadevi", "santacruz", "vile parle",
     "versova", "jogeshwari", "kandivali", "borivali", "dahisar", "mulund",
-    "bhandup", "vikhroli", "kanjurmarg", "ghatkopar", "powai", "nerul",
+    "bhandup", "vikhroli", "kanjurmarg", "ghatkopar", "nerul",
     "vashi", "sanpada", "ghansoli", "koparkhairane", "airoli", "panvel",
     "kharghar", "kamothe", "kalamboli", "taloja", "dombivli", "kalyan",
     "ulhasnagar", "ambarnath", "badlapur", "mira road", "bhayandar",
     "vasai", "nalasopara", "virar", "palghar", "lonavala", "khandala",
+    "navi mumbai", "mumbai",
   ];
-  const lower = rawText.toLowerCase();
+  const ALIASES: Record<string, string> = {
+    bkc: "Bandra Kurla Complex",
+    jvpd: "JVPD",
+    "juhu versova link road": "Versova",
+    "western express highway": "Andheri",
+    weh: "Andheri",
+    "linking road": "Bandra",
+    "hill road": "Bandra",
+    "turner road": "Bandra",
+    "pali hill": "Bandra",
+    "carter road": "Bandra",
+    "sv road": "Andheri",
+    "mira-bhayandar": "Mira Road",
+    "mira bhayandar": "Mira Road",
+  };
+  const lower = rawText.toLowerCase().replace(/[^a-z0-9\s-]/g, "");
+  for (const [alias, canonical] of Object.entries(ALIASES)) {
+    if (lower.includes(alias)) return canonical;
+  }
   const matched = LOCALITIES.find((loc) => lower.includes(loc));
   if (matched) {
     return matched.replace(/\b\w/g, (c) => c.toUpperCase());
@@ -639,8 +658,19 @@ function isListableLocation(locality: string | null): locality is string {
 }
 
 function inferBhk(rawText: string) {
-  const match = rawText.match(/\b(\d(?:\.\d+)?)\s*bhk\b/i);
-  return match ? `${match[1]}BHK` : null;
+  const patterns = [
+    /\b(\d+(?:\.\d+)?)\s*(?:bhk|bed\s*room|bedroom|bed|rk)\b/i,
+    /\b(\d+(?:\.\d+)?)\s*[-\u2013]\s*(?:bhk|bed\s*room|bedroom|bed)\b/i,
+    /\b(studio)\b/i,
+  ];
+  for (const p of patterns) {
+    const m = rawText.match(p);
+    if (m) {
+      const label = m[1]?.toLowerCase() === 'studio' ? '1RK' : `${m[1]}BHK`;
+      return label;
+    }
+  }
+  return null;
 }
 
 function buildPublicListingTitle(input: {
@@ -722,8 +752,14 @@ function parseAreaSqft(...values: unknown[]) {
   for (const value of values) {
     if (typeof value === "number" && Number.isFinite(value)) return value;
     const text = String(value || "");
-    const match = text.match(/(\d{2,5}(?:\.\d+)?)\s*(sq\s*ft|sqft|carpet)/i);
-    if (match) return Number(match[1]);
+    const patterns = [
+      /(\d{2,5}(?:\.\d+)?)\s*(?:sq\s*ft|sqft|sft|sq\.?\s*feet|square\s*feet|carpet|built[\s-]*up|super\s*build)/i,
+      /(\d{2,5}(?:\.\d+)?)\s*(?:ft\^?2|sq\.?\s*m|sqm)\b/i,
+    ];
+    for (const p of patterns) {
+      const m = text.match(p);
+      if (m) return Number(m[1]);
+    }
   }
   return null;
 }
@@ -733,10 +769,13 @@ function normalizeType(value: string | null, rawText: string): string {
   if (lower.includes("requirement")) return "Requirement";
   const rawLower = rawText.toLowerCase();
   const hasSale = /\b(sale|selling|resale|outright)\b/i.test(rawLower);
-  const hasRent = /\b(rent|rental|monthly|per month|lease|leave and license|leave & license|l&l| ll\b)/i.test(rawLower);
+  const hasRent = /\b(rent|rental|monthly|per month|lease|leave and license|leave & license|l&l)\b/i.test(rawLower);
+  const hasCommercial = /\b(office|shop|showroom|warehouse|godown|factory|plot|land|commercial|retail|outlet)\b/i.test(rawLower);
   if (hasSale && !hasRent) return "Sale";
   if (hasRent && !hasSale) return "Rent";
   if (lower.includes("rent") || lower.includes("lease") || lower.includes("l/l")) return "Rent";
+  if (hasCommercial && rawLower.includes("sale")) return "Sale";
+  if (hasCommercial && rawLower.includes("rent")) return "Rent";
   return "Sale";
 }
 

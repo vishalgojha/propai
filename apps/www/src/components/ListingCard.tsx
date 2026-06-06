@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-import { MapPin, Zap } from 'lucide-react';
+import { MapPin, BedDouble, Move, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/format';
 import type { PublicListing } from '@/lib/listings';
@@ -81,6 +81,18 @@ export default function ListingCard({ listing }: ListingCardProps) {
 
             {/* Tags */}
             <div className="flex flex-wrap gap-2 pt-2">
+              {listing.bhk && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)]">
+                  <BedDouble className="h-3.5 w-3.5" />
+                  {`${listing.bhk}`.replace(/\s*BHK$/i, '')} BHK
+                </span>
+              )}
+              {listing.area_sqft && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)]">
+                  <Move className="h-3.5 w-3.5" />
+                  {listing.area_sqft} sqft
+                </span>
+              )}
               {features.map((f, i) => (
                 <span key={i} className="rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)] transition-colors group-hover:border-[color:var(--accent-border)] group-hover:text-[var(--text-primary)]">
                   {f}
@@ -98,8 +110,8 @@ export default function ListingCard({ listing }: ListingCardProps) {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-[var(--bg-elevated)]/60 px-5 py-3 text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider border border-white/3">
-              Broker Network
+            <div className="rounded-2xl bg-[var(--accent)]/10 px-5 py-3 text-[11px] font-bold text-[var(--accent)] uppercase tracking-wider">
+              Verified
             </div>
           </div>
         </div>

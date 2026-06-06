@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { MessageCircle, MapPin, Bell, Clock, ChevronRight, CheckCircle, Phone, X } from 'lucide-react';
+import { MessageCircle, MapPin, Bell, Clock, ChevronRight, CheckCircle, Phone, X, BedDouble, Move, IndianRupee, Building } from 'lucide-react';
 import { getListingBySlug, getListings, type PublicListing } from '@/lib/listings';
 import { formatPrice } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -266,22 +266,26 @@ export default function ListingDetail({
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {[
-            listing.bhk && { label: 'Configuration', value: `${listing.bhk}`.replace(/\s*BHK$/i, '') + ' BHK' },
-            listing.price && listing.price > 0 && { label: 'Price', value: formatPrice(listing.price) },
-            listing.area_sqft && { label: 'Area', value: `${listing.area_sqft} SQFT` },
-            listing.furnishing && { label: 'Furnishing', value: listing.furnishing },
-            listing.availability && { label: 'Availability', value: listing.availability },
-            listing.floor && { label: 'Floor', value: listing.floor },
-          ]
-            .filter(Boolean)
-            .map((stat, index) => (
-              <div key={index} className="rounded-[18px] bg-[var(--bg-surface)]/60 backdrop-blur-md p-4.5 border border-white/2">
-                <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">{stat.label}</div>
-                <div className="mt-2 text-[16px] font-black text-[var(--text-primary)]">{stat.value}</div>
-              </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            {[
+              listing.bhk && { label: 'BHK', value: `${listing.bhk}`.replace(/\s*BHK$/i, '') + ' BHK', icon: BedDouble },
+              listing.area_sqft && { label: 'Area', value: `${listing.area_sqft} sqft`, icon: Move },
+              listing.price && listing.price > 0 && { label: 'Price', value: formatPrice(listing.price), icon: IndianRupee },
+              listing.type && { label: 'Deal Type', value: listing.type, icon: Building },
+              listing.furnishing && { label: 'Furnishing', value: listing.furnishing },
+              listing.availability && { label: 'Availability', value: listing.availability },
+              listing.floor && { label: 'Floor', value: listing.floor },
+            ]
+              .filter(Boolean)
+              .map((stat, index) => (
+                <div key={index} className="rounded-[18px] bg-[var(--bg-surface)]/60 backdrop-blur-md p-4.5 border border-white/2">
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                    {stat.icon && <stat.icon className="h-3.5 w-3.5" />}
+                    {stat.label}
+                  </div>
+                  <div className="mt-2 text-[16px] font-black text-[var(--text-primary)]">{stat.value}</div>
+                </div>
             ))}
         </div>
 
