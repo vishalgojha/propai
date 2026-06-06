@@ -53,4 +53,40 @@ describe('SessionManager', () => {
             onConnectionUpdate,
         });
     });
+
+    it('allows persisted-session rehydration to retry after a failed load', async () => {
+        const manager = new SessionManager();
+        const loadPersistedSessions = vi.fn()
+            .mockRejectedValueOnce(new Error('temporary db issue'))
+            .mockResolvedValueOnce([
+                {
+                    tenantId: 'tenant-1',
+                    label: 'session-1',
+                    ownerName: 'Owner',
+                    phoneNumber: '919773757759',
+                },
+            ]);
+
+        (manager as any).storage = {
+            loadPersistedSessions,
+        };
+
+        const createSessionSpy = vi.spyOn(manager as any, 'createSession').mockResolvedValue(undefined);
+
+        await manager.rehydratePersistedSessions();
+        await manager.rehydratePersistedSessions();
+
+        expect(loadPersistedSessions).toHaveBeenCalledTimes(2);
+        expect(createSessionSpy).toHaveBeenCalledWith(
+            'tenant-1',
+            expect.any(Function),
+            expect.any(Function),
+            expect.objectContaining({
+                label: 'session-1',
+                ownerName: 'Owner',
+                phoneNumber: '919773757759',
+                skipLimitCheck: true,
+            }),
+        );
+    });
 });

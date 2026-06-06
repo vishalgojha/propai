@@ -444,6 +444,8 @@ server = app.listen(PORT, () => {
     const startupDeadline = Date.now() + STARTUP_TIMEOUT_MS;
 
     void (async () => {
+        whatsappHealthService.startHeartbeatLoop(sessionManager);
+
         try {
             console.log('[startup] Rehydrating WhatsApp sessions...');
             await Promise.race([
@@ -451,41 +453,39 @@ server = app.listen(PORT, () => {
                 new Promise((_, reject) => setTimeout(() => reject(new Error('Session rehydration timed out')), Math.max(0, startupDeadline - Date.now()))),
             ]);
             console.log('[startup] Sessions rehydrated.');
-
-            if (Date.now() > startupDeadline) {
-                console.warn('[startup] Startup deadline exceeded, skipping remaining tasks.');
-                return;
-            }
-
-            whatsappHealthService.startHeartbeatLoop(sessionManager);
-
-            if (ENABLE_SYSTEM_WHATSAPP_SESSION) {
-                void sessionManager.initSystemSession().catch((error) => {
-                    console.error('[startup] Failed to initialize system WhatsApp session:', error);
-                });
-            } else {
-                console.log('[startup] System WhatsApp session disabled.');
-            }
-
-            const backgroundJobs: Array<[string, () => void]> = [
-                ['historySyncWorker', () => historySyncWorker.start()],
-                ['syndicationSyncJob', () => syndicationSyncJob.start()],
-                ['generateMarketInsightsJob', () => generateMarketInsightsJob.start()],
-                ['igrEnrichmentJob', () => igrEnrichmentJob.start()],
-                ['followUpOverdueJob', () => followUpOverdueJob.start()],
-            ];
-
-            for (const [name, starter] of backgroundJobs) {
-                try {
-                    starter();
-                } catch (error) {
-                    console.error(`[startup] ${name} failed to start:`, error);
-                }
-            }
-
-            console.log('[startup] All initialization complete.');
         } catch (error) {
-            console.error('[startup] Initialization error (server remains running):', error);
+            console.error('[startup] Session rehydration error (server remains running):', error);
         }
+
+        if (Date.now() > startupDeadline) {
+            console.warn('[startup] Startup deadline exceeded, skipping remaining tasks.');
+            return;
+        }
+
+        if (ENABLE_SYSTEM_WHATSAPP_SESSION) {
+            void sessionManager.initSystemSession().catch((error) => {
+                console.error('[startup] Failed to initialize system WhatsApp session:', error);
+            });
+        } else {
+            console.log('[startup] System WhatsApp session disabled.');
+        }
+
+        const backgroundJobs: Array<[string, () => void]> = [
+            ['historySyncWorker', () => historySyncWorker.start()],
+            ['syndicationSyncJob', () => syndicationSyncJob.start()],
+            ['generateMarketInsightsJob', () => generateMarketInsightsJob.start()],
+            ['igrEnrichmentJob', () => igrEnrichmentJob.start()],
+            ['followUpOverdueJob', () => followUpOverdueJob.start()],
+        ];
+
+        for (const [name, starter] of backgroundJobs) {
+            try {
+                starter();
+            } catch (error) {
+                console.error(`[startup] ${name} failed to start:`, error);
+            }
+        }
+
+        console.log('[startup] All initialization complete.');
     })();
 });

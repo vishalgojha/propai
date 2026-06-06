@@ -30,7 +30,7 @@ export class SessionManager {
     private readonly qrs = new Map<string, string>();
     private systemQR: string | null = null;
     private systemStatus = 'initializing';
-    private rehydrationStarted = false;
+    private rehydrationPromise: Promise<void> | null = null;
 
     constructor() {
         const productHooks = createPropAIRuntimeHooks();
@@ -88,46 +88,53 @@ export class SessionManager {
     }
 
     async rehydratePersistedSessions() {
-        if (this.rehydrationStarted) {
-            return;
+        if (this.rehydrationPromise) {
+            return this.rehydrationPromise;
         }
 
-        this.rehydrationStarted = true;
-        let sessions: SessionRecord[] = [];
-
-        try {
-            sessions = await this.storage.loadPersistedSessions();
-        } catch (error) {
-            await this.hooks.onError?.({
-                tenantId: 'system',
-                label: 'rehydration',
-                error,
-                stage: 'rehydrate.loadPersistedSessions',
-            });
-            return;
-        }
-
-        for (const session of sessions) {
-            const fullKey = `${session.tenantId}:${session.label}`;
-            if (this.clients.has(fullKey)) {
-                continue;
-            }
+        this.rehydrationPromise = (async () => {
+            let sessions: SessionRecord[] = [];
 
             try {
-                await this.createSession(session.tenantId, () => {}, () => {}, {
-                    label: session.label,
-                    ownerName: session.ownerName || undefined,
-                    phoneNumber: session.phoneNumber || undefined,
-                    skipLimitCheck: true,
-                });
+                sessions = await this.storage.loadPersistedSessions();
             } catch (error) {
                 await this.hooks.onError?.({
-                    tenantId: session.tenantId,
-                    label: session.label,
+                    tenantId: 'system',
+                    label: 'rehydration',
                     error,
-                    stage: 'rehydrate.session',
+                    stage: 'rehydrate.loadPersistedSessions',
                 });
+                return;
             }
+
+            for (const session of sessions) {
+                const fullKey = `${session.tenantId}:${session.label}`;
+                if (this.clients.has(fullKey)) {
+                    continue;
+                }
+
+                try {
+                    await this.createSession(session.tenantId, () => {}, () => {}, {
+                        label: session.label,
+                        ownerName: session.ownerName || undefined,
+                        phoneNumber: session.phoneNumber || undefined,
+                        skipLimitCheck: true,
+                    });
+                } catch (error) {
+                    await this.hooks.onError?.({
+                        tenantId: session.tenantId,
+                        label: session.label,
+                        error,
+                        stage: 'rehydrate.session',
+                    });
+                }
+            }
+        })();
+
+        try {
+            await this.rehydrationPromise;
+        } finally {
+            this.rehydrationPromise = null;
         }
     }
 
