@@ -2916,6 +2916,21 @@ export const Sources: React.FC = () => {
               If WhatsApp keeps showing connecting or fails to finish, use Reconnect stale session first. We automatically send a crash log to <a className="text-[var(--accent)] underline" href="mailto:hello@propai.live">hello@propai.live</a> with the error reason so we can fix it.
             </div>
 
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">Reconnect stale session</p>
+                <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+                  Use this when the selected number is stuck reconnecting. It keeps the session and asks WhatsApp to link again.
+                </p>
+              </div>
+              <div className="rounded-[10px] border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.06)] px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--red)]">Start fresh</p>
+                <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+                  Use this only when you want to wipe the session and begin from scratch with a new QR or pairing flow.
+                </p>
+              </div>
+            </div>
+
             <div className="mt-4 space-y-3">
               {status.sessions.length === 0 ? (
                 <div className="rounded-[10px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
