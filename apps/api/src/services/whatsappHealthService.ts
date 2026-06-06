@@ -101,6 +101,18 @@ function formatElapsedForAlert(valueMs?: number | null) {
     return `${hours}h ${minutes}m`;
 }
 
+function buildIngestionStallAlertSignature(input: {
+    lastInboundAt?: string | null;
+    disconnectReason?: string | null;
+    autoReconnectBlocked?: boolean;
+}) {
+    return [
+        String(input.lastInboundAt || 'none').trim() || 'none',
+        String(input.disconnectReason || '').trim().toLowerCase() || 'none',
+        input.autoReconnectBlocked ? 'blocked' : 'open',
+    ].join('|');
+}
+
 function getConnectionStatus(row: any) {
     return String(row?.connection_status || row?.status || 'disconnected');
 }
@@ -882,6 +894,7 @@ export class WhatsAppHealthService {
                         activeGroups24h,
                         groupCount,
                         lastInboundAgeMs,
+                        lastInboundAt: healthRow?.last_inbound_message_at || null,
                     });
                 }
 
@@ -1241,7 +1254,38 @@ export class WhatsAppHealthService {
         activeGroups24h?: number;
         groupCount?: number;
         lastInboundAgeMs?: number | null;
+        lastInboundAt?: string | null;
     }) {
+        const { data: sessionRow, error: sessionError } = await db
+            .from('whatsapp_sessions')
+            .select('session_data')
+            .eq('tenant_id', input.tenantId)
+            .eq('label', input.sessionLabel)
+            .maybeSingle();
+
+        if (sessionError && this.shouldLogHeartbeat(`ingestion_stalled_push_session_load_failed:${input.tenantId}:${input.sessionLabel}`, 30 * 60_000)) {
+            console.warn('[WhatsAppHealthService] Failed to load session row before stalled push notification', {
+                tenantId: input.tenantId,
+                sessionLabel: input.sessionLabel,
+                error: sessionError,
+            });
+        }
+
+        const sessionData = (sessionRow?.session_data && typeof sessionRow.session_data === 'object')
+            ? sessionRow.session_data as Record<string, unknown>
+            : {};
+        const alertSignature = buildIngestionStallAlertSignature({
+            lastInboundAt: input.lastInboundAt || null,
+            disconnectReason: input.disconnectReason || null,
+            autoReconnectBlocked: Boolean(input.autoReconnectBlocked),
+        });
+        const lastAlertSignature = String(sessionData.lastIngestionStallAlertSignature || '').trim();
+        const lastAlertDelivery = String(sessionData.lastIngestionStallAlertDelivery || '').trim().toLowerCase();
+
+        if (lastAlertSignature === alertSignature && lastAlertDelivery === 'sent') {
+            return;
+        }
+
         const title = input.disconnectReason === 'replaced'
             ? 'WhatsApp session replaced'
             : 'WhatsApp ingestion stalled';
@@ -1264,7 +1308,7 @@ export class WhatsAppHealthService {
         ].filter(Boolean);
 
         try {
-            await notificationService.sendToTenant(
+            const delivery = await notificationService.sendToTenant(
                 input.tenantId,
                 title,
                 parts.join(' '),
@@ -1278,6 +1322,27 @@ export class WhatsAppHealthService {
                     autoReconnectBlocked: Boolean(input.autoReconnectBlocked),
                 },
             );
+
+            const nextSessionData = {
+                ...sessionData,
+                lastIngestionStallAlertSignature: alertSignature,
+                lastIngestionStallAlertDelivery: delivery.sent > 0 ? 'sent' : (delivery.skipped ? 'skipped' : 'no_subscriptions'),
+                lastIngestionStallAlertAt: new Date().toISOString(),
+            };
+
+            const { error: updateError } = await db
+                .from('whatsapp_sessions')
+                .update({ session_data: nextSessionData })
+                .eq('tenant_id', input.tenantId)
+                .eq('label', input.sessionLabel);
+
+            if (updateError && this.shouldLogHeartbeat(`ingestion_stalled_push_marker_failed:${input.tenantId}:${input.sessionLabel}`, 30 * 60_000)) {
+                console.warn('[WhatsAppHealthService] Failed to persist stalled push marker', {
+                    tenantId: input.tenantId,
+                    sessionLabel: input.sessionLabel,
+                    error: updateError,
+                });
+            }
         } catch (error) {
             if (this.shouldLogHeartbeat(`ingestion_stalled_push_failed:${input.tenantId}:${input.sessionLabel}`, 30 * 60_000)) {
                 console.warn('[WhatsAppHealthService] Failed to send ingestion stalled push notification', {

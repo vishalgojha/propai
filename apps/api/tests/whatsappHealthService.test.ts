@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WhatsAppHealthService } from '../src/services/whatsappHealthService';
 
-const { sessionManager, dbFrom, dbSelect, dbNot } = vi.hoisted(() => ({
+const { sessionManager, dbFrom, dbSelect, dbNot, sessionDataEq, sessionDataMaybeSingle, sessionDataUpdate, sessionDataUpdateEq } = vi.hoisted(() => ({
     sessionManager: {
         getAllSessions: vi.fn(),
         createSession: vi.fn(),
@@ -11,13 +11,49 @@ const { sessionManager, dbFrom, dbSelect, dbNot } = vi.hoisted(() => ({
     dbFrom: vi.fn(),
     dbSelect: vi.fn(),
     dbNot: vi.fn(),
+    sessionDataEq: vi.fn(),
+    sessionDataMaybeSingle: vi.fn(),
+    sessionDataUpdate: vi.fn(),
+    sessionDataUpdateEq: vi.fn(),
 }));
 
-dbFrom.mockImplementation(() => ({
-    select: dbSelect.mockReturnValue({
-        not: dbNot,
-    }),
-}));
+dbFrom.mockImplementation((table: string) => {
+    if (table === 'whatsapp_sessions') {
+        const sessionSelectChain = {
+            eq: sessionDataEq,
+            maybeSingle: sessionDataMaybeSingle,
+        };
+        sessionDataEq.mockImplementation(function () {
+            return sessionSelectChain;
+        });
+
+        const sessionUpdateChain = {
+            eq: sessionDataUpdateEq,
+        };
+        sessionDataUpdateEq.mockImplementation(function () {
+            return sessionUpdateChain;
+        });
+
+        return {
+            select: vi.fn((columns?: string) => {
+                if (columns === 'session_data') {
+                    return sessionSelectChain;
+                }
+
+                return dbSelect.mockReturnValue({
+                    not: dbNot,
+                })();
+            }),
+            update: sessionDataUpdate.mockReturnValue(sessionUpdateChain),
+        };
+    }
+
+    return {
+        select: dbSelect.mockReturnValue({
+            not: dbNot,
+        }),
+    };
+});
 
 vi.mock('../src/config/supabase', () => ({
     supabase: {
@@ -30,10 +66,18 @@ vi.mock('../src/channel-gateways/whatsapp/whatsappGatewayRegistry', () => ({
     getWhatsAppGateway: vi.fn(),
 }));
 
+vi.mock('../src/services/notificationService', () => ({
+    notificationService: {
+        sendToTenant: vi.fn().mockResolvedValue({ sent: 1, failed: 0, skipped: false }),
+    },
+}));
+
 describe('WhatsAppHealthService', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         dbNot.mockResolvedValue({ data: [], error: null });
+        sessionDataMaybeSingle.mockResolvedValue({ data: { session_data: {} }, error: null });
+        sessionDataUpdateEq.mockReturnValue({ error: null });
     });
 
     it('restarts a stale disconnected live WhatsApp session during heartbeat', async () => {
@@ -169,5 +213,35 @@ describe('WhatsAppHealthService', () => {
                 activeGroups24h: 254,
             }),
         );
+        expect(sessionDataUpdate).toHaveBeenCalled();
+    });
+
+    it('does not resend the same stalled-ingestion push for the same persisted alert signature', async () => {
+        const service = new WhatsAppHealthService();
+        const nowIso = new Date(Date.now() - 7 * 60 * 60_000).toISOString();
+
+        sessionDataMaybeSingle.mockResolvedValue({
+            data: {
+                session_data: {
+                    lastIngestionStallAlertSignature: `${nowIso}|replaced|blocked`,
+                    lastIngestionStallAlertDelivery: 'sent',
+                },
+            },
+            error: null,
+        });
+
+        await (service as any).sendIngestionStalledPush({
+            tenantId: 'tenant-1',
+            sessionLabel: 'Owner',
+            phoneNumber: '919999999999',
+            disconnectReason: 'replaced',
+            autoReconnectBlocked: true,
+            activeGroups24h: 254,
+            groupCount: 316,
+            lastInboundAgeMs: 7 * 60 * 60_000,
+            lastInboundAt: nowIso,
+        });
+
+        expect(sessionDataUpdate).not.toHaveBeenCalled();
     });
 });
