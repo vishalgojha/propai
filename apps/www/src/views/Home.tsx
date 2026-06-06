@@ -28,6 +28,23 @@ import {
 } from 'lucide-react';
 import { getListings, type PublicListing } from '@/lib/listings';
 import ListingCard from '@/components/ListingCard';
+
+function formatPriceShort(price: number, type: string): string {
+  if (!price || price <= 0) return '';
+  const cr = price / 10000000;
+  const l = price / 100000;
+  if (cr >= 1) {
+    const s = cr < 10 ? cr.toFixed(1) : Math.round(cr).toString();
+    return type === 'Rent' ? `₹${s}Cr/mo` : `₹${s}Cr`;
+  }
+  if (l >= 1) {
+    return type === 'Rent' ? `₹${Math.round(l)}L/mo` : `₹${Math.round(l)}L`;
+  }
+  if (price >= 1000) {
+    return type === 'Rent' ? `₹${Math.round(price / 1000)}K/mo` : `₹${Math.round(price / 1000)}K`;
+  }
+  return type === 'Rent' ? `₹${price}/mo` : `₹${price}`;
+}
 import { cn } from '@/lib/utils';
 
 // Premium interactive mockup localities for Mumbai Vector Map
@@ -111,13 +128,8 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
   const [activeBroker, setActiveBroker] = useState<BrokerProfile | null>(null);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   
-  // Dynamic parsed activity ticker data
-  const [tickerItems, setTickerItems] = useState<string[]>([
-    "⚡ Active 3 BHK Realtor-Group listing parsed in Bandra West • 12s ago",
-    "⚡ Direct Realtor inventory updated in Juhu (₹2.1L/mo) • 48s ago",
-    "⚡ 1 BHK executive deal parsed in Andheri West • 2m ago",
-    "⚡ Real-time WhatsApp signal added for Powai Lake View • 5m ago"
-  ]);
+  // Dynamic parsed activity ticker data (from real listings)
+  const [tickerItems, setTickerItems] = useState<string[]>([]);
 
   // Analytics Canvas Ref
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -166,22 +178,31 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
     }
   }, [initialListings]);
 
-  // Dynamic Ticker Simulation
+  // Build ticker pool from real listings
   useEffect(() => {
-    const tickerInterval = setInterval(() => {
-      const activities = [
-        "⚡ Realtor updated listing in Lower Parel (₹1.2L/mo)",
-        "⚡ Signal parsed: 2 BHK available immediately in Chembur",
-        "⚡ Direct WhatsApp match for Worli ocean view apartment",
-        "⚡ 3 BHK rental price revised to ₹1.75L in Bandra West",
-        "⚡ Realtor-Network signals matched: 4 BHK premium deal in Juhu"
-      ];
-      const randomActivity = activities[Math.floor(Math.random() * activities.length)];
-      setTickerItems(prev => [randomActivity + " • Just now", ...prev.slice(0, 3)]);
-    }, 9000);
+    if (!allListings.length) return;
+    const pool = allListings.slice(0, 100).map(l => {
+      const parts = [];
+      if (l.bhk) parts.push(String(l.bhk));
+      parts.push(l.type === 'Rent' ? 'rental' : l.type === 'Sale' ? 'sale' : 'requirement');
+      parts.push(`in ${l.locality}`);
+      if (l.price) parts.push(formatPriceShort(l.price, l.type));
+      return `⚡ ${parts.join(' ')}`;
+    });
+    if (pool.length) setTickerItems(pool);
+  }, [allListings]);
 
+  // Rotate ticker items
+  useEffect(() => {
+    if (!tickerItems.length) return;
+    const tickerInterval = setInterval(() => {
+      setTickerItems(prev => {
+        if (prev.length <= 1) return prev;
+        return [prev[prev.length - 1], ...prev.slice(0, prev.length - 1)];
+      });
+    }, 9000);
     return () => clearInterval(tickerInterval);
-  }, []);
+  }, [tickerItems.length > 0]);
 
   // Handle Locality click/filter dynamically on database records
   const selectLocality = useCallback((localityName: string | null) => {
@@ -490,7 +511,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
           
           <div className="hidden md:flex items-center gap-1.5 text-[10px] font-bold text-[var(--text-muted)] bg-[var(--bg-surface)] px-2.5 py-1 rounded-md">
             <Shield className="h-3.5 w-3.5 text-[var(--accent)]" />
-            <span>99.8% System Integrity</span>
+            <span>{allListings.length ? `${allListings.length.toLocaleString()} Active Listings` : '— Active Listings'}</span>
           </div>
         </div>
       </div>
@@ -499,7 +520,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
       <header className="relative z-10 px-6 pt-12 pb-8 flex flex-col items-center text-center max-w-5xl mx-auto">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[var(--accent-glow)] border border-[color:var(--accent-border)] rounded-full mb-6">
           <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
-          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">India's First Real-Time Realtor Network Stream</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">Live from Broker WhatsApp Groups</span>
         </div>
         
         <h1 className="text-[44px] sm:text-[62px] font-black leading-[1.05] tracking-[-0.04em] text-[var(--text-primary)] font-display max-w-4xl mb-4">
