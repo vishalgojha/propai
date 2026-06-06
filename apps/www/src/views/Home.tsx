@@ -733,10 +733,12 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     {/* Pricing Desk Card */}
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       <div className="bg-[var(--bg-surface)]/45 rounded-2xl p-4">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Realtor Rent Demand</div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                          {selectedListing.type === 'Rent' ? 'Asking Rent' : selectedListing.type === 'Sale' ? 'Asking Price' : 'Requirement'}
+                        </div>
                         <div className="text-[22px] font-black text-[var(--accent)] mt-1 tracking-tight">
                           ₹{selectedListing.price.toLocaleString()}
-                          <span className="text-[11px] font-semibold text-[var(--text-muted)]">/mo</span>
+                          {selectedListing.type === 'Rent' && <span className="text-[11px] font-semibold text-[var(--text-muted)]">/mo</span>}
                         </div>
                       </div>
                       <div className="bg-[var(--bg-surface)]/45 rounded-2xl p-4">
@@ -785,10 +787,16 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     </div>
 
                     {/* Direct Connect Action Area */}
-                    <div className="flex pt-2">
+                    <div className="flex gap-3 pt-2">
+                      <Link
+                        href={`/listings/${selectedListing.slug}`}
+                        className="flex items-center justify-center gap-2 h-13 px-5 rounded-2xl border border-[color:var(--border)] text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-all"
+                      >
+                        View Details
+                      </Link>
                       <button 
                         onClick={() => startBrokerChat(selectedListing)}
-                        className="w-full flex items-center justify-center gap-2.5 h-13 px-6 rounded-2xl bg-[var(--accent)] text-[var(--on-propai-green)] text-[12px] font-black uppercase tracking-[0.08em] shadow-[0_12px_24px_rgba(62,232,138,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all"
+                        className="flex-1 flex items-center justify-center gap-2.5 h-13 px-6 rounded-2xl bg-[var(--accent)] text-[var(--on-propai-green)] text-[12px] font-black uppercase tracking-[0.08em] shadow-[0_12px_24px_rgba(62,232,138,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all"
                       >
                         <MessageCircle className="h-4.5 w-4.5" />
                         <span>Connect & Negotiate Instantly</span>
