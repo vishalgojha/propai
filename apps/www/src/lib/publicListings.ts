@@ -117,7 +117,6 @@ export interface PublicListing {
   surfaced_at: string;
   slug: string;
   floor?: string;
-  broker_phone?: string;
   origin?: string;
 }
 
@@ -197,10 +196,12 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
     .filter((row) => {
       const price = Number(row.price_numeric);
       const type = String(row.type || row.deal_type || "").toLowerCase();
+      const rawText = String(row.raw_text || "").toLowerCase();
+      const isPerSqft = /\b(psf|per\s+sq\s*ft|per\s+sqft)\b|\/sqft/i.test(rawText);
       if (!Number.isFinite(price) || price <= 0) return true;
-      if (type.includes("rent") && price > 5_000_000) return false;  // rent > 50L/mo = encoding artifact
-      if (type.includes("rent") && price < 5_000) return false;      // rent < 5K/mo = not real
-      if (type.includes("sale") && price > 500_000_000) return false; // sale > 500Cr = encoding artifact
+      if (type.includes("rent") && price > 5_000_000) return false;
+      if (type.includes("rent") && price < 5_000 && !isPerSqft) return false;
+      if (type.includes("sale") && price > 500_000_000) return false;
       return true;
     })
     .filter((row) => {
@@ -410,10 +411,6 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
   const furnishing = pickString(data.furnishing, data.furnished) || null;
   const areaSqft = parseAreaSqft(data.area_sqft, data.carpet_area, data.area);
   const availability = pickString(data.availability, data.available_from, data.possession) || null;
-  const brokerDigits = digitsOnly(
-    pickString(data.contact_number, data.phone, data.contactPhone, data.sourcePhone) || extractPhone(rawText)
-  );
-  const fallbackBroker = brokerDigits ? paidBrokerMap.get(brokerDigits) : null;
   const title = buildPublicListingTitle({
     title: pickString(data.title, data.name, data.displayTitle) || null,
     buildingName: pickString(data.buildingName, data.projectName, data.project_name) || null,
@@ -465,7 +462,6 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
     surfaced_at: pickString(data.importedAt, row.updated_at, row.created_at) || row.created_at,
     slug,
     floor: floor || undefined,
-    broker_phone: brokerDigits ? `91${fallbackBroker?.phone || brokerDigits}` : undefined,
     origin: origin || undefined,
   };
 }
@@ -486,15 +482,21 @@ function normalizeStreamListing(
   if (!isListableLocation(locality)) return null;
   const bhk = pickString(canonical?.bhk, row.bhk, data.bhk) || inferBhk(rawText) || "Flexible";
   const type = normalizeType(pickString(canonical?.deal_type, row.type, row.deal_type, data.type, data.deal_type), rawText);
-  const priceAmount = parsePriceAmount(canonical?.price_numeric ?? row.price_numeric, canonical?.price_label ?? row.price_label, rawText, type);
+  const parsedPrice = parsePrice(
+    `${String(canonical?.price_label || row.price_label || "")} ${rawText}`.trim(),
+    type,
+  );
+  const areaSqft = parseAreaSqft(canonical?.area_sqft, row.area_sqft, data.area_sqft, data.areaSqft);
+  let priceAmount = parsePriceAmount(canonical?.price_numeric ?? row.price_numeric, canonical?.price_label ?? row.price_label, rawText, type);
+  if (parsedPrice.basis === 'per_sqft' && parsedPrice.numeric && areaSqft && areaSqft > 0) {
+    const computedTotal = Math.round(parsedPrice.numeric * areaSqft);
+    if (computedTotal > (priceAmount || 0)) {
+      priceAmount = computedTotal;
+    }
+  }
   const floor = pickString(canonical?.floor_number, (data as any).floor_number, (data as any).floorNumber) || null;
   const furnishing = pickString(canonical?.furnishing, data.furnishing) || null;
-  const areaSqft = parseAreaSqft(canonical?.area_sqft, row.area_sqft, data.area_sqft, data.areaSqft);
   const availability = pickString(data.availability, data.available_from, data.possession) || null;
-  const brokerDigits = digitsOnly(
-    pickString(row.source_phone, data.contactPhone, data.sourcePhone) || extractPhone(rawText)
-  );
-  const fallbackBroker = brokerDigits ? paidBrokerMap.get(brokerDigits) : null;
   const title = buildPublicListingTitle({
     title: pickString(canonical?.canonical_title, data.displayTitle, data.title) || null,
     buildingName: pickString(canonical?.building_name, data.buildingName, canonical?.micro_location, data.microLocation) || null,
@@ -546,7 +548,6 @@ function normalizeStreamListing(
     surfaced_at: pickString(data.importedAt, row.updated_at, row.created_at) || row.created_at,
     slug,
     floor: floor || undefined,
-    broker_phone: brokerDigits ? `91${fallbackBroker?.phone || brokerDigits}` : undefined,
     origin: origin || undefined,
   };
 }
@@ -832,7 +833,6 @@ function dedupePublicListings(listings: PublicListing[]) {
       normalizeListingText(listing.title),
       normalizeListingText(String(listing.bhk || "")),
       String(Math.round(Number(listing.price || 0))),
-      normalizeListingText(listing.broker_phone || ""),
       normalizeListingText(listing.raw_text).slice(0, 180),
     ].join("|");
 

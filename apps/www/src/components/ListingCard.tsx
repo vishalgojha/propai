@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-import { MapPin, MessageCircle, Zap } from 'lucide-react';
+import { MapPin, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PublicListing } from '@/lib/listings';
 
@@ -103,19 +103,9 @@ export default function ListingCard({ listing }: ListingCardProps) {
               </div>
             </div>
 
-            <button 
-              className="group/btn flex items-center gap-2 h-12 px-6 rounded-2xl bg-[var(--accent)] text-[var(--on-propai-green)] text-[13px] font-bold uppercase tracking-[0.1em] hover:scale-[1.05] active:scale-[0.98] transition-all shadow-[0_12px_24px_rgba(62,232,138,0.2)]"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const phone = listing.broker_phone || '';
-                const text = encodeURIComponent(`Hi, I am interested in ${listing.title} in ${listing.locality} (via PropAI)`);
-                window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
-              }}
-            >
-              <MessageCircle className="h-4.5 w-4.5" />
-              <span>Connect</span>
-            </button>
+            <div className="rounded-2xl bg-[var(--bg-elevated)]/60 px-5 py-3 text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider border border-white/3">
+              Broker Network
+            </div>
           </div>
         </div>
       </div>

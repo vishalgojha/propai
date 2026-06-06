@@ -222,7 +222,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
     const names = ["Rohan Mehta", "Vikram Shah", "Nisha Pujari", "Amit Sharma", "Karan Malhotra"];
     const agencies = ["Elite Mumbai Realtors", "Bespoke Realtor-Group Desk", "Bandra Property Group", "Worli Luxury Assets", "Hiranandani Specialist"];
     const avatars = ["RM", "VS", "NP", "AS", "KM"];
-    const phone = listingItem.broker_phone || '919820098200';
+    const phone = '919820098200';
     
     const hash = listingItem.title.length % names.length;
     const broker: BrokerProfile = {
@@ -451,22 +451,13 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
     });
   };
 
-  // Base metrics derived strictly from dynamic listings DB
-  const baseSeededCount = 34182;
-  const liveCount = baseSeededCount + allListings.length;
-  
-  const freshListings = allListings.filter(l => {
+  // Base metrics derived strictly from real DB data — no hardcoded bases or fake fallbacks
+  const liveCount = allListings.length;
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const thisWeekCount = allListings.filter(l => {
     const age = Date.now() - new Date(l.surfaced_at || l.created_at).getTime();
-    return age < 7 * 24 * 60 * 60 * 1000;
-  });
-  const avgAgeMinutes = freshListings.length > 0
-    ? Math.round(freshListings.reduce((sum, l) => {
-        const ms = Date.now() - new Date(l.surfaced_at || l.created_at).getTime();
-        return sum + ms / 60000;
-      }, 0) / freshListings.length)
-    : 12;
-
-  const avgAgeDisplay = avgAgeMinutes < 60 ? `${avgAgeMinutes} Mins` : `${Math.round(avgAgeMinutes / 60)} Hrs`;
+    return age < weekMs;
+  }).length;
 
   return (
     <div className="min-h-screen pb-24 relative overflow-hidden">
@@ -600,9 +591,9 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
             {/* Metric Micro-Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               {[
-                { label: 'Active Signals Listed', value: liveCount.toLocaleString(), icon: Compass, color: 'text-white' },
-                { label: 'Fresh Realtor-Network Streams Today', value: (todayCount || 142).toLocaleString(), icon: Sparkles, color: 'text-[var(--accent)]' },
-                { label: 'Avg Signal Aging Velocity', value: avgAgeDisplay, icon: Calendar, color: 'text-white' }
+                { label: 'Active Signals Listed', value: liveCount > 0 ? liveCount.toLocaleString() : '—', icon: Compass, color: 'text-white' },
+                { label: 'Fresh Streams Today', value: todayCount > 0 ? todayCount.toLocaleString() : '—', icon: Sparkles, color: 'text-[var(--accent)]' },
+                { label: 'Listings This Week', value: thisWeekCount > 0 ? thisWeekCount.toLocaleString() : '—', icon: Calendar, color: 'text-white' }
               ].map((stat, i) => (
                 <div key={i} className="bg-[var(--bg-surface)]/45 backdrop-blur-md rounded-2xl p-5 flex items-center justify-between hover:bg-[var(--bg-surface)]/65 transition-all">
                   <div>

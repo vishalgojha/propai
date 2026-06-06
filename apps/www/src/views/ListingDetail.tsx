@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { MessageCircle, MapPin, Share2, Heart, Clock, ChevronRight } from 'lucide-react';
+import { MapPin, Share2, Heart, Clock, ChevronRight } from 'lucide-react';
 import { getListingBySlug, getListings, type PublicListing } from '@/lib/listings';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -165,28 +165,17 @@ export default function ListingDetail({
             </div>
           </div>
 
-          <aside className="rounded-[22px] bg-[var(--bg-surface)] p-5 border border-white/3 shadow-sm space-y-4">
+            <aside className="rounded-[22px] bg-[var(--bg-surface)] p-5 border border-white/3 shadow-sm space-y-4">
             <div>
               <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">Asking price</div>
               <div className="mt-2 text-[34px] font-black tracking-tight text-[var(--accent)]">
                 {listing.price && listing.price > 0 ? `₹${listing.price.toLocaleString()}` : 'Price on Request'}
               </div>
             </div>
-            <p className="text-[12px] leading-relaxed text-[var(--text-secondary)] font-medium">
-              Public pages show the market signal first. Realtor contact stays explicit.
-            </p>
             <div className="flex flex-col gap-3">
-              <button
-                onClick={() => {
-                  const phone = listing.broker_phone || '';
-                  const text = encodeURIComponent(`Hi, I am interested in ${listing.title} in ${listing.locality} (via PropAI)`);
-                  window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
-                }}
-                className="flex items-center justify-center gap-3 rounded-[16px] bg-[var(--accent)] py-4 text-[13px] font-black uppercase tracking-[0.1em] text-[var(--on-propai-green)] shadow-[0_12px_32px_rgba(62,232,138,0.25)] transition-all hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <MessageCircle className="h-5 w-5" />
-                Contact Realtor
-              </button>
+              <div className="rounded-[16px] bg-[var(--bg-elevated)]/40 py-4 text-center text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Sourced via Broker Network
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <button className="flex items-center justify-center gap-2 rounded-[14px] bg-[var(--bg-elevated)]/40 hover:bg-[var(--bg-elevated)]/75 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--text-primary)] transition-all">
                   <Heart className="h-4 w-4" />
