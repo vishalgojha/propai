@@ -36,6 +36,8 @@ export default function ListingDetail({
   const [notifyState, setNotifyState] = useState<'idle' | 'form' | 'submitting' | 'done'>('idle');
   const [notifyPhone, setNotifyPhone] = useState('');
   const [notifyError, setNotifyError] = useState('');
+  const [aiDescription, setAiDescription] = useState<string | null>(null);
+  const [descLoading, setDescLoading] = useState(false);
 
   const handleNotifySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +90,29 @@ export default function ListingDetail({
       setLoading(false);
     }
   }, [slug, initialListing, initialRelated]);
+
+  useEffect(() => {
+    if (!listing || aiDescription !== null) return;
+    setDescLoading(true);
+    fetch("/api/listings/describe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        price: listing.price,
+        configuration: listing.bhk ? `${listing.bhk}`.replace(/\s*BHK$/i, "") + " BHK" : null,
+        locality: listing.locality,
+        area_sqft: listing.area_sqft,
+        created_at: listing.created_at,
+        deal_type: listing.type,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setAiDescription(data.description || null);
+        setDescLoading(false);
+      })
+      .catch(() => setDescLoading(false));
+  }, [listing, aiDescription]);
 
 
   if (loading) {
@@ -288,6 +313,25 @@ export default function ListingDetail({
                 </div>
             ))}
         </div>
+
+        {descLoading ? (
+          <div className="rounded-[24px] bg-[var(--bg-surface)]/40 backdrop-blur-md p-6 border border-white/2 animate-pulse">
+            <div className="h-4 w-32 bg-[var(--bg-elevated)] rounded-[4px] mb-4" />
+            <div className="space-y-2">
+              <div className="h-3 w-full bg-[var(--bg-elevated)] rounded-[3px]" />
+              <div className="h-3 w-5/6 bg-[var(--bg-elevated)] rounded-[3px]" />
+              <div className="h-3 w-4/6 bg-[var(--bg-elevated)] rounded-[3px]" />
+            </div>
+          </div>
+        ) : aiDescription ? (
+          <div className="rounded-[24px] bg-[var(--bg-surface)]/40 backdrop-blur-md p-6 border border-white/2">
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)] mb-4">About this listing</div>
+            <div
+              className="prose prose-sm prose-invert max-w-none text-[13px] leading-relaxed text-[var(--text-secondary)] [&_strong]:text-[var(--text-primary)] [&_h2]:text-[16px] [&_h2]:font-bold [&_h2]:mt-6 [&_h2]:mb-2 [&_h2]:text-[var(--text-primary)] [&_p]:mb-3"
+              dangerouslySetInnerHTML={{ __html: aiDescription }}
+            />
+          </div>
+        ) : null}
 
         <div className="rounded-[24px] bg-[var(--bg-surface)]/60 backdrop-blur-md p-6 border border-white/2">
           <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">Interested in this property?</div>
