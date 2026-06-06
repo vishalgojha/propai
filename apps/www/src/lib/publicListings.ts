@@ -429,13 +429,14 @@ export function normalizeIndianPhone(value: string) {
   return normalized;
 }
 
-function generateListingSlug(listing: { bhk: string; localitySlug: string; type: string; id: string }) {
+function generateListingSlug(listing: { bhk: string | null | undefined; localitySlug: string; type: string; id: string }) {
   const shortId = listing.id.replace(/-/g, "").slice(-8);
   const bhkPart = slugifyBhk(listing.bhk);
   return `${bhkPart}-in-${listing.localitySlug}-${listing.type}-${shortId}`;
 }
 
-function slugifyBhk(bhk: string) {
+function slugifyBhk(bhk: string | null | undefined) {
+  if (!bhk) return 'listing';
   const match = bhk.match(/^(\d+(?:\.\d+)?)/);
   return match ? `${match[1]}-bhk` : bhk.toLowerCase().replace(/\s+/g, "-");
 }
