@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import crypto from "node:crypto";
 import dotenv from "dotenv";
 import ws from "ws";
+import type { AuthenticatedUser } from "./types.js";
 
 dotenv.config();
 
@@ -44,6 +45,92 @@ function buildClient(key: string, name: string) {
 export const supabase = buildClient(serviceKey || anonKey, "PropAI MCP Supabase service client");
 
 export const supabaseAuth = buildClient(anonKey || serviceKey, "PropAI MCP Supabase auth client");
+
+function normalizeEmail(value?: string | null) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isMissingWorkspaceMembershipSchemaError(error: unknown) {
+  const candidate = error as { code?: string; message?: string; details?: string; hint?: string } | null;
+  const haystack = [
+    candidate?.message,
+    candidate?.details,
+    candidate?.hint,
+  ]
+    .map((value) => String(value || "").toLowerCase())
+    .join(" ");
+
+  return candidate?.code === "42P01"
+    || candidate?.code === "42703"
+    || haystack.includes("workspace_members")
+    || haystack.includes("schema cache")
+    || haystack.includes("does not exist")
+    || haystack.includes("updated_at")
+    || haystack.includes("joined_at")
+    || haystack.includes("last_active_at")
+    || haystack.includes("assigned_session_labels")
+    || haystack.includes("preferred_session_label");
+}
+
+export async function resolveBrokerIdForUser(user?: AuthenticatedUser | null) {
+  const currentUserId = String(user?.id || "").trim();
+  const currentUserEmail = normalizeEmail(user?.email);
+  const metadataBrokerId = String(
+    (user?.user_metadata as Record<string, unknown> | undefined)?.workspace_owner_id
+      || (user?.app_metadata as Record<string, unknown> | undefined)?.workspace_owner_id
+      || "",
+  ).trim();
+
+  if (metadataBrokerId) {
+    return metadataBrokerId;
+  }
+
+  if (!currentUserId) {
+    return null;
+  }
+
+  try {
+    const byUserId = await supabase
+      .from("workspace_members")
+      .select("workspace_owner_id, status")
+      .eq("member_user_id", currentUserId)
+      .in("status", ["invited", "active"])
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (byUserId.error) {
+      if (!isMissingWorkspaceMembershipSchemaError(byUserId.error)) {
+        console.warn("Failed to resolve MCP broker id by user id:", byUserId.error.message);
+      }
+    } else if (byUserId.data?.workspace_owner_id) {
+      return String(byUserId.data.workspace_owner_id);
+    }
+
+    if (currentUserEmail) {
+      const byEmail = await supabase
+        .from("workspace_members")
+        .select("workspace_owner_id, status")
+        .eq("member_email", currentUserEmail)
+        .in("status", ["invited", "active"])
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (byEmail.error) {
+        if (!isMissingWorkspaceMembershipSchemaError(byEmail.error)) {
+          console.warn("Failed to resolve MCP broker id by email:", byEmail.error.message);
+        }
+      } else if (byEmail.data?.workspace_owner_id) {
+        return String(byEmail.data.workspace_owner_id);
+      }
+    }
+  } catch (error) {
+    console.warn("Unexpected error resolving MCP broker id:", error instanceof Error ? error.message : error);
+  }
+
+  return currentUserId;
+}
 
 function hashMcpConnectorToken(token: string) {
   return `sha256:${crypto.createHash("sha256").update(token).digest("hex")}`;
