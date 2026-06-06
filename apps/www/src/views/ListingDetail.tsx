@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { MapPin, Share2, Heart, Clock, ChevronRight } from 'lucide-react';
+import { MessageCircle, MapPin, Share2, Heart, Clock, ChevronRight } from 'lucide-react';
 import { getListingBySlug, getListings, type PublicListing } from '@/lib/listings';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -211,10 +211,19 @@ export default function ListingDetail({
         </div>
 
         <div className="rounded-[24px] bg-[var(--bg-surface)]/60 backdrop-blur-md p-6 border border-white/2">
-          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">Public listing note</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">Interested in this property?</div>
           <p className="mt-3 text-[13px] leading-relaxed text-[var(--text-secondary)] font-medium">
-            Public pages should stay title-first, locality-first, and action-first. Anything extra should help the Realtor decide, not decorate the page.
+            Get direct broker contact and exclusive details by signing up to PropAI Pulse — the real-time broker network platform.
           </p>
+          <a
+            href="https://app.propai.live"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 flex items-center justify-center gap-2 rounded-[14px] bg-[var(--accent)] py-3.5 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--on-propai-green)] transition-all hover:brightness-110"
+          >
+            <MessageCircle className="h-4 w-4" />
+            Connect on PropAI
+          </a>
         </div>
       </div>
 

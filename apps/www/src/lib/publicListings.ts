@@ -449,7 +449,7 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
     inferLocation(rawText);
   const locality = normalizeLocality(location || "");
   if (!isListableLocation(locality)) return null;
-  const bhk = pickString(data.bhk, data.layout, data.property_type) || inferBhk(rawText) || "Flexible";
+  const bhk = pickString(data.bhk, data.layout, data.property_type) || inferBhk(rawText) || null;
   const type = normalizeType(pickString(data.type, data.deal_type, data.intent, data.category), rawText);
   const priceAmount = parsePriceAmount(data.price_numeric, data.price, rawText, type);
   const floor = pickString(data.floor, data.floor_number) || null;
@@ -525,7 +525,7 @@ function normalizeStreamListing(
     inferLocation(rawText);
   const locality = normalizeLocality(location || "");
   if (!isListableLocation(locality)) return null;
-  const bhk = pickString(canonical?.bhk, row.bhk, data.bhk) || inferBhk(rawText) || "Flexible";
+  const bhk = pickString(canonical?.bhk, row.bhk, data.bhk) || inferBhk(rawText) || null;
   const type = normalizeType(pickString(canonical?.deal_type, row.type, row.deal_type, data.type, data.deal_type), rawText);
   const parsedPrice = parsePrice(
     `${String(canonical?.price_label || row.price_label || "")} ${rawText}`.trim(),
