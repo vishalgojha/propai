@@ -1467,7 +1467,7 @@ export const Sources: React.FC = () => {
     }
   };
 
-  const handleResetSession = async (label?: string | null) => {
+  const handleReconnectSession = async (label?: string | null) => {
     if (!label) {
       return;
     }
@@ -1475,15 +1475,10 @@ export const Sources: React.FC = () => {
     setIsResettingSession(true);
     setError(null);
     try {
-      await backendApi.post(ENDPOINTS.whatsapp.reset, { label });
-      track('whatsapp_session_reset', {
+      await backendApi.post(ENDPOINTS.whatsapp.reconnect, { label });
+      track('whatsapp_session_reconnect', {
         label,
       });
-      setConnectionArtifact(null);
-      setRenderedQrMarkup(null);
-      setQrGeneratedAt(null);
-      setQrTimeLeft(0);
-      setScanProgress(0);
       setPendingConnection(null);
       await fetchStatus();
     } catch (err) {
@@ -2890,12 +2885,12 @@ export const Sources: React.FC = () => {
                 {disconnectTargetLabel && currentSessionStatus !== 'disconnected' && (
                   <div className="flex flex-wrap items-center gap-2">
                     <button
-                      onClick={() => void handleResetSession(disconnectTargetLabel)}
+                      onClick={() => void handleReconnectSession(disconnectTargetLabel)}
                       disabled={isConnecting || isResettingSession}
                       className={cn(sourceSecondaryButton, 'bg-[var(--bg-base)] px-3 py-2.5 text-[var(--text-secondary)] hover:text-[var(--amber)]')}
                     >
                       {isResettingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                      Reset stale session
+                      Reconnect stale session
                     </button>
                     <button
                       onClick={() => void handleResetAllSessions()}
@@ -2918,7 +2913,7 @@ export const Sources: React.FC = () => {
               </div>
             </div>
             <div className="mt-3 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 text-[12px] text-[var(--text-secondary)]">
-              If WhatsApp keeps showing connecting or fails to finish, use Reset stale session first. We automatically send a crash log to <a className="text-[var(--accent)] underline" href="mailto:hello@propai.live">hello@propai.live</a> with the error reason so we can fix it.
+              If WhatsApp keeps showing connecting or fails to finish, use Reconnect stale session first. We automatically send a crash log to <a className="text-[var(--accent)] underline" href="mailto:hello@propai.live">hello@propai.live</a> with the error reason so we can fix it.
             </div>
 
             <div className="mt-4 space-y-3">
@@ -2974,7 +2969,7 @@ export const Sources: React.FC = () => {
             <div className="flex items-start gap-3">
               <Info className="mt-0.5 h-4 w-4 text-[var(--accent)]" />
               <p className="text-[12px] leading-5 text-[var(--text-secondary)]">
-                Save the broker details first, then connect with QR. If the broker is away from a laptop, use the pairing code fallback instead. If a session gets stuck, use Reset stale session and we will send a crash log to hello@propai.live with the reason.
+                Save the broker details first, then connect with QR. If the broker is away from a laptop, use the pairing code fallback instead. If a session gets stuck, use Reconnect stale session and we will send a crash log to hello@propai.live with the reason.
               </p>
             </div>
           </div>
