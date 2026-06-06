@@ -2040,6 +2040,8 @@ export const Sources: React.FC = () => {
     ? formatReasonLabel(latestIssueEvent.eventType) || latestIssueEvent.eventType
     : null;
   const latestDisconnectReason = formatReasonLabel(primaryHealthSession?.disconnectReason || null);
+  const sessionReplacedConflict = String(primaryHealthSession?.disconnectReason || '').trim().toLowerCase() === 'replaced'
+    || Boolean(primaryHealthSession?.autoReconnectBlocked);
   const lastSessionActivityAt = [
     primaryHealthSession?.lastInboundMessageAt,
     primaryHealthSession?.lastParsedMessageAt,
@@ -3005,6 +3007,17 @@ export const Sources: React.FC = () => {
                     <p className="mt-1 text-[11px] text-[var(--text-muted)]">
                       Another WhatsApp number is still connected. This selected session is the one reconnecting.
                     </p>
+                  ) : null}
+                  {sessionReplacedConflict ? (
+                    <div className="mt-3 rounded-[10px] border border-[rgba(239,68,68,0.22)] bg-[rgba(239,68,68,0.08)] px-3 py-3 text-[12px] text-[var(--red)]">
+                      <p className="font-semibold uppercase tracking-[0.08em]">Session replaced</p>
+                      <p className="mt-1 leading-5 text-[var(--text-secondary)]">
+                        WhatsApp says this linked-device session was replaced by another owner. PropAI will not auto-reconnect this session until you reconnect it here.
+                      </p>
+                      <p className="mt-1 leading-5 text-[var(--text-secondary)]">
+                        Check for another Baileys runtime, another linked-device owner, or another login flow using the same number.
+                      </p>
+                    </div>
                   ) : null}
                   <p className="mt-2 inline-flex rounded-full border border-[color:rgba(62,232,138,0.2)] bg-[rgba(62,232,138,0.08)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
                     Replay backlog: {replayBacklog24h} messages waiting

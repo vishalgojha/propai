@@ -1,5 +1,6 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
+import { notificationService } from './notificationService';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
@@ -78,6 +79,26 @@ function safeRatio(success: number, failed: number) {
     }
 
     return Math.round((success / total) * 100);
+}
+
+function formatElapsedForAlert(valueMs?: number | null) {
+    if (!Number.isFinite(valueMs) || (valueMs || 0) <= 0) {
+        return null;
+    }
+
+    const totalMinutes = Math.round((valueMs || 0) / 60_000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    if (hours <= 0) {
+        return `${minutes}m`;
+    }
+
+    if (minutes === 0) {
+        return `${hours}h`;
+    }
+
+    return `${hours}h ${minutes}m`;
 }
 
 function getConnectionStatus(row: any) {
@@ -852,6 +873,16 @@ export class WhatsAppHealthService {
                             autoReconnectBlocked,
                         },
                     );
+                    await this.sendIngestionStalledPush({
+                        tenantId,
+                        sessionLabel,
+                        phoneNumber: String(row.session_data?.phoneNumber || row.session_data?.displayPhoneNumber || '').trim() || null,
+                        disconnectReason: disconnectReason || null,
+                        autoReconnectBlocked,
+                        activeGroups24h,
+                        groupCount,
+                        lastInboundAgeMs,
+                    });
                 }
 
                 if (connectedButStalled && typeof sessionManager.forceReconnect === 'function') {
@@ -1199,6 +1230,63 @@ export class WhatsAppHealthService {
         }
 
         return `WhatsApp disconnected for ${input.phoneNumber || input.sessionLabel}.`;
+    }
+
+    private async sendIngestionStalledPush(input: {
+        tenantId: string;
+        sessionLabel: string;
+        phoneNumber?: string | null;
+        disconnectReason?: string | null;
+        autoReconnectBlocked?: boolean;
+        activeGroups24h?: number;
+        groupCount?: number;
+        lastInboundAgeMs?: number | null;
+    }) {
+        const title = input.disconnectReason === 'replaced'
+            ? 'WhatsApp session replaced'
+            : 'WhatsApp ingestion stalled';
+        const subject = input.phoneNumber || input.sessionLabel;
+        const elapsed = formatElapsedForAlert(input.lastInboundAgeMs);
+        const trafficScope = input.activeGroups24h && input.activeGroups24h > 0
+            ? `${input.activeGroups24h} active groups today`
+            : input.groupCount && input.groupCount > 0
+                ? `${input.groupCount} known groups`
+                : null;
+        const reason = input.disconnectReason
+            ? `Reason: ${input.disconnectReason.replace(/_/g, ' ')}.`
+            : '';
+
+        const parts = [
+            `${subject} is not receiving fresh WhatsApp messages${elapsed ? ` for ${elapsed}` : ''}.`,
+            trafficScope ? `${trafficScope}.` : '',
+            input.autoReconnectBlocked ? 'Auto-reconnect is blocked.' : '',
+            reason,
+        ].filter(Boolean);
+
+        try {
+            await notificationService.sendToTenant(
+                input.tenantId,
+                title,
+                parts.join(' '),
+                {
+                    tenantId: input.tenantId,
+                    label: input.sessionLabel,
+                    phoneNumber: input.phoneNumber || null,
+                    action: input.disconnectReason === 'replaced' ? 'whatsapp_conflict' : 'whatsapp_reconnect',
+                    status: 'stalled',
+                    disconnectReason: input.disconnectReason || null,
+                    autoReconnectBlocked: Boolean(input.autoReconnectBlocked),
+                },
+            );
+        } catch (error) {
+            if (this.shouldLogHeartbeat(`ingestion_stalled_push_failed:${input.tenantId}:${input.sessionLabel}`, 30 * 60_000)) {
+                console.warn('[WhatsAppHealthService] Failed to send ingestion stalled push notification', {
+                    tenantId: input.tenantId,
+                    sessionLabel: input.sessionLabel,
+                    error,
+                });
+            }
+        }
     }
 }
 
