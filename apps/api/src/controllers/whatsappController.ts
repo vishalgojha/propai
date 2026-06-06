@@ -262,6 +262,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             .eq('label', sessionLabel)
             .maybeSingle();
         const hasStoredAuth = Boolean(existingRow?.creds && existingRow?.keys);
+        const existingStatus = String(existingSession?.status || existingRow?.status || '').toLowerCase();
 
         if (existingSession?.status === 'connected' && existingRow?.status === 'connected') {
             return res.json({
@@ -272,6 +273,19 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
                 pairingCode: null,
                 connected: true,
                 mode: 'connected',
+            });
+        }
+
+        if (existingStatus === 'connecting' || existingStatus === 'reconnecting') {
+            const currentArtifact = existingSession ? await gateway.getQRCode({ workspaceOwnerId: tenantId, sessionLabel }) : null;
+            return res.json({
+                message: 'WhatsApp connection already in progress',
+                label: sessionLabel,
+                artifact: buildConnectionArtifact(connectMethod, currentArtifact),
+                qr: connectMethod === 'qr' ? currentArtifact || null : null,
+                pairingCode: connectMethod === 'pairing' ? currentArtifact || null : null,
+                connected: false,
+                mode: existingStatus === 'reconnecting' ? 'reconnecting' : 'connecting',
             });
         }
 

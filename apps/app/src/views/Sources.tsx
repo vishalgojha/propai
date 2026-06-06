@@ -526,6 +526,7 @@ export const Sources: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const connectIntentConsumedRef = useRef(false);
+  const connectRequestInFlightRef = useRef(false);
 
   const tabParam = searchParams.get('tab');
   const initialTab = useMemo(() => {
@@ -1235,6 +1236,10 @@ export const Sources: React.FC = () => {
 
   const handleConnectWrapper = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (connectRequestInFlightRef.current || isConnecting) {
+      return;
+    }
+
     setError(null);
     ensureConnectUiVisible();
 
@@ -1348,6 +1353,10 @@ export const Sources: React.FC = () => {
     mode: 'qr' | 'pairing' = 'qr',
     values?: { ownerName?: string; phoneNumber?: string },
   ) => {
+    if (connectRequestInFlightRef.current || isConnecting || pendingConnection) {
+      return;
+    }
+
     const ownerNameToUse = values?.ownerName ?? deviceOwnerName;
     const phoneNumberToUse = ensureIndiaPrefix(values?.phoneNumber ?? normalizedDevicePhone);
     const sessionLabelToUse = buildSessionLabel(ownerNameToUse || 'Owner', phoneNumberToUse || 'device');
@@ -1377,6 +1386,7 @@ export const Sources: React.FC = () => {
     });
 
     setIsConnecting(true);
+    connectRequestInFlightRef.current = true;
     setError(null);
     setScanProgress(0);
     setConnectionArtifact(null);
@@ -1433,8 +1443,9 @@ export const Sources: React.FC = () => {
       setError(handleApiError(err));
     } finally {
       setIsConnecting(false);
+      connectRequestInFlightRef.current = false;
     }
-  }, [deviceOwnerName, ensureConnectUiVisible, fetchStatus, normalizedDevicePhone, status.activeCount, status.limit, status.plan, status.sessions, waitForArtifact]);
+  }, [deviceOwnerName, ensureConnectUiVisible, fetchStatus, isConnecting, normalizedDevicePhone, pendingConnection, status.activeCount, status.limit, status.plan, status.sessions, waitForArtifact]);
 
   const handleDisconnect = async (label?: string) => {
     setIsConnecting(true);
