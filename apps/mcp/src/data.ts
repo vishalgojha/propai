@@ -5,10 +5,109 @@ import type { IgrTransaction, LocalityStats, PublicListing } from "./types.js";
 
 const PUBLIC_LISTING_COLUMNS =
   "source_message_id, source_group_name, listing_type, area, sub_area, location, price, price_type, size_sqft, furnishing, bhk, property_type, title, description, raw_message, cleaned_message, primary_contact_name, primary_contact_number, primary_contact_wa, message_timestamp, created_at";
+const PLACEHOLDER_LOCALITIES = new Set([
+  "unknown",
+  "mumbai market",
+  "mumbai",
+  "navi mumbai",
+  "thane",
+  "pune",
+]);
 
 function clampLimit(limit: number | undefined, fallback = 10, max = 50) {
   if (!limit || !Number.isFinite(limit)) return fallback;
   return Math.min(Math.max(Math.floor(limit), 1), max);
+}
+
+function normalizeListingText(value: string | null | undefined) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizeIndianPhone(value: string | null | undefined) {
+  const digits = String(value || "").replace(/\D/g, "");
+  const lastTen = digits.length >= 10 ? digits.slice(-10) : "";
+  if (!/^[6-9]\d{9}$/.test(lastTen)) {
+    return null;
+  }
+  return `91${lastTen}`;
+}
+
+function inferPublicDealType(row: PublicListing) {
+  const lower = [
+    row.listing_type,
+    row.property_type,
+    row.price_type,
+    row.title,
+    row.description,
+    row.raw_message,
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  if (lower.includes("requirement")) return "requirement";
+  if (lower.includes("rent") || lower.includes("lease") || lower.includes("monthly")) return "rent";
+  if (lower.includes("sale") || lower.includes("outright")) return "sale";
+  return "unknown";
+}
+
+function normalizePublicListingRow(row: PublicListing): PublicListing | null {
+  const locality = normalizeListingText(String(row.sub_area || row.area || row.location || ""));
+  if (!locality || PLACEHOLDER_LOCALITIES.has(locality)) {
+    return null;
+  }
+
+  const dealType = inferPublicDealType(row);
+  const price = row.price;
+  if (price != null && Number.isFinite(price) && price > 0) {
+    if (dealType === "rent" && price > 5_000_000) return null;
+    if (dealType === "rent" && price < 5_000) return null;
+    if (dealType === "sale" && price > 500_000_000) return null;
+  }
+
+  const normalizedPhone = normalizeIndianPhone(row.primary_contact_wa || row.primary_contact_number);
+  return {
+    ...row,
+    primary_contact_number: normalizedPhone,
+    primary_contact_wa: normalizedPhone,
+  };
+}
+
+function dedupePublicListings(rows: PublicListing[]) {
+  const seen = new Set<string>();
+  const deduped: PublicListing[] = [];
+
+  for (const row of rows) {
+    const key = [
+      inferPublicDealType(row),
+      normalizeListingText(row.sub_area || row.area || row.location),
+      normalizeListingText(row.title || listingLabel(row)),
+      normalizeListingText(String(row.bhk || "")),
+      String(Math.round(Number(row.price || 0))),
+      normalizeListingText(row.primary_contact_wa || row.primary_contact_number || ""),
+      normalizeListingText(row.raw_message || "").slice(0, 180),
+    ].join("|");
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(row);
+  }
+
+  return deduped;
+}
+
+function normalizePublicListings(rows: unknown[]) {
+  return dedupePublicListings(
+    (rows as any[])
+      .map((row) => ({
+        ...row,
+        price: toNumber(row.price),
+        size_sqft: toNumber(row.size_sqft),
+        bhk: toNumber(row.bhk),
+      }) as PublicListing)
+      .map((row) => normalizePublicListingRow(row))
+      .filter((row): row is PublicListing => Boolean(row)),
+  );
 }
 
 function applyLocality(query: any, locality?: string, city?: string) {
@@ -85,12 +184,7 @@ export async function searchPublicListings(input: {
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return (data || []).map((row) => ({
-    ...row,
-    price: toNumber(row.price),
-    size_sqft: toNumber(row.size_sqft),
-    bhk: toNumber(row.bhk),
-  })) as PublicListing[];
+  return normalizePublicListings(data || []);
 }
 
 export async function getFreshStream(input: { hours?: number; city?: string; limit?: number }) {
@@ -107,12 +201,7 @@ export async function getFreshStream(input: { hours?: number; city?: string; lim
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return (data || []).map((row) => ({
-    ...row,
-    price: toNumber(row.price),
-    size_sqft: toNumber(row.size_sqft),
-    bhk: toNumber(row.bhk),
-  })) as PublicListing[];
+  return normalizePublicListings(data || []).slice(0, clampLimit(input.limit, 50, 100));
 }
 
 export async function getWorkspaceListings(input: {
@@ -955,12 +1044,7 @@ export async function getMarketSummary(input: {
   const { data, error } = await query;
   if (error) throw new Error(error.message);
 
-  const rows = (data || []).map((row) => ({
-    ...row,
-    price: toNumber(row.price),
-    size_sqft: toNumber(row.size_sqft),
-    bhk: toNumber(row.bhk),
-  })) as PublicListing[];
+  const rows = normalizePublicListings(data || []);
 
   const prices = rows.map((row) => row.price).filter((value): value is number => value != null);
   const ppsf = rows

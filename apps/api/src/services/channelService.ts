@@ -2922,7 +2922,7 @@ private dailyBriefingSentKeys = new Set<string>();
     }
 
     private async upsertPublicListing(tenantId: string, parsed: ParsedStreamCandidate, message: RawInboundMessage): Promise<void> {
-        const phone = parsed.sourcePhone || this.extractPhoneFromText(parsed.rawText);
+        const phone = normaliseIndianPhone(parsed.sourcePhone || this.extractPhoneFromText(parsed.rawText));
         const listingType = parsed.streamType === 'Rent' ? 'listing_rent'
             : parsed.streamType === 'Sale' ? 'listing_sale'
             : 'requirement';
@@ -2935,7 +2935,7 @@ private dailyBriefingSentKeys = new Set<string>();
             listing_type: listingType,
             area: parsed.locality || null,
             sub_area: null,
-            location: parsed.locality || 'Unknown',
+            location: parsed.locality || null,
             price: parsed.priceNumeric,
             price_type: parsed.streamType === 'Rent' ? 'monthly' : parsed.streamType === 'Sale' ? 'total' : null,
             size_sqft: parsed.areaSqft,
@@ -2950,7 +2950,7 @@ private dailyBriefingSentKeys = new Set<string>();
             sender_number: phone,
             primary_contact_name: parsed.sourceLabel || null,
             primary_contact_number: phone,
-            primary_contact_wa: phone ? `91${phone.replace(/^\+?91/, '')}` : null,
+            primary_contact_wa: phone,
             contacts: [],
             confidence: parsed.confidenceScore ?? 0.8,
             message_timestamp: parsed.createdAt || new Date().toISOString(),
@@ -3042,7 +3042,7 @@ private dailyBriefingSentKeys = new Set<string>();
 
     private extractPhoneFromText(text: string): string | null {
         const m = text.match(/(?:\+?91)?[6-9]\d{9}/);
-        return m ? m[0] : null;
+        return m ? normaliseIndianPhone(m[0]) : null;
     }
 
 private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | null) {
