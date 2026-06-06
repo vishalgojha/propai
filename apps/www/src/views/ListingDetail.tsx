@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { MessageCircle, MapPin, Share2, Heart, Clock, ChevronRight } from 'lucide-react';
+import { MessageCircle, MapPin, Bell, Clock, ChevronRight, CheckCircle, Phone, X } from 'lucide-react';
 import { getListingBySlug, getListings, type PublicListing } from '@/lib/listings';
 import { formatPrice } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -33,6 +33,36 @@ export default function ListingDetail({
   const [listing, setListing] = useState<PublicListing | null>(initialListing);
   const [loading, setLoading] = useState(!initialListing);
   const [related, setRelated] = useState<PublicListing[]>(initialRelated);
+  const [notifyState, setNotifyState] = useState<'idle' | 'form' | 'submitting' | 'done'>('idle');
+  const [notifyPhone, setNotifyPhone] = useState('');
+  const [notifyError, setNotifyError] = useState('');
+
+  const handleNotifySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const digits = notifyPhone.replace(/\D/g, '');
+    const phone = digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      setNotifyError('Enter a valid 10-digit Indian mobile number.');
+      return;
+    }
+    setNotifyError('');
+    setNotifyState('submitting');
+    try {
+      const res = await fetch('/api/listings/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listingId: listing?.id, phone: notifyPhone }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed');
+      }
+      setNotifyState('done');
+    } catch {
+      setNotifyError('Could not save. Try again.');
+      setNotifyState('form');
+    }
+  };
 
   useEffect(() => {
     if (slug && !initialListing) {
@@ -174,19 +204,63 @@ export default function ListingDetail({
               </div>
             </div>
             <div className="flex flex-col gap-3">
-              <div className="rounded-[16px] bg-[var(--bg-elevated)]/40 py-4 text-center text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                Sourced via Broker Network
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button className="flex items-center justify-center gap-2 rounded-[14px] bg-[var(--bg-elevated)]/40 hover:bg-[var(--bg-elevated)]/75 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--text-primary)] transition-all">
-                  <Heart className="h-4 w-4" />
-                  Save
+              {notifyState === 'done' ? (
+                <div className="flex items-center justify-center gap-2 rounded-[16px] bg-[var(--accent-glow)] py-4 text-center text-[11px] font-bold uppercase tracking-wider text-[var(--accent)]">
+                  <CheckCircle className="h-4 w-4" />
+                  We'll notify you!
+                </div>
+              ) : notifyState === 'form' ? (
+                <form onSubmit={handleNotifySubmit} className="space-y-2">
+                  <div className="flex items-center gap-2 rounded-[14px] bg-[var(--bg-elevated)]/40 px-3 py-2">
+                    <Phone className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
+                    <input
+                      type="tel"
+                      placeholder="Your WhatsApp number"
+                      value={notifyPhone}
+                      onChange={(e) => setNotifyPhone(e.target.value)}
+                      className="bg-transparent border-none outline-none text-[12px] w-full text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                      autoFocus
+                    />
+                    {notifyPhone && (
+                      <button type="button" onClick={() => setNotifyPhone('')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {notifyError && (
+                    <p className="text-[10px] text-red-400 px-1">{notifyError}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={notifyState === 'submitting'}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-[14px] bg-[var(--accent)] py-3 text-[10px] font-black uppercase tracking-wider text-[var(--on-propai-green)] transition-all disabled:opacity-50"
+                    >
+                      {notifyState === 'submitting' ? (
+                        <span className="inline-block h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                      ) : (
+                        <Bell className="h-3.5 w-3.5" />
+                      )}
+                      {notifyState === 'submitting' ? 'Saving...' : 'Notify Me'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNotifyState('idle')}
+                      className="px-3 rounded-[14px] bg-[var(--bg-elevated)]/40 hover:bg-[var(--bg-elevated)]/75 text-[10px] font-bold text-[var(--text-muted)] transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  onClick={() => setNotifyState('form')}
+                  className="flex items-center justify-center gap-2 rounded-[14px] bg-[var(--accent)] py-3 text-[11px] font-black uppercase tracking-wider text-[var(--on-propai-green)] hover:brightness-110 active:scale-[0.98] transition-all shadow-md"
+                >
+                  <Bell className="h-4 w-4" />
+                  Notify Me
                 </button>
-                <button className="flex items-center justify-center gap-2 rounded-[14px] bg-[var(--bg-elevated)]/40 hover:bg-[var(--bg-elevated)]/75 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--text-primary)] transition-all">
-                  <Share2 className="h-4 w-4" />
-                  Share
-                </button>
-              </div>
+              )}
             </div>
           </aside>
         </div>
