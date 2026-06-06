@@ -231,10 +231,54 @@ export async function fetchPublicListingBySlug(slug: string): Promise<PublicList
     return cached;
   }
 
-  const listings = await fetchPublicListings();
-  const listing = listings.find((entry) => entry.slug === normalizedSlug || entry.id === normalizedSlug) || null;
-  setCached(listingBySlugCache, cacheKey, listing, DEFAULT_SLUG_TTL_MS);
-  return listing;
+  const shortId = normalizedSlug.split('-').pop();
+  if (shortId && shortId.length === 8) {
+    const pattern = `%${shortId}`;
+    for (const table of ['stream_items', 'stream_items_residential', 'stream_items_commercial'] as const) {
+      const { data: rows } = await supabaseAdmin
+        .from(table)
+        .select(PUBLIC_STREAM_SELECT)
+        .neq('record_type', 'buyer_requirement')
+        .ilike('id::text', pattern)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (rows && rows.length > 0) {
+        const row = rows[0];
+        const brokerMap = new Map<string, { phone: string; fullName: string | null }>();
+
+        const canonicalId = String(row.canonical_record_id || '').trim();
+        const canonicalMap = new Map<string, Record<string, unknown>>();
+        if (canonicalId) {
+          const { data: canonicalRows } = await supabaseAdmin
+            .from('canonical_records')
+            .select('id, canonical_title, deal_type, locality, building_name, micro_location, bhk, area_sqft, price_numeric, price_label, furnishing, floor_number');
+          if (canonicalRows) {
+            for (const cr of canonicalRows) {
+              canonicalMap.set(String((cr as any).id || ''), cr as Record<string, unknown>);
+            }
+          }
+        }
+
+        const listing = normalizeStreamListing(row, brokerMap, canonicalMap);
+        if (listing) {
+          setCached(listingBySlugCache, cacheKey, listing, DEFAULT_SLUG_TTL_MS);
+          return listing;
+        }
+      }
+    }
+  }
+
+  try {
+    const listings = await fetchPublicListings();
+    const listing = listings.find((entry) => entry.slug === normalizedSlug || entry.id === normalizedSlug) || null;
+    if (listing) {
+      setCached(listingBySlugCache, cacheKey, listing, DEFAULT_SLUG_TTL_MS);
+    }
+    return listing;
+  } catch {
+    return null;
+  }
 }
 
 async function fetchPublicSourceRows(table: PublicStreamSource, select: string, normalizedLocality: string | null) {
