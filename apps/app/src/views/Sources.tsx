@@ -153,6 +153,9 @@ type WhatsappHealthSession = {
   lastParserErrorAt?: string | null;
   parserSuccessRate: number;
   healthState: 'healthy' | 'warning' | 'critical';
+  disconnectReason?: string | null;
+  autoReconnectBlocked?: boolean;
+  autoReconnectBlockedAt?: string | null;
 };
 
 type WhatsappHealthSummary = {
@@ -193,6 +196,7 @@ type WhatsappEventRecord = {
   eventType: string;
   message: string;
   createdAt: string;
+  metadata?: Record<string, unknown>;
 };
 
 const normalizeWhatsappSession = (session: unknown): WhatsappSession | null => {
@@ -269,6 +273,7 @@ const mapWhatsappEvent = (row: any, index: number): WhatsappEventRecord => ({
   eventType: String(row?.eventType || row?.event_type || 'unknown'),
   message: String(row?.message || row?.payload?.message || ''),
   createdAt: String(row?.createdAt || row?.created_at || ''),
+  metadata: row?.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {},
 });
 
 type WhatsappGroupOption = {
@@ -476,6 +481,70 @@ const formatDateTime = (value?: string | null) => {
     hour12: false,
     timeZone: 'Asia/Kolkata',
   }).format(parsed);
+};
+
+const formatElapsed = (valueMs?: number | null) => {
+  if (!Number.isFinite(valueMs) || (valueMs || 0) <= 0) return null;
+  const totalMinutes = Math.round((valueMs || 0) / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) {
+    return `${minutes}m`;
+  }
+
+  if (minutes === 0) {
+    return `${hours}h`;
+  }
+
+  return `${hours}h ${minutes}m`;
+};
+
+const formatReasonLabel = (value?: string | null) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  return normalized
+    .split('_')
+    .join(' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const getEventMetaString = (metadata: Record<string, unknown> | undefined, key: string) => {
+  const value = metadata?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+};
+
+const getEventMetaNumber = (metadata: Record<string, unknown> | undefined, key: string) => {
+  const value = Number(metadata?.[key]);
+  return Number.isFinite(value) ? value : null;
+};
+
+const describeWhatsappEvent = (event: WhatsappEventRecord) => {
+  const metadata = event.metadata || {};
+  const disconnectReason = formatReasonLabel(getEventMetaString(metadata, 'disconnectReason'));
+  const liveStatus = getEventMetaString(metadata, 'liveStatus');
+  const groupCount = getEventMetaNumber(metadata, 'groupCount');
+  const activeGroups24h = getEventMetaNumber(metadata, 'activeGroups24h');
+  const lastInboundAgeMs = getEventMetaNumber(metadata, 'lastInboundAgeMs');
+  const error = getEventMetaString(metadata, 'error');
+  const autoReconnectBlocked = Boolean(metadata.autoReconnectBlocked);
+
+  const details: string[] = [];
+  if (disconnectReason) details.push(`Reason: ${disconnectReason}`);
+  if (autoReconnectBlocked) details.push('Auto-reconnect blocked');
+  if (liveStatus) details.push(`Transport: ${formatReasonLabel(liveStatus) || liveStatus}`);
+  if (Number.isFinite(lastInboundAgeMs || NaN)) {
+    const elapsed = formatElapsed(lastInboundAgeMs);
+    if (elapsed) details.push(`No inbound for ${elapsed}`);
+  }
+  if (Number.isFinite(activeGroups24h || NaN) && (activeGroups24h || 0) > 0) {
+    details.push(`${activeGroups24h} active groups today`);
+  } else if (Number.isFinite(groupCount || NaN) && (groupCount || 0) > 0) {
+    details.push(`${groupCount} known groups`);
+  }
+  if (error) details.push(`Error: ${error}`);
+
+  return details;
 };
 
 const getHealthTone = (state: WhatsappHealthSummary['healthState'] | WhatsappHealthSession['healthState'] | WhatsappGroupHealth['status']) => {
@@ -1915,6 +1984,11 @@ export const Sources: React.FC = () => {
     if (!selectedHealthSession?.sessionLabel) return groupHealth;
     return groupHealth.filter((group) => group.sessionLabel === selectedHealthSession.sessionLabel);
   }, [groupHealth, selectedHealthSession?.sessionLabel]);
+  const scopedEventLogs = useMemo(() => {
+    if (!selectedHealthSession?.sessionLabel) return eventLogs;
+    const nextEvents = eventLogs.filter((event) => event.sessionLabel === selectedHealthSession.sessionLabel);
+    return nextEvents.length > 0 ? nextEvents : eventLogs;
+  }, [eventLogs, selectedHealthSession?.sessionLabel]);
   const selectedHealthSummary = useMemo<WhatsappHealthSummary>(() => {
     if (!selectedHealthSession) return health.summary;
     return {
@@ -1948,6 +2022,24 @@ export const Sources: React.FC = () => {
   const freshParseState = freshParseStalled ? 'Stalled' : 'Active';
   const staleGroupCount = scopedGroupHealth.filter((group) => group.status === 'stale').length;
   const activeGroupCount = scopedGroupHealth.filter((group) => group.status === 'active').length;
+  const latestIssueEvent = useMemo(() => {
+    const priorityEvents = [
+      'ingestion_stalled',
+      'heartbeat_restart_stalled_connected',
+      'heartbeat_rehydrate_failed',
+      'heartbeat_restart_disconnected',
+      'disconnected',
+    ];
+
+    return scopedEventLogs.find((event) => priorityEvents.includes(event.eventType))
+      || scopedEventLogs.find((event) => describeWhatsappEvent(event).length > 0)
+      || null;
+  }, [scopedEventLogs]);
+  const latestIssueDetails = latestIssueEvent ? describeWhatsappEvent(latestIssueEvent) : [];
+  const latestIssueLabel = latestIssueEvent
+    ? formatReasonLabel(latestIssueEvent.eventType) || latestIssueEvent.eventType
+    : null;
+  const latestDisconnectReason = formatReasonLabel(primaryHealthSession?.disconnectReason || null);
   const lastSessionActivityAt = [
     primaryHealthSession?.lastInboundMessageAt,
     primaryHealthSession?.lastParsedMessageAt,
@@ -2655,6 +2747,27 @@ export const Sources: React.FC = () => {
               </div>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3 md:col-span-2">
+                <p className="text-[11px] text-[var(--text-secondary)]">Latest issue</p>
+                <p className={cn(
+                  'mt-1 text-[13px] font-semibold',
+                  selectedHealthSummary.healthState === 'healthy' ? 'text-[var(--accent)]' : 'text-[var(--red)]',
+                )}>
+                  {latestDisconnectReason
+                    ? `Disconnect reason: ${latestDisconnectReason}`
+                    : latestIssueLabel || 'No active issue detected'}
+                </p>
+                {latestIssueDetails.length > 0 ? (
+                  <p className="mt-1 text-[11px] leading-5 text-[var(--text-secondary)]">
+                    {latestIssueDetails.join(' · ')}
+                  </p>
+                ) : null}
+                {latestIssueEvent?.createdAt ? (
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                    Last issue event {formatDateTime(latestIssueEvent.createdAt)}
+                  </p>
+                ) : null}
+              </div>
               <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
                 <p className="text-[11px] text-[var(--text-secondary)]">Last inbound activity</p>
                 <p className="mt-1 text-[13px] font-semibold text-[var(--text-primary)]">
@@ -2698,18 +2811,26 @@ export const Sources: React.FC = () => {
               <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
                 <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Recent session events</p>
                 <div className="pulse-scrollbar mt-3 max-h-[360px] space-y-3 overflow-y-auto pr-1">
-                  {eventLogs.length === 0 ? (
+                  {scopedEventLogs.length === 0 ? (
                     <div className="rounded-[10px] border border-dashed border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-[12px] text-[var(--text-secondary)]">
                       No lifecycle events yet. Connection, group sync, and disconnect events will show up here.
                     </div>
                   ) : (
-                    eventLogs.map((event) => (
+                    scopedEventLogs.map((event) => (
                       <div key={event.id} className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]">{(event.eventType || 'unknown').split('_').join(' ')}</p>
                           <p className="text-[10px] text-[var(--text-secondary)]">{formatDateTime(event.createdAt)}</p>
                         </div>
+                        {event.sessionLabel ? (
+                          <p className="mt-2 text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{event.sessionLabel}</p>
+                        ) : null}
                         <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">{event.message}</p>
+                        {describeWhatsappEvent(event).length > 0 ? (
+                          <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
+                            {describeWhatsappEvent(event).join(' · ')}
+                          </p>
+                        ) : null}
                       </div>
                     ))
                   )}

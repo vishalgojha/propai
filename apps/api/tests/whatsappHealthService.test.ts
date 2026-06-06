@@ -150,6 +150,17 @@ describe('WhatsAppHealthService', () => {
         expect(appendEventSpy).toHaveBeenCalledWith(
             'tenant-1',
             'Owner',
+            'ingestion_stalled',
+            expect.stringContaining('No inbound WhatsApp messages have landed'),
+            expect.objectContaining({
+                liveStatus: 'connected',
+                groupCount: 316,
+                activeGroups24h: 254,
+            }),
+        );
+        expect(appendEventSpy).toHaveBeenCalledWith(
+            'tenant-1',
+            'Owner',
             'heartbeat_restart_stalled_connected',
             expect.stringContaining('connected but stalled WhatsApp session'),
             expect.objectContaining({

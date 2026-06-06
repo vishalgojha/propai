@@ -500,17 +500,55 @@ export class WhatsAppHealthService {
     }
 
     async getHealth(tenantId: string) {
-        const { data, error } = await db
-            .from('whatsapp_ingestion_health')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .order('updated_at', { ascending: false });
+        const [healthResult, sessionMetaResult] = await Promise.all([
+            db
+                .from('whatsapp_ingestion_health')
+                .select('*')
+                .eq('tenant_id', tenantId)
+                .order('updated_at', { ascending: false }),
+            db
+                .from('whatsapp_sessions')
+                .select('label, session_data')
+                .eq('tenant_id', tenantId),
+        ]);
+        const { data, error } = healthResult;
 
         if (error) {
             throw error;
         }
 
+        if (sessionMetaResult.error && this.shouldLogHeartbeat(`get_health_session_meta_failed:${tenantId}`, 10 * 60_000)) {
+            console.warn('[WhatsAppHealthService] Could not load WhatsApp session metadata for health response', {
+                tenantId,
+                error: sessionMetaResult.error,
+            });
+        }
+
+        const sessionMetaMap = new Map(
+            ((Array.isArray(sessionMetaResult.data) ? sessionMetaResult.data : []) as Array<{
+                label?: string | null;
+                session_data?: Record<string, unknown> | null;
+            }>).map((row) => {
+                const sessionData = (row.session_data && typeof row.session_data === 'object')
+                    ? row.session_data as Record<string, unknown>
+                    : {};
+                return [
+                    String(row.label || '').trim(),
+                    {
+                        disconnectReason: String(sessionData.disconnectReason || '').trim() || null,
+                        autoReconnectBlocked: Boolean(sessionData.autoReconnectBlocked),
+                        autoReconnectBlockedAt: String(sessionData.autoReconnectBlockedAt || '').trim() || null,
+                    },
+                ] as const;
+            }),
+        );
+
         const sessions = (data || []).map((row: any) => ({
+            ...(sessionMetaMap.get(String(row.session_label || '').trim()) || {
+                disconnectReason: null,
+                autoReconnectBlocked: false,
+                autoReconnectBlockedAt: null,
+            }),
             sessionLabel: row.session_label,
             phoneNumber: row.phone_number,
             ownerName: row.owner_name,
@@ -792,13 +830,29 @@ export class WhatsAppHealthService {
                 const hasInboundHistory = Number.isFinite(lastInboundAt);
                 const lastInboundAgeMs = hasInboundHistory ? Math.max(0, now - lastInboundAt) : null;
                 const expectsTraffic = groupCount > 0 || activeGroups24h > 0;
+                const stallDetected = expectsTraffic && hasInboundHistory && (lastInboundAgeMs || 0) >= this.heartbeatConnectedStallAfterMs;
                 const connectedButStalled =
                     liveStatus === 'connected' &&
                     !autoReconnectBlocked &&
                     !liveSession?.isReconnecting &&
-                    expectsTraffic &&
-                    hasInboundHistory &&
-                    (lastInboundAgeMs || 0) >= this.heartbeatConnectedStallAfterMs;
+                    stallDetected;
+
+                if (stallDetected && this.shouldLogHeartbeat(`ingestion_stalled:${tenantId}:${sessionLabel}`, 30 * 60_000)) {
+                    await this.appendEvent(
+                        tenantId,
+                        sessionLabel,
+                        'ingestion_stalled',
+                        `No inbound WhatsApp messages have landed for ${sessionLabel} past the stall threshold.`,
+                        {
+                            liveStatus: liveStatus || null,
+                            groupCount,
+                            activeGroups24h,
+                            lastInboundAgeMs,
+                            disconnectReason: disconnectReason || null,
+                            autoReconnectBlocked,
+                        },
+                    );
+                }
 
                 if (connectedButStalled && typeof sessionManager.forceReconnect === 'function') {
                     if (this.shouldLogHeartbeat(`heartbeat_restart_stalled_connected:${tenantId}:${sessionLabel}`, 30 * 60_000)) {
