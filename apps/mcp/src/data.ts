@@ -4,7 +4,7 @@ import { formatBudgetRange, formatCurrencyCr, formatPerSqft, igrSummary, listing
 import type { IgrTransaction, LocalityStats, PublicListing } from "./types.js";
 
 const PUBLIC_LISTING_COLUMNS =
-  "source_message_id, source_group_name, listing_type, area, sub_area, location, price, price_type, size_sqft, furnishing, bhk, property_type, title, description, raw_message, cleaned_message, primary_contact_name, primary_contact_number, primary_contact_wa, message_timestamp, created_at";
+  "source_message_id, source_group_name, listing_type, area, sub_area, location, price, price_type, size_sqft, furnishing, bhk, property_type, title, description, raw_message, cleaned_message, primary_contact_name, primary_contact_number, primary_contact_wa, message_timestamp";
 const PLACEHOLDER_LOCALITIES = new Set([
   "unknown",
   "mumbai market",

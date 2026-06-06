@@ -75,9 +75,8 @@ export function listingLine(row: PublicListing, index: number) {
   const age = formatAge(timestamp);
   const place = row.title || listingLabel(row);
   const size = row.size_sqft ? `, ${formatSqft(row.size_sqft)}` : "";
-  const contact = row.primary_contact_wa ? `, contact: ${row.primary_contact_wa}` : "";
   const suffix = age ? ` (${age})` : "";
-  return `${index + 1}. ${listingLabel(row)}, ${formatCurrencyCr(row.price)} - ${place}${size}${contact}${suffix}`;
+  return `${index + 1}. ${listingLabel(row)}, ${formatCurrencyCr(row.price)} - ${place}${size}${suffix}`;
 }
 
 export function igrSummary(
