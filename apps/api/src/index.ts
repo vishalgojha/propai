@@ -30,19 +30,20 @@ import fs from 'fs';
 import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
 import { authMiddleware } from './middleware/authMiddleware';
-
-import { sessionManager } from './whatsapp/SessionManager';
-import { whatsappHealthService } from './services/whatsappHealthService';
-import { historySyncWorker } from './services/historySyncWorker';
-import { syndicationSyncJob } from './jobs/syndicationSyncJob';
-import { generateMarketInsightsJob } from './jobs/generateMarketInsights';
-import { igrEnrichmentJob } from './jobs/igrEnrichmentJob';
-import { followUpOverdueJob } from './jobs/followUpOverdueJob';
 import { ROUTE_PATHS } from './routes/routePaths';
+import { resolveProcessRole, shouldRunApiSurface, shouldRunWhatsAppRuntime } from './runtime/processRole';
+import { createWhatsAppRuntimeService } from './runtime/whatsappRuntimeService';
+import { backgroundJobService } from './runtime/backgroundJobService';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const ENABLE_SYSTEM_WHATSAPP_SESSION = process.env.ENABLE_SYSTEM_WHATSAPP_SESSION === 'true';
+const PROCESS_ROLE = resolveProcessRole(process.env.PROPAI_PROCESS_ROLE);
+const STARTUP_TIMEOUT_MS = Number(process.env.WHATSAPP_RUNTIME_STARTUP_TIMEOUT_MS || 60_000);
+const whatsappRuntime = createWhatsAppRuntimeService({
+    enableSystemSession: ENABLE_SYSTEM_WHATSAPP_SESSION,
+    startupTimeoutMs: STARTUP_TIMEOUT_MS,
+});
 const corsOptions = {
     origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
         if (!origin) {
@@ -284,6 +285,7 @@ app.use('/api/location', locationRoutes);
 app.get(ROUTE_PATHS.api.health, async (req, res) => {
     const health: Record<string, unknown> = {
         status: 'ok',
+        processRole: PROCESS_ROLE,
         supabaseProjectRef: getSupabaseProjectRef(),
         hasServiceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
         uptime: process.uptime(),
@@ -394,25 +396,17 @@ let server: ReturnType<typeof app.listen> | null = null;
 async function gracefulShutdown(signal: string) {
     console.log(`[${signal}] Graceful shutdown initiated...`);
 
-    // Disconnect all WhatsApp sessions cleanly to avoid "replaced" conflicts
-    try {
-        await sessionManager.disconnectAllSessions();
-        whatsappHealthService.stopHeartbeatLoop();
-        console.log('[shutdown] All WhatsApp sessions disconnected.');
-    } catch (error) {
-        console.error('[shutdown] Error disconnecting WhatsApp sessions:', error);
+    if (shouldRunWhatsAppRuntime(PROCESS_ROLE)) {
+        await whatsappRuntime.stop();
     }
 
-    // Stop background workers
-    try {
-        historySyncWorker.stop();
-        syndicationSyncJob.stop?.();
-        generateMarketInsightsJob.stop?.();
-        igrEnrichmentJob.stop?.();
-        followUpOverdueJob.stop();
-        console.log('[shutdown] Background workers stopped.');
-    } catch (error) {
-        console.error('[shutdown] Error stopping workers:', error);
+    if (shouldRunApiSurface(PROCESS_ROLE)) {
+        try {
+            backgroundJobService.stop();
+            console.log('[shutdown] Background workers stopped.');
+        } catch (error) {
+            console.error('[shutdown] Error stopping background workers:', error);
+        }
     }
 
     // Close HTTP server
@@ -436,54 +430,15 @@ process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => void gracefulShutdown('SIGINT'));
 
 server = app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-
-    // Async startup tasks with timeout — if any step hangs, log and continue
-    // so the server remains responsive for non-WhatsApp endpoints.
-    const STARTUP_TIMEOUT_MS = 60_000; // 60s max for all startup tasks
-    const startupDeadline = Date.now() + STARTUP_TIMEOUT_MS;
+    console.log(`Server running on port ${PORT} (role=${PROCESS_ROLE})`);
 
     void (async () => {
-        whatsappHealthService.startHeartbeatLoop(sessionManager);
-
-        try {
-            console.log('[startup] Rehydrating WhatsApp sessions...');
-            await Promise.race([
-                sessionManager.rehydratePersistedSessions(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Session rehydration timed out')), Math.max(0, startupDeadline - Date.now()))),
-            ]);
-            console.log('[startup] Sessions rehydrated.');
-        } catch (error) {
-            console.error('[startup] Session rehydration error (server remains running):', error);
+        if (shouldRunWhatsAppRuntime(PROCESS_ROLE)) {
+            await whatsappRuntime.start();
         }
 
-        if (Date.now() > startupDeadline) {
-            console.warn('[startup] Startup deadline exceeded, skipping remaining tasks.');
-            return;
-        }
-
-        if (ENABLE_SYSTEM_WHATSAPP_SESSION) {
-            void sessionManager.initSystemSession().catch((error) => {
-                console.error('[startup] Failed to initialize system WhatsApp session:', error);
-            });
-        } else {
-            console.log('[startup] System WhatsApp session disabled.');
-        }
-
-        const backgroundJobs: Array<[string, () => void]> = [
-            ['historySyncWorker', () => historySyncWorker.start()],
-            ['syndicationSyncJob', () => syndicationSyncJob.start()],
-            ['generateMarketInsightsJob', () => generateMarketInsightsJob.start()],
-            ['igrEnrichmentJob', () => igrEnrichmentJob.start()],
-            ['followUpOverdueJob', () => followUpOverdueJob.start()],
-        ];
-
-        for (const [name, starter] of backgroundJobs) {
-            try {
-                starter();
-            } catch (error) {
-                console.error(`[startup] ${name} failed to start:`, error);
-            }
+        if (shouldRunApiSurface(PROCESS_ROLE)) {
+            backgroundJobService.start();
         }
 
         console.log('[startup] All initialization complete.');
