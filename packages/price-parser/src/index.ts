@@ -32,7 +32,8 @@ function normalizeText(text: string) {
   return text
     .replace(RUPEE_SYMBOL_VARIANT_PATTERN, '₹')
     .replace(/(?<=\d),(?=\d)/g, '')
-    .replace(/\u00a0/g, ' ');
+    .replace(/\u00a0/g, ' ')
+    .replace(/(\d+(?:\.\d+)?)\s*\/\s*(l|lakh|lac|crore|cr)\b/gi, '$1 $2');
 }
 
 function normalizeUnit(unit: string) {

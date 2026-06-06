@@ -182,6 +182,7 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
     .filter((row) => {
       const locality = String(row.locality || '').trim().toLowerCase();
       if (['mumbai market', 'mumbai', 'navi mumbai', 'thane', 'pune'].includes(locality)) return false;
+      if (/[&@#]/.test(locality)) return false;
       return true;
     })
     .filter((row) => {
@@ -685,6 +686,11 @@ function parseAreaSqft(...values: unknown[]) {
 function normalizeType(value: string | null, rawText: string): string {
   const lower = `${value || ""} ${rawText}`.toLowerCase();
   if (lower.includes("requirement")) return "Requirement";
+  const rawLower = rawText.toLowerCase();
+  const hasSale = /\b(sale|selling|resale|outright)\b/i.test(rawLower);
+  const hasRent = /\b(rent|rental|monthly|per month|lease|leave and license|leave & license|l&l| ll\b)/i.test(rawLower);
+  if (hasSale && !hasRent) return "Sale";
+  if (hasRent && !hasSale) return "Rent";
   if (lower.includes("rent") || lower.includes("lease") || lower.includes("l/l")) return "Rent";
   return "Sale";
 }
@@ -775,14 +781,17 @@ function parsePriceAmount(value: unknown, priceLabel: unknown, rawText: string, 
 }
 
 function parseRentPriceAmount(text: string) {
+  const normalized = text
+    .replace(/(\d+(?:\.\d+)?)\s*\/\s*(l|lakh|lac|crore|cr)\b/gi, '$1 $2');
+
   const patterns = [
-    /(?:rent|lease|asking|for rent|available for rent)[^\d]{0,24}(?:rs\.?|inr|₹)?\s*([\d.]+)\s*(cr|crore|l|lac|lakh|k|thousand)?/ig,
+    /(?:rent|lease|asking|for rent|available for rent)[^\d]{0,48}(?:rs\.?|inr|₹)?\s*([\d.]+)\s*(cr|crore|l|lac|lakh|k|thousand)?/ig,
     /(?:rs\.?|inr|₹)?\s*([\d.]+)\s*(cr|crore|l|lac|lakh|k|thousand)?\s*(?:\/\s*month|per\s*month|monthly|pm|p\.m\.|rent)\b/ig,
   ];
 
   for (const pattern of patterns) {
     let match: RegExpExecArray | null;
-    while ((match = pattern.exec(text)) !== null) {
+    while ((match = pattern.exec(normalized)) !== null) {
       const amount = convertPriceToken(match[1], match[2]);
       if (amount != null && amount >= 5_000 && amount <= 5_000_000) {
         return amount;
@@ -801,6 +810,7 @@ function convertPriceToken(amountText: string, unitText?: string) {
   if (unit === "cr" || unit === "crore") return amount * 10_000_000;
   if (unit === "l" || unit === "lac" || unit === "lakh") return amount * 100_000;
   if (unit === "k" || unit === "thousand") return amount * 1_000;
+  if (amountText.includes('.') && amount < 100) return amount * 100_000;
   return amount;
 }
 
