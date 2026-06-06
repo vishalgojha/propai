@@ -63,6 +63,10 @@ function normalizePublicListingRow(row: PublicListing): PublicListing | null {
     if (dealType === "rent" && price > 5_000_000) return null;
     if (dealType === "rent" && price < 5_000) return null;
     if (dealType === "sale" && price > 500_000_000) return null;
+    if (dealType === "unknown") {
+      if (price > 100_000_000) return null;
+      if (price < 5_000) return null;
+    }
   }
 
   const normalizedPhone = normalizeIndianPhone(row.primary_contact_wa || row.primary_contact_number);
@@ -113,21 +117,29 @@ function normalizePublicListings(rows: unknown[]) {
 function applyLocality(query: any, locality?: string, city?: string) {
   const terms = [locality, city].map((value) => value?.trim()).filter(Boolean) as string[];
   for (const term of terms) {
-    query = query.or(`area.ilike.%${term}%,sub_area.ilike.%${term}%,location.ilike.%${term}%,search_text.ilike.%${term}%`);
+    query = query.or(`area.ilike.%${term}%,sub_area.ilike.%${term}%,location.ilike.%${term}%`);
   }
   return query;
 }
 
 function applyBudget(query: any, maxBudgetCr?: number) {
   if (maxBudgetCr == null) return query;
-  return query.lte("price", maxBudgetCr);
+  const maxAbsolute = maxBudgetCr * 10_000_000;
+  return query.lte("price", maxAbsolute);
 }
+
+const DEAL_TYPE_MAP: Record<string, string> = {
+  rent: "listing_rent",
+  lease: "listing_rent",
+  sale: "listing_sale",
+};
 
 function applyListingType(query: any, requested?: string, fallback?: string) {
   const type = requested === "all" ? undefined : requested || fallback;
   if (!type) return query;
-  if (type === "rent" || type === "lease") {
-    return query.or(`listing_type.ilike.%${type}%,price_type.eq.monthly,property_type.ilike.%${type}%`);
+  const exact = DEAL_TYPE_MAP[type];
+  if (exact) {
+    return query.eq("listing_type", exact);
   }
   return query.or(`listing_type.ilike.%${type}%,property_type.ilike.%${type}%`);
 }
@@ -147,6 +159,8 @@ export async function logToolCall(brokerId: string | undefined, toolName: string
   }
 }
 
+const DEFAULT_FRESHNESS_DAYS = 90;
+
 export async function searchPublicListings(input: {
   locality?: string;
   city?: string;
@@ -159,18 +173,24 @@ export async function searchPublicListings(input: {
   limit?: number;
 }) {
   const limit = clampLimit(input.limit);
+  const since = new Date(Date.now() - DEFAULT_FRESHNESS_DAYS * 86400000).toISOString();
   let query = supabase
     .from("public_listings")
     .select(PUBLIC_LISTING_COLUMNS)
+    .gte("message_timestamp", since)
     .order("message_timestamp", { ascending: false, nullsFirst: false })
     .limit(limit);
 
   if (input.listingKind) {
-    query = query.ilike("listing_type", `%${input.listingKind}%`);
+    query = query.eq("listing_type", input.listingKind === "listing" ? "listing_rent" : "requirement");
+    if (input.property_type === "sale" || input.property_type === "rent") {
+      query = applyListingType(query, input.property_type);
+    }
+  } else {
+    query = applyListingType(query, input.property_type);
   }
 
   query = applyLocality(query, input.locality, input.city);
-  query = applyListingType(query, input.property_type);
 
   if (input.bhk != null) {
     query = query.eq("bhk", input.bhk);
@@ -179,7 +199,7 @@ export async function searchPublicListings(input: {
   query = applyBudget(query, input.max_budget_cr ?? input.budget_max_cr);
 
   if (input.budget_min_cr != null) {
-    query = query.gte("price", input.budget_min_cr);
+    query = query.gte("price", input.budget_min_cr * 10_000_000);
   }
 
   const { data, error } = await query;
