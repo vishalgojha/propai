@@ -15,10 +15,10 @@ describe('SessionManager', () => {
     it('preserves the stored callbacks when force-reconnecting a session', async () => {
         const manager = new SessionManager();
         const fakeClient = {
-            disconnect: vi.fn().mockResolvedValue(undefined),
+            restartTransport: vi.fn().mockResolvedValue(undefined),
             getStatusSnapshot: vi.fn(() => ({
                 label: 'session-1',
-                status: 'disconnected',
+                status: 'connecting',
                 ownerName: 'Owner',
                 phoneNumber: '919773757759',
             })),
@@ -44,17 +44,13 @@ describe('SessionManager', () => {
 
         await manager.forceReconnect('tenant-1', 'session-1');
 
-        expect(fakeClient.disconnect).toHaveBeenCalledTimes(1);
-        expect(createSessionSpy).toHaveBeenCalledWith(
-            'tenant-1',
+        expect(fakeClient.restartTransport).toHaveBeenCalledWith({
+            phoneNumber: '919773757759',
+        });
+        expect(createSessionSpy).not.toHaveBeenCalled();
+        expect((manager as any).callbacks.get('tenant-1:session-1')).toEqual({
             onQR,
             onConnectionUpdate,
-            expect.objectContaining({
-                label: 'session-1',
-                ownerName: 'Owner',
-                phoneNumber: '919773757759',
-                skipLimitCheck: true,
-            }),
-        );
+        });
     });
 });

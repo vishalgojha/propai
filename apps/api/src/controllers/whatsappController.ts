@@ -276,14 +276,14 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             });
         }
 
-        if (existingStatus === 'connecting' || existingStatus === 'reconnecting') {
+        if ((existingStatus === 'connecting' || existingStatus === 'reconnecting') && connectMethod === 'qr') {
             const currentArtifact = existingSession ? await gateway.getQRCode({ workspaceOwnerId: tenantId, sessionLabel }) : null;
             return res.json({
                 message: 'WhatsApp connection already in progress',
                 label: sessionLabel,
-                artifact: buildConnectionArtifact(connectMethod, currentArtifact),
-                qr: connectMethod === 'qr' ? currentArtifact || null : null,
-                pairingCode: connectMethod === 'pairing' ? currentArtifact || null : null,
+                artifact: buildConnectionArtifact('qr', currentArtifact),
+                qr: currentArtifact || null,
+                pairingCode: null,
                 connected: false,
                 mode: existingStatus === 'reconnecting' ? 'reconnecting' : 'connecting',
             });
@@ -349,13 +349,10 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             }, { onConflict: 'tenant_id,label' });
 
         const artifact = await gateway.getQRCode({ workspaceOwnerId: tenantId, sessionLabel }) || artifactAfterCreate;
-        const connectionArtifact = connectMethod === 'qr'
-            ? buildConnectionArtifact('qr', artifact)
-            : buildConnectionArtifact('pairing', artifact);
         res.json({
             message: 'Connection initiated',
             label: sessionLabel,
-            artifact: connectionArtifact,
+            artifact: buildConnectionArtifact(connectMethod, artifact),
             qr: connectMethod === 'qr' ? artifact || null : null,
             pairingCode: connectMethod === 'pairing' ? artifact || null : null,
             mode: connectMethod,

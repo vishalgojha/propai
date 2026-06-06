@@ -165,9 +165,16 @@ export class SessionManager {
             }
 
             if (snapshot.status === 'connecting' || snapshot.isReconnecting) {
-                const existingQR = this.qrs.get(fullKey);
-                if (existingQR) {
-                    onQR(existingQR);
+                if (options.usePairingCode) {
+                    this.qrs.delete(fullKey);
+                    await existingClient.restartTransport({
+                        usePairingCode: options.usePairingCode,
+                        phoneNumber: options.phoneNumber || snapshot.phoneNumber || undefined,
+                    });
+                    const refreshedQR = this.qrs.get(fullKey);
+                    if (refreshedQR) {
+                        onQR(refreshedQR);
+                    }
                 }
                 return existingClient;
             }
@@ -276,39 +283,21 @@ export class SessionManager {
             throw new Error('Session client not found');
         }
 
-        // Preserve UI/runtime callbacks before clearing the in-memory session entry.
+        // Preserve UI/runtime callbacks while recycling the live transport.
         const callbacks = this.callbacks.get(fullKey) || { onQR: () => {}, onConnectionUpdate: () => {} };
-
-        // Force disconnect and cleanup
-        await client.disconnect();
-        this.clients.delete(fullKey);
-        this.callbacks.delete(fullKey);
+        const snapshot = client.getStatusSnapshot();
         this.qrs.delete(fullKey);
 
-        // Recreate session with same options
-        const sessionParts = fullKey.split(':');
-        const label = sessionParts[1] || 'Owner';
-        
-        // Get session data from DB to preserve options
-        let existingSession: any = undefined;
-        try {
-            const sessions = await this.storage.loadPersistedSessions();
-            existingSession = (sessions || []).find(
-                (s: any) => s.tenantId === tenantId && s.label === label
-            );
-        } catch (error) {
-            console.error('Failed to load sessions for refresh:', error);
-        }
-
-        // Recreate the session
-        await this.createSession(tenantId, callbacks.onQR, callbacks.onConnectionUpdate, {
-            label,
-            ownerName: existingSession?.ownerName || undefined,
-            phoneNumber: existingSession?.phoneNumber || undefined,
-            skipLimitCheck: true,
+        await client.restartTransport({
+            phoneNumber: snapshot.phoneNumber || undefined,
         });
 
-        return { label, message: 'Session recreated, QR regenerating...' };
+        this.callbacks.set(fullKey, callbacks);
+
+        const sessionParts = fullKey.split(':');
+        const label = sessionParts[1] || snapshot.label || 'Owner';
+
+        return { label, message: 'Session refreshed, reconnecting...' };
     }
 
     async removeSession(tenantId: string, sessionKey?: string) {
