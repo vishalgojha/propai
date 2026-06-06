@@ -39,6 +39,7 @@ type HeartbeatSessionSnapshot = {
 type HeartbeatSessionManager = {
     getAllSessions(): HeartbeatSessionSnapshot[];
     rehydratePersistedSessions?: () => Promise<void>;
+    forceReconnect?: (tenantId: string, sessionKey?: string) => Promise<unknown>;
     createSession(
         tenantId: string,
         onQR: (qr: string) => void,
@@ -55,6 +56,7 @@ type HeartbeatSessionManager = {
 
 const DAY_MS = 86_400_000;
 const STALE_MS = DAY_MS * 7;
+const HOUR_MS = 3_600_000;
 
 const db = supabaseAdmin || supabase;
 const HIDDEN_EVENT_TYPES = new Set([
@@ -143,6 +145,9 @@ export class WhatsAppHealthService {
     private readonly heartbeatIntervalMs = Number(process.env.WHATSAPP_HEALTH_HEARTBEAT_MS || 2_500);
     private readonly heartbeatReconnectAfterMs = Number(process.env.WHATSAPP_HEALTH_RECONNECT_AFTER_MS || 5_000);
     private readonly heartbeatRehydrateAfterMs = Number(process.env.WHATSAPP_HEALTH_REHYDRATE_AFTER_MS || 5 * 60_000);
+    private readonly heartbeatConnectedStallAfterMs = Number(process.env.WHATSAPP_HEALTH_CONNECTED_STALL_AFTER_MS || 6 * HOUR_MS);
+    private readonly healthWarningAfterMs = Number(process.env.WHATSAPP_HEALTH_WARNING_AFTER_MS || 6 * HOUR_MS);
+    private readonly healthCriticalAfterMs = Number(process.env.WHATSAPP_HEALTH_CRITICAL_AFTER_MS || 12 * HOUR_MS);
 
     startHeartbeatLoop(sessionManager: HeartbeatSessionManager) {
         if (this.heartbeatTimer) {
@@ -707,10 +712,17 @@ export class WhatsAppHealthService {
         this.heartbeatRunning = true;
         try {
             await this.maybeRehydrateMissingSessions(sessionManager);
-            const { data, error } = await db
-                .from('whatsapp_sessions')
-                .select('tenant_id, label, status, owner_name, updated_at, session_data, creds, keys')
-                .not('tenant_id', 'is', null);
+            const [sessionResult, healthResult] = await Promise.all([
+                db
+                    .from('whatsapp_sessions')
+                    .select('tenant_id, label, status, owner_name, updated_at, session_data, creds, keys')
+                    .not('tenant_id', 'is', null),
+                db
+                    .from('whatsapp_ingestion_health')
+                    .select('tenant_id, session_label, group_count, active_groups_24h, last_inbound_message_at')
+                    .not('tenant_id', 'is', null),
+            ]);
+            const { data, error } = sessionResult;
 
             if (error) {
                 if (this.shouldLogHeartbeat('heartbeat_sweep_load_error', 5 * 60_000)) {
@@ -718,6 +730,23 @@ export class WhatsAppHealthService {
                 }
                 return;
             }
+
+            if (healthResult.error && this.shouldLogHeartbeat('heartbeat_health_load_error', 5 * 60_000)) {
+                console.warn('[WhatsAppHealthService] Heartbeat sweep could not load ingestion health rows', healthResult.error);
+            }
+
+            const healthMap = new Map(
+                ((Array.isArray(healthResult.data) ? healthResult.data : []) as Array<{
+                    tenant_id?: string | null;
+                    session_label?: string | null;
+                    group_count?: number | null;
+                    active_groups_24h?: number | null;
+                    last_inbound_message_at?: string | null;
+                }>).map((row) => [
+                    `${String(row.tenant_id || '').trim()}:${String(row.session_label || '').trim()}`,
+                    row,
+                ]),
+            );
 
             const liveSessions = new Map(
                 sessionManager.getAllSessions().map((session) => [
@@ -756,6 +785,40 @@ export class WhatsAppHealthService {
                 const disconnectReason = String(sessionData.disconnectReason || '').trim().toLowerCase();
                 const autoReconnectBlocked = Boolean(sessionData.autoReconnectBlocked) || disconnectReason === 'replaced';
                 const staleEnough = ageMs >= this.heartbeatReconnectAfterMs;
+                const healthRow = healthMap.get(`${tenantId}:${sessionLabel}`);
+                const groupCount = Number(healthRow?.group_count || 0);
+                const activeGroups24h = Number(healthRow?.active_groups_24h || 0);
+                const lastInboundAt = healthRow?.last_inbound_message_at ? new Date(healthRow.last_inbound_message_at).getTime() : NaN;
+                const hasInboundHistory = Number.isFinite(lastInboundAt);
+                const lastInboundAgeMs = hasInboundHistory ? Math.max(0, now - lastInboundAt) : null;
+                const expectsTraffic = groupCount > 0 || activeGroups24h > 0;
+                const connectedButStalled =
+                    liveStatus === 'connected' &&
+                    !autoReconnectBlocked &&
+                    !liveSession?.isReconnecting &&
+                    expectsTraffic &&
+                    hasInboundHistory &&
+                    (lastInboundAgeMs || 0) >= this.heartbeatConnectedStallAfterMs;
+
+                if (connectedButStalled && typeof sessionManager.forceReconnect === 'function') {
+                    if (this.shouldLogHeartbeat(`heartbeat_restart_stalled_connected:${tenantId}:${sessionLabel}`, 30 * 60_000)) {
+                        await this.appendEvent(
+                            tenantId,
+                            sessionLabel,
+                            'heartbeat_restart_stalled_connected',
+                            `Heartbeat is restarting a connected but stalled WhatsApp session for ${sessionLabel}.`,
+                            {
+                                liveStatus,
+                                groupCount,
+                                activeGroups24h,
+                                lastInboundAgeMs,
+                            },
+                        );
+                    }
+
+                    await sessionManager.forceReconnect(tenantId, sessionLabel);
+                    continue;
+                }
 
                 if (liveStatus === 'connected' || dbStatus === 'connected' && !staleEnough) {
                     continue;
@@ -980,6 +1043,13 @@ export class WhatsAppHealthService {
             return 'critical';
         }
 
+        const lastInboundAt = row.last_inbound_message_at ? new Date(row.last_inbound_message_at).getTime() : NaN;
+        const hasInboundHistory = Number.isFinite(lastInboundAt);
+        const lastInboundAge = hasInboundHistory ? Date.now() - lastInboundAt : Number.MAX_SAFE_INTEGER;
+        const groupCount = Number(row.group_count || 0);
+        const activeGroups24h = Number(row.active_groups_24h || 0);
+        const expectsTraffic = groupCount > 0 || activeGroups24h > 0;
+
         if (row.messages_failed_24h > 0) {
             return 'warning';
         }
@@ -988,7 +1058,14 @@ export class WhatsAppHealthService {
             return 'warning';
         }
 
-        const lastInboundAge = Date.now() - new Date(row.last_inbound_message_at).getTime();
+        if (expectsTraffic && lastInboundAge > this.healthCriticalAfterMs) {
+            return 'critical';
+        }
+
+        if (expectsTraffic && lastInboundAge > this.healthWarningAfterMs) {
+            return 'warning';
+        }
+
         if (lastInboundAge > DAY_MS) {
             return 'warning';
         }
