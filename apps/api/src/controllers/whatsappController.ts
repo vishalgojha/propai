@@ -1083,12 +1083,34 @@ export const getDetailedHealth = async (req: Request, res: Response) => {
             whatsappHealthService.getEvents(tenantId, 50),
         ]);
 
-        const sessions = (sessionsResult.data || []).map((row: { label: string; owner_name: string | null; status: string; session_data: { phoneNumber?: string } | null; last_sync: string }) => ({
+        const sessions = (sessionsResult.data || []).map((row: {
+            label: string;
+            owner_name: string | null;
+            status: string;
+            session_data: {
+                phoneNumber?: string;
+                disconnectReason?: string | null;
+                autoReconnectBlocked?: boolean;
+                autoReconnectBlockedAt?: string | null;
+                lastIngestionStallAlertSignature?: string | null;
+                lastIngestionStallAlertDelivery?: string | null;
+                lastIngestionStallAlertAt?: string | null;
+            } | null;
+            last_sync: string;
+        }) => ({
             label: row.label,
             ownerName: row.owner_name,
             status: row.status,
             phoneNumber: row.session_data?.phoneNumber || null,
             lastSync: row.last_sync,
+            diagnostics: {
+                disconnectReason: row.session_data?.disconnectReason || null,
+                autoReconnectBlocked: Boolean(row.session_data?.autoReconnectBlocked),
+                autoReconnectBlockedAt: row.session_data?.autoReconnectBlockedAt || null,
+                lastIngestionStallAlertSignature: row.session_data?.lastIngestionStallAlertSignature || null,
+                lastIngestionStallAlertDelivery: row.session_data?.lastIngestionStallAlertDelivery || null,
+                lastIngestionStallAlertAt: row.session_data?.lastIngestionStallAlertAt || null,
+            },
         }));
 
         const liveSessions = await gateway.getSessions(tenantId) as LiveSessionRecord[];

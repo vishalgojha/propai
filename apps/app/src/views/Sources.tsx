@@ -199,6 +199,39 @@ type WhatsappEventRecord = {
   metadata?: Record<string, unknown>;
 };
 
+type WhatsappDetailedHealthSession = {
+  label: string;
+  ownerName?: string | null;
+  status: 'connected' | 'connecting' | 'reconnecting' | 'disconnected';
+  phoneNumber?: string | null;
+  lastSync?: string | null;
+  diagnostics?: {
+    disconnectReason?: string | null;
+    autoReconnectBlocked?: boolean;
+    autoReconnectBlockedAt?: string | null;
+    lastIngestionStallAlertSignature?: string | null;
+    lastIngestionStallAlertDelivery?: string | null;
+    lastIngestionStallAlertAt?: string | null;
+  } | null;
+  liveData?: {
+    reconnectAttempts?: number;
+    isReconnecting?: boolean;
+  } | null;
+};
+
+type WhatsappDetailedHealthResponse = {
+  success: boolean;
+  timestamp: string;
+  sessions: WhatsappDetailedHealthSession[];
+  ops?: {
+    totalSessions?: number;
+    connectedSessions?: number;
+    reconnectingSessions?: number;
+    totalReconnectAttempts?: number;
+    healthState?: string;
+  };
+};
+
 const normalizeWhatsappSession = (session: unknown): WhatsappSession | null => {
   if (!session || typeof session !== 'object') {
     return null;
@@ -275,6 +308,35 @@ const mapWhatsappEvent = (row: any, index: number): WhatsappEventRecord => ({
   createdAt: String(row?.createdAt || row?.created_at || ''),
   metadata: row?.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {},
 });
+
+const normalizeDetailedHealthSession = (row: unknown): WhatsappDetailedHealthSession | null => {
+  if (!row || typeof row !== 'object') return null;
+  const record = row as Record<string, unknown>;
+  const label = String(record.label || '').trim();
+  if (!label) return null;
+
+  const rawStatus = String(record.status || 'disconnected');
+  const status: WhatsappDetailedHealthSession['status'] =
+    rawStatus === 'connected' || rawStatus === 'connecting' || rawStatus === 'reconnecting'
+      ? rawStatus
+      : 'disconnected';
+  const diagnostics = record.diagnostics && typeof record.diagnostics === 'object'
+    ? record.diagnostics as WhatsappDetailedHealthSession['diagnostics']
+    : null;
+  const liveData = record.liveData && typeof record.liveData === 'object'
+    ? record.liveData as WhatsappDetailedHealthSession['liveData']
+    : null;
+
+  return {
+    label,
+    ownerName: typeof record.ownerName === 'string' ? record.ownerName : null,
+    status,
+    phoneNumber: typeof record.phoneNumber === 'string' ? record.phoneNumber : null,
+    lastSync: typeof record.lastSync === 'string' ? record.lastSync : null,
+    diagnostics,
+    liveData,
+  };
+};
 
 type WhatsappGroupOption = {
   id: string;
@@ -653,6 +715,7 @@ export const Sources: React.FC = () => {
   const [scanProgress, setScanProgress] = useState(0);
   const [logs, setLogs] = useState<WhatsappLogRecord[]>([]);
   const [health, setHealth] = useState<WhatsappHealthResponse>({ sessions: [], summary: defaultHealthSummary });
+  const [detailedHealth, setDetailedHealth] = useState<WhatsappDetailedHealthResponse | null>(null);
   const [groupHealth, setGroupHealth] = useState<WhatsappGroupHealth[]>([]);
   const [eventLogs, setEventLogs] = useState<WhatsappEventRecord[]>([]);
   const [outboundGroups, setOutboundGroups] = useState<WhatsappGroupOption[]>([]);
@@ -922,6 +985,30 @@ export const Sources: React.FC = () => {
     }
   }, []);
 
+  const fetchDetailedHealth = useCallback(async () => {
+    if (!isSuperAdmin) {
+      setDetailedHealth(null);
+      return;
+    }
+
+    try {
+      const response = await backendApi.get<WhatsappDetailedHealthResponse>(ENDPOINTS.whatsapp.healthDetailed);
+      const sessions = Array.isArray(response.data?.sessions)
+        ? response.data.sessions.map(normalizeDetailedHealthSession).filter((session): session is WhatsappDetailedHealthSession => Boolean(session))
+        : [];
+
+      setDetailedHealth({
+        success: Boolean(response.data?.success),
+        timestamp: typeof response.data?.timestamp === 'string' ? response.data.timestamp : new Date().toISOString(),
+        sessions,
+        ops: response.data?.ops || {},
+      });
+    } catch (err) {
+      console.error(handleApiError(err));
+      setDetailedHealth(null);
+    }
+  }, [isSuperAdmin]);
+
   const fetchOfficialCloudConfig = useCallback(async () => {
     if (activeTab !== 'setup') {
       return;
@@ -1065,7 +1152,10 @@ export const Sources: React.FC = () => {
     fetchStatus();
     fetchLogs();
     fetchHealth();
-  }, [fetchHealth, fetchLogs, fetchProfile, fetchStatus]);
+    if (isSuperAdmin) {
+      void fetchDetailedHealth();
+    }
+  }, [fetchDetailedHealth, fetchHealth, fetchLogs, fetchProfile, fetchStatus, isSuperAdmin]);
 
   useEffect(() => {
     setOutboundSessionKey((current) => {
@@ -1182,13 +1272,19 @@ export const Sources: React.FC = () => {
     if (activeTab !== 'logs') return;
 
     void fetchHealthLogs();
+    if (isSuperAdmin) {
+      void fetchDetailedHealth();
+    }
 
     const interval = window.setInterval(() => {
       void fetchHealthLogs();
+      if (isSuperAdmin) {
+        void fetchDetailedHealth();
+      }
     }, 30000);
 
     return () => window.clearInterval(interval);
-  }, [activeTab, fetchHealthLogs]);
+  }, [activeTab, fetchDetailedHealth, fetchHealthLogs, isSuperAdmin]);
 
   const ensureConnectUiVisible = useCallback(() => {
     if (activeTab !== 'setup') {
@@ -1980,6 +2076,11 @@ export const Sources: React.FC = () => {
     const targetLabel = currentSession?.label || primaryConnectedSession?.label || '';
     return health.sessions.find((session) => session.sessionLabel === targetLabel) || health.sessions[0] || null;
   }, [currentSession?.label, health.sessions, primaryConnectedSession?.label]);
+  const selectedDetailedSession = useMemo(() => {
+    const targetLabel = selectedHealthSession?.sessionLabel || currentSession?.label || primaryConnectedSession?.label || '';
+    if (!targetLabel) return null;
+    return detailedHealth?.sessions.find((session) => session.label === targetLabel) || null;
+  }, [currentSession?.label, detailedHealth?.sessions, primaryConnectedSession?.label, selectedHealthSession?.sessionLabel]);
   const scopedGroupHealth = useMemo(() => {
     if (!selectedHealthSession?.sessionLabel) return groupHealth;
     return groupHealth.filter((group) => group.sessionLabel === selectedHealthSession.sessionLabel);
@@ -2042,6 +2143,17 @@ export const Sources: React.FC = () => {
   const latestDisconnectReason = formatReasonLabel(primaryHealthSession?.disconnectReason || null);
   const sessionReplacedConflict = String(primaryHealthSession?.disconnectReason || '').trim().toLowerCase() === 'replaced'
     || Boolean(primaryHealthSession?.autoReconnectBlocked);
+  const reconnectCooldownUntil = useMemo(() => {
+    const cooldownEvents = scopedEventLogs
+      .filter((event) => event.eventType === 'heartbeat_restart_stalled_connected' || event.eventType === 'heartbeat_restart_disconnected')
+      .map((event) => new Date(event.createdAt).getTime())
+      .filter((value) => Number.isFinite(value))
+      .sort((left, right) => right - left);
+    if (cooldownEvents.length === 0) return null;
+    return cooldownEvents[0] + 30 * 60 * 1000;
+  }, [scopedEventLogs]);
+  const reconnectCooldownRemainingMs = reconnectCooldownUntil ? reconnectCooldownUntil - Date.now() : null;
+  const reconnectCooldownActive = Number.isFinite(reconnectCooldownRemainingMs || NaN) && (reconnectCooldownRemainingMs || 0) > 0;
   const lastSessionActivityAt = [
     primaryHealthSession?.lastInboundMessageAt,
     primaryHealthSession?.lastParsedMessageAt,
@@ -2675,6 +2787,9 @@ export const Sources: React.FC = () => {
                 onClick={() => {
                   void fetchLogs();
                   void fetchHealth();
+                  if (isSuperAdmin) {
+                    void fetchDetailedHealth();
+                  }
                   void fetchHealthLogs();
                 }}
                 className={cn(sourceSecondaryButton, 'rounded-full px-3 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]')}
@@ -2807,6 +2922,58 @@ export const Sources: React.FC = () => {
               {supportLogsFeedback.message}
             </div>
           )}
+
+          {isSuperAdmin && selectedDetailedSession ? (
+            <div className="mt-5 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Runtime diagnostics</p>
+                  <h4 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">Admin-only watchdog markers</h4>
+                </div>
+                <span className={cn('rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]', getHealthTone(selectedHealthSummary.healthState))}>
+                  {selectedDetailedSession.label}
+                </span>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
+                  <p className="text-[11px] text-[var(--text-secondary)]">Current stall signature</p>
+                  <p className="mt-1 break-all text-[12px] font-semibold text-[var(--text-primary)]">
+                    {selectedDetailedSession.diagnostics?.lastIngestionStallAlertSignature || 'No persisted stall marker'}
+                  </p>
+                </div>
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
+                  <p className="text-[11px] text-[var(--text-secondary)]">Last alert sent</p>
+                  <p className="mt-1 text-[12px] font-semibold text-[var(--text-primary)]">
+                    {formatDateTime(selectedDetailedSession.diagnostics?.lastIngestionStallAlertAt || null)}
+                  </p>
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                    {selectedDetailedSession.diagnostics?.lastIngestionStallAlertDelivery || 'none'}
+                  </p>
+                </div>
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
+                  <p className="text-[11px] text-[var(--text-secondary)]">Reconnect cooldown</p>
+                  <p className={cn(
+                    'mt-1 text-[12px] font-semibold',
+                    reconnectCooldownActive ? 'text-[var(--amber)]' : 'text-[var(--accent)]',
+                  )}>
+                    {reconnectCooldownActive ? `Active for ${formatElapsed(reconnectCooldownRemainingMs) || 'a short time'}` : 'Idle'}
+                  </p>
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                    {reconnectCooldownUntil ? `Until ${formatDateTime(new Date(reconnectCooldownUntil).toISOString())}` : 'No recent heartbeat restart'}
+                  </p>
+                </div>
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
+                  <p className="text-[11px] text-[var(--text-secondary)]">Reconnect attempts</p>
+                  <p className="mt-1 text-[12px] font-semibold text-[var(--text-primary)]">
+                    {selectedDetailedSession.liveData?.reconnectAttempts || 0}
+                  </p>
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                    {selectedDetailedSession.liveData?.isReconnecting ? 'reconnecting now' : 'not reconnecting'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-5 grid gap-4 xl:grid-cols-2">
             <div className="space-y-4">
