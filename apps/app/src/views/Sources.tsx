@@ -1921,8 +1921,29 @@ export const Sources: React.FC = () => {
   const replayCompleted24h = Math.max(Number(selectedHealthSummary.replayCompleted24h || 0), 0);
   const replayFailed24h = Math.max(Number(selectedHealthSummary.replayFailed24h || 0), 0);
   const primaryHealthSession = selectedHealthSession;
+  const liveTransportState = currentSessionStatus === 'connected'
+    ? 'Connected'
+    : currentSessionStatus === 'connecting'
+      ? 'Connecting'
+      : currentSessionStatus === 'reconnecting'
+        ? 'Reconnecting'
+        : 'Disconnected';
+  const lastParsedAtMs = primaryHealthSession?.lastParsedMessageAt ? new Date(primaryHealthSession.lastParsedMessageAt).getTime() : NaN;
+  const freshParseStalled = Number.isFinite(lastParsedAtMs)
+    ? Date.now() - lastParsedAtMs > 24 * 60 * 60 * 1000
+    : true;
+  const freshParseState = freshParseStalled ? 'Stalled' : 'Active';
   const staleGroupCount = scopedGroupHealth.filter((group) => group.status === 'stale').length;
   const activeGroupCount = scopedGroupHealth.filter((group) => group.status === 'active').length;
+  const lastSessionActivityAt = [
+    primaryHealthSession?.lastInboundMessageAt,
+    primaryHealthSession?.lastParsedMessageAt,
+    primaryHealthSession?.lastGroupSyncAt,
+    primaryHealthSession?.connectedAt,
+    currentSession?.lastSync,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] || null;
   const qrMarkup = artifactMode === 'qr' ? renderedQrMarkup : null;
 
   const planCards = PROPAI_PLAN_CARDS;
@@ -2034,6 +2055,20 @@ export const Sources: React.FC = () => {
               </p>
             </div>
 
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: 'Session state', value: currentSessionStatus === 'connected' ? 'Live' : currentSessionStatus === 'connecting' || currentSessionStatus === 'reconnecting' ? 'Recovering' : 'Offline' },
+            { label: 'Last activity', value: formatDateTime(lastSessionActivityAt) },
+            { label: 'Last inbound', value: formatDateTime(primaryHealthSession?.lastInboundMessageAt) },
+            { label: 'Last parse', value: formatDateTime(primaryHealthSession?.lastParsedMessageAt) },
+          ].map((item) => (
+            <div key={item.label} className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2">
+              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">{item.label}</p>
+              <p className="mt-1 text-[13px] font-semibold text-[var(--text-primary)]">{item.value}</p>
+            </div>
+          ))}
         </div>
       </div>
       ) : null}
@@ -2575,6 +2610,36 @@ export const Sources: React.FC = () => {
               <span className={cn('rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]', getHealthTone(selectedHealthSummary.healthState))}>
                 {selectedHealthSummary.healthState}
               </span>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
+                <p className="text-[11px] text-[var(--text-secondary)]">Live transport</p>
+                <p className={cn(
+                  'mt-1 text-[13px] font-semibold',
+                  liveTransportState === 'Connected'
+                    ? 'text-[var(--accent)]'
+                    : liveTransportState === 'Connecting' || liveTransportState === 'Reconnecting'
+                      ? 'text-[var(--amber)]'
+                      : 'text-[var(--red)]',
+                )}>
+                  {liveTransportState}
+                </p>
+              </div>
+              <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
+                <p className="text-[11px] text-[var(--text-secondary)]">Fresh parse</p>
+                <p className={cn(
+                  'mt-1 text-[13px] font-semibold',
+                  freshParseState === 'Active' ? 'text-[var(--accent)]' : 'text-[var(--red)]',
+                )}>
+                  {freshParseState}
+                </p>
+              </div>
+              <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
+                <p className="text-[11px] text-[var(--text-secondary)]">Last parsed</p>
+                <p className="mt-1 text-[13px] font-semibold text-[var(--text-primary)]">
+                  {formatDateTime(primaryHealthSession?.lastParsedMessageAt)}
+                </p>
+              </div>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
