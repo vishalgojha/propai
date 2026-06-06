@@ -2,6 +2,7 @@ import { createSupabaseAnonClient, supabase, supabaseAdmin } from '../config/sup
 import { parsePrice, splitMultiListing } from '@propai/price-parser';
 import { aiService } from './aiService';
 import { canonicalizationService } from './canonicalizationService';
+import { igrEnrichmentService } from './igrEnrichmentService';
 import { igrQueryService, type IgrTransactionPreview } from './igrQueryService';
 import { extractIndianCity, extractIndianLocality, parseIndianLocation } from '../utils/locationParser';
 import { normaliseIndianPhone } from '../utils/phoneUtils';
@@ -2854,6 +2855,20 @@ private dailyBriefingSentKeys = new Set<string>();
             await this.upsertWebsiteListing(tenantId, parsed).catch((le) => {
                 console.error('[ChannelService] Failed to upsert website listing', le);
             });
+
+            if (String(parsed.parsedPayload?.buildingName || '').trim()) {
+                void igrEnrichmentService.seedBuildingName(
+                    String(parsed.parsedPayload?.buildingName || '').trim(),
+                    parsed.locality || null,
+                ).catch((error) => {
+                    console.error('[ChannelService] Failed to seed IGR building index', {
+                        streamItemId: data.id,
+                        buildingName: String(parsed.parsedPayload?.buildingName || '').trim(),
+                        locality: parsed.locality || null,
+                        error: error instanceof Error ? error.message : error,
+                    });
+                });
+            }
 
             ingestedCount += 1;
             await canonicalizationService.canonicalizeStreamItem(data as any).catch((canonicalError) => {

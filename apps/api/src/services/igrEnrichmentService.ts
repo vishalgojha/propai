@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '../config/supabase';
 import { igrQueryService, IgrTransactionPreview } from './igrQueryService';
@@ -23,6 +24,18 @@ type EnrichedIgrData = {
 
 function normalizeValue(value: string | null | undefined) {
   return String(value || '').trim();
+}
+
+function buildSeedDocNumber(buildingName: string, locality: string | null) {
+  const hash = createHash('sha256')
+    .update([normalizeValue(buildingName).toLowerCase(), normalizeValue(locality).toLowerCase()].join('|'))
+    .digest('hex')
+    .slice(0, 20);
+  return `seed:${hash}`;
+}
+
+function buildSeedRegistrationDate() {
+  return '1900-01-01';
 }
 
 function isFreshRegistrationDate(registrationDate: string | null, days = 30) {
@@ -96,6 +109,44 @@ export class IgrEnrichmentService {
 
     if (queueError) {
       throw new Error(queueError.message);
+    }
+  }
+
+  async seedBuildingName(buildingName: string, locality: string | null | undefined) {
+    const normalizedBuildingName = normalizeValue(buildingName);
+    const normalizedLocality = normalizeValue(locality);
+
+    if (normalizedBuildingName.length < 3) {
+      return;
+    }
+
+    const row = {
+      doc_number: buildSeedDocNumber(normalizedBuildingName, normalizedLocality || null),
+      registration_date: buildSeedRegistrationDate(),
+      sro_office: null,
+      district: null,
+      article_type: '25',
+      consideration_amount: null,
+      rent_amount: null,
+      deposit_amount: null,
+      lease_duration: null,
+      property_description: 'stream_index_seed',
+      building_name: normalizedBuildingName,
+      buyer_name: null,
+      seller_name: null,
+      village_locality: normalizedLocality || null,
+      locality: normalizedLocality || null,
+      area_sqft: null,
+      source: 'stream_index_seed',
+      scraped_at: new Date().toISOString(),
+    };
+
+    const { error } = await this.getAdmin()
+      .from('igr_transactions')
+      .upsert(row, { onConflict: 'doc_number', ignoreDuplicates: false });
+
+    if (error) {
+      throw new Error(error.message);
     }
   }
 

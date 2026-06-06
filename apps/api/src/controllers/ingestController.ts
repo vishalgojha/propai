@@ -110,6 +110,7 @@ async function resolveAndUpdateBuildingMetadata(params: {
     }
 
     if (resolvedBuildingName) {
+        await igrEnrichmentService.seedBuildingName(resolvedBuildingName, resolvedLocality || currentLocality);
         await igrEnrichmentService.queueIfStale(
             resolvedBuildingName,
             resolvedLocality || currentLocality,
@@ -242,6 +243,14 @@ export const ingestListings = async (req: Request, res: Response) => {
                 else {
                     streamOk++;
                     if (buildingName && insertedStreamItem?.id) {
+                        void igrEnrichmentService.seedBuildingName(buildingName, item.locality || null).catch((error) => {
+                            console.error('[Ingest] Failed to seed IGR building index', {
+                                streamItemId: insertedStreamItem.id,
+                                buildingName,
+                                locality: item.locality || null,
+                                error: error instanceof Error ? error.message : error,
+                            });
+                        });
                         void igrEnrichmentService
                             .queueIfStale(buildingName, item.locality || null, insertedStreamItem.id)
                             .catch((error) => {

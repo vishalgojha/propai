@@ -3,6 +3,7 @@ import { supabase, supabaseAdmin } from '../config/supabase';
 type TransactionRecord = {
   doc_number: string | null;
   reg_date: string | null;
+  source: string | null;
   building_name: string | null;
   locality: string | null;
   consideration: number | null;
@@ -80,6 +81,7 @@ export class IgrQueryService {
     return {
       doc_number: typeof row.doc_number === 'string' ? row.doc_number : null,
       reg_date: typeof row.reg_date === 'string' ? row.reg_date : null,
+      source: typeof row.source === 'string' ? row.source : null,
       building_name: typeof row.building_name === 'string' ? row.building_name : null,
       locality: typeof row.locality === 'string' ? row.locality : null,
       consideration: toNumber(row.consideration),
@@ -100,7 +102,7 @@ export class IgrQueryService {
 
     let directQuery = getClient()
       .from('igr_transactions')
-      .select('doc_number, reg_date, building_name, locality, consideration, area_sqft, price_per_sqft, config')
+      .select('doc_number, reg_date, source, building_name, locality, consideration, area_sqft, price_per_sqft, config')
       .ilike('building_name', `%${trimmedBuilding}%`)
       .order('reg_date', { ascending: false })
       .limit(effectiveLimit);
@@ -136,7 +138,7 @@ export class IgrQueryService {
 
     let fuzzyQuery = getClient()
       .from('igr_transactions')
-      .select('doc_number, reg_date, building_name, locality, consideration, area_sqft, price_per_sqft, config')
+      .select('doc_number, reg_date, source, building_name, locality, consideration, area_sqft, price_per_sqft, config')
       .or(orQuery)
       .order('reg_date', { ascending: false })
       .limit(40);
@@ -192,7 +194,7 @@ export class IgrQueryService {
 
     const { data, error } = await getClient()
       .from('igr_transactions')
-      .select('doc_number, reg_date, building_name, locality, consideration, area_sqft, price_per_sqft, config')
+      .select('doc_number, reg_date, source, building_name, locality, consideration, area_sqft, price_per_sqft, config')
       .ilike('building_name', `%${name}%`)
       .order('reg_date', { ascending: false })
       .limit(1)
@@ -215,7 +217,7 @@ export class IgrQueryService {
 
       const { data: fuzzyRows, error: fuzzyError } = await getClient()
         .from('igr_transactions')
-        .select('doc_number, reg_date, building_name, locality, consideration, area_sqft, price_per_sqft, config')
+        .select('doc_number, reg_date, source, building_name, locality, consideration, area_sqft, price_per_sqft, config')
         .or(orQuery)
         .order('reg_date', { ascending: false })
         .limit(40);
@@ -327,7 +329,7 @@ export class IgrQueryService {
   async searchTransactions(query: SearchQuery) {
     let request = getClient()
       .from('igr_transactions')
-      .select('doc_number, reg_date, building_name, locality, consideration, area_sqft, price_per_sqft, config, property_type, district')
+      .select('doc_number, reg_date, source, building_name, locality, consideration, area_sqft, price_per_sqft, config, property_type, district')
       .order('reg_date', { ascending: false })
       .limit(10);
 
