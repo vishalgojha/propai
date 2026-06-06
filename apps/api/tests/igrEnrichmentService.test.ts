@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const supabaseMocks = vi.hoisted(() => {
   const upsert = vi.fn();
-  const from = vi.fn(() => ({ upsert }));
-  return { upsert, from };
+  const select = vi.fn(() => ({ limit: vi.fn().mockResolvedValue({ error: null }) }));
+  const from = vi.fn(() => ({ upsert, select }));
+  return { upsert, from, select };
 });
 
 vi.mock('../src/config/supabase', () => ({
@@ -17,7 +18,9 @@ describe('IgrEnrichmentService seedBuildingName', () => {
   beforeEach(() => {
     supabaseMocks.upsert.mockReset();
     supabaseMocks.from.mockClear();
+    supabaseMocks.select.mockClear();
     supabaseMocks.upsert.mockResolvedValue({ error: null });
+    supabaseMocks.select.mockReturnValue({ limit: vi.fn().mockResolvedValue({ error: null }) });
   });
 
   it('writes a deterministic stream index seed row', async () => {

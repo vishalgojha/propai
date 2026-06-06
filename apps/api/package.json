@@ -23,6 +23,7 @@
     "stream:backfill:saved": "ts-node src/scripts/rebuildSavedMessages.ts",
     "stream:cleanup": "ts-node src/scripts/cleanInvalidStreamItems.ts",
     "stream:cleanup:dry": "ts-node src/scripts/cleanInvalidStreamItems.ts --dry-run",
+    "igr:backfill:cities": "ts-node src/scripts/backfillIgrCities.ts",
     "import:wadata": "ts-node src/scripts/importWhatsappExports.ts",
     "import:wadata:stream": "ts-node src/scripts/importWadataAcceptedToStream.ts",
     "import:wadata:full": "ts-node src/scripts/importWhatsappExports.ts && ts-node src/scripts/importWadataAcceptedToStream.ts && ts-node src/scripts/backfillCanonicalStreamItems.ts"

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '../config/supabase';
+import { inferIgrCity } from './igrLocationResolver';
 import { igrQueryService, IgrTransactionPreview } from './igrQueryService';
 
 type QueueStatus = 'pending' | 'done' | 'failed';
@@ -53,6 +54,39 @@ function isFreshRegistrationDate(registrationDate: string | null, days = 30) {
   return ageMs <= days * 24 * 60 * 60 * 1000;
 }
 
+let igrTransactionsCityColumnAvailablePromise: Promise<boolean> | null = null;
+
+async function hasIgrTransactionsCityColumn() {
+  if (!igrTransactionsCityColumnAvailablePromise) {
+    igrTransactionsCityColumnAvailablePromise = (async () => {
+      const admin = supabaseAdmin;
+      if (!admin) {
+        return false;
+      }
+
+      const relation: any = admin.from('igr_transactions');
+      if (typeof relation.select !== 'function') {
+        return false;
+      }
+
+      const { error } = await relation.select('city').limit(1);
+      if (!error) {
+        return true;
+      }
+
+      const message = String(error.message || '').toLowerCase();
+      const code = String(error.code || '').toUpperCase();
+      if (code === 'PGRST204' || code === 'PGRST205' || message.includes('could not find') || message.includes('schema cache')) {
+        return false;
+      }
+
+      throw new Error(error.message);
+    })();
+  }
+
+  return igrTransactionsCityColumnAvailablePromise;
+}
+
 export class IgrEnrichmentService {
   private getAdmin(): SupabaseClient {
     if (!supabaseAdmin) {
@@ -66,6 +100,7 @@ export class IgrEnrichmentService {
     const normalizedBuildingName = normalizeValue(buildingName);
     const normalizedLocality = normalizeValue(locality);
     const normalizedCity = normalizeValue(city);
+    const hasCityColumn = await hasIgrTransactionsCityColumn();
 
     if (!normalizedBuildingName) {
       if (normalizedLocality) {
@@ -85,7 +120,7 @@ export class IgrEnrichmentService {
       latestQuery = latestQuery.ilike('locality', `%${normalizedLocality}%`);
     }
 
-    if (normalizedCity) {
+    if (normalizedCity && hasCityColumn) {
       latestQuery = latestQuery.ilike('city', `%${normalizedCity}%`);
     }
 
@@ -107,7 +142,7 @@ export class IgrEnrichmentService {
             stream_item_id: streamItemId,
             building_name: normalizedBuildingName,
             locality: normalizedLocality,
-            city: normalizedCity,
+            city: hasCityColumn ? normalizedCity : '',
             status: 'pending',
             last_checked_at: null,
           },
@@ -123,6 +158,12 @@ export class IgrEnrichmentService {
     const normalizedBuildingName = normalizeValue(buildingName);
     const normalizedLocality = normalizeValue(locality);
     const normalizedCity = normalizeValue(city);
+    const inferredCity = inferIgrCity({
+      buildingName: normalizedBuildingName,
+      locality: normalizedLocality || null,
+      city: normalizedCity || null,
+    });
+    const hasCityColumn = await hasIgrTransactionsCityColumn();
 
     if (normalizedBuildingName.length < 3) {
       return;
@@ -144,7 +185,7 @@ export class IgrEnrichmentService {
       seller_name: null,
       village_locality: normalizedLocality || null,
       locality: normalizedLocality || null,
-      city: normalizedCity || null,
+      ...(hasCityColumn ? { city: normalizedCity || inferredCity || null } : {}),
       area_sqft: null,
       source: 'stream_index_seed',
       scraped_at: new Date().toISOString(),
