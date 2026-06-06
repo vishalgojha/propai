@@ -192,17 +192,17 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
     if (pool.length) setTickerItems(pool);
   }, [allListings]);
 
-  // Rotate ticker items
+  // Rotate ticker items (stable interval, uses functional setState)
   useEffect(() => {
-    if (!tickerItems.length) return;
-    const tickerInterval = setInterval(() => {
+    if (tickerItems.length <= 1) return;
+    const id = setInterval(() => {
       setTickerItems(prev => {
         if (prev.length <= 1) return prev;
         return [prev[prev.length - 1], ...prev.slice(0, prev.length - 1)];
       });
     }, 9000);
-    return () => clearInterval(tickerInterval);
-  }, [tickerItems.length > 0]);
+    return () => clearInterval(id);
+  }, [tickerItems]);
 
   // Handle Locality click/filter dynamically on database records
   const selectLocality = useCallback((localityName: string | null) => {
