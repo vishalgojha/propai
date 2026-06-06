@@ -756,7 +756,6 @@ export class WhatsAppHealthService {
                 const disconnectReason = String(sessionData.disconnectReason || '').trim().toLowerCase();
                 const autoReconnectBlocked = Boolean(sessionData.autoReconnectBlocked) || disconnectReason === 'replaced';
                 const staleEnough = ageMs >= this.heartbeatReconnectAfterMs;
-                const canRecoverImmediately = dbStatus === 'disconnected' && !autoReconnectBlocked;
 
                 if (liveStatus === 'connected' || dbStatus === 'connected' && !staleEnough) {
                     continue;
@@ -770,11 +769,37 @@ export class WhatsAppHealthService {
                     continue;
                 }
 
-                if (!canRecoverImmediately && !staleEnough) {
+                if (liveStatus === 'disconnected' && !staleEnough) {
                     continue;
                 }
 
                 try {
+                    if (liveSession && liveStatus === 'disconnected' && staleEnough) {
+                        if (this.shouldLogHeartbeat(`heartbeat_restart_disconnected:${tenantId}:${sessionLabel}`, 15 * 60_000)) {
+                            await this.appendEvent(
+                                tenantId,
+                                sessionLabel,
+                                'heartbeat_restart_disconnected',
+                                `Heartbeat is restarting a disconnected WhatsApp session for ${sessionLabel}.`,
+                                {
+                                    previousStatus: dbStatus,
+                                    liveStatus: liveStatus || null,
+                                    ageMs,
+                                    disconnectReason: disconnectReason || null,
+                                    autoReconnectBlocked,
+                                },
+                            );
+                        }
+
+                        await sessionManager.createSession(tenantId, () => {}, () => {}, {
+                            label: sessionLabel,
+                            ownerName: String(row.owner_name || row.session_data?.ownerName || '').trim() || undefined,
+                            phoneNumber: String(row.session_data?.phoneNumber || row.session_data?.displayPhoneNumber || '').trim() || undefined,
+                            skipLimitCheck: true,
+                        });
+                        continue;
+                    }
+
                     if (liveSession) {
                         if (this.shouldLogHeartbeat(`heartbeat_observed_stale:${tenantId}:${sessionLabel}`, 15 * 60_000)) {
                             await this.appendEvent(
