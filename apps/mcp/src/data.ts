@@ -159,8 +159,6 @@ export async function logToolCall(brokerId: string | undefined, toolName: string
   }
 }
 
-const FRESHNESS_DAYS = process.env.LISTING_FRESHNESS_DAYS ? parseInt(process.env.LISTING_FRESHNESS_DAYS, 10) : 0;
-
 export async function searchPublicListings(input: {
   locality?: string;
   city?: string;
@@ -178,11 +176,6 @@ export async function searchPublicListings(input: {
     .select(PUBLIC_LISTING_COLUMNS)
     .order("message_timestamp", { ascending: false, nullsFirst: false })
     .limit(limit);
-
-  if (FRESHNESS_DAYS > 0) {
-    const since = new Date(Date.now() - FRESHNESS_DAYS * 86400000).toISOString();
-    query = query.gte("message_timestamp", since);
-  }
 
   if (input.listingKind) {
     query = query.eq("listing_type", input.listingKind === "listing" ? "listing_rent" : "requirement");
