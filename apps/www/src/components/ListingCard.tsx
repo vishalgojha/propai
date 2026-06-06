@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { MapPin, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatPrice } from '@/lib/format';
 import type { PublicListing } from '@/lib/listings';
 
 interface ListingCardProps {
@@ -31,13 +32,7 @@ function buildDescription(listing: PublicListing): string {
 export default function ListingCard({ listing }: ListingCardProps) {
   const description = buildDescription(listing);
 
-  const formattedPrice = listing.price && listing.price > 0 
-    ? (listing.price >= 10000000 
-      ? `₹${(listing.price / 10000000).toFixed(2)} Cr`
-      : listing.price >= 100000 
-        ? `₹${(listing.price / 100000).toFixed(2)} L`
-        : `₹${listing.price.toLocaleString()}`)
-    : 'Price on Request';
+  const formattedPrice = formatPrice(listing.price, listing.type);
 
   const features = [];
   if (listing.bhk) features.push(`${listing.bhk}`.replace(/\s*BHK$/i, '') + ' BHK');

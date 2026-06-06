@@ -27,24 +27,8 @@ import {
   Phone
 } from 'lucide-react';
 import { getListings, type PublicListing } from '@/lib/listings';
+import { formatPrice } from '@/lib/format';
 import ListingCard from '@/components/ListingCard';
-
-function formatPriceShort(price: number, type: string): string {
-  if (!price || price <= 0) return '';
-  const cr = price / 10000000;
-  const l = price / 100000;
-  if (cr >= 1) {
-    const s = cr < 10 ? cr.toFixed(1) : Math.round(cr).toString();
-    return type === 'Rent' ? `₹${s}Cr/mo` : `₹${s}Cr`;
-  }
-  if (l >= 1) {
-    return type === 'Rent' ? `₹${Math.round(l)}L/mo` : `₹${Math.round(l)}L`;
-  }
-  if (price >= 1000) {
-    return type === 'Rent' ? `₹${Math.round(price / 1000)}K/mo` : `₹${Math.round(price / 1000)}K`;
-  }
-  return type === 'Rent' ? `₹${price}/mo` : `₹${price}`;
-}
 import { cn } from '@/lib/utils';
 
 // Premium interactive mockup localities for Mumbai Vector Map
@@ -186,7 +170,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
       if (l.bhk) parts.push(String(l.bhk));
       parts.push(l.type === 'Rent' ? 'rental' : l.type === 'Sale' ? 'sale' : 'requirement');
       parts.push(`in ${l.locality}`);
-      if (l.price) parts.push(formatPriceShort(l.price, l.type));
+      if (l.price) parts.push(formatPrice(l.price, l.type));
       return `⚡ ${parts.join(' ')}`;
     });
     if (pool.length) setTickerItems(pool);
@@ -697,8 +681,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
 
                       <div className="mt-3 flex justify-between items-center pt-3 border-t border-white/2">
                         <div className="text-[15px] font-black text-[var(--text-primary)]">
-                          ₹{item.price >= 100000 ? `${(item.price / 100000).toFixed(1)}L` : item.price.toLocaleString()}
-                          {item.type === 'Rent' && <span className="text-[10px] font-medium text-[var(--text-muted)]">/mo</span>}
+                          {formatPrice(item.price, item.type)}
                         </div>
                         
                         <div className="flex gap-2">
@@ -758,8 +741,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                           {selectedListing.type === 'Rent' ? 'Asking Rent' : selectedListing.type === 'Sale' ? 'Asking Price' : 'Requirement'}
                         </div>
                         <div className="text-[22px] font-black text-[var(--accent)] mt-1 tracking-tight">
-                          ₹{selectedListing.price.toLocaleString()}
-                          {selectedListing.type === 'Rent' && <span className="text-[11px] font-semibold text-[var(--text-muted)]">/mo</span>}
+                          {formatPrice(selectedListing.price, selectedListing.type)}
                         </div>
                       </div>
                       <div className="bg-[var(--bg-surface)]/45 rounded-2xl p-4">

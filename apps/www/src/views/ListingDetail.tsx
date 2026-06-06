@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MessageCircle, MapPin, Share2, Heart, Clock, ChevronRight } from 'lucide-react';
 import { getListingBySlug, getListings, type PublicListing } from '@/lib/listings';
+import { formatPrice } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import ListingCard from '@/components/ListingCard';
@@ -169,7 +170,7 @@ export default function ListingDetail({
             <div>
               <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">Asking price</div>
               <div className="mt-2 text-[34px] font-black tracking-tight text-[var(--accent)]">
-                {listing.price && listing.price > 0 ? `₹${listing.price.toLocaleString()}` : 'Price on Request'}
+                {formatPrice(listing.price, listing.type)}
               </div>
             </div>
             <div className="flex flex-col gap-3">
@@ -195,7 +196,7 @@ export default function ListingDetail({
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {[
             listing.bhk && { label: 'Configuration', value: `${listing.bhk}`.replace(/\s*BHK$/i, '') + ' BHK' },
-            listing.price && listing.price > 0 && { label: 'Price', value: `₹${listing.price.toLocaleString()}` },
+            listing.price && listing.price > 0 && { label: 'Price', value: formatPrice(listing.price) },
             listing.area_sqft && { label: 'Area', value: `${listing.area_sqft} SQFT` },
             listing.furnishing && { label: 'Furnishing', value: listing.furnishing },
             listing.availability && { label: 'Availability', value: listing.availability },
