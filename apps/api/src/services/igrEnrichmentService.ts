@@ -76,7 +76,13 @@ async function hasIgrTransactionsCityColumn() {
 
       const message = String(error.message || '').toLowerCase();
       const code = String(error.code || '').toUpperCase();
-      if (code === 'PGRST204' || code === 'PGRST205' || message.includes('could not find') || message.includes('schema cache')) {
+      if (
+        code === 'PGRST204' ||
+        code === 'PGRST205' ||
+        message.includes('could not find') ||
+        message.includes('schema cache') ||
+        message.includes('does not exist')
+      ) {
         return false;
       }
 
