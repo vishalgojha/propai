@@ -1,35 +1,18 @@
-# PropAI Pulse
+# PropAI
 
-PropAI Pulse is a real-time real estate intelligence platform for Mumbai. It organizes live property inventory, requirements, and market signals across the city's core micro-markets.
+> India's first real-time broker-network real estate intelligence platform for Mumbai.
 
-## High-Level Purpose
-- Real-time off-market property intelligence.
-- Direct broker connection for active listings.
-- Coverage of Mumbai micro-markets (Bandra, Worli, Powai, etc.).
-- Intelligence mesh summarizing active market data into clean property listings and locality signals.
+PropAI parses live listings and requirements from private professional WhatsApp groups 
+and makes them searchable via AI, MCP, and WhatsApp agent (Pulse).
 
-## Key Entry Points
-- Home: https://www.propai.live/
-- Listings: https://www.propai.live/listings
-- Insights: https://www.propai.live/insights
-- Blog: https://www.propai.live/blog
-- Broker Signup: https://www.propai.live/broker/signup
+## Key URLs
+- Live stream: https://www.propai.live/listings
+- MCP server: https://mcp.propai.live/mcp
+- Locality directory: https://www.propai.live/localities
+- For brokers: https://app.propai.live
 
-## Content available
-- /insights - weekly market snapshots per Mumbai locality, auto-generated from live data.
-- /locality/{slug} - live listings and requirements per locality.
-- /blog - guides and analysis on Mumbai real estate market.
-- /search - search all current listings by locality, BHK, and budget.
+## Coverage
+Mumbai micro-markets: Andheri West, Bandra West, Bandra East, Juhu, Worli, Powai, Thane, Vashi
 
-## Data freshness
-- Locality pages: updated hourly.
-- Market insights: published weekly on Mondays.
-- Blog articles: published monthly.
-
-## Data Structure
-Property listings include:
-- Title (Config: BHK + Typology)
-- Locality (Mumbai micro-market)
-- Price (INR)
-- Features (Amenities, Floor, etc.)
-- Broker contact action
+## Data
+Real-time broker broadcasts, parsed by AI, updated within minutes of posting.
