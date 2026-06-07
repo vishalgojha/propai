@@ -258,12 +258,10 @@ export class ConversationEngineService {
         }
 
         if (route.intent === 'general_chat' || route.intent === 'general_answer') {
-            const greeting = [
-                'Sab theek! Koi property dhundh rahe ho ya kuch requirement save karni hai? Batao kaise help kar sakta hoon! 😊',
-                'Sab set! Koi listing chahiye ya kuch puchna hai? Bolo bhai! 👍',
-                'Haan batao, kya kar sakta hoon aapke liye? Property dhundhni hai ya kuch aur?',
-            ][Math.floor(Math.random() * 3)];
-            const agentResponse = toAgentResponse(greeting);
+            const message = event.channel === 'web'
+                ? 'I can help with listings, buyer or tenant requirements, follow-ups, IGR checks, and workspace search. Send a locality, building, budget, or the task you want done.'
+                : 'Batao kya chahiye: listing search, buyer/tenant requirement, follow-up, ya IGR check?';
+            const agentResponse = toAgentResponse(message);
             const renderedReply = renderChannelReply(event.channel, agentResponse);
             await saveToHistory(event.conversation.key, rawPrompt, renderedReply, input.sessionId);
             return { reply: renderedReply, text: renderedReply, agentResponse, route, capabilityHint };

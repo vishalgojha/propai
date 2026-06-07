@@ -79,8 +79,8 @@ async function canReadAllAccounts(req: Request) {
 async function queryStreamItems(tenantId: string, periodStart: string, allAccounts: boolean) {
     const residentialBaseSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, bhk, broker_name, source_phone, confidence_score, created_at, is_read';
     const commercialBaseSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, broker_name, source_phone, confidence_score, created_at, is_read';
-    const residentialSafeSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, bhk, broker_name, source_phone, confidence_score, created_at, is_read';
-    const commercialSafeSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, broker_name, source_phone, confidence_score, created_at, is_read';
+    const residentialSafeSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, bhk, source_phone, confidence_score, created_at';
+    const commercialSafeSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, source_phone, confidence_score, created_at';
     const residentialWithMatchesSelect = `${residentialBaseSelect}, channel_items(id, tenant_id)`;
     const commercialWithMatchesSelect = `${commercialBaseSelect}, channel_items(id, tenant_id)`;
     const residentialSafeWithMatchesSelect = `${residentialSafeSelect}, channel_items(id, tenant_id)`;
@@ -142,6 +142,12 @@ async function queryStreamItems(tenantId: string, periodStart: string, allAccoun
             result = await run(false, true, true);
         }
         if (result.error && isMissingEmbeddedChannelItemsError(result.error.message)) {
+            result = await run(true, false, true);
+            if (result.error && isMissingIngestionStatusError(result.error.message)) {
+                result = await run(false, false, true);
+            }
+        }
+        if (result.error && isMissingOptionalColumnError(result.error.message)) {
             result = await run(true, false, true);
             if (result.error && isMissingIngestionStatusError(result.error.message)) {
                 result = await run(false, false, true);
