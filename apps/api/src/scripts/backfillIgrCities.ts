@@ -5,8 +5,6 @@ type IgrRow = {
   id: number;
   building_name: string | null;
   locality: string | null;
-  source: string | null;
-  property_description: string | null;
 };
 
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -76,7 +74,7 @@ async function main() {
   while (true) {
     let query = supabaseAdmin
       .from('igr_transactions')
-      .select('id, building_name, locality, source, property_description')
+      .select('id, building_name, locality')
       .order('id', { ascending: true });
 
     if (hasCityColumn) {
