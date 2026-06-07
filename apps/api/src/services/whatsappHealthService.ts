@@ -843,16 +843,15 @@ export class WhatsAppHealthService {
                     continue;
                 }
 
-                if (!row.creds || !row.keys) {
-                    continue;
-                }
-
                 const liveSession = liveSessions.get(`${tenantId}:${sessionLabel}`);
                 const liveStatus = String(liveSession?.status || '').trim().toLowerCase();
                 const dbStatus = String(row.status || 'disconnected').trim().toLowerCase();
                 const updatedAtMs = row.updated_at ? new Date(row.updated_at).getTime() : NaN;
                 const ageMs = Number.isFinite(updatedAtMs) ? Math.max(0, now - updatedAtMs) : Number.MAX_SAFE_INTEGER;
                 const sessionData = (row.session_data && typeof row.session_data === 'object') ? row.session_data as Record<string, unknown> : {};
+                const pendingConnect = (sessionData.pendingConnect && typeof sessionData.pendingConnect === 'object')
+                    ? sessionData.pendingConnect as Record<string, unknown>
+                    : null;
                 const disconnectReason = String(sessionData.disconnectReason || '').trim().toLowerCase();
                 const autoReconnectBlocked = Boolean(sessionData.autoReconnectBlocked) || disconnectReason === 'replaced';
                 const staleEnough = ageMs >= this.heartbeatReconnectAfterMs;
@@ -869,6 +868,44 @@ export class WhatsAppHealthService {
                     !autoReconnectBlocked &&
                     !liveSession?.isReconnecting &&
                     stallDetected;
+
+                if (pendingConnect && !autoReconnectBlocked) {
+                    const mode = pendingConnect.mode === 'pairing' ? 'pairing' : 'qr';
+                    const pendingPhone = String(pendingConnect.phoneNumber || sessionData.phoneNumber || sessionData.displayPhoneNumber || '').trim();
+                    const pendingOwnerName = String(pendingConnect.ownerName || row.owner_name || sessionData.ownerName || '').trim();
+                    const requestedAt = String(pendingConnect.requestedAt || '').trim();
+                    const requestedAtMs = requestedAt ? new Date(requestedAt).getTime() : NaN;
+                    const requestAgeMs = Number.isFinite(requestedAtMs) ? Math.max(0, now - requestedAtMs) : ageMs;
+
+                    if (!liveSession || liveStatus === 'disconnected' || liveStatus === 'connecting' || liveStatus === 'reconnecting') {
+                        if (this.shouldLogHeartbeat(`heartbeat_connect_request:${tenantId}:${sessionLabel}`, 30_000)) {
+                            await this.appendEvent(
+                                tenantId,
+                                sessionLabel,
+                                'heartbeat_connect_request',
+                                `Worker is starting queued WhatsApp ${mode} connection for ${sessionLabel}.`,
+                                {
+                                    mode,
+                                    requestAgeMs,
+                                    liveStatus: liveStatus || null,
+                                },
+                            );
+                        }
+
+                        await sessionManager.createSession(tenantId, () => {}, () => {}, {
+                            label: sessionLabel,
+                            ownerName: pendingOwnerName || undefined,
+                            phoneNumber: pendingPhone || undefined,
+                            usePairingCode: mode === 'pairing' ? pendingPhone || undefined : undefined,
+                            skipLimitCheck: true,
+                        });
+                        continue;
+                    }
+                }
+
+                if (!row.creds || !row.keys) {
+                    continue;
+                }
 
                 if (stallDetected && this.shouldLogHeartbeat(`ingestion_stalled:${tenantId}:${sessionLabel}`, 30 * 60_000)) {
                     await this.appendEvent(

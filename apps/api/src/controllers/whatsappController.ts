@@ -16,6 +16,7 @@ import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { whatsappPresenceService } from '../services/whatsappPresenceService';
 import { groupAuditService } from '../services/groupAuditService';
 import { whatsappThreadService } from '../services/whatsappThreadService';
+import { resolveProcessRole } from '../runtime/processRole';
 import '../types/express';
 
 type LiveSessionRecord = {
@@ -55,6 +56,25 @@ function shouldShowSessionInStatus(session: Record<string, unknown>, newestVisib
 function hasActiveSessionStatus(value?: unknown) {
     const status = String(value || '').toLowerCase();
     return status === 'connected' || status === 'connecting' || status === 'reconnecting';
+}
+
+function getPersistedConnectionArtifact(sessionData?: Record<string, unknown> | null, mode: ConnectionArtifactMode = 'qr') {
+    const artifact = sessionData?.connectionArtifact;
+    if (artifact && typeof artifact === 'object') {
+        const record = artifact as Record<string, unknown>;
+        const artifactMode = record.mode === 'pairing' ? 'pairing' : 'qr';
+        const value = typeof record.value === 'string' ? record.value.trim() : '';
+        if (value && artifactMode === mode) {
+            return value;
+        }
+    }
+
+    const legacyQr = typeof sessionData?.qr === 'string' ? sessionData.qr.trim() : '';
+    if (mode === 'qr' && legacyQr) {
+        return legacyQr;
+    }
+
+    return null;
 }
 
 function sessionStatusPriority(value?: unknown) {
@@ -217,6 +237,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
     let sessionLabel = buildSessionLabel(ownerName || label, phoneNumber);
     const gateway = getWhatsAppGateway(tenantId);
+    const processRole = resolveProcessRole(process.env.PROPAI_PROCESS_ROLE);
     let requestedPhone = normalizeRecipientPhone(phoneNumber);
     let lockedWorkspacePhone: string | null = null;
 
@@ -263,6 +284,9 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             .maybeSingle();
         const hasStoredAuth = Boolean(existingRow?.creds && existingRow?.keys);
         const existingStatus = String(existingSession?.status || existingRow?.status || '').toLowerCase();
+        const existingData = (existingRow?.session_data && typeof existingRow.session_data === 'object')
+            ? existingRow.session_data as Record<string, unknown>
+            : {};
 
         if (existingSession?.status === 'connected' && existingRow?.status === 'connected') {
             return res.json({
@@ -278,15 +302,18 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
 
         if ((existingStatus === 'connecting' || existingStatus === 'reconnecting') && connectMethod === 'qr') {
             const currentArtifact = existingSession ? await gateway.getQRCode({ workspaceOwnerId: tenantId, sessionLabel }) : null;
-            return res.json({
-                message: 'WhatsApp connection already in progress',
-                label: sessionLabel,
-                artifact: buildConnectionArtifact('qr', currentArtifact),
-                qr: currentArtifact || null,
-                pairingCode: null,
-                connected: false,
-                mode: existingStatus === 'reconnecting' ? 'reconnecting' : 'connecting',
-            });
+            const persistedArtifact = currentArtifact || getPersistedConnectionArtifact(existingData, 'qr');
+            if (persistedArtifact || processRole !== 'api') {
+                return res.json({
+                    message: 'WhatsApp connection already in progress',
+                    label: sessionLabel,
+                    artifact: buildConnectionArtifact('qr', persistedArtifact),
+                    qr: persistedArtifact || null,
+                    pairingCode: null,
+                    connected: false,
+                    mode: existingStatus === 'reconnecting' ? 'reconnecting' : 'connecting',
+                });
+            }
         }
 
         if (connectMethod === 'qr' && existingRow?.status !== 'connected' && !hasStoredAuth) {
@@ -307,6 +334,48 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             }
         }
 
+        if (processRole === 'api') {
+            const requestedAt = new Date().toISOString();
+            await dbClient
+                .from('whatsapp_sessions')
+                .upsert({
+                    tenant_id: tenantId,
+                    label: sessionLabel,
+                    owner_name: ownerName || null,
+                    session_data: {
+                        ...existingData,
+                        phoneNumber: phoneNumber || normalizedRequestedPhone || null,
+                        ownerName: ownerName || null,
+                        label: sessionLabel,
+                        pendingConnect: {
+                            mode: connectMethod,
+                            phoneNumber: phoneNumber || normalizedRequestedPhone || null,
+                            ownerName: ownerName || null,
+                            requestedAt,
+                            requestId: `${Date.now()}:${Math.random().toString(36).slice(2, 10)}`,
+                        },
+                        connectionArtifact: null,
+                        connectionArtifactUpdatedAt: null,
+                        groupAuditPending: existingData.groupAuditCompletedAt ? Boolean(existingData.groupAuditPending) : true,
+                        groupAuditCompletedAt: existingData.groupAuditCompletedAt || null,
+                    },
+                    status: 'connecting',
+                    last_sync: requestedAt,
+                    updated_at: requestedAt,
+                }, { onConflict: 'tenant_id,label' });
+
+            res.json({
+                message: 'Connection request queued',
+                label: sessionLabel,
+                artifact: null,
+                qr: null,
+                pairingCode: null,
+                connected: false,
+                mode: connectMethod,
+            });
+            return;
+        }
+
         await gateway.connect({
             workspaceOwnerId: tenantId,
             sessionLabel,
@@ -325,10 +394,6 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             return null;
         };
         const artifactAfterCreate = await waitForArtifact();
-
-        const existingData = (existingRow?.session_data && typeof existingRow.session_data === 'object')
-            ? existingRow.session_data as Record<string, unknown>
-            : {};
 
         await dbClient
             .from('whatsapp_sessions')
@@ -534,10 +599,25 @@ export const getQR = async (req: Request, res: Response) => {
     const dbClient = getDbClient();
     const { data: sessionRow } = await dbClient
         .from('whatsapp_sessions')
-        .select('status, last_sync')
+        .select('status, last_sync, session_data')
         .eq('tenant_id', tenantId)
         .eq('label', label || targetSession?.label || 'Owner')
         .maybeSingle();
+
+    const sessionData = (sessionRow?.session_data && typeof sessionRow.session_data === 'object')
+        ? sessionRow.session_data as Record<string, unknown>
+        : {};
+    const persistedArtifact = getPersistedConnectionArtifact(sessionData, 'qr') || getPersistedConnectionArtifact(sessionData, 'pairing');
+    if (persistedArtifact) {
+        const artifactMode = getPersistedConnectionArtifact(sessionData, 'pairing') ? 'pairing' : 'qr';
+        return res.json({
+            qr: artifactMode === 'qr' ? persistedArtifact : null,
+            pairingCode: artifactMode === 'pairing' ? persistedArtifact : null,
+            artifact: buildConnectionArtifact(artifactMode, persistedArtifact),
+            label: label || targetSession?.label,
+            ready: true,
+        });
+    }
 
     const waitTime = sessionRow?.last_sync 
         ? Math.round((Date.now() - new Date(sessionRow.last_sync).getTime()) / 1000)

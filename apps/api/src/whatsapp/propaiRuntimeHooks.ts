@@ -219,6 +219,43 @@ export async function sendWhatsAppDisconnectPush(input: LifecyclePushInput) {
 
 export function createPropAIRuntimeHooks(): WhatsAppRuntimeHooks {
     return {
+        onQR: async (event) => {
+            try {
+                const { data: sessionRow } = await db
+                    .from('whatsapp_sessions')
+                    .select('session_data')
+                    .eq('tenant_id', event.tenantId)
+                    .eq('label', event.label)
+                    .maybeSingle();
+
+                const sessionData = (sessionRow?.session_data && typeof sessionRow.session_data === 'object')
+                    ? sessionRow.session_data as Record<string, any>
+                    : {};
+                const pendingConnect = (sessionData.pendingConnect && typeof sessionData.pendingConnect === 'object')
+                    ? sessionData.pendingConnect as Record<string, unknown>
+                    : {};
+                const mode = pendingConnect.mode === 'pairing' ? 'pairing' : 'qr';
+
+                await db
+                    .from('whatsapp_sessions')
+                    .update({
+                        session_data: {
+                            ...sessionData,
+                            connectionArtifact: {
+                                mode,
+                                format: 'text',
+                                value: event.qr,
+                            },
+                            connectionArtifactUpdatedAt: new Date().toISOString(),
+                        },
+                        last_sync: new Date().toISOString(),
+                    })
+                    .eq('tenant_id', event.tenantId)
+                    .eq('label', event.label);
+            } catch (error) {
+                console.error('[WhatsAppRuntime] Failed to persist connection artifact:', error);
+            }
+        },
         onMessage: async (event) => {
             try {
                 liveMonitorService.recordMessage({
@@ -248,6 +285,33 @@ export function createPropAIRuntimeHooks(): WhatsAppRuntimeHooks {
         },
         onConnectionUpdate: async (event) => {
             try {
+                if (event.status === 'connected' || event.status === 'disconnected') {
+                    const { data: sessionRow } = await db
+                        .from('whatsapp_sessions')
+                        .select('session_data')
+                        .eq('tenant_id', event.tenantId)
+                        .eq('label', event.label)
+                        .maybeSingle();
+
+                    const sessionData = (sessionRow?.session_data && typeof sessionRow.session_data === 'object')
+                        ? sessionRow.session_data as Record<string, any>
+                        : {};
+
+                    await db
+                        .from('whatsapp_sessions')
+                        .update({
+                            session_data: {
+                                ...sessionData,
+                                pendingConnect: null,
+                                connectionArtifact: null,
+                                connectionArtifactUpdatedAt: null,
+                            },
+                            last_sync: new Date().toISOString(),
+                        })
+                        .eq('tenant_id', event.tenantId)
+                        .eq('label', event.label);
+                }
+
                 await processWhatsAppSessionEvent({
                     tenantId: event.tenantId,
                     sessionLabel: event.label,
