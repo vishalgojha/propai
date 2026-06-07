@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   ArrowRight, 
@@ -78,6 +79,7 @@ interface BrokerProfile {
 type ChatStage = 'name' | 'move_in' | 'profile' | 'deposit' | 'whatsapp' | 'submitting' | 'done' | 'error';
 
 export default function Home({ initialListings = [], todayCount = 0 }: { initialListings?: PublicListing[]; todayCount?: number }) {
+  const router = useRouter();
   // Navigation & Interactive Tabs
   const [activeTab, setActiveTab] = useState<'feed' | 'map' | 'analytics'>('feed');
   
@@ -518,29 +520,47 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
         </p>
 
         {/* Global Search Bar */}
-        <div className="w-full max-w-xl mx-auto bg-[var(--bg-surface)]/85 backdrop-blur-md rounded-[20px] p-2 border border-white/5 shadow-[0_20px_50px_rgba(0,0,0,0.4)] hover:border-[var(--accent)]/15 transition-all duration-300 flex items-center gap-2">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const q = searchQuery.trim();
+            if (q) router.push(`/listings?q=${encodeURIComponent(q)}`);
+          }}
+          className="w-full max-w-xl mx-auto bg-[var(--bg-surface)]/85 backdrop-blur-md rounded-[20px] p-2 border border-white/5 shadow-[0_20px_50px_rgba(0,0,0,0.4)] hover:border-[var(--accent)]/15 transition-all duration-300 flex items-center gap-2"
+        >
           <div className="flex-1 flex items-center gap-3 px-3">
             <Search className="h-4.5 w-4.5 text-[var(--text-muted)]" />
             <input 
               type="text" 
               placeholder="Search by locality or keywords (e.g. Bandra, Carter Road, 3 BHK)..." 
               value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); handleSearch(e.target.value); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const q = searchQuery.trim();
+                  if (q) router.push(`/listings?q=${encodeURIComponent(q)}`);
+                }
+              }}
               className="bg-transparent border-none outline-none text-[13px] w-full text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" 
             />
           </div>
           {searchQuery && (
             <button 
-              onClick={() => handleSearch('')}
+              type="button"
+              onClick={() => { setSearchQuery(''); handleSearch(''); }}
               className="p-1 rounded-full hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
           )}
-          <button className="px-5 py-2.5 rounded-[12px] text-[10px] font-bold uppercase tracking-[0.1em] bg-[var(--accent)] text-[var(--on-propai-green)] shadow-md hover:brightness-110 active:scale-[0.98] transition-all">
-            Filter
+          <button
+            type="submit"
+            className="px-5 py-2.5 rounded-[12px] text-[10px] font-bold uppercase tracking-[0.1em] bg-[var(--accent)] text-[var(--on-propai-green)] shadow-md hover:brightness-110 active:scale-[0.98] transition-all"
+          >
+            Search
           </button>
-        </div>
+        </form>
       </header>
 
       {/* Segmented Application Tab Navigation */}

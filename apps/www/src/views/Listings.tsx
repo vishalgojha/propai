@@ -20,15 +20,17 @@ function normalizeLocalityQuery(value?: string | null) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-export default function Listings({ initialListings = [], initialLocality = '' }: { initialListings?: PublicListing[]; initialLocality?: string }) {
+export default function Listings({ initialListings = [], initialLocality = '', initialQuery = '' }: { initialListings?: PublicListing[]; initialLocality?: string; initialQuery?: string }) {
   const searchParams = useSearchParams();
   const urlLocality = normalizeLocalityQuery(searchParams.get('locality'));
+  const urlQuery = searchParams.get('q') || '';
   const normalizedInitialLocality = normalizeLocalityQuery(initialLocality);
   const effectiveInitialLocality = normalizedInitialLocality || urlLocality;
+  const effectiveInitialQuery = initialQuery || urlQuery;
   const [listings, setListings] = useState<PublicListing[]>(initialListings);
   const [filters, setFilters] = useState(() => {
     const type = 'All';
-    return { locality: effectiveInitialLocality, type, sort: 'Newest' };
+    return { locality: effectiveInitialLocality, query: effectiveInitialQuery, type, sort: 'Newest' };
   });
 
   useEffect(() => {
@@ -66,6 +68,13 @@ export default function Listings({ initialListings = [], initialLocality = '' }:
   const filteredListings = listings.filter(l => {
     if (filters.type !== 'All' && l.type !== filters.type) return false;
     if (filters.locality && slugifyLocalityName(l.locality) !== slugifyLocalityName(filters.locality)) return false;
+    if (filters.query) {
+      const q = filters.query.toLowerCase();
+      const title = (l.title || '').toLowerCase();
+      const locality = (l.locality || '').toLowerCase();
+      const raw = (l.raw_text || '').toLowerCase();
+      if (!title.includes(q) && !locality.includes(q) && !raw.includes(q)) return false;
+    }
     return true;
   });
 
@@ -85,12 +94,12 @@ export default function Listings({ initialListings = [], initialLocality = '' }:
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-muted)]" />
           <input 
             type="text" 
-            placeholder="Search by locality..."
+            placeholder="Search by locality or keywords (e.g. Bandra, 3 BHK)..."
             className="w-full rounded-[12px] border border-white/3 bg-[var(--bg-elevated)]/60 backdrop-blur-sm py-3 pl-10 pr-4 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--accent)]/30 transition-all shadow-sm"
-            value={filters.locality}
+            value={filters.query}
             onChange={(e) => {
-              const nextLocality = normalizeLocalityQuery(e.target.value);
-              setFilters(prev => ({ ...prev, locality: nextLocality }));
+              const val = e.target.value;
+              setFilters(prev => ({ ...prev, query: val, locality: '' }));
             }}
           />
         </div>
@@ -156,7 +165,7 @@ export default function Listings({ initialListings = [], initialLocality = '' }:
           <p className="text-[12.5px] text-[var(--text-secondary)] mt-1">Try adjusting your search criteria.</p>
           <button 
             onClick={() => {
-              setFilters({ locality: '', type: 'All', sort: 'Newest' });
+              setFilters({ locality: '', query: '', type: 'All', sort: 'Newest' });
               setListings(initialListings);
             }}
             className="mt-6 text-[10.5px] font-black uppercase tracking-[0.12em] text-[var(--accent)] hover:underline"

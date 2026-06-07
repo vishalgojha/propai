@@ -17,14 +17,22 @@ function firstQueryValue(value?: string | string[]) {
 export default async function Page({
   searchParams,
 }: {
-  searchParams?: { locality?: string | string[] };
+  searchParams?: { locality?: string | string[]; q?: string | string[] };
 }) {
   const initialLocality = firstQueryValue(searchParams?.locality)?.trim() || "";
+  const initialQuery = firstQueryValue(searchParams?.q)?.trim() || "";
   let initialListings: Awaited<ReturnType<typeof fetchPublicListings>> = [];
   try {
-    initialListings = await fetchPublicListings(initialLocality || undefined);
+    initialListings = await fetchPublicListings(initialLocality || initialQuery || undefined);
   } catch {
     // Fallback to client-side fetch on error
   }
-  return <Listings key={initialLocality || "all"} initialListings={initialListings} initialLocality={initialLocality} />;
+  return (
+    <Listings
+      key={initialLocality || initialQuery || "all"}
+      initialListings={initialListings}
+      initialLocality={initialLocality}
+      initialQuery={initialQuery}
+    />
+  );
 }
