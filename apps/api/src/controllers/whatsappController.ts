@@ -1562,11 +1562,19 @@ export const saveProfile = async (req: Request, res: Response) => {
     }
 
     const dbClient = getDbClient();
-    const { data: existingProfile } = await dbClient
-        .from('profiles')
-        .select('email, phone')
-        .eq('id', tenantId)
-        .maybeSingle();
+    const existingProfileResult = await withTimeout<{ data: { email?: string | null; phone?: string | null } | null; error: { message?: string } | null }>(
+        Promise.resolve(
+            dbClient
+                .from('profiles')
+                .select('email, phone')
+                .eq('id', tenantId)
+                .maybeSingle(),
+        ) as Promise<{ data: { email?: string | null; phone?: string | null } | null; error: { message?: string } | null }>,
+        2500,
+        { data: null, error: null },
+        'saveProfile existing profile lookup',
+    );
+    const existingProfile = existingProfileResult.data;
 
     const lockedWorkspacePhone = normalizeRecipientPhone(existingProfile?.phone)
         || normalizeRecipientPhone(context.isWorkspaceOwner ? String(req.user?.user_metadata?.phone || '') : null);
@@ -1590,42 +1598,46 @@ export const saveProfile = async (req: Request, res: Response) => {
         payload.email = user.email;
     }
 
-    const { error: upsertError } = await dbClient
-        .from('profiles')
-        .upsert(payload, { onConflict: 'id' });
+    const upsertResult = await withTimeout<{ data: unknown; error: { message?: string } | null }>(
+        Promise.resolve(
+            dbClient
+                .from('profiles')
+                .upsert(payload, { onConflict: 'id' }),
+        ) as Promise<{ data: unknown; error: { message?: string } | null }>,
+        3000,
+        { data: null, error: null },
+        'saveProfile profile upsert',
+    );
+    const upsertError = upsertResult.error;
 
     if (upsertError) {
         return res.status(500).json({ error: upsertError.message || 'Failed to save profile' });
     }
 
-    await syncBrokerIdentityPhone(
-        tenantId,
-        lockedWorkspacePhone || normalizedPhone,
-        normalizedFullName,
-    ).catch(() => null);
+    void (async () => {
+        await syncBrokerIdentityPhone(
+            tenantId,
+            lockedWorkspacePhone || normalizedPhone,
+            normalizedFullName,
+        ).catch(() => null);
 
-    const { data, error } = await dbClient
-        .from('profiles')
-        .select(profileSelectColumns)
-        .eq('id', tenantId)
-        .maybeSingle();
+        try {
+            await dbClient
+                .from('broker_identity')
+                .upsert({
+                    broker_id: tenantId,
+                    full_name: normalizedFullName,
+                    updated_at: new Date().toISOString(),
+                }, { onConflict: 'broker_id' });
+        } catch {
+            // Non-critical for WhatsApp connect.
+        }
 
-    if (error) {
-        return res.status(500).json({ error: error.message || 'Failed to load saved profile' });
-    }
-
-    await dbClient
-        .from('broker_identity')
-        .upsert({
-            broker_id: tenantId,
-            full_name: normalizedFullName,
-            updated_at: new Date().toISOString(),
-        }, { onConflict: 'broker_id' });
-
-    void pushRecentAction(tenantId, 'Updated profile name');
+        await pushRecentAction(tenantId, 'Updated profile name').catch(() => null);
+    })();
 
     res.json({
-        profile: formatProfileResponse(data, {
+        profile: formatProfileResponse(null, {
             id: tenantId,
             fullName: normalizedFullName,
             phone: lockedWorkspacePhone || normalizedPhone,
