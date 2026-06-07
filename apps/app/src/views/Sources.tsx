@@ -1405,7 +1405,6 @@ export const Sources: React.FC = () => {
       return;
     }
 
-    connectRequestInFlightRef.current = true;
     setError(null);
     ensureConnectUiVisible();
 
@@ -1415,7 +1414,6 @@ export const Sources: React.FC = () => {
 
     if (!nameToUse.trim() || normalizedPhone.length < 12 || normalizedPhone.length > 17) {
       setError('Enter your name and 10-digit WhatsApp number first.');
-      connectRequestInFlightRef.current = false;
       return;
     }
 
@@ -1425,29 +1423,22 @@ export const Sources: React.FC = () => {
       mode: connectMode,
     });
 
-    // Save profile first
-    try {
-      await backendApi.post(ENDPOINTS.whatsapp.profile, {
-        fullName: nameToUse,
-        phone: normalizedPhone,
+    void backendApi.post(ENDPOINTS.whatsapp.profile, {
+      fullName: nameToUse,
+      phone: normalizedPhone,
+    })
+      .then(() => {
+        setFullName(nameToUse);
+        setPhoneNumber(normalizedPhone);
+      })
+      .catch((err) => {
+        console.warn('[WhatsApp] profile save skipped before connect', err);
       });
-      setFullName(nameToUse);
-      setPhoneNumber(normalizedPhone);
-    } catch (err) {
-      setError(handleApiError(err));
-      connectRequestInFlightRef.current = false;
-      return;
-    }
 
-    // Now connect using the existing handleConnect logic
-    if (!deviceOwnerName && fullName) setDeviceOwnerName(fullName);
-    if (!devicePhoneNumber && phoneNumber) setDevicePhoneNumber(phoneNumber);
+    if (!deviceOwnerName) setDeviceOwnerName(nameToUse);
+    if (!devicePhoneNumber) setDevicePhoneNumber(normalizedPhone);
 
-    try {
-      await handleConnect(connectMode, { ownerName: nameToUse, phoneNumber: normalizedPhone });
-    } finally {
-      connectRequestInFlightRef.current = false;
-    }
+    await handleConnect(connectMode, { ownerName: nameToUse, phoneNumber: normalizedPhone });
   };
 
   const waitForArtifact = useCallback(async (
