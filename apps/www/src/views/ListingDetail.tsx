@@ -234,7 +234,7 @@ export default function ListingDetail({
                   <CheckCircle className="h-4 w-4" />
                   We'll notify you!
                 </div>
-              ) : notifyState === 'form' ? (
+              ) : notifyState === 'form' || notifyState === 'submitting' ? (
                 <form onSubmit={handleNotifySubmit} className="space-y-2">
                   <div className="flex items-center gap-2 rounded-[14px] bg-[var(--bg-elevated)]/40 px-3 py-2">
                     <Phone className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
@@ -245,12 +245,8 @@ export default function ListingDetail({
                       onChange={(e) => setNotifyPhone(e.target.value)}
                       className="bg-transparent border-none outline-none text-[12px] w-full text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
                       autoFocus
+                      disabled={notifyState === 'submitting'}
                     />
-                    {notifyPhone && (
-                      <button type="button" onClick={() => setNotifyPhone('')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
                   </div>
                   {notifyError && (
                     <p className="text-[10px] text-red-400 px-1">{notifyError}</p>
