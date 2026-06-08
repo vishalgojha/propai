@@ -50,6 +50,12 @@ router.post('/', async (req, res) => {
             workspaceId,
             source: source || 'stream',
             device: device || 'web',
+            listingType: details?.type,
+            locality: details?.locality,
+            buildingName: (details as any)?.building_name,
+            bhk: details?.bhk,
+            priceLabel: details?.priceLabel,
+            areaSqft: details?.areaSqft,
         });
 
         if (result.error) {

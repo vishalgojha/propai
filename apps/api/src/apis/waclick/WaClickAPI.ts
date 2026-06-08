@@ -9,6 +9,12 @@ export class WaClickAPI {
         workspaceId: string;
         source?: string;
         device?: string;
+        listingType?: string;
+        locality?: string;
+        buildingName?: string;
+        bhk?: string;
+        priceLabel?: string;
+        areaSqft?: number | null;
     }) {
         const { error } = await supabase.from('wa_click_events').insert({
             listing_id: params.listingId,
@@ -17,6 +23,12 @@ export class WaClickAPI {
             workspace_id: params.workspaceId,
             source: params.source || 'stream',
             device: params.device || 'web',
+            listing_type: params.listingType,
+            locality: params.locality,
+            building_name: params.buildingName,
+            bhk: params.bhk,
+            price_label: params.priceLabel,
+            area_sqft: params.areaSqft,
         });
 
         return { success: !error, error: error?.message || null };
@@ -135,6 +147,7 @@ export class WaClickAPI {
     async getListingDetails(listingId: string): Promise<{
         type?: string;
         locality?: string;
+        buildingName?: string;
         bhk?: string;
         priceLabel?: string;
         areaSqft?: number | null;
@@ -142,8 +155,8 @@ export class WaClickAPI {
         rawText?: string;
     } | null> {
         const [resResult, comResult] = await Promise.all([
-            supabase.from('stream_items_residential').select('type, locality, bhk, price_label, area_sqft, source_label, raw_text, source_phone, source_group_name').eq('id', listingId).single(),
-            supabase.from('stream_items_commercial').select('type, locality, bhk, price_label, area_sqft, source_label, raw_text, source_phone, source_group_name').eq('id', listingId).single(),
+            supabase.from('stream_items_residential').select('type, locality, building_name, bhk, price_label, area_sqft, source_label, raw_text, source_phone, source_group_name').eq('id', listingId).single(),
+            supabase.from('stream_items_commercial').select('type, locality, building_name, bhk, price_label, area_sqft, source_label, raw_text, source_phone, source_group_name').eq('id', listingId).single(),
         ]);
         const data = resResult.data || comResult.data;
 
@@ -154,6 +167,7 @@ export class WaClickAPI {
         return {
             type: (data as any).type,
             locality: (data as any).locality,
+            buildingName: (data as any).building_name,
             bhk: (data as any).bhk,
             priceLabel: (data as any).price_label,
             areaSqft: (data as any).area_sqft,
