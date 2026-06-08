@@ -816,31 +816,65 @@ export function createMcpServer(context: ToolContext = {}) {
     async (input) => {
       await logToolCall(brokerId(context), "semantic_search", input);
 
-      const embedding = await generateEmbedding(input.query);
-      if (!embedding) {
+      const rawEmbedding = await generateEmbedding(input.query);
+      if (!rawEmbedding) {
         return textResponse("Could not generate an embedding right now. Try the search_listings tool instead.");
       }
+      const embedding: number[] = rawEmbedding;
 
-      const { data: results, error } = await supabase.rpc("match_listings", {
-        query_embedding: embedding,
-        match_threshold: input.threshold ?? 0.55,
-        match_count: input.limit ?? 10,
-        p_tenant_id: null,
-        p_locality: input.locality || null,
-        p_bhk: input.bhk || null,
-        p_type: input.type || null,
-      });
+      const threshold = input.threshold ?? 0.55;
+      const limit = input.limit ?? 10;
 
-      if (error) {
-        return textResponse(`Search error: ${error.message}`);
+      async function fetchRowsWithEmbeddings() {
+        const results: Array<Record<string, unknown> & { similarity: number }> = [];
+        for (const table of ["stream_items_residential", "stream_items_commercial"]) {
+          let offset = 0;
+          while (true) {
+            const { data: rows, error } = await supabase
+              .from(table as any)
+              .select("id, tenant_id, message_id, locality, bhk, price_numeric, price_label, type, raw_text, furnishing, embedding")
+              .not("embedding", "is", null)
+              .range(offset, offset + 200);
+            if (error) break;
+            if (!rows || rows.length === 0) break;
+
+            for (const row of rows) {
+              const vec = row.embedding as number[] | string | null;
+              if (!vec) continue;
+              const parsedVec = typeof vec === "string" ? JSON.parse(vec) as number[] : vec;
+              if (!Array.isArray(parsedVec) || parsedVec.length !== 768) continue;
+
+              if (input.locality && !String(row.locality || "").toLowerCase().includes(input.locality.toLowerCase())) continue;
+              if (input.bhk && String(row.bhk || "") !== String(input.bhk)) continue;
+              if (input.type && String(row.type || "").toLowerCase() !== input.type.toLowerCase()) continue;
+
+              let dot = 0, normA = 0, normB = 0;
+              for (let i = 0; i < 768; i++) {
+                dot += embedding[i] * parsedVec[i];
+                normA += embedding[i] * embedding[i];
+                normB += parsedVec[i] * parsedVec[i];
+              }
+              const sim = dot / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
+
+              if (sim >= threshold) {
+                results.push({ ...row, similarity: sim });
+              }
+            }
+            offset += 200;
+          }
+        }
+        results.sort((a, b) => b.similarity - a.similarity);
+        return results.slice(0, limit);
       }
 
-      if (!results || !results.length) {
+      const results = await fetchRowsWithEmbeddings();
+
+      if (!results.length) {
         return textResponse(`No semantically matching listings found for "${input.query}". Try lowering the threshold or using the search_listings tool for keyword-based search.`, { results: [] });
       }
 
-      const lines = (results as any[]).map((r: any) =>
-        `${r.bhk || "?"}BHK ${r.locality || "?"} — ${r.price_label || "?"} (${r.type || "?"}, ${r.furnishing || "?"}) — ${Math.round(r.similarity * 100)}% match`
+      const lines = results.map((r: any) =>
+        `${r.bhk || "?"}BHK ${r.locality || "?"} — ${r.price_label || "?"} (${r.type || "?"}${r.furnishing ? `, ${r.furnishing}` : ""}) — ${Math.round(r.similarity * 100)}% match`
       );
       return textResponse(`Found ${results.length} semantically matching listings for "${input.query}":\n\n${lines.join("\n")}`, {
         results,
