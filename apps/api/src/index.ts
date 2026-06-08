@@ -26,6 +26,7 @@ import vaultRoutes from './routes/vaultRoutes';
 import igrRoutes from './routes/igrRoutes';
 import locationRoutes from './routes/locationRoutes';
 import whatsappCloudRoutes from './routes/whatsappCloudRoutes';
+import wabaRoutes from './routes/wabaRoutes';
 import { backfillEmbeddings } from './controllers/backfillEmbeddingsController';
 import fs from 'fs';
 import path from 'path';
@@ -283,6 +284,7 @@ app.post('/api/backfill-embeddings', backfillEmbeddings);
 app.use('/api/vault', vaultRoutes);
 app.use('/api/igr', igrRoutes);
 app.use('/api/location', locationRoutes);
+app.use('/api/waba', wabaRoutes);
 
 app.get(ROUTE_PATHS.api.health, async (req, res) => {
     const health: Record<string, unknown> = {
