@@ -1,14 +1,15 @@
 import { igrEnrichmentService } from '../services/igrEnrichmentService';
 
-const POLL_INTERVAL_MS = 15 * 60 * 1000;
+const POLL_INTERVAL_MS = 5 * 60 * 1000;
 
 export class IgrEnrichmentJob {
   private timer: ReturnType<typeof setInterval> | null = null;
+  private running = false;
 
   start() {
     if (this.timer) return;
 
-    console.log('[IGREnrichment] Starting queue processor (interval: 15 min)');
+    console.log('[IGREnrichment] Starting queue processor (interval: 5 min)');
     void this.tick();
     this.timer = setInterval(() => {
       void this.tick();
@@ -24,6 +25,12 @@ export class IgrEnrichmentJob {
   }
 
   private async tick() {
+    if (this.running) {
+      console.log('[IGREnrichment] Previous queue run still active; skipping tick');
+      return;
+    }
+
+    this.running = true;
     try {
       const result = await igrEnrichmentService.processQueue();
       if (result.processed > 0) {
@@ -31,6 +38,8 @@ export class IgrEnrichmentJob {
       }
     } catch (error) {
       console.error('[IGREnrichment] Queue run failed', error);
+    } finally {
+      this.running = false;
     }
   }
 }

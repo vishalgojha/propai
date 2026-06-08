@@ -3,6 +3,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '../config/supabase';
 import { inferIgrCity } from './igrLocationResolver';
 import { igrQueryService, IgrTransactionPreview } from './igrQueryService';
+import { igrLiveFetchService } from './igrLiveFetchService';
 
 type QueueStatus = 'pending' | 'done' | 'failed';
 
@@ -23,6 +24,10 @@ type EnrichedIgrData = {
   transactions: IgrTransactionPreview[];
   localityStats: Awaited<ReturnType<typeof igrQueryService.getLocalityStats>> | null;
 };
+
+const QUEUE_BATCH_SIZE = 2;
+const QUEUE_RETRY_COOLDOWN_MS = 30 * 60 * 1000;
+const LIVE_FETCH_TIMEOUT_MS = 2 * 60 * 1000;
 
 function normalizeValue(value: string | null | undefined) {
   return String(value || '').trim();
@@ -207,12 +212,14 @@ export class IgrEnrichmentService {
   }
 
   async processQueue() {
+    const retryBefore = new Date(Date.now() - QUEUE_RETRY_COOLDOWN_MS).toISOString();
     const { data, error } = await this.getAdmin()
       .from('igr_enrichment_queue')
       .select('id, stream_item_id, building_name, locality, city, status, last_checked_at, created_at')
       .eq('status', 'pending')
+      .or(`last_checked_at.is.null,last_checked_at.lt.${retryBefore}`)
       .order('created_at', { ascending: true })
-      .limit(10);
+      .limit(QUEUE_BATCH_SIZE);
 
     if (error) {
       throw new Error(error.message);
@@ -239,12 +246,19 @@ export class IgrEnrichmentService {
 
     for (const item of queueItems) {
       try {
-        await igrQueryService.getRecentTransactionsForListing(
-          item.building_name,
-          item.locality || null,
-          item.city || null,
-          10,
-        );
+        const result = await Promise.race([
+          igrLiveFetchService.fetchAndStore({
+            buildingName: item.building_name,
+            locality: item.locality || undefined,
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Live IGR fetch timed out after ${LIVE_FETCH_TIMEOUT_MS / 1000}s`)), LIVE_FETCH_TIMEOUT_MS)
+          ),
+        ]);
+
+        if (!result.success) {
+          throw new Error(result.error || 'Live IGR fetch returned no usable transaction');
+        }
 
         const { error: doneError } = await this.getAdmin()
           .from('igr_enrichment_queue')
@@ -263,7 +277,7 @@ export class IgrEnrichmentService {
         const { error: failedError } = await this.getAdmin()
           .from('igr_enrichment_queue')
           .update({
-            status: 'failed',
+            status: 'pending',
             last_checked_at: new Date().toISOString(),
           })
           .eq('id', item.id);
@@ -276,7 +290,7 @@ export class IgrEnrichmentService {
         }
 
         failed += 1;
-        console.error('[IGREnrichment] Queue item failed', {
+        console.warn('[IGREnrichment] Queue item deferred for retry', {
           queueId: item.id,
           buildingName: item.building_name,
           locality: item.locality,
