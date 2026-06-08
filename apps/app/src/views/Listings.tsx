@@ -29,7 +29,8 @@ import { fetchWaClickStats, exportWaClickCsv, type WaClickStats } from '../servi
 
 const formatChannelTitle = (name: string) => `#${name}`;
 const PAGE_SIZE = 20;
-const STREAM_FETCH_LIMIT = 500;
+const STREAM_INITIAL_FETCH_LIMIT = 100;
+const STREAM_SEARCH_FETCH_LIMIT = 500;
 const STREAM_VIEW_CACHE_VERSION = 1;
 const STREAM_VIEW_CACHE_TTL_MS = 2 * 60 * 1000;
 const ALL_TYPES = ['Rent', 'Sale', 'Requirement', 'Pre-leased', 'Lease'] as const;
@@ -687,7 +688,7 @@ export const Listings: React.FC = () => {
   const serverFilters = React.useMemo(() => ({
     category: filterPropertyCategory as 'residential' | 'commercial',
     locality: localityFilter || undefined,
-    limit: STREAM_FETCH_LIMIT,
+    limit: STREAM_INITIAL_FETCH_LIMIT,
   }), [filterPropertyCategory, localityFilter]);
   const queryScopeKey = React.useMemo(
     () => [channelId || 'all', selectedSessionLabel || 'all', filterPropertyCategory, localityFilter || 'all'].join('|'),
@@ -723,7 +724,7 @@ export const Listings: React.FC = () => {
           channelId: channelId || undefined,
           sessionLabel: targetSessionLabel,
           ...serverFilters,
-          limit: STREAM_FETCH_LIMIT,
+          limit: STREAM_INITIAL_FETCH_LIMIT,
         }),
       ]);
 
@@ -1128,7 +1129,7 @@ if (brokerOnly) {
     setIsSearching(true);
     try {
       const assetClass = filterPropertyCategory === 'commercial' ? 'commercial' : 'residential';
-      const result = await searchStream(assetClass, search.trim(), STREAM_FETCH_LIMIT);
+      const result = await searchStream(assetClass, search.trim(), STREAM_SEARCH_FETCH_LIMIT);
       setStreamItems(result.items as StreamItem[]);
       setStreamTotal(result.total);
       setStreamNetworkMode(result.network_mode);
