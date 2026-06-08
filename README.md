@@ -50,7 +50,7 @@ PropAI Pulse is a high-performance workspace for real estate brokers to automate
    - Optionally set `GOOGLE_MODEL=gemini-2.5-flash`
    - Add Groq, OpenRouter, or Doubleword keys only if you want extra fallbacks
    - Multiple keys per provider can be separated with newlines, commas, or semicolons
-7. Embeddings use Google `gemini-embedding-001` at 768 dimensions. Set `GOOGLE_API_KEY` or `GEMINI_API_KEY` on backend and MCP services.
+7. Embeddings use Doubleword `Qwen/Qwen3-Embedding-8B` at 768 dimensions. Set `DOUBLEWORD_EMBEDDING_API_KEY` on backend and MCP services.
 8. All services auto-deploy on push to `main`.
 9. SSL is handled automatically by Coolify via Traefik and Let's Encrypt.
 10. Groq, OpenRouter, and Doubleword use simple OpenAI-compatible env settings:
@@ -60,6 +60,8 @@ PropAI Pulse is a high-performance workspace for real estate brokers to automate
    - `OPENROUTER_MODEL=openai/gpt-4o-mini`
    - `DOUBLEWORD_BASE_URL=https://api.doubleword.ai/v1`
    - `DOUBLEWORD_MODEL=qwen3-235b`
+   - `DOUBLEWORD_EMBEDDING_MODEL=Qwen/Qwen3-Embedding-8B`
+   - `DOUBLEWORD_EMBEDDING_DIMENSIONS=768`
 
 ## Local Development
 1. Install pnpm: `npm install -g pnpm`

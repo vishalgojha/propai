@@ -318,7 +318,7 @@ app.get(ROUTE_PATHS.api.health, async (req, res) => {
         console.error('[health] supabase check threw:', e?.message || e, e?.stack);
     }
 
-    // Check Google embedding service (powers semantic_search and embedStreamItem)
+    // Check Doubleword embedding service configuration (powers semantic_search and embedStreamItem)
     try {
         const { checkEmbeddingHealth } = await import('./services/embeddingService');
         const embHealth = await checkEmbeddingHealth();

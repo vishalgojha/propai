@@ -16,6 +16,9 @@
     "OPENROUTER_MODEL": "openai/gpt-4o-mini",
     "DOUBLEWORD_BASE_URL": "https://api.doubleword.ai/v1",
     "DOUBLEWORD_MODEL": "qwen3-235b",
+    "DOUBLEWORD_EMBEDDING_API_KEY": "variable",
+    "DOUBLEWORD_EMBEDDING_MODEL": "Qwen/Qwen3-Embedding-8B",
+    "DOUBLEWORD_EMBEDDING_DIMENSIONS": "768",
     "SUPABASE_URL": "variable",
     "SUPABASE_ANON_KEY": "variable",
     "SUPABASE_SERVICE_ROLE_KEY": "variable"

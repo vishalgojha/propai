@@ -1,10 +1,16 @@
-const EMBED_MODEL = process.env.GOOGLE_EMBEDDING_MODEL || "gemini-embedding-001";
-const EMBED_DIMENSIONS = 768;
+const EMBED_MODEL = process.env.DOUBLEWORD_EMBEDDING_MODEL || "Qwen/Qwen3-Embedding-8B";
+const EMBED_DIMENSIONS = Number(process.env.DOUBLEWORD_EMBEDDING_DIMENSIONS || "768");
 const EMBED_TIMEOUT_MS = 8000;
-const GOOGLE_EMBEDDING_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+const RATE_LIMIT_COOLDOWN_MS = 60_000;
+const DOUBLEWORD_BASE_URL = (process.env.DOUBLEWORD_BASE_URL || "https://api.doubleword.ai/v1").replace(/\/+$/, "");
+let rateLimitedUntil = 0;
 
-function getGoogleApiKey(): string {
-  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+function getDoublewordApiKeys(): string[] {
+  return [process.env.DOUBLEWORD_EMBEDDING_API_KEY, process.env.DOUBLEWORD_API_KEY]
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(/[\n,;]+/))
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
 export async function generateEmbedding(text: string): Promise<number[] | null> {
@@ -13,53 +19,66 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
     return null;
   }
 
-  const apiKey = getGoogleApiKey();
-  if (!apiKey) {
-    console.warn("[mcp/embedding] GOOGLE_API_KEY or GEMINI_API_KEY is not configured");
+  const apiKeys = getDoublewordApiKeys();
+  if (!apiKeys.length) {
+    console.warn("[mcp/embedding] DOUBLEWORD_EMBEDDING_API_KEY or DOUBLEWORD_API_KEY is not configured");
+    return null;
+  }
+  if (Date.now() < rateLimitedUntil) {
+    console.warn("[mcp/embedding] Doubleword embedding requests are paused after rate limiting");
     return null;
   }
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), EMBED_TIMEOUT_MS);
+  let sawRateLimit = false;
+  for (const apiKey of apiKeys) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), EMBED_TIMEOUT_MS);
 
-    const response = await fetch(`${GOOGLE_EMBEDDING_ENDPOINT}/${EMBED_MODEL}:embedContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        content: { parts: [{ text: input }] },
-        task_type: "RETRIEVAL_QUERY",
-        output_dimensionality: EMBED_DIMENSIONS,
-      }),
-      signal: controller.signal,
-    });
+      const response = await fetch(`${DOUBLEWORD_BASE_URL}/embeddings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: EMBED_MODEL,
+          input,
+          dimensions: EMBED_DIMENSIONS,
+        }),
+        signal: controller.signal,
+      });
 
-    clearTimeout(timeout);
+      clearTimeout(timeout);
 
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      console.warn(`[mcp/embedding] Google embedding HTTP ${response.status}: ${detail.slice(0, 240)}`);
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        console.warn(`[mcp/embedding] Doubleword embedding HTTP ${response.status}: ${detail.slice(0, 240)}`);
+        if (response.status === 429) {
+          sawRateLimit = true;
+          continue;
+        }
+        return null;
+      }
+
+      const data = await response.json() as { data?: Array<{ embedding?: number[] }> };
+      const embedding = data.data?.[0]?.embedding;
+      if (!Array.isArray(embedding) || !embedding.length) {
+        console.warn("[mcp/embedding] Empty or missing embedding in response");
+        return null;
+      }
+      if (embedding.length !== EMBED_DIMENSIONS) {
+        console.warn(`[mcp/embedding] Expected ${EMBED_DIMENSIONS} dimensions, received ${embedding.length}`);
+        return null;
+      }
+
+      return embedding;
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        console.warn("[mcp/embedding] Embedding request timed out");
+      } else {
+        console.warn("[mcp/embedding] Failed to generate embedding:", error);
+      }
       return null;
     }
-
-    const data = await response.json() as { embedding?: { values?: number[] } };
-    const embedding = data.embedding?.values;
-    if (!Array.isArray(embedding) || !embedding.length) {
-      console.warn("[mcp/embedding] Empty or missing embedding in response");
-      return null;
-    }
-    if (embedding.length !== EMBED_DIMENSIONS) {
-      console.warn(`[mcp/embedding] Expected ${EMBED_DIMENSIONS} dimensions, received ${embedding.length}`);
-      return null;
-    }
-
-    return embedding;
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      console.warn("[mcp/embedding] Embedding request timed out");
-    } else {
-      console.warn("[mcp/embedding] Failed to generate embedding:", error);
-    }
-    return null;
   }
+  if (sawRateLimit) rateLimitedUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+  return null;
 }

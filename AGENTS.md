@@ -34,7 +34,7 @@
 
 ### Backfill Status
 
-- Embeddings now use Google `gemini-embedding-001` at 768 dimensions.
+- Embeddings now use Doubleword `Qwen/Qwen3-Embedding-8B` at 768 dimensions.
 - Re-embed existing stream rows after provider changes; do not mix vectors from different providers.
 - Use `POST /api/backfill-embeddings` with a long HTTP timeout from production infrastructure.
 - The `is("embedding", null)` filter doesn't work on pgvector columns via PostgREST — the backfill re-processes ALL rows including existing embeddings, so it's idempotent but wasteful.
@@ -90,11 +90,11 @@ For local dev, add to `apps/api/.env` and `apps/app/.env.local`.
 
 - **Leaked Password Protection**: Requires Supabase **Pro Plan or higher** (free Plan does not include HaveIBeenPwned integration). Enable via Dashboard → Authentication → Settings → toggle ON.
 
-## Embedding Service (Google)
+## Embedding Service (Doubleword)
 
-`semantic_search` (MCP tool) and `semanticSearchListings` (API workflow) use Google `gemini-embedding-001` with `output_dimensionality: 768`, consumed by the existing 768-dim pgvector columns and `match_listings` RPC.
+`semantic_search` (MCP tool) and `semanticSearchListings` (API workflow) use Doubleword `Qwen/Qwen3-Embedding-8B` with `dimensions: 768`, consumed by the existing 768-dim pgvector columns and `match_listings` RPC.
 
-- Set `GOOGLE_API_KEY` or `GEMINI_API_KEY` on backend and MCP services.
-- Optional model override: `GOOGLE_EMBEDDING_MODEL=gemini-embedding-001`
-- Listing/document vectors use `RETRIEVAL_DOCUMENT`; user search prompts use `RETRIEVAL_QUERY`.
+- Set `DOUBLEWORD_EMBEDDING_API_KEY` on backend and MCP services. The code falls back to `DOUBLEWORD_API_KEY` only if the dedicated key is missing.
+- Optional model override: `DOUBLEWORD_EMBEDDING_MODEL=Qwen/Qwen3-Embedding-8B`
+- Optional dimensions override: `DOUBLEWORD_EMBEDDING_DIMENSIONS=768`
 - The API `/health` route reports `embedding: connected|unreachable` and flips overall status to `degraded` (HTTP 503) when embeddings are unavailable.
