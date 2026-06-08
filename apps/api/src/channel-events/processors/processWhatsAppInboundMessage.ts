@@ -686,7 +686,7 @@ export async function processWhatsAppInboundMessage(event: IncomingMessageRecord
             .eq('group_id', remoteJid)
             .maybeSingle();
 
-        if (config && config.behavior !== 'Listen' && config.behavior !== 'AutoReply') {
+        if (!config || (config.behavior !== 'Listen' && config.behavior !== 'AutoReply')) {
             return;
         }
 

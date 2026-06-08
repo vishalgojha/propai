@@ -707,7 +707,7 @@ export class WhatsAppHealthService {
         }
 
         const liveRows = (data || []).map((row: any) => {
-            const parsingState = parsingMap.get(String(row.group_id || '')) || { isParsing: true, behavior: 'Listen' };
+            const parsingState = parsingMap.get(String(row.group_id || '')) || { isParsing: false, behavior: 'Ignore' };
             return ({
             id: row.id,
             sessionLabel: row.session_label,

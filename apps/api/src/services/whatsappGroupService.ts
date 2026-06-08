@@ -294,7 +294,7 @@ export class WhatsAppGroupService {
                     participant_jids: nextParticipantJids,
                     is_parsing: typeof existing?.is_parsing === 'boolean'
                         ? existing.is_parsing
-                        : true,
+                        : false,
                     classification: String(existing?.classification || '').trim() || autoClassification.classification,
                     visibility_status: String(existing?.visibility_status || '').trim() || autoClassification.visibilityStatus,
                     business_confidence: typeof existing?.business_confidence === 'number'
@@ -314,7 +314,7 @@ export class WhatsAppGroupService {
                 payloads.push({
                     groupId: group.id,
                     payload,
-                    seedConfig: auditState.isPending && !existing,
+                    seedConfig: false,
                 });
             } catch (groupError: unknown) {
                 console.error('[WhatsAppGroupService] Unexpected error syncing group', group.id, groupError);
@@ -451,7 +451,7 @@ export class WhatsAppGroupService {
             participant_count: participantJids.length || null,
             member_count: participantJids.length || null,
             participant_jids: participantJids,
-            is_parsing: true,
+            is_parsing: false,
             classification: autoClassification.classification,
             visibility_status: autoClassification.visibilityStatus,
             business_confidence: autoClassification.confidence,
