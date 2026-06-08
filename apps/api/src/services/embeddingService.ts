@@ -45,7 +45,7 @@ export async function generateEmbedding(
             headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
             body: JSON.stringify({
                 content: { parts: [{ text: input }] },
-                taskType,
+                task_type: taskType,
                 output_dimensionality: EMBED_DIMENSIONS,
             }),
             signal: controller.signal,
