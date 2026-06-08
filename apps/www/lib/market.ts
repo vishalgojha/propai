@@ -36,6 +36,10 @@ export type MarketInsight = {
   created_at?: string;
 };
 
+const STREAM_MARKET_SELECT = "id, type, deal_type, bhk, price_label, price_numeric, locality, city, record_type, property_category, asset_class, created_at, raw_text, parsed_payload";
+const RESIDENTIAL_STREAM_SELECT = STREAM_MARKET_SELECT;
+const COMMERCIAL_STREAM_SELECT = STREAM_MARKET_SELECT.replace(", bhk", "");
+
 export function isRequirementType(type?: string | null) {
   return String(type || "").toLowerCase().includes("requirement");
 }
@@ -46,25 +50,12 @@ export async function fetchLocalityStreamItems(localityName: string, days = 30, 
   try {
     const normalizedLocality = normalizeLocalityQuery(localityName);
     const since = new Date(Date.now() - days * 86_400_000).toISOString();
-    let query = supabaseAdmin
-      .from("stream_items")
-      .select("id, type, deal_type, bhk, price_label, price_numeric, locality, city, record_type, property_category, asset_class, created_at, raw_text, parsed_payload")
-      .gte("created_at", since)
-      .order("created_at", { ascending: false })
-      .limit(limit);
-
-    if (normalizedLocality) {
-      query = query.eq("locality", normalizedLocality);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("[www] Failed to fetch locality stream items", error);
-      return [];
-    }
-
-    return ((data || []) as any[]).map(toStreamMarketItem);
+    return fetchSplitStreamMarketItems({
+      normalizedLocality,
+      limit,
+      applyWindow: (query) => query.gte("created_at", since),
+      errorLabel: "locality stream items",
+    });
   } catch (error) {
     console.error("[www] Locality stream fetch crashed", error);
     return [];
@@ -76,30 +67,58 @@ export async function fetchInsightStreamItems(localityName: string, periodStart:
 
   try {
     const normalizedLocality = normalizeLocalityQuery(localityName);
-    let query = supabaseAdmin
-      .from("stream_items")
-      .select("id, type, deal_type, bhk, price_label, price_numeric, locality, city, record_type, property_category, asset_class, created_at, raw_text, parsed_payload")
-      .gte("created_at", periodStart)
-      .lte("created_at", periodEnd)
-      .order("created_at", { ascending: false })
-      .limit(200);
-
-    if (normalizedLocality) {
-      query = query.eq("locality", normalizedLocality);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("[www] Failed to fetch insight stream items", error);
-      return [];
-    }
-
-    return ((data || []) as any[]).map(toStreamMarketItem);
+    return fetchSplitStreamMarketItems({
+      normalizedLocality,
+      limit: 200,
+      applyWindow: (query) => query.gte("created_at", periodStart).lte("created_at", periodEnd),
+      errorLabel: "insight stream items",
+    });
   } catch (error) {
     console.error("[www] Insight stream fetch crashed", error);
     return [];
   }
+}
+
+async function fetchSplitStreamMarketItems(input: {
+  normalizedLocality: string | null;
+  limit: number;
+  applyWindow: (query: any) => any;
+  errorLabel: string;
+}): Promise<StreamMarketItem[]> {
+  const buildQuery = (table: "stream_items_residential" | "stream_items_commercial", select: string) => {
+    let query = supabaseAdmin
+      .from(table)
+      .select(select)
+      .order("created_at", { ascending: false })
+      .limit(input.limit);
+
+    query = input.applyWindow(query);
+
+    if (input.normalizedLocality) {
+      query = query.eq("locality", input.normalizedLocality);
+    }
+
+    return query;
+  };
+
+  const [residentialResult, commercialResult] = await Promise.all([
+    buildQuery("stream_items_residential", RESIDENTIAL_STREAM_SELECT),
+    buildQuery("stream_items_commercial", COMMERCIAL_STREAM_SELECT),
+  ]);
+
+  if (residentialResult.error) {
+    console.error(`[www] Failed to fetch ${input.errorLabel} from residential stream`, residentialResult.error);
+  }
+  if (commercialResult.error) {
+    console.error(`[www] Failed to fetch ${input.errorLabel} from commercial stream`, commercialResult.error);
+  }
+
+  return [
+    ...(((residentialResult.data || []) as any[]).map(toStreamMarketItem)),
+    ...(((commercialResult.data || []) as any[]).map(toStreamMarketItem)),
+  ]
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+    .slice(0, input.limit);
 }
 
 export async function fetchMarketInsights(limit = 200): Promise<MarketInsight[]> {

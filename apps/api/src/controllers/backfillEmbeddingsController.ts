@@ -25,7 +25,9 @@ export async function backfillEmbeddings(req: Request, res: Response) {
       let totalDone = 0;
       const results: { table: string; done: number; failed: number }[] = [];
 
-      for (const table of ['stream_items_residential', 'stream_items_commercial'] as const) {
+      const tables = ['stream_items_commercial', 'stream_items_residential'];
+      // commercial first (has least embeddings), then residential
+      for (const table of tables) {
         let offset = 0;
         let done = 0;
         let failed = 0;

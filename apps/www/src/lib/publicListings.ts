@@ -66,10 +66,14 @@ type PublicStreamSource = "stream_items" | "stream_items_residential" | "stream_
 
 const PUBLIC_STREAM_SELECT = "id, tenant_id, canonical_record_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, updated_at, parsed_payload, property_category, asset_class";
 const PUBLIC_SOURCE_TABLES: Array<{ table: PublicStreamSource; select: string; includeCanonical: boolean }> = [
-  { table: "stream_items", select: PUBLIC_STREAM_SELECT, includeCanonical: true },
   { table: "stream_items_residential", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", ""), includeCanonical: false },
   { table: "stream_items_commercial", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", "").replace(", bhk", ""), includeCanonical: false },
 ];
+const LEGACY_PUBLIC_SOURCE_TABLE: { table: PublicStreamSource; select: string; includeCanonical: boolean } = {
+  table: "stream_items",
+  select: PUBLIC_STREAM_SELECT,
+  includeCanonical: true,
+};
 
 type CacheEntry<T> = {
   expiresAt: number;
@@ -142,14 +146,12 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
     return cachedListings;
   }
 
-  const [{ data: streamRows, error: streamError }, { data: residentialRows, error: residentialError }, { data: commercialRows, error: commercialError }, { data: profiles }] = await Promise.all([
-    fetchPublicSourceRows("stream_items", PUBLIC_STREAM_SELECT, normalizedLocality),
+  const [{ data: residentialRows, error: residentialError }, { data: commercialRows, error: commercialError }, { data: profiles }] = await Promise.all([
     fetchPublicSourceRows("stream_items_residential", PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", ""), normalizedLocality),
     fetchPublicSourceRows("stream_items_commercial", PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", "").replace(", bhk", ""), normalizedLocality),
     supabaseAdmin.from("profiles").select("id, phone, full_name"),
   ]);
 
-  if (streamError) throw new Error(streamError.message);
   if (residentialError) throw new Error(residentialError.message);
   if (commercialError) throw new Error(commercialError.message);
 
@@ -160,7 +162,7 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
     brokerMap.set(digits, { phone: digits, fullName: (row as any).full_name || null });
   }
 
-  const combinedRows = [...((streamRows || []) as any[]), ...((residentialRows || []) as any[]), ...((commercialRows || []) as any[])];
+  const combinedRows = [...((residentialRows || []) as any[]), ...((commercialRows || []) as any[])];
 
   const canonicalIds = [...new Set((combinedRows as any[])
     .map((row) => String(row.canonical_record_id || "").trim())
@@ -234,10 +236,10 @@ export async function fetchPublicListingBySlug(slug: string): Promise<PublicList
   const shortId = normalizedSlug.split('-').pop();
   if (shortId && shortId.length === 8) {
     const pattern = `%${shortId}`;
-    for (const table of ['stream_items', 'stream_items_residential', 'stream_items_commercial'] as const) {
+    for (const source of [...PUBLIC_SOURCE_TABLES, LEGACY_PUBLIC_SOURCE_TABLE]) {
       const { data: rows } = await supabaseAdmin
-        .from(table)
-        .select(PUBLIC_STREAM_SELECT)
+        .from(source.table)
+        .select(source.select)
         .neq('record_type', 'buyer_requirement')
         .ilike('id::text', pattern)
         .order('created_at', { ascending: false })
@@ -1166,4 +1168,3 @@ export async function fetchRelatedListings(listing: PublicListing, limit = 3): P
 
   return related;
 }
-

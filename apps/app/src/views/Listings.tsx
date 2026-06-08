@@ -1463,7 +1463,7 @@ if (brokerOnly) {
         </span>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
         {summaryCards.map((card) => (
           <div key={card.label} className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4">
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">{card.label}</p>
@@ -1480,7 +1480,7 @@ if (brokerOnly) {
       ) : null}
 
       <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-3">
-        <div className="flex flex-wrap items-center gap-4 text-xs">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 text-xs">
           <div className="flex items-center gap-2 text-neutral-400">
             <Activity className="h-3.5 w-3.5 text-[--propai-green]" />
             <span className="font-medium text-white">WhatsApp opens today</span>
@@ -1496,7 +1496,7 @@ if (brokerOnly) {
               ? new Date(waClickStats.last_click_at).toLocaleTimeString()
               : '—'}
           </span>
-          <div className="flex-1" />
+          <div className="hidden flex-1 sm:block" />
           <button
             type="button"
             onClick={() => void exportWaClickCsv()}
@@ -1509,7 +1509,7 @@ if (brokerOnly) {
       </div>
 
       {/* Unified Search Bar + Asset Toggle */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
           <input
@@ -1546,12 +1546,12 @@ if (brokerOnly) {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
           <button
             type="button"
             onClick={() => setFilterPropertyCategory('residential')}
             className={cn(
-              'rounded-lg border px-4 py-2 text-xs font-bold uppercase tracking-wider transition-colors',
+              'rounded-lg border px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors sm:px-4',
               filterPropertyCategory !== 'commercial'
                 ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
                 : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
@@ -1563,7 +1563,7 @@ if (brokerOnly) {
             type="button"
             onClick={() => setFilterPropertyCategory('commercial')}
             className={cn(
-              'rounded-lg border px-4 py-2 text-xs font-bold uppercase tracking-wider transition-colors',
+              'rounded-lg border px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors sm:px-4',
               filterPropertyCategory === 'commercial'
                 ? 'border-purple-500 bg-purple-500/20 text-purple-300'
                 : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
@@ -1802,8 +1802,7 @@ if (brokerOnly) {
       ) : null}
 
       <div className="glass-panel overflow-hidden rounded-2xl border-[color:var(--border)]">
-        <div className="overflow-x-auto">
-          {isLoading ? (
+        {isLoading ? (
             <div className="flex items-center justify-center gap-3 px-5 py-12 text-sm text-[var(--text-secondary)]">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading inventory feed...
@@ -1817,6 +1816,188 @@ if (brokerOnly) {
               No parsed inventory or buyer records are available yet.
             </div>
           ) : (
+            <>
+              <div className="space-y-4 p-3 md:hidden">
+                {renderedGroups.map((group) => (
+                  <section key={group.locality} className="space-y-3">
+                    <div className="sticky top-0 z-10 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[11px] font-semibold text-[var(--text-primary)]">
+                      <div className="truncate">{group.locality}</div>
+                      <div className="mt-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
+                        {group.listingCount} listing{group.listingCount === 1 ? '' : 's'} · {group.requirementCount} requirement{group.requirementCount === 1 ? '' : 's'}
+                      </div>
+                    </div>
+
+                    {group.items.map((listing) => {
+                      const isExpanded = expandedListingId === listing.id;
+                      const recordLabel = getRecordLabel(listing);
+                      const typeLabel = getTypeLabel(listing);
+                      const snippet = buildSnippet(listing);
+                      const rawNote = listing.rawText || listing.description || '';
+                      const cleanNote = sanitizeBrokerText(rawNote);
+                      const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
+                      const buildingIntel = summarizeIgrBuildingIntel(listing.buildingName, listing.igrTransactions);
+                      const igrQueueStatus = summarizeIgrQueueStatus(listing);
+                      const showIgrQueueStatus = Boolean(String(listing.buildingName || '').trim()) && igrTransactions.length === 0 && Boolean(igrQueueStatus);
+                      const commercialSummary = listing.propertyCategory === 'commercial' || listing.assetClass === 'commercial'
+                        ? [listing.commercialType || listing.propertyUse || listing.assetClass, listing.fitoutStatus].filter(Boolean).join(' · ')
+                        : '';
+                      const primarySpec = commercialSummary || listing.bhk || formatAreaCell(listing.areaSqft) || 'Property';
+                      const waLink = listing.brokerWaMeLinks?.[0] || listing.waLink;
+
+                      return (
+                        <article
+                          key={listing.id}
+                          data-action="stream-item"
+                          onClick={() => {
+                            setExpandedListingId(isExpanded ? null : listing.id);
+                            if (!isExpanded && editingListingId && editingListingId !== listing.id) {
+                              setEditingListingId(null);
+                              setCorrectionDraft(null);
+                            }
+                          }}
+                          className={cn(
+                            'rounded-[14px] border p-3 transition-colors',
+                            isExpanded
+                              ? 'border-[color:var(--accent-border)] bg-[var(--bg-surface)]'
+                              : 'border-[color:var(--border)] bg-[var(--bg-surface)]',
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap gap-1.5">
+                                <span className={cn('inline-flex rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]', getRecordBadgeClass(recordLabel))}>
+                                  {recordLabel}
+                                </span>
+                                <span className={cn('inline-flex rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]', getDealBadgeClass(typeLabel))}>
+                                  {typeLabel}
+                                </span>
+                              </div>
+                              <h3 className="mt-2 text-[16px] font-semibold leading-snug text-[var(--text-primary)]">
+                                {formatLocalityCell(listing.location)}
+                              </h3>
+                              <p className="mt-1 text-[12px] font-medium text-[var(--text-secondary)]">
+                                {primarySpec}
+                              </p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <div className="text-[13px] font-bold text-[var(--text-primary)]">
+                                {normalizePriceDisplay(listing).label || 'Ask'}
+                              </div>
+                              <div className="mt-1 text-[10px] text-[var(--text-secondary)]">
+                                {formatPostedCell(listing.createdAt)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 space-y-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+                            {listing.buildingName ? (
+                              <div>Building: <span className="font-semibold text-[var(--text-primary)]">{listing.buildingName}</span></div>
+                            ) : null}
+                            {showIgrQueueStatus && igrQueueStatus ? (
+                              <div className="inline-flex w-fit rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">
+                                {igrQueueStatus.label}
+                              </div>
+                            ) : null}
+                            {listing.microLocation ? (
+                              <div>Landmark: <span className="font-semibold text-[var(--text-primary)]">{listing.microLocation}</span></div>
+                            ) : null}
+                            {buildingIntel ? (
+                              <div>Intel: <span className="font-semibold text-[var(--text-primary)]">{buildingIntel.latest}</span></div>
+                            ) : null}
+                            {!snippet.isLowSignal ? (
+                              <div>Signal: <span className="font-semibold text-[var(--text-primary)]">{snippet.label}</span></div>
+                            ) : null}
+                          </div>
+
+                          {isExpanded ? (
+                            <div className="mt-4 border-t border-[color:var(--border)] pt-3">
+                              {igrTransactions.length > 0 ? (
+                                <div className="mb-3 space-y-2">
+                                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">IGR Transactions</p>
+                                  {igrTransactions.map((transaction) => (
+                                    <div
+                                      key={`${transaction.doc_number || 'txn'}-${transaction.reg_date || ''}`}
+                                      className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] text-[var(--text-primary)]"
+                                    >
+                                      {formatIgrCompact(transaction)}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
+                              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Broker Note</p>
+                              <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-5 text-[var(--text-primary)]">{cleanNote || '—'}</pre>
+                            </div>
+                          ) : null}
+
+                          <div className="mt-4 grid grid-cols-3 gap-2">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (!waLink) return;
+                                window.open(waLink, '_blank', 'noopener,noreferrer');
+                              }}
+                              disabled={!waLink}
+                              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[10px] font-bold uppercase tracking-[0.04em] text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Phone className="h-3.5 w-3.5" />
+                              WA
+                            </button>
+                            <button
+                              type="button"
+                              data-action="save-to-channel"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setOpenActionMenuId((current) => current === listing.id ? null : listing.id);
+                              }}
+                              className="h-10 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2 text-[10px] font-bold uppercase tracking-[0.04em] text-[var(--text-primary)]"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void navigator.clipboard.writeText(buildCopyText(listing));
+                                setInfoMessage('Copied listing note.');
+                              }}
+                              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] text-[10px] font-bold uppercase tracking-[0.04em] text-[var(--text-primary)]"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              Copy
+                            </button>
+                          </div>
+
+                          {openActionMenuId === listing.id ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {channels.length === 0 ? (
+                                <div className="text-[12px] text-[var(--text-secondary)]">No channels available.</div>
+                              ) : (
+                                channels.map((channel) => (
+                                  <button
+                                    key={channel.id}
+                                    type="button"
+                                    data-action="save-to-channel"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void handleAttachStreamItemToChannel(channel.id, listing.id);
+                                    }}
+                                    disabled={savingChannelItemId === listing.id}
+                                    className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] text-[var(--text-primary)] disabled:opacity-60"
+                                  >
+                                    {savingChannelItemId === listing.id ? 'Saving...' : formatChannelTitle(channel.name)}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          ) : null}
+                        </article>
+                      );
+                    })}
+                  </section>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
             <table className="min-w-[1080px] w-full border-separate border-spacing-0 text-left">
               <thead>
                 <tr className="border-b border-[color:var(--accent-border)] bg-[color:var(--propai-green-dim)]">
@@ -2110,8 +2291,9 @@ if (brokerOnly) {
                 </tbody>
               ))}
             </table>
+              </div>
+            </>
           )}
-        </div>
 
         <div ref={sentinelRef} className="px-6 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
           {hasMore ? `${renderedStream.length} of ${visibleStream.length} loaded. More items appear as you scroll.` : 'End of feed'}
