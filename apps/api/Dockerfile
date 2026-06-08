@@ -2,10 +2,11 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Install git plus CA roots so pnpm can resolve git-based deps over HTTPS.
+# Install git, ssh, and CA roots so pnpm can resolve git-based deps.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     git \
+    openssh-client \
     python3 \
     make \
     g++ \
