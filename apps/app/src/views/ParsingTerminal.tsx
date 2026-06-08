@@ -92,6 +92,9 @@ export default function ParsingTerminal() {
   const [dismissedPromptIds, setDismissedPromptIds] = React.useState<string[]>([]);
   const [infoMessage, setInfoMessage] = React.useState<string | null>(null);
   const [isRescanning, setIsRescanning] = React.useState(false);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = React.useState(false);
+  const matrixScrollRef = React.useRef<HTMLDivElement | null>(null);
+  const eventsScrollRef = React.useRef<HTMLDivElement | null>(null);
 
   const refresh = React.useCallback(async () => {
     try {
@@ -264,6 +267,28 @@ export default function ParsingTerminal() {
     return () => window.clearInterval(timer);
   }, [isConnected, refresh]);
 
+  const updateHeaderCollapse = React.useCallback(() => {
+    const hasPageScroll = window.scrollY > 40;
+    const hasMatrixScroll = Number(matrixScrollRef.current?.scrollTop || 0) > 24;
+    const hasEventsScroll = Number(eventsScrollRef.current?.scrollTop || 0) > 24;
+    setIsHeaderCollapsed(hasPageScroll || hasMatrixScroll || hasEventsScroll);
+  }, []);
+
+  React.useEffect(() => {
+    const matrixNode = matrixScrollRef.current;
+    const eventsNode = eventsScrollRef.current;
+    window.addEventListener('scroll', updateHeaderCollapse, { passive: true });
+    matrixNode?.addEventListener('scroll', updateHeaderCollapse, { passive: true });
+    eventsNode?.addEventListener('scroll', updateHeaderCollapse, { passive: true });
+    updateHeaderCollapse();
+
+    return () => {
+      window.removeEventListener('scroll', updateHeaderCollapse);
+      matrixNode?.removeEventListener('scroll', updateHeaderCollapse);
+      eventsNode?.removeEventListener('scroll', updateHeaderCollapse);
+    };
+  }, [updateHeaderCollapse]);
+
   const totals = React.useMemo(
     () =>
       groups.reduce(
@@ -326,11 +351,24 @@ export default function ParsingTerminal() {
   }, [refresh]);
 
   return (
-    <main className="terminal-shell relative flex min-h-[calc(100vh-96px)] flex-col gap-4 overflow-hidden pb-6">
+    <main
+      className="terminal-shell relative flex min-h-[calc(100vh-96px)] flex-col gap-4 overflow-hidden pb-6"
+      onWheel={(event) => {
+        if (event.deltaY > 14) setIsHeaderCollapsed(true);
+        if (event.deltaY < -14 && window.scrollY <= 4 && Number(matrixScrollRef.current?.scrollTop || 0) <= 4 && Number(eventsScrollRef.current?.scrollTop || 0) <= 4) {
+          setIsHeaderCollapsed(false);
+        }
+      }}
+    >
       <div className="terminal-grid absolute inset-0 opacity-60" aria-hidden="true" />
-      <header className="terminal-panel relative overflow-hidden border border-[color:var(--accent-border)] bg-[linear-gradient(180deg,rgba(17,24,32,0.98),rgba(9,13,18,0.96))] px-4 py-4 shadow-[0_0_0_1px_var(--accent-glow),0_18px_50px_rgba(0,0,0,0.32)]">
+      <header
+        className={cn(
+          'terminal-panel relative overflow-hidden border border-[color:var(--accent-border)] bg-[linear-gradient(180deg,rgba(17,24,32,0.98),rgba(9,13,18,0.96))] px-4 shadow-[0_0_0_1px_var(--accent-glow),0_18px_50px_rgba(0,0,0,0.32)] transition-[padding] duration-200',
+          isHeaderCollapsed ? 'py-2' : 'py-4',
+        )}
+      >
         <div className="absolute inset-x-0 top-0 h-[2px] bg-[linear-gradient(90deg,transparent,var(--accent),transparent)]" />
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className={cn('flex flex-col xl:flex-row xl:justify-between', isHeaderCollapsed ? 'gap-2 xl:items-center' : 'gap-4 xl:items-end')}>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--accent)]">
               <span className="inline-flex items-center gap-2 rounded-none border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-1">
@@ -344,10 +382,10 @@ export default function ParsingTerminal() {
                 {lastRefresh ? `Last poll ${formatTime(lastRefresh.toISOString())}` : 'Booting feed'}
               </span>
             </div>
-            <h1 className="mt-3 font-mono text-[30px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)]">
+            <h1 className={cn('font-mono font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-all duration-200', isHeaderCollapsed ? 'mt-1 text-[18px]' : 'mt-3 text-[30px]')}>
               Parsing Terminal
             </h1>
-            <p className="mt-2 max-w-3xl font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+            <p className={cn('mt-2 max-w-3xl font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-secondary)]', isHeaderCollapsed && 'hidden')}>
               All groups parse by default. Opt out of groups you don't need. Rescan to discover newly joined groups.
             </p>
           </div>
@@ -380,7 +418,7 @@ export default function ParsingTerminal() {
             </div>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className={cn('grid gap-3 md:grid-cols-3', isHeaderCollapsed ? 'hidden' : 'mt-4')}>
           <TransportCard
             label="WhatsApp transport"
             value={
@@ -484,7 +522,7 @@ export default function ParsingTerminal() {
             <span>Rate</span>
             <span>Last seen</span>
           </div>
-          <div className="pulse-scrollbar max-h-[calc(100vh-270px)] overflow-y-auto">
+          <div ref={matrixScrollRef} className="pulse-scrollbar max-h-[calc(100vh-270px)] overflow-y-auto">
             {loading ? (
               <TerminalEmpty text="Loading parser state" />
             ) : groups.length === 0 ? (
@@ -503,7 +541,7 @@ export default function ParsingTerminal() {
               left="Recent parse wins"
               right={events.length > 0 ? `${events.length} visible` : 'Awaiting events'}
             />
-            <div className="pulse-scrollbar max-h-[calc(50vh-120px)] space-y-0 overflow-y-auto">
+            <div ref={eventsScrollRef} className="pulse-scrollbar max-h-[calc(50vh-120px)] space-y-0 overflow-y-auto">
             {events.length === 0 ? (
               <TerminalEmpty text={isConnected ? 'Waiting for parsed broadcast items' : 'Connect WhatsApp to resume parser monitoring'} />
             ) : (
