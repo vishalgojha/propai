@@ -874,6 +874,34 @@ try {
         });
     }
 
+    async stopTransport() {
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+        if (this.qrTimeoutTimer) {
+            clearTimeout(this.qrTimeoutTimer);
+            this.qrTimeoutTimer = null;
+        }
+        if (this.replayTimer) {
+            clearTimeout(this.replayTimer);
+            this.replayTimer = null;
+        }
+        if (this.autoSyncInterval) {
+            clearInterval(this.autoSyncInterval);
+            this.autoSyncInterval = null;
+        }
+
+        this.isConnecting = false;
+        this.connectionStatus = 'disconnected';
+        this.stopHealthCheck();
+
+        if (this.socket) {
+            await this.disposeSocket({ logout: false }).catch(() => undefined);
+            this.socket = null;
+        }
+    }
+
     async sendText(jid: string, text: string) {
         return this.sendMessage(jid, text);
     }

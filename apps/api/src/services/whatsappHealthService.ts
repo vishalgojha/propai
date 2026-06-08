@@ -51,6 +51,7 @@ type HeartbeatSessionManager = {
             label?: string;
             ownerName?: string;
             skipLimitCheck?: boolean;
+            freshAuth?: boolean;
         },
     ): Promise<unknown>;
 };
@@ -907,6 +908,7 @@ export class WhatsAppHealthService {
                             phoneNumber: pendingPhone || undefined,
                             usePairingCode: mode === 'pairing' ? pendingPhone || undefined : undefined,
                             skipLimitCheck: true,
+                            freshAuth: true,
                         });
                         continue;
                     }

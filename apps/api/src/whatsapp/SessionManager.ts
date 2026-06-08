@@ -20,6 +20,7 @@ type CreateSessionOptions = {
     label?: string;
     ownerName?: string;
     skipLimitCheck?: boolean;
+    freshAuth?: boolean;
 };
 
 export class SessionManager {
@@ -162,41 +163,54 @@ export class SessionManager {
         const existingClient = this.clients.get(fullKey);
         if (existingClient) {
             this.callbacks.set(fullKey, { onQR, onConnectionUpdate });
-            const snapshot = existingClient.getStatusSnapshot();
-            if (snapshot.status === 'connected') {
-                const existingQR = this.qrs.get(fullKey);
-                if (existingQR) {
-                    onQR(existingQR);
+            if (options.freshAuth) {
+                this.qrs.delete(fullKey);
+                await existingClient.stopTransport().catch((error) => {
+                    void this.hooks.onError?.({
+                        tenantId,
+                        label: sessionKey,
+                        error,
+                        stage: 'createSession.freshAuth.stopTransport',
+                    });
+                });
+                this.clients.delete(fullKey);
+            } else {
+                const snapshot = existingClient.getStatusSnapshot();
+                if (snapshot.status === 'connected') {
+                    const existingQR = this.qrs.get(fullKey);
+                    if (existingQR) {
+                        onQR(existingQR);
+                    }
+                    return existingClient;
                 }
-                return existingClient;
-            }
 
-            if (snapshot.status === 'connecting' || snapshot.isReconnecting) {
-                if (options.usePairingCode) {
+                if (snapshot.status === 'connecting' || snapshot.isReconnecting) {
+                    if (options.usePairingCode) {
+                        this.qrs.delete(fullKey);
+                        await existingClient.restartTransport({
+                            usePairingCode: options.usePairingCode,
+                            phoneNumber: options.phoneNumber || snapshot.phoneNumber || undefined,
+                        });
+                        const refreshedQR = this.qrs.get(fullKey);
+                        if (refreshedQR) {
+                            onQR(refreshedQR);
+                        }
+                    }
+                    return existingClient;
+                }
+
+                if (snapshot.status === 'disconnected') {
                     this.qrs.delete(fullKey);
                     await existingClient.restartTransport({
                         usePairingCode: options.usePairingCode,
-                        phoneNumber: options.phoneNumber || snapshot.phoneNumber || undefined,
+                        phoneNumber: options.phoneNumber,
                     });
                     const refreshedQR = this.qrs.get(fullKey);
                     if (refreshedQR) {
                         onQR(refreshedQR);
                     }
+                    return existingClient;
                 }
-                return existingClient;
-            }
-
-            if (snapshot.status === 'disconnected') {
-                this.qrs.delete(fullKey);
-                await existingClient.restartTransport({
-                    usePairingCode: options.usePairingCode,
-                    phoneNumber: options.phoneNumber,
-                });
-                const refreshedQR = this.qrs.get(fullKey);
-                if (refreshedQR) {
-                    onQR(refreshedQR);
-                }
-                return existingClient;
             }
         }
 
