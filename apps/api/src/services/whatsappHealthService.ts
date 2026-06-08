@@ -680,29 +680,12 @@ export class WhatsAppHealthService {
                 .eq('tenant_id', tenantId)
                 .in('group_id', groupIds);
 
-            const { data: groupRows } = await db
-                .from('whatsapp_groups')
-                .select('group_jid, is_parsing')
-                .eq('workspace_id', tenantId)
-                .in('group_jid', groupIds);
-
-            for (const row of groupRows || []) {
-                parsingMap.set(String(row.group_jid || ''), {
-                    isParsing: Boolean(row.is_parsing),
-                    behavior: null,
-                });
-            }
-
             for (const row of configs || []) {
                 const groupId = String(row.group_id || '');
-                const current = parsingMap.get(groupId) || { isParsing: false, behavior: null };
                 parsingMap.set(groupId, {
                     isParsing: row.behavior === 'Listen' || row.behavior === 'AutoReply',
                     behavior: String(row.behavior || ''),
                 });
-                if (current.isParsing && !row.behavior) {
-                    parsingMap.set(groupId, current);
-                }
             }
         }
 
