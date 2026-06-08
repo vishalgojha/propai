@@ -92,7 +92,7 @@ For local dev, add to `apps/api/.env` and `apps/app/.env.local`.
 
 ## Embedding Service (Google)
 
-`semantic_search` (MCP tool) and `semanticSearchListings` (API workflow) use Google `gemini-embedding-001` with `outputDimensionality: 768`, consumed by the existing 768-dim pgvector columns and `match_listings` RPC.
+`semantic_search` (MCP tool) and `semanticSearchListings` (API workflow) use Google `gemini-embedding-001` with `output_dimensionality: 768`, consumed by the existing 768-dim pgvector columns and `match_listings` RPC.
 
 - Set `GOOGLE_API_KEY` or `GEMINI_API_KEY` on backend and MCP services.
 - Optional model override: `GOOGLE_EMBEDDING_MODEL=gemini-embedding-001`

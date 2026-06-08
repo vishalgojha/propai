@@ -46,7 +46,7 @@ export async function generateEmbedding(
             body: JSON.stringify({
                 content: { parts: [{ text: input }] },
                 taskType,
-                outputDimensionality: EMBED_DIMENSIONS,
+                output_dimensionality: EMBED_DIMENSIONS,
             }),
             signal: controller.signal,
         });

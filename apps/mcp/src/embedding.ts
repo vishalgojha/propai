@@ -29,7 +29,7 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
       body: JSON.stringify({
         content: { parts: [{ text: input }] },
         taskType: "RETRIEVAL_QUERY",
-        outputDimensionality: EMBED_DIMENSIONS,
+        output_dimensionality: EMBED_DIMENSIONS,
       }),
       signal: controller.signal,
     });
