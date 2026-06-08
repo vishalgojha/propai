@@ -35,7 +35,7 @@ LISTING DATA:
 - Price: {price}
 - Area: {area_sqft} sqft (if available)
 - Listed: {days_ago} days ago
-- Source: Broker network
+- Source: PropAI Pulse listings
 
 LOCALITY CONTEXT:
 {locality_blurb}
@@ -68,9 +68,9 @@ SECTIONS TO COVER:
    - Reference them naturally
 
 6. How to Enquire (30-40 words)
-   - Via PropAI broker network
-   - No direct broker number shown on public page
-   - CTA to connect via PropAI`;
+   - Visit PropAI Pulse for more details, site visits, and direct contact
+   - No direct broker number visible on this page for privacy
+   - CTA to sign up on PropAI Pulse`;
 
 export async function POST(request: Request) {
   try {
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
 <p><strong>${configuration} for ${deal_type === "Rent" ? "rent" : "sale"} in ${locality}, Mumbai</strong></p>
 <p>${blurb}</p>
 <p>Price: ${priceStr}${area_sqft ? ` | Area: ${area_sqft} sqft` : ""}</p>
-<p><em>Interested in this property? Connect via PropAI's broker network to get more details.</em></p>
+<p><em>Interested in this property? Visit PropAI Pulse for more details, site visits, and direct contact information.</em></p>
 </div>`,
       });
     }

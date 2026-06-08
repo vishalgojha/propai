@@ -4,22 +4,10 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MessageCircle, MapPin, Bell, Clock, ChevronRight, CheckCircle, Phone, X, BedDouble, Move, IndianRupee, Building } from 'lucide-react';
 import { getListingBySlug, getListings, type PublicListing } from '@/lib/listings';
-import { formatPrice } from '@/lib/format';
+import { formatPrice, formatBhk, buildDescription } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import ListingCard from '@/components/ListingCard';
-
-function buildDescription(listing: PublicListing): string {
-  const parts: string[] = [];
-  const dealType = listing.type === 'Requirement' ? 'Wanted' : listing.type === 'Rent' ? 'Available for rent' : 'Available for sale';
-  parts.push(dealType);
-  if (listing.bhk) parts.push(`${listing.bhk}`);
-  if (listing.locality) parts.push(`in ${listing.locality}`);
-  if (listing.furnishing) parts.push(`(${listing.furnishing})`);
-  if (listing.area_sqft) parts.push(`${listing.area_sqft} sqft`);
-  if (listing.availability) parts.push(`· ${listing.availability}`);
-  return parts.join(' ') || 'Direct Realtor listing';
-}
 
 export default function ListingDetail({ 
   slug, 
@@ -206,7 +194,7 @@ export default function ListingDetail({
             </p>
             <div className="flex flex-wrap gap-2">
               {[
-                listing.bhk && { label: 'Configuration', value: `${listing.bhk}`.replace(/\s*BHK$/i, '') + ' BHK' },
+                listing.bhk && { label: 'Configuration', value: formatBhk(listing.bhk) || `${listing.bhk}` },
                 listing.area_sqft && { label: 'Area', value: `${listing.area_sqft} SQFT` },
                 listing.furnishing && { label: 'Furnishing', value: listing.furnishing },
                 listing.availability && { label: 'Availability', value: listing.availability },
@@ -290,7 +278,7 @@ export default function ListingDetail({
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             {[
-              listing.bhk && { label: 'BHK', value: `${listing.bhk}`.replace(/\s*BHK$/i, '') + ' BHK', icon: BedDouble },
+              listing.bhk && { label: formatBhk(listing.bhk)?.includes('BHK') ? 'BHK' : 'Type', value: formatBhk(listing.bhk) || `${listing.bhk}`, icon: BedDouble },
               listing.area_sqft && { label: 'Area', value: `${listing.area_sqft} sqft`, icon: Move },
               listing.price && listing.price > 0 && { label: 'Price', value: formatPrice(listing.price), icon: IndianRupee },
               listing.type && { label: 'Deal Type', value: listing.type, icon: Building },
@@ -332,7 +320,7 @@ export default function ListingDetail({
         <div className="rounded-[24px] bg-[var(--bg-surface)]/60 backdrop-blur-md p-6 border border-white/2">
           <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">Interested in this property?</div>
           <p className="mt-3 text-[13px] leading-relaxed text-[var(--text-secondary)] font-medium">
-            Get direct broker contact and exclusive details by signing up to PropAI Pulse — the real-time broker network platform.
+            Get more details, schedule a site visit, or discuss pricing directly with the listing contact. Sign up to unlock full property information.
           </p>
           <a
             href="https://app.propai.live"
@@ -341,7 +329,7 @@ export default function ListingDetail({
             className="mt-4 flex items-center justify-center gap-2 rounded-[14px] bg-[var(--accent)] py-3.5 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--on-propai-green)] transition-all hover:brightness-110"
           >
             <MessageCircle className="h-4 w-4" />
-            Connect on PropAI
+            Get Property Details
           </a>
         </div>
       </div>

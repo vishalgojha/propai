@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { MapPin, BedDouble, Move, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatPrice } from '@/lib/format';
+import { formatPrice, formatBhk, buildDescription } from '@/lib/format';
 import type { PublicListing } from '@/lib/listings';
 
 interface ListingCardProps {
@@ -14,20 +14,7 @@ interface ListingCardProps {
   key?: React.Key;
 }
 
-function buildDescription(listing: PublicListing): string {
-  const parts: string[] = [];
-  const dealType = listing.type === 'Requirement' ? 'Wanted' : listing.type === 'Rent' ? 'Available for rent' : 'Available for sale';
-  parts.push(dealType);
 
-  if (listing.bhk) parts.push(`${listing.bhk}`);
-  if (listing.locality) parts.push(`in ${listing.locality}`);
-
-  if (listing.furnishing) parts.push(`(${listing.furnishing})`);
-  if (listing.area_sqft) parts.push(`${listing.area_sqft} sqft`);
-  if (listing.availability) parts.push(`· ${listing.availability}`);
-
-  return parts.join(' ') || 'Direct broker listing';
-}
 
 export default function ListingCard({ listing }: ListingCardProps) {
   const description = buildDescription(listing);
@@ -35,7 +22,8 @@ export default function ListingCard({ listing }: ListingCardProps) {
   const formattedPrice = formatPrice(listing.price, listing.type);
 
   const features = [];
-  if (listing.bhk) features.push(`${listing.bhk}`.replace(/\s*BHK$/i, '') + ' BHK');
+  const bhkLabel = formatBhk(listing.bhk);
+  if (bhkLabel) features.push(bhkLabel);
   if (listing.raw_text?.toLowerCase().includes('furnish')) features.push('Furnished');
   if (listing.raw_text?.toLowerCase().includes('parking')) features.push('Parking');
   if (listing.raw_text?.toLowerCase().includes('sea view') || listing.raw_text?.toLowerCase().includes('ocean')) features.push('Sea View');
@@ -81,10 +69,10 @@ export default function ListingCard({ listing }: ListingCardProps) {
 
             {/* Tags */}
             <div className="flex flex-wrap gap-2 pt-2">
-              {listing.bhk && (
+              {bhkLabel && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)]">
                   <BedDouble className="h-3.5 w-3.5" />
-                  {`${listing.bhk}`.replace(/\s*BHK$/i, '')} BHK
+                  {bhkLabel}
                 </span>
               )}
               {listing.area_sqft && (
