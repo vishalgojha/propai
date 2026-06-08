@@ -1,7 +1,7 @@
 -- Enable pgvector extension
 create extension if not exists vector with schema public;
 
--- Add embedding column to stream_items (768-dim for nomic-embed-text)
+-- Add embedding column to stream_items (768-dim semantic embeddings)
 alter table public.stream_items
     add column if not exists embedding vector(768);
 

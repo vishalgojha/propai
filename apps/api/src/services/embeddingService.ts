@@ -1,49 +1,76 @@
-/**
- * embeddingService.ts
- * Generates vector embeddings via nomic-embed-text running on Hetzner/Ollama.
- * Endpoint: http://116.202.9.89:11434 (set via HETZNER_EMBED_URL env var)
- * Model: nomic-embed-text (768 dimensions)
- */
-
-const EMBED_BASE_URL = process.env.HETZNER_EMBED_URL || 'http://116.202.9.89:11434';
-const EMBED_MODEL = process.env.EMBED_MODEL || 'nomic-embed-text';
+const EMBED_MODEL = process.env.GOOGLE_EMBEDDING_MODEL || 'gemini-embedding-001';
+const EMBED_DIMENSIONS = 768;
 const EMBED_TIMEOUT_MS = 8000;
+const GOOGLE_EMBEDDING_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+type GoogleEmbeddingTask =
+    | 'RETRIEVAL_QUERY'
+    | 'RETRIEVAL_DOCUMENT'
+    | 'SEMANTIC_SIMILARITY'
+    | 'CLASSIFICATION'
+    | 'CLUSTERING'
+    | 'QUESTION_ANSWERING'
+    | 'FACT_VERIFICATION'
+    | 'CODE_RETRIEVAL_QUERY';
 
 export type EmbeddingVector = number[];
+
+function getGoogleApiKey(): string {
+    return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+}
 
 /**
  * Generate a 768-dimension embedding for a given text string.
  * Returns null on failure — never throws, so callers can treat it as non-blocking.
  */
-export async function generateEmbedding(text: string): Promise<EmbeddingVector | null> {
+export async function generateEmbedding(
+    text: string,
+    taskType: GoogleEmbeddingTask = 'RETRIEVAL_QUERY',
+): Promise<EmbeddingVector | null> {
     const input = text.trim();
     if (!input) return null;
+
+    const apiKey = getGoogleApiKey();
+    if (!apiKey) {
+        console.warn('[embeddingService] GOOGLE_API_KEY or GEMINI_API_KEY is not configured');
+        return null;
+    }
 
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), EMBED_TIMEOUT_MS);
 
-        const response = await fetch(`${EMBED_BASE_URL}/api/embeddings`, {
+        const response = await fetch(`${GOOGLE_EMBEDDING_ENDPOINT}/${EMBED_MODEL}:embedContent`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: EMBED_MODEL, prompt: input }),
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            body: JSON.stringify({
+                content: { parts: [{ text: input }] },
+                taskType,
+                outputDimensionality: EMBED_DIMENSIONS,
+            }),
             signal: controller.signal,
         });
 
         clearTimeout(timeout);
 
         if (!response.ok) {
-            console.warn(`[embeddingService] HTTP ${response.status} from Ollama`);
+            const detail = await response.text().catch(() => '');
+            console.warn(`[embeddingService] Google embedding HTTP ${response.status}: ${detail.slice(0, 240)}`);
             return null;
         }
 
-        const data = await response.json() as { embedding?: number[] };
-        if (!Array.isArray(data.embedding) || data.embedding.length === 0) {
+        const data = await response.json() as { embedding?: { values?: number[] } };
+        const embedding = data.embedding?.values;
+        if (!Array.isArray(embedding) || embedding.length === 0) {
             console.warn('[embeddingService] Empty or missing embedding in response');
             return null;
         }
+        if (embedding.length !== EMBED_DIMENSIONS) {
+            console.warn(`[embeddingService] Expected ${EMBED_DIMENSIONS} dimensions, received ${embedding.length}`);
+            return null;
+        }
 
-        return data.embedding;
+        return embedding;
     } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
             console.warn('[embeddingService] Embedding request timed out');
@@ -101,31 +128,30 @@ export function buildFingerprintText(fields: {
 export async function embedStreamItem(fields: Parameters<typeof buildFingerprintText>[0]): Promise<EmbeddingVector | null> {
     const fingerprint = buildFingerprintText(fields);
     if (!fingerprint) return null;
-    return generateEmbedding(fingerprint);
+    return generateEmbedding(fingerprint, 'RETRIEVAL_DOCUMENT');
 }
 
 /**
- * Health check — returns true if Ollama is reachable and the model is loaded.
+ * Health check — returns true if Google embeddings are configured and reachable.
  */
-export async function checkEmbeddingHealth(): Promise<{ ok: boolean; model: string; url: string; error?: string }> {
+export async function checkEmbeddingHealth(): Promise<{ ok: boolean; model: string; dimensions: number; error?: string }> {
+    if (!getGoogleApiKey()) {
+        return { ok: false, model: EMBED_MODEL, dimensions: EMBED_DIMENSIONS, error: 'GOOGLE_API_KEY or GEMINI_API_KEY is not configured' };
+    }
+
     try {
-        const response = await fetch(`${EMBED_BASE_URL}/api/tags`, { signal: AbortSignal.timeout(3000) });
-        if (!response.ok) {
-            return { ok: false, model: EMBED_MODEL, url: EMBED_BASE_URL, error: `HTTP ${response.status}` };
-        }
-        const data = await response.json() as { models?: Array<{ name: string }> };
-        const loaded = (data.models || []).some((m) => m.name.startsWith(EMBED_MODEL));
+        const embedding = await generateEmbedding('health', 'SEMANTIC_SIMILARITY');
         return {
-            ok: loaded,
+            ok: Boolean(embedding),
             model: EMBED_MODEL,
-            url: EMBED_BASE_URL,
-            error: loaded ? undefined : `Model ${EMBED_MODEL} not found in Ollama`,
+            dimensions: EMBED_DIMENSIONS,
+            error: embedding ? undefined : 'Google embedding probe failed',
         };
     } catch (error) {
         return {
             ok: false,
             model: EMBED_MODEL,
-            url: EMBED_BASE_URL,
+            dimensions: EMBED_DIMENSIONS,
             error: error instanceof Error ? error.message : 'Unknown error',
         };
     }

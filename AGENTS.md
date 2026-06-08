@@ -34,19 +34,18 @@
 
 ### Backfill Status
 
-- **stream_items_residential**: 289/1000 with embeddings (recovering from data loss caused by concurrent async backfill bug)
-- **stream_items_commercial**: 0/1000 — curl-based backfill hangs on first commercial row (Ollama timeout from local)
-- **Fix**: Run `backfillAll.ts` from within the API container (same Hetzner network) to avoid local→Hetzner connectivity issues. Or use `POST /api/backfill-embeddings` with a very long HTTP timeout from the server itself.
+- Embeddings now use Google `gemini-embedding-001` at 768 dimensions.
+- Re-embed existing stream rows after provider changes; do not mix vectors from different providers.
+- Use `POST /api/backfill-embeddings` with a long HTTP timeout from production infrastructure.
 - The `is("embedding", null)` filter doesn't work on pgvector columns via PostgREST — the backfill re-processes ALL rows including existing embeddings, so it's idempotent but wasteful.
 
 ### Completed in This Session
 
-- Fixed embedding backfill: added `POST /api/backfill-embeddings` endpoint and scripts (`backfillEmbeddings.ts`, `backfillBatch.ts`, `backfillSlow.ts`)
+- Fixed embedding backfill: added `POST /api/backfill-embeddings` endpoint
 - Fixed TypeScript errors in `embeddingService.ts` (cast) and `backfillEmbeddingsController.ts` (record_type select)
 - Fixed MCP OAuth FK violation: auto-create missing `mcp_oauth_clients` row in `oauth.ts`
 - Fixed `semantic_search` MCP tool: rewrote to query child tables (`stream_items_residential`/`stream_items_commercial`) directly with client-side cosine similarity instead of broken `match_listings` RPC
 - Added embedding generation hooks at ingest time: `ingestController.ts` and `channelService.ts` now call `embedStreamItem()` before insert/upsert
-- Resolved Ollama stuck state: model `nomic-embed-text` was missing after deploy (persistent volume not surviving redeploy). Recovery: `POST /api/pull` with `nomic-embed-text`
 - Deployed API, MCP, and www to Coolify (www has BHK fix, intent form, AI description, etc.)
 
 ### Current Remote State
@@ -91,33 +90,11 @@ For local dev, add to `apps/api/.env` and `apps/app/.env.local`.
 
 - **Leaked Password Protection**: Requires Supabase **Pro Plan or higher** (free Plan does not include HaveIBeenPwned integration). Enable via Dashboard → Authentication → Settings → toggle ON.
 
-## Embedding Service (Ollama)
+## Embedding Service (Google)
 
-`semantic_search` (MCP tool) and `semanticSearchListings` (API workflow) depend on a self-hosted Ollama server that produces 768-dim vectors consumed by the `match_listings` pgvector RPC.
+`semantic_search` (MCP tool) and `semanticSearchListings` (API workflow) use Google `gemini-embedding-001` with `outputDimensionality: 768`, consumed by the existing 768-dim pgvector columns and `match_listings` RPC.
 
-- **Coolify project**: `PropAi Pulse` (`cq4v70slt7on9vk2davp6f9q`)
-- **Coolify app**: `ollama` (UUID `f60zbro04gyeig7xnkvck0zr`)
-- **Endpoint**: `http://116.202.9.89:11434` (env var `HETZNER_EMBED_URL`, defaults match)
-- **Model**: `nomic-embed-text` (768-dim, F16, ~274 MB, nomic-bert family)
-- **Persistent volume**: `/data/coolify/applications/ollama-data/ollama` → container `/root/.ollama` (host fs_path bind mount, is_directory)
-- **Image**: `ollama/ollama:latest` (Dockerfile marker in `apps/ollama/Dockerfile`)
-- **Resource limits**: 2 GB RAM, 2 CPU, health check disabled (Ollama has no `GET /health`)
-- **Restart**: Coolify default `unless-stopped`
-
-### If Ollama goes down
-
-The API `/health` route now reports `embedding: unreachable|no_model|connected` and flips the overall status to `degraded` (HTTP 503). `semanticSearchListings` automatically falls back to keyword `searchListings` with a `_Note: ... used keyword search instead._` annotation in the reply.
-
-To recover:
-1. Coolify UI → PropAI Pulse → `ollama` → check status, redeploy if `exited`
-2. If the persistent volume is intact, the model survives — just restart
-3. If the model is gone (e.g. volume wiped), exec into the container and run `ollama pull nomic-embed-text` (or call `POST /api/pull` from the host)
-
-### Known Ollama Stability Issues
-
-- After deploy/restart, Ollama must pull `nomic-embed-text` again if volume was wiped (validate via `curl /api/tags`)
-- Node.js `fetch` to Ollama from local dev machine may time out while `curl` works — likely a network issue between dev machine and Hetzner
-- After ~3-5 consecutive embedding requests, Ollama may hang (timeout on new requests). Recovery: wait ~30s or redeploy container
-- Workaround for backfill: use `curl` via `child_process.execSync` instead of `fetch`; batch size of 1 with 1s delay between rows; health check before each batch; 30s wait on failure
-- Production API container reaches Ollama fine (same Hetzner network) — only local dev has connectivity issues
-- Backfill scripts at `apps/api/src/scripts/backfillBatch.ts` and `backfillSlow.ts` for bulk embedding generation
+- Set `GOOGLE_API_KEY` or `GEMINI_API_KEY` on backend and MCP services.
+- Optional model override: `GOOGLE_EMBEDDING_MODEL=gemini-embedding-001`
+- Listing/document vectors use `RETRIEVAL_DOCUMENT`; user search prompts use `RETRIEVAL_QUERY`.
+- The API `/health` route reports `embedding: connected|unreachable` and flips overall status to `degraded` (HTTP 503) when embeddings are unavailable.
