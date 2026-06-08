@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Clock, ExternalLink, ChevronUp, ChevronDown, Copy, Save, MapPin, Check, Zap } from 'lucide-react';
+import { MessageSquare, Clock, ExternalLink, ChevronUp, ChevronDown, Copy, Save, MapPin, Check, Zap, RefreshCw } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { formatPriceNumeric } from '../../lib/formatPrice';
 import { getStreamPriceLabel } from '../../lib/streamPrice';
@@ -253,6 +253,8 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         ? 'Shared network feed'
         : 'Private workspace feed';
     const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
+    const hasBuildingName = Boolean(String(listing.buildingName || '').trim());
+    const isIgrLookupPending = hasBuildingName && igrTransactions.length === 0;
 
     const handleOpenWa = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -407,6 +409,18 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                ) : isIgrLookupPending ? (
+                    <div className="mb-4 rounded-[18px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]/25 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">IGR auto lookup</p>
+                                <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
+                                    {listing.buildingName} is queued for background registration lookup. Results will appear here after the portal fetch succeeds.
+                                </p>
+                            </div>
+                            <RefreshCw className="h-4 w-4 text-[var(--accent)]" />
                         </div>
                     </div>
                 ) : null}

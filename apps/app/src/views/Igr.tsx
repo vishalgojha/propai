@@ -47,13 +47,15 @@ export default function IgrView() {
   const [liveMessage, setLiveMessage] = React.useState<string | null>(null);
   const [payload, setPayload] = React.useState<IgrSearchResponse | null>(null);
   const [suggestions, setSuggestions] = React.useState<Array<{ name: string; city: string | null; count: number }>>([]);
+  const [autoBuildings, setAutoBuildings] = React.useState<Array<{ name: string; city: string | null; count: number }>>([]);
+  const [loadingAutoBuildings, setLoadingAutoBuildings] = React.useState(false);
   const [showSuggestions, setShowSuggestions] = React.useState(false);
   const suggestionsRef = React.useRef<HTMLDivElement>(null);
 
-  const loadSearch = React.useCallback(async (building?: string, place?: string) => {
+  const loadSearch = React.useCallback(async (building?: string, place?: string, selectedCity?: string) => {
     const effectiveBuilding = String(building ?? buildingName).trim();
     const effectiveLocality = String(place ?? locality).trim();
-    const effectiveCity = city.trim();
+    const effectiveCity = String(selectedCity ?? city).trim();
 
     if (!effectiveBuilding && !effectiveLocality && !effectiveCity) {
       setPayload(null);
@@ -103,7 +105,7 @@ export default function IgrView() {
           ? `Latest transaction refreshed${result.docNumber ? ` as ${result.docNumber}` : ''} from ${result.sourceUrl || 'live source'}.`
           : `Latest transaction source reached at ${result.sourceUrl || 'unknown source'}, but nothing was saved.`,
       );
-      await loadSearch(effectiveBuilding, effectiveLocality);
+      await loadSearch(effectiveBuilding, effectiveLocality, effectiveCity);
     } catch (reason) {
       setError(handleApiError(reason));
     } finally {
@@ -147,12 +149,40 @@ export default function IgrView() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoadingAutoBuildings(true);
+    fetchBuildingNames()
+      .then((names) => {
+        if (!cancelled) setAutoBuildings(names);
+      })
+      .catch(() => {
+        if (!cancelled) setAutoBuildings([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingAutoBuildings(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const selectSuggestion = (name: string, nextCity?: string | null) => {
     setBuildingName(name);
     setCity(nextCity || '');
     setShowSuggestions(false);
     setSuggestions([]);
     setError(null);
+  };
+
+  const openAutoBuilding = async (item: { name: string; city: string | null; count: number }) => {
+    setBuildingName(item.name);
+    setCity(item.city || '');
+    setLocality('');
+    setShowSuggestions(false);
+    setError(null);
+    setLiveMessage(null);
+    await loadSearch(item.name, '', item.city || '');
   };
 
   const savedCount = payload?.transactions?.length || 0;
@@ -189,6 +219,57 @@ export default function IgrView() {
           {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           Refresh latest
         </button>
+      </div>
+
+      <div className={panelClass}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Automatic IGR lookup</p>
+            <h3 className="mt-1 text-[15px] font-bold text-[var(--text-primary)]">Buildings detected from Stream</h3>
+            <p className="mt-1 max-w-2xl text-[12px] leading-5 text-[var(--text-secondary)]">
+              Newly parsed building names are indexed and queued for background IGR fetches. Click any building to view saved registrations; if none are saved yet, the worker keeps retrying.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setLoadingAutoBuildings(true);
+              fetchBuildingNames()
+                .then(setAutoBuildings)
+                .catch(() => setAutoBuildings([]))
+                .finally(() => setLoadingAutoBuildings(false));
+            }}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', loadingAutoBuildings && 'animate-spin')} />
+            Refresh feed
+          </button>
+        </div>
+
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+          {loadingAutoBuildings ? (
+            <div className="rounded-[14px] border border-dashed border-[color:var(--border)] px-4 py-3 text-[12px] text-[var(--text-secondary)]">
+              Loading parsed buildings...
+            </div>
+          ) : autoBuildings.length > 0 ? (
+            autoBuildings.map((item) => (
+              <button
+                key={`${item.name}|${item.city || ''}`}
+                type="button"
+                onClick={() => void openAutoBuilding(item)}
+                className="min-w-[220px] rounded-[14px] border border-[color:var(--border)] bg-[var(--bg)] px-4 py-3 text-left transition hover:border-[color:var(--accent-border)] hover:bg-[var(--accent-dim)]/30"
+              >
+                <p className="truncate text-[13px] font-semibold text-[var(--text-primary)]">{item.name}</p>
+                <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{item.city || 'City pending'} · {item.count} signal{item.count === 1 ? '' : 's'}</p>
+                <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">Open IGR data</p>
+              </button>
+            ))
+          ) : (
+            <div className="rounded-[14px] border border-dashed border-[color:var(--border)] px-4 py-3 text-[12px] text-[var(--text-secondary)]">
+              No parsed building names yet. Stream will populate this automatically.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Form + Latest result row */}

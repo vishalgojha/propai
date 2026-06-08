@@ -1799,6 +1799,7 @@ if (brokerOnly) {
                     const snippet = buildSnippet(listing);
                     const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
                     const buildingIntel = summarizeIgrBuildingIntel(listing.buildingName, listing.igrTransactions);
+                    const isIgrLookupPending = Boolean(String(listing.buildingName || '').trim()) && igrTransactions.length === 0;
 
                     return (
                       <React.Fragment key={listing.id}>
@@ -1837,6 +1838,11 @@ if (brokerOnly) {
                               {listing.buildingName ? (
                                 <div className="text-[11px] text-[var(--text-secondary)]">
                                   Building: <span className="font-semibold text-[var(--text-primary)]">{listing.buildingName}</span>
+                                </div>
+                              ) : null}
+                              {isIgrLookupPending ? (
+                                <div className="inline-flex w-fit rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">
+                                  IGR lookup queued
                                 </div>
                               ) : null}
                               {listing.microLocation ? (
@@ -1963,6 +1969,13 @@ if (brokerOnly) {
                                             </div>
                                           ))}
                                         </div>
+                                      </div>
+                                    ) : isIgrLookupPending ? (
+                                      <div className="rounded-[14px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]/30 px-3 py-3">
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">IGR auto lookup</p>
+                                        <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+                                          {listing.buildingName} is in the background lookup flow. Transactions will appear here after the Maharashtra IGR fetch succeeds.
+                                        </p>
                                       </div>
                                     ) : null}
 
