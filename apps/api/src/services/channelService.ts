@@ -3369,8 +3369,8 @@ ${rawText}
                     parseIndianLocation(candidateText) ||
                     (item.locality ? parseIndianLocation(String(item.locality)) : null) ||
                     commonResolution;
-                const locality = String(item.locality || resolution?.locality || commonLocation || extractIndianLocality(candidateText) || extractIndianLocality(rawText) || '').trim() || null;
-                const city = String(item.city || resolution?.city || commonCity || '').trim() || null;
+                const locality = String(resolution?.locality || commonLocation || extractIndianLocality(candidateText) || item.locality || extractIndianLocality(rawText) || '').trim() || null;
+                const city = String(resolution?.city || commonCity || item.city || '').trim() || null;
                 const rawBuildingName = item.buildingName ? String(item.buildingName).trim() : extractBuildingName(candidateText);
                 const rawMicroLocation = item.microLocation ? String(item.microLocation).trim() : (extractMicroLocation(candidateText) || extractMicroLocation(rawText));
                 const buildingName = sanitizeBuildingNameCandidate(rawBuildingName);
