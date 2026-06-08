@@ -52,14 +52,13 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'ojha007@gmail.com',
   'hello@propai.live',
 ]);
-type StreamPresetId = 'fresh' | 'rental' | 'sale' | 'pre_leased' | 'requirements' | 'high_confidence';
+type StreamPresetId = 'fresh' | 'rental' | 'sale' | 'pre_leased' | 'requirements';
 const STREAM_PRESETS: Array<{ id: StreamPresetId; label: string }> = [
   { id: 'fresh', label: '🔴 Fresh' },
   { id: 'rental', label: '🏠 Rental' },
   { id: 'sale', label: '💰 Sale' },
   { id: 'pre_leased', label: '🏢 Pre-Leased' },
   { id: 'requirements', label: '📋 Requirements' },
-  { id: 'high_confidence', label: '⭐ High Confidence' },
 ];
 
 type StreamViewCache = {
@@ -313,17 +312,6 @@ const matchesCommercialFacet = (item: StreamItem, facet: string) => {
   return haystack.includes(normalizedFacet);
 };
 
-const isConfidenceInBand = (confidence: number, band: 'low' | 'medium' | 'high') => {
-  if (band === 'high') return confidence >= 70;
-  if (band === 'medium') return confidence >= 40 && confidence < 70;
-  return confidence < 40;
-};
-
-const getConfidenceBand = (confidence: number): 'high' | 'medium' | 'low' => {
-  if (confidence >= 70) return 'high';
-  if (confidence >= 40) return 'medium';
-  return 'low';
-};
 const formatLayoutLabel = (value: string) => {
   const trimmed = value.trim();
   const match = trimmed.match(/^(\d+)(\+)?\s*bhk$/i);
@@ -596,8 +584,6 @@ type StreamCorrectionDraft = {
   recordType: string;
   dealType: string;
   assetClass: string;
-  confidence: number;
-  parseNotes: string;
 };
 
 const buildCorrectionDraft = (item: StreamItem): StreamCorrectionDraft => ({
@@ -610,8 +596,6 @@ const buildCorrectionDraft = (item: StreamItem): StreamCorrectionDraft => ({
   recordType: item.recordType || '',
   dealType: item.dealType || '',
   assetClass: item.assetClass || '',
-  confidence: item.confidence,
-  parseNotes: item.parseNotes || '',
 });
 
 const canViewStreamPlan = (plan?: string | null) => {
@@ -653,7 +637,6 @@ export const Listings: React.FC = () => {
   const [filterSource, setFilterSource] = React.useState<string>('all');
   const [brokerOnly, setBrokerOnly] = React.useState(false);
   const [quickTypes, setQuickTypes] = React.useState<Array<StreamItem['type']>>([]);
-  const [quickConfidenceBands, setQuickConfidenceBands] = React.useState<Array<'low' | 'medium' | 'high'>>([]);
   const [quickFreshnessBands, setQuickFreshnessBands] = React.useState<Array<'1h' | '6h'>>([]);
   const [filterPropertyCategory, setFilterPropertyCategory] = React.useState<string>('residential');
   const [searchSuggestions, setSearchSuggestions] = React.useState<FuzzySuggestion[]>([]);
@@ -1036,10 +1019,6 @@ export const Listings: React.FC = () => {
       filtered = filtered.filter((item) => matchesCommercialFacet(item, filterCommercialFacet));
     }
 
-    if (quickConfidenceBands.length > 0) {
-      filtered = filtered.filter((item) => quickConfidenceBands.some((band) => isConfidenceInBand(item.confidence, band)));
-    }
-
     if (quickFreshnessBands.length > 0) {
       filtered = filtered.filter((item) => {
         const minutes = parseRecencyMinutes(item.posted);
@@ -1088,7 +1067,7 @@ if (brokerOnly) {
     filtered = filtered.filter((item) => (item.propertyCategory || 'residential') === filterPropertyCategory);
 
     return filtered;
-  }, [streamItems, search, quickTypes, filterBhk, filterCommercialFacet, quickConfidenceBands, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory]);
+  }, [streamItems, search, quickTypes, filterBhk, filterCommercialFacet, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory]);
 
   const activeFilterCount = React.useMemo(() => {
     let count = 0;
@@ -1099,18 +1078,16 @@ if (brokerOnly) {
     } else if (filterBhk !== 'all') {
       count++;
     }
-    if (quickConfidenceBands.length > 0) count++;
     if (quickFreshnessBands.length > 0) count++;
     if (filterSource !== 'all') count++;
     if (brokerOnly) count++;
     if (filterPropertyCategory !== 'all') count++;
     return count;
-  }, [quickTypes, quickTimeBands, filterBhk, filterCommercialFacet, quickConfidenceBands, quickFreshnessBands, filterSource, brokerOnly, filterPropertyCategory]);
+  }, [quickTypes, quickTimeBands, filterBhk, filterCommercialFacet, quickFreshnessBands, filterSource, brokerOnly, filterPropertyCategory]);
 
   const clearAllFilters = () => {
     setQuickTypes([]);
     setQuickTimeBands([]);
-    setQuickConfidenceBands([]);
     setQuickFreshnessBands([]);
     setFilterBhk('all');
     setFilterCommercialFacet('all');
@@ -1168,7 +1145,6 @@ if (brokerOnly) {
       return;
     }
 
-    setQuickConfidenceBands((current) => toggleSelection(current, 'high'));
   };
 
   const isPresetActive = (preset: StreamPresetId) => {
@@ -1177,12 +1153,12 @@ if (brokerOnly) {
     if (preset === 'sale') return quickTypes.includes('Sale');
     if (preset === 'pre_leased') return quickTypes.includes('Pre-leased');
     if (preset === 'requirements') return quickTypes.includes('Requirement');
-    return quickConfidenceBands.includes('high');
+    return false;
   };
 
   React.useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [activeChannel?.id, search, quickTypes, filterBhk, quickConfidenceBands, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory, localityFilter]);
+  }, [activeChannel?.id, search, quickTypes, filterBhk, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory, localityFilter]);
 
   React.useEffect(() => {
     const fetch = async () => {
@@ -1605,7 +1581,7 @@ if (brokerOnly) {
           ) : null}
         </div>
         <p className="text-[11px] text-[var(--text-secondary)]">
-          Filter by type, freshness, confidence, source, and broker-only signals.
+          Filter by type, freshness, source, and broker-only signals.
         </p>
       </div>
 
@@ -1725,30 +1701,6 @@ if (brokerOnly) {
                       )}
                     >
                       {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Confidence</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {(['low', 'medium', 'high'] as const).map((band) => {
-                  const active = quickConfidenceBands.includes(band);
-                  return (
-                    <button
-                      key={band}
-                      type="button"
-                      onClick={() => setQuickConfidenceBands((current) => toggleSelection(current, band))}
-                      className={cn(
-                        'rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                        active
-                          ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
-                          : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
-                      )}
-                    >
-                      {band}
                     </button>
                   );
                 })}
@@ -2188,12 +2140,6 @@ if (brokerOnly) {
                                       <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Broker Note</p>
                                       <pre className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-6 text-[var(--text-primary)]">{cleanNote || '—'}</pre>
                                     </div>
-                                    {listing.parseNotes ? (
-                                      <div>
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Parse Notes</p>
-                                        <p className="mt-1 text-[12px] leading-6 text-[var(--text-secondary)]">{listing.parseNotes}</p>
-                                      </div>
-                                    ) : null}
                                   </div>
 
                                   <div className="space-y-3">

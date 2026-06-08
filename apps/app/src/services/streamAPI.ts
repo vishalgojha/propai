@@ -15,7 +15,6 @@ export interface StreamItem {
   posted?: string;
   description?: string;
   rawText?: string;
-  parseNotes?: string;
   recordType?: string;
   dealType?: string;
   assetClass?: string;
@@ -29,7 +28,6 @@ export interface StreamItem {
   workstationsCount?: number | null;
   cabinsCount?: number | null;
   areaSqft?: number | null;
-  confidence: number;
   source: string;
   brokerName?: string | null;
   brokerCompany?: string | null;
@@ -76,8 +74,6 @@ export interface InboxMatch {
   id: string;
   sourceItem: StreamItem;
   matchedItem: StreamItem;
-  matchScore: number;
-  matchReasons: string[];
   isRead: boolean;
   createdAt: string;
 }
@@ -102,8 +98,6 @@ export interface StreamFilters {
   type?: string[];
   category?: 'residential' | 'commercial';
   locality?: string;
-  minConfidence?: number;
-  confidenceBand?: Array<'low' | 'medium' | 'high'>;
   timeBand?: Array<'1h' | '4h' | '1d' | '7d'>;
   freshnessBand?: Array<'1h' | '6h'>;
   source?: string;
@@ -159,8 +153,6 @@ export async function fetchStreamItems(filters?: StreamFilters): Promise<StreamR
   if (filters?.category) params.category = filters.category;
   if (filters?.locality) params.locality = filters.locality;
   if (filters?.bhk && filters.bhk !== 'all') params.bhk = filters.bhk;
-  if (filters?.minConfidence) params.minConfidence = filters.minConfidence;
-  if (filters?.confidenceBand && filters.confidenceBand.length > 0) params.confidenceBand = filters.confidenceBand.join(',');
   if (filters?.timeBand && filters.timeBand.length > 0) params.timeBand = filters.timeBand.join(',');
   if (filters?.freshnessBand && filters.freshnessBand.length > 0) params.freshnessBand = filters.freshnessBand.join(',');
   if (filters?.source && filters.source !== 'all') params.source = filters.source;
@@ -231,7 +223,6 @@ export async function fetchStreamStats(): Promise<{
   byType: Record<string, number>;
   byCategory: Record<string, number>;
   unreadCount: number;
-  avgConfidence: number;
 }> {
   try {
     const response = await backendApi.get(ENDPOINTS.streamItems.stats);
@@ -240,7 +231,6 @@ export async function fetchStreamStats(): Promise<{
       byType: {},
       byCategory: {},
       unreadCount: Number(response.data?.unread || 0),
-      avgConfidence: Number(response.data?.avgConfidence || 0),
     };
   } catch {
     return {
@@ -248,7 +238,6 @@ export async function fetchStreamStats(): Promise<{
       byType: {},
       byCategory: {},
       unreadCount: 0,
-      avgConfidence: 0,
     };
   }
 }

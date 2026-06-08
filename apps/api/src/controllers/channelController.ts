@@ -8,7 +8,6 @@ import '../types/express';
 import { getCachedValue, invalidateCachedValues, setCachedValue } from '../utils/responseCache';
 
 const VALID_STREAM_TYPES = new Set(['Rent', 'Sale', 'Requirement', 'Pre-leased', 'Lease']);
-const VALID_CONFIDENCE_BANDS = new Set(['low', 'medium', 'high']);
 const VALID_TIME_BANDS = new Set(['1h', '4h', '1d', '7d']);
 const VALID_FRESHNESS_BANDS = new Set(['1h', '6h']);
 const STREAM_ITEMS_CACHE_TTL_MS = 15_000;
@@ -37,9 +36,7 @@ function buildStreamItemsCacheKey(
         normalizeCacheSegment(filters.category),
         normalizeCacheSegment(filters.locality),
         normalizeCacheSegment(filters.bhk),
-        normalizeCacheSegment(filters.minConfidence),
         normalizeCacheSegment((filters.types || []).join(',')),
-        normalizeCacheSegment((filters.confidenceBands || []).join(',')),
         normalizeCacheSegment((filters.timeBands || []).join(',')),
         normalizeCacheSegment((filters.freshnessBands || []).join(',')),
         normalizeCacheSegment(filters.source),
@@ -77,24 +74,17 @@ function readCsvParam(value: unknown) {
 
 function parseStreamFilters(query: Request['query']): StreamListFilters {
     const types = readCsvParam(query.type).filter((type) => VALID_STREAM_TYPES.has(type)) as StreamListFilters['types'];
-    const confidenceBands = readCsvParam(query.confidenceBand).filter((band) => VALID_CONFIDENCE_BANDS.has(band)) as StreamListFilters['confidenceBands'];
     const timeBands = readCsvParam(query.timeBand).filter((band) => VALID_TIME_BANDS.has(band)) as StreamListFilters['timeBands'];
     const freshnessBands = readCsvParam(query.freshnessBand).filter((band) => VALID_FRESHNESS_BANDS.has(band)) as StreamListFilters['freshnessBands'];
     const category = typeof query.category === 'string' && (query.category === 'residential' || query.category === 'commercial')
         ? query.category
         : null;
-    const minConfidence = typeof query.minConfidence === 'string' && Number.isFinite(Number(query.minConfidence))
-        ? Number(query.minConfidence)
-        : null;
-
     return {
         search: typeof query.search === 'string' ? query.search.trim() || null : null,
         types,
         category,
         locality: typeof query.locality === 'string' ? query.locality.trim() || null : null,
         bhk: typeof query.bhk === 'string' ? query.bhk.trim() || null : null,
-        minConfidence,
-        confidenceBands,
         timeBands,
         freshnessBands,
         source: typeof query.source === 'string' ? query.source.trim() || null : null,
@@ -258,13 +248,12 @@ export const correctStreamItem = async (req: Request, res: Response) => {
                  bhk: req.body?.bhk,
                  rawText: req.body?.rawText,
                  source: req.body?.source,
-                 sourcePhone: req.body?.sourcePhone,
-                 recordType: req.body?.recordType,
-                 dealType: req.body?.dealType,
-                 assetClass: req.body?.assetClass,
-                 confidence: typeof req.body?.confidence === 'number' ? req.body.confidence : undefined,
-                 parseNotes: req.body?.parseNotes,
-             },
+                sourcePhone: req.body?.sourcePhone,
+                recordType: req.body?.recordType,
+                dealType: req.body?.dealType,
+                assetClass: req.body?.assetClass,
+                parseNotes: req.body?.parseNotes,
+            },
          );
          invalidateStreamCaches(tenantId);
          res.json({ success: true, item: corrected });

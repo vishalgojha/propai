@@ -15,7 +15,6 @@ export type PersonalChannel = {
   assetClasses: string[];
   budgetMin: number | null;
   budgetMax: number | null;
-  confidenceMin: number;
   pinned: boolean;
   createdAt: string;
   updatedAt: string;
@@ -35,7 +34,6 @@ export type CreateChannelPayload = {
   assetClasses?: string[];
   budgetMin?: number | null;
   budgetMax?: number | null;
-  confidenceMin?: number | null;
   pinned?: boolean;
 };
 

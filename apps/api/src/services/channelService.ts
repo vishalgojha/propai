@@ -16,7 +16,6 @@ import { sanitizeBuildingNameCandidate, sanitizeMicroLocationCandidate } from '.
 
 type ChannelType = 'listing' | 'requirement' | 'mixed';
 type StreamType = 'Rent' | 'Sale' | 'Requirement' | 'Pre-leased' | 'Lease';
-type StreamConfidenceBand = 'low' | 'medium' | 'high';
 type StreamTimeBand = '1h' | '1d' | '7d';
 type StreamFreshnessBand = '1h' | '6h';
 type StreamTable = 'stream_items_residential' | 'stream_items_commercial';
@@ -35,8 +34,6 @@ export type StreamListFilters = {
     category?: 'residential' | 'commercial' | null;
     locality?: string | null;
     bhk?: string | null;
-    minConfidence?: number | null;
-    confidenceBands?: StreamConfidenceBand[];
     timeBands?: StreamTimeBand[];
     freshnessBands?: StreamFreshnessBand[];
     source?: string | null;
@@ -79,7 +76,6 @@ export type PersonalChannelRecord = {
     assetClasses: string[];
     budgetMin: number | null;
     budgetMax: number | null;
-    confidenceMin: number;
     pinned: boolean;
     createdAt: string;
     updatedAt: string;
@@ -114,13 +110,11 @@ export type StreamItemRecord = {
     brokerCompany?: string | null;
     waLink?: string | null;
     isNetworkItem?: boolean;
-    confidence: number;
     description: string;
     createdAt: string;
     recordType: string;
     dealType: string;
     assetClass: string;
-    parseNotes?: string | null;
     isCorrected?: boolean;
     isRead?: boolean;
     igrTransactions?: IgrTransactionPreview[];
@@ -131,8 +125,6 @@ export type InboxMatchRecord = {
     id: string;
     sourceItem: StreamItemRecord;
     matchedItem: StreamItemRecord;
-    matchScore: number;
-    matchReasons: string[];
     isRead: boolean;
     createdAt: string;
 };
@@ -149,7 +141,6 @@ export type CreateChannelInput = {
     assetClasses?: string[];
     budgetMin?: number | null;
     budgetMax?: number | null;
-    confidenceMin?: number | null;
     pinned?: boolean;
     createdBy?: string | null;
 };
@@ -223,26 +214,6 @@ function getLargestTimeWindow(
     }
 
     return new Date(Date.now() - Math.max(...hours) * 60 * 60 * 1000).toISOString();
-}
-
-function getConfidenceRange(filters?: StreamListFilters | null) {
-    const bands = filters?.confidenceBands || [];
-    let min = typeof filters?.minConfidence === 'number' && Number.isFinite(filters.minConfidence)
-        ? filters.minConfidence
-        : null;
-    let max: number | null = null;
-
-    if (bands.length > 0) {
-        const ranges = bands.map((band) => {
-            if (band === 'high') return { min: 70, max: 100 };
-            if (band === 'medium') return { min: 40, max: 69.999 };
-            return { min: 0, max: 39.999 };
-        });
-        min = Math.min(...ranges.map((range) => range.min), min ?? 100);
-        max = Math.max(...ranges.map((range) => range.max));
-    }
-
-    return { min, max };
 }
 
 function buildSearchParts(filters?: StreamListFilters | null) {
@@ -1458,7 +1429,6 @@ type StreamCorrectionInput = {
     recordType?: string;
     dealType?: string;
     assetClass?: string;
-    confidence?: number;
     parseNotes?: string | null;
 };
 
@@ -1488,7 +1458,6 @@ export class ChannelService {
             ...searchParts.inferredTypes,
         ]) as StreamType[];
         const createdAfter = getLargestTimeWindow(options?.filters?.timeBands, options?.filters?.freshnessBands);
-        const confidenceRange = getConfidenceRange(options?.filters);
 
         const buildQuery = (acceptedOnly: boolean) => {
             const table = options?.filters?.category === 'commercial'
@@ -1541,14 +1510,6 @@ export class ChannelService {
                     `deal_type.ilike.%${pattern}%`,
                     `source_group_name.ilike.%${pattern}%`,
                 ].join(','));
-            }
-
-            if (confidenceRange.min != null) {
-                query = query.gte('confidence_score', confidenceRange.min);
-            }
-
-            if (confidenceRange.max != null && confidenceRange.max < 100) {
-                query = query.lte('confidence_score', confidenceRange.max);
             }
 
             if (createdAfter) {
@@ -1969,7 +1930,7 @@ export class ChannelService {
                 asset_classes: assetClasses,
                 budget_min: input.budgetMin ?? null,
                 budget_max: input.budgetMax ?? null,
-                confidence_min: input.confidenceMin ?? 0,
+                confidence_min: 0,
                 pinned: input.pinned ?? true,
                 is_active: true,
                 created_at: now,
@@ -2188,11 +2149,12 @@ private dailyBriefingSentKeys = new Set<string>();
 
             const linkMap = new Map<string, any>(links.map((link: any) => [link.stream_item_id, link]));
             const filteredItems = await this.filterItemsBySession(tenantId, (items || []), sessionLabel, networkMode);
-            const mapped = Array.isArray(filteredItems)
-                ? filteredItems.map((item: any) => this.mapStreamItem(item, tenantId, linkMap.get(item.id)?.is_read))
+            const rankedItems = this.rankAcceptedRows(Array.isArray(filteredItems) ? filteredItems : []);
+            const mapped = rankedItems
+                ? rankedItems.map((item: any) => this.mapStreamItem(item, tenantId, linkMap.get(item.id)?.is_read))
                 : [];
             return this.enrichWithIgrTransactions(this.enrichSourcePhones(
-                this.rankStreamItems(mapped)
+                mapped
             ));
         }
 
@@ -2230,9 +2192,10 @@ private dailyBriefingSentKeys = new Set<string>();
         }
 
         const filteredItems = await this.filterItemsBySession(tenantId, data || [], sessionLabel, networkMode);
-        const mapped = Array.isArray(filteredItems) ? filteredItems.map((item: any) => this.mapStreamItem(item, tenantId)) : [];
+        const rankedItems = this.rankAcceptedRows(Array.isArray(filteredItems) ? filteredItems : []);
+        const mapped = rankedItems.map((item: any) => this.mapStreamItem(item, tenantId));
         return this.enrichWithIgrTransactions(this.enrichSourcePhones(
-            this.rankStreamItems(mapped)
+            mapped
         ));
     }
 
@@ -2568,7 +2531,7 @@ private dailyBriefingSentKeys = new Set<string>();
             record_type: input.recordType?.trim() || existing.record_type,
             deal_type: input.dealType?.trim() || existing.deal_type,
             asset_class: input.assetClass?.trim() || existing.asset_class,
-            confidence_score: typeof input.confidence === 'number' ? input.confidence : existing.confidence_score,
+            confidence_score: existing.confidence_score,
             parsed_payload: nextPayload,
         };
 
@@ -3230,7 +3193,6 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
                     item.locality,
                     item.bhk,
                     item.price_label,
-                    item.confidence_score != null && `${Math.round(item.confidence_score * 100)}%`,
                 ].filter(Boolean);
                 return parts.join(' ') || item.raw_text?.slice(0, 80) || 'Stream item';
             });
@@ -3826,8 +3788,6 @@ ${rawText}
             id: this.getInboxPairKey(String(match.listing.id), String(match.requirement.id)),
             sourceItem: sourceMapped[index],
             matchedItem: enrichedMatched[index],
-            matchScore: match.score,
-            matchReasons: match.reasons,
             isRead: Boolean(match.listing.is_read),
             createdAt: match.createdAt,
         }));
@@ -3870,8 +3830,6 @@ ${rawText}
             id: item.id,
             sourceItem: sourceMapped[index],
             matchedItem: enrichedMatched[index],
-            matchScore: Number(item.match_score || 0),
-            matchReasons: Array.isArray(item.match_reasons) ? item.match_reasons : [],
             isRead: Boolean(rowMap.get(item.listing_id)?.is_read),
             createdAt: item.updated_at || item.created_at,
         }));
@@ -4276,7 +4234,6 @@ ${rawText}
             assetClasses: coerceJsonArray(row.asset_classes),
             budgetMin: row.budget_min,
             budgetMax: row.budget_max,
-            confidenceMin: Number(row.confidence_min || 0),
             pinned: Boolean(row.pinned),
             createdAt: row.created_at,
             updatedAt: row.updated_at,
@@ -4352,13 +4309,11 @@ ${rawText}
             brokerCompany,
             waLink: generateWaLink(item, brokerName, sourcePhone),
             isNetworkItem: String(item.tenant_id || '') !== currentTenantId,
-            confidence: Number(item.confidence_score || 0),
             description: item.raw_text || '',
             rawText: item.raw_text || '',
             recordType: item.record_type || 'unknown',
             dealType,
             assetClass: item.asset_class || 'unknown',
-            parseNotes: item.parsed_payload?.parseNotes || null,
             isCorrected: Boolean(item.parsed_payload?.isCorrected),
             isRead,
         };
@@ -4470,24 +4425,24 @@ ${rawText}
         });
     }
 
-    private rankStreamItems(items: StreamItemRecord[]): StreamItemRecord[] {
+    private rankAcceptedRows<T extends { confidence_score?: number | string | null; source_phone?: string | null; source_group_name?: string | null; raw_text?: string | null; created_at?: string | null }>(items: T[]): T[] {
         if (!Array.isArray(items) || items.length === 0) return items;
 
         // Count how many items per source for source_count factor
         const sourceCounts = new Map<string, number>();
         for (const item of items) {
-            const key = item.sourcePhone || item.source || 'unknown';
+            const key = item.source_phone || item.source_group_name || 'unknown';
             sourceCounts.set(key, (sourceCounts.get(key) || 0) + 1);
         }
         const maxSourceCount = Math.max(1, ...sourceCounts.values());
 
         const now = Date.now();
         const ranked = items.map((item) => {
-            const confidence = Math.max(0, Math.min(1, (item.confidence || 0) / 100));
-            const sourceCount = sourceCounts.get(item.sourcePhone || item.source || 'unknown') || 1;
+            const confidence = Math.max(0, Math.min(1, Number(item.confidence_score || 0) / 100));
+            const sourceCount = sourceCounts.get(item.source_phone || item.source_group_name || 'unknown') || 1;
             const sourceCountScore = Math.min(1, sourceCount / maxSourceCount);
 
-            const ageHours = (now - new Date(item.createdAt).getTime()) / (1000 * 60 * 60);
+            const ageHours = (now - new Date(item.created_at || 0).getTime()) / (1000 * 60 * 60);
             const recencyScore = Math.max(0, Math.min(1, 1 - (ageHours / 720)));
 
             return {

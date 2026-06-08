@@ -37,7 +37,6 @@ function writeDashboardCache(data: DashboardCache) {
 type StreamStats = {
   total: number;
   unread: number;
-  avgConfidence: number;
 };
 
 type WhatsappStatusResponse = {
@@ -194,7 +193,7 @@ export const Dashboard: React.FC = () => {
     try {
       const streamStatsRequest = backendApi.get<StreamStats>(ENDPOINTS.streamItems.stats).catch((err) => {
         if ((err as any)?.response?.status === 403) {
-          return { data: { total: 0, unread: 0, avgConfidence: 0 } } as { data: StreamStats };
+          return { data: { total: 0, unread: 0 } } as { data: StreamStats };
         }
 
         throw err;
@@ -208,7 +207,7 @@ export const Dashboard: React.FC = () => {
       ]);
 
       const nextWhatsapp = statusResponse.data || null;
-      const nextStreamStats = statsResponse.data || { total: 0, unread: 0, avgConfidence: 0 };
+      const nextStreamStats = statsResponse.data || { total: 0, unread: 0 };
       const nextMetadata = metadataResponse.data?.metadata || null;
       const nextReferral = referralResponse.data?.referral || null;
 
@@ -260,7 +259,6 @@ export const Dashboard: React.FC = () => {
 
   const unread = Number(streamStats?.unread || 0);
   const total = Number(streamStats?.total || 0);
-  const avgConfidence = Number(streamStats?.avgConfidence || 0);
   const subscription = user?.subscription;
   const planLabel = formatPlanLabel(subscription?.plan);
   const trialDaysLeft = subscription?.trial_days_remaining;
@@ -438,7 +436,7 @@ export const Dashboard: React.FC = () => {
         <StatCard
           title="Stream"
           value={loading ? '—' : `${unread} unread`}
-          hint={loading ? 'Loading stream stats...' : `${total} total items · avg confidence ${Math.round(avgConfidence)}%`}
+          hint={loading ? 'Loading stream stats...' : `${total} total items`}
           icon={<Sparkles className="h-5 w-5" />}
           tone={unread > 0 ? 'warn' : total > 0 ? 'good' : 'neutral'}
           onClick={() => navigate('/stream')}

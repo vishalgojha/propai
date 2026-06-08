@@ -19,7 +19,6 @@ export interface StreamItem {
   fitoutStatus?: string | null;
   workstationsCount?: number | null;
   cabinsCount?: number | null;
-  confidence: number;
   source: string;
   brokerName: string | null;
   brokerCompany: string | null;
@@ -27,7 +26,6 @@ export interface StreamItem {
   assetClass?: string | null;
   description?: string | null;
   rawText?: string | null;
-  parseNotes?: string | null;
   isNetworkItem?: boolean;
   isSyndicated?: boolean;
   sourceWorkspaceId?: string;
@@ -63,7 +61,6 @@ export interface StreamFilters {
   type?: string[];
   category?: 'residential' | 'commercial';
   locality?: string;
-  minConfidence?: number;
   source?: string;
   isRead?: boolean;
   search?: string;
@@ -72,7 +69,6 @@ export interface StreamFilters {
 export interface StreamStats {
   total: number;
   unread: number;
-  avgConfidence: number;
 }
 
 export interface StreamChannel {

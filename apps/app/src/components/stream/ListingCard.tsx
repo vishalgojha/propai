@@ -397,11 +397,6 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                             {timeAgo}
                         </span>
                     </div>
-                    {listing.confidence >= 0 ? (
-                        <span className="text-[10px] font-mono text-[var(--text-muted)]">
-                            {Math.round(listing.confidence)}% match
-                        </span>
-                    ) : null}
                 </div>
 
                 {/* Title + Source */}

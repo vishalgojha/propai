@@ -2484,7 +2484,7 @@ export const Sources: React.FC = () => {
               <div className="mt-2 grid gap-2 lg:grid-cols-3">
                 {[
                   { label: 'Signal', copy: 'Real-estate intent from group name, locality, category, and member surface.' },
-                  { label: 'Noise', copy: 'Personal, promo, media, or off-topic naming patterns that reduce parsing confidence.' },
+                  { label: 'Noise', copy: 'Personal, promo, media, or off-topic naming patterns that reduce routing quality.' },
                   { label: 'Chaos', copy: 'A combined risk score from cross-group member overlap and noise.' },
                 ].map((item) => (
                   <div key={item.label} className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">

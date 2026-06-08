@@ -59,10 +59,6 @@ export class StreamAPI {
         }
       }
 
-      if (filters?.minConfidence) {
-        query = query.gte('confidence_score', filters.minConfidence);
-      }
-
       if (filters?.source && filters.source !== 'all') {
         query = query.eq('source_phone', filters.source);
       }
@@ -179,7 +175,6 @@ export class StreamAPI {
       fitoutStatus: data.fitout_status || data.parsed_payload?.fitoutStatus || null,
       workstationsCount: data.workstations_count || data.parsed_payload?.workstationsCount || null,
       cabinsCount: data.cabins_count || data.parsed_payload?.cabinsCount || null,
-      confidence: data.confidence_score || 0,
       source,
       brokerName,
       brokerCompany,
@@ -187,7 +182,6 @@ export class StreamAPI {
       assetClass: data.asset_class || data.parsed_payload?.assetClass || null,
       description: data.parsed_payload?.description || null,
       rawText: data.raw_text || null,
-      parseNotes: data.parsed_payload?.parseNotes || null,
       buildingName: data.building_name || data.parsed_payload?.buildingName || null,
       isNetworkItem: String(data.tenant_id || '') !== currentTenantId,
       isSyndicated: data.is_syndicated || false,
@@ -201,23 +195,20 @@ export class StreamAPI {
 
   async getStats(tenantId: string): Promise<StreamStats> {
     const [resResult, comResult] = await Promise.all([
-      supabase.from('stream_items_residential').select('confidence_score, is_read').eq('tenant_id', tenantId).eq('ingestion_status', 'accepted'),
-      supabase.from('stream_items_commercial').select('confidence_score, is_read').eq('tenant_id', tenantId).eq('ingestion_status', 'accepted'),
+      supabase.from('stream_items_residential').select('is_read').eq('tenant_id', tenantId).eq('ingestion_status', 'accepted'),
+      supabase.from('stream_items_commercial').select('is_read').eq('tenant_id', tenantId).eq('ingestion_status', 'accepted'),
     ]);
     const data = [
       ...(Array.isArray(resResult.data) ? resResult.data : []),
       ...(Array.isArray(comResult.data) ? comResult.data : []),
     ];
 
-    if (!Array.isArray(data)) return { total: 0, unread: 0, avgConfidence: 0 };
+    if (!Array.isArray(data)) return { total: 0, unread: 0 };
 
     const total = data.length;
     const unread = data.filter((item: any) => !item.is_read).length;
-    const avgConfidence = total > 0
-      ? data.reduce((sum: number, item: any) => sum + (item.confidence_score || 0), 0) / total
-      : 0;
 
-    return { total, unread, avgConfidence };
+    return { total, unread };
   }
 
   async markAsRead(tenantId: string, itemId: string): Promise<void> {

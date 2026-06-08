@@ -141,7 +141,7 @@ function AdminCorrectionPanel({ item }: { item: StreamItem }) {
     dealType: item.dealType || '',
     assetClass: item.assetClass || '',
     rawText: item.rawText || item.description || '',
-    parseNotes: item.parseNotes || '',
+    parseNotes: '',
   });
 
   React.useEffect(() => {
@@ -154,7 +154,7 @@ function AdminCorrectionPanel({ item }: { item: StreamItem }) {
       dealType: item.dealType || '',
       assetClass: item.assetClass || '',
       rawText: item.rawText || item.description || '',
-      parseNotes: item.parseNotes || '',
+      parseNotes: '',
     });
   }, [item]);
 
@@ -227,10 +227,7 @@ function InboxMatchCard({ match, isSuperAdmin, onRead }: { match: InboxMatch; is
     <article className={cn('rounded-[16px] border bg-[var(--bg-surface)] p-4', unread ? 'border-blue-500/45 shadow-[0_0_0_1px_rgba(59,130,246,0.15)]' : 'border-[color:var(--border)]')}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
-          <span className="rounded-full bg-[var(--bg-elevated)] px-2.5 py-1 font-semibold text-[var(--text-primary)]">Match score {match.matchScore}</span>
-          {match.matchReasons.slice(0, 4).map((reason) => (
-            <span key={reason} className="rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[var(--text-secondary)]">{reason}</span>
-          ))}
+          <span className="rounded-full bg-[var(--bg-elevated)] px-2.5 py-1 font-semibold text-[var(--text-primary)]">Suggested match</span>
         </div>
         <div className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">
           <Clock className="h-3.5 w-3.5" />

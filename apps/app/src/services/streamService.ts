@@ -39,7 +39,6 @@ export async function correctStreamItem(
     recordType?: string;
     dealType?: string;
     assetClass?: string;
-    confidence: number;
     parseNotes?: string;
   },
 ) {

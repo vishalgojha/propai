@@ -20,7 +20,6 @@ type StreamInsightRow = {
     bhk: string | null;
     broker_name?: string | null;
     source_phone: string | null;
-    confidence_score: number | string | null;
     created_at: string | null;
     is_read?: boolean | null;
     channel_items?: { id?: string | null; tenant_id?: string | null }[] | null;
@@ -77,10 +76,10 @@ async function canReadAllAccounts(req: Request) {
 }
 
 async function queryStreamItems(tenantId: string, periodStart: string, allAccounts: boolean) {
-    const residentialBaseSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, bhk, broker_name, source_phone, confidence_score, created_at, is_read';
-    const commercialBaseSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, broker_name, source_phone, confidence_score, created_at, is_read';
-    const residentialSafeSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, bhk, source_phone, confidence_score, created_at';
-    const commercialSafeSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, source_phone, confidence_score, created_at';
+    const residentialBaseSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, bhk, broker_name, source_phone, created_at, is_read';
+    const commercialBaseSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, broker_name, source_phone, created_at, is_read';
+    const residentialSafeSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, bhk, source_phone, created_at';
+    const commercialSafeSelect = 'id, tenant_id, type, record_type, ingestion_status, locality, source_phone, created_at';
     const residentialWithMatchesSelect = `${residentialBaseSelect}, channel_items(id, tenant_id)`;
     const commercialWithMatchesSelect = `${commercialBaseSelect}, channel_items(id, tenant_id)`;
     const residentialSafeWithMatchesSelect = `${residentialSafeSelect}, channel_items(id, tenant_id)`;
@@ -272,8 +271,6 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
         let totalRequirements = 0;
         let unreadCount = 0;
         let matchedRequirementIds = new Set<string>();
-        let confidenceTotal = 0;
-        let confidenceCount = 0;
 
         for (const row of rows) {
             const type = cleanLabel(row.type, 'Unknown');
@@ -298,12 +295,6 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
 
             if (row.is_read === false) {
                 unreadCount += 1;
-            }
-
-            const confidence = toNumber(row.confidence_score);
-            if (confidence != null) {
-                confidenceTotal += confidence;
-                confidenceCount += 1;
             }
 
             myByType[type] = (myByType[type] || 0) + 1;
@@ -440,7 +431,6 @@ export const intelligenceHandler = async (req: Request, res: Response) => {
                 totalRequirements,
                 unreadCount,
                 matchedCount: matchedRequirementIds.size,
-                avgConfidence: confidenceCount > 0 ? Math.round(confidenceTotal / confidenceCount) : 0,
                 byType: myByType,
                 byLocality,
             },

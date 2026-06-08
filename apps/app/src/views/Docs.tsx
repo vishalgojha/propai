@@ -119,7 +119,7 @@ const capabilitySections = [
     examples: [
       'Open Stream and filter only broker-tagged items.',
       'Review all new Andheri rental listings from today.',
-      'Spot stale or low-confidence posts before sharing.',
+      'Spot stale or incomplete posts before sharing.',
     ],
     href: '/stream',
   },

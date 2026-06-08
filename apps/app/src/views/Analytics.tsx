@@ -56,7 +56,6 @@ type IntelligenceResult = {
     totalRequirements: number;
     unreadCount: number;
     matchedCount: number;
-    avgConfidence: number;
     byType: Record<string, number>;
     byLocality: { locality: string; count: number }[];
   };
@@ -341,7 +340,6 @@ const Analytics: React.FC = () => {
               <InventoryStat label={`${inventoryScopeLabel} Listings`} value={formatInteger(intelData?.myInventory?.totalListings)} />
               <InventoryStat label={`${inventoryScopeLabel} Requirements`} value={formatInteger(intelData?.myInventory?.totalRequirements)} />
               <InventoryStat label="Unread" value={formatInteger(intelData?.myInventory?.unreadCount)} />
-              <InventoryStat label="Avg Confidence" value={`${Math.round(intelData?.myInventory?.avgConfidence || 0)}%`} />
             </div>
             <ChartPanel label="My listings by type">
               <TypeDistributionChart values={intelData?.myInventory?.byType || {}} />
