@@ -425,14 +425,15 @@ export class WhatsAppClient {
                         this.isConnecting = false;
                         const statusCode = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode;
                         const replaced = this.isSessionReplaced(lastDisconnect?.error);
-                        const shouldReconnect = !replaced;
+                        const loggedOut = statusCode === DisconnectReason.loggedOut;
+                        const shouldReconnect = !replaced && !loggedOut;
                         const disconnectReason = replaced
                             ? 'replaced'
-                            : statusCode === DisconnectReason.loggedOut
+                            : loggedOut
                                 ? 'logged_out'
                                 : `closed:${statusCode ?? 'unknown'}`;
                         this.disconnectMeta = {
-                            reason: replaced ? 'replaced' : statusCode === DisconnectReason.loggedOut ? 'logged_out' : 'closed',
+                            reason: replaced ? 'replaced' : loggedOut ? 'logged_out' : 'closed',
                             replaced,
                             at: new Date().toISOString(),
                         };
@@ -468,6 +469,14 @@ export class WhatsAppClient {
                             if (this.shouldLogReconnect('session_replaced', 15 * 60_000)) {
                                 console.warn(`[WhatsAppClient] Session replaced by another linked device; auto-reconnect blocked for ${this.tenantId}:${this.label}`);
                             }
+                            await this.persistStatus('disconnected');
+                            return;
+                        }
+
+                        if (loggedOut) {
+                            this.reconnectAttempts = 0;
+                            this.circuitBreaker.recordFailure();
+                            await this.clearStoredAuth('logged_out');
                             await this.persistStatus('disconnected');
                             return;
                         }
@@ -1243,6 +1252,44 @@ try {
             label: this.label,
             qr,
         });
+    }
+
+    private async clearStoredAuth(reason: string) {
+        try {
+            const { error } = await supabase
+                .from('whatsapp_sessions')
+                .update({
+                    creds: null,
+                    keys: null,
+                    status: 'disconnected',
+                    updated_at: new Date().toISOString(),
+                    last_sync: new Date().toISOString(),
+                })
+                .eq('tenant_id', this.tenantId)
+                .eq('label', this.label);
+
+            if (error) {
+                throw error;
+            }
+
+            await whatsappHealthService.appendEvent(
+                this.tenantId,
+                this.label,
+                'auth_cleared',
+                'Cleared stale WhatsApp auth state.',
+                {
+                    reason,
+                    phoneNumber: this.connectedPhoneNumber || null,
+                },
+            );
+        } catch (error) {
+            await this.hooks?.onError?.({
+                tenantId: this.tenantId,
+                label: this.label,
+                error,
+                stage: `clearStoredAuth.${reason}`,
+            });
+        }
     }
 
     private async scheduleGroupSync() {

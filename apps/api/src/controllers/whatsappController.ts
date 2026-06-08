@@ -282,7 +282,6 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             .eq('tenant_id', tenantId)
             .eq('label', sessionLabel)
             .maybeSingle();
-        const hasStoredAuth = Boolean(existingRow?.creds && existingRow?.keys);
         const existingStatus = String(existingSession?.status || existingRow?.status || '').toLowerCase();
         const existingData = (existingRow?.session_data && typeof existingRow.session_data === 'object')
             ? existingRow.session_data as Record<string, unknown>
@@ -316,22 +315,22 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             }
         }
 
-        if (connectMethod === 'qr' && existingRow?.status !== 'connected' && !hasStoredAuth) {
+        if (existingRow?.status !== 'connected') {
             if (existingSession) {
                 await gateway.disconnect({ workspaceOwnerId: tenantId, sessionLabel });
-            } else {
-                await dbClient
-                    .from('whatsapp_sessions')
-                    .update({
-                        status: 'disconnected',
-                        creds: null,
-                        keys: null,
-                        updated_at: new Date().toISOString(),
-                        last_sync: new Date().toISOString(),
-                    })
-                    .eq('tenant_id', tenantId)
-                    .eq('label', sessionLabel);
             }
+
+            await dbClient
+                .from('whatsapp_sessions')
+                .update({
+                    status: 'disconnected',
+                    creds: null,
+                    keys: null,
+                    updated_at: new Date().toISOString(),
+                    last_sync: new Date().toISOString(),
+                })
+                .eq('tenant_id', tenantId)
+                .eq('label', sessionLabel);
         }
 
         if (processRole === 'api') {
