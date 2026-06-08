@@ -3482,7 +3482,6 @@ ${rawText}
                 const brokerWaMeLinks = Array.isArray(item.broker_wa_me_links) && item.broker_wa_me_links.length > 0
                     ? item.broker_wa_me_links
                     : sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
-                const lowSignalBrokerRelay = detectLowSignalBrokerRelay(candidateText);
                 const confidence = Math.max(0, Math.min(100, Number(item.confidence || 0))) || calculateConfidence(candidateText, {
                     location: locality,
                     price: priceLabel,
@@ -3490,10 +3489,7 @@ ${rawText}
                     buildingName,
                     microLocation,
                 });
-                const parseNotes = [
-                    item.parseNotes ? String(item.parseNotes).trim() : '',
-                    lowSignalBrokerRelay ? 'Indirect inventory via broker relay; treat as low-trust unless directly verified.' : '',
-                ].filter(Boolean).join(' | ') || null;
+                const parseNotes = item.parseNotes ? String(item.parseNotes).trim() : null;
                 const completeness = computeStreamCompleteness({
                     locality,
                     bhk: normalizedBhk,
@@ -3619,10 +3615,7 @@ ${rawText}
             const workstationsCount = propertyCategory === 'commercial' ? extractWorkstationsCount(candidateText) : null;
             const cabinsCount = propertyCategory === 'commercial' ? extractCabinsCount(candidateText) : null;
             const brokerWaMeLinks = sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
-            const lowSignalBrokerRelay = detectLowSignalBrokerRelay(candidateText);
-            const parseNotes = lowSignalBrokerRelay
-                ? 'Indirect inventory via broker relay; treat as low-trust unless directly verified.'
-                : null;
+            const parseNotes = null;
             const completeness = computeStreamCompleteness({
                 locality: location,
                 bhk,
