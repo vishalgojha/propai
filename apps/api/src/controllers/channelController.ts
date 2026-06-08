@@ -197,7 +197,7 @@ export const listStreamSummary = async (req: Request, res: Response) => {
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
         const networkMode = access.networkMode;
         const cacheKey = buildStreamSummaryCacheKey(tenantId, networkMode, channelId, sessionLabel);
-        const cached = getCachedValue<{ oneHour: number; fourHours: number; oneDay: number; sevenDays: number; allTime: number; network_mode: boolean }>(cacheKey);
+        const cached = getCachedValue<{ fifteenMinutes: number; oneHour: number; fourHours: number; oneDay: number; sevenDays: number; allTime: number; network_mode: boolean }>(cacheKey);
         if (cached) {
             return res.json(cached);
         }

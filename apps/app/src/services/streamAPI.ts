@@ -89,6 +89,7 @@ export interface InboxMatchesResponse {
 }
 
 export interface StreamSummaryResponse {
+  fifteenMinutes: number;
   oneHour: number;
   fourHours: number;
   oneDay: number;
@@ -194,6 +195,7 @@ export async function fetchStreamSummary(filters?: Pick<StreamFilters, 'sessionL
 
   const response = await backendApi.get(ENDPOINTS.channels.streamSummary, { params, timeout: 60000 });
   return {
+    fifteenMinutes: Number(response.data?.fifteenMinutes || 0),
     oneHour: Number(response.data?.oneHour || 0),
     fourHours: Number(response.data?.fourHours || 0),
     oneDay: Number(response.data?.oneDay || 0),

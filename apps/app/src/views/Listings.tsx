@@ -1322,6 +1322,10 @@ if (brokerOnly) {
   const summaryCards = React.useMemo(() => {
     const server = streamSummary;
     const summary = {
+      fifteenMinutes: server?.fifteenMinutes ?? visibleStream.filter((item) => {
+        const minutes = computeMinutes(item);
+        return minutes != null && minutes < 15;
+      }).length,
       oneHour: server?.oneHour ?? visibleStream.filter((item) => {
         const minutes = computeMinutes(item);
         return minutes != null && minutes < 60;
@@ -1348,6 +1352,7 @@ if (brokerOnly) {
         : 'Workspace parsed feed';
 
     return [
+      { label: 'Parsed last 15 min', value: summary.fifteenMinutes, hint: scopeLabel },
       { label: 'Parsed last 1 hour', value: summary.oneHour, hint: scopeLabel },
       { label: 'Parsed last 4 hours', value: summary.fourHours, hint: scopeLabel },
       { label: 'Parsed last 1 day', value: summary.oneDay, hint: scopeLabel },

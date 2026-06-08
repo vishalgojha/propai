@@ -2286,13 +2286,15 @@ private dailyBriefingSentKeys = new Set<string>();
         const accessibleTenantIds = await this.getNetworkTenantIds(tenantId, networkMode);
         const now = Date.now();
         const windows = {
+            fifteenMinutes: new Date(now - 15 * 60 * 1000).toISOString(),
             oneHour: new Date(now - 60 * 60 * 1000).toISOString(),
             fourHours: new Date(now - 4 * 60 * 60 * 1000).toISOString(),
             oneDay: new Date(now - 24 * 60 * 60 * 1000).toISOString(),
             sevenDays: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
         } as const;
         const countWindows = async (options?: { sessionGroupIds?: string[] | null; sessionLabel?: string | null }) => {
-            const [oneHour, fourHours, oneDay, sevenDays, allTime] = await Promise.all([
+            const [fifteenMinutes, oneHour, fourHours, oneDay, sevenDays, allTime] = await Promise.all([
+                this.countAcceptedStreamItems(accessibleTenantIds, { ...options, createdAfter: windows.fifteenMinutes }),
                 this.countAcceptedStreamItems(accessibleTenantIds, { ...options, createdAfter: windows.oneHour }),
                 this.countAcceptedStreamItems(accessibleTenantIds, { ...options, createdAfter: windows.fourHours }),
                 this.countAcceptedStreamItems(accessibleTenantIds, { ...options, createdAfter: windows.oneDay }),
@@ -2301,6 +2303,7 @@ private dailyBriefingSentKeys = new Set<string>();
             ]);
 
             return {
+                fifteenMinutes: Number(fifteenMinutes.count || 0),
                 oneHour: Number(oneHour.count || 0),
                 fourHours: Number(fourHours.count || 0),
                 oneDay: Number(oneDay.count || 0),
@@ -2322,7 +2325,7 @@ private dailyBriefingSentKeys = new Set<string>();
 
             const streamIds = Array.isArray(links) ? links.map((link: any) => String(link.stream_item_id || '')).filter(Boolean) : [];
             if (streamIds.length === 0) {
-                return { oneHour: 0, fourHours: 0, oneDay: 0, sevenDays: 0, allTime: 0 };
+                return { fifteenMinutes: 0, oneHour: 0, fourHours: 0, oneDay: 0, sevenDays: 0, allTime: 0 };
             }
 
             const { data, error } = await this.readAcceptedStreamItems(this.db, accessibleTenantIds, {
@@ -2334,7 +2337,7 @@ private dailyBriefingSentKeys = new Set<string>();
             }
 
             const filteredItems = await this.filterItemsBySession(tenantId, data || [], sessionLabel, networkMode);
-            const counts = { oneHour: 0, fourHours: 0, oneDay: 0, sevenDays: 0, allTime: 0 };
+            const counts = { fifteenMinutes: 0, oneHour: 0, fourHours: 0, oneDay: 0, sevenDays: 0, allTime: 0 };
 
             for (const item of filteredItems) {
                 const createdAt = new Date(String((item as any).created_at || ''));
@@ -2347,6 +2350,7 @@ private dailyBriefingSentKeys = new Set<string>();
                 if (timestamp >= new Date(windows.oneDay).getTime()) counts.oneDay += 1;
                 if (timestamp >= new Date(windows.fourHours).getTime()) counts.fourHours += 1;
                 if (timestamp >= new Date(windows.oneHour).getTime()) counts.oneHour += 1;
+                if (timestamp >= new Date(windows.fifteenMinutes).getTime()) counts.fifteenMinutes += 1;
             }
 
             return counts;
@@ -2379,7 +2383,7 @@ private dailyBriefingSentKeys = new Set<string>();
                     ? groupsResult.data.map((row: any) => String(row.group_jid || '')).filter(Boolean)
                     : [];
                 if (sessionGroupIds.length === 0) {
-                    return { oneHour: 0, fourHours: 0, oneDay: 0, sevenDays: 0, allTime: 0 };
+                    return { fifteenMinutes: 0, oneHour: 0, fourHours: 0, oneDay: 0, sevenDays: 0, allTime: 0 };
                 }
 
                 return countWindows({ sessionGroupIds });
