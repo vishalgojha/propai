@@ -395,30 +395,57 @@ export class WhatsAppGroupService {
             throw error;
         }
 
-        return (data || []).map((row: any) => ({
-            id: row.group_jid,
-            groupJid: row.group_jid,
-            name: row.group_name,
-            normalizedName: row.normalized_name,
-            locality: row.locality || null,
-            city: row.city || null,
-            category: row.category || 'other',
-            tags: Array.isArray(row.tags) ? row.tags : [],
-            participantsCount: Number(row.member_count || 0),
-            participantJids: Array.isArray(row.participant_jids) ? row.participant_jids : [],
-            broadcastEnabled: Boolean(row.broadcast_enabled),
-            isArchived: Boolean(row.is_archived),
-            isParsing: Boolean(row.is_parsing),
-            classification: row.classification || 'unknown',
-            visibilityStatus: row.visibility_status || 'visible',
-            businessConfidence: Number(row.business_confidence || 0),
-            duplicateOverlapScore: Number(row.duplicate_overlap_score || 0),
-            signalScore: Number(row.signal_score || 0),
-            noiseScore: Number(row.noise_score || 0),
-            auditRecommendation: String(row.audit_recommendation || 'review'),
-            lastActiveAt: row.last_active_at || null,
-            sessionLabel: row.session_label || null,
-        }));
+        const groupRows = data || [];
+        const groupIds = groupRows.map((row: any) => String(row.group_jid || '')).filter(Boolean);
+
+        const behaviorMap = new Map<string, string>();
+        if (groupIds.length > 0) {
+            const chunkSize = 200;
+            for (let i = 0; i < groupIds.length; i += chunkSize) {
+                const chunk = groupIds.slice(i, i + chunkSize);
+                const { data: configs } = await db
+                    .from('group_configs')
+                    .select('group_id, behavior')
+                    .eq('tenant_id', tenantId)
+                    .in('group_id', chunk);
+
+                for (const row of configs || []) {
+                    if (row?.group_id) {
+                        behaviorMap.set(String(row.group_id), String(row.behavior || ''));
+                    }
+                }
+            }
+        }
+
+        return groupRows.map((row: any) => {
+            const groupId = String(row.group_jid || '');
+            const behavior = behaviorMap.get(groupId) || 'Listen';
+            return {
+                id: groupId,
+                groupJid: groupId,
+                name: row.group_name,
+                normalizedName: row.normalized_name,
+                locality: row.locality || null,
+                city: row.city || null,
+                category: row.category || 'other',
+                tags: Array.isArray(row.tags) ? row.tags : [],
+                participantsCount: Number(row.member_count || 0),
+                participantJids: Array.isArray(row.participant_jids) ? row.participant_jids : [],
+                broadcastEnabled: Boolean(row.broadcast_enabled),
+                isArchived: Boolean(row.is_archived),
+                isParsing: behavior === 'Listen' || behavior === 'AutoReply',
+                classification: row.classification || 'unknown',
+                visibilityStatus: row.visibility_status || 'visible',
+                businessConfidence: Number(row.business_confidence || 0),
+                duplicateOverlapScore: Number(row.duplicate_overlap_score || 0),
+                signalScore: Number(row.signal_score || 0),
+                noiseScore: Number(row.noise_score || 0),
+                auditRecommendation: String(row.audit_recommendation || 'review'),
+                lastActiveAt: row.last_active_at || null,
+                sessionLabel: row.session_label || null,
+                behavior,
+            };
+        });
     }
 
     async registerManagedGroup(tenantId: string, input: {
