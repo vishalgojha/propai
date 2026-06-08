@@ -106,10 +106,17 @@ function isFreshRegistrationDate(registrationDate: string | null, days = 30) {
 }
 
 let igrTransactionsCityColumnAvailablePromise: Promise<boolean> | null = null;
+let igrTransactionsSourceColumnAvailablePromise: Promise<boolean> | null = null;
 
-async function hasIgrTransactionsCityColumn() {
-  if (!igrTransactionsCityColumnAvailablePromise) {
-    igrTransactionsCityColumnAvailablePromise = (async () => {
+async function hasIgrTransactionsColumn(column: string) {
+  let promise = column === 'city'
+    ? igrTransactionsCityColumnAvailablePromise
+    : column === 'source'
+      ? igrTransactionsSourceColumnAvailablePromise
+      : null;
+
+  if (!promise) {
+    promise = (async () => {
       const admin = supabaseAdmin;
       if (!admin) {
         return false;
@@ -120,7 +127,7 @@ async function hasIgrTransactionsCityColumn() {
         return false;
       }
 
-      const { error } = await relation.select('city').limit(1);
+      const { error } = await relation.select(column).limit(1);
       if (!error) {
         return true;
       }
@@ -139,9 +146,31 @@ async function hasIgrTransactionsCityColumn() {
 
       throw new Error(error.message);
     })();
+
+    if (column === 'city') {
+      igrTransactionsCityColumnAvailablePromise = promise;
+    } else if (column === 'source') {
+      igrTransactionsSourceColumnAvailablePromise = promise;
+    }
+  }
+
+  return promise;
+}
+
+async function hasIgrTransactionsCityColumn() {
+  if (!igrTransactionsCityColumnAvailablePromise) {
+    igrTransactionsCityColumnAvailablePromise = hasIgrTransactionsColumn('city');
   }
 
   return igrTransactionsCityColumnAvailablePromise;
+}
+
+async function hasIgrTransactionsSourceColumn() {
+  if (!igrTransactionsSourceColumnAvailablePromise) {
+    igrTransactionsSourceColumnAvailablePromise = hasIgrTransactionsColumn('source');
+  }
+
+  return igrTransactionsSourceColumnAvailablePromise;
 }
 
 export class IgrEnrichmentService {
@@ -221,6 +250,7 @@ export class IgrEnrichmentService {
       city: normalizedCity || null,
     });
     const hasCityColumn = await hasIgrTransactionsCityColumn();
+    const hasSourceColumn = await hasIgrTransactionsSourceColumn();
 
     if (normalizedBuildingName.length < 3) {
       return;
@@ -244,8 +274,8 @@ export class IgrEnrichmentService {
       locality: normalizedLocality || null,
       ...(hasCityColumn ? { city: normalizedCity || inferredCity || null } : {}),
       area_sqft: null,
-      source: 'stream_index_seed',
       scraped_at: new Date().toISOString(),
+      ...(hasSourceColumn ? { source: 'stream_index_seed' } : {}),
     };
 
     const { error } = await this.getAdmin()

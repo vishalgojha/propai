@@ -1,17 +1,24 @@
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { inferIgrCity } from './igrLocationResolver';
+import { sanitizeBuildingNameCandidate, sanitizeMicroLocationCandidate } from '../utils/streamMetadataSanitizer';
 
 type TransactionRecord = {
   doc_number: string | null;
   reg_date: string | null;
+  registration_date: string | null;
   source: string | null;
   building_name: string | null;
   locality: string | null;
+  village_locality: string | null;
   city: string | null;
   consideration: number | null;
+  consideration_amount: number | null;
   area_sqft: number | null;
   price_per_sqft: number | null;
   config: string | null;
+  property_description?: string | null;
+  sro_office?: string | null;
+  district?: string | null;
 };
 
 export type IgrTransactionPreview = TransactionRecord;
@@ -79,13 +86,13 @@ function median(values: number[]) {
   return sorted[middle];
 }
 
-let igrTransactionsCityColumnAvailablePromise: Promise<boolean> | null = null;
+const igrTransactionsColumnPromises = new Map<string, Promise<boolean>>();
 
-async function hasIgrTransactionsCityColumn() {
-  if (!igrTransactionsCityColumnAvailablePromise) {
-    igrTransactionsCityColumnAvailablePromise = (async () => {
+async function hasIgrTransactionsColumn(column: string) {
+  if (!igrTransactionsColumnPromises.has(column)) {
+    igrTransactionsColumnPromises.set(column, (async () => {
       const client = getClient();
-      const { error } = await client.from('igr_transactions').select('city').limit(1);
+      const { error } = await client.from('igr_transactions').select(column).limit(1);
       if (!error) {
         return true;
       }
@@ -103,10 +110,46 @@ async function hasIgrTransactionsCityColumn() {
       }
 
       throw new Error(error.message);
-    })();
+    })());
   }
 
-  return igrTransactionsCityColumnAvailablePromise;
+  return igrTransactionsColumnPromises.get(column)!;
+}
+
+async function getIgrColumns() {
+  const checks = await Promise.all([
+    hasIgrTransactionsColumn('city'),
+    hasIgrTransactionsColumn('source'),
+    hasIgrTransactionsColumn('reg_date'),
+    hasIgrTransactionsColumn('registration_date'),
+    hasIgrTransactionsColumn('locality'),
+    hasIgrTransactionsColumn('village_locality'),
+    hasIgrTransactionsColumn('consideration'),
+    hasIgrTransactionsColumn('consideration_amount'),
+    hasIgrTransactionsColumn('price_per_sqft'),
+    hasIgrTransactionsColumn('config'),
+    hasIgrTransactionsColumn('property_type'),
+    hasIgrTransactionsColumn('property_description'),
+    hasIgrTransactionsColumn('sro_office'),
+    hasIgrTransactionsColumn('district'),
+  ]);
+
+  return {
+    city: checks[0],
+    source: checks[1],
+    regDate: checks[2],
+    registrationDate: checks[3],
+    locality: checks[4],
+    villageLocality: checks[5],
+    consideration: checks[6],
+    considerationAmount: checks[7],
+    pricePerSqft: checks[8],
+    config: checks[9],
+    propertyType: checks[10],
+    propertyDescription: checks[11],
+    sroOffice: checks[12],
+    district: checks[13],
+  };
 }
 
 function cityMatches(candidateCity: string | null, requestedCity: string | null) {
@@ -115,28 +158,83 @@ function cityMatches(candidateCity: string | null, requestedCity: string | null)
   return Boolean(left && right && left.includes(right));
 }
 
-function selectFields(includeCity: boolean) {
-  return includeCity
-    ? 'doc_number, reg_date, source, building_name, locality, city, consideration, area_sqft, price_per_sqft, config'
-    : 'doc_number, reg_date, source, building_name, locality, consideration, area_sqft, price_per_sqft, config';
+function selectFields(columns: Awaited<ReturnType<typeof getIgrColumns>>, extra: string[] = []) {
+  const fields = new Set<string>(['doc_number', 'building_name', 'area_sqft']);
+  if (columns.regDate) fields.add('reg_date');
+  if (columns.registrationDate) fields.add('registration_date');
+  if (columns.source) fields.add('source');
+  if (columns.locality) fields.add('locality');
+  if (columns.villageLocality) fields.add('village_locality');
+  if (columns.city) fields.add('city');
+  if (columns.consideration) fields.add('consideration');
+  if (columns.considerationAmount) fields.add('consideration_amount');
+  if (columns.pricePerSqft) fields.add('price_per_sqft');
+  if (columns.config) fields.add('config');
+  if (columns.propertyDescription) fields.add('property_description');
+  if (columns.sroOffice) fields.add('sro_office');
+  if (columns.district) fields.add('district');
+  for (const field of extra) {
+    if (field === 'property_type' && columns.propertyType) fields.add(field);
+    if (field === 'district' && columns.district) fields.add(field);
+  }
+  return Array.from(fields).join(', ');
+}
+
+function dateColumn(columns: Awaited<ReturnType<typeof getIgrColumns>>) {
+  return columns.regDate ? 'reg_date' : 'registration_date';
+}
+
+function localityColumn(columns: Awaited<ReturnType<typeof getIgrColumns>>) {
+  return columns.locality ? 'locality' : 'village_locality';
+}
+
+function considerationColumn(columns: Awaited<ReturnType<typeof getIgrColumns>>) {
+  return columns.consideration ? 'consideration' : 'consideration_amount';
 }
 
 export class IgrQueryService {
   private mapTransaction(row: Record<string, unknown>): TransactionRecord {
+    const regDate = typeof row.reg_date === 'string'
+      ? row.reg_date
+      : typeof row.registration_date === 'string'
+        ? row.registration_date
+        : null;
+    const locality = typeof row.locality === 'string'
+      ? row.locality
+      : typeof row.village_locality === 'string'
+        ? row.village_locality
+        : null;
+    const consideration = toNumber(row.consideration ?? row.consideration_amount);
+    const source = typeof row.source === 'string'
+      ? row.source
+      : row.property_description === 'stream_index_seed'
+        ? 'stream_index_seed'
+        : null;
+
     return {
       doc_number: typeof row.doc_number === 'string' ? row.doc_number : null,
-      reg_date: typeof row.reg_date === 'string' ? row.reg_date : null,
-      source: typeof row.source === 'string' ? row.source : null,
+      reg_date: regDate,
+      registration_date: regDate,
+      source,
       building_name: typeof row.building_name === 'string' ? row.building_name : null,
-      locality: typeof row.locality === 'string' ? row.locality : null,
+      locality,
+      village_locality: locality,
       city: typeof row.city === 'string' ? row.city : inferIgrCity({
         buildingName: typeof row.building_name === 'string' ? row.building_name : null,
-        locality: typeof row.locality === 'string' ? row.locality : null,
+        locality,
       }),
-      consideration: toNumber(row.consideration),
+      consideration,
+      consideration_amount: consideration,
       area_sqft: toNumber(row.area_sqft),
       price_per_sqft: toNumber(row.price_per_sqft),
       config: typeof row.config === 'string' ? row.config : null,
+      property_description: typeof row.property_description === 'string'
+        ? row.property_description
+        : typeof row.property_type === 'string'
+          ? row.property_type
+          : null,
+      sro_office: typeof row.sro_office === 'string' ? row.sro_office : null,
+      district: typeof row.district === 'string' ? row.district : null,
     };
   }
 
@@ -145,8 +243,8 @@ export class IgrQueryService {
     const trimmedLocality = String(locality || '').trim();
     const trimmedCity = String(city || '').trim();
     const effectiveLimit = Math.max(1, Math.min(limit, 10));
-    const hasCityColumn = await hasIgrTransactionsCityColumn();
-    const fetchLimit = trimmedCity && !hasCityColumn ? Math.max(20, effectiveLimit * 5) : effectiveLimit;
+    const columns = await getIgrColumns();
+    const fetchLimit = trimmedCity && !columns.city ? Math.max(20, effectiveLimit * 5) : effectiveLimit;
 
     if (!trimmedBuilding) {
       return [];
@@ -155,16 +253,16 @@ export class IgrQueryService {
     const igrTransactions = getClient().from('igr_transactions') as any;
 
     let directQuery = igrTransactions
-      .select(selectFields(hasCityColumn))
+      .select(selectFields(columns))
       .ilike('building_name', `%${trimmedBuilding}%`)
-      .order('reg_date', { ascending: false })
+      .order(dateColumn(columns), { ascending: false })
       .limit(fetchLimit);
 
-    if (trimmedLocality) {
-      directQuery = directQuery.ilike('locality', `%${trimmedLocality}%`);
+    if (trimmedLocality && (columns.locality || columns.villageLocality)) {
+      directQuery = directQuery.ilike(localityColumn(columns), `%${trimmedLocality}%`);
     }
 
-    if (trimmedCity && hasCityColumn) {
+    if (trimmedCity && columns.city) {
       directQuery = directQuery.ilike('city', `%${trimmedCity}%`);
     }
 
@@ -175,7 +273,7 @@ export class IgrQueryService {
     }
 
     let directRows = Array.isArray(data) ? data.map((row) => this.mapTransaction(row as Record<string, unknown>)) : [];
-    if (trimmedCity && !hasCityColumn) {
+    if (trimmedCity && !columns.city) {
       directRows = directRows.filter((row) => cityMatches(row.city, trimmedCity));
     }
     if (directRows.length >= effectiveLimit) {
@@ -192,21 +290,21 @@ export class IgrQueryService {
     const orQuery = queryTokens
       .flatMap((token) => [
         `building_name.ilike.%${token}%`,
-        `locality.ilike.%${token}%`,
+        `${localityColumn(columns)}.ilike.%${token}%`,
       ])
       .join(',');
 
     let fuzzyQuery = (getClient().from('igr_transactions') as any)
-      .select(selectFields(hasCityColumn))
+      .select(selectFields(columns))
       .or(orQuery)
-      .order('reg_date', { ascending: false })
-      .limit(trimmedCity && !hasCityColumn ? Math.max(40, effectiveLimit * 5) : 40);
+      .order(dateColumn(columns), { ascending: false })
+      .limit(trimmedCity && !columns.city ? Math.max(40, effectiveLimit * 5) : 40);
 
-    if (trimmedLocality) {
-      fuzzyQuery = fuzzyQuery.ilike('locality', `%${trimmedLocality}%`);
+    if (trimmedLocality && (columns.locality || columns.villageLocality)) {
+      fuzzyQuery = fuzzyQuery.ilike(localityColumn(columns), `%${trimmedLocality}%`);
     }
 
-    if (trimmedCity && hasCityColumn) {
+    if (trimmedCity && columns.city) {
       fuzzyQuery = fuzzyQuery.ilike('city', `%${trimmedCity}%`);
     }
 
@@ -228,7 +326,7 @@ export class IgrQueryService {
           score: score + localityBonus + cityBonus,
         };
       })
-      .filter((entry) => entry.score > 0 && (!trimmedCity || hasCityColumn || cityMatches(entry.transaction.city, trimmedCity)))
+      .filter((entry) => entry.score > 0 && (!trimmedCity || columns.city || cityMatches(entry.transaction.city, trimmedCity)))
       .sort((left, right) => {
         if (right.score !== left.score) {
           return right.score - left.score;
@@ -256,23 +354,23 @@ export class IgrQueryService {
     const name = buildingName.trim();
     const trimmedLocality = String(locality || '').trim();
     const trimmedCity = String(city || '').trim();
-    const hasCityColumn = await hasIgrTransactionsCityColumn();
-    const fetchLimit = trimmedCity && !hasCityColumn ? 20 : 1;
+    const columns = await getIgrColumns();
+    const fetchLimit = trimmedCity && !columns.city ? 20 : 1;
     if (!name) return null;
 
     const igrTransactions = getClient().from('igr_transactions') as any;
 
     let request = igrTransactions
-      .select(selectFields(hasCityColumn))
+      .select(selectFields(columns))
       .ilike('building_name', `%${name}%`)
-      .order('reg_date', { ascending: false })
+      .order(dateColumn(columns), { ascending: false })
       .limit(fetchLimit);
 
-    if (trimmedLocality) {
-      request = request.ilike('locality', `%${trimmedLocality}%`);
+    if (trimmedLocality && (columns.locality || columns.villageLocality)) {
+      request = request.ilike(localityColumn(columns), `%${trimmedLocality}%`);
     }
 
-    if (trimmedCity && hasCityColumn) {
+    if (trimmedCity && columns.city) {
       request = request.ilike('city', `%${trimmedCity}%`);
     }
 
@@ -283,7 +381,7 @@ export class IgrQueryService {
     }
 
     const directRows = (Array.isArray(data) ? data : data ? [data] : []).map((row) => this.mapTransaction(row as Record<string, unknown>));
-    const directMatch = trimmedCity && !hasCityColumn
+    const directMatch = trimmedCity && !columns.city
       ? directRows.find((row) => cityMatches(row.city, trimmedCity)) || null
       : directRows[0] || null;
 
@@ -297,14 +395,14 @@ export class IgrQueryService {
     const orQuery = tokens
       .flatMap((token) => [
         `building_name.ilike.%${token}%`,
-        `locality.ilike.%${token}%`,
+        `${localityColumn(columns)}.ilike.%${token}%`,
       ])
       .join(',');
 
       const { data: fuzzyRows, error: fuzzyError } = await (getClient().from('igr_transactions') as any)
-        .select(selectFields(hasCityColumn))
+        .select(selectFields(columns))
         .or(orQuery)
-        .order('reg_date', { ascending: false })
+        .order(dateColumn(columns), { ascending: false })
         .limit(40);
 
     if (fuzzyError) {
@@ -319,7 +417,7 @@ export class IgrQueryService {
         const cityScore = trimmedCity && cityMatches(transaction.city, trimmedCity) ? 2 : 0;
         return { row: transaction, score: score + cityScore };
       })
-      .filter((entry: any) => entry.score > 0 && (!trimmedCity || hasCityColumn || cityMatches(entry.row.city, trimmedCity)))
+      .filter((entry: any) => entry.score > 0 && (!trimmedCity || columns.city || cityMatches(entry.row.city, trimmedCity)))
       .sort((a: any, b: any) => b.score - a.score);
 
     const best = ranked[0]?.row;
@@ -333,13 +431,14 @@ export class IgrQueryService {
     const effectiveMonths = months > 0 ? months : 6;
     const cutoffDate = new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - effectiveMonths);
+    const columns = await getIgrColumns();
 
     const { data, error } = await getClient()
       .from('igr_transactions')
-      .select('consideration, price_per_sqft, locality')
-      .ilike('locality', `%${name}%`)
-      .gte('reg_date', cutoffDate.toISOString().slice(0, 10))
-      .order('reg_date', { ascending: false });
+      .select(selectFields(columns))
+      .ilike(localityColumn(columns), `%${name}%`)
+      .gte(dateColumn(columns), cutoffDate.toISOString().slice(0, 10))
+      .order(dateColumn(columns), { ascending: false });
 
     if (error) {
       throw new Error(error.message);
@@ -347,10 +446,10 @@ export class IgrQueryService {
 
     const rows = data || [];
     const pricePerSqftValues = rows
-      .map((row) => toNumber(row.price_per_sqft))
+      .map((row) => toNumber((row as any).price_per_sqft))
       .filter((value): value is number => value != null);
     const considerationValues = rows
-      .map((row) => toNumber(row.consideration))
+      .map((row) => toNumber((row as any)[considerationColumn(columns)]))
       .filter((value): value is number => value != null);
 
     return {
@@ -369,10 +468,10 @@ export class IgrQueryService {
   async getBuildingNames(search?: string): Promise<Array<{ name: string; city: string | null; count: number }>> {
     const searchTerm = normalizeSearchText(search);
     const minLength = searchTerm ? 1 : 3;
-    const hasCityColumn = await hasIgrTransactionsCityColumn();
+    const columns = await getIgrColumns();
 
     let igrQuery = (getClient().from('igr_transactions') as any)
-      .select(hasCityColumn ? 'building_name, city, locality' : 'building_name, locality');
+      .select(selectFields(columns));
 
     if (searchTerm) {
       igrQuery = igrQuery.ilike('building_name', `%${searchTerm}%`);
@@ -391,11 +490,12 @@ export class IgrQueryService {
     ];
 
     const freq = new Map<string, { name: string; city: string | null; count: number }>();
-    for (const row of (igrData || []) as Array<{ building_name: string | null; city?: string | null; locality?: string | null }>) {
-      const name = row.building_name?.trim();
+    for (const row of (igrData || []) as Array<{ building_name: string | null; city?: string | null; locality?: string | null; village_locality?: string | null }>) {
+      const name = sanitizeBuildingNameCandidate(row.building_name);
+      const rowLocality = sanitizeMicroLocationCandidate(row.locality || row.village_locality || null);
       const city = inferIgrCity({
-        buildingName: row.building_name,
-        locality: row.locality || null,
+        buildingName: name,
+        locality: rowLocality,
         city: row.city || null,
       });
       if (name && name.length >= minLength) {
@@ -406,7 +506,7 @@ export class IgrQueryService {
       }
     }
     for (const row of (streamData || []) as Array<{ building_name: string | null; city: string | null }>) {
-      const name = row.building_name?.trim();
+      const name = sanitizeBuildingNameCandidate(row.building_name);
       const city = row.city?.trim() || null;
       if (name && name.length >= minLength) {
         const key = `${name.toLowerCase()}|${city?.toLowerCase() || ''}`;
@@ -422,20 +522,18 @@ export class IgrQueryService {
   }
 
   async searchTransactions(query: SearchQuery) {
-    const hasCityColumn = await hasIgrTransactionsCityColumn();
+    const columns = await getIgrColumns();
     let request = (getClient().from('igr_transactions') as any)
-      .select(hasCityColumn
-        ? 'doc_number, reg_date, source, building_name, locality, city, consideration, area_sqft, price_per_sqft, config, property_type, district'
-        : 'doc_number, reg_date, source, building_name, locality, consideration, area_sqft, price_per_sqft, config, property_type, district')
-      .order('reg_date', { ascending: false })
+      .select(selectFields(columns, ['property_type', 'district']))
+      .order(dateColumn(columns), { ascending: false })
       .limit(10);
 
-    if (query.locality?.trim()) {
-      request = request.ilike('locality', `%${query.locality.trim()}%`);
+    if (query.locality?.trim() && (columns.locality || columns.villageLocality)) {
+      request = request.ilike(localityColumn(columns), `%${query.locality.trim()}%`);
     }
 
     const cityFilter = query.city?.trim();
-    if (cityFilter && hasCityColumn) {
+    if (cityFilter && columns.city) {
       request = request.ilike('city', `%${cityFilter}%`);
     }
 
@@ -444,7 +542,7 @@ export class IgrQueryService {
     }
 
     if (query.minDate?.trim()) {
-      request = request.gte('reg_date', query.minDate.trim());
+      request = request.gte(dateColumn(columns), query.minDate.trim());
     }
 
     const { data, error } = await request;
@@ -456,17 +554,8 @@ export class IgrQueryService {
     const rows = Array.isArray(data) ? data : [];
 
     return rows
-      .map((row: any) => ({
-        ...row,
-        city: typeof row.city === 'string' ? row.city : inferIgrCity({
-          buildingName: typeof row.building_name === 'string' ? row.building_name : null,
-          locality: typeof row.locality === 'string' ? row.locality : null,
-        }),
-        consideration: toNumber(row.consideration),
-        area_sqft: toNumber(row.area_sqft),
-        price_per_sqft: toNumber(row.price_per_sqft),
-      }))
-      .filter((row: any) => !cityFilter || hasCityColumn || cityMatches(typeof row.city === 'string' ? row.city : null, cityFilter));
+      .map((row: any) => this.mapTransaction(row as Record<string, unknown>))
+      .filter((row: any) => !cityFilter || columns.city || cityMatches(typeof row.city === 'string' ? row.city : null, cityFilter));
   }
 }
 

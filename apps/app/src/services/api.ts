@@ -150,6 +150,10 @@ backendApi.interceptors.response.use(
 );
 
 export const handleApiError = (error: any) => {
+  if (isApiAbortError(error)) {
+    return 'Request was cancelled.';
+  }
+
   console.error("API Error:", error);
   if (error?.code === 'ECONNABORTED' || String(error?.message || '').toLowerCase().includes('timeout')) {
     const requestUrl = String(error?.config?.url || '');
@@ -187,5 +191,14 @@ export const handleApiError = (error: any) => {
     ? SESSION_EXPIRED_MESSAGE
     : cleaned;
 };
+
+export function isApiAbortError(error: any) {
+  const code = String(error?.code || '').toUpperCase();
+  const message = String(error?.message || '').toLowerCase();
+  return code === 'ERR_CANCELED'
+    || message === 'canceled'
+    || message === 'cancelled'
+    || message.includes('request aborted');
+}
 
 export default backendApi;

@@ -946,9 +946,17 @@ export class IgrLiveFetchService {
             scraped_at: new Date().toISOString(),
         };
 
-        const { error } = await this.getAdmin()
+        let { error } = await this.getAdmin()
             .from('igr_transactions')
             .upsert(rowToUpsert, { onConflict: 'doc_number' });
+
+        if (error && /source/i.test(String(error.message || ''))) {
+            const { source: _source, ...rowWithoutSource } = rowToUpsert;
+            const retry = await this.getAdmin()
+                .from('igr_transactions')
+                .upsert(rowWithoutSource, { onConflict: 'doc_number' });
+            error = retry.error;
+        }
 
         if (error) {
             return {

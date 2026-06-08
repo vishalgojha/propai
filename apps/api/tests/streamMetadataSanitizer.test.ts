@@ -16,4 +16,11 @@ describe('stream metadata sanitizer', () => {
     expect(sanitizeBuildingNameCandidate('Kalpataru Solitaire')).toBe('Kalpataru Solitaire');
     expect(sanitizeMicroLocationCandidate('Juhu Versova Link Road')).toBe('Juhu Versova Link Road');
   });
+
+  it('cleans broker-message wrappers from IGR building names', () => {
+    expect(sanitizeBuildingNameCandidate('Name : NATHANI HEIGHTS*')).toBe('Nathani Heights');
+    expect(sanitizeBuildingNameCandidate('* - *Manchester*** *Heights*')).toBe('Manchester Heights');
+    expect(sanitizeBuildingNameCandidate('* - Girnar')).toBe('Girnar');
+    expect(sanitizeBuildingNameCandidate('/ Factory')).toBe('Factory');
+  });
 });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { RefreshCw, Pause, Play } from 'lucide-react';
-import backendApi, { handleApiError } from '../services/api';
+import backendApi, { handleApiError, isApiAbortError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
 import { rebuildStreamFromSavedMessages } from '../services/streamService';
@@ -164,7 +164,7 @@ export default function ParsingTerminal() {
           .map((row) => [row.groupId, row] as const),
       );
 
-      const nextGroups = Array.isArray(auditResponse.data?.groups)
+      let nextGroups = Array.isArray(auditResponse.data?.groups)
         ? auditResponse.data.groups.map((row: any, index: number) => {
             const health = healthByGroupId.get(String(row.id || '')) || null;
             return {
@@ -190,6 +190,38 @@ export default function ParsingTerminal() {
           })
         : healthRows.filter((row) => !nextSessionLabel || row.sessionLabel === nextSessionLabel);
 
+      if (nextGroups.length === 0) {
+        const directoryResponse = await backendApi.get(ENDPOINTS.whatsapp.groups, {
+          params: nextSessionLabel ? { sessionLabel: nextSessionLabel } : undefined,
+          timeout: 60000,
+        });
+        const directoryRows = Array.isArray(directoryResponse.data) ? directoryResponse.data : [];
+        nextGroups = directoryRows.map((row: any, index: number) => {
+          const groupId = String(row.id || row.groupJid || row.group_id || '');
+          const health = healthByGroupId.get(groupId) || null;
+          return {
+            id: groupId || `group-${index}`,
+            sessionLabel: String(row.sessionLabel || row.session_label || nextSessionLabel || 'default'),
+            groupId,
+            groupName: String(row.name || row.groupName || row.group_name || groupId || 'Unnamed group'),
+            signalScore: Number(row.signalScore || row.signal_score || 0),
+            noiseScore: Number(row.noiseScore || row.noise_score || 0),
+            chaosScore: Number(row.chaosScore || row.chaos_score || 0),
+            participantsCount: Number(row.participantsCount || row.participant_count || row.member_count || 0),
+            duplicateOverlapPercent: Number(row.duplicateOverlapPercent || row.duplicate_overlap_score || 0),
+            reasons: Array.isArray(row.reasons) ? row.reasons : [],
+            lastMessageAt: health?.lastMessageAt || row.lastActiveAt || row.last_active_at || null,
+            lastParsedAt: health?.lastParsedAt || null,
+            messagesReceived24h: Number(health?.messagesReceived24h || 0),
+            messagesParsed24h: Number(health?.messagesParsed24h || 0),
+            messagesFailed24h: Number(health?.messagesFailed24h || 0),
+            status: String(health?.status || 'active'),
+            isParsing: typeof row.isParsing === 'boolean' ? row.isParsing : typeof row.is_parsing === 'boolean' ? row.is_parsing : true,
+            behavior: typeof row.behavior === 'string' ? row.behavior : 'Listen',
+          };
+        });
+      }
+
       const nextEvents = Array.isArray(eventResponse.data)
         ? eventResponse.data
             .filter((row: any) => String(row.eventType || '') === 'group_message_broadcast_parsed')
@@ -211,6 +243,9 @@ export default function ParsingTerminal() {
       setInfoMessage(null);
       setLastRefresh(new Date());
     } catch (err) {
+      if (isApiAbortError(err)) {
+        return;
+      }
       setError(handleApiError(err));
     } finally {
       setLoading(false);

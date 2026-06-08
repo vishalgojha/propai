@@ -1,5 +1,6 @@
 const MULTISPACE_PATTERN = /\s+/g;
-const PUNCTUATION_EDGE_PATTERN = /^[\s:,@*_\-.]+|[\s:,@*_\-.]+$/g;
+const PUNCTUATION_EDGE_PATTERN = /^[\s:,@*_\-./]+|[\s:,@*_\-./]+$/g;
+const LEADING_LABEL_PATTERN = /^(?:name|building|building\s*name|project|project\s*name|society|society\s*name)\s*[:=\-]\s*/i;
 
 const PROPERTY_WORDS = new Set([
   'apartment',
@@ -60,10 +61,23 @@ const METADATA_NOISE_PATTERN =
   /\b(?:bhk|rent|sale|lease|deposit|budget|asking|carpet|sq\s*ft|sqft|floor|furnished|unfurnished|negotiable|available|family|bachelor|client|tenant|buyer|seller|call|contact|mobile|phone)\b/i;
 
 function normalizeCandidate(value: string | null | undefined) {
-  return String(value || '')
+  let normalized = String(value || '')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[|]+/g, ' ')
+    .replace(/\*+/g, ' ')
+    .replace(LEADING_LABEL_PATTERN, '')
     .replace(PUNCTUATION_EDGE_PATTERN, '')
     .replace(MULTISPACE_PATTERN, ' ')
     .trim();
+
+  normalized = normalized
+    .replace(LEADING_LABEL_PATTERN, '')
+    .replace(PUNCTUATION_EDGE_PATTERN, '')
+    .replace(MULTISPACE_PATTERN, ' ')
+    .trim();
+
+  return normalized;
 }
 
 function wordsOf(value: string) {
