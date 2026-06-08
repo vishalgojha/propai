@@ -173,6 +173,20 @@ export async function oauthAuthorizePostHandler(req: Request, res: Response) {
   }
 
   await pruneAuthorizationCodes();
+
+  const existingClient = await getOAuthClient(String(clientId));
+  if (!existingClient) {
+    await createOAuthClient({
+      client_id: String(clientId),
+      client_name: String(req.body?.client_name || "PropAI MCP Client"),
+      redirect_uris: [String(redirectUri)],
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      token_endpoint_auth_method: "none",
+      created_at: new Date().toISOString(),
+    });
+  }
+
   const code = crypto.randomBytes(32).toString("base64url");
   await saveAuthorizationCode({
     code,
