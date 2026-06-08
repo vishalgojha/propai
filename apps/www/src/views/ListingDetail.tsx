@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { MessageCircle, MapPin, Bell, Clock, ChevronRight, CheckCircle, Phone, X, BedDouble, Move, IndianRupee, Building } from 'lucide-react';
+import { MessageCircle, MapPin, Bell, Clock, ChevronRight, CheckCircle, Phone, X, BedDouble, Move, IndianRupee, Building, Send, User } from 'lucide-react';
 import { getListingBySlug, getListings, type PublicListing } from '@/lib/listings';
 import { formatPrice, formatBhk, buildDescription } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -24,6 +24,11 @@ export default function ListingDetail({
   const [notifyState, setNotifyState] = useState<'idle' | 'form' | 'submitting' | 'done'>('idle');
   const [notifyPhone, setNotifyPhone] = useState('');
   const [notifyError, setNotifyError] = useState('');
+  const [intentState, setIntentState] = useState<'idle' | 'form' | 'submitting' | 'done'>('idle');
+  const [intentName, setIntentName] = useState('');
+  const [intentPhone, setIntentPhone] = useState('');
+  const [intentMessage, setIntentMessage] = useState('');
+  const [intentError, setIntentError] = useState('');
   const [aiDescription, setAiDescription] = useState<string | null>(null);
   const [descLoading, setDescLoading] = useState(false);
 
@@ -51,6 +56,43 @@ export default function ListingDetail({
     } catch {
       setNotifyError('Could not save. Try again.');
       setNotifyState('form');
+    }
+  };
+
+  const handleIntentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = intentName.trim();
+    if (!name || name.length < 2) {
+      setIntentError('Please enter your name.');
+      return;
+    }
+    const digits = intentPhone.replace(/\D/g, '');
+    const phone = digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      setIntentError('Enter a valid 10-digit Indian mobile number.');
+      return;
+    }
+    setIntentError('');
+    setIntentState('submitting');
+    try {
+      const res = await fetch('/api/listings/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listingId: listing?.id,
+          phone: intentPhone,
+          name: intentName.trim(),
+          message: intentMessage.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed');
+      }
+      setIntentState('done');
+    } catch {
+      setIntentError('Could not save. Try again.');
+      setIntentState('form');
     }
   };
 
@@ -319,18 +361,69 @@ export default function ListingDetail({
 
         <div className="rounded-[24px] bg-[var(--bg-surface)]/60 backdrop-blur-md p-6 border border-white/2">
           <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">Interested in this property?</div>
-          <p className="mt-3 text-[13px] leading-relaxed text-[var(--text-secondary)] font-medium">
-            Get more details, schedule a site visit, or discuss pricing directly with the listing contact. Sign up to unlock full property information.
+          <p className="mt-2 text-[13px] leading-relaxed text-[var(--text-secondary)] font-medium">
+            Leave your details and the listing contact will get in touch.
           </p>
-          <a
-            href="https://app.propai.live"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 flex items-center justify-center gap-2 rounded-[14px] bg-[var(--accent)] py-3.5 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--on-propai-green)] transition-all hover:brightness-110"
-          >
-            <MessageCircle className="h-4 w-4" />
-            Get Property Details
-          </a>
+
+          {intentState === 'done' ? (
+            <div className="mt-4 flex items-center justify-center gap-2 rounded-[16px] bg-[var(--accent-glow)] py-5 text-center text-[12px] font-bold text-[var(--accent)]">
+              <CheckCircle className="h-5 w-5 shrink-0" />
+              Thanks! The listing contact will reach out to you shortly.
+            </div>
+          ) : (
+            <form onSubmit={handleIntentSubmit} className="mt-4 space-y-3">
+              <div className="flex items-center gap-2 rounded-[14px] bg-[var(--bg-elevated)]/40 px-3 py-2">
+                <User className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Your name"
+                  value={intentName}
+                  onChange={(e) => setIntentName(e.target.value)}
+                  className="bg-transparent border-none outline-none text-[12px] w-full text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                  disabled={intentState === 'submitting'}
+                  required
+                />
+              </div>
+              <div className="flex items-center gap-2 rounded-[14px] bg-[var(--bg-elevated)]/40 px-3 py-2">
+                <Phone className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
+                <input
+                  type="tel"
+                  placeholder="Your WhatsApp number"
+                  value={intentPhone}
+                  onChange={(e) => setIntentPhone(e.target.value)}
+                  className="bg-transparent border-none outline-none text-[12px] w-full text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                  disabled={intentState === 'submitting'}
+                  required
+                />
+              </div>
+              <div className="flex items-start gap-2 rounded-[14px] bg-[var(--bg-elevated)]/40 px-3 py-2">
+                <MessageCircle className="h-4 w-4 text-[var(--text-muted)] shrink-0 mt-0.5" />
+                <textarea
+                  placeholder="Any specific question? (optional)"
+                  value={intentMessage}
+                  onChange={(e) => setIntentMessage(e.target.value)}
+                  rows={2}
+                  className="bg-transparent border-none outline-none text-[12px] w-full text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none"
+                  disabled={intentState === 'submitting'}
+                />
+              </div>
+              {intentError && (
+                <p className="text-[10px] text-red-400 px-1">{intentError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={intentState === 'submitting'}
+                className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[var(--accent)] py-3.5 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--on-propai-green)] transition-all hover:brightness-110 disabled:opacity-50"
+              >
+                {intentState === 'submitting' ? (
+                  <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                {intentState === 'submitting' ? 'Sending...' : 'Send Interest'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
 

@@ -12,7 +12,7 @@ function normalizePhone(value: string): string | null {
 
 export async function POST(request: Request) {
   try {
-    const { listingId, phone } = await request.json();
+    const { listingId, phone, name, message } = await request.json();
 
     if (!listingId?.trim()) {
       return NextResponse.json({ error: "Listing ID is required." }, { status: 400 });
@@ -22,6 +22,9 @@ export async function POST(request: Request) {
     if (!normalizedPhone) {
       return NextResponse.json({ error: "Valid Indian mobile number is required." }, { status: 400 });
     }
+
+    const leadName = String(name || "").trim() || "Website Lead";
+    const leadMessage = String(message || "").trim() || null;
 
     let listing: Record<string, unknown> | null = null;
     const tables = ["stream_items", "stream_items_residential", "stream_items_commercial"] as const;
@@ -48,13 +51,14 @@ export async function POST(request: Request) {
       const { error: insertError } = await supabaseAdmin.from("public_property_leads").insert({
         stream_item_id: listing.id,
         broker_tenant_id: listing.tenant_id,
-        lead_name: "Notify Me Lead",
+        lead_name: leadName,
         lead_phone: normalizedPhone,
         source_path: request.headers.get("referer") || "/listing",
         payload: {
-          type: "notify_me",
+          type: "intent",
           listingTitle: String((listing as any).parsed_payload?.displayTitle || ""),
           locality: String((listing as any).locality || ""),
+          message: leadMessage,
           submittedFrom: request.headers.get("host") || "propai.live",
           userAgent: request.headers.get("user-agent") || "",
         },
