@@ -237,6 +237,8 @@ export const Settings: React.FC = () => {
   const [inviteCopied, setInviteCopied] = useState(false);
   const [acceptToken, setAcceptToken] = useState('');
   const [acceptResult, setAcceptResult] = useState<string | null>(null);
+  const [isPurging, setIsPurging] = useState(false);
+  const [purgeResult, setPurgeResult] = useState<string | null>(null);
 
   const loadSyndicationPartners = React.useCallback(async () => {
     setSyndicationLoading(true);
@@ -297,6 +299,24 @@ export const Settings: React.FC = () => {
       navigator.clipboard.writeText(inviteLink);
       setInviteCopied(true);
       setTimeout(() => setInviteCopied(false), 2000);
+    }
+  };
+
+  const handlePurgeAllData = async () => {
+    const confirmed = window.confirm('Clear all saved WhatsApp session state for this workspace? You will need to reconnect WhatsApp.');
+    if (!confirmed) return;
+
+    setIsPurging(true);
+    setError(null);
+    setPurgeResult(null);
+    try {
+      const response = await backendApi.post(ENDPOINTS.whatsapp.resetAll);
+      const clearedSessions = Number(response.data?.clearedSessions || 0);
+      setPurgeResult(`WhatsApp session state cleared (${clearedSessions} session${clearedSessions === 1 ? '' : 's'}).`);
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsPurging(false);
     }
   };
 
@@ -940,14 +960,23 @@ export const Settings: React.FC = () => {
             </div>
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <p className="max-w-lg text-[12px] leading-6 text-[var(--text-secondary)]">
-                Clearing local cache will remove saved session data and disconnect WhatsApp. This action cannot be
-                undone.
+                Clearing WhatsApp session state will remove saved linked-device credentials and disconnect WhatsApp. This action cannot be undone.
               </p>
-              <button className="inline-flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-red-500 transition-colors hover:bg-red-500 hover:text-black">
-              <TrashIcon className="h-4 w-4" />
-                Purge all data
+              <button
+                type="button"
+                onClick={handlePurgeAllData}
+                disabled={isPurging}
+                className="inline-flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-red-500 transition-colors hover:bg-red-500 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isPurging ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <TrashIcon className="h-4 w-4" />}
+                {isPurging ? 'Purging...' : 'Purge all data'}
               </button>
             </div>
+            {purgeResult ? (
+              <div className="mt-4 rounded-[14px] border border-red-500/20 bg-red-500/10 px-4 py-3 text-[12px] text-red-100">
+                {purgeResult}
+              </div>
+            ) : null}
           </section>
         </div>
       )}

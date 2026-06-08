@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { keyService, parseApiKeys } from './keyService';
 import { aiUsageService } from './aiUsageService';
-import { getWorkspaceDefaultModel, getWorkspaceExplicitDefaultModel } from './workspaceSettingsService';
+import { getWorkspaceDefaultModel, getWorkspaceExplicitDefaultModel, getWorkspaceSettingsRecord } from './workspaceSettingsService';
 
 interface AIResponse {
     text: string;
@@ -95,11 +95,14 @@ export class AIService {
         const start = Date.now();
 
         const providers = await this.buildProviderOrder(modelPreference, taskType, tenantId);
+        const settings = tenantId ? (await getWorkspaceSettingsRecord(tenantId).catch(() => null))?.settings : null;
+        const effectiveHistory = this.applyContextBuffer(conversationHistory, settings?.contextBuffer);
+        const effectiveSystemPrompt = this.applyTokenLogic(systemPrompt, settings?.tokenLogic);
         const errors: ProviderError[] = [];
 
         for (const provider of providers) {
             try {
-                const response = await this.callModel(prompt, provider, tenantId, systemPrompt, conversationHistory);
+                const response = await this.callModel(prompt, provider, tenantId, effectiveSystemPrompt, effectiveHistory);
                 if (tenantId && response.usage) {
                     void aiUsageService.recordUsage({
                         tenantId,
@@ -240,6 +243,32 @@ export class AIService {
 
         messages.push({ role: 'user', content: prompt });
         return messages;
+    }
+
+    private applyContextBuffer(conversationHistory: ChatMessage[] = [], contextBuffer?: string | null): ChatMessage[] {
+        const normalized = String(contextBuffer || 'Optimized').trim().toLowerCase();
+        const maxMessages = normalized === 'low'
+            ? 6
+            : normalized === 'maximum'
+                ? 40
+                : 16;
+
+        if (!Array.isArray(conversationHistory) || conversationHistory.length <= maxMessages) {
+            return conversationHistory;
+        }
+
+        return conversationHistory.slice(-maxMessages);
+    }
+
+    private applyTokenLogic(systemPrompt?: string, tokenLogic?: string | null): string | undefined {
+        const normalized = String(tokenLogic || 'Precision').trim().toLowerCase();
+        const instruction = normalized === 'efficiency'
+            ? 'Workspace AI setting: prioritize concise answers and avoid unnecessary reasoning or extra alternatives.'
+            : normalized === 'experimental'
+                ? 'Workspace AI setting: use broader reasoning and suggest creative options when useful, while staying factual.'
+                : 'Workspace AI setting: prioritize accuracy, concrete details, and careful clarification when facts are uncertain.';
+
+        return [systemPrompt?.trim(), instruction].filter(Boolean).join('\n\n') || undefined;
     }
 
     private buildConversationTranscript(prompt: string, systemPrompt?: string, conversationHistory: ChatMessage[] = []): string {

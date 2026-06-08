@@ -239,6 +239,50 @@ class EmailNotificationService {
         });
     }
 
+    async sendPerformanceAnalytics(to: string, stats: {
+        listings: number;
+        requirements: number;
+        accepted: number;
+        suppressed: number;
+    }): Promise<EmailSendResult> {
+        const streamUrl = `${this.appUrl}/analytics`;
+        const text = [
+            'Your weekly PropAI performance analytics report',
+            '',
+            `Accepted stream items: ${stats.accepted}`,
+            `Suppressed/noise-filtered items: ${stats.suppressed}`,
+            `Listings: ${stats.listings}`,
+            `Requirements: ${stats.requirements}`,
+            '',
+            `Open analytics: ${streamUrl}`,
+        ].join('\n');
+
+        const html = `
+            <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;line-height:1.6;color:#1a1a2e;max-width:560px;margin:0 auto">
+                <div style="background:#0d1117;border-radius:16px;padding:32px;border:1px solid #243040">
+                    <p style="font-size:15px;margin:0 0 16px;color:#e2e8f0">Your weekly PropAI performance analytics report</p>
+                    <ul style="font-size:13px;color:#94a3b8;line-height:1.8;margin:0 0 20px;padding-left:16px">
+                        <li>Accepted stream items: <strong style="color:#3EE88A">${stats.accepted}</strong></li>
+                        <li>Suppressed/noise-filtered items: <strong style="color:#3EE88A">${stats.suppressed}</strong></li>
+                        <li>Listings: <strong style="color:#3EE88A">${stats.listings}</strong></li>
+                        <li>Requirements: <strong style="color:#3EE88A">${stats.requirements}</strong></li>
+                    </ul>
+                    <a href="${streamUrl}" style="display:inline-block;background:#3EE88A;color:#000;text-decoration:none;font-weight:600;font-size:14px;padding:12px 24px;border-radius:12px">
+                        Open Analytics
+                    </a>
+                </div>
+            </div>
+        `;
+
+        return this.sendEmail({
+            to,
+            from: 'PropAI Analytics <hello@propai.live>',
+            subject: 'Your weekly PropAI performance analytics',
+            text,
+            html,
+        });
+    }
+
     private async sendEmail(payload: EmailPayload): Promise<EmailSendResult> {
         if (!this.isConfigured()) {
             console.warn('[EmailNotificationService] Email provider not configured (RESEND_API_KEY or EMAIL_FROM missing), skipping email:', payload.subject);

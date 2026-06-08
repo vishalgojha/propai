@@ -9,6 +9,7 @@ import { normaliseIndianPhone } from '../utils/phoneUtils';
 import { buildStreamContentHash, computeStreamCompleteness } from '../utils/streamQuality';
 import { getWorkspaceSettingsRecord } from './workspaceSettingsService';
 import { emailNotificationService } from './emailNotificationService';
+import { pushRecentAction } from './identityService';
 import { cleanNumber } from '../utils/number';
 import { embedStreamItem } from '../services/embeddingService';
 import { sanitizeBuildingNameCandidate, sanitizeMicroLocationCandidate } from '../utils/streamMetadataSanitizer';
@@ -2007,6 +2008,8 @@ export class ChannelService {
 
 private backfillInitiatedScopes = new Map<string, number>();
 private dailyBriefingSentKeys = new Set<string>();
+private weeklyAnalyticsSentKeys = new Set<string>();
+private highValueLeadAlertKeys = new Set<string>();
 
     private getBackfillScopeKey(tenantId: string, sessionLabel?: string | null) {
         return `${tenantId}::${sessionLabel || 'all'}`;
@@ -2092,12 +2095,14 @@ private dailyBriefingSentKeys = new Set<string>();
          } else {
              try {
                  const settingsRecord = await getWorkspaceSettingsRecord(tenantId);
-                 const period = settingsRecord.settings.autoSyncPeriod || 'Auto';
+                 const period = String(settingsRecord.settings.autoSyncPeriod || 'Auto').toLowerCase();
                  let intervalMs = 24 * 60 * 60 * 1000;
-                 if (period === 'Hourly') intervalMs = 60 * 60 * 1000;
-                 else if (period === 'Daily') intervalMs = 24 * 60 * 60 * 1000;
-                 else if (period === 'Weekly') intervalMs = 7 * 24 * 60 * 60 * 1000;
-                 else if (period === 'Auto') intervalMs = 6 * 60 * 60 * 1000;
+                 if (period === '5 mins' || period === '5 minutes') intervalMs = 5 * 60 * 1000;
+                 else if (period === '15 mins' || period === '15 minutes') intervalMs = 15 * 60 * 1000;
+                 else if (period === '1 hour' || period === 'hourly') intervalMs = 60 * 60 * 1000;
+                 else if (period === 'daily') intervalMs = 24 * 60 * 60 * 1000;
+                 else if (period === 'weekly') intervalMs = 7 * 24 * 60 * 60 * 1000;
+                 else if (period === 'auto') intervalMs = 6 * 60 * 60 * 1000;
                  shouldBackfill = (Date.now() - lastBackfill) > intervalMs;
              } catch {
                  shouldBackfill = (Date.now() - lastBackfill) > 24 * 60 * 60 * 1000;
@@ -2114,6 +2119,12 @@ private dailyBriefingSentKeys = new Set<string>();
          if (!this.dailyBriefingSentKeys.has(briefingKey)) {
              this.dailyBriefingSentKeys.add(briefingKey);
              void this.maybeSendDailyBriefing(tenantId, email);
+         }
+         const weekKey = this.getWeekKey(new Date());
+         const analyticsKey = `${tenantId}::${weekKey}`;
+         if (!this.weeklyAnalyticsSentKeys.has(analyticsKey)) {
+             this.weeklyAnalyticsSentKeys.add(analyticsKey);
+             void this.maybeSendPerformanceAnalytics(tenantId, email);
          }
 
          const readClient = accessToken ? createSupabaseAnonClient(accessToken) : this.db;
@@ -2678,6 +2689,10 @@ private dailyBriefingSentKeys = new Set<string>();
     }
 
     async ingestMessage(tenantId: string, message: RawInboundMessage) {
+        const settingsRecord = await getWorkspaceSettingsRecord(tenantId).catch(() => null);
+        const workspaceSettings = settingsRecord?.settings;
+        const deduplicationEnabled = workspaceSettings?.deduplication !== false;
+        const noiseFilterEnabled = workspaceSettings?.noiseFilter !== false;
         const groupContext = await this.loadGroupIngestionContext(tenantId, message.remote_jid);
         const candidates = (await this.parseMessage(tenantId, message)).map((candidate) => this.applyGroupContextToCandidate(candidate, groupContext));
         if (candidates.length === 0) {
@@ -2685,6 +2700,16 @@ private dailyBriefingSentKeys = new Set<string>();
         }
 
         const qualityDecision = this.evaluateMessageQuality(message, candidates, groupContext);
+        if (!noiseFilterEnabled && qualityDecision.status !== 'accepted') {
+            const originalStatus = qualityDecision.status;
+            qualityDecision.status = 'accepted';
+            qualityDecision.suppressionReason = null;
+            qualityDecision.resolutionContext = {
+                ...qualityDecision.resolutionContext,
+                noiseFilterDisabled: true,
+                originalStatus,
+            };
+        }
         const isAccepted = qualityDecision.status === 'accepted';
 
         let ingestedCount = 0;
@@ -2693,7 +2718,7 @@ private dailyBriefingSentKeys = new Set<string>();
                 continue;
             }
 
-            if (['listing', 'requirement'].includes(parsed.recordType)) {
+            if (deduplicationEnabled && ['listing', 'requirement'].includes(parsed.recordType)) {
                 const windowMinutes = parsed.recordType === 'requirement' ? 24 * 60 : 10;
                 const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
                 const contentHash = buildStreamContentHash(parsed.rawText, parsed.sourcePhone);
@@ -2891,6 +2916,9 @@ private dailyBriefingSentKeys = new Set<string>();
             }
 
             ingestedCount += 1;
+            if (workspaceSettings?.highValueLeads !== false) {
+                void this.maybeAlertHighValueLead(tenantId, parsed, data.id);
+            }
             await canonicalizationService.canonicalizeStreamItem(data as any).catch((canonicalError) => {
                 console.error('[ChannelService] Canonicalization failed', canonicalError);
             });
@@ -3201,6 +3229,87 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
         } catch (err) {
             console.error('[ChannelService] Daily briefing failed', (err as Error).message);
         }
+    }
+
+    private getWeekKey(date: Date) {
+        const copy = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+        const day = copy.getUTCDay() || 7;
+        copy.setUTCDate(copy.getUTCDate() + 4 - day);
+        const yearStart = new Date(Date.UTC(copy.getUTCFullYear(), 0, 1));
+        const week = Math.ceil((((copy.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+        return `${copy.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+    }
+
+    private async maybeSendPerformanceAnalytics(tenantId: string, email?: string | null) {
+        if (!email) {
+            return;
+        }
+
+        try {
+            const settingsRecord = await getWorkspaceSettingsRecord(tenantId);
+            if (!settingsRecord.settings.performanceAnalytics) {
+                return;
+            }
+
+            const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+            const [resResult, comResult] = await Promise.all([
+                this.db.from('stream_items_residential').select('record_type, ingestion_status').eq('tenant_id', tenantId).gte('created_at', since).limit(5000),
+                this.db.from('stream_items_commercial').select('record_type, ingestion_status').eq('tenant_id', tenantId).gte('created_at', since).limit(5000),
+            ]);
+
+            const rows = [
+                ...(Array.isArray(resResult.data) ? resResult.data : []),
+                ...(Array.isArray(comResult.data) ? comResult.data : []),
+            ] as Array<{ record_type?: string | null; ingestion_status?: string | null }>;
+
+            const stats = rows.reduce((acc, row) => {
+                const recordType = String(row.record_type || '').toLowerCase();
+                const status = String(row.ingestion_status || 'accepted').toLowerCase();
+                if (recordType === 'listing') acc.listings += 1;
+                if (recordType === 'requirement') acc.requirements += 1;
+                if (status === 'accepted') acc.accepted += 1;
+                else acc.suppressed += 1;
+                return acc;
+            }, { listings: 0, requirements: 0, accepted: 0, suppressed: 0 });
+
+            await emailNotificationService.sendPerformanceAnalytics(email, stats);
+        } catch (error) {
+            console.error('[ChannelService] Failed to send performance analytics email', error);
+        }
+    }
+
+    private isHighValueLead(candidate: ParsedStreamCandidate) {
+        if (candidate.recordType !== 'requirement') {
+            return false;
+        }
+
+        const price = Number(candidate.priceNumeric || 0);
+        if (!Number.isFinite(price) || price <= 0) {
+            return false;
+        }
+
+        const dealType = String(candidate.dealType || '').toLowerCase();
+        if (dealType === 'rent' || candidate.streamType === 'Rent') {
+            return price >= 300000;
+        }
+
+        return price >= 50000000;
+    }
+
+    private async maybeAlertHighValueLead(tenantId: string, candidate: ParsedStreamCandidate, streamItemId?: string | null) {
+        if (!this.isHighValueLead(candidate)) {
+            return;
+        }
+
+        const key = `${tenantId}::${streamItemId || candidate.messageId}`;
+        if (this.highValueLeadAlertKeys.has(key)) {
+            return;
+        }
+
+        this.highValueLeadAlertKeys.add(key);
+        const location = [candidate.locality, candidate.city].filter(Boolean).join(', ') || 'Unknown location';
+        const budget = candidate.priceLabel || (candidate.priceNumeric ? `₹${candidate.priceNumeric}` : 'budget available');
+        await pushRecentAction(tenantId, `High-value lead detected: ${candidate.streamType} requirement in ${location} (${budget})`);
     }
 
     private async parseMessage(tenantId: string, message: RawInboundMessage): Promise<ParsedStreamCandidate[]> {
