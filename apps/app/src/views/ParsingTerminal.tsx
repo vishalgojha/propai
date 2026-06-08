@@ -24,6 +24,7 @@ type GroupHealth = {
   status: string;
   isParsing?: boolean;
   behavior?: string | null;
+  source?: string | null;
 };
 
 type GroupAuditResponse = {
@@ -121,13 +122,7 @@ export default function ParsingTerminal() {
       setTransportStatus(nextTransportStatus);
       setSessionLabel(nextSessionLabel);
 
-      if (!nextConnected) {
-        setError(null);
-        setLastRefresh(new Date());
-        return;
-      }
-
-      const auditRequest = nextSessionLabel
+      const auditRequest = nextConnected && nextSessionLabel
         ? backendApi.get<GroupAuditResponse>(ENDPOINTS.whatsapp.groupsAudit, {
             params: { sessionLabel: nextSessionLabel },
             timeout: 60000,
@@ -154,17 +149,24 @@ export default function ParsingTerminal() {
             status: String(row.status || 'unknown'),
             isParsing: typeof row.isParsing === 'boolean' ? row.isParsing : true,
             behavior: typeof row.behavior === 'string' ? row.behavior : null,
+            source: typeof row.source === 'string' ? row.source : null,
           }))
         : [];
 
+      const matchesVisibleInventory = (row: GroupHealth) =>
+        row.source === 'parsed_history'
+        || row.status === 'parsed_history'
+        || !nextSessionLabel
+        || row.sessionLabel === nextSessionLabel;
+
       const healthByGroupId = new Map(
         healthRows
-          .filter((row) => !nextSessionLabel || row.sessionLabel === nextSessionLabel)
+          .filter(matchesVisibleInventory)
           .filter((row) => Boolean(row.groupId))
           .map((row) => [row.groupId, row] as const),
       );
 
-      let nextGroups = Array.isArray(auditResponse.data?.groups)
+      let nextGroups = Array.isArray(auditResponse.data?.groups) && auditResponse.data.groups.length > 0
         ? auditResponse.data.groups.map((row: any, index: number) => {
             const health = healthByGroupId.get(String(row.id || '')) || null;
             return {
@@ -186,9 +188,10 @@ export default function ParsingTerminal() {
               status: String(health?.status || 'active'),
               isParsing: health ? Boolean(health.isParsing) : true,
               behavior: typeof health?.behavior === 'string' ? health.behavior : 'Listen',
+              source: health?.source || null,
             };
           })
-        : healthRows.filter((row) => !nextSessionLabel || row.sessionLabel === nextSessionLabel);
+        : healthRows.filter(matchesVisibleInventory);
 
       if (nextGroups.length === 0) {
         const directoryResponse = await backendApi.get(ENDPOINTS.whatsapp.groups, {
@@ -218,6 +221,7 @@ export default function ParsingTerminal() {
             status: String(health?.status || 'active'),
             isParsing: typeof row.isParsing === 'boolean' ? row.isParsing : typeof row.is_parsing === 'boolean' ? row.is_parsing : true,
             behavior: typeof row.behavior === 'string' ? row.behavior : 'Listen',
+            source: health?.source || null,
           };
         });
       }
@@ -484,7 +488,7 @@ export default function ParsingTerminal() {
             {loading ? (
               <TerminalEmpty text="Loading parser state" />
             ) : groups.length === 0 ? (
-              <TerminalEmpty text={isConnected ? 'No groups detected yet' : 'WhatsApp is disconnected — live parsing is paused'} />
+              <TerminalEmpty text={isConnected ? 'No groups detected yet' : 'No parsed history groups found'} />
             ) : (
               groups.map((group, index) => (
                 <GroupRow key={`${group.sessionLabel}-${group.groupId}`} group={group} rowIndex={index} onToggle={handleSetGroupParsing} />
@@ -589,6 +593,7 @@ function PanelHeader({ left, right }: { left: string; right: string }) {
 
 function GroupRow({ group, rowIndex, onToggle }: { group: GroupHealth; rowIndex: number; onToggle: (group: GroupHealth, enabled: boolean) => void }) {
   const live = isLiveGroup(group);
+  const parsedHistory = isParsedHistoryGroup(group);
   const parsedRatio = group.messagesReceived24h > 0 ? Math.round((group.messagesParsed24h / group.messagesReceived24h) * 100) : 0;
   const toneClass = parsedRatio >= 60 ? 'text-[var(--accent)]' : parsedRatio >= 30 ? 'text-[var(--text-primary)]' : 'text-[var(--red)]';
 
@@ -606,11 +611,11 @@ function GroupRow({ group, rowIndex, onToggle }: { group: GroupHealth; rowIndex:
           <h2 className="truncate text-[12px] font-bold uppercase tracking-[0.04em] text-[var(--text-primary)]">{group.groupName}</h2>
           <span className={cn(
             'shrink-0 border px-1.5 py-0.5 text-[8px] uppercase tracking-[0.12em]',
-            live
+            live || parsedHistory
               ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
               : 'border-[color:var(--border)] bg-transparent text-[var(--text-muted)]',
           )}>
-            {live ? 'Live' : 'Idle'}
+            {live ? 'Live' : parsedHistory ? 'History' : 'Idle'}
           </span>
           {group.isParsing === false ? (
             <span className="shrink-0 border border-[rgba(239,68,68,0.3)] bg-[var(--red-dim)] px-1.5 py-0.5 text-[8px] uppercase tracking-[0.12em] text-[var(--red)]">
@@ -640,7 +645,11 @@ function GroupRow({ group, rowIndex, onToggle }: { group: GroupHealth; rowIndex:
       <Cell value={group.messagesFailed24h} align="right" tone={group.messagesFailed24h > 0 ? 'danger' : 'neutral'} />
       <Cell value={`${parsedRatio}%`} align="right" className={toneClass} />
       <div className="flex items-center justify-end gap-1 self-center">
-        {group.isParsing === false ? (
+        {parsedHistory ? (
+          <span className="text-right text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+            {formatRelative(group.lastParsedAt || group.lastMessageAt)} ago
+          </span>
+        ) : group.isParsing === false ? (
           <button
             type="button"
             onClick={() => onToggle(group, true)}
@@ -818,10 +827,15 @@ const toneBoxStyles = {
 } as const;
 
 function isLiveGroup(group: GroupHealth) {
+  if (isParsedHistoryGroup(group)) return false;
   const latest = group.lastMessageAt || group.lastParsedAt;
   if (!latest) return false;
   const age = Date.now() - new Date(latest).getTime();
   return Number.isFinite(age) && age < 10 * 60 * 1000;
+}
+
+function isParsedHistoryGroup(group: GroupHealth) {
+  return group.source === 'parsed_history' || group.status === 'parsed_history';
 }
 
 function sortGroups(left: GroupHealth, right: GroupHealth) {
@@ -871,6 +885,10 @@ function formatStamp(value?: string | null) {
 }
 
 function shouldPromptForParsing(group: GroupHealth) {
+  if (isParsedHistoryGroup(group)) {
+    return false;
+  }
+
   const recentMessage = group.lastMessageAt ? new Date(group.lastMessageAt).getTime() : 0;
   const recentThreshold = Date.now() - (6 * 60 * 60 * 1000);
   if (!Number.isFinite(recentMessage) || recentMessage <= 0 || recentMessage < recentThreshold) {

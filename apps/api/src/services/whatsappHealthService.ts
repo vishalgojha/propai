@@ -61,6 +61,10 @@ const STALE_MS = DAY_MS * 7;
 const HOUR_MS = 3_600_000;
 
 const db = supabaseAdmin || supabase;
+const PARSED_HISTORY_SESSION_LABEL = 'parsed-history';
+const PARSED_HISTORY_CACHE_MS = 60_000;
+const PARSED_HISTORY_PAGE_SIZE = 1000;
+const PARSED_HISTORY_MAX_ROWS_PER_TABLE = 10_000;
 const HIDDEN_EVENT_TYPES = new Set([
     'group_message_parse_only',
     'group_message_broadcast_parse_failed',
@@ -185,6 +189,7 @@ export class WhatsAppHealthService {
     private heartbeatLoopActive = false;
     private readonly heartbeatLogAt = new Map<string, number>();
     private readonly heartbeatRehydrateAt = new Map<string, number>();
+    private readonly parsedHistoryGroupsCache = new Map<string, { expiresAt: number; rows: any[] }>();
     private readonly heartbeatIntervalMs = Number(process.env.WHATSAPP_HEALTH_HEARTBEAT_MS || 2_500);
     private readonly heartbeatReconnectAfterMs = Number(process.env.WHATSAPP_HEALTH_RECONNECT_AFTER_MS || 5_000);
     private readonly heartbeatRehydrateAfterMs = Number(process.env.WHATSAPP_HEALTH_REHYDRATE_AFTER_MS || 5 * 60_000);
@@ -701,7 +706,7 @@ export class WhatsAppHealthService {
             }
         }
 
-        return (data || []).map((row: any) => {
+        const liveRows = (data || []).map((row: any) => {
             const parsingState = parsingMap.get(String(row.group_id || '')) || { isParsing: true, behavior: 'Listen' };
             return ({
             id: row.id,
@@ -719,6 +724,118 @@ export class WhatsAppHealthService {
             behavior: parsingState.behavior,
         });
         });
+
+        const parsedHistoryRows = await this.getParsedHistoryGroupHealth(tenantId, liveRows);
+        return [...liveRows, ...parsedHistoryRows];
+    }
+
+    private async getParsedHistoryGroupHealth(tenantId: string, liveRows: any[]) {
+        const cached = this.parsedHistoryGroupsCache.get(tenantId);
+        if (cached && cached.expiresAt > Date.now()) {
+            return cached.rows;
+        }
+
+        const liveGroupIds = new Set(
+            liveRows
+                .map((row) => String(row.groupId || '').trim())
+                .filter(Boolean),
+        );
+        const grouped = new Map<string, {
+            groupId: string;
+            groupName: string;
+            sessionLabel: string;
+            total: number;
+            latest: string | null;
+        }>();
+
+        for (const table of ['stream_items', 'stream_items_residential', 'stream_items_commercial'] as const) {
+            const rows = await this.fetchParsedHistoryGroupRows(table, tenantId);
+            for (const row of rows) {
+                const groupId = String(row.source_group_id || row.source_thread_jid || '').trim();
+                if (!groupId || liveGroupIds.has(groupId)) {
+                    continue;
+                }
+
+                const groupName = String(row.source_group_name || '').trim() || groupId;
+                const sessionLabel = String(row.session_label || '').trim() || PARSED_HISTORY_SESSION_LABEL;
+                const key = `${sessionLabel}:${groupId}`;
+                const current = grouped.get(key) || {
+                    groupId,
+                    groupName,
+                    sessionLabel,
+                    total: 0,
+                    latest: null,
+                };
+
+                current.total += 1;
+                const createdAt = String(row.created_at || '').trim() || null;
+                if (createdAt && (!current.latest || createdAt > current.latest)) {
+                    current.latest = createdAt;
+                }
+                if ((!current.groupName || current.groupName === current.groupId) && groupName) {
+                    current.groupName = groupName;
+                }
+
+                grouped.set(key, current);
+            }
+        }
+
+        const rows = Array.from(grouped.values())
+            .sort((left, right) => String(right.latest || '').localeCompare(String(left.latest || '')))
+            .map((group) => ({
+                id: `parsed-history:${group.sessionLabel}:${group.groupId}`,
+                sessionLabel: group.sessionLabel,
+                groupId: group.groupId,
+                groupName: group.groupName,
+                lastGroupSyncAt: null,
+                lastMessageAt: group.latest,
+                lastParsedAt: group.latest,
+                messagesReceived24h: group.total,
+                messagesParsed24h: group.total,
+                messagesFailed24h: 0,
+                status: 'parsed_history',
+                isParsing: true,
+                behavior: 'Parsed history',
+                source: 'parsed_history',
+            }));
+
+        this.parsedHistoryGroupsCache.set(tenantId, {
+            expiresAt: Date.now() + PARSED_HISTORY_CACHE_MS,
+            rows,
+        });
+
+        return rows;
+    }
+
+    private async fetchParsedHistoryGroupRows(table: 'stream_items' | 'stream_items_residential' | 'stream_items_commercial', tenantId: string) {
+        const rows: any[] = [];
+
+        for (let from = 0; from < PARSED_HISTORY_MAX_ROWS_PER_TABLE; from += PARSED_HISTORY_PAGE_SIZE) {
+            const to = from + PARSED_HISTORY_PAGE_SIZE - 1;
+            const { data, error } = await db
+                .from(table)
+                .select('session_label, source_group_id, source_thread_jid, source_group_name, created_at')
+                .eq('tenant_id', tenantId)
+                .not('source_group_id', 'is', null)
+                .order('created_at', { ascending: false })
+                .range(from, to);
+
+            if (error) {
+                const message = String(error.message || '').toLowerCase();
+                if (message.includes('does not exist') || message.includes('schema cache')) {
+                    return rows;
+                }
+                throw error;
+            }
+
+            const page = Array.isArray(data) ? data : [];
+            rows.push(...page);
+            if (page.length < PARSED_HISTORY_PAGE_SIZE) {
+                break;
+            }
+        }
+
+        return rows;
     }
 
     async getEvents(tenantId: string, limit = 30) {
