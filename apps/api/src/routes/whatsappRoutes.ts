@@ -122,12 +122,14 @@ router.patch('/groups/:groupJid/toggle-parsing', async (req: Request, res: Respo
                 return res.status(500).json({ error: configError.message });
             }
         } else {
-            const { error: configError } = await (supabaseAdmin || supabase)
+            const { error: deleteError } = await (supabaseAdmin || supabase)
                 .from('group_configs')
-                .upsert({ group_id: groupJid, tenant_id: tenantId, behavior: 'Ignore' }, { onConflict: 'group_id' });
+                .delete()
+                .eq('group_id', groupJid)
+                .eq('tenant_id', tenantId);
 
-            if (configError) {
-                return res.status(500).json({ error: configError.message });
+            if (deleteError) {
+                return res.status(500).json({ error: deleteError.message });
             }
         }
 
