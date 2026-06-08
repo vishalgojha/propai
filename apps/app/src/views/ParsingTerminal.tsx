@@ -435,7 +435,7 @@ export default function ParsingTerminal() {
             <div className="min-w-0">
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--text-secondary)]">Parsing alert</p>
               <h2 className="mt-2 font-mono text-[16px] font-bold uppercase tracking-[0.06em] text-[var(--text-primary)]">
-                {promptGroup.groupName} is not parsing
+                {promptGroup.isParsing === false ? `${promptGroup.groupName} is opted out` : `${promptGroup.groupName} has no parse wins yet`}
               </h2>
               <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--text-secondary)]">
                 {describePromptReason(promptGroup)}
@@ -448,7 +448,7 @@ export default function ParsingTerminal() {
                 disabled={actionGroupId === promptGroup.groupId}
                 className="border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--accent)] disabled:opacity-60"
               >
-                {actionGroupId === promptGroup.groupId ? 'Parsing...' : 'Parse now'}
+                {actionGroupId === promptGroup.groupId ? 'Working...' : promptGroup.isParsing === false ? 'Resume parsing' : 'Replay backlog'}
               </button>
               <button
                 type="button"
@@ -456,7 +456,7 @@ export default function ParsingTerminal() {
                 disabled={actionGroupId === promptGroup.groupId}
                 className="border border-[rgba(239,68,68,0.3)] bg-[var(--red-dim)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--red)] disabled:opacity-60"
               >
-                Don&apos;t parse
+                Opt out
               </button>
               <button
                 type="button"
@@ -904,8 +904,8 @@ function shouldPromptForParsing(group: GroupHealth) {
 
 function describePromptReason(group: GroupHealth) {
   if (group.isParsing === false || group.behavior === 'Off') {
-    return 'Recent messages are landing, but this group is currently paused. Enable parsing and replay the saved backlog now.';
+    return 'Recent messages are landing, but this group is opted out. Resume parsing and replay the saved backlog, or keep it opted out.';
   }
 
-  return 'Recent messages were received from this group but none were parsed into the stream yet. Replay this group now or explicitly leave it off.';
+  return 'This group is already enabled by default. Recent messages were received but none became stream items yet; replay the backlog or opt out if this group is not useful.';
 }
