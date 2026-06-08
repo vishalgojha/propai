@@ -1,5 +1,5 @@
 {
-  "name": "propai-camoufox",
+  "name": "camofox",
   "build": {
     "type": "git",
     "repository": "https://github.com/vishalgojha/camofox-browser",

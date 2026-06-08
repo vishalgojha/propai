@@ -36,7 +36,10 @@ const IGR_PORTAL_URLS = [
     IGR_PORTAL_URL,
     'https://igrmaharashtra.gov.in/',
 ];
-const CAMOUFOX_BASE_URL = (process.env.CAMOFOX_URL || process.env.CAMOUFOX_URL || '').replace(/\/$/, '') || 'http://127.0.0.1:9377';
+const DEFAULT_CAMOUFOX_URL = process.env.NODE_ENV === 'production'
+    ? 'http://camofox:9377'
+    : 'http://127.0.0.1:9377';
+const CAMOUFOX_BASE_URL = (process.env.CAMOFOX_URL || process.env.CAMOUFOX_URL || '').replace(/\/$/, '') || DEFAULT_CAMOUFOX_URL;
 const CAMOUFOX_USER_ID = 'propai-igr';
 const NAVIGATE_TIMEOUT_MS = 30_000;
 const FORM_FILL_DELAY_MS = 2_000;
