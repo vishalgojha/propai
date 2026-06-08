@@ -20,70 +20,76 @@ export async function backfillEmbeddings(req: Request, res: Response) {
   res.json({ task_id: taskId, status: 'started', dry_run: dryRun, message: 'Backfill running in background. Check /api/backfill-status/:task_id' });
 
   setImmediate(async () => {
-    const admin = supabaseAdmin!;
-    let totalDone = 0;
-    const results: { table: string; done: number; failed: number }[] = [];
+    try {
+      const admin = supabaseAdmin!;
+      let totalDone = 0;
+      const results: { table: string; done: number; failed: number }[] = [];
 
-    for (const table of ['stream_items_residential', 'stream_items_commercial'] as const) {
-      let offset = 0;
-      let done = 0;
-      let failed = 0;
+      for (const table of ['stream_items_residential', 'stream_items_commercial'] as const) {
+        let offset = 0;
+        let done = 0;
+        let failed = 0;
 
-      while (done + failed < maxTotal) {
-        const { data: rows, error } = await (admin
-          .from(table)
-          .select('*')
-          .is('embedding', null)
-          .order('id')
-          .range(offset, offset + batchSize - 1) as any);
+        while (done + failed < maxTotal) {
+          const { data: rows, error } = await (admin
+            .from(table)
+            .select('id, locality, bhk, price_label, type, furnishing, building_name, property_use, city, property_category, deal_type, asset_class, micro_location, parsed_payload, record_type')
+            .is('embedding', null)
+            .order('id')
+            .range(offset, offset + batchSize - 1) as any);
 
-        if (error) { tasks.set(taskId, { status: 'error', progress: error.message, done, failed, table }); return; }
-        if (!rows || rows.length === 0) break;
+          if (error) { tasks.set(taskId, { status: 'error', progress: error.message, done, failed, table }); return; }
+          if (!rows || rows.length === 0) break;
 
-        for (const row of rows) {
-          if (done + failed >= maxTotal) break;
+          for (const row of rows) {
+            if (done + failed >= maxTotal) break;
 
-          tasks.set(taskId, { status: 'running', progress: `${table}: ${done + failed + 1}`, done, failed, table });
+            tasks.set(taskId, { status: 'running', progress: `${table}: ${done + failed + 1}`, done, failed, table });
 
-          const parsedPayload = row.parsed_payload as Record<string, any> | null;
-          const embedding = await embedStreamItem({
-            record_type: row.record_type || null,
-            deal_type: row.deal_type || row.type?.toLowerCase() || null,
-            asset_class: row.asset_class || null,
-            property_category: row.property_category || null,
-            building_name: row.building_name || null,
-            micro_location: parsedPayload?.microLocation || null,
-            locality: row.locality || null,
-            city: row.city || null,
-            bhk: row.bhk ? `${row.bhk}BHK` : null,
-            price_label: row.price_label || null,
-            area_sqft: null,
-            furnishing: row.furnishing || null,
-            property_use: row.property_use || null,
-          });
+            try {
+              const parsedPayload = row.parsed_payload as Record<string, any> | null;
+              const embedding = await embedStreamItem({
+                record_type: row.record_type || null,
+                deal_type: row.deal_type || row.type?.toLowerCase() || null,
+                asset_class: row.asset_class || null,
+                property_category: row.property_category || null,
+                building_name: row.building_name || null,
+                micro_location: parsedPayload?.microLocation || null,
+                locality: row.locality || null,
+                city: row.city || null,
+                bhk: row.bhk ? `${row.bhk}BHK` : null,
+                price_label: row.price_label || null,
+                area_sqft: null,
+                furnishing: row.furnishing || null,
+                property_use: row.property_use || null,
+              });
 
-          if (!embedding) { failed++; continue; }
+              if (!embedding) { failed++; continue; }
 
-          if (!dryRun) {
-            await admin.from(table).update({ embedding } as any).eq('id', row.id);
+              if (!dryRun) {
+                await admin.from(table).update({ embedding } as any).eq('id', row.id);
+              }
+              done++;
+            } catch { failed++; }
           }
-          done++;
+
+          offset += batchSize;
         }
 
-        offset += batchSize;
+        results.push({ table, done, failed });
+        totalDone += done;
       }
 
-      results.push({ table, done, failed });
-      totalDone += done;
+      tasks.set(taskId, {
+        status: 'completed',
+        progress: `total_done=${totalDone}`,
+        done: totalDone,
+        failed: results.reduce((a, r) => a + r.failed, 0),
+        table: '',
+      });
+    } catch (e: any) {
+      tasks.set(taskId, { status: 'error', progress: e?.message || 'unknown', done: 0, failed: 0, table: '' });
     }
-
-    tasks.set(taskId, {
-      status: 'completed',
-      progress: `total_done=${totalDone}`,
-      done: totalDone,
-      failed: results.reduce((a, r) => a + r.failed, 0),
-      table: '',
-    });
   });
 }
 
