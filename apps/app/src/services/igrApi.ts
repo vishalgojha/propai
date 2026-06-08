@@ -50,6 +50,23 @@ export type IgrFetchResponse = {
   error?: string | null;
 };
 
+export type IgrQueueStatusPreview = {
+  status: 'pending' | 'done' | 'failed';
+  buildingName: string;
+  locality: string | null;
+  city: string | null;
+  queuedAt: string;
+  lastCheckedAt: string | null;
+  nextRetryAt: string | null;
+};
+
+export type IgrBuildingName = {
+  name: string;
+  city: string | null;
+  count: number;
+  igrQueueStatus?: IgrQueueStatusPreview | null;
+};
+
 export async function fetchIgrSearch(buildingName?: string, locality?: string, city?: string, months = 6, limit = 10) {
   const response = await backendApi.get<IgrSearchResponse>(ENDPOINTS.igr.search, {
     params: {
@@ -64,7 +81,7 @@ export async function fetchIgrSearch(buildingName?: string, locality?: string, c
 }
 
 export async function fetchBuildingNames(search?: string) {
-  const response = await backendApi.get<{ names: Array<{ name: string; city: string | null; count: number }> }>(
+  const response = await backendApi.get<{ names: IgrBuildingName[] }>(
     ENDPOINTS.igr.buildingNames,
     { params: { search: search || undefined } },
   );

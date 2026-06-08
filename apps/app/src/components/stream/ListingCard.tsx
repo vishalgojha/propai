@@ -67,6 +67,59 @@ function formatShortDate(value?: string | null): string {
     return parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+function formatQueueTime(value?: string | null): string | null {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function buildIgrQueueCopy(listing: StreamItem): { label: string; body: string } | null {
+    const status = listing.igrQueueStatus;
+    const buildingName = String(listing.buildingName || status?.buildingName || '').trim();
+    if (!buildingName) return null;
+
+    const lastChecked = formatQueueTime(status?.lastCheckedAt);
+    const nextRetry = formatQueueTime(status?.nextRetryAt);
+
+    if (!status) {
+        return {
+            label: 'IGR auto lookup',
+            body: `${buildingName} is queued for background registration lookup. Results will appear here after the portal fetch succeeds.`,
+        };
+    }
+
+    if (status.status === 'done') {
+        return {
+            label: 'IGR lookup done',
+            body: lastChecked
+                ? `${buildingName} was checked on ${lastChecked}. No matching saved registrations are attached yet.`
+                : `${buildingName} was checked. No matching saved registrations are attached yet.`,
+        };
+    }
+
+    if (status.status === 'failed') {
+        return {
+            label: 'IGR lookup failed',
+            body: lastChecked
+                ? `${buildingName} failed during the last portal check on ${lastChecked}.`
+                : `${buildingName} failed during the last portal check.`,
+        };
+    }
+
+    if (lastChecked && nextRetry) {
+        return {
+            label: 'IGR lookup pending',
+            body: `${buildingName} was last checked on ${lastChecked}. Next retry is scheduled for ${nextRetry}.`,
+        };
+    }
+
+    return {
+        label: 'IGR lookup pending',
+        body: `${buildingName} is waiting for its first background registration lookup.`,
+    };
+}
+
 function getTypeBadgeClass(type: string) {
     if (type === 'Rent') return 'bg-[var(--propai-green)]/10 text-[var(--propai-green)] border-[rgba(62,232,138,0.30)]';
     if (type === 'Sale') return 'bg-amber-500/10 text-amber-500 border-amber-400/30';
@@ -254,7 +307,8 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         : 'Private workspace feed';
     const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
     const hasBuildingName = Boolean(String(listing.buildingName || '').trim());
-    const isIgrLookupPending = hasBuildingName && igrTransactions.length === 0;
+    const igrQueueCopy = buildIgrQueueCopy(listing);
+    const showIgrQueueStatus = hasBuildingName && igrTransactions.length === 0 && Boolean(igrQueueCopy);
 
     const handleOpenWa = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -411,13 +465,13 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                             ))}
                         </div>
                     </div>
-                ) : isIgrLookupPending ? (
+                ) : showIgrQueueStatus && igrQueueCopy ? (
                     <div className="mb-4 rounded-[18px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]/25 p-4">
                         <div className="flex items-center justify-between gap-3">
                             <div>
-                                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">IGR auto lookup</p>
+                                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">{igrQueueCopy.label}</p>
                                 <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
-                                    {listing.buildingName} is queued for background registration lookup. Results will appear here after the portal fetch succeeds.
+                                    {igrQueueCopy.body}
                                 </p>
                             </div>
                             <RefreshCw className="h-4 w-4 text-[var(--accent)]" />

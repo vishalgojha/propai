@@ -5,7 +5,24 @@ import { inferIgrCity } from './igrLocationResolver';
 import { igrQueryService, IgrTransactionPreview } from './igrQueryService';
 import { igrLiveFetchService } from './igrLiveFetchService';
 
-type QueueStatus = 'pending' | 'done' | 'failed';
+export type QueueStatus = 'pending' | 'done' | 'failed';
+
+export type IgrQueueStatusPreview = {
+  status: QueueStatus;
+  buildingName: string;
+  locality: string | null;
+  city: string | null;
+  queuedAt: string;
+  lastCheckedAt: string | null;
+  nextRetryAt: string | null;
+};
+
+type QueueStatusCandidate = {
+  streamItemId?: string | null;
+  buildingName: string;
+  locality?: string | null;
+  city?: string | null;
+};
 
 type QueueRow = {
   id: number;
@@ -31,6 +48,35 @@ const LIVE_FETCH_TIMEOUT_MS = 2 * 60 * 1000;
 
 function normalizeValue(value: string | null | undefined) {
   return String(value || '').trim();
+}
+
+function normalizeKey(value: string | null | undefined) {
+  return normalizeValue(value).toLowerCase().replace(/\s+/g, ' ');
+}
+
+function buildNextRetryAt(status: QueueStatus, lastCheckedAt: string | null) {
+  if (status !== 'pending' || !lastCheckedAt) {
+    return null;
+  }
+
+  const checkedAt = new Date(lastCheckedAt);
+  if (Number.isNaN(checkedAt.getTime())) {
+    return null;
+  }
+
+  return new Date(checkedAt.getTime() + QUEUE_RETRY_COOLDOWN_MS).toISOString();
+}
+
+function mapQueueStatusPreview(row: QueueRow): IgrQueueStatusPreview {
+  return {
+    status: row.status,
+    buildingName: row.building_name,
+    locality: row.locality || null,
+    city: row.city || null,
+    queuedAt: row.created_at,
+    lastCheckedAt: row.last_checked_at,
+    nextRetryAt: buildNextRetryAt(row.status, row.last_checked_at),
+  };
 }
 
 function buildSeedDocNumber(buildingName: string, locality: string | null, city: string | null) {
@@ -209,6 +255,93 @@ export class IgrEnrichmentService {
     if (error) {
       throw new Error(error.message);
     }
+  }
+
+  async getQueueStatusPreviews(candidates: QueueStatusCandidate[]): Promise<Array<IgrQueueStatusPreview | null>> {
+    const admin = this.getAdmin();
+    const normalizedCandidates = candidates
+      .map((candidate) => ({
+        ...candidate,
+        streamItemId: normalizeValue(candidate.streamItemId),
+        buildingName: normalizeValue(candidate.buildingName),
+        locality: normalizeValue(candidate.locality),
+        city: normalizeValue(candidate.city),
+      }))
+      .filter((candidate) => candidate.buildingName.length >= 3);
+
+    if (normalizedCandidates.length === 0) {
+      return candidates.map(() => null);
+    }
+
+    const streamItemIds = Array.from(new Set(
+      normalizedCandidates.map((candidate) => candidate.streamItemId).filter(Boolean),
+    )).slice(0, 200);
+    const buildingNames = Array.from(new Set(
+      normalizedCandidates.map((candidate) => candidate.buildingName).filter(Boolean),
+    )).slice(0, 200);
+
+    const queries: Array<Promise<{ data: QueueRow[] | null; error: any }>> = [];
+    if (streamItemIds.length > 0) {
+      queries.push(
+        admin
+          .from('igr_enrichment_queue')
+          .select('id, stream_item_id, building_name, locality, city, status, last_checked_at, created_at')
+          .in('stream_item_id', streamItemIds)
+          .order('created_at', { ascending: false }) as any,
+      );
+    }
+    if (buildingNames.length > 0) {
+      queries.push(
+        admin
+          .from('igr_enrichment_queue')
+          .select('id, stream_item_id, building_name, locality, city, status, last_checked_at, created_at')
+          .in('building_name', buildingNames)
+          .order('created_at', { ascending: false }) as any,
+      );
+    }
+
+    const results = await Promise.all(queries);
+    const rows: QueueRow[] = [];
+    const seen = new Set<number>();
+    for (const result of results) {
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+      for (const row of result.data || []) {
+        if (!seen.has(row.id)) {
+          rows.push(row);
+          seen.add(row.id);
+        }
+      }
+    }
+
+    const byStreamItemId = new Map<string, QueueRow>();
+    for (const row of rows) {
+      const streamItemId = normalizeValue(row.stream_item_id);
+      if (streamItemId && !byStreamItemId.has(streamItemId)) {
+        byStreamItemId.set(streamItemId, row);
+      }
+    }
+
+    return candidates.map((candidate) => {
+      const streamItemId = normalizeValue(candidate.streamItemId);
+      if (streamItemId && byStreamItemId.has(streamItemId)) {
+        return mapQueueStatusPreview(byStreamItemId.get(streamItemId)!);
+      }
+
+      const buildingName = normalizeKey(candidate.buildingName);
+      const locality = normalizeKey(candidate.locality);
+      const city = normalizeKey(candidate.city);
+      const row = rows.find((entry) => {
+        if (normalizeKey(entry.building_name) !== buildingName) return false;
+        if (locality && normalizeKey(entry.locality) && normalizeKey(entry.locality) !== locality) return false;
+        if (city && normalizeKey(entry.city) && normalizeKey(entry.city) !== city) return false;
+        return true;
+      });
+
+      return row ? mapQueueStatusPreview(row) : null;
+    });
   }
 
   async processQueue() {

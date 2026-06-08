@@ -1,7 +1,7 @@
 import React from 'react';
 import { RefreshCw, Search, MapPin, Loader2 } from 'lucide-react';
 import { handleApiError } from '../services/api';
-import { fetchAndSaveLiveIgr, fetchIgrSearch, fetchBuildingNames, type IgrTransaction, type IgrSearchResponse } from '../services/igrApi';
+import { fetchAndSaveLiveIgr, fetchIgrSearch, fetchBuildingNames, type IgrTransaction, type IgrSearchResponse, type IgrBuildingName } from '../services/igrApi';
 import { cn } from '../lib/utils';
 
 const panelClass = 'rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]';
@@ -12,6 +12,24 @@ function formatDate(value?: string | null) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatQueueTime(value?: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatBuildingQueueStatus(item: IgrBuildingName) {
+  const status = item.igrQueueStatus;
+  if (!status) return 'Queue status pending';
+  const lastChecked = formatQueueTime(status.lastCheckedAt);
+  const nextRetry = formatQueueTime(status.nextRetryAt);
+  if (status.status === 'done') return lastChecked ? `Done · checked ${lastChecked}` : 'Done';
+  if (status.status === 'failed') return lastChecked ? `Failed · checked ${lastChecked}` : 'Failed';
+  if (nextRetry) return `Pending · retry ${nextRetry}`;
+  return lastChecked ? `Pending · checked ${lastChecked}` : 'Pending · first check waiting';
 }
 
 function formatInr(value?: number | null) {
@@ -46,8 +64,8 @@ export default function IgrView() {
   const [error, setError] = React.useState<string | null>(null);
   const [liveMessage, setLiveMessage] = React.useState<string | null>(null);
   const [payload, setPayload] = React.useState<IgrSearchResponse | null>(null);
-  const [suggestions, setSuggestions] = React.useState<Array<{ name: string; city: string | null; count: number }>>([]);
-  const [autoBuildings, setAutoBuildings] = React.useState<Array<{ name: string; city: string | null; count: number }>>([]);
+  const [suggestions, setSuggestions] = React.useState<IgrBuildingName[]>([]);
+  const [autoBuildings, setAutoBuildings] = React.useState<IgrBuildingName[]>([]);
   const [loadingAutoBuildings, setLoadingAutoBuildings] = React.useState(false);
   const [showSuggestions, setShowSuggestions] = React.useState(false);
   const suggestionsRef = React.useRef<HTMLDivElement>(null);
@@ -261,6 +279,7 @@ export default function IgrView() {
               >
                 <p className="truncate text-[13px] font-semibold text-[var(--text-primary)]">{item.name}</p>
                 <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{item.city || 'City pending'} · {item.count} signal{item.count === 1 ? '' : 's'}</p>
+                <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{formatBuildingQueueStatus(item)}</p>
                 <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">Open IGR data</p>
               </button>
             ))

@@ -499,6 +499,59 @@ const summarizeIgrBuildingIntel = (buildingName?: string | null, transactions?: 
   };
 };
 
+const formatQueueTime = (value?: string | null) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
+
+const summarizeIgrQueueStatus = (listing: StreamItem) => {
+  const buildingName = String(listing.buildingName || listing.igrQueueStatus?.buildingName || '').trim();
+  if (!buildingName) return null;
+
+  const status = listing.igrQueueStatus;
+  const lastChecked = formatQueueTime(status?.lastCheckedAt);
+  const nextRetry = formatQueueTime(status?.nextRetryAt);
+
+  if (!status) {
+    return {
+      label: 'IGR lookup queued',
+      detail: `${buildingName} is in the background lookup flow.`,
+    };
+  }
+
+  if (status.status === 'done') {
+    return {
+      label: 'IGR lookup done',
+      detail: lastChecked
+        ? `${buildingName} was checked on ${lastChecked}; no matching saved registrations are attached yet.`
+        : `${buildingName} was checked; no matching saved registrations are attached yet.`,
+    };
+  }
+
+  if (status.status === 'failed') {
+    return {
+      label: 'IGR lookup failed',
+      detail: lastChecked
+        ? `${buildingName} failed during the last portal check on ${lastChecked}.`
+        : `${buildingName} failed during the last portal check.`,
+    };
+  }
+
+  if (lastChecked && nextRetry) {
+    return {
+      label: 'IGR lookup pending',
+      detail: `${buildingName} was last checked on ${lastChecked}. Next retry: ${nextRetry}.`,
+    };
+  }
+
+  return {
+    label: 'IGR lookup pending',
+    detail: `${buildingName} is waiting for its first background registration lookup.`,
+  };
+};
+
 const buildCopyText = (item: StreamItem) => {
   const snippet = buildSnippet(item);
   const lines = [
@@ -1799,7 +1852,8 @@ if (brokerOnly) {
                     const snippet = buildSnippet(listing);
                     const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
                     const buildingIntel = summarizeIgrBuildingIntel(listing.buildingName, listing.igrTransactions);
-                    const isIgrLookupPending = Boolean(String(listing.buildingName || '').trim()) && igrTransactions.length === 0;
+                    const igrQueueStatus = summarizeIgrQueueStatus(listing);
+                    const showIgrQueueStatus = Boolean(String(listing.buildingName || '').trim()) && igrTransactions.length === 0 && Boolean(igrQueueStatus);
 
                     return (
                       <React.Fragment key={listing.id}>
@@ -1840,9 +1894,9 @@ if (brokerOnly) {
                                   Building: <span className="font-semibold text-[var(--text-primary)]">{listing.buildingName}</span>
                                 </div>
                               ) : null}
-                              {isIgrLookupPending ? (
+                              {showIgrQueueStatus && igrQueueStatus ? (
                                 <div className="inline-flex w-fit rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">
-                                  IGR lookup queued
+                                  {igrQueueStatus.label}
                                 </div>
                               ) : null}
                               {listing.microLocation ? (
@@ -1970,11 +2024,11 @@ if (brokerOnly) {
                                           ))}
                                         </div>
                                       </div>
-                                    ) : isIgrLookupPending ? (
+                                    ) : showIgrQueueStatus && igrQueueStatus ? (
                                       <div className="rounded-[14px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]/30 px-3 py-3">
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">IGR auto lookup</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">{igrQueueStatus.label}</p>
                                         <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
-                                          {listing.buildingName} is in the background lookup flow. Transactions will appear here after the Maharashtra IGR fetch succeeds.
+                                          {igrQueueStatus.detail} Transactions will appear here after the Maharashtra IGR fetch succeeds.
                                         </p>
                                       </div>
                                     ) : null}

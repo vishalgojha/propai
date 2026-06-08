@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { igrQueryService } from '../services/igrQueryService';
+import { igrEnrichmentService } from '../services/igrEnrichmentService';
 import { igrLiveFetchService } from '../services/igrLiveFetchService';
 
 const router = Router();
@@ -11,7 +12,24 @@ router.get('/building-names', async (req, res) => {
     try {
         const search = String(req.query.search || '').trim() || undefined;
         const names = await igrQueryService.getBuildingNames(search);
-        return res.json({ names });
+        const queueStatuses = await igrEnrichmentService.getQueueStatusPreviews(
+            names.map((item) => ({
+                buildingName: item.name,
+                city: item.city,
+            })),
+        ).catch((error) => {
+            const message = error instanceof Error ? error.message : String(error || '');
+            if (!/igr_enrichment_queue|building_name|last_checked_at|status/i.test(message)) {
+                console.warn('[IGRRoutes] Failed to load building queue statuses:', message);
+            }
+            return names.map(() => null);
+        });
+        return res.json({
+            names: names.map((item, index) => ({
+                ...item,
+                igrQueueStatus: queueStatuses[index] || null,
+            })),
+        });
     } catch (error: any) {
         return res.status(500).json({
             error: error?.message || 'Failed to load building names',

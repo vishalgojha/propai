@@ -2,7 +2,7 @@ import { createSupabaseAnonClient, supabase, supabaseAdmin } from '../config/sup
 import { parsePrice, splitMultiListing } from '@propai/price-parser';
 import { aiService } from './aiService';
 import { canonicalizationService } from './canonicalizationService';
-import { igrEnrichmentService } from './igrEnrichmentService';
+import { igrEnrichmentService, type IgrQueueStatusPreview } from './igrEnrichmentService';
 import { igrQueryService, type IgrTransactionPreview } from './igrQueryService';
 import { extractIndianCity, extractIndianLocality, parseIndianLocation } from '../utils/locationParser';
 import { normaliseIndianPhone } from '../utils/phoneUtils';
@@ -122,6 +122,7 @@ export type StreamItemRecord = {
     isCorrected?: boolean;
     isRead?: boolean;
     igrTransactions?: IgrTransactionPreview[];
+    igrQueueStatus?: IgrQueueStatusPreview | null;
 };
 
 export type InboxMatchRecord = {
@@ -4366,6 +4367,28 @@ ${rawText}
             return items;
         }
 
+        let queueStatuses = new Map<string, IgrQueueStatusPreview>();
+        try {
+            const statusCandidates = lookupCandidates.slice(0, 200).map((item) => ({
+                streamItemId: item.id,
+                buildingName: String(item.buildingName || '').trim(),
+                locality: String(item.location || '').trim(),
+                city: item.city || null,
+            }));
+            const statusResults = await igrEnrichmentService.getQueueStatusPreviews(statusCandidates);
+            queueStatuses = new Map(
+                statusCandidates.map((candidate, index) => [
+                    String(candidate.streamItemId || ''),
+                    statusResults[index],
+                ]).filter((entry): entry is [string, IgrQueueStatusPreview] => Boolean(entry[0] && entry[1])),
+            );
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error || '');
+            if (!isMissingSchemaEntityError(message) && !/igr_enrichment_queue|building_name|last_checked_at|status/i.test(message)) {
+                console.warn('[ChannelService] Failed to enrich stream with IGR queue status:', message);
+            }
+        }
+
         return items.map((item) => {
             const buildingName = String(item.buildingName || '').trim();
             const location = String(item.location || '').trim();
@@ -4375,13 +4398,15 @@ ${rawText}
 
             const key = `${normalize(buildingName)}|${normalize(location)}`;
             const igrTransactions = cache.get(key);
-            if (!igrTransactions?.length) {
+            const igrQueueStatus = queueStatuses.get(item.id) || null;
+            if (!igrTransactions?.length && !igrQueueStatus) {
                 return item;
             }
 
             return {
                 ...item,
-                igrTransactions,
+                ...(igrTransactions?.length ? { igrTransactions } : {}),
+                ...(igrQueueStatus ? { igrQueueStatus } : {}),
             };
         });
     }

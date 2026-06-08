@@ -35,6 +35,7 @@ export interface StreamItem {
   isRead: boolean;
   createdAt: string;
   igrTransactions?: IgrTransactionPreview[];
+  igrQueueStatus?: IgrQueueStatusPreview | null;
 }
 
 export interface IgrTransactionPreview {
@@ -46,6 +47,16 @@ export interface IgrTransactionPreview {
   area_sqft: number | null;
   price_per_sqft: number | null;
   config: string | null;
+}
+
+export interface IgrQueueStatusPreview {
+  status: 'pending' | 'done' | 'failed';
+  buildingName: string;
+  locality: string | null;
+  city: string | null;
+  queuedAt: string;
+  lastCheckedAt: string | null;
+  nextRetryAt: string | null;
 }
 
 export interface StreamFilters {
