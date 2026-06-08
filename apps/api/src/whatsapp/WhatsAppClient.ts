@@ -305,6 +305,56 @@ export class WhatsAppClient {
 
             console.log(`[WhatsAppClient] Socket created for ${this.tenantId}:${this.label}, waiting for QR...`);
             let pairingCodeRequested = false;
+            const requestAndEmitPairingCode = async (trigger: string) => {
+                const pairingPhone = normalizePhoneNumber(options.usePairingCode);
+                if (!pairingPhone || pairingCodeRequested) {
+                    return;
+                }
+
+                const socket = this.socket;
+                if (!socket) {
+                    return;
+                }
+
+                pairingCodeRequested = true;
+                try {
+                    await whatsappHealthService.appendEvent(
+                        this.tenantId,
+                        this.label,
+                        'pairing_code_request',
+                        'Requesting WhatsApp pairing code.',
+                        {
+                            trigger,
+                            phoneNumber: pairingPhone,
+                        },
+                    );
+
+                    const code = await socket.requestPairingCode(pairingPhone);
+                    if (this.qrTimeoutTimer) {
+                        clearTimeout(this.qrTimeoutTimer);
+                        this.qrTimeoutTimer = null;
+                    }
+                    await this.emitQR(code);
+                    await whatsappHealthService.appendEvent(
+                        this.tenantId,
+                        this.label,
+                        'pairing_code_ready',
+                        'WhatsApp pairing code was generated.',
+                        {
+                            trigger,
+                            phoneNumber: pairingPhone,
+                        },
+                    );
+                } catch (error) {
+                    pairingCodeRequested = false;
+                    await this.hooks?.onError?.({
+                        tenantId: this.tenantId,
+                        label: this.label,
+                        error,
+                        stage: `pairing_code.${trigger}`,
+                    });
+                }
+            };
 
             if (this.qrTimeoutTimer) {
                 clearTimeout(this.qrTimeoutTimer);
@@ -325,6 +375,12 @@ export class WhatsAppClient {
                 this.qrTimeoutTimer = null;
             }, 30000);
 
+            if (options.usePairingCode) {
+                setTimeout(() => {
+                    void requestAndEmitPairingCode('post_socket');
+                }, 1500);
+            }
+
             this.socket.ev.on('connection.update', async (update: any) => {
                 try {
                     const connection = update?.connection;
@@ -337,18 +393,7 @@ export class WhatsAppClient {
                     }
 
                     if (qr && options.usePairingCode && !pairingCodeRequested) {
-                        pairingCodeRequested = true;
-                        const socket = this.socket;
-                        if (!socket) {
-                            pairingCodeRequested = false;
-                            return;
-                        }
-                        const code = await socket.requestPairingCode(options.usePairingCode);
-                        if (this.qrTimeoutTimer) {
-                            clearTimeout(this.qrTimeoutTimer);
-                            this.qrTimeoutTimer = null;
-                        }
-                        await this.emitQR(code);
+                        await requestAndEmitPairingCode('qr');
                     } else if (qr && !options.usePairingCode) {
                         await this.emitQR(qr);
                     }
