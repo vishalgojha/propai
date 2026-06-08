@@ -246,7 +246,7 @@ export async function fetchPublicListingBySlug(slug: string): Promise<PublicList
         .limit(1);
 
       if (rows && rows.length > 0) {
-        const row = rows[0];
+        const row = rows[0] as unknown as Record<string, unknown>;
         const brokerMap = new Map<string, { phone: string; fullName: string | null }>();
 
         const canonicalId = String(row.canonical_record_id || '').trim();
