@@ -22,12 +22,12 @@ export async function backfillEmbeddings(req: Request, res: Response) {
     let failed = 0;
 
     while (done + failed < maxTotal) {
-      const { data: rows, error } = await admin
+      const { data: rows, error } = await (admin
         .from(table)
-        .select('id, locality, bhk, price_label, type, furnishing, building_name, property_use, city, property_category, deal_type, asset_class, micro_location, parsed_payload')
+        .select('*')
         .is('embedding', null)
         .order('id')
-        .range(offset, offset + batchSize - 1);
+        .range(offset, offset + batchSize - 1) as any);
 
       if (error) { return res.status(500).json({ error: error.message }); }
       if (!rows || rows.length === 0) break;

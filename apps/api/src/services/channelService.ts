@@ -2812,7 +2812,7 @@ private dailyBriefingSentKeys = new Set<string>();
                 asset_class: parsed.assetClass,
                 property_category: parsed.propertyCategory,
                 building_name: String(parsed.parsedPayload?.buildingName || '').trim() || null,
-                micro_location: parsed.parsedPayload?.microLocation || null,
+                micro_location: (parsed.parsedPayload as any)?.microLocation || null,
                 locality: parsed.locality,
                 city: parsed.city,
                 bhk: parsed.bhk ? `${parsed.bhk}BHK` : null,
