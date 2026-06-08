@@ -10,6 +10,7 @@ import { buildStreamContentHash, computeStreamCompleteness } from '../utils/stre
 import { getWorkspaceSettingsRecord } from './workspaceSettingsService';
 import { emailNotificationService } from './emailNotificationService';
 import { cleanNumber } from '../utils/number';
+import { embedStreamItem } from '../services/embeddingService';
 
 
 type ChannelType = 'listing' | 'requirement' | 'mixed';
@@ -2536,7 +2537,7 @@ private dailyBriefingSentKeys = new Set<string>();
             isCorrected: true,
         };
 
-        const update = {
+        const update: Record<string, any> = {
             type: input.type ?? existing.type,
             locality: input.location?.trim() || existing.locality,
             city: input.city?.trim() || existing.city,
@@ -2551,6 +2552,23 @@ private dailyBriefingSentKeys = new Set<string>();
             confidence_score: typeof input.confidence === 'number' ? input.confidence : existing.confidence_score,
             parsed_payload: nextPayload,
         };
+
+        const streamEmbedding = await embedStreamItem({
+            record_type: update.record_type || existing.record_type,
+            deal_type: update.deal_type || existing.deal_type,
+            asset_class: update.asset_class || existing.asset_class,
+            property_category: existing.property_category,
+            building_name: existing.building_name,
+            micro_location: (existing.parsed_payload as any)?.microLocation || null,
+            locality: String(update.locality || existing.locality),
+            city: String(update.city || existing.city),
+            bhk: update.bhk ? `${update.bhk}BHK` : null,
+            price_label: String(update.price_label || existing.price_label),
+            area_sqft: existing.area_sqft,
+            furnishing: existing.furnishing,
+            property_use: existing.property_use,
+        }).catch(() => null);
+        if (streamEmbedding) update.embedding = streamEmbedding;
 
         const { data: corrected, error: correctedError } = await this.db
             .from(targetTable)
@@ -2788,7 +2806,24 @@ private dailyBriefingSentKeys = new Set<string>();
 
             const targetTable = streamTableFor(parsed.propertyCategory, parsed.propertyUse, parsed.assetClass);
 
+            const streamEmbedding = await embedStreamItem({
+                record_type: parsed.recordType,
+                deal_type: parsed.dealType,
+                asset_class: parsed.assetClass,
+                property_category: parsed.propertyCategory,
+                building_name: String(parsed.parsedPayload?.buildingName || '').trim() || null,
+                micro_location: parsed.parsedPayload?.microLocation || null,
+                locality: parsed.locality,
+                city: parsed.city,
+                bhk: parsed.bhk ? `${parsed.bhk}BHK` : null,
+                price_label: parsed.priceLabel,
+                area_sqft: parsed.areaSqft,
+                furnishing: parsed.furnishing,
+                property_use: parsed.propertyUse,
+            }).catch(() => null);
+
             const { data, error } = await this.upsertStreamItemWithSchemaFallback(targetTable, {
+                ...(streamEmbedding ? { embedding: streamEmbedding } : {}),
                 tenant_id: tenantId,
                 session_label: message.session_label || 'workspace',
                 message_id: parsed.messageId,

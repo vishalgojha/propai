@@ -6,6 +6,7 @@ import { igrEnrichmentService } from '../services/igrEnrichmentService';
 import { isOwnerSuperAdminEmail, HttpError, getErrorMessage } from '../utils/controllerHelpers';
 import { normaliseIndianPhone } from '../utils/phoneUtils';
 import { buildStreamContentHash, computeStreamCompleteness } from '../utils/streamQuality';
+import { embedStreamItem } from '../services/embeddingService';
 
 type AdminClient = NonNullable<ReturnType<typeof createSupabaseServiceClient>>;
 
@@ -235,6 +236,23 @@ export const ingestListings = async (req: Request, res: Response) => {
                 };
                 if (item.embedding && Array.isArray(item.embedding) && splitRawTexts.length === 1) {
                     streamRow.embedding = item.embedding;
+                } else if (splitRawTexts.length === 1) {
+                    const embedding = await embedStreamItem({
+                        record_type: item.record_type || null,
+                        deal_type: item.deal_type || item.type?.toLowerCase() || null,
+                        asset_class: item.asset_class || null,
+                        property_category: item.property_category || null,
+                        building_name: buildingName || null,
+                        micro_location: item.micro_location || null,
+                        locality: item.locality || null,
+                        city: item.city || null,
+                        bhk: bhk != null ? `${bhk}BHK` : null,
+                        price_label: price.label || item.price_label || null,
+                        area_sqft: item.area_sqft ?? null,
+                        furnishing: item.furnishing || null,
+                        property_use: item.property_use || null,
+                    });
+                    if (embedding) streamRow.embedding = embedding;
                 }
                 const targetTable = item.property_category === 'commercial' ? 'stream_items_commercial' : 'stream_items_residential';
                 const { data: insertedStreamItem, error: se } = await admin
