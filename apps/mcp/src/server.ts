@@ -61,6 +61,44 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "propai-mcp", port: PORT });
 });
 
+app.get("/debug", async (_req, res) => {
+  const { supabase } = await import("./supabase.js");
+  const diagnostics: Record<string, unknown> = {
+    env: {
+      SUPABASE_URL: process.env.SUPABASE_URL ? "set" : "MISSING",
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? "set" : "MISSING",
+      SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? "set" : "MISSING",
+      PORT: process.env.PORT || "MISSING",
+    },
+    supabaseClient: "unknown",
+    queryTest: "not_run",
+  };
+
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    diagnostics.supabaseClient = "NOT_CONFIGURED";
+    return res.status(503).json(diagnostics);
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("public_listings")
+      .select("count")
+      .limit(1);
+
+    if (error) {
+      diagnostics.queryTest = `ERROR: ${error.message}`;
+    } else {
+      diagnostics.queryTest = `OK (${JSON.stringify(data)})`;
+    }
+    diagnostics.supabaseClient = "configured";
+  } catch (e) {
+    diagnostics.queryTest = `CRASH: ${e instanceof Error ? e.message : String(e)}`;
+    diagnostics.supabaseClient = "configured_but_crashed";
+  }
+
+  res.json(diagnostics);
+});
+
 app.get("/.well-known/mcp-server.json", (_req, res) => {
   res.json({
     name: "PropAI MCP Server",
