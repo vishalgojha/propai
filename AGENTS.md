@@ -32,6 +32,13 @@
 - **propai-gras fix**: Live IGR fetch (`/api/igr/fetch`) times out on government portal (`igrmaharashtra.gov.in`). Needs Camoufox-based browser navigation instead of direct HTTP fetch. Full prompt at `.agents/prompts/propai-gras.md`.
 - **official-whatsapp-cloud-migration**: Retire/delete the current linked-device WhatsApp number before onboarding the official Meta Cloud API number. Do not migrate Cloud API onto the same live Baileys owner session.
 
+### Backfill Status
+
+- **stream_items_residential**: 289/1000 with embeddings (recovering from data loss caused by concurrent async backfill bug)
+- **stream_items_commercial**: 0/1000 — curl-based backfill hangs on first commercial row (Ollama timeout from local)
+- **Fix**: Run `backfillAll.ts` from within the API container (same Hetzner network) to avoid local→Hetzner connectivity issues. Or use `POST /api/backfill-embeddings` with a very long HTTP timeout from the server itself.
+- The `is("embedding", null)` filter doesn't work on pgvector columns via PostgREST — the backfill re-processes ALL rows including existing embeddings, so it's idempotent but wasteful.
+
 ### Completed in This Session
 
 - Fixed embedding backfill: added `POST /api/backfill-embeddings` endpoint and scripts (`backfillEmbeddings.ts`, `backfillBatch.ts`, `backfillSlow.ts`)
@@ -57,6 +64,11 @@
 - Do not leave completed tasks listed as pending.
 - Keep only current branch context, active worktree state, and truly pending actions here.
 - Historical session detail belongs in git history, not in the active handoff.
+
+### Operational Rules
+
+- Prefer selective staging when unrelated work is present.
+- After each completed task, the agent should push the relevant branch/commit and redeploy the affected Coolify service(s) by default.
 
 ## Manual Setup Steps
 
