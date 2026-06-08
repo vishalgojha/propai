@@ -5,6 +5,9 @@ import {
     whatsappGroupService,
 } from './whatsappGroupService';
 import { brokerContactSyncService } from './brokerContactSyncService';
+import { supabase, supabaseAdmin } from '../config/supabase';
+
+const db = supabaseAdmin || supabase;
 
 function normalizePhoneFromJid(value?: string | null) {
     const jid = String(value || '').trim().toLowerCase();
@@ -174,6 +177,27 @@ export class GroupAuditService {
                 isParsing: true,
                 visibilityStatus: 'visible',
             });
+        }
+
+        const configs = groups
+            .map((group) => String(group.id || '').trim())
+            .filter(Boolean)
+            .map((groupId) => ({
+                group_id: groupId,
+                tenant_id: workspaceOwnerId,
+                behavior: 'Listen',
+            }));
+
+        if (configs.length > 0) {
+            for (let index = 0; index < configs.length; index += 200) {
+                const { error } = await db
+                    .from('group_configs')
+                    .upsert(configs.slice(index, index + 200), { onConflict: 'group_id' });
+
+                if (error) {
+                    console.warn('[GroupAudit] Failed to reset group parsing configs during rescan:', error);
+                }
+            }
         }
 
         try {

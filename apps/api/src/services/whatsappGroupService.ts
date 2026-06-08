@@ -340,7 +340,7 @@ export class WhatsAppGroupService {
                     seededGroupConfigs.push({
                         group_id: entry.groupId,
                         tenant_id: tenantId,
-                        behavior: entry.payload.audit_recommendation === 'ignore' ? 'Ignore' : 'Listen',
+                        behavior: 'Listen',
                     });
                 }
             }

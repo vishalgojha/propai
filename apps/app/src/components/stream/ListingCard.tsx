@@ -316,9 +316,17 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         setIsOpening(true);
         setToast('Opening WhatsApp');
 
-        const message = buildWaMessage(listing);
-        const url = `https://wa.me/${PROPAI_ASSISTANT_PHONE_DIGITS}?text=${encodeURIComponent(message)}`;
-        window.open(url, '_blank', 'noopener');
+        try {
+            const result = await logWaClick(listing.id, 'stream', 'web');
+            if (result?.redirect_url) {
+                window.open(result.redirect_url, '_blank', 'noopener');
+            }
+        } catch {
+            // Fallback to PropAI assistant if logging fails
+            const message = buildWaMessage(listing);
+            const url = `https://wa.me/${PROPAI_ASSISTANT_PHONE_DIGITS}?text=${encodeURIComponent(message)}`;
+            window.open(url, '_blank', 'noopener');
+        }
 
         setLocalClickCount((c) => c + 1);
         if (clickLog) {
@@ -328,8 +336,6 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                 events: [{ clicked_at: new Date().toISOString(), source: 'stream', device: 'web' }, ...clickLog.events],
             });
         }
-
-        logWaClick(listing.id, 'stream', 'web').catch(() => {});
 
         setIsOpening(false);
         window.setTimeout(() => setToast(null), 1800);
