@@ -1,6 +1,7 @@
-import { redirect } from "next/navigation";
-import { protectedRouteRedirects } from "../routeRedirects";
+"use client";
+
+import { AiUsage } from "@/pages/AiUsage";
 
 export default function Page() {
-  redirect(protectedRouteRedirects.aiUsage);
+  return <AiUsage />;
 }
