@@ -197,18 +197,16 @@ export class BroadcastCampaignService {
           .from('broker_contacts')
           .select('id, phone')
           .in('id', contactIds)
-          .eq('tenant_id', tenantId)
           .eq('unsubscribed', false);
 
         if (brokerError) throw new Error(brokerError.message);
         phones = (brokerContacts || []).map((c: any) => c.phone);
       }
-    } else if (campaign.audience_type === 'segment' && campaign.segment_criteria) {
-      const criteria = campaign.segment_criteria as Record<string, unknown>;
+    } else if (campaign.audience_type === 'segment') {
+      const criteria = (campaign.segment_criteria || {}) as Record<string, unknown>;
       let query = db
         .from('broker_contacts')
         .select('phone')
-        .eq('tenant_id', tenantId)
         .eq('unsubscribed', false);
 
       if (criteria.locality && Array.isArray(criteria.locality) && (criteria.locality as string[]).length > 0) {
@@ -237,7 +235,6 @@ export class BroadcastCampaignService {
       const { data: contacts, error: allError } = await db
         .from('broker_contacts')
         .select('phone')
-        .eq('tenant_id', tenantId)
         .eq('unsubscribed', false);
 
       if (allError) throw new Error(allError.message);

@@ -358,9 +358,7 @@ router.get('/', async (req, res) => {
     const contacts = (contactQuery.data || []) as BrokerContactRow[];
     const groups = (groupQuery.data || []) as WhatsAppGroupRow[];
 
-    const contactsForScope = context.isSuperAdmin
-      ? [...aggregateContacts(contacts), ...aggregateContactsFromGroups(groups)]
-      : aggregateContacts(contacts.filter((row) => String(row.tenant_id || '') === context.workspaceOwnerId));
+    const contactsForScope = [...aggregateContacts(contacts), ...aggregateContactsFromGroups(groups)];
 
     const mergedByPhone = new Map<string, BrokerContactAggregate>();
     for (const contact of contactsForScope) {

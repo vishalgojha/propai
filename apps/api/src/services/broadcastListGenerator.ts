@@ -70,15 +70,37 @@ function resolvePocket(area: string): string {
 export async function generateBroadcastLists(tenantId: string): Promise<number> {
   const { data: contacts, error } = await db!
     .from('broker_contacts')
-    .select('id, inferred_areas')
-    .eq('tenant_id', tenantId)
+    .select('id, phone, inferred_areas, updated_at')
     .eq('unsubscribed', false);
 
   if (error || !contacts?.length) return 0;
 
+  const contactsByPhone = new Map<string, { id: string; inferred_areas: string[] }>();
+  for (const contact of contacts) {
+    const phone = String((contact as any).phone || '').replace(/\D/g, '');
+    if (!phone) continue;
+
+    const existing = contactsByPhone.get(phone);
+    if (!existing) {
+      contactsByPhone.set(phone, {
+        id: contact.id,
+        inferred_areas: Array.isArray(contact.inferred_areas) ? contact.inferred_areas : [],
+      });
+      continue;
+    }
+
+    existing.inferred_areas = Array.from(new Set([
+      ...existing.inferred_areas,
+      ...(Array.isArray(contact.inferred_areas) ? contact.inferred_areas : []),
+    ]));
+  }
+
+  const sharedContacts = Array.from(contactsByPhone.values());
+  if (!sharedContacts.length) return 0;
+
   const pocketMap = new Map<string, Set<string>>();
 
-  for (const contact of contacts) {
+  for (const contact of sharedContacts) {
     for (const area of contact.inferred_areas) {
       const pocket = resolvePocket(area);
       const existing = pocketMap.get(pocket) || new Set<string>();
@@ -113,7 +135,7 @@ export async function generateBroadcastLists(tenantId: string): Promise<number> 
         })
         .eq('id', listId);
     } else {
-      const sourceAreas = contacts
+      const sourceAreas = sharedContacts
         .filter((c) => contactIds.includes(c.id))
         .flatMap((c) => c.inferred_areas)
         .filter((a) => resolvePocket(a) === pocket);
@@ -162,7 +184,7 @@ export async function generateBroadcastLists(tenantId: string): Promise<number> 
     }
   }
 
-  const activeIds = contacts.map((c) => c.id);
+  const activeIds = sharedContacts.map((c) => c.id);
 
   const { data: allList } = await db!
     .from('broadcast_lists')
