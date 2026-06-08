@@ -172,6 +172,18 @@ export class BroadcastCampaignService {
     let phones: string[] = [];
 
     if (campaign.audience_type === 'list' && campaign.list_id) {
+      const { data: list, error: listError } = await db
+        .from('broadcast_lists')
+        .select('id')
+        .eq('id', campaign.list_id)
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+      if (listError) throw new Error(listError.message);
+      if (!list) {
+        throw new Error('Broadcast list not found for this workspace');
+      }
+
       const { data: contacts, error: contactError } = await db
         .from('broadcast_list_contacts')
         .select('contact_id')
@@ -185,6 +197,7 @@ export class BroadcastCampaignService {
           .from('broker_contacts')
           .select('id, phone')
           .in('id', contactIds)
+          .eq('tenant_id', tenantId)
           .eq('unsubscribed', false);
 
         if (brokerError) throw new Error(brokerError.message);

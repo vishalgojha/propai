@@ -32,12 +32,20 @@
 - **propai-gras fix**: Live IGR fetch (`/api/igr/fetch`) times out on government portal (`igrmaharashtra.gov.in`). Needs Camoufox-based browser navigation instead of direct HTTP fetch. Full prompt at `.agents/prompts/propai-gras.md`.
 - **official-whatsapp-cloud-migration**: Retire/delete the current linked-device WhatsApp number before onboarding the official Meta Cloud API number. Do not migrate Cloud API onto the same live Baileys owner session.
 
+### Completed in This Session
+
+- Fixed embedding backfill: added `POST /api/backfill-embeddings` endpoint and scripts (`backfillEmbeddings.ts`, `backfillBatch.ts`, `backfillSlow.ts`)
+- Fixed TypeScript errors in `embeddingService.ts` (cast) and `backfillEmbeddingsController.ts` (record_type select)
+- Fixed MCP OAuth FK violation: auto-create missing `mcp_oauth_clients` row in `oauth.ts`
+- Fixed `semantic_search` MCP tool: rewrote to query child tables (`stream_items_residential`/`stream_items_commercial`) directly with client-side cosine similarity instead of broken `match_listings` RPC
+- Added embedding generation hooks at ingest time: `ingestController.ts` and `channelService.ts` now call `embedStreamItem()` before insert/upsert
+- Resolved Ollama stuck state: model `nomic-embed-text` was missing after deploy (persistent volume not surviving redeploy). Recovery: `POST /api/pull` with `nomic-embed-text`
+- Deployed API, MCP, and www to Coolify (www has BHK fix, intent form, AI description, etc.)
+
 ### Current Remote State
 
 - Latest local commits:
-  - `ee6f2568` — `Merge propai-ollama: add apps/ollama/Dockerfile for Coolify embedding service` (pushed)
-  - `efe76710` — `Clarify API health and login status` (pushed)
-  - `dca94f44` — `Add apps/ollama/Dockerfile for Coolify-deployed embedding service` (pushed)
+  - `da10cea6` — `Add resilient backfill scripts, fix TS errors in embedding pipeline` (pushed)
 
 ### Operational Rules
 
@@ -92,3 +100,12 @@ To recover:
 1. Coolify UI → PropAI Pulse → `ollama` → check status, redeploy if `exited`
 2. If the persistent volume is intact, the model survives — just restart
 3. If the model is gone (e.g. volume wiped), exec into the container and run `ollama pull nomic-embed-text` (or call `POST /api/pull` from the host)
+
+### Known Ollama Stability Issues
+
+- After deploy/restart, Ollama must pull `nomic-embed-text` again if volume was wiped (validate via `curl /api/tags`)
+- Node.js `fetch` to Ollama from local dev machine may time out while `curl` works — likely a network issue between dev machine and Hetzner
+- After ~3-5 consecutive embedding requests, Ollama may hang (timeout on new requests). Recovery: wait ~30s or redeploy container
+- Workaround for backfill: use `curl` via `child_process.execSync` instead of `fetch`; batch size of 1 with 1s delay between rows; health check before each batch; 30s wait on failure
+- Production API container reaches Ollama fine (same Hetzner network) — only local dev has connectivity issues
+- Backfill scripts at `apps/api/src/scripts/backfillBatch.ts` and `backfillSlow.ts` for bulk embedding generation

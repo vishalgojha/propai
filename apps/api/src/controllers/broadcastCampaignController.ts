@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { broadcastCampaignService } from '../services/broadcastCampaignService';
 import { broadcastExecutor } from '../services/broadcastExecutor';
+import { workspaceAccessService } from '../services/workspaceAccessService';
 
 function firstString(value: unknown): string {
   if (typeof value === 'string') return value.trim();
@@ -12,10 +13,14 @@ function paramId(req: Request): string {
   return Array.isArray(id) ? String(id[0] || '') : String(id || '');
 }
 
+async function resolveBroadcastContext(req: Request) {
+  return workspaceAccessService.resolveContext((req as any).user ?? {});
+}
+
 export const createCampaign = async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
-    const tenantId = user?.id;
+    const context = await resolveBroadcastContext(req);
+    const tenantId = context.workspaceOwnerId;
 
     if (!tenantId) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -56,7 +61,7 @@ export const createCampaign = async (req: Request, res: Response) => {
       rateLimitPerHour,
       delayBetweenMessagesMs,
       acceptedRisk: true,
-      createdBy: tenantId,
+      createdBy: context.currentUserId,
     });
 
     return res.status(201).json({ success: true, campaign });
@@ -67,8 +72,8 @@ export const createCampaign = async (req: Request, res: Response) => {
 
 export const getCampaign = async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
-    const tenantId = user?.id;
+    const context = await resolveBroadcastContext(req);
+    const tenantId = context.workspaceOwnerId;
     const campaignId = paramId(req);
 
     if (!tenantId || !campaignId) {
@@ -88,8 +93,8 @@ export const getCampaign = async (req: Request, res: Response) => {
 
 export const listCampaigns = async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
-    const tenantId = user?.id;
+    const context = await resolveBroadcastContext(req);
+    const tenantId = context.workspaceOwnerId;
     const status = firstString(req.query.status);
 
     if (!tenantId) {
@@ -105,8 +110,8 @@ export const listCampaigns = async (req: Request, res: Response) => {
 
 export const deleteCampaign = async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
-    const tenantId = user?.id;
+    const context = await resolveBroadcastContext(req);
+    const tenantId = context.workspaceOwnerId;
     const campaignId = paramId(req);
 
     if (!tenantId || !campaignId) {
@@ -122,8 +127,8 @@ export const deleteCampaign = async (req: Request, res: Response) => {
 
 export const cancelCampaign = async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
-    const tenantId = user?.id;
+    const context = await resolveBroadcastContext(req);
+    const tenantId = context.workspaceOwnerId;
     const campaignId = paramId(req);
 
     if (!tenantId || !campaignId) {
@@ -139,8 +144,8 @@ export const cancelCampaign = async (req: Request, res: Response) => {
 
 export const populateRecipients = async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
-    const tenantId = user?.id;
+    const context = await resolveBroadcastContext(req);
+    const tenantId = context.workspaceOwnerId;
     const campaignId = paramId(req);
 
     if (!tenantId || !campaignId) {
@@ -156,8 +161,8 @@ export const populateRecipients = async (req: Request, res: Response) => {
 
 export const startCampaign = async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
-    const tenantId = user?.id;
+    const context = await resolveBroadcastContext(req);
+    const tenantId = context.workspaceOwnerId;
     const campaignId = paramId(req);
 
     if (!tenantId || !campaignId) {
@@ -188,8 +193,8 @@ export const startCampaign = async (req: Request, res: Response) => {
 
 export const getCampaignRecipients = async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
-    const tenantId = user?.id;
+    const context = await resolveBroadcastContext(req);
+    const tenantId = context.workspaceOwnerId;
     const campaignId = paramId(req);
     const status = firstString(req.query.status);
     const page = parseInt(firstString(req.query.page), 10) || 1;
@@ -233,8 +238,8 @@ export const getCampaignRecipients = async (req: Request, res: Response) => {
 
 export const getCampaignStats = async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
-    const tenantId = user?.id;
+    const context = await resolveBroadcastContext(req);
+    const tenantId = context.workspaceOwnerId;
     const campaignId = paramId(req);
 
     if (!tenantId || !campaignId) {
