@@ -73,6 +73,17 @@ const IGNORE_PATTERNS = [
     /^you were added$/i,
 ];
 
+const LOW_SIGNAL_BROKER_PATTERNS = [
+    /\+\s*1\s*broker\b/i,
+    /\bplus\s*1(?:\s*broker)?\b/i,
+    /\bwith me\b/i,
+    /\bindirect inventory\b/i,
+    /\bvia broker\b/i,
+    /\bthrough broker\b/i,
+    /\bbroker relay\b/i,
+    /\bshared by broker\b/i,
+];
+
 export function normalizeBrokerMessageText(text: string): string {
     return String(text || '')
         .replace(/\u202f/g, ' ')
@@ -113,18 +124,20 @@ export function classifyBrokerMessage(text: string): BrokerMessageClassification
     const hasListingCue = LISTING_PATTERNS.some((pattern) => pattern.test(normalizedText));
     const hasPropertyCue = PROPERTY_PATTERNS.some((pattern) => pattern.test(normalizedText));
     const hasPrice = PRICE_PATTERNS.some((pattern) => pattern.test(normalizedText));
+    const hasLowSignalBrokerCue = LOW_SIGNAL_BROKER_PATTERNS.some((pattern) => pattern.test(normalizedText));
 
     if (hasRequirementCue) reasons.push('requirement_cue');
     if (hasListingCue) reasons.push('listing_cue');
     if (hasPropertyCue) reasons.push('property_cue');
     if (hasPrice) reasons.push('price_cue');
+    if (hasLowSignalBrokerCue) reasons.push('broker_relay_cue');
 
     if (hasRequirementCue && !hasListingCue) {
         return {
             intent: 'requirement',
             hasPrice,
             shouldParse: true,
-            confidence: hasPropertyCue || hasPrice ? 'high' : 'medium',
+            confidence: hasLowSignalBrokerCue ? 'low' : hasPropertyCue || hasPrice ? 'high' : 'medium',
             normalizedText,
             reasons,
         };
@@ -135,7 +148,7 @@ export function classifyBrokerMessage(text: string): BrokerMessageClassification
             intent: 'listing',
             hasPrice,
             shouldParse: hasPrice,
-            confidence: hasPrice ? 'high' : 'medium',
+            confidence: hasLowSignalBrokerCue ? 'low' : hasPrice ? 'high' : 'medium',
             normalizedText,
             reasons: hasPrice ? reasons : [...reasons, 'listing_missing_price'],
         };
@@ -146,7 +159,7 @@ export function classifyBrokerMessage(text: string): BrokerMessageClassification
             intent: 'listing',
             hasPrice: true,
             shouldParse: true,
-            confidence: 'medium',
+            confidence: hasLowSignalBrokerCue ? 'low' : 'medium',
             normalizedText,
             reasons,
         };
@@ -167,7 +180,7 @@ export function classifyBrokerMessage(text: string): BrokerMessageClassification
         intent: 'unknown',
         hasPrice,
         shouldParse: false,
-        confidence: hasPropertyCue || hasPrice ? 'low' : 'medium',
+        confidence: hasLowSignalBrokerCue || hasPropertyCue || hasPrice ? 'low' : 'medium',
         normalizedText,
         reasons: reasons.length ? reasons : ['no_strong_cues'],
     };

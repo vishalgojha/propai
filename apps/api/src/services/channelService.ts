@@ -987,6 +987,19 @@ const buildDisplayTitle = (buildingName: string | null, microLocation: string | 
     return locality ? titleCase(locality) : 'Property listing';
 };
 
+const LOW_SIGNAL_BROKER_PATTERNS = [
+    /\+\s*1\s*broker\b/i,
+    /\bplus\s*1(?:\s*broker)?\b/i,
+    /\bwith me\b/i,
+    /\bindirect inventory\b/i,
+    /\bvia broker\b/i,
+    /\bthrough broker\b/i,
+    /\bbroker relay\b/i,
+    /\bshared by broker\b/i,
+];
+
+const detectLowSignalBrokerRelay = (text: string) => LOW_SIGNAL_BROKER_PATTERNS.some((pattern) => pattern.test(String(text || '')));
+
 const extractDealType = (text: string) => {
     const lower = text.toLowerCase();
     if (lower.includes('pre leased') || lower.includes('pre-leased')) return 'pre-leased';
@@ -1286,6 +1299,7 @@ const calculateConfidence = (text: string, item: { location: string | null; pric
     if (item.microLocation) score += 4;
     if (text.length > 80) score += 8;
     if (/\d/.test(text) && /sq\s*ft|carpet|possession|furnished|tenant|yield/i.test(text)) score += 6;
+    if (detectLowSignalBrokerRelay(text)) score -= 14;
     return Math.min(96, score);
 };
 
@@ -3468,6 +3482,7 @@ ${rawText}
                 const brokerWaMeLinks = Array.isArray(item.broker_wa_me_links) && item.broker_wa_me_links.length > 0
                     ? item.broker_wa_me_links
                     : sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
+                const lowSignalBrokerRelay = detectLowSignalBrokerRelay(candidateText);
                 const confidence = Math.max(0, Math.min(100, Number(item.confidence || 0))) || calculateConfidence(candidateText, {
                     location: locality,
                     price: priceLabel,
@@ -3475,6 +3490,10 @@ ${rawText}
                     buildingName,
                     microLocation,
                 });
+                const parseNotes = [
+                    item.parseNotes ? String(item.parseNotes).trim() : '',
+                    lowSignalBrokerRelay ? 'Indirect inventory via broker relay; treat as low-trust unless directly verified.' : '',
+                ].filter(Boolean).join(' | ') || null;
                 const completeness = computeStreamCompleteness({
                     locality,
                     bhk: normalizedBhk,
@@ -3539,7 +3558,7 @@ ${rawText}
                         floorNumber: floorNumber || null,
                         totalFloors: totalFloors || null,
                         propertyUse: propertyUse || null,
-                        parseNotes: item.parseNotes || null,
+                        parseNotes,
                         aiParsed: true,
                         source: String(message.source || 'ai').trim() || 'ai',
                         sourceGroupId,
@@ -3600,6 +3619,10 @@ ${rawText}
             const workstationsCount = propertyCategory === 'commercial' ? extractWorkstationsCount(candidateText) : null;
             const cabinsCount = propertyCategory === 'commercial' ? extractCabinsCount(candidateText) : null;
             const brokerWaMeLinks = sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
+            const lowSignalBrokerRelay = detectLowSignalBrokerRelay(candidateText);
+            const parseNotes = lowSignalBrokerRelay
+                ? 'Indirect inventory via broker relay; treat as low-trust unless directly verified.'
+                : null;
             const completeness = computeStreamCompleteness({
                 locality: location,
                 bhk,
@@ -3670,6 +3693,7 @@ ${rawText}
                     floorNumber,
                     totalFloors,
                     propertyUse,
+                    parseNotes,
                     source: String(message.source || 'fallback').trim() || 'fallback',
                     sourceGroupId,
                     sourceGroupName,
