@@ -11,6 +11,7 @@ import { getWorkspaceSettingsRecord } from './workspaceSettingsService';
 import { emailNotificationService } from './emailNotificationService';
 import { cleanNumber } from '../utils/number';
 import { embedStreamItem } from '../services/embeddingService';
+import { sanitizeBuildingNameCandidate, sanitizeMicroLocationCandidate } from '../utils/streamMetadataSanitizer';
 
 
 type ChannelType = 'listing' | 'requirement' | 'mixed';
@@ -3366,8 +3367,10 @@ ${rawText}
                     commonResolution;
                 const locality = String(item.locality || resolution?.locality || commonLocation || extractIndianLocality(candidateText) || extractIndianLocality(rawText) || '').trim() || null;
                 const city = String(item.city || resolution?.city || commonCity || '').trim() || null;
-                const buildingName = item.buildingName ? titleCase(String(item.buildingName).trim()) : extractBuildingName(candidateText);
-                const microLocation = item.microLocation ? titleCase(String(item.microLocation).trim()) : (extractMicroLocation(candidateText) || extractMicroLocation(rawText));
+                const rawBuildingName = item.buildingName ? String(item.buildingName).trim() : extractBuildingName(candidateText);
+                const rawMicroLocation = item.microLocation ? String(item.microLocation).trim() : (extractMicroLocation(candidateText) || extractMicroLocation(rawText));
+                const buildingName = sanitizeBuildingNameCandidate(rawBuildingName);
+                const microLocation = sanitizeMicroLocationCandidate(rawMicroLocation);
                 const title = String(item.title || '').trim() || buildDisplayTitle(buildingName, microLocation, locality);
                 const hintedStreamType =
                     item.streamType === 'Rent' || item.streamType === 'Sale' || item.streamType === 'Requirement' || item.streamType === 'Pre-leased'

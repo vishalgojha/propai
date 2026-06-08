@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '../config/supabase';
+import { sanitizeBuildingNameCandidate } from '../utils/streamMetadataSanitizer';
 
 type CacheEntry = {
   locality: string | null;
@@ -24,14 +25,6 @@ function toCacheKey(buildingName: string) {
   return normalizeValue(buildingName).toLowerCase();
 }
 
-function titleCase(value: string) {
-  return value
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
-}
-
 function cleanExtractedBuilding(value: string | null | undefined) {
   const trimmed = normalizeValue(value)
     .replace(/^[\s:,@-]+/, '')
@@ -40,15 +33,7 @@ function cleanExtractedBuilding(value: string | null | undefined) {
     .replace(MULTISPACE_PATTERN, ' ')
     .trim();
 
-  if (!trimmed || trimmed.length < 3) {
-    return null;
-  }
-
-  if (/^\d+\s*(bhk|sq\s*ft|sqft|floor|room)\b/i.test(trimmed)) {
-    return null;
-  }
-
-  return titleCase(trimmed);
+  return sanitizeBuildingNameCandidate(trimmed);
 }
 
 export class BuildingResolverService {
@@ -107,9 +92,9 @@ export class BuildingResolverService {
     }
 
     const directPatterns = [
+      /\b(?:building|building\s+name|bldg|project)\s*[:,-]\s*([A-Z][A-Za-z0-9&'()./-]+(?:\s+[A-Z][A-Za-z0-9&'()./-]+){0,5})/,
       /\b(?:available\s+for\s+\w+\s+@\s*)([A-Z][A-Za-z0-9&'()./-]+(?:\s+[A-Z][A-Za-z0-9&'()./-]+){0,5})/,
       /@\s*([A-Z][A-Za-z0-9&'()./-]+(?:\s+[A-Z][A-Za-z0-9&'()./-]+){0,5})/,
-      /\b(?:in|at|opp|opposite)\s+([A-Z][A-Za-z0-9&'()./-]+(?:\s+[A-Z][A-Za-z0-9&'()./-]+){0,5})/,
     ];
 
     for (const pattern of directPatterns) {
