@@ -42,6 +42,15 @@ function extractParticipantJids(participants: unknown): string[] {
         .filter(Boolean);
 }
 
+function normalizePhoneNumber(value?: string | null) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+
+    const withoutDevice = raw.includes(':') ? raw.slice(0, raw.indexOf(':')) : raw;
+    const withoutJid = withoutDevice.includes('@') ? withoutDevice.slice(0, withoutDevice.indexOf('@')) : withoutDevice;
+    return withoutJid.split('').filter((char) => char >= '0' && char <= '9').join('');
+}
+
 export interface BroadcastOptions {
     batchSize?: number;
     delayBetweenMessages?: number;
@@ -229,7 +238,7 @@ export class WhatsAppClient {
         this.hooks = options.hooks;
         this.label = options.label;
         this.ownerName = options.ownerName;
-        this.connectedPhoneNumber = options.phoneNumber || options.usePairingCode;
+        this.connectedPhoneNumber = normalizePhoneNumber(options.phoneNumber || options.usePairingCode);
         this.startHealthCheck();
     }
 
@@ -239,7 +248,7 @@ export class WhatsAppClient {
         }
 
         this.isConnecting = true;
-        this.connectedPhoneNumber = options.phoneNumber || options.usePairingCode || this.connectedPhoneNumber;
+        this.connectedPhoneNumber = normalizePhoneNumber(options.phoneNumber || options.usePairingCode || this.connectedPhoneNumber);
         this.connectionStatus = 'connecting';
         await this.persistStatus('connecting');
 
@@ -302,6 +311,17 @@ export class WhatsAppClient {
             }
             this.qrTimeoutTimer = setTimeout(() => {
                 console.warn(`[WhatsAppClient] QR timeout for ${this.tenantId}:${this.label} after 30s. Socket state: ${this.socket ? 'alive' : 'null'}, connection: ${this.connectionStatus}`);
+                void whatsappHealthService.appendEvent(
+                    this.tenantId,
+                    this.label,
+                    'qr_timeout',
+                    'WhatsApp QR/pairing artifact was not emitted within 30 seconds.',
+                    {
+                        socketAlive: Boolean(this.socket),
+                        connectionStatus: this.connectionStatus,
+                        phoneNumber: this.connectedPhoneNumber || null,
+                    },
+                ).catch(() => undefined);
                 this.qrTimeoutTimer = null;
             }, 30000);
 
@@ -335,8 +355,7 @@ export class WhatsAppClient {
 
                     const userId = String(this.socket?.user?.id || '');
                     if (userId) {
-                        const separatorIndex = userId.indexOf(':');
-                        const normalizedPhone = separatorIndex >= 0 ? userId.slice(0, separatorIndex) : userId;
+                        const normalizedPhone = normalizePhoneNumber(userId);
                         this.connectedPhoneNumber = normalizedPhone || this.connectedPhoneNumber;
                         this.authState?.updatePhoneNumber(this.connectedPhoneNumber || null);
                         await saveCreds();
@@ -384,6 +403,19 @@ export class WhatsAppClient {
                                 `[WhatsAppClient] Connection closed for ${this.tenantId}:${this.label} (${disconnectReason}). autoReconnect=${shouldReconnect}`
                             );
                         }
+                        void whatsappHealthService.appendEvent(
+                            this.tenantId,
+                            this.label,
+                            'connection_closed',
+                            `WhatsApp connection closed for ${this.label}.`,
+                            {
+                                disconnectReason,
+                                statusCode: statusCode ?? null,
+                                replaced,
+                                shouldReconnect,
+                                phoneNumber: this.connectedPhoneNumber || null,
+                            },
+                        ).catch(() => undefined);
 
                         if (replaced) {
                             this.reconnectAttempts = 0;

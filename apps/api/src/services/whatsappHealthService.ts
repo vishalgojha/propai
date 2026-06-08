@@ -72,6 +72,15 @@ function asIso(value?: string | null) {
     return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
 }
 
+function normalizePhoneNumber(value?: string | null) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+
+    const withoutDevice = raw.includes(':') ? raw.slice(0, raw.indexOf(':')) : raw;
+    const withoutJid = withoutDevice.includes('@') ? withoutDevice.slice(0, withoutDevice.indexOf('@')) : withoutDevice;
+    return withoutJid.split('').filter((char) => char >= '0' && char <= '9').join('');
+}
+
 function safeRatio(success: number, failed: number) {
     const total = success + failed;
     if (total <= 0) {
@@ -871,7 +880,7 @@ export class WhatsAppHealthService {
 
                 if (pendingConnect && !autoReconnectBlocked) {
                     const mode = pendingConnect.mode === 'pairing' ? 'pairing' : 'qr';
-                    const pendingPhone = String(pendingConnect.phoneNumber || sessionData.phoneNumber || sessionData.displayPhoneNumber || '').trim();
+                    const pendingPhone = normalizePhoneNumber(String(pendingConnect.phoneNumber || sessionData.phoneNumber || sessionData.displayPhoneNumber || '').trim());
                     const pendingOwnerName = String(pendingConnect.ownerName || row.owner_name || sessionData.ownerName || '').trim();
                     const requestedAt = String(pendingConnect.requestedAt || '').trim();
                     const requestedAtMs = requestedAt ? new Date(requestedAt).getTime() : NaN;

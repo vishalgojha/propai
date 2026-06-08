@@ -7,6 +7,7 @@ import { supabase, supabaseAdmin } from '../config/supabase';
 import { emailNotificationService } from '../services/emailNotificationService';
 import { notificationService } from '../services/notificationService';
 import { liveMonitorService } from '../services/liveMonitorService';
+import { whatsappHealthService } from '../services/whatsappHealthService';
 
 const db = supabaseAdmin || supabase;
 type LifecycleEmailInput = {
@@ -359,6 +360,16 @@ export function createPropAIRuntimeHooks(): WhatsAppRuntimeHooks {
         },
         onError: async (event) => {
             console.error(`WhatsApp runtime error [${event.stage}] for tenant ${event.tenantId}:`, event.error);
+            await whatsappHealthService.appendEvent(
+                event.tenantId,
+                event.label,
+                'runtime_error',
+                `WhatsApp runtime error during ${event.stage}.`,
+                {
+                    stage: event.stage,
+                    error: event.error instanceof Error ? event.error.message : String(event.error || 'Unknown error'),
+                },
+            ).catch(() => undefined);
         },
     };
 }
