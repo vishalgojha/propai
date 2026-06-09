@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { RefreshCw, Pause, Play } from 'lucide-react';
 import backendApi, { handleApiError, isApiAbortError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
@@ -79,6 +80,7 @@ const terminalPanelClass =
   'terminal-panel rounded-none border border-[color:var(--accent-border)] bg-[rgba(9,13,18,0.94)]';
 
 export default function ParsingTerminal() {
+  const navigate = useNavigate();
   const [groups, setGroups] = React.useState<GroupHealth[]>([]);
   const [events, setEvents] = React.useState<ParserEvent[]>([]);
   const [auditSummary, setAuditSummary] = React.useState<GroupAuditResponse['summary'] | null>(null);
@@ -573,6 +575,7 @@ export default function ParsingTerminal() {
                 detail="Failed in 24h"
                 tone={totals.failed > 0 ? 'danger' : 'neutral'}
                 tooltip="Messages that failed parsing or ingestion in the last 24 hours."
+                onClick={() => navigate('/admin?tab=evidence')}
               />
               <StatusBlock
                 label="Sync"
@@ -773,15 +776,17 @@ function StatusBlock({
   detail,
   tone,
   tooltip,
+  onClick,
 }: {
   label: string;
   value: string;
   detail: string;
   tone: keyof typeof toneStyles;
   tooltip?: string;
+  onClick?: () => void;
 }) {
-  return (
-    <div className={cn('border px-3 py-3 font-mono', toneBoxStyles[tone])}>
+  const content = (
+    <>
       <p className="flex items-center gap-1 text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
         <span>{label}</span>
         {tooltip ? (
@@ -796,6 +801,24 @@ function StatusBlock({
       </p>
       <p className="mt-2 text-[20px] font-bold uppercase tracking-[0.04em]">{value}</p>
       <p className="mt-1 text-[10px] uppercase tracking-[0.1em] text-[var(--text-secondary)]">{detail}</p>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn('border px-3 py-3 text-left font-mono transition-colors hover:border-[color:var(--accent-border)]', toneBoxStyles[tone])}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className={cn('border px-3 py-3 font-mono', toneBoxStyles[tone])}>
+      {content}
     </div>
   );
 }

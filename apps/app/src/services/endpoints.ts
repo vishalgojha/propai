@@ -40,6 +40,7 @@ export const ENDPOINTS = {
     revokeImpersonation: (token: string) => `/admin/impersonation/${encodeURIComponent(token)}`,
     impersonations: '/admin/impersonations',
     audit: '/admin/audit',
+    parserEvidence: '/admin/parser-evidence',
     scoutTasks: '/admin/scout/tasks',
     scoutTask: (taskId: string) => `/admin/scout/tasks/${encodeURIComponent(taskId)}`,
   },

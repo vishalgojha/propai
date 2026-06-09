@@ -49,6 +49,11 @@ type ScoutTaskRow = {
   updated_at: string;
 };
 
+type WorkspaceLookup = {
+  email: string | null;
+  fullName: string | null;
+};
+
 function getWorkspaceHealthStatus(row: Record<string, unknown>) {
   return String(row?.connection_status || row?.status || row?.connectionStatus || 'disconnected');
 }
@@ -63,6 +68,23 @@ const emptyHealth: WorkspaceHealth = {
   groupCount: 0, activeGroups24h: 0, messagesReceived24h: 0,
   messagesParsed24h: 0, messagesFailed24h: 0, parserSuccessRate: 100, lastUpdatedAt: null,
 };
+
+function summarizeRawText(value: unknown) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  return text.length > 280 ? `${text.slice(0, 277)}...` : text;
+}
+
+function buildWorkspaceMap(rows: Array<Record<string, any>> | null | undefined) {
+  return new Map<string, WorkspaceLookup>(
+    (rows || []).map((row) => [
+      String(row.id || ''),
+      {
+        email: row.email || null,
+        fullName: row.full_name || null,
+      },
+    ]),
+  );
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // GET /workspaces — searchable, filterable, paginated
@@ -218,6 +240,137 @@ export const listAdminWorkspaces = async (req: Request, res: Response) => {
   } catch (error: unknown) {
     const statusCode = error instanceof HttpError ? error.statusCode : 500;
     res.status(statusCode).json({ error: error instanceof Error ? error.message : 'Failed to load admin workspaces' });
+  }
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /parser-evidence — super-admin proof trail for parser misses
+// ────────────────────────────────────────────────────────────────────────────
+export const getParserEvidence = async (req: Request, res: Response) => {
+  try {
+    await requireSuperAdmin(req);
+
+    if (!supabaseAdmin) {
+      return res.status(503).json({ error: 'Supabase admin unavailable' });
+    }
+
+    const admin = supabaseAdmin;
+    const limit = Math.min(100, Math.max(10, Number(req.query.limit || 50)));
+    const rawLimit = Math.min(200, Math.max(limit, Number(req.query.rawLimit || 120)));
+    const since = String(req.query.since || '').trim();
+
+    const rawDumpQuery = () => {
+      let query = admin
+        .from('raw_dump')
+        .select('id, workspace_id, session_id, group_jid, sender_jid, raw_text, gate_status, rejection_reason, received_at')
+        .order('received_at', { ascending: false })
+        .limit(rawLimit);
+      if (since) query = query.gte('received_at', since);
+      return query;
+    };
+
+    const eventQuery = () => {
+      let query = admin
+        .from('whatsapp_event_logs')
+        .select('id, tenant_id, session_label, session_id, event_type, message, metadata, created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (since) query = query.gte('created_at', since);
+      return query;
+    };
+
+    const [profilesResult, healthResult, rawDumpResult, eventResult] = await Promise.all([
+      admin
+        .from('profiles')
+        .select('id, email, full_name'),
+      admin
+        .from('whatsapp_group_health')
+        .select('tenant_id, session_label, group_id, group_name, status, messages_received_24h, messages_parsed_24h, messages_failed_24h, last_message_at, last_parsed_at, updated_at')
+        .gt('messages_failed_24h', 0)
+        .order('messages_failed_24h', { ascending: false })
+        .limit(limit),
+      rawDumpQuery(),
+      eventQuery(),
+    ]);
+
+    if (profilesResult.error) throw profilesResult.error;
+    if (healthResult.error) throw healthResult.error;
+    if (rawDumpResult.error) throw rawDumpResult.error;
+    if (eventResult.error) throw eventResult.error;
+
+    const workspaceMap = buildWorkspaceMap(profilesResult.data as Array<Record<string, any>>);
+    const withWorkspace = (tenantId: unknown) => {
+      const workspace = workspaceMap.get(String(tenantId || '')) || { email: null, fullName: null };
+      return {
+        tenantId: String(tenantId || ''),
+        workspaceEmail: workspace.email,
+        workspaceName: workspace.fullName,
+      };
+    };
+
+    const groupFailures = (healthResult.data || []).map((row: any) => ({
+      ...withWorkspace(row.tenant_id),
+      sessionLabel: row.session_label || null,
+      groupId: row.group_id || null,
+      groupName: row.group_name || row.group_id || 'Unknown group',
+      status: row.status || 'unknown',
+      received: toNumber(row.messages_received_24h),
+      parsed: toNumber(row.messages_parsed_24h),
+      failed: toNumber(row.messages_failed_24h),
+      lastMessageAt: row.last_message_at || null,
+      lastParsedAt: row.last_parsed_at || null,
+      updatedAt: row.updated_at || null,
+    }));
+
+    const rawRejects = (rawDumpResult.data || [])
+      .filter((row: any) => String(row.gate_status || '').toLowerCase() !== 'passed' || row.rejection_reason)
+      .slice(0, limit)
+      .map((row: any) => ({
+        ...withWorkspace(row.workspace_id),
+        id: row.id,
+        sessionLabel: row.session_id || null,
+        groupId: row.group_jid || null,
+        senderJid: row.sender_jid || null,
+        gateStatus: row.gate_status || null,
+        reason: row.rejection_reason || (String(row.gate_status || '').toLowerCase() === 'passed' ? null : 'gate_rejected'),
+        receivedAt: row.received_at || null,
+        rawText: summarizeRawText(row.raw_text),
+      }));
+
+    const parserEvents = (eventResult.data || [])
+      .filter((row: any) => {
+        const eventType = String(row.event_type || '').toLowerCase();
+        const message = String(row.message || '').toLowerCase();
+        return eventType.includes('failed') || eventType.includes('parse') || message.includes('failed') || message.includes('ignored');
+      })
+      .slice(0, limit)
+      .map((row: any) => ({
+        ...withWorkspace(row.tenant_id),
+        id: row.id,
+        sessionLabel: row.session_label || row.session_id || null,
+        eventType: row.event_type || 'event',
+        message: row.message || '',
+        metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata : {},
+        createdAt: row.created_at || null,
+      }));
+
+    const totals = groupFailures.reduce((acc, row) => {
+      acc.received += row.received;
+      acc.parsed += row.parsed;
+      acc.failed += row.failed;
+      return acc;
+    }, { received: 0, parsed: 0, failed: 0 });
+
+    res.json({
+      generatedAt: new Date().toISOString(),
+      totals,
+      groupFailures,
+      rawRejects,
+      parserEvents,
+    });
+  } catch (error: unknown) {
+    const statusCode = error instanceof HttpError ? error.statusCode : 500;
+    res.status(statusCode).json({ error: error instanceof Error ? error.message : 'Failed to load parser evidence' });
   }
 };
 

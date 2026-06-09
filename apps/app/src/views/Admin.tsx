@@ -115,6 +115,52 @@ type ScoutTaskApiRow = {
   updatedAt?: string | null;
 };
 
+type ParserEvidence = {
+  generatedAt?: string | null;
+  totals: {
+    received: number;
+    parsed: number;
+    failed: number;
+  };
+  groupFailures: Array<{
+    tenantId: string;
+    workspaceEmail?: string | null;
+    workspaceName?: string | null;
+    sessionLabel?: string | null;
+    groupId?: string | null;
+    groupName: string;
+    status: string;
+    received: number;
+    parsed: number;
+    failed: number;
+    lastMessageAt?: string | null;
+    lastParsedAt?: string | null;
+    updatedAt?: string | null;
+  }>;
+  rawRejects: Array<{
+    id: string;
+    tenantId: string;
+    workspaceEmail?: string | null;
+    sessionLabel?: string | null;
+    groupId?: string | null;
+    senderJid?: string | null;
+    gateStatus?: string | null;
+    reason?: string | null;
+    receivedAt?: string | null;
+    rawText: string;
+  }>;
+  parserEvents: Array<{
+    id: string;
+    tenantId: string;
+    workspaceEmail?: string | null;
+    sessionLabel?: string | null;
+    eventType: string;
+    message: string;
+    metadata: Record<string, unknown>;
+    createdAt?: string | null;
+  }>;
+};
+
 const scoutCacheKey = (agentType: AgentType) => `propai:admin:scout-tasks:${agentType}`;
 
 const WORKER_TYPE_META: Record<AgentType, { label: string; title: string; copy: string; badge: string; suggestion: string }> = {
@@ -166,10 +212,16 @@ function parseScoutStatus(value: string | null): 'all' | ScoutStatus {
   return value === 'draft' || value === 'needs_review' || value === 'approved' || value === 'sent' || value === 'discarded' ? value : 'all';
 }
 
+function parseAdminTab(value: string | null): 'overview' | 'partners' | 'groups' | 'evidence' | 'audit' | 'system' | 'scout' {
+  return value === 'overview' || value === 'partners' || value === 'groups' || value === 'evidence' || value === 'audit' || value === 'system' || value === 'scout'
+    ? value
+    : 'overview';
+}
+
 export const Admin: React.FC = () => {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = React.useState<'overview' | 'partners' | 'groups' | 'audit' | 'system' | 'scout'>('overview');
+  const [activeTab, setActiveTab] = React.useState<'overview' | 'partners' | 'groups' | 'evidence' | 'audit' | 'system' | 'scout'>(() => parseAdminTab(searchParams.get('tab')));
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState<string | null>(null);
   const [scoutLoading, setScoutLoading] = React.useState(false);
@@ -195,6 +247,8 @@ export const Admin: React.FC = () => {
   // Impersonations & Audit
   const [impersonations, setImpersonations] = React.useState<ImpersonationSession[]>([]);
   const [auditLog, setAuditLog] = React.useState<AuditEvent[]>([]);
+  const [parserEvidence, setParserEvidence] = React.useState<ParserEvidence | null>(null);
+  const [evidenceLoading, setEvidenceLoading] = React.useState(false);
 
   // Worker queue
   const [scoutQueue, setScoutQueue] = React.useState<ScoutLead[]>([]);
@@ -216,6 +270,10 @@ export const Admin: React.FC = () => {
   const isSuperAdmin = user?.appRole === 'super_admin';
 
   React.useEffect(() => {
+    const nextTab = parseAdminTab(searchParams.get('tab'));
+    if (nextTab !== activeTab) {
+      setActiveTab(nextTab);
+    }
     const nextWorkerType = parseAgentType(searchParams.get('worker'));
     const nextScoutFilter = parseScoutStatus(searchParams.get('filter'));
     if (nextWorkerType !== workerType) {
@@ -225,7 +283,7 @@ export const Admin: React.FC = () => {
     if (nextScoutFilter !== scoutFilter) {
       setScoutFilter(nextScoutFilter);
     }
-  }, [searchParams, scoutFilter, workerType]);
+  }, [activeTab, searchParams, scoutFilter, workerType]);
 
   const toScoutLead = React.useCallback((row: ScoutTaskApiRow): ScoutLead => {
     const createdAt = row.createdAt ? new Date(row.createdAt).getTime() : Date.now();
@@ -424,6 +482,22 @@ export const Admin: React.FC = () => {
     }
   }, []);
 
+  const loadParserEvidence = React.useCallback(async () => {
+    setEvidenceLoading(true);
+    setError(null);
+    try {
+      const response = await backendApi.get(ENDPOINTS.admin.parserEvidence, {
+        params: { limit: 50 },
+      });
+      setParserEvidence(response.data || null);
+    } catch (err) {
+      setError(handleApiError(err));
+      setParserEvidence(null);
+    } finally {
+      setEvidenceLoading(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     if (!isSuperAdmin) {
       setIsLoading(false);
@@ -438,8 +512,10 @@ export const Admin: React.FC = () => {
       void loadImpersonations();
     } else if (activeTab === 'audit') {
       void loadAuditLog();
+    } else if (activeTab === 'evidence') {
+      void loadParserEvidence();
     }
-  }, [isSuperAdmin, activeTab, search, filterPlan, filterStatus, loadScoutTasks, workerType]);
+  }, [isSuperAdmin, activeTab, search, filterPlan, filterStatus, loadScoutTasks, workerType, loadParserEvidence]);
 
   React.useEffect(() => {
     if (isSuperAdmin && activeTab === 'groups' && selectedWorkspaceId) {
@@ -773,10 +849,12 @@ export const Admin: React.FC = () => {
                 ? loadImpersonations()
                 : activeTab === 'scout'
                   ? void loadScoutTasks(workerType)
+                  : activeTab === 'evidence'
+                    ? void loadParserEvidence()
                   : loadAdminData(pagination.page)}
             className={cn(adminSecondaryButton, 'rounded-full')}
           >
-            <RefreshIcon className={cn('h-4 w-4', (isLoading || (activeTab === 'scout' && scoutLoading)) && 'animate-spin')} />
+            <RefreshIcon className={cn('h-4 w-4', (isLoading || evidenceLoading || (activeTab === 'scout' && scoutLoading)) && 'animate-spin')} />
             Refresh
           </button>
         </div>
@@ -794,13 +872,19 @@ export const Admin: React.FC = () => {
           { id: 'overview', label: 'Overview' },
           { id: 'partners', label: 'Partners & Billing' },
           { id: 'groups', label: 'Group Directory' },
+          { id: 'evidence', label: 'Parser Evidence' },
           { id: 'scout', label: 'Workers' },
           { id: 'audit', label: 'Audit Log' },
           { id: 'system', label: 'System & Sessions' },
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() => {
+              setActiveTab(tab.id as any);
+              const params = new URLSearchParams(searchParams.toString());
+              params.set('tab', tab.id);
+              setSearchParams(params, { replace: true });
+            }}
             className={cn(
               'rounded-[14px] px-5 py-2.5 text-[12px] font-semibold transition-all',
               activeTab === tab.id
@@ -1067,6 +1151,137 @@ export const Admin: React.FC = () => {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── PARSER EVIDENCE ───────────────────────────────────────────────── */}
+      {activeTab === 'evidence' && (
+        <div className="space-y-6">
+          <div className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-5 md:p-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div className="max-w-3xl">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
+                  <WorkflowIcon className="h-3.5 w-3.5" />
+                  Parser proof trail
+                </div>
+                <h3 className="mt-4 text-[22px] font-bold tracking-[-0.03em] text-[var(--text-primary)] md:text-[28px]">
+                  WhatsApp parsing evidence
+                </h3>
+                <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
+                  Inspect the rows behind parser misses: failing groups, raw rejected messages, and recent parser events.
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-right">
+                {[
+                  { label: 'Received', value: parserEvidence?.totals.received || 0 },
+                  { label: 'Parsed', value: parserEvidence?.totals.parsed || 0 },
+                  { label: 'Failed', value: parserEvidence?.totals.failed || 0 },
+                ].map((metric) => (
+                  <div key={metric.label} className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">{metric.label}</p>
+                    <p className="mt-2 text-xl font-bold text-[var(--text-primary)]">{metric.value.toLocaleString('en-IN')}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {evidenceLoading ? (
+            <div className="flex justify-center rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-12">
+              <LoaderIcon className="h-6 w-6 animate-spin text-[var(--accent)]" />
+            </div>
+          ) : (
+            <>
+              <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] overflow-hidden">
+                <div className="border-b border-[color:var(--border)] px-5 py-4">
+                  <h3 className="text-[14px] font-bold text-[var(--text-primary)]">Top failing groups</h3>
+                  <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Groups sorted by stored failed parser count.</p>
+                </div>
+                <div className="divide-y divide-[color:var(--border)]">
+                  {(parserEvidence?.groupFailures || []).length === 0 ? (
+                    <div className="p-8 text-center text-[13px] text-[var(--text-secondary)]">No failing group rows found.</div>
+                  ) : (
+                    (parserEvidence?.groupFailures || []).map((group) => {
+                      const rate = group.received > 0 ? Math.round((group.parsed / group.received) * 100) : 0;
+                      return (
+                        <div key={`${group.tenantId}-${group.sessionLabel}-${group.groupId}`} className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
+                          <div className="min-w-0">
+                            <p className="truncate text-[13px] font-bold text-[var(--text-primary)]">{group.groupName}</p>
+                            <p className="mt-1 truncate text-[11px] text-[var(--text-secondary)]">
+                              {group.workspaceEmail || group.tenantId} · {group.sessionLabel || 'session unknown'}
+                            </p>
+                            <p className="mt-1 truncate text-[11px] text-[var(--text-muted)]">{group.groupId}</p>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-center">
+                            <span className={cn(adminPill, 'border-[color:var(--border)] text-[var(--text-secondary)]')}>Rx {group.received}</span>
+                            <span className={cn(adminPill, 'border-green-500/30 bg-green-500/10 text-green-400')}>Parsed {group.parsed}</span>
+                            <span className={cn(adminPill, 'border-red-500/30 bg-red-500/10 text-red-300')}>Failed {group.failed}</span>
+                          </div>
+                          <div className="text-left lg:text-right">
+                            <p className="text-[12px] font-semibold text-[var(--text-primary)]">{rate}% parsed</p>
+                            <p className="mt-1 text-[11px] text-[var(--text-secondary)]">Updated {formatDate(group.updatedAt)}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-2">
+                <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] overflow-hidden">
+                  <div className="border-b border-[color:var(--border)] px-5 py-4">
+                    <h3 className="text-[14px] font-bold text-[var(--text-primary)]">Recent raw rejects</h3>
+                    <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Raw WhatsApp rows rejected before becoming stream items.</p>
+                  </div>
+                  <div className="max-h-[560px] divide-y divide-[color:var(--border)] overflow-y-auto">
+                    {(parserEvidence?.rawRejects || []).length === 0 ? (
+                      <div className="p-8 text-center text-[13px] text-[var(--text-secondary)]">No recent raw rejects found.</div>
+                    ) : (
+                      (parserEvidence?.rawRejects || []).map((row) => (
+                        <div key={row.id} className="p-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={cn(adminPill, 'border-red-500/30 bg-red-500/10 text-red-300')}>{row.reason || row.gateStatus || 'rejected'}</span>
+                            <span className="text-[11px] text-[var(--text-secondary)]">{row.workspaceEmail || row.tenantId}</span>
+                          </div>
+                          <p className="mt-2 text-[12px] leading-6 text-[var(--text-primary)]">{row.rawText || 'No raw text captured.'}</p>
+                          <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                            {formatDate(row.receivedAt)} · {row.sessionLabel || 'session unknown'} · {row.groupId || 'direct/unknown'}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] overflow-hidden">
+                  <div className="border-b border-[color:var(--border)] px-5 py-4">
+                    <h3 className="text-[14px] font-bold text-[var(--text-primary)]">Parser events</h3>
+                    <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Recent parse-related event logs with metadata.</p>
+                  </div>
+                  <div className="max-h-[560px] divide-y divide-[color:var(--border)] overflow-y-auto">
+                    {(parserEvidence?.parserEvents || []).length === 0 ? (
+                      <div className="p-8 text-center text-[13px] text-[var(--text-secondary)]">No parser events found.</div>
+                    ) : (
+                      (parserEvidence?.parserEvents || []).map((event) => (
+                        <div key={event.id} className="p-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={cn(adminPill, 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]')}>{event.eventType.replace(/_/g, ' ')}</span>
+                            <span className="text-[11px] text-[var(--text-secondary)]">{event.workspaceEmail || event.tenantId}</span>
+                          </div>
+                          <p className="mt-2 text-[12px] leading-6 text-[var(--text-primary)]">{event.message}</p>
+                          <pre className="mt-2 max-w-full overflow-x-auto rounded border border-[color:var(--border)] bg-[#0d1117] p-2 text-[10px] text-[var(--text-muted)]">
+                            {JSON.stringify(event.metadata, null, 2)}
+                          </pre>
+                          <p className="mt-2 text-[11px] text-[var(--text-muted)]">{formatDate(event.createdAt)} · {event.sessionLabel || 'session unknown'}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}

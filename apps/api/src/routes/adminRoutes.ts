@@ -16,6 +16,7 @@ import {
     createScoutTask,
     updateScoutTask,
     deleteScoutTask,
+    getParserEvidence,
 } from '../controllers/adminController';
 import {
     listWorkspacesQuerySchema,
@@ -43,6 +44,7 @@ router.get('/impersonations', listImpersonations);
 
 // Audit log
 router.get('/audit', validate(getAuditLogQuerySchema, 'query'), getAdminAuditLog);
+router.get('/parser-evidence', getParserEvidence);
 
 // Scout queue
 router.get('/scout/tasks', validate(listScoutTasksQuerySchema, 'query'), listScoutTasks);
