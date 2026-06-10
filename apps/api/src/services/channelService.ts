@@ -373,6 +373,58 @@ const extractPhoneNumber = (value?: string | null) => {
     return normaliseIndianPhone(value);
 };
 
+type BrokerContact = {
+    name: string;
+    phone: string;
+};
+
+const extractBrokerContacts = (text: string): BrokerContact[] => {
+    const lines = text
+        .split('\n')
+        .map((line) => line.replace('\r', ''))
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+    const contacts: BrokerContact[] = [];
+    const seenPhones = new Set<string>();
+
+    for (const line of lines) {
+        const cleaned = line.split('*').join(' ').split('_').join(' ').split('`').join(' ').split('~').join(' ').split(' ').filter(Boolean).join(' ').trim();
+        if (!cleaned) continue;
+
+        // Extract all 10-digit phone numbers from the line
+        const phoneMatches = [...cleaned.matchAll(/\b(\d{10})\b/g)];
+        if (phoneMatches.length === 0) continue;
+
+        for (const match of phoneMatches) {
+            const rawPhone = match[1];
+            const normalized = normaliseIndianPhone(rawPhone);
+            if (!normalized || seenPhones.has(normalized)) continue;
+
+            // Extract name: text before the phone number on this line
+            const beforePhone = cleaned.substring(0, match.index || 0).trim();
+            const nameParts = beforePhone.split(/[\s📱📞]+/).filter((w) => w.length >= 2 && /^[A-Za-z]/.test(w));
+            const name = nameParts.slice(-2).join(' ') || beforePhone.replace(/\s+/g, ' ').trim();
+
+            if (name) {
+                contacts.push({ name, phone: normalized });
+                seenPhones.add(normalized);
+            }
+        }
+    }
+
+    // Fallback: if no structured contacts found, use the last phone as single broker
+    if (contacts.length === 0) {
+        const fallbackPhone = extractContactPhoneFromBody(text);
+        if (fallbackPhone) {
+            const fallbackName = extractContactNameFromBody(text);
+            contacts.push({ name: fallbackName || fallbackPhone, phone: fallbackPhone });
+        }
+    }
+
+    return contacts;
+};
+
 const extractContactPhoneFromBody = (text: string) => {
     // Look for phone-like tokens and normalise only valid Indian mobiles.
     const words = text.split(/\s+/); // Simple split, not using regex patterns
@@ -3366,9 +3418,8 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
         }
 
         const createdAt = new Date().toISOString();
-        const sourcePhone = extractContactPhoneFromBody(rawText) || extractPhoneNumber(message.sender) || extractPhoneNumber(message.remote_jid);
-        const bodyContactName = extractContactNameFromBody(rawText);
-        const sourceLabel = bodyContactName || senderLabel || null;
+        const brokerContacts = extractBrokerContacts(rawText);
+        const fallbackPhone = extractPhoneNumber(message.sender) || extractPhoneNumber(message.remote_jid);
         const sourceGroupId = message.remote_jid?.endsWith('@g.us') ? String(message.remote_jid) : null;
         const sourceGroupName = String(message.sourceGroupName || '').trim() || null;
 
@@ -3577,9 +3628,9 @@ ${rawText}
                 const configuration = propertyCategory === 'commercial'
                     ? (String(item.configuration || '').trim() || buildCommercialConfiguration({ areaSqft, propertyUse, commercialType, fitoutStatus, workstationsCount }) || normalizedBhk)
                     : normalizedBhk;
-                const brokerWaMeLinks = Array.isArray(item.broker_wa_me_links) && item.broker_wa_me_links.length > 0
+                const aiBrokerWaMeLinks = Array.isArray(item.broker_wa_me_links) && item.broker_wa_me_links.length > 0
                     ? item.broker_wa_me_links
-                    : sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
+                    : null;
                 const confidence = Math.max(0, Math.min(100, Number(item.confidence || 0))) || calculateConfidence(candidateText, {
                     location: locality,
                     price: priceLabel,
@@ -3588,19 +3639,12 @@ ${rawText}
                     microLocation,
                 });
                 const parseNotes = item.parseNotes ? String(item.parseNotes).trim() : null;
-                const completeness = computeStreamCompleteness({
-                    locality,
-                    bhk: normalizedBhk,
-                    sqft: areaSqft ?? null,
-                    priceNumeric,
-                    brokerContactValid: Boolean(sourcePhone),
-                });
 
                 return {
                     messageId: items.length > 1 ? `${String(message.id)}:${index + 1}` : String(message.id),
                     rawText: candidateText,
-                    sourcePhone,
-                    sourceLabel,
+                    sourcePhone: '',
+                    sourceLabel: '',
                     sourceGroupId,
                     sourceGroupName,
                     streamType,
@@ -3624,21 +3668,21 @@ ${rawText}
                     fitoutStatus: fitoutStatus || null,
                     workstationsCount: workstationsCount || null,
                     cabinsCount: cabinsCount || null,
-                    brokerWaMeLinks,
+                    brokerWaMeLinks: null,
                     confidenceScore: confidence,
-                    messageHash: buildStreamContentHash(candidateText, sourcePhone),
-                    brokerContactValid: Boolean(sourcePhone),
-                    completenessScore: completeness.completeness_score,
-                    isComplete: completeness.is_complete,
+                    messageHash: '',
+                    brokerContactValid: false,
+                    completenessScore: 0,
+                    isComplete: false,
                     createdAt,
                     parsedPayload: {
                         displayTitle: title,
                         buildingName,
                         microLocation,
-                        sourcePhone,
-                        sourceLabel,
-                        contactName: bodyContactName,
-                        contactPhone: sourcePhone,
+                        sourcePhone: null,
+                        sourceLabel: null,
+                        contactName: null,
+                        contactPhone: null,
                         normalizedText: candidateText.toLowerCase(),
                         sourceRemoteJid: message.remote_jid || null,
                         sourceMessageId: String(message.id),
@@ -3663,6 +3707,38 @@ ${rawText}
                     },
                 } satisfies ParsedStreamCandidate;
             })
+            .flatMap((item) => {
+                const activeBrokers = brokerContacts.length > 0 ? brokerContacts : (fallbackPhone ? [{ name: '', phone: fallbackPhone }] : []);
+                return activeBrokers.map((broker) => {
+                    const sourcePhone = broker.phone;
+                    const sourceLabel = broker.name || null;
+                    const brokerWaMeLinks = sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
+                    const completeness = computeStreamCompleteness({
+                        locality: item.locality,
+                        bhk: item.bhk,
+                        sqft: item.areaSqft ?? null,
+                        priceNumeric: item.priceNumeric,
+                        brokerContactValid: Boolean(sourcePhone),
+                    });
+                    return {
+                        ...item,
+                        sourcePhone,
+                        sourceLabel,
+                        brokerWaMeLinks,
+                        brokerContactValid: Boolean(sourcePhone),
+                        completenessScore: completeness.completeness_score,
+                        isComplete: completeness.is_complete,
+                        messageHash: buildStreamContentHash(item.rawText, sourcePhone),
+                        parsedPayload: {
+                            ...item.parsedPayload,
+                            sourcePhone,
+                            sourceLabel,
+                            contactName: sourceLabel,
+                            contactPhone: sourcePhone,
+                        },
+                    };
+                });
+            })
             .filter((item) => Boolean(item.rawText));
     }
 
@@ -3682,13 +3758,15 @@ ${rawText}
         const commonResolution = parseIndianLocation(rawText);
         const commonLocation = commonResolution?.locality || extractIndianLocality(rawText) || '';
         const createdAt = new Date().toISOString();
-        const sourcePhone = extractContactPhoneFromBody(rawText) || extractPhoneNumber(message.sender) || extractPhoneNumber(message.remote_jid);
-        const bodyContactName = extractContactNameFromBody(rawText);
-        const sourceLabel = bodyContactName || String(message.sender || '').trim() || null;
+        const brokerContacts = extractBrokerContacts(rawText);
+        const fallbackPhone = extractPhoneNumber(message.sender) || extractPhoneNumber(message.remote_jid);
         const sourceGroupId = message.remote_jid?.endsWith('@g.us') ? String(message.remote_jid) : null;
         const sourceGroupName = String(message.sourceGroupName || '').trim() || null;
 
-        return segments.map((segment, index) => {
+        const items: ParsedStreamCandidate[] = [];
+
+        for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+            const segment = segments[segIdx];
             const candidateText = segment.text.trim();
             const resolution = parseIndianLocation(candidateText) || commonResolution;
             const location = resolution?.locality || commonLocation || extractIndianLocality(candidateText) || null;
@@ -3717,73 +3795,82 @@ ${rawText}
             const configuration = propertyCategory === 'commercial'
                 ? buildCommercialConfiguration({ areaSqft, propertyUse, commercialType, fitoutStatus, workstationsCount }) || bhk
                 : bhk;
-            const brokerWaMeLinks = sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
             const parseNotes = null;
-            const completeness = computeStreamCompleteness({
-                locality: location,
-                bhk,
-                sqft: areaSqft,
-                priceNumeric: price.numeric,
-                brokerContactValid: Boolean(sourcePhone),
-            });
 
-            return {
-                messageId: segments.length > 1 ? `${String(message.id)}:${index + 1}` : String(message.id),
-                rawText: candidateText,
-                sourcePhone,
-                sourceLabel,
-                sourceGroupId,
-                sourceGroupName,
-                streamType,
-                recordType: segment.streamType === 'Requirement' ? 'requirement' : 'listing',
-                locality: location,
-                city: resolution?.city || extractIndianCity(candidateText) || null,
-                bhk,
-                configuration,
-                priceLabel: price.label || null,
-                priceNumeric: price.numeric,
-                dealType,
-                assetClass,
-                propertyCategory,
-                areaSqft,
-                furnishing,
-                floorNumber,
-                totalFloors,
-                parking,
-                propertyUse,
-                commercialType,
-                fitoutStatus,
-                workstationsCount,
-                cabinsCount,
-                brokerWaMeLinks,
-                confidenceScore: calculateConfidence(candidateText, {
-                    location: location || '',
-                    price: price.label,
-                    bhk: bhk || '',
-                    buildingName,
-                    microLocation,
-                }),
-                messageHash: buildStreamContentHash(candidateText, sourcePhone),
-                brokerContactValid: Boolean(sourcePhone),
-                completenessScore: completeness.completeness_score,
-                isComplete: completeness.is_complete,
-                createdAt,
-                parsedPayload: {
-                    displayTitle,
-                    buildingName,
-                    microLocation,
+            const activeBrokers = brokerContacts.length > 0 ? brokerContacts : (fallbackPhone ? [{ name: '', phone: fallbackPhone }] : []);
+
+            for (const broker of activeBrokers) {
+                const sourcePhone = broker.phone;
+                const sourceLabel = broker.name || null;
+                const brokerWaMeLinks = sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
+                const completeness = computeStreamCompleteness({
+                    locality: location,
+                    bhk,
+                    sqft: areaSqft,
+                    priceNumeric: price.numeric,
+                    brokerContactValid: Boolean(sourcePhone),
+                });
+
+                items.push({
+                    messageId: segments.length > 1 && activeBrokers.length > 1
+                        ? `${String(message.id)}:${segIdx + 1}:${sourcePhone}`
+                        : segments.length > 1
+                            ? `${String(message.id)}:${segIdx + 1}`
+                            : `${String(message.id)}:${sourcePhone}`,
+                    rawText: candidateText,
                     sourcePhone,
                     sourceLabel,
-                    contactName: bodyContactName,
-                    contactPhone: sourcePhone,
-                    normalizedText: candidateText.toLowerCase(),
-                    sourceRemoteJid: message.remote_jid || null,
-                    sourceMessageId: String(message.id),
-                    segmentIndex: index,
-                    matchedAlias: resolution?.matchedAlias || null,
-                    resolutionMethod: resolution?.resolvedVia || 'unresolved',
-                    resolutionConfidence: resolution?.confidence || 0,
-                    pincode: resolution?.pincode || null,
+                    sourceGroupId,
+                    sourceGroupName,
+                    streamType,
+                    recordType: segment.streamType === 'Requirement' ? 'requirement' : 'listing',
+                    locality: location,
+                    city: resolution?.city || extractIndianCity(candidateText) || null,
+                    bhk,
+                    configuration,
+                    priceLabel: price.label || null,
+                    priceNumeric: price.numeric,
+                    dealType,
+                    assetClass,
+                    propertyCategory,
+                    areaSqft,
+                    furnishing,
+                    floorNumber,
+                    totalFloors,
+                    parking,
+                    propertyUse,
+                    commercialType,
+                    fitoutStatus,
+                    workstationsCount,
+                    cabinsCount,
+                    brokerWaMeLinks,
+                    confidenceScore: calculateConfidence(candidateText, {
+                        location: location || '',
+                        price: price.label,
+                        bhk: bhk || '',
+                        buildingName,
+                        microLocation,
+                    }),
+                    messageHash: buildStreamContentHash(candidateText, sourcePhone),
+                    brokerContactValid: Boolean(sourcePhone),
+                    completenessScore: completeness.completeness_score,
+                    isComplete: completeness.is_complete,
+                    createdAt,
+                    parsedPayload: {
+                        displayTitle,
+                        buildingName,
+                        microLocation,
+                        sourcePhone,
+                        sourceLabel,
+                        contactName: sourceLabel,
+                        contactPhone: sourcePhone,
+                        normalizedText: candidateText.toLowerCase(),
+                        sourceRemoteJid: message.remote_jid || null,
+                        sourceMessageId: String(message.id),
+                        segmentIndex: segIdx,
+                        matchedAlias: resolution?.matchedAlias || null,
+                        resolutionConfidence: resolution?.confidence || 0,
+                        pincode: resolution?.pincode || null,
                     propertyCategory,
                     areaSqft,
                     furnishing,
@@ -3796,8 +3883,11 @@ ${rawText}
                     sourceGroupName,
                     senderJid: message.senderJid || null,
                 },
-            };
-        });
+            });
+            }
+        }
+
+        return items;
     }
 
     private async matchStreamItemToChannels(tenantId: string, streamItem: any) {
