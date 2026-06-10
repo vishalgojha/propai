@@ -1,5 +1,17 @@
 # PropAI Pulse — Company & Platform Context
 
+## Documentation
+
+System-level docs written for successor handoff. Read these before making changes:
+
+| Doc | Location | Contents |
+|-----|----------|----------|
+| **Architecture** | `ARCHITECTURE.md` | Data pipeline, service boundaries, key tech decisions |
+| **Backend API** | `apps/api/README.md` | Module map, routes, directory structure |
+| **Deployment** | `DEPLOY.md` | Coolify services, env var master table, setup |
+| **Database** | `DATABASE.md` | Schema overview, key tables, indexes, RLS pattern |
+| **Runbook** | `RUNBOOK.md` | Troubleshooting, reset procedures, common scenarios |
+
 **PropAI Pulse** is an AI-powered real estate platform for Indian brokers, built by **Vishal Ojha**.
 - **Website**: propai.live
 - **Founder**: Vishal Ojha — 15+ years of real estate brokerage experience in Mumbai/India.
