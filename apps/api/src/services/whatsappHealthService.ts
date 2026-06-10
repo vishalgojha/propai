@@ -304,6 +304,9 @@ export class WhatsAppHealthService {
 
         if (input.status === 'connected') {
             detailedPayload.connected_at = existing?.connected_at || now;
+            detailedPayload.disconnected_at = null;
+        } else if (input.status === 'disconnected') {
+            detailedPayload.disconnected_at = now;
         }
 
         const compatPayload: Record<string, unknown> = {
@@ -602,6 +605,7 @@ export class WhatsAppHealthService {
             ownerName: row.owner_name,
             connectionStatus: getConnectionStatus(row),
             connectedAt: row.connected_at,
+            disconnectedAt: row.disconnected_at,
             lastSeenAt: row.last_seen_at || row.last_event_at,
             lastGroupSyncAt: row.last_group_sync_at || row.last_event_at,
             groupCount: Number(row.group_count || 0),

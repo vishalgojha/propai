@@ -141,6 +141,7 @@ type WhatsappHealthSession = {
   ownerName?: string | null;
   connectionStatus: 'connected' | 'connecting' | 'disconnected';
   connectedAt?: string | null;
+  disconnectedAt?: string | null;
   lastSeenAt?: string | null;
   lastGroupSyncAt?: string | null;
   groupCount: number;
@@ -547,7 +548,11 @@ const formatDateTime = (value?: string | null) => {
 
 const formatElapsed = (valueMs?: number | null) => {
   if (!Number.isFinite(valueMs) || (valueMs || 0) <= 0) return null;
-  const totalMinutes = Math.round((valueMs || 0) / 60_000);
+  const totalSeconds = Math.max(0, Math.floor((valueMs || 0) / 1000));
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s`;
+  }
+  const totalMinutes = Math.round(totalSeconds / 60);
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
@@ -562,6 +567,12 @@ const formatElapsed = (valueMs?: number | null) => {
   return `${hours}h ${minutes}m`;
 };
 
+const getTimeMs = (value?: string | null) => {
+  if (!value) return null;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const formatReasonLabel = (value?: string | null) => {
   const normalized = String(value || '').trim();
   if (!normalized) return null;
@@ -569,6 +580,24 @@ const formatReasonLabel = (value?: string | null) => {
     .split('_')
     .join(' ')
     .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const explainDisconnectReason = (value?: string | null) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return 'No disconnect reason captured yet.';
+  if (normalized === 'replaced' || normalized.includes('replaced')) {
+    return 'WhatsApp replaced this linked device, usually because the same number was opened by another session/device.';
+  }
+  if (normalized === 'logged_out' || normalized.includes('logged_out')) {
+    return 'WhatsApp logged this linked device out. Re-scan is required.';
+  }
+  if (normalized.startsWith('closed:')) {
+    return `Baileys reported a closed connection with status ${normalized.replace('closed:', '') || 'unknown'}.`;
+  }
+  if (normalized === 'closed') {
+    return 'The WhatsApp socket closed. Check nearby lifecycle events for status code and reconnect attempts.';
+  }
+  return formatReasonLabel(normalized) || normalized;
 };
 
 const getEventMetaString = (metadata: Record<string, unknown> | undefined, key: string) => {
@@ -718,6 +747,7 @@ export const Sources: React.FC = () => {
   const [detailedHealth, setDetailedHealth] = useState<WhatsappDetailedHealthResponse | null>(null);
   const [groupHealth, setGroupHealth] = useState<WhatsappGroupHealth[]>([]);
   const [eventLogs, setEventLogs] = useState<WhatsappEventRecord[]>([]);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [outboundGroups, setOutboundGroups] = useState<WhatsappGroupOption[]>([]);
   const [groupAudit, setGroupAudit] = useState<GroupAuditResponse | null>(null);
   const [isLoadingGroupAudit, setIsLoadingGroupAudit] = useState(false);
@@ -779,6 +809,11 @@ export const Sources: React.FC = () => {
     hasOutboundLaneRestriction: false,
     sessions: [],
   });
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [statusLoaded, setStatusLoaded] = useState(false);
   const [healthLogs, setHealthLogs] = useState<HealthLogsResponse | null>(null);
   const [isSubmittingSupportLogs, setIsSubmittingSupportLogs] = useState(false);
@@ -2134,6 +2169,54 @@ export const Sources: React.FC = () => {
   const latestDisconnectReason = formatReasonLabel(primaryHealthSession?.disconnectReason || null);
   const sessionReplacedConflict = String(primaryHealthSession?.disconnectReason || '').trim().toLowerCase() === 'replaced'
     || Boolean(primaryHealthSession?.autoReconnectBlocked);
+  const connectedAtMs = getTimeMs(primaryHealthSession?.connectedAt);
+  const disconnectedAtMs = getTimeMs(primaryHealthSession?.disconnectedAt);
+  const lastConnectedDurationMs = connectedAtMs
+    ? Math.max(0, (currentSessionStatus === 'connected' ? nowMs : (disconnectedAtMs || nowMs)) - connectedAtMs)
+    : null;
+  const connectionDurationLabel = lastConnectedDurationMs != null
+    ? formatElapsed(lastConnectedDurationMs) || '0s'
+    : 'No connected timestamp';
+  const disconnectReasonRaw = primaryHealthSession?.disconnectReason || selectedDetailedSession?.diagnostics?.disconnectReason || null;
+  const disconnectReasonLabel = formatReasonLabel(disconnectReasonRaw) || 'No reason captured';
+  const disconnectReasonEvidence = explainDisconnectReason(disconnectReasonRaw);
+  const recentConnectionEvents = scopedEventLogs
+    .filter((event) => [
+      'connected',
+      'connecting',
+      'disconnected',
+      'connection_closed',
+      'heartbeat_restart_stalled_connected',
+      'heartbeat_restart_disconnected',
+      'heartbeat_rehydrate',
+      'heartbeat_rehydrate_failed',
+      'ingestion_stalled',
+    ].includes(event.eventType))
+    .slice(0, 4);
+  const connectionEvidenceRows = [
+    {
+      label: currentSessionStatus === 'connected' ? 'Connected for' : 'Last connected for',
+      value: connectionDurationLabel,
+      note: connectedAtMs
+        ? `Started ${formatDateTime(primaryHealthSession?.connectedAt)}`
+        : 'Waiting for the first connected event.',
+    },
+    {
+      label: 'Disconnected at',
+      value: primaryHealthSession?.disconnectedAt ? formatDateTime(primaryHealthSession.disconnectedAt) : (currentSessionStatus === 'connected' ? 'Still connected' : 'Not captured'),
+      note: currentSessionStatus === 'connected' ? 'Timer is live.' : disconnectReasonEvidence,
+    },
+    {
+      label: 'Why disconnected',
+      value: currentSessionStatus === 'connected' ? 'Not disconnected' : disconnectReasonLabel,
+      note: sessionReplacedConflict ? 'Auto-reconnect is blocked to avoid replacing the live WhatsApp device.' : 'Evidence comes from Baileys close metadata and health logs.',
+    },
+    {
+      label: 'Proof of work',
+      value: `${selectedHealthSummary.messagesReceived24h} received / ${selectedHealthSummary.messagesParsed24h} parsed`,
+      note: `Last inbound ${formatDateTime(primaryHealthSession?.lastInboundMessageAt)} · last parse ${formatDateTime(primaryHealthSession?.lastParsedMessageAt)}`,
+    },
+  ];
   const reconnectCooldownUntil = useMemo(() => {
     const cooldownEvents = scopedEventLogs
       .filter((event) => event.eventType === 'heartbeat_restart_stalled_connected' || event.eventType === 'heartbeat_restart_disconnected')
@@ -2279,6 +2362,65 @@ export const Sources: React.FC = () => {
               <p className="mt-1 text-[13px] font-semibold text-[var(--text-primary)]">{item.value}</p>
             </div>
           ))}
+        </div>
+
+        <div className="mt-4 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Connection evidence</p>
+              <h4 className="mt-1 text-[15px] font-semibold text-[var(--text-primary)]">
+                {primaryHealthSession?.sessionLabel || currentSession?.label || 'WhatsApp session'}
+              </h4>
+            </div>
+            <span className={cn(
+              'inline-flex w-fit rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]',
+              currentSessionStatus === 'connected'
+                ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
+                : sessionReplacedConflict
+                  ? 'border-[color:rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]'
+                  : 'border-[color:rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.08)] text-[var(--amber)]',
+            )}>
+              {liveTransportState}
+            </span>
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {connectionEvidenceRows.map((item) => (
+              <div key={item.label} className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2">
+                <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">{item.label}</p>
+                <p className="mt-1 text-[14px] font-semibold text-[var(--text-primary)]">{item.value}</p>
+                <p className="mt-1 text-[10px] leading-4 text-[var(--text-secondary)]">{item.note}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Recent proof trail</p>
+              <p className="text-[10px] text-[var(--text-secondary)]">From WhatsApp health events</p>
+            </div>
+            <div className="mt-2 space-y-2">
+              {recentConnectionEvents.length > 0 ? recentConnectionEvents.map((event) => {
+                const eventDetails = describeWhatsappEvent(event);
+                return (
+                  <div key={event.id} className="rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[12px] font-semibold text-[var(--text-primary)]">{formatReasonLabel(event.eventType) || event.eventType}</p>
+                      <p className="text-[10px] text-[var(--text-secondary)]">{formatDateTime(event.createdAt)}</p>
+                    </div>
+                    <p className="mt-1 text-[11px] leading-4 text-[var(--text-secondary)]">{event.message || 'Lifecycle event recorded.'}</p>
+                    {eventDetails.length > 0 ? (
+                      <p className="mt-1 text-[10px] leading-4 text-[var(--text-secondary)]">{eventDetails.join(' · ')}</p>
+                    ) : null}
+                  </div>
+                );
+              }) : (
+                <p className="rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[11px] text-[var(--text-secondary)]">
+                  No connection events captured for this session yet.
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
       ) : null}
