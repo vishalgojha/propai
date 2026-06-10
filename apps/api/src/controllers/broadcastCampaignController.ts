@@ -101,7 +101,7 @@ export const listCampaigns = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const campaigns = await broadcastCampaignService.listByTenant(tenantId, status);
+    const campaigns = await broadcastCampaignService.listByTenantWithDiagnostics(tenantId, status);
     return res.json({ success: true, campaigns });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || 'Failed to list campaigns' });
@@ -182,6 +182,11 @@ export const startCampaign = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Campaign has no recipients. Populate recipients first.' });
     }
 
+    const diagnostics = await broadcastCampaignService.getDiagnostics(campaign);
+    if (diagnostics.startBlocker) {
+      return res.status(400).json({ error: diagnostics.startBlocker, diagnostics });
+    }
+
     await broadcastCampaignService.startCampaign(campaignId);
     void broadcastExecutor.executeCampaign(campaignId);
 
@@ -254,6 +259,7 @@ export const getCampaignStats = async (req: Request, res: Response) => {
     return res.json({
       success: true,
       stats: campaign.stats,
+      diagnostics: await broadcastCampaignService.getDiagnostics(campaign),
       status: campaign.status,
       totalRecipients: campaign.total_recipients,
     });

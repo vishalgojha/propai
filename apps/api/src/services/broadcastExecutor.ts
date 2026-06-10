@@ -1,9 +1,7 @@
-import { broadcastCampaignService } from './broadcastCampaignService';
+import { BROADCAST_SESSION_LABEL, broadcastCampaignService } from './broadcastCampaignService';
 import { sessionManager } from '../whatsapp/SessionManager';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const BROADCAST_SESSION_LABEL = process.env.BROADCAST_SESSION_LABEL || 'broadcast';
 
 export class BroadcastExecutor {
   private runningCampaigns = new Map<string, boolean>();
@@ -36,7 +34,7 @@ export class BroadcastExecutor {
       }
 
       const client = await sessionManager.getSession(campaign.tenant_id, BROADCAST_SESSION_LABEL);
-      if (!client) {
+      if (!client || client.getStatusSnapshot().status !== 'connected') {
         throw new Error(`Broadcast session '${BROADCAST_SESSION_LABEL}' is not connected. Connect it first.`);
       }
 
@@ -63,13 +61,13 @@ export class BroadcastExecutor {
           }
 
           await broadcastCampaignService.updateRecipientStatus(
-            `baileys:${recipient.id}`,
+            recipient.id,
             'sent',
           );
           consecutiveFailures = 0;
         } catch (error: any) {
           await broadcastCampaignService.updateRecipientStatus(
-            `baileys:${recipient.id}`,
+            recipient.id,
             'failed',
             error?.message || 'Failed to send',
           );

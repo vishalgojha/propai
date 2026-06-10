@@ -14,6 +14,7 @@ interface Campaign {
   audience_type: string;
   total_recipients: number;
   status: CampaignStatus;
+  diagnostics?: BroadcastCampaignDiagnostic | null;
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +28,17 @@ interface CampaignStats {
   read: number;
   failed: number;
   blocked: number;
+}
+
+interface BroadcastCampaignDiagnostic {
+  senderLabel: string;
+  senderStatus: string;
+  senderConnected: boolean;
+  senderOwnerName: string | null;
+  senderPhoneNumber: string | null;
+  startBlocker: string | null;
+  lastApiError: string | null;
+  lastApiErrorAt: string | null;
 }
 
 interface BroadcastList {
@@ -98,6 +110,13 @@ export const BroadcastView: React.FC = () => {
     try {
       const res = await backendApi.get(ENDPOINTS.broadcast.campaignStats(campaignId));
       setCampaignStats((prev) => ({ ...prev, [campaignId]: res.data.stats }));
+      if (res.data.diagnostics) {
+        setCampaigns((prev) => prev.map((campaign) => (
+          campaign.id === campaignId
+            ? { ...campaign, diagnostics: res.data.diagnostics }
+            : campaign
+        )));
+      }
     } catch {
       // ignore
     }
@@ -159,6 +178,13 @@ export const BroadcastView: React.FC = () => {
       await backendApi.post(ENDPOINTS.broadcast.campaignStart(campaignId));
       await loadData();
     } catch (err: any) {
+      if (err?.response?.data?.diagnostics) {
+        setCampaigns((prev) => prev.map((campaign) => (
+          campaign.id === campaignId
+            ? { ...campaign, diagnostics: err.response.data.diagnostics }
+            : campaign
+        )));
+      }
       setError(handleApiError(err));
     }
   };
@@ -216,6 +242,20 @@ export const BroadcastView: React.FC = () => {
     );
   };
 
+  const senderBadge = (diagnostics?: BroadcastCampaignDiagnostic | null) => {
+    const connected = diagnostics?.senderConnected;
+    return (
+      <span
+        className={cn(
+          'rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+          connected ? 'bg-green-500/15 text-green-300' : 'bg-red-500/15 text-red-300',
+        )}
+      >
+        Sender {diagnostics?.senderStatus || 'unknown'}
+      </span>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -259,6 +299,9 @@ export const BroadcastView: React.FC = () => {
             {campaigns.map((campaign) => {
               const stats = campaignStats[campaign.id];
               const isExpanded = expandedCampaign === campaign.id;
+              const diagnostics = campaign.diagnostics;
+              const startBlocker = diagnostics?.startBlocker || null;
+              const canStart = campaign.status === 'draft' && campaign.total_recipients > 0 && !startBlocker;
 
               return (
                 <div
@@ -278,8 +321,25 @@ export const BroadcastView: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-[var(--text-primary)]">{campaign.name}</span>
                         {statusBadge(campaign.status)}
+                        {senderBadge(diagnostics)}
                       </div>
                       <p className="mt-1 truncate text-xs text-[var(--text-secondary)]">{campaign.message}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-muted)]">
+                        <span>
+                          Sender: <span className="font-semibold text-[var(--text-secondary)]">{diagnostics?.senderLabel || 'broadcast'}</span>
+                          {diagnostics?.senderPhoneNumber ? ` (${diagnostics.senderPhoneNumber})` : ''}
+                        </span>
+                        {startBlocker && (
+                          <span className="rounded bg-amber-500/10 px-2 py-0.5 text-amber-200">
+                            {startBlocker}
+                          </span>
+                        )}
+                      </div>
+                      {diagnostics?.lastApiError && (
+                        <p className="mt-2 line-clamp-2 rounded-[6px] border border-red-500/20 bg-red-500/10 px-2 py-1 text-[10px] leading-4 text-red-200">
+                          Last API error: {diagnostics.lastApiError}
+                        </p>
+                      )}
                     </button>
                     <div className="ml-4 flex items-center gap-3">
                       {campaign.status === 'draft' && campaign.total_recipients === 0 && (
@@ -302,7 +362,14 @@ export const BroadcastView: React.FC = () => {
                       {campaign.status === 'draft' && campaign.total_recipients > 0 && (
                         <button
                           onClick={() => handleStart(campaign.id)}
-                          className="rounded-[6px] bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110"
+                          disabled={!canStart}
+                          title={startBlocker || undefined}
+                          className={cn(
+                            'rounded-[6px] px-3 py-1.5 text-xs font-semibold transition-colors',
+                            canStart
+                              ? 'bg-[var(--accent)] text-black hover:brightness-110'
+                              : 'cursor-not-allowed bg-gray-500/20 text-gray-400',
+                          )}
                         >
                           Send Now
                         </button>

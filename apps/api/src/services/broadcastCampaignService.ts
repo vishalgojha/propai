@@ -1,6 +1,8 @@
 import { supabaseAdmin } from '../config/supabase';
+import { sessionManager } from '../whatsapp/SessionManager';
 
 const db = supabaseAdmin;
+export const BROADCAST_SESSION_LABEL = process.env.BROADCAST_SESSION_LABEL || 'broadcast';
 
 export type CampaignStatus = 'draft' | 'scheduled' | 'sending' | 'completed' | 'failed' | 'cancelled';
 export type RecipientStatus = 'pending' | 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'blocked';
@@ -57,6 +59,21 @@ export interface CampaignStats {
 
 export interface CampaignWithStats extends CampaignRecord {
   stats: CampaignStats | null;
+}
+
+export interface BroadcastCampaignDiagnostic {
+  senderLabel: string;
+  senderStatus: string;
+  senderConnected: boolean;
+  senderOwnerName: string | null;
+  senderPhoneNumber: string | null;
+  startBlocker: string | null;
+  lastApiError: string | null;
+  lastApiErrorAt: string | null;
+}
+
+export interface CampaignWithDiagnostics extends CampaignRecord {
+  diagnostics: BroadcastCampaignDiagnostic;
 }
 
 export class BroadcastCampaignService {
@@ -125,6 +142,61 @@ export class BroadcastCampaignService {
     const { data, error } = await query;
     if (error) throw new Error(error.message);
     return data || [];
+  }
+
+  async listByTenantWithDiagnostics(tenantId: string, status?: string): Promise<CampaignWithDiagnostics[]> {
+    const campaigns = await this.listByTenant(tenantId, status);
+    return Promise.all(campaigns.map(async (campaign) => ({
+      ...campaign,
+      diagnostics: await this.getDiagnostics(campaign),
+    })));
+  }
+
+  async getDiagnostics(campaign: CampaignRecord): Promise<BroadcastCampaignDiagnostic> {
+    if (!db) throw new Error('Database admin client is not configured');
+
+    const senderSnapshot = sessionManager
+      .getLiveSessionSnapshots(campaign.tenant_id)
+      .find((session) => session.label === BROADCAST_SESSION_LABEL);
+    const senderStatus = senderSnapshot?.status || 'disconnected';
+    const senderConnected = senderStatus === 'connected';
+    const latestRecipientError = await this.getLatestRecipientError(campaign.id);
+
+    let startBlocker: string | null = null;
+    if (campaign.status !== 'draft') {
+      startBlocker = `Campaign is ${campaign.status}, so it cannot be started again.`;
+    } else if (campaign.total_recipients === 0) {
+      startBlocker = 'Campaign has no recipients. Populate recipients first.';
+    } else if (!senderConnected) {
+      startBlocker = `Broadcast sender '${BROADCAST_SESSION_LABEL}' is not connected. Connect it from WhatsApp setup first.`;
+    }
+
+    return {
+      senderLabel: BROADCAST_SESSION_LABEL,
+      senderStatus,
+      senderConnected,
+      senderOwnerName: senderSnapshot?.ownerName || null,
+      senderPhoneNumber: senderSnapshot?.phoneNumber || null,
+      startBlocker,
+      lastApiError: latestRecipientError?.error_message || null,
+      lastApiErrorAt: latestRecipientError?.failed_at || null,
+    };
+  }
+
+  private async getLatestRecipientError(campaignId: string): Promise<{ error_message: string | null; failed_at: string | null } | null> {
+    if (!db) throw new Error('Database admin client is not configured');
+
+    const { data, error } = await db
+      .from('broadcast_recipients')
+      .select('error_message, failed_at')
+      .eq('campaign_id', campaignId)
+      .not('error_message', 'is', null)
+      .order('failed_at', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    return data || null;
   }
 
   async delete(campaignId: string, tenantId: string): Promise<void> {
@@ -276,7 +348,7 @@ export class BroadcastCampaignService {
   }
 
   async updateRecipientStatus(
-    messageId: string,
+    recipientId: string,
     status: RecipientStatus,
     errorMessage?: string,
   ): Promise<void> {
@@ -294,7 +366,7 @@ export class BroadcastCampaignService {
     const { error } = await db
       .from('broadcast_recipients')
       .update(updates)
-      .eq('openwa_message_id', messageId);
+      .eq('id', recipientId);
 
     if (error) throw new Error(error.message);
   }
