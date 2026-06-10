@@ -59,6 +59,7 @@ export function WabaEmbeddedSignup({ metaAppId, onConnected }: { metaAppId: stri
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [sdkLoaded, setSdkLoaded] = useState(false);
+    const [sdkError, setSdkError] = useState<string | null>(null);
 
     const fetchCredentials = useCallback(async () => {
         try {
@@ -79,7 +80,12 @@ export function WabaEmbeddedSignup({ metaAppId, onConnected }: { metaAppId: stri
         if (metaAppId) {
             loadFacebookSdk(metaAppId)
                 .then(() => setSdkLoaded(true))
-                .catch((err) => console.error('Facebook SDK load failed:', err));
+                .catch((err) => {
+                    console.error('Facebook SDK load failed:', err);
+                    setSdkError(err.message || 'Failed to load Facebook SDK');
+                });
+        } else {
+            setSdkError('Meta App ID not configured. Set NEXT_PUBLIC_META_APP_ID in Coolify env vars.');
         }
     }, [metaAppId]);
 
@@ -162,9 +168,14 @@ export function WabaEmbeddedSignup({ metaAppId, onConnected }: { metaAppId: stri
                     <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
                         One-click import via Meta Embedded Signup. No manual ID copy-paste needed.
                     </p>
-                    {!sdkLoaded && (
+                    {!sdkLoaded && !sdkError && (
                         <p className="mt-2 text-[10px] text-[var(--text-muted)]">
                             Loading Facebook SDK...
+                        </p>
+                    )}
+                    {sdkError && (
+                        <p className="mt-2 text-[10px] text-red-400">
+                            {sdkError}
                         </p>
                     )}
                 </div>
@@ -173,13 +184,14 @@ export function WabaEmbeddedSignup({ metaAppId, onConnected }: { metaAppId: stri
                     onClick={handleConnect}
                     disabled={connecting || !sdkLoaded || !metaAppId}
                     className="inline-flex items-center gap-2 rounded-full bg-[#1877F2] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-white hover:bg-[#166FE5] transition-all disabled:opacity-40"
+                    title={!metaAppId ? 'NEXT_PUBLIC_META_APP_ID not configured' : !sdkLoaded ? 'Facebook SDK loading...' : ''}
                 >
                     {connecting ? (
                         <LoaderIcon className="h-4 w-4 animate-spin" />
                     ) : (
                         <LinkIcon className="h-4 w-4" />
                     )}
-                    {connecting ? 'Connecting...' : 'Import Account'}
+                    {connecting ? 'Connecting...' : (!metaAppId ? 'Not configured' : 'Import Account')}
                 </button>
             </div>
 

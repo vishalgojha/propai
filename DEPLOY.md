@@ -76,6 +76,8 @@ All Dockerfiles use the repo root as build context.
 | `COQUI_TTS_URL` | No | `http://localhost:5002` | Text-to-speech |
 | `KAGGLE_USERNAME` | No | — | Kaggle datasets |
 | `KAGGLE_API_KEY` | No | — | — |
+| `META_APP_ID` | No | — | Meta App ID for WABA token exchange |
+| `META_APP_SECRET` | No | — | Meta App Secret for WABA token exchange |
 
 \* At least one LLM provider key required.
 
@@ -90,6 +92,7 @@ All Dockerfiles use the repo root as build context.
 | `VAPID_PUBLIC_KEY` | No | Web push notifications |
 | `NEXT_PUBLIC_POSTHOG_KEY` | No | PostHog analytics |
 | `NEXT_PUBLIC_POSTHOG_HOST` | No | PostHog host |
+| `NEXT_PUBLIC_META_APP_ID` | Yes* | Meta App ID for WABA Embedded Signup (official WhatsApp connection) |
 
 Accepts legacy `VITE_*` prefixes as fallbacks for Coolify compatibility.
 
