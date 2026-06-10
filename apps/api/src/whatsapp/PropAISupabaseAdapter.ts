@@ -362,6 +362,14 @@ ${text}
 
     async deleteSession(input: { tenantId: string; label: string }): Promise<void> {
         const sessionId = `${input.tenantId}:${input.label}`;
+        const { data: existing } = await db
+            .from('whatsapp_sessions')
+            .select('session_data')
+            .eq('session_id', sessionId)
+            .maybeSingle();
+        const existingData = (existing?.session_data && typeof existing.session_data === 'object')
+            ? existing.session_data as Record<string, unknown>
+            : {};
 
         const { error } = await db
             .from('whatsapp_sessions')
@@ -369,6 +377,17 @@ ${text}
                 status: 'disconnected',
                 creds: null,
                 keys: null,
+                session_data: {
+                    ...existingData,
+                    pendingConnect: null,
+                    connectionArtifact: null,
+                    connectionArtifactUpdatedAt: null,
+                    qr: null,
+                    qrUpdatedAt: null,
+                    disconnectReason: null,
+                    autoReconnectBlocked: false,
+                    autoReconnectBlockedAt: null,
+                },
                 updated_at: new Date().toISOString(),
                 last_sync: new Date().toISOString(),
             })

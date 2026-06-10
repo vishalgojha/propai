@@ -1570,7 +1570,7 @@ export const Sources: React.FC = () => {
     mode: 'qr' | 'pairing' = 'qr',
     values?: { ownerName?: string; phoneNumber?: string },
   ) => {
-    if (connectRequestInFlightRef.current || isConnecting || pendingConnection) {
+    if (connectRequestInFlightRef.current || isConnecting) {
       return;
     }
 
@@ -1663,7 +1663,7 @@ export const Sources: React.FC = () => {
       setIsConnecting(false);
       connectRequestInFlightRef.current = false;
     }
-  }, [deviceOwnerName, ensureConnectUiVisible, fetchStatus, isConnecting, normalizedDevicePhone, pendingConnection, status.activeCount, status.limit, status.plan, status.sessions, waitForArtifact]);
+  }, [deviceOwnerName, ensureConnectUiVisible, fetchStatus, isConnecting, normalizedDevicePhone, status.activeCount, status.limit, status.plan, status.sessions, waitForArtifact]);
 
   const handleDisconnect = async (label?: string) => {
     setIsConnecting(true);
@@ -3201,9 +3201,9 @@ export const Sources: React.FC = () => {
           </div>
         </div>
       ) : (
-      <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[1.05fr_0.95fr] lg:gap-6">
         <div className="space-y-6">
-          <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+          <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4 sm:p-6">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
                 <QrCode className="h-5 w-5 text-[var(--accent)]" />
@@ -3247,12 +3247,12 @@ export const Sources: React.FC = () => {
               </label>
 
               <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
                     <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Connect mode</p>
                     <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Use QR on desktop or pairing code if you are on a phone. Tap <span className="font-semibold text-[var(--text-primary)]">"Link with phone number"</span> in WhatsApp Linked Devices to enter the code.</p>
                   </div>
-                  <div className="flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-surface)] p-1">
+                  <div className="grid w-full grid-cols-2 gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-surface)] p-1 sm:w-auto">
                     <button
                       type="button"
                       onClick={() => setConnectMode('qr')}
@@ -3298,7 +3298,7 @@ export const Sources: React.FC = () => {
             </form>
           </div>
 
-          <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+          <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
@@ -3417,7 +3417,7 @@ export const Sources: React.FC = () => {
                 </div>
               ) : (
                 status.sessions.map((session) => (
-                  <div key={session.label} className="flex items-center justify-between rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                  <div key={session.label} className="flex flex-col gap-3 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:flex-row sm:items-center sm:justify-between">
                     <button
                       type="button"
                       onClick={() => handleSelectExistingSession(session)}
@@ -3426,7 +3426,7 @@ export const Sources: React.FC = () => {
                       <p className="text-[12px] font-semibold text-[var(--text-primary)]">{session.ownerName || session.label}</p>
                       <p className="text-[11px] text-[var(--text-secondary)]">{session.phoneNumber || 'No number stored'}</p>
                     </button>
-                    <div className="ml-3 flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 sm:ml-3 sm:justify-end">
                       <span className={cn(
                         sourcePill,
                         session.status === 'connected'
@@ -3465,8 +3465,8 @@ export const Sources: React.FC = () => {
           </div>
         </div>
 
-        <div className="space-y-6" ref={artifactPanelRef}>
-          <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
+        <div className="min-w-0 space-y-6" ref={artifactPanelRef}>
+          <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4 sm:p-6">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
@@ -3481,7 +3481,7 @@ export const Sources: React.FC = () => {
                   </h3>
                 </div>
               </div>
-              <span className={cn(sourcePill, 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]')}>
+              <span className={cn(sourcePill, 'hidden border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)] sm:inline-flex')}>
                 {artifactMode === 'pairing' ? 'Pairing code' : 'Live QR'}
               </span>
             </div>
@@ -3504,7 +3504,7 @@ export const Sources: React.FC = () => {
 
             {artifactValue ? (
               <div className={cn(
-                'mt-4 flex items-center justify-between rounded-[10px] border px-3 py-2',
+                'mt-4 flex flex-col gap-3 rounded-[10px] border px-3 py-2 sm:flex-row sm:items-center sm:justify-between',
                 isQrExpired
                   ? 'border-[color:rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)]'
                   : 'border-[color:var(--border)] bg-[var(--bg-base)]'
@@ -3536,11 +3536,11 @@ export const Sources: React.FC = () => {
             <div className="mt-4">
               {artifactMode === 'pairing' && artifactValue ? (
                 <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4 text-center">
-                  <div className="mx-auto w-fit rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-6 py-4">
+                  <div className="mx-auto w-full max-w-[320px] rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-4 sm:w-fit sm:px-6">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
                       Pairing code
                     </p>
-                    <p className="mt-2 select-all font-mono text-[32px] font-semibold tracking-[0.35em] text-[var(--accent)]">
+                    <p className="mt-2 select-all break-all font-mono text-[clamp(22px,8vw,32px)] font-semibold tracking-[0.18em] text-[var(--accent)] sm:tracking-[0.35em]">
                       {artifactValue}
                     </p>
                   </div>

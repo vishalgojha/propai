@@ -58,23 +58,46 @@ function hasActiveSessionStatus(value?: unknown) {
     return status === 'connected' || status === 'connecting' || status === 'reconnecting';
 }
 
+const CONNECTION_ARTIFACT_TTL_MS = 120_000;
+
 function getPersistedConnectionArtifact(sessionData?: Record<string, unknown> | null, mode: ConnectionArtifactMode = 'qr') {
     const artifact = sessionData?.connectionArtifact;
     if (artifact && typeof artifact === 'object') {
         const record = artifact as Record<string, unknown>;
         const artifactMode = record.mode === 'pairing' ? 'pairing' : 'qr';
         const value = typeof record.value === 'string' ? record.value.trim() : '';
+        const updatedAt = typeof sessionData?.connectionArtifactUpdatedAt === 'string'
+            ? new Date(sessionData.connectionArtifactUpdatedAt).getTime()
+            : NaN;
+        const isFresh = Number.isFinite(updatedAt) && Date.now() - updatedAt <= CONNECTION_ARTIFACT_TTL_MS;
         if (value && artifactMode === mode) {
-            return value;
+            return isFresh ? value : null;
         }
     }
 
     const legacyQr = typeof sessionData?.qr === 'string' ? sessionData.qr.trim() : '';
-    if (mode === 'qr' && legacyQr) {
+    const legacyQrUpdatedAt = typeof sessionData?.qrUpdatedAt === 'string'
+        ? new Date(sessionData.qrUpdatedAt).getTime()
+        : NaN;
+    if (mode === 'qr' && legacyQr && Number.isFinite(legacyQrUpdatedAt) && Date.now() - legacyQrUpdatedAt <= CONNECTION_ARTIFACT_TTL_MS) {
         return legacyQr;
     }
 
     return null;
+}
+
+function clearConnectionSessionData(sessionData?: Record<string, unknown> | null) {
+    return {
+        ...(sessionData || {}),
+        pendingConnect: null,
+        connectionArtifact: null,
+        connectionArtifactUpdatedAt: null,
+        qr: null,
+        qrUpdatedAt: null,
+        disconnectReason: null,
+        autoReconnectBlocked: false,
+        autoReconnectBlockedAt: null,
+    };
 }
 
 function sessionStatusPriority(value?: unknown) {
@@ -282,7 +305,6 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             .eq('tenant_id', tenantId)
             .eq('label', sessionLabel)
             .maybeSingle();
-        const existingStatus = String(existingSession?.status || existingRow?.status || '').toLowerCase();
         const existingData = (existingRow?.session_data && typeof existingRow.session_data === 'object')
             ? existingRow.session_data as Record<string, unknown>
             : {};
@@ -299,22 +321,6 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             });
         }
 
-        if ((existingStatus === 'connecting' || existingStatus === 'reconnecting') && connectMethod === 'qr') {
-            const currentArtifact = existingSession ? await gateway.getQRCode({ workspaceOwnerId: tenantId, sessionLabel }) : null;
-            const persistedArtifact = currentArtifact || getPersistedConnectionArtifact(existingData, 'qr');
-            if (persistedArtifact || processRole !== 'api') {
-                return res.json({
-                    message: 'WhatsApp connection already in progress',
-                    label: sessionLabel,
-                    artifact: buildConnectionArtifact('qr', persistedArtifact),
-                    qr: persistedArtifact || null,
-                    pairingCode: null,
-                    connected: false,
-                    mode: existingStatus === 'reconnecting' ? 'reconnecting' : 'connecting',
-                });
-            }
-        }
-
         if (existingRow?.status !== 'connected') {
             if (existingSession) {
                 await gateway.disconnect({ workspaceOwnerId: tenantId, sessionLabel });
@@ -326,15 +332,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
                     status: 'disconnected',
                     creds: null,
                     keys: null,
-                    session_data: {
-                        ...existingData,
-                        pendingConnect: null,
-                        connectionArtifact: null,
-                        connectionArtifactUpdatedAt: null,
-                        disconnectReason: null,
-                        autoReconnectBlocked: false,
-                        autoReconnectBlockedAt: null,
-                    },
+                    session_data: clearConnectionSessionData(existingData),
                     updated_at: new Date().toISOString(),
                     last_sync: new Date().toISOString(),
                 })
@@ -503,6 +501,22 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
                 .maybeSingle();
 
         sessionKey = sessionKey || sessionRow?.label || undefined;
+        const sessionData = sessionRow?.session_data && typeof sessionRow.session_data === 'object'
+            ? sessionRow.session_data as Record<string, unknown>
+            : {};
+
+        if (sessionKey) {
+            await dbClient
+                .from('whatsapp_sessions')
+                .update({
+                    session_data: clearConnectionSessionData(sessionData),
+                    status: 'connecting',
+                    updated_at: new Date().toISOString(),
+                    last_sync: new Date().toISOString(),
+                })
+                .eq('tenant_id', tenantId)
+                .eq('label', sessionKey);
+        }
 
         let result: { label: string; message?: string };
         try {
@@ -517,9 +531,6 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
                 throw error;
             }
 
-            const sessionData = sessionRow.session_data && typeof sessionRow.session_data === 'object'
-                ? sessionRow.session_data as Record<string, unknown>
-                : {};
             const phoneNumber = typeof sessionData.phoneNumber === 'string' ? sessionData.phoneNumber : undefined;
 
             await gateway.connect({
@@ -929,6 +940,9 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
             .maybeSingle();
 
         const resolvedLabel = sessionRow?.label || targetSessionKey || '';
+        const sessionData = sessionRow?.session_data && typeof sessionRow.session_data === 'object'
+            ? sessionRow.session_data as Record<string, unknown>
+            : {};
 
         // Try to disconnect active client (may not exist if API restarted)
         try {
@@ -942,7 +956,11 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
             .from('whatsapp_sessions')
             .update({
                 status: 'disconnected',
+                creds: null,
+                keys: null,
+                session_data: clearConnectionSessionData(sessionData),
                 updated_at: new Date().toISOString(),
+                last_sync: new Date().toISOString(),
             })
             .eq('tenant_id', tenantId)
             .eq('label', resolvedLabel);
@@ -1002,7 +1020,7 @@ export const resetWhatsAppSession = async (req: Request, res: Response) => {
             const normalized = normalizeRecipientPhone(phoneNumber);
             const { data: rows } = await dbClient
                 .from('whatsapp_sessions')
-                .select('label')
+                .select('label, session_data')
                 .eq('tenant_id', tenantId)
                 .order('last_sync', { ascending: false });
             const match = (rows || []).find((r: any) =>

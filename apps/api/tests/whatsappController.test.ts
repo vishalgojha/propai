@@ -6,6 +6,8 @@ const { mockDb } = vi.hoisted(() => ({
         from: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
         update: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn(),
         upsert: vi.fn(),
@@ -88,6 +90,7 @@ vi.mock('../src/services/workspaceAccessService', () => ({
 }));
 
 vi.mock('../src/whatsapp/propaiRuntimeHooks', () => ({
+    createPropAIRuntimeHooks: vi.fn(() => ({})),
     sendWhatsAppLifecycleEmail,
 }));
 
