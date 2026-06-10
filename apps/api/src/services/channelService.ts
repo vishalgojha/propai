@@ -35,6 +35,7 @@ export type StreamListFilters = {
     category?: 'residential' | 'commercial' | null;
     locality?: string | null;
     bhk?: string | null;
+    configuration?: string | null;
     timeBands?: StreamTimeBand[];
     freshnessBands?: StreamFreshnessBand[];
     source?: string | null;
@@ -93,6 +94,7 @@ export type StreamItemRecord = {
     microLocation?: string | null;
     city?: string;
     price: string;
+    configuration?: string | null;
     priceNumeric?: number | null;
     bhk: string;
     propertyCategory?: 'residential' | 'commercial';
@@ -784,6 +786,24 @@ const extractBhk = (text: string) => {
     return 'N/A';
 };
 
+const buildCommercialConfiguration = (input: {
+    areaSqft?: number | null;
+    propertyUse?: string | null;
+    commercialType?: string | null;
+    fitoutStatus?: string | null;
+    workstationsCount?: number | null;
+}) => {
+    const use = String(input.commercialType || input.propertyUse || '').trim();
+    const fitout = String(input.fitoutStatus || '').trim();
+    const seats = typeof input.workstationsCount === 'number' && Number.isFinite(input.workstationsCount)
+        ? `${input.workstationsCount}-seat`
+        : '';
+    const area = typeof input.areaSqft === 'number' && Number.isFinite(input.areaSqft)
+        ? `${Math.round(input.areaSqft)} sqft`
+        : '';
+    return [area, seats, fitout, use || 'Commercial'].filter(Boolean).join(' ').trim() || null;
+};
+
 const extractBuildingName = (text: string) => {
     const lower = text.toLowerCase();
     
@@ -1311,6 +1331,7 @@ type ParsedStreamCandidate = {
     recordType: string;
     locality: string | null;
     city: string | null;
+    configuration: string | null;
     bhk: string | null;
     priceLabel: string | null;
     priceNumeric: number | null;
@@ -1345,6 +1366,7 @@ type AIParsedStreamItem = {
     assetClass?: 'residential' | 'commercial' | 'plot' | 'unknown' | null;
     locality?: string | null;
     city?: string | null;
+    configuration?: string | null;
     bhk?: string | null;
     priceLabel?: string | null;
     priceNumeric?: number | null;
@@ -1423,6 +1445,7 @@ type StreamCorrectionInput = {
     city?: string;
     price?: string;
     priceNumeric?: number | null;
+    configuration?: string;
     bhk?: string;
     rawText?: string;
     source?: string;
@@ -3375,7 +3398,7 @@ Return ONLY this JSON:
       "assetClass": "residential" | "commercial" | "plot" | "unknown",
       "locality": "string or null",
       "city": "string or null",
-      "bhk": "string or null",
+      "configuration": "string or null (broker-facing configuration, e.g. '2 BHK', 'Studio', 'Office', 'Retail Shop', '2500 sqft Office')",
       "priceLabel": "string or null (e.g. '45k', '3.5 Cr', '95 Lakhs')",
       "priceNumeric": number or null (full absolute INR value, e.g. 45000, 35500000),
       "price": "number or string or null (numeric value only, e.g. 45000, 3.5, 95)",
@@ -3419,6 +3442,7 @@ Rules:
 - Single listing messages must pass through unchanged as a single item using the original rawText
 - Inherit top-level locality or section header into child listings when needed
 - Detect building/project names and road/landmark references
+- Use configuration as the canonical layout/type field. For residential this may be BHK/RK/Studio. For commercial this should be office/shop/showroom/warehouse or a useful commercial configuration, not BHK.
 - Normalize rent vs sale vs pre-leased correctly
 - streamType "Requirement" means the sender is explicitly SEARCHING for a property (e.g. "looking for", "wanted", "need", "require", "client needs", "buyer wants")
 - Messages describing a property's floor, furnishing, condition, building name, address, or amenities are listings (Rent/Sale), NOT Requirements
@@ -3525,8 +3549,8 @@ ${rawText}
                 }
 
                 const priceNumeric = (resolvedAiNumeric != null) ? resolvedAiNumeric : priceInfo.numeric;
-                const bhk = String(item.bhk || '').trim() || extractBhk(candidateText);
-                const normalizedBhk = bhk === 'N/A' ? null : bhk;
+                const rawResidentialConfig = String(item.configuration || item.bhk || '').trim() || extractBhk(candidateText);
+                const normalizedBhk = rawResidentialConfig === 'N/A' ? null : rawResidentialConfig;
                 const assetClass =
                     item.assetClass === 'commercial' || item.assetClass === 'plot' || item.assetClass === 'unknown'
                         ? item.assetClass
@@ -3550,13 +3574,16 @@ ${rawText}
                 const cabinsCount = propertyCategory === 'commercial' && typeof item.cabinsCount === 'number' && Number.isFinite(item.cabinsCount)
                     ? item.cabinsCount
                     : extractCabinsCount(candidateText);
+                const configuration = propertyCategory === 'commercial'
+                    ? (String(item.configuration || '').trim() || buildCommercialConfiguration({ areaSqft, propertyUse, commercialType, fitoutStatus, workstationsCount }) || normalizedBhk)
+                    : normalizedBhk;
                 const brokerWaMeLinks = Array.isArray(item.broker_wa_me_links) && item.broker_wa_me_links.length > 0
                     ? item.broker_wa_me_links
                     : sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
                 const confidence = Math.max(0, Math.min(100, Number(item.confidence || 0))) || calculateConfidence(candidateText, {
                     location: locality,
                     price: priceLabel,
-                    bhk,
+                    bhk: configuration,
                     buildingName,
                     microLocation,
                 });
@@ -3580,6 +3607,7 @@ ${rawText}
                     recordType: item.recordType === 'requirement' ? 'requirement' : 'listing',
                     locality,
                     city,
+                    configuration,
                     bhk: normalizedBhk,
                     priceLabel,
                     priceNumeric,
@@ -3620,6 +3648,7 @@ ${rawText}
                         resolutionConfidence: resolution?.confidence || confidence,
                         pincode: resolution?.pincode || null,
                         propertyCategory,
+                        configuration,
                         areaSqft,
                         furnishing,
                         floorNumber: floorNumber || null,
