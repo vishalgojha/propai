@@ -740,7 +740,7 @@ export const Sources: React.FC = () => {
   const [groupAuditSearchTerm, setGroupAuditSearchTerm] = useState('');
   const [groupAuditFilter, setGroupAuditFilter] = useState<GroupAuditFilter>('all');
   const [expandedAuditParseIds, setExpandedAuditParseIds] = useState<string[]>([]);
-  const [groupStreamItems, setGroupStreamItems] = useState<Record<string, Array<{ id: string; raw_text: string; type: string; record_type: string; locality: string | null; price_numeric: number | null; bhk: string | null; created_at: string }>>>({});
+  const [groupStreamItems, setGroupStreamItems] = useState<Record<string, Array<{ id: string; raw_text: string; type: string; record_type: string; locality: string | null; price_numeric: number | null; configuration: string | null; created_at: string }>>>({});
   const [loadingGroupStreamItems, setLoadingGroupStreamItems] = useState<Record<string, boolean>>({});
   const [groupSearchTerm, setGroupSearchTerm] = useState('');
   const [outboundSessionKey, setOutboundSessionKey] = useState('');
@@ -2690,7 +2690,7 @@ export const Sources: React.FC = () => {
                                     <span className="rounded-full border border-[color:var(--border)] px-1.5 py-0.5 uppercase">{item.record_type}</span>
                                     {item.type ? <span>{item.type}</span> : null}
                                     {item.locality ? <span>{item.locality}</span> : null}
-                                    {item.bhk ? <span>{item.bhk}BHK</span> : null}
+                                    {item.configuration ? <span>{item.configuration}</span> : null}
                                     {item.price_numeric ? <span>₹{Number(item.price_numeric).toLocaleString()}</span> : null}
                                   </div>
                                   <p className="mt-1 line-clamp-2 text-[10px] text-[var(--text-secondary)]">{item.raw_text}</p>

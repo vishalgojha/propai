@@ -31,7 +31,7 @@ export const MCP_DEMO_INPUT = {
   locality: "Bandra West",
   intent: "rent",
   budget_max_inr: 125000,
-  bhk: "2 BHK",
+  configuration: "2 BHK",
   freshness: "24h",
 };
 

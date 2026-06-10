@@ -11,7 +11,7 @@ export interface StreamItem {
   city?: string;
   price: string;
   priceNumeric?: number | null;
-  bhk: string;
+  configuration: string;
   posted?: string;
   description?: string;
   rawText?: string;
@@ -105,7 +105,7 @@ export interface StreamFilters {
   channelId?: string;
   isRead?: boolean;
   search?: string;
-  bhk?: string;
+  configuration?: string;
   brokerOnly?: boolean;
   limit?: number;
 }
@@ -152,7 +152,7 @@ export async function fetchStreamItems(filters?: StreamFilters): Promise<StreamR
   }
   if (filters?.category) params.category = filters.category;
   if (filters?.locality) params.locality = filters.locality;
-  if (filters?.bhk && filters.bhk !== 'all') params.bhk = filters.bhk;
+  if (filters?.configuration && filters.configuration !== 'all') params.configuration = filters.configuration;
   if (filters?.timeBand && filters.timeBand.length > 0) params.timeBand = filters.timeBand.join(',');
   if (filters?.freshnessBand && filters.freshnessBand.length > 0) params.freshnessBand = filters.freshnessBand.join(',');
   if (filters?.source && filters.source !== 'all') params.source = filters.source;

@@ -44,7 +44,7 @@ function buildWaMessage(listing: StreamItem): string {
     parts.push('Hi PropAI Assistant, I need help with:');
     if (listing.type) parts.push(`• Type: ${listing.type}`);
     if (listing.location) parts.push(`• Location: ${listing.location}`);
-    if (listing.bhk) parts.push(`• ${listing.bhk}`);
+    if (listing.configuration) parts.push(`• ${listing.configuration}`);
     if (listing.areaSqft) parts.push(`• ${listing.areaSqft.toLocaleString('en-IN')} sqft`);
     if (listing.price) parts.push(`• Price: ${listing.price}`);
     if (listing.source) parts.push(`• Source: ${listing.source}`);
@@ -167,7 +167,7 @@ function inferFeatureChips(text: string): string[] {
 
 function buildDisplayTitle(listing: StreamItem): string {
     const location = String(listing.location || '').trim();
-    const cleanedBhk = String(listing.bhk || '').trim();
+    const cleanedBhk = String(listing.configuration || '').trim();
     const usableBhk = cleanedBhk && !/^n\/?a$/i.test(cleanedBhk) ? cleanedBhk : '';
     const furnishing = inferFurnishing(listing.rawText || listing.description || '');
     const buildingName = String(listing.buildingName || '').trim();
@@ -253,7 +253,7 @@ function buildDescription(listing: StreamItem): string {
     const dealType = listing.type === 'Requirement' ? 'Wanted' : listing.type === 'Rent' ? 'Available for rent' : 'Available for sale';
     parts.push(dealType);
 
-    if (listing.bhk && !/^n\/?a$/i.test(String(listing.bhk))) parts.push(listing.bhk);
+    if (listing.configuration && !/^n\/?a$/i.test(String(listing.configuration))) parts.push(listing.configuration);
     if (listing.propertyCategory) parts.push(toTitleCase(String(listing.propertyCategory)));
     if (listing.location) parts.push(`in ${listing.location}`);
 
@@ -268,7 +268,7 @@ function buildDescription(listing: StreamItem): string {
 function buildChips(listing: StreamItem): string[] {
     const raw = sanitizeVisibleText(listing.rawText || listing.description || '');
     const chips = [
-        listing.bhk && !/^n\/?a$/i.test(String(listing.bhk)) ? listing.bhk : null,
+        listing.configuration && !/^n\/?a$/i.test(String(listing.configuration)) ? listing.configuration : null,
         listing.areaSqft ? `${listing.areaSqft.toLocaleString('en-IN')} sqft` : null,
         listing.propertyCategory ? toTitleCase(String(listing.propertyCategory)) : null,
         inferFurnishing(raw),

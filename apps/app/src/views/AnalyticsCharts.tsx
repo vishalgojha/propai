@@ -53,7 +53,7 @@ export const SC = {
 };
 
 type DailyVolume = { date: string; supply: number; demand: number };
-type BhkDemand = { bhk: string; listings: number; requirements: number; gap: number };
+type ConfigurationDemand = { configuration: string; listings: number; requirements: number; gap: number };
 type VelocityPoint = { date: string; newListings: number; newRequirements: number; netDemand: number };
 
 const legend = {
@@ -106,9 +106,9 @@ export function DailySupplyDemandChart({ rows }: { rows: DailyVolume[] }) {
   );
 }
 
-export function UnitGapChart({ rows }: { rows: BhkDemand[] }) {
+export function UnitGapChart({ rows }: { rows: ConfigurationDemand[] }) {
   const data = {
-    labels: rows.map((row) => row.bhk),
+    labels: rows.map((row) => row.configuration),
     datasets: [
       {
         label: 'Gap',

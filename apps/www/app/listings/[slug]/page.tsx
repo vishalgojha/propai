@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       listing.type === "Requirement" ? "Wanted" : listing.type === "Rent" ? "Available for rent" : "Available for sale";
     const title = `${listing.title} — ${dealType} in ${listing.locality} | PropAI Pulse`;
     const descriptionBits = [
-      listing.bhk ? `${String(listing.bhk).replace(/\s*BHK$/i, "")} BHK` : null,
+      listing.configuration ? `${String(listing.configuration).replace(/\s*BHK$/i, "")} BHK` : null,
       listing.locality ? `in ${listing.locality}` : null,
       listing.furnishing ? listing.furnishing : null,
       listing.area_sqft ? `${listing.area_sqft} sqft` : null,
@@ -59,7 +59,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     name: initialListing.title,
     description: [
       initialListing.type === "Requirement" ? "Wanted" : initialListing.type === "Rent" ? "Available for rent" : "Available for sale",
-      initialListing.bhk ? `${String(initialListing.bhk).replace(/\s*BHK$/i, "")} BHK` : null,
+      initialListing.configuration ? `${String(initialListing.configuration).replace(/\s*BHK$/i, "")} BHK` : null,
       initialListing.locality ? `in ${initialListing.locality}` : null,
       initialListing.furnishing || null,
       initialListing.area_sqft ? `${initialListing.area_sqft} sqft` : null,

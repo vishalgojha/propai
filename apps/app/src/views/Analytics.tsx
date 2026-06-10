@@ -25,8 +25,8 @@ type IntelligenceResult = {
     demandSignal: 'high_demand' | 'balanced' | 'oversupplied';
     topBhk: string | null;
   }[];
-  bhkDemand: {
-    bhk: string;
+  configurationDemand: {
+    configuration: string;
     listings: number;
     requirements: number;
     gap: number;
@@ -47,7 +47,7 @@ type IntelligenceResult = {
       id: string;
       type: string;
       locality: string;
-      bhk: string | null;
+      configuration: string | null;
       createdAt: string;
     }[];
   }[];
@@ -126,7 +126,7 @@ const Analytics: React.FC = () => {
     () => [...(intelData?.marketPulse || [])].sort((left, right) => (right.listings + right.requirements) - (left.listings + left.requirements)),
     [intelData?.marketPulse],
   );
-  const unitDemand = useMemo(() => intelData?.bhkDemand || [], [intelData?.bhkDemand]);
+  const unitDemand = useMemo(() => intelData?.configurationDemand || [], [intelData?.configurationDemand]);
   const selectedBroker = useMemo(
     () => (intelData?.brokerLeaderboard || []).find((broker) => broker.phone === selectedBrokerPhone) || null,
     [intelData?.brokerLeaderboard, selectedBrokerPhone],
@@ -243,7 +243,7 @@ const Analytics: React.FC = () => {
             <ChartPanel label="Daily observed listings vs requirements">
               <DailySupplyDemandChart rows={dailyVolume} />
             </ChartPanel>
-            <ChartPanel label="Unit-size gap from observed rows" dataTour="intelligence-bhk">
+              <ChartPanel label="Unit-size gap from observed rows" dataTour="intelligence-configuration">
               <UnitGapChart rows={unitDemand} />
             </ChartPanel>
           </section>
@@ -258,8 +258,8 @@ const Analytics: React.FC = () => {
               </p>
               <div className="space-y-2">
                 {unitDemand.map((row) => (
-                  <div key={row.bhk} className="grid grid-cols-[70px_1fr_56px] items-center gap-3 text-[12px]">
-                    <span className="font-semibold text-[var(--text-secondary)]">{row.bhk}</span>
+                  <div key={row.configuration} className="grid grid-cols-[70px_1fr_56px] items-center gap-3 text-[12px]">
+                    <span className="font-semibold text-[var(--text-secondary)]">{row.configuration}</span>
                     <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-surface)]">
                       <div
                         className={cn('h-full rounded-full', row.gap >= 0 ? 'bg-[var(--accent)]' : 'bg-[var(--red)]')}
@@ -512,7 +512,7 @@ function BrokerPanel({
                     <span className="text-[10px] text-[var(--text-muted)]">{formatTimeAgo(item.createdAt)}</span>
                   </div>
                   <div className="mt-2 text-[11px] text-[var(--text-secondary)]">
-                    {item.type} · {item.bhk || 'BHK n/a'}
+                    {item.type} · {item.configuration || 'Configuration n/a'}
                   </div>
                 </div>
               ))

@@ -6,7 +6,7 @@ export interface StreamItem {
   city?: string;
   price: string;
   priceNumeric?: number | null;
-  bhk: string;
+  configuration: string;
   posted: string;
   createdAt?: string;
   source: string;
@@ -31,7 +31,7 @@ export const mockStream: StreamItem[] = [
     type: 'Sale',
     location: 'Bandra West, Mount Mary',
     price: '9.5 Cr',
-    bhk: '3 BHK',
+    configuration: '3 BHK',
     posted: '10m ago',
     source: 'Bandra Homes Experts',
     description: 'Ultra luxury 3BHK for sale. Mountain facing, semi-furnished. 1500 sqft carpet. One of the best views in Mumbai. Owner moving abroad.',
@@ -41,7 +41,7 @@ export const mockStream: StreamItem[] = [
     type: 'Rent',
     location: 'Powai, Hiranandani',
     price: '85k',
-    bhk: '2 BHK',
+    configuration: '2 BHK',
     posted: '25m ago',
     source: 'Powai Broking Hub',
     description: 'Spacious 2BHK in Odyssey Tower. High floor, garden view. Full modular kitchen. Immediate possession.',
@@ -51,7 +51,7 @@ export const mockStream: StreamItem[] = [
     type: 'Requirement',
     location: 'Worli, Sea Face',
     price: 'Unspecified',
-    bhk: '4+ BHK',
+    configuration: '4+ BHK',
     posted: '45m ago',
     source: 'Exclusive South Mumbai',
     description: 'VHN client looking for standalone bungalow or sea facing 4+ BHK penthouse in Worli. Budget no bar for right property.',
@@ -61,7 +61,7 @@ export const mockStream: StreamItem[] = [
     type: 'Pre-leased',
     location: 'Juhu, Gulmohar Road',
     price: '3.1 Cr',
-    bhk: '2 BHK',
+    configuration: '2 BHK',
     posted: '55m ago',
     source: 'Elite Investor Desk',
     description: 'Pre-leased investment apartment with tenant locked in for 18 months. Good rental yield and stable occupancy.',
@@ -71,7 +71,7 @@ export const mockStream: StreamItem[] = [
     type: 'Sale',
     location: 'Kandivali East, Thakur Village',
     price: '2.2 Cr',
-    bhk: '2 BHK',
+    configuration: '2 BHK',
     posted: '1h ago',
     source: 'Western Suburbs Elite',
     description: '2BHK flat available in Gagan Towers. East facing, vaastu compliant. Renovation recently done.',
@@ -81,7 +81,7 @@ export const mockStream: StreamItem[] = [
     type: 'Rent',
     location: 'Andheri West, Lokhandwala',
     price: '45k',
-    bhk: '1 BHK',
+    configuration: '1 BHK',
     posted: '2h ago',
     source: 'Andheri Network',
     description: 'Fully furnished 1BHK for bachelors/couples. Near Joggers park. CCTV, security, 24/7 water.',

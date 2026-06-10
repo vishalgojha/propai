@@ -169,7 +169,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
     if (!allListings.length) return;
     const pool = allListings.slice(0, 100).map(l => {
       const parts = [];
-      if (l.bhk) parts.push(String(l.bhk));
+      if (l.configuration) parts.push(String(l.configuration));
       parts.push(l.type === 'Rent' ? 'rental' : l.type === 'Sale' ? 'sale' : 'requirement');
       parts.push(`in ${l.locality}`);
       if (l.price) parts.push(formatPrice(l.price, l.type));
@@ -705,9 +705,9 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                         </div>
                         
                         <div className="flex gap-2">
-                          {item.bhk && (
+                          {item.configuration && (
                             <span className="text-[9px] font-bold px-2 py-1 rounded bg-[var(--bg-surface)]/80 text-[var(--text-secondary)]">
-                              {item.bhk}
+                              {item.configuration}
                             </span>
                           )}
                           {item.area_sqft && (
@@ -785,7 +785,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                       </div>
                       <div>
                         <div className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-wider">Layout</div>
-                        <div className="text-[13px] font-bold text-[var(--text-primary)] mt-0.5">{selectedListing.bhk || 'Flexible'}</div>
+                        <div className="text-[13px] font-bold text-[var(--text-primary)] mt-0.5">{selectedListing.configuration || 'Flexible'}</div>
                       </div>
                       <div>
                         <div className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-wider">Furnishing</div>

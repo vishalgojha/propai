@@ -72,10 +72,10 @@ function itemTitle(item: StreamItem) {
   const genericTitle = !title || /wanted in mumbai market|property listing|broker-sourced/i.test(title);
   if (!genericTitle) return title;
 
-  const bhk = String(item.bhk || '').trim();
+  const configuration = String(item.configuration || '').trim();
   const asset = String(item.assetClass || item.propertyCategory || 'property').trim();
   if (item.type === 'Requirement') {
-    return [bhk && !/^n\/?a$/i.test(bhk) ? bhk : '', asset, 'requirement', location ? `in ${location}` : ''].filter(Boolean).join(' ');
+    return [configuration && !/^n\/?a$/i.test(configuration) ? configuration : '', asset, 'requirement', location ? `in ${location}` : ''].filter(Boolean).join(' ');
   }
   return [item.type === 'Rent' ? 'Rental' : item.type, asset, location ? `in ${location}` : ''].filter(Boolean).join(' ');
 }
@@ -114,7 +114,7 @@ function MiniItem({ item, label }: { item: StreamItem; label: string }) {
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/[0.04] pt-4 sm:grid-cols-4">
         <DetailRow label="Price" value={priceLabel(item)} />
-        <DetailRow label="BHK" value={item.bhk && !/^n\/?a$/i.test(item.bhk) ? item.bhk : null} />
+        <DetailRow label="Configuration" value={item.configuration && !/^n\/?a$/i.test(item.configuration) ? item.configuration : null} />
         <DetailRow label="Asset" value={item.assetClass || item.propertyCategory} />
         <DetailRow label="Broker" value={item.brokerName || item.source} />
       </div>
@@ -137,7 +137,7 @@ function AdminCorrectionPanel({ item }: { item: StreamItem }) {
     type: item.type,
     location: cleanMarketLocation(item.location) || item.location || '',
     price: item.price || '',
-    bhk: item.bhk || '',
+      configuration: item.configuration || '',
     dealType: item.dealType || '',
     assetClass: item.assetClass || '',
     rawText: item.rawText || item.description || '',
@@ -150,7 +150,7 @@ function AdminCorrectionPanel({ item }: { item: StreamItem }) {
       type: item.type,
       location: cleanMarketLocation(item.location) || item.location || '',
       price: item.price || '',
-      bhk: item.bhk || '',
+    configuration: item.configuration || '',
       dealType: item.dealType || '',
       assetClass: item.assetClass || '',
       rawText: item.rawText || item.description || '',
@@ -168,7 +168,7 @@ function AdminCorrectionPanel({ item }: { item: StreamItem }) {
       type: form.type,
       location: form.location,
       price: form.price,
-      bhk: form.bhk,
+      configuration: form.configuration,
       dealType: form.dealType,
       assetClass: form.assetClass,
       rawText: form.rawText,
@@ -204,7 +204,7 @@ function AdminCorrectionPanel({ item }: { item: StreamItem }) {
             </select>
             <input value={form.location} onChange={(event) => update('location', event.target.value)} placeholder="Location" className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]" />
             <input value={form.price} onChange={(event) => update('price', event.target.value)} placeholder="Price label" className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]" />
-            <input value={form.bhk} onChange={(event) => update('bhk', event.target.value)} placeholder="BHK" className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]" />
+            <input value={form.configuration} onChange={(event) => update('configuration', event.target.value)} placeholder="Configuration" className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]" />
             <input value={form.assetClass} onChange={(event) => update('assetClass', event.target.value)} placeholder="Asset class" className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]" />
           </div>
           <textarea value={form.parseNotes} onChange={(event) => update('parseNotes', event.target.value)} rows={2} placeholder="Correction note" className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] p-3 text-[12px] text-[var(--text-primary)] outline-none focus:border-[color:var(--accent-border)]" />

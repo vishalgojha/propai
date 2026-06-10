@@ -129,7 +129,7 @@ export default function ListingDetail({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         price: listing.price,
-        configuration: listing.bhk ? `${listing.bhk}`.replace(/\s*BHK$/i, "") + " BHK" : null,
+        configuration: listing.configuration ? `${listing.configuration}`.replace(/\s*BHK$/i, "") + " BHK" : null,
         locality: listing.locality,
         area_sqft: listing.area_sqft,
         created_at: listing.created_at,
@@ -236,7 +236,7 @@ export default function ListingDetail({
             </p>
             <div className="flex flex-wrap gap-2">
               {[
-                listing.bhk && { label: 'Configuration', value: formatBhk(listing.bhk) || `${listing.bhk}` },
+                listing.configuration && { label: 'Configuration', value: formatBhk(listing.configuration) || `${listing.configuration}` },
                 listing.area_sqft && { label: 'Area', value: `${listing.area_sqft} SQFT` },
                 listing.furnishing && { label: 'Furnishing', value: listing.furnishing },
                 listing.availability && { label: 'Availability', value: listing.availability },
@@ -320,7 +320,7 @@ export default function ListingDetail({
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             {[
-              listing.bhk && { label: formatBhk(listing.bhk)?.includes('BHK') ? 'BHK' : 'Type', value: formatBhk(listing.bhk) || `${listing.bhk}`, icon: BedDouble },
+              listing.configuration && { label: formatBhk(listing.configuration)?.includes('BHK') ? 'Configuration' : 'Type', value: formatBhk(listing.configuration) || `${listing.configuration}`, icon: BedDouble },
               listing.area_sqft && { label: 'Area', value: `${listing.area_sqft} sqft`, icon: Move },
               listing.price && listing.price > 0 && { label: 'Price', value: formatPrice(listing.price), icon: IndianRupee },
               listing.type && { label: 'Deal Type', value: listing.type, icon: Building },

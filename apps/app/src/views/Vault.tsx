@@ -30,7 +30,7 @@ type VaultDraftPreview = {
   id: string;
   type: VaultEntryType;
   locality: string;
-  bhk: string;
+  configuration: string;
   dealType: 'rent' | 'sale' | 'lease';
   price: string;
   budget: string;
@@ -218,7 +218,7 @@ const summarizePreviewStatus = (item: VaultDraftPreview) => {
 
   const found = [
     item.locality ? 'locality' : '',
-    item.bhk ? 'BHK' : '',
+    item.configuration ? 'Configuration' : '',
     item.type === 'listing' ? (item.price ? 'price' : '') : (item.budget ? 'budget' : ''),
     item.areaSqft ? 'area' : '',
     item.furnishing ? 'furnishing' : '',
@@ -268,7 +268,7 @@ const parseVaultDraft = (rawText: string): VaultDraftPreview[] => {
         id: `${index}-${block.slice(0, 32)}`,
         type,
         locality,
-        bhk,
+        configuration: bhk,
         dealType,
         price: type === 'listing' ? priceOrBudget : '',
         budget: type === 'requirement' ? priceOrBudget : '',
@@ -295,7 +295,7 @@ function formatDate(dateStr: string) {
 function describeListing(item: VaultListing): string {
   const sd = item.structured_data || {};
   const parts: string[] = [];
-  if (sd.bhk) parts.push(String(sd.bhk));
+  if (sd.configuration) parts.push(String(sd.configuration));
   if (sd.property_use) parts.push(String(sd.property_use));
   if (sd.locality || sd.location) parts.push(String(sd.locality || sd.location));
   if (sd.price_label || sd.price) parts.push(String(sd.price_label || sd.price));
@@ -387,7 +387,7 @@ export const VaultView: React.FC = () => {
         items: parsed.map((item) => ({
           type: item.type,
           locality: item.locality,
-          bhk: item.bhk,
+          bhk: item.configuration,
           dealType: item.dealType,
           price: item.type === 'listing' ? item.price : null,
           budget: item.type === 'requirement' ? item.budget : null,
@@ -495,7 +495,7 @@ export const VaultView: React.FC = () => {
                     Paste one broker message or many separated by blank lines.
                   </span>
                   <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5">
-                    Pulse highlights missing locality, BHK, price/budget, and area before posting.
+                    Pulse highlights missing locality, configuration, price/budget, and area before posting.
                   </span>
                 </div>
               </div>
@@ -539,7 +539,7 @@ export const VaultView: React.FC = () => {
                             {item.locality || 'Locality missing'}
                           </span>
                           <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] text-[var(--text-primary)]">
-                            {item.bhk || 'BHK missing'}
+                            {item.configuration || 'Configuration missing'}
                           </span>
                           <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] text-[var(--text-primary)]">
                             {item.type === 'listing' ? (item.price || 'Price missing') : (item.budget || 'Budget missing')}
@@ -583,7 +583,7 @@ export const VaultView: React.FC = () => {
                 <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">What Pulse checks</p>
                 <ul className="mt-3 space-y-2 text-[12px] leading-6 text-[var(--text-secondary)]">
                   <li>• Locality / micro-market</li>
-                  <li>• BHK or requirement size</li>
+                  <li>• Configuration or requirement size</li>
                   <li>• Price or budget</li>
                   <li>• Area and furnishing when present</li>
                   <li>• It keeps the raw broker note for review</li>

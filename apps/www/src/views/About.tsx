@@ -39,7 +39,7 @@ export default function About() {
         <h2 className="text-[22px] md:text-[28px] font-bold text-[var(--text-primary)] mt-10">Find your next home in Mumbai — without the noise.</h2>
 
         <p className="text-[16px] leading-8 text-[var(--text-secondary)]">
-          Browse by locality, BHK, and budget. No registration required.
+          Browse by locality, configuration, and budget. No registration required.
         </p>
 
         <div className="border-t border-white/5 pt-8 mt-12">

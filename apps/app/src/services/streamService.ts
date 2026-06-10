@@ -33,7 +33,7 @@ export async function correctStreamItem(
     city?: string;
     price: string;
     priceNumeric?: number | null;
-    bhk: string;
+    configuration: string;
     source: string;
     sourcePhone?: string | null;
     recordType?: string;

@@ -45,7 +45,7 @@ export function useInbox() {
           document.visibilityState === 'hidden'
         ) {
           new Notification('New PropAI Match', {
-            body: `${newMatch.matchedItem.type} - ${newMatch.matchedItem.bhk} in ${newMatch.matchedItem.location}${newMatch.matchedItem.price ? ' @ ' + newMatch.matchedItem.price : ''}`.trim(),
+            body: `${newMatch.matchedItem.type} - ${newMatch.matchedItem.configuration} in ${newMatch.matchedItem.location}${newMatch.matchedItem.price ? ' @ ' + newMatch.matchedItem.price : ''}`.trim(),
             icon: '/logo.png',
           });
         }

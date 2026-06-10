@@ -3714,6 +3714,9 @@ ${rawText}
             const fitoutStatus = propertyCategory === 'commercial' ? extractFitoutStatus(candidateText) : null;
             const workstationsCount = propertyCategory === 'commercial' ? extractWorkstationsCount(candidateText) : null;
             const cabinsCount = propertyCategory === 'commercial' ? extractCabinsCount(candidateText) : null;
+            const configuration = propertyCategory === 'commercial'
+                ? buildCommercialConfiguration({ areaSqft, propertyUse, commercialType, fitoutStatus, workstationsCount }) || bhk
+                : bhk;
             const brokerWaMeLinks = sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
             const parseNotes = null;
             const completeness = computeStreamCompleteness({
@@ -3736,6 +3739,7 @@ ${rawText}
                 locality: location,
                 city: resolution?.city || extractIndianCity(candidateText) || null,
                 bhk,
+                configuration,
                 priceLabel: price.label || null,
                 priceNumeric: price.numeric,
                 dealType,

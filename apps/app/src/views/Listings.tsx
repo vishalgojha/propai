@@ -34,7 +34,7 @@ const STREAM_SEARCH_FETCH_LIMIT = 500;
 const STREAM_VIEW_CACHE_VERSION = 1;
 const STREAM_VIEW_CACHE_TTL_MS = 2 * 60 * 1000;
 const ALL_TYPES = ['Rent', 'Sale', 'Requirement', 'Pre-leased', 'Lease'] as const;
-const ALL_BHK = ['1 BHK', '2 BHK', '3 BHK', '4+ BHK'] as const;
+const ALL_CONFIGURATIONS = ['1 BHK', '2 BHK', '3 BHK', '4+ BHK', 'Studio', 'Office', 'Retail', 'Shop', 'Showroom', 'Warehouse'] as const;
 const ALL_COMMERCIAL_FACETS = ['Office', 'Retail', 'Shop', 'Showroom', 'Warehouse', 'Pre-leased'] as const;
 const ALL_PROPERTY_CATEGORIES = ['residential', 'commercial'] as const;
 const BROKER_TAG_PATTERN = /\b(broker|broking|agnt|agent)\b/i;
@@ -429,7 +429,7 @@ const buildStreamDedupeKey = (item: StreamItem) =>
       item.buildingName,
       item.microLocation,
       item.price,
-      item.bhk,
+      item.configuration,
       item.areaSqft,
       item.furnishing,
       item.floorNumber,
@@ -547,7 +547,7 @@ const buildCopyText = (item: StreamItem) => {
     getRecordLabel(item),
     getTypeLabel(item),
     item.location || '—',
-    item.bhk || '—',
+    item.configuration || '—',
     normalizePriceDisplay(item).label || 'Price on request',
     snippet.isLowSignal ? 'low signal' : snippet.label,
   ].filter(Boolean);
@@ -579,7 +579,7 @@ type StreamCorrectionDraft = {
   location: string;
   city: string;
   price: string;
-  bhk: string;
+  configuration: string;
   source: string;
   recordType: string;
   dealType: string;
@@ -591,7 +591,7 @@ const buildCorrectionDraft = (item: StreamItem): StreamCorrectionDraft => ({
   location: item.location,
   city: item.city || '',
   price: item.price,
-  bhk: item.bhk,
+  configuration: item.configuration,
   source: item.source,
   recordType: item.recordType || '',
   dealType: item.dealType || '',
@@ -632,7 +632,7 @@ export const Listings: React.FC = () => {
   const [error, setError] = React.useState<string | null>(null);
   const [infoMessage, setInfoMessage] = React.useState<string | null>(null);
   const [showFilters, setShowFilters] = React.useState(false);
-  const [filterBhk, setFilterBhk] = React.useState<string>('all');
+  const [filterConfiguration, setFilterConfiguration] = React.useState<string>('all');
   const [filterCommercialFacet, setFilterCommercialFacet] = React.useState<string>('all');
   const [filterSource, setFilterSource] = React.useState<string>('all');
   const [brokerOnly, setBrokerOnly] = React.useState(false);
@@ -657,8 +657,8 @@ export const Listings: React.FC = () => {
 
   React.useEffect(() => {
     if (filterPropertyCategory === 'commercial') {
-      if (filterBhk !== 'all') {
-        setFilterBhk('all');
+      if (filterConfiguration !== 'all') {
+        setFilterConfiguration('all');
       }
       return;
     }
@@ -666,7 +666,7 @@ export const Listings: React.FC = () => {
     if (filterCommercialFacet !== 'all') {
       setFilterCommercialFacet('all');
     }
-  }, [filterPropertyCategory, filterBhk, filterCommercialFacet]);
+  }, [filterPropertyCategory, filterConfiguration, filterCommercialFacet]);
 
   const serverFilters = React.useMemo(() => ({
     category: filterPropertyCategory as 'residential' | 'commercial',
@@ -990,7 +990,7 @@ export const Listings: React.FC = () => {
           listing.title,
           listing.location,
           listing.price,
-          listing.bhk,
+          listing.configuration,
           listing.posted,
           listing.source,
           listing.brokerName || '',
@@ -1007,11 +1007,11 @@ export const Listings: React.FC = () => {
       filtered = filtered.filter((item) => quickTypes.includes(item.type));
     }
 
-    if (filterPropertyCategory === 'residential' && filterBhk !== 'all') {
-      if (filterBhk === '4+ BHK') {
-        filtered = filtered.filter((item) => /4\+?\s*bhk/i.test(item.bhk));
+    if (filterPropertyCategory === 'residential' && filterConfiguration !== 'all') {
+      if (filterConfiguration === '4+ BHK') {
+        filtered = filtered.filter((item) => /4\+?\s*bhk/i.test(item.configuration));
       } else {
-        filtered = filtered.filter((item) => item.bhk.toLowerCase().includes(filterBhk.toLowerCase().replace(' bhk', '')));
+        filtered = filtered.filter((item) => item.configuration.toLowerCase().includes(filterConfiguration.toLowerCase().replace(' bhk', '')));
       }
     }
 
@@ -1067,7 +1067,7 @@ if (brokerOnly) {
     filtered = filtered.filter((item) => (item.propertyCategory || 'residential') === filterPropertyCategory);
 
     return filtered;
-  }, [streamItems, search, quickTypes, filterBhk, filterCommercialFacet, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory]);
+  }, [streamItems, search, quickTypes, filterConfiguration, filterCommercialFacet, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory]);
 
   const activeFilterCount = React.useMemo(() => {
     let count = 0;
@@ -1075,7 +1075,7 @@ if (brokerOnly) {
     if (quickTimeBands.length > 0) count++;
     if (filterPropertyCategory === 'commercial') {
       if (filterCommercialFacet !== 'all') count++;
-    } else if (filterBhk !== 'all') {
+    } else if (filterConfiguration !== 'all') {
       count++;
     }
     if (quickFreshnessBands.length > 0) count++;
@@ -1083,13 +1083,13 @@ if (brokerOnly) {
     if (brokerOnly) count++;
     if (filterPropertyCategory !== 'all') count++;
     return count;
-  }, [quickTypes, quickTimeBands, filterBhk, filterCommercialFacet, quickFreshnessBands, filterSource, brokerOnly, filterPropertyCategory]);
+  }, [quickTypes, quickTimeBands, filterConfiguration, filterCommercialFacet, quickFreshnessBands, filterSource, brokerOnly, filterPropertyCategory]);
 
   const clearAllFilters = () => {
     setQuickTypes([]);
     setQuickTimeBands([]);
     setQuickFreshnessBands([]);
-    setFilterBhk('all');
+    setFilterConfiguration('all');
     setFilterCommercialFacet('all');
     setFilterSource('all');
     setBrokerOnly(false);
@@ -1158,7 +1158,7 @@ if (brokerOnly) {
 
   React.useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [activeChannel?.id, search, quickTypes, filterBhk, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory, localityFilter]);
+  }, [activeChannel?.id, search, quickTypes, filterConfiguration, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory, localityFilter]);
 
   React.useEffect(() => {
     const fetch = async () => {
@@ -1656,15 +1656,15 @@ if (brokerOnly) {
               </div>
             ) : (
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">BHK</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Configuration</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {ALL_BHK.map((bhk) => {
-                    const active = filterBhk === bhk;
+                  {ALL_CONFIGURATIONS.map((config) => {
+                    const active = filterConfiguration === config;
                     return (
                       <button
-                        key={bhk}
+                        key={config}
                         type="button"
-                        onClick={() => setFilterBhk((current) => (current === bhk ? 'all' : bhk))}
+                        onClick={() => setFilterConfiguration((current) => (current === config ? 'all' : config))}
                         className={cn(
                           'rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
                           active
@@ -1672,7 +1672,7 @@ if (brokerOnly) {
                             : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
                         )}
                       >
-                        {bhk}
+                        {config}
                       </button>
                     );
                   })}
@@ -1799,7 +1799,7 @@ if (brokerOnly) {
                       const commercialSummary = listing.propertyCategory === 'commercial' || listing.assetClass === 'commercial'
                         ? [listing.commercialType || listing.propertyUse || listing.assetClass, listing.fitoutStatus].filter(Boolean).join(' · ')
                         : '';
-                      const primarySpec = commercialSummary || listing.bhk || formatAreaCell(listing.areaSqft) || 'Property';
+                      const primarySpec = commercialSummary || listing.configuration || formatAreaCell(listing.areaSqft) || 'Property';
                       const waLink = listing.brokerWaMeLinks?.[0] || listing.waLink;
 
                       return (
@@ -1961,7 +1961,7 @@ if (brokerOnly) {
                 <tr className="border-b border-[color:var(--accent-border)] bg-[color:var(--propai-green-dim)]">
                   {(filterPropertyCategory === 'commercial'
                     ? ['Record', 'Type', 'Locality', 'Fit-out / Type', 'Area', 'Price', 'Workstations / Cabins', 'Floor', 'Posted', 'WA']
-                    : ['Record', 'Type', 'Locality', 'BHK', 'Area', 'Price', 'Furnishing', 'Floor', 'Posted', 'WA']
+                    : ['Record', 'Type', 'Locality', 'Configuration', 'Area', 'Price', 'Furnishing', 'Floor', 'Posted', 'WA']
                   ).map((header) => (
                     <th
                       key={header}
@@ -2062,7 +2062,7 @@ if (brokerOnly) {
                                    const fitout = listing.fitoutStatus ? ` (${listing.fitoutStatus})` : '';
                                    return `${type}${fitout}`;
                                  })()
-                               : (listing.bhk || '—')}
+                               : (listing.configuration || '—')}
                            </td>
                            <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{formatAreaCell(listing.areaSqft)}</td>
                            <td className="px-4 py-3 text-[13px] font-semibold text-[var(--text-primary)]">{normalizePriceDisplay(listing).label || 'Price on request'}</td>

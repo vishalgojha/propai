@@ -1,6 +1,6 @@
 interface DescriptionListing {
   type: string;
-  bhk?: number | string | null;
+  configuration?: number | string | null;
   locality?: string | null;
   furnishing?: string | null;
   area_sqft?: number | null;
@@ -25,9 +25,9 @@ export function formatPrice(price: number, type?: string): string {
   return type === 'Rent' ? `₹${price}/mo` : `₹${price}`;
 }
 
-export function formatBhk(bhk: number | string | null | undefined): string | null {
-  if (bhk == null) return null;
-  const s = String(bhk).replace(/\s*BHK$/i, '').trim();
+export function formatBhk(configuration: number | string | null | undefined): string | null {
+  if (configuration == null) return null;
+  const s = String(configuration).replace(/\s*BHK$/i, '').trim();
   if (!s) return null;
   if (/^\d+(\.\d+)?$/.test(s)) return `${s} BHK`;
   return s;
@@ -42,8 +42,8 @@ export function buildDescription(listing: DescriptionListing): string {
         ? 'Available for rent'
         : 'Available for sale';
   parts.push(dealType);
-  const bhkLabel = formatBhk(listing.bhk);
-  if (bhkLabel) parts.push(bhkLabel);
+  const configurationLabel = formatBhk(listing.configuration);
+  if (configurationLabel) parts.push(configurationLabel);
   if (listing.locality) parts.push(`in ${listing.locality}`);
   if (listing.furnishing) parts.push(`(${listing.furnishing})`);
   if (listing.area_sqft) parts.push(`${listing.area_sqft} sqft`);

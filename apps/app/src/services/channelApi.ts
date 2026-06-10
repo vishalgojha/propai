@@ -11,7 +11,7 @@ export type PersonalChannel = {
   keywordsExclude: string[];
   dealTypes: string[];
   recordTypes: string[];
-  bhkValues: string[];
+  configurationValues: string[];
   assetClasses: string[];
   budgetMin: number | null;
   budgetMax: number | null;
@@ -30,7 +30,7 @@ export type CreateChannelPayload = {
   keywordsExclude?: string[];
   dealTypes?: string[];
   recordTypes?: string[];
-  bhkValues?: string[];
+  configurationValues?: string[];
   assetClasses?: string[];
   budgetMin?: number | null;
   budgetMax?: number | null;

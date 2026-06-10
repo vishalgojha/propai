@@ -22,8 +22,8 @@ export default function ListingCard({ listing }: ListingCardProps) {
   const formattedPrice = formatPrice(listing.price, listing.type);
 
   const features = [];
-  const bhkLabel = formatBhk(listing.bhk);
-  if (bhkLabel) features.push(bhkLabel);
+  const configurationLabel = formatBhk(listing.configuration);
+  if (configurationLabel) features.push(configurationLabel);
   if (listing.raw_text?.toLowerCase().includes('furnish')) features.push('Furnished');
   if (listing.raw_text?.toLowerCase().includes('parking')) features.push('Parking');
   if (listing.raw_text?.toLowerCase().includes('sea view') || listing.raw_text?.toLowerCase().includes('ocean')) features.push('Sea View');
@@ -69,10 +69,10 @@ export default function ListingCard({ listing }: ListingCardProps) {
 
             {/* Tags */}
             <div className="flex flex-wrap gap-2 pt-2">
-              {bhkLabel && (
+              {configurationLabel && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)]">
                   <BedDouble className="h-3.5 w-3.5" />
-                  {bhkLabel}
+                  {configurationLabel}
                 </span>
               )}
               {listing.area_sqft && (
