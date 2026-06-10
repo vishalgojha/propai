@@ -9,7 +9,6 @@ import { BookOpenIcon, MenuIcon, PowerIcon, LogoutIcon } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
 import { useTour } from '../hooks/useTour';
 import { usePushNotifications } from '../hooks/usePushNotifications';
-import { PROPAI_ASSISTANT_WA_LINK } from '../lib/propai';
 
 type WhatsAppSessionSummary = {
   label: string;
@@ -474,14 +473,6 @@ export const Layout: React.FC = () => {
               <div className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
               <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">System Live</span>
             </div>
-            <a
-              href={PROPAI_ASSISTANT_WA_LINK}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-colors hover:brightness-95"
-            >
-              Chat Assistant
-            </a>
             {subscription ? (
               <div className="flex items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">{planLabel}</span>

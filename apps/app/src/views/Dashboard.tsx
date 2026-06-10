@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
-import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_CONNECT_WA_LINK } from '../lib/propai';
+import { PROPAI_ASSISTANT_NUMBER, PROPAI_CONNECT_WA_LINK } from '../lib/propai';
 
 const DASHBOARD_CACHE_KEY = 'propai.dashboard_cache';
 
@@ -96,15 +96,6 @@ const EmptyState: React.FC = () => {
               <Sparkles className="h-4 w-4" />
               Connect WhatsApp
               <ArrowRight className="h-4 w-4" />
-            </a>
-            <a
-              href={PROPAI_ASSISTANT_WA_LINK}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[12px] font-semibold text-[var(--text-primary)] transition hover:bg-[var(--bg-base)]"
-            >
-              <MessageSquare className="h-4 w-4 text-[var(--accent)]" />
-              Message Assistant
             </a>
           </div>
         </div>
@@ -365,14 +356,6 @@ export const Dashboard: React.FC = () => {
             >
               Copy referral copy
             </button>
-            <a
-              href={PROPAI_ASSISTANT_WA_LINK}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-2 text-[11px] font-semibold text-[var(--text-primary)]"
-            >
-              Message Assistant
-            </a>
           </div>
         </div>
       </div>
