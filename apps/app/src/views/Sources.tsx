@@ -511,7 +511,7 @@ const normalizePairingCode = (value?: string | null) => {
   return compact;
 };
 
-const QR_FRESHNESS_SECONDS = 45;
+const QR_FRESHNESS_SECONDS = 120;
 const QR_POLL_ATTEMPTS = 90;
 const QR_POLL_INTERVAL_MS = 1000;
 const MARKETING_AGENT_PHONE = PROPAI_ASSISTANT_PHONE_DIGITS;
@@ -738,6 +738,8 @@ export const Sources: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [connectionArtifact, setConnectionArtifact] = useState<ConnectionArtifact | null>(null);
+  const artifactPanelRef = useRef<HTMLDivElement>(null);
+  const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [renderedQrMarkup, setRenderedQrMarkup] = useState<string | null>(null);
   const [qrGeneratedAt, setQrGeneratedAt] = useState<number | null>(null);
   const [qrTimeLeft, setQrTimeLeft] = useState(0);
@@ -1278,6 +1280,9 @@ export const Sources: React.FC = () => {
       const expiresAt = startedAt + QR_FRESHNESS_SECONDS * 1000;
       const nextTimeLeft = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
       setQrTimeLeft(nextTimeLeft);
+      if (nextTimeLeft === 0) {
+        setPendingConnection(null);
+      }
     };
 
     updateTimeLeft();
@@ -1352,6 +1357,19 @@ export const Sources: React.FC = () => {
       ensureConnectUiVisible();
     }
   }, [artifactMode, artifactValue, ensureConnectUiVisible, isConnecting]);
+
+  useEffect(() => {
+    if (!artifactValue) return;
+    const el = artifactPanelRef.current;
+    if (!el) return;
+    const container = document.getElementById('main-scroll-container');
+    if (container) {
+      const offset = el.getBoundingClientRect().top - container.getBoundingClientRect().top - 100;
+      container.scrollTo({ top: container.scrollTop + offset, behavior: 'smooth' });
+    } else {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [artifactValue]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1626,6 +1644,7 @@ export const Sources: React.FC = () => {
           mode,
         );
         if (nextArtifact) {
+          setPendingConnection(null);
           setConnectionArtifact(nextArtifact);
           setQrGeneratedAt(Date.now());
           setQrTimeLeft(QR_FRESHNESS_SECONDS);
@@ -3216,7 +3235,7 @@ export const Sources: React.FC = () => {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Connect mode</p>
-                    <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Use QR on desktop or pairing code from the broker phone.</p>
+                    <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Use QR on desktop or pairing code if you are on a phone. Tap <span className="font-semibold text-[var(--text-primary)]">"Link with phone number"</span> in WhatsApp Linked Devices to enter the code.</p>
                   </div>
                   <div className="flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-surface)] p-1">
                     <button
@@ -3431,7 +3450,7 @@ export const Sources: React.FC = () => {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6" ref={artifactPanelRef}>
           <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -3506,12 +3525,35 @@ export const Sources: React.FC = () => {
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
                       Pairing code
                     </p>
-                    <p className="mt-2 font-mono text-[32px] font-semibold tracking-[0.35em] text-[var(--accent)]">
+                    <p className="mt-2 select-all font-mono text-[32px] font-semibold tracking-[0.35em] text-[var(--accent)]">
                       {artifactValue}
                     </p>
                   </div>
+                  <div className="mt-3 flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(artifactValue);
+                          setCopyMessage('Code copied!');
+                        } catch {
+                          setCopyMessage('Copy failed');
+                        }
+                        window.setTimeout(() => setCopyMessage(null), 2000);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-semibold text-[var(--text-secondary)] transition hover:text-[var(--accent)] hover:border-[color:var(--accent-border)]"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      {copyMessage || 'Copy code'}
+                    </button>
+                  </div>
                   <p className="mt-3 text-[12px] leading-6 text-[var(--text-secondary)]">
-                    Open WhatsApp on the broker phone, go to Linked Devices, choose Link a Device, and enter the code above.
+                    Open WhatsApp on the broker phone → Linked Devices → Link a Device → tap <span className="font-semibold text-[var(--text-primary)]">"Link with phone number"</span> → enter the code above.
+                  </p>
+                  <p className="mt-2 text-[11px] leading-5 text-[var(--text-muted)]">
+                    Keep this page open while entering the code in WhatsApp. The session connects automatically once the code is entered.
                   </p>
                 </div>
               ) : qrMarkup ? (

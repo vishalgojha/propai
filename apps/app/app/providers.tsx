@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { AuthProvider } from "@/context/AuthContext";
 import { initAnalytics, track } from "@/services/analytics";
 import { PWARegistration } from "@/components/PWARegistration";
+import { PwaInstallPrompt } from "@/components/PwaInstallPrompt";
 
 function AnalyticsBootstrap() {
   const pathname = usePathname();
@@ -32,6 +33,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <AnalyticsBootstrap />
         <PWARegistration />
       </React.Suspense>
+      <PwaInstallPrompt />
       {children}
     </AuthProvider>
   );

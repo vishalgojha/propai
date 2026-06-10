@@ -64,9 +64,9 @@ export const ConnectWhatsApp: React.FC = () => {
     const [activeSessionLabel, setActiveSessionLabel] = useState<string | null>(null);
     const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
-    const QR_FRESHNESS = 90;
-    const ARTIFACT_POLL_ATTEMPTS = 8;
-    const ARTIFACT_POLL_INTERVAL_MS = 750;
+    const QR_FRESHNESS = 120;
+    const ARTIFACT_POLL_ATTEMPTS = 120;
+    const ARTIFACT_POLL_INTERVAL_MS = 500;
 
     const fetchStatus = useCallback(async () => {
         try {
