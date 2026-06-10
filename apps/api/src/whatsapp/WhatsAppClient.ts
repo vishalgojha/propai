@@ -305,6 +305,8 @@ export class WhatsAppClient {
 
             console.log(`[WhatsAppClient] Socket created for ${this.tenantId}:${this.label}, waiting for QR...`);
             let pairingCodeRequested = false;
+            let pairingCodeRetryCount = 0;
+            const MAX_PAIRING_RETRIES = 3;
             const requestAndEmitPairingCode = async (trigger: string) => {
                 const pairingPhone = normalizePhoneNumber(options.usePairingCode);
                 if (!pairingPhone || pairingCodeRequested) {
@@ -347,12 +349,34 @@ export class WhatsAppClient {
                     );
                 } catch (error) {
                     pairingCodeRequested = false;
+                    pairingCodeRetryCount += 1;
+                    const errorMessage = error instanceof Error ? error.message : String(error);
                     await this.hooks?.onError?.({
                         tenantId: this.tenantId,
                         label: this.label,
                         error,
                         stage: `pairing_code.${trigger}`,
                     });
+                    await whatsappHealthService.appendEvent(
+                        this.tenantId,
+                        this.label,
+                        'pairing_code_error',
+                        `WhatsApp pairing code request failed: ${errorMessage}`,
+                        {
+                            trigger,
+                            phoneNumber: pairingPhone,
+                            retryCount: pairingCodeRetryCount,
+                            maxRetries: MAX_PAIRING_RETRIES,
+                            error: errorMessage,
+                        },
+                    );
+                    if (pairingCodeRetryCount < MAX_PAIRING_RETRIES) {
+                        const delayMs = pairingCodeRetryCount * 3000;
+                        console.warn(`[WhatsAppClient] Pairing code attempt ${pairingCodeRetryCount}/${MAX_PAIRING_RETRIES} failed for ${this.tenantId}:${this.label}, retrying in ${delayMs}ms. Error: ${errorMessage}`);
+                        setTimeout(() => {
+                            void requestAndEmitPairingCode(`retry_${pairingCodeRetryCount}`);
+                        }, delayMs);
+                    }
                 }
             };
 
