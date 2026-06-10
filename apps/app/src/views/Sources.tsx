@@ -27,6 +27,7 @@ import { ENDPOINTS } from '../services/endpoints';
 import { track } from '../services/analytics';
 import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_ASSISTANT_PHONE_DIGITS, PROPAI_PLAN_CARDS } from '../lib/propai';
 import { useAuth } from '../context/AuthContext';
+import { WabaEmbeddedSignup } from '../components/WabaEmbeddedSignup';
 
 type WhatsappSession = {
   label: string;
@@ -2469,6 +2470,20 @@ export const Sources: React.FC = () => {
               {officialCloudFeedback.message}
             </div>
           ) : null}
+
+          <div className="mt-4">
+            <WabaEmbeddedSignup
+              metaAppId={process.env.NEXT_PUBLIC_META_APP_ID || process.env.REACT_APP_META_APP_ID || ''}
+              onConnected={() => {
+                void fetchOfficialCloudConfig();
+                setOfficialCloudFeedback({ tone: 'success', message: 'Official WhatsApp account imported and configured.' });
+              }}
+            />
+          </div>
+
+          <div className="mt-5 border-t border-[color:var(--border)] pt-4">
+            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Manual fallback</p>
+          </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <label className="block">

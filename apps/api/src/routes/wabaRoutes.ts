@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { EmbeddedSignupService } from '../services/embeddedSignupService';
+import { whatsappCloudApiService } from '../services/whatsappCloudApiService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 
 const router = Router();
@@ -80,10 +81,22 @@ router.post('/exchange-token', async (req, res) => {
             }
         }
 
+        const primaryAccount = savedAccounts[0];
+        if (primaryAccount) {
+            await whatsappCloudApiService.saveConfig({
+                tenantId: userId,
+                enabled: true,
+                phoneNumberId: primaryAccount.phoneNumberId,
+                businessAccountId: primaryAccount.businessAccountId,
+                displayPhoneNumber: primaryAccount.phoneNumber,
+                accessToken: tokenResult.accessToken,
+            });
+        }
+
         res.json({
             success: true,
             accounts: savedAccounts,
-            message: `Successfully connected ${savedAccounts.length} phone number(s)`,
+            message: `Successfully imported ${savedAccounts.length} WhatsApp phone number(s)`,
         });
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to exchange token') });

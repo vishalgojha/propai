@@ -52,7 +52,7 @@ function loadFacebookSdk(appId: string): Promise<void> {
     });
 }
 
-export function WabaEmbeddedSignup({ metaAppId }: { metaAppId: string }) {
+export function WabaEmbeddedSignup({ metaAppId, onConnected }: { metaAppId: string; onConnected?: () => void }) {
     const [credentials, setCredentials] = useState<WabaCredential[]>([]);
     const [loading, setLoading] = useState(true);
     const [connecting, setConnecting] = useState(false);
@@ -84,6 +84,11 @@ export function WabaEmbeddedSignup({ metaAppId }: { metaAppId: string }) {
     }, [metaAppId]);
 
     const handleConnect = async () => {
+        if (!metaAppId) {
+            setError('Meta App ID is not configured. Set NEXT_PUBLIC_META_APP_ID for Embedded Signup.');
+            return;
+        }
+
         if (!window.FB) {
             setError('Facebook SDK not loaded. Please refresh and try again.');
             return;
@@ -109,6 +114,7 @@ export function WabaEmbeddedSignup({ metaAppId }: { metaAppId: string }) {
                     .then((result) => {
                         setSuccess(result.data.message || 'Successfully connected WhatsApp account');
                         fetchCredentials();
+                        onConnected?.();
                     })
                     .catch((err) => {
                         const message = handleApiError(err);
@@ -165,7 +171,7 @@ export function WabaEmbeddedSignup({ metaAppId }: { metaAppId: string }) {
                 <button
                     type="button"
                     onClick={handleConnect}
-                    disabled={connecting || !sdkLoaded}
+                    disabled={connecting || !sdkLoaded || !metaAppId}
                     className="inline-flex items-center gap-2 rounded-full bg-[#1877F2] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-white hover:bg-[#166FE5] transition-all disabled:opacity-40"
                 >
                     {connecting ? (

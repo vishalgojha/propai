@@ -185,7 +185,6 @@ export class WhatsAppCloudApiService {
                 tenant_id: input.tenantId,
                 label: SESSION_LABEL,
                 owner_name: input.displayPhoneNumber || 'Official WhatsApp',
-                phone_number: normalizeDigits(input.displayPhoneNumber) || null,
                 status: input.enabled ? 'connected' : 'disconnected',
                 last_sync: now,
                 session_data: sessionData,
