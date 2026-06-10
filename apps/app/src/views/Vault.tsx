@@ -73,6 +73,7 @@ const stripBrokerDecorations = (value: string) =>
   normalizeDraftText(value)
     .replace(BROKER_DECORATION_PATTERN, ' ')
     .replace(BROKER_SYMBOL_PATTERN, ' ')
+    .replace(/[*_`~]+/g, ' ')
     .replace(/[|]{2,}/g, ' ')
     .replace(/[<>]+/g, ' ')
     .replace(/\s+/g, ' ')
@@ -114,7 +115,7 @@ const inferBhk = (text: string) => {
 };
 
 const inferAreaSqft = (text: string) => {
-  const match = text.match(/\b(\d{2,5}(?:,\d{3})?(?:\.\d+)?)\s*(?:sq\s*ft|sqft|sft|sf|carpet|carpet area)\b/i);
+  const match = text.match(/\b(\d{2,5}(?:,\d{3})?(?:\.\d+)?)\s*\+?\s*(?:sq\s*ft|sqft|sft|sf|carpet|carpet area)\b/i);
   return match ? String(Number(match[1].replace(/,/g, ''))) : '';
 };
 
@@ -184,31 +185,51 @@ const inferFurnishing = (text: string) => {
   return '';
 };
 
-const inferLocality = (text: string) => {
-  const lines = cleanDraftLines(text);
-  const firstLine = lines[0] || '';
-  const tailMatch = firstLine.match(/\b(?:in|at|near|opp(?:osite)?|beside|adj(?:acent)?\s+to)\b\s+(.+)$/i);
-  const candidateSource = tailMatch?.[1] || firstLine;
-  const candidate = candidateSource
-    .replace(/^[\-•\d.)\s]+/, '')
+const isBrokerMetaLine = (line: string) => {
+  const lowered = line.toLowerCase();
+  return (
+    /\b(price|budget|deposit|rent|lease|sale|asking|offer|quote)\b/i.test(lowered) ||
+    /\b(?:₹|rs\.?|inr)\b/i.test(lowered) ||
+    /\b\d+(?:\.\d+)?\s*(?:cr|crore|crores|lakh|lakhs|lac|lacs|l|k|thousand)\b/i.test(lowered) ||
+    /\b\d{2,5}(?:,\d{3})?(?:\.\d+)?\s*\+?\s*(?:sq\s*ft|sqft|sft|sf|carpet|carpet area)\b/i.test(lowered) ||
+    /\b(parking|parkings|car park|contact|details|call|whatsapp|wa\.?|mob|mobile|phone)\b/i.test(lowered) ||
+    /(?:\+?\s*91[\s-]*)?[6-9]\d{2}[\s-]?\d{3}[\s-]?\d{4}\b/.test(lowered)
+  );
+};
+
+const cleanLocalityCandidate = (value: string) => {
+  const withContextRemoved = String(value || '')
+    .replace(/\b(?:near|opp(?:osite)?|beside|adj(?:acent)?\s+to)\b.*$/i, ' ')
     .replace(/\b(?:for rent|for sale|for lease|rent|sale|lease|requirement|require|wanted|looking for|need|available)\b/ig, ' ')
     .replace(/\b(\d+(?:\.\d+)?\s*bhk)\b/ig, ' ')
-    .replace(/\b(\d{2,5}(?:,\d{3})?(?:\.\d+)?\s*(?:sq\s*ft|sqft|sft|sf|carpet|carpet area))\b/ig, ' ')
-    .replace(/\b(price|budget|deposit)\b.*$/i, ' ')
+    .replace(/\b(\d{2,5}(?:,\d{3})?(?:\.\d+)?\s*\+?\s*(?:sq\s*ft|sqft|sft|sf|carpet|carpet area))\b/ig, ' ')
+    .replace(/\b(price|budget|deposit|parking|contact)\b.*$/i, ' ')
     .replace(/\b(on|in|at)\b\s*$/i, ' ')
+    .replace(/^[^a-zA-Z0-9]+/, '')
+    .replace(/[.,;:]+$/, '')
     .replace(/\s+/g, ' ')
     .trim();
 
-  if (!candidate || candidate.length < 3) return '';
+  if (!withContextRemoved || withContextRemoved.length < 3) return '';
+  if (/^(need|wanted|looking|client|available|flat|office|shop|warehouse|sale|rent|lease)$/i.test(withContextRemoved)) return '';
+  return withContextRemoved;
+};
 
-  const cleaned = candidate
-    .replace(/^[^a-zA-Z0-9]+/, '')
-    .replace(/[.,;:]+$/, '')
-    .trim();
+const inferLocality = (text: string) => {
+  const lines = cleanDraftLines(text);
+  const candidates = lines
+    .filter((line) => !isBrokerMetaLine(line))
+    .map((line) => {
+      const tailMatch = line.match(/\b(?:in|at)\b\s+(.+)$/i);
+      return cleanLocalityCandidate(tailMatch?.[1] || line);
+    })
+    .filter(Boolean);
 
-  if (!cleaned || cleaned.length < 3) return '';
-  if (/^(need|wanted|looking|client|available|flat|office|shop|warehouse|sale|rent|lease)$/i.test(cleaned)) return '';
-  return cleaned;
+  if (candidates.length === 0) return '';
+  if (candidates.length > 1 && !/\b(?:in|at|near|opp(?:osite)?|beside|adj(?:acent)?\s+to)\b/i.test(candidates[0])) {
+    return candidates[1];
+  }
+  return candidates[0];
 };
 
 const summarizePreviewStatus = (item: VaultDraftPreview) => {
@@ -248,19 +269,21 @@ const parseVaultDraft = (rawText: string): VaultDraftPreview[] => {
   return blocks
     .map((block, index) => {
       const cleanedLines = cleanDraftLines(block);
+      const lineText = cleanedLines.join('\n').trim();
       const cleanText = cleanedLines.join(' ').replace(/\s+/g, ' ').trim();
       const type = inferType(cleanText);
       const dealType = inferDealType(cleanText);
       const bhk = inferBhk(cleanText);
-      const locality = inferLocality(cleanText);
       const areaSqft = inferAreaSqft(cleanText);
+      const configuration = bhk || (areaSqft ? `${areaSqft} sqft` : '');
+      const locality = inferLocality(lineText);
       const priceOrBudget = inferPriceOrBudget(cleanText, dealType);
       const furnishing = inferFurnishing(cleanText);
       const notes = cleanedLines.slice(1).join('\n').trim();
       const missing: string[] = [];
 
       if (!locality) missing.push('locality');
-      if (!bhk && type === 'listing') missing.push('BHK');
+      if (!configuration && type === 'listing') missing.push('configuration');
       if (!priceOrBudget) missing.push(type === 'listing' ? 'price' : 'budget');
       if (type === 'listing' && !areaSqft) missing.push('area');
 
@@ -268,7 +291,7 @@ const parseVaultDraft = (rawText: string): VaultDraftPreview[] => {
         id: `${index}-${block.slice(0, 32)}`,
         type,
         locality,
-        configuration: bhk,
+        configuration,
         dealType,
         price: type === 'listing' ? priceOrBudget : '',
         budget: type === 'requirement' ? priceOrBudget : '',

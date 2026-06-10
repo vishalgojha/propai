@@ -35,11 +35,31 @@ type NormalizedVaultItem = {
   localityInfo: ParsedLocation | null;
 };
 
+type BrokerContact = {
+  name: string | null;
+  phone: string;
+};
+
 const formatINR = (value: number) => `₹${new Intl.NumberFormat('en-IN').format(value)}`;
 
 const coerceNumber = (value: number | string | null | undefined): number | null => {
   if (value === null || value === undefined || value === '') return null;
-  const parsed = typeof value === 'number' ? value : Number(String(value).replace(/[^\d.]/g, ''));
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
+
+  const raw = String(value).toLowerCase().replace(/,/g, ' ').trim();
+  const unitMatch = raw.match(/(\d+(?:\.\d+)?)\s*(cr|crore|crores|lakh|lakhs|lac|lacs|l|k|thousand)\b/i);
+  if (unitMatch) {
+    const amount = Number(unitMatch[1]);
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    const unit = unitMatch[2].toLowerCase();
+    if (unit === 'cr' || unit === 'crore' || unit === 'crores') return amount * 10000000;
+    if (unit === 'lakh' || unit === 'lakhs' || unit === 'lac' || unit === 'lacs' || unit === 'l') return amount * 100000;
+    if (unit === 'k' || unit === 'thousand') return amount * 1000;
+  }
+
+  const parsed = Number(raw.replace(/[^\d.]/g, ''));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 };
 
@@ -50,6 +70,34 @@ const normalizeDealLabel = (dealType: VaultPostItem['dealType']) => {
 };
 
 const makeLeadId = (tenantId: string) => `manual:${tenantId}:${Date.now()}:${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
+
+const normalizeIndianMobile = (value?: string | null): string | null => {
+  const digits = String(value || '').replace(/\D/g, '');
+  const normalized = digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits.slice(-10);
+  if (!/^[6-9]\d{9}$/.test(normalized)) return null;
+  return `91${normalized}`;
+};
+
+const extractBrokerContacts = (text: string): BrokerContact[] => {
+  const contacts: BrokerContact[] = [];
+  const seen = new Set<string>();
+  const lines = String(text || '').split('\n').map((line) => line.trim()).filter(Boolean);
+
+  for (const line of lines) {
+    const cleaned = line.replace(/[*_`~]/g, ' ').replace(/\s+/g, ' ').trim();
+    const matches = [...cleaned.matchAll(/(?:\+?\s*91[\s-]*)?([6-9]\d{2}[\s-]?\d{3}[\s-]?\d{4})\b/g)];
+    for (const match of matches) {
+      const phone = normalizeIndianMobile(match[0]);
+      if (!phone || seen.has(phone)) continue;
+      const before = cleaned.slice(0, match.index || 0).replace(/[-–—:|]+$/g, '').trim();
+      const label = before.split(/\s+/).filter((word) => /^[A-Za-z][A-Za-z.]*$/.test(word)).slice(-2).join(' ') || null;
+      contacts.push({ name: label, phone });
+      seen.add(phone);
+    }
+  }
+
+  return contacts;
+};
 
 router.use(authMiddleware);
 
@@ -151,7 +199,8 @@ router.post('/post', async (req, res) => {
       const notes = String(item.notes || '').trim();
 
       if (!locality) errors.push('Locality is required');
-      if (!bhk) errors.push('BHK is required');
+      if (!bhk && type === 'listing' && !areaSqft) errors.push('Configuration or area is required');
+      if (!bhk && type === 'requirement') errors.push('BHK is required');
       if (!item.dealType) errors.push('Deal type is required');
       if (type === 'listing' && !price) errors.push('Valid price is required for listings');
       if (type === 'requirement' && !budget) errors.push('Valid budget is required for requirements');
@@ -201,19 +250,27 @@ router.post('/post', async (req, res) => {
     const brokerPhone = profile?.data?.phone || null;
     const now = new Date().toISOString();
 
+    const contactsByIndex = new Map<number, BrokerContact[]>();
+    for (const item of normalizedItems) {
+      contactsByIndex.set(item.index, extractBrokerContacts(item.notes || ''));
+    }
+
     const listingsToInsert = normalizedItems
       .filter((item) => item.type === 'listing')
       .map((item) => {
+        const contacts = contactsByIndex.get(item.index) || [];
+        const primaryContact = contacts[0] || null;
         const messageId = `manual:${tenantId}:${Date.now()}:${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}:${item.index}`;
         const dealLabel = normalizeDealLabel(item.dealType);
         const priceLabel = item.price ? formatINR(item.price) : 'Price on Request';
-        const title = `${item.bhk} ${dealLabel} in ${item.locality}`.trim();
-        const rawText = item.notes || `${item.bhk} in ${item.locality} — ${item.dealType} at ${priceLabel}${item.furnishing ? `, ${item.furnishing}` : ''}${item.areaSqft ? `, ${item.areaSqft} sqft` : ''}`;
+        const configuration = item.bhk || (item.areaSqft ? `${item.areaSqft} sqft` : 'Property');
+        const title = `${configuration} ${dealLabel} in ${item.locality}`.trim();
+        const rawText = item.notes || `${configuration} in ${item.locality} — ${item.dealType} at ${priceLabel}${item.furnishing ? `, ${item.furnishing}` : ''}${item.areaSqft ? `, ${item.areaSqft} sqft` : ''}`;
         return {
           tenant_id: tenantId,
           source_group_id: 'vault-manual',
           structured_data: {
-            bhk: item.bhk,
+            bhk: configuration,
             locality: item.locality,
             deal_type: item.dealType,
             type: dealLabel,
@@ -223,11 +280,12 @@ router.post('/post', async (req, res) => {
             furnishing: item.furnishing,
             title,
             building: null,
-          micro_location: item.localityInfo?.matchedAlias || item.locality,
+            micro_location: item.localityInfo?.matchedAlias || item.locality,
             notes: item.notes,
             source: 'vault_manual',
-            broker_name: brokerName,
-            broker_phone: brokerPhone,
+            broker_name: primaryContact?.name || brokerName,
+            broker_phone: primaryContact?.phone || brokerPhone,
+            broker_contacts: contacts,
           },
           raw_text: rawText,
           status: 'Active',
@@ -239,7 +297,8 @@ router.post('/post', async (req, res) => {
       .filter((item) => item.type === 'requirement')
       .map((item) => {
         const leadId = makeLeadId(tenantId);
-        const rawText = item.notes || `${item.bhk} requirement in ${item.locality} — ${item.dealType} budget ${item.budget ? formatINR(item.budget) : 'TBD'}${item.furnishing ? `, ${item.furnishing}` : ''}`;
+        const configuration = item.bhk || (item.areaSqft ? `${item.areaSqft} sqft` : 'Property');
+        const rawText = item.notes || `${configuration} requirement in ${item.locality} — ${item.dealType} budget ${item.budget ? formatINR(item.budget) : 'TBD'}${item.furnishing ? `, ${item.furnishing}` : ''}`;
         const localityCanonical = item.localityInfo?.locality || item.locality;
         return {
           tenant_id: tenantId,
@@ -286,11 +345,19 @@ router.post('/post', async (req, res) => {
       });
 
     const streamRows = normalizedItems.map((item) => {
+      const contacts = contactsByIndex.get(item.index) || [];
+      const primaryContact = contacts[0] || null;
+      const sourcePhone = primaryContact?.phone || brokerPhone;
+      const sourceLabel = primaryContact?.name || brokerName;
+      const brokerWaMeLinks = contacts.length > 0
+        ? contacts.map((contact) => `https://wa.me/${contact.phone}`)
+        : (sourcePhone ? [`https://wa.me/${String(sourcePhone).replace(/\D/g, '')}`] : null);
       const messageId = `manual:${tenantId}:${Date.now()}:${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}:${item.index}`;
       const dealLabel = normalizeDealLabel(item.dealType);
       const priceNumeric = item.type === 'listing' ? item.price : item.budget;
       const priceLabel = priceNumeric ? formatINR(priceNumeric) : 'Price on Request';
-      const rawText = item.notes || `${item.bhk} in ${item.locality} — ${item.dealType} at ${priceLabel}${item.furnishing ? `, ${item.furnishing}` : ''}${item.areaSqft ? `, ${item.areaSqft} sqft` : ''}`;
+      const configuration = item.bhk || (item.areaSqft ? `${item.areaSqft} sqft` : 'Property');
+      const rawText = item.notes || `${configuration} in ${item.locality} — ${item.dealType} at ${priceLabel}${item.furnishing ? `, ${item.furnishing}` : ''}${item.areaSqft ? `, ${item.areaSqft} sqft` : ''}`;
       return {
         tenant_id: tenantId,
         message_id: messageId,
@@ -298,25 +365,31 @@ router.post('/post', async (req, res) => {
         type: dealLabel,
         record_type: item.type,
         locality: item.locality,
-        bhk: item.bhk,
+        bhk: configuration,
         price_label: priceLabel,
         price_numeric: priceNumeric,
         furnishing: item.furnishing || null,
         area_sqft: item.areaSqft || null,
         property_category: 'residential',
         source: 'manual',
-        source_phone: brokerPhone,
-        broker_name: brokerName,
+        source_phone: sourcePhone,
+        broker_name: sourceLabel,
+        broker_wa_me_links: brokerWaMeLinks,
         is_syndicated: true,
         confidence_score: 100,
         parsed_payload: {
           source: 'manual',
           postedBy: tenantId,
           postedAt: now,
-          displayTitle: `${item.bhk} in ${item.locality} — ${dealLabel}`,
+          displayTitle: `${configuration} in ${item.locality} — ${dealLabel}`,
           notes: item.notes || null,
-          brokerName,
-          brokerPhone,
+          brokerName: sourceLabel,
+          brokerPhone: sourcePhone,
+          brokerContacts: contacts,
+          sourcePhone,
+          sourceLabel,
+          contactName: sourceLabel,
+          contactPhone: sourcePhone,
         },
         ingestion_status: 'accepted',
         created_at: now,
