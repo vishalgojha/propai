@@ -1,10 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Pause, Play } from 'lucide-react';
+import { Loader2, MessageSquare, Pause, Play, RefreshCw, Send } from 'lucide-react';
 import backendApi, { handleApiError, isApiAbortError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
 import { rebuildStreamFromSavedMessages } from '../services/streamService';
+import { useAuth } from '../context/AuthContext';
 
 type GroupHealth = {
   id: string;
@@ -76,10 +77,52 @@ type TransportStatus = {
   label: string | null;
 };
 
+type WaLog = {
+  id: string;
+  sender: string;
+  message: string;
+  timestamp: string;
+  remoteJid: string;
+};
+
+type WaEventRecord = {
+  id: string;
+  sessionLabel: string;
+  eventType: string;
+  message: string;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
+};
+
+type WaHealthSummary = {
+  groupCount: number;
+  messagesReceived24h: number;
+  messagesParsed24h: number;
+  parserSuccessRate: number;
+  healthState: 'healthy' | 'warning' | 'critical';
+};
+
+type WaDetailedSession = {
+  label: string;
+  status: string;
+  phoneNumber?: string | null;
+  diagnostics?: {
+    disconnectReason?: string | null;
+    lastIngestionStallAlertSignature?: string | null;
+    lastIngestionStallAlertAt?: string | null;
+    lastIngestionStallAlertDelivery?: string | null;
+  } | null;
+  liveData?: {
+    reconnectAttempts?: number;
+    isReconnecting?: boolean;
+  } | null;
+};
+
 const terminalPanelClass =
   'terminal-panel rounded-none border border-[color:var(--accent-border)] bg-[rgba(9,13,18,0.94)]';
 
 export default function ParsingTerminal() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [groups, setGroups] = React.useState<GroupHealth[]>([]);
   const [events, setEvents] = React.useState<ParserEvent[]>([]);
@@ -97,6 +140,14 @@ export default function ParsingTerminal() {
   const [isHeaderCollapsed, setIsHeaderCollapsed] = React.useState(false);
   const matrixScrollRef = React.useRef<HTMLDivElement | null>(null);
   const eventsScrollRef = React.useRef<HTMLDivElement | null>(null);
+  const [waLogs, setWaLogs] = React.useState<WaLog[]>([]);
+  const [waEvents, setWaEvents] = React.useState<WaEventRecord[]>([]);
+  const [waHealth, setWaHealth] = React.useState<WaHealthSummary | null>(null);
+  const [waDetailed, setWaDetailed] = React.useState<WaDetailedSession | null>(null);
+  const [isSubmittingSupport, setIsSubmittingSupport] = React.useState(false);
+  const [supportFeedback, setSupportFeedback] = React.useState<string | null>(null);
+  const [supportError, setSupportError] = React.useState<string | null>(null);
+  const isSuperAdmin = user?.appRole === 'super_admin';
 
   const refresh = React.useCallback(async () => {
     try {
@@ -261,6 +312,59 @@ export default function ParsingTerminal() {
     }
   }, []);
 
+  const fetchWaLogs = React.useCallback(async () => {
+    try {
+      const [msgResponse, healthResponse, eventResponse] = await Promise.all([
+        backendApi.get(ENDPOINTS.whatsapp.messages),
+        backendApi.get(ENDPOINTS.whatsapp.health),
+        backendApi.get(ENDPOINTS.whatsapp.events),
+      ]);
+      const nextLogs = (Array.isArray(msgResponse.data) ? msgResponse.data : [])
+        .map((entry: any, index: number) => ({
+          id: String(entry.id || `log-${index}`),
+          sender: String(entry.sender || entry.remote_jid || 'Unknown'),
+          message: String(entry.message_text || entry.text || '').trim(),
+          timestamp: String(entry.timestamp || entry.created_at || ''),
+          remoteJid: String(entry.remote_jid || ''),
+        }))
+        .filter((entry: WaLog) => entry.message)
+        .slice(-30)
+        .reverse();
+      setWaLogs(nextLogs);
+      const rawSummary = healthResponse.data?.summary;
+      if (rawSummary && typeof rawSummary === 'object') {
+        setWaHealth({
+          groupCount: Math.max(Number(rawSummary.groupCount || 0), 0),
+          messagesReceived24h: Number(rawSummary.messagesReceived24h || 0),
+          messagesParsed24h: Number(rawSummary.messagesParsed24h || 0),
+          parserSuccessRate: Number(rawSummary.parserSuccessRate || 0),
+          healthState: String(rawSummary.healthState || 'warning') as WaHealthSummary['healthState'],
+        });
+      }
+      const eventData = Array.isArray(eventResponse.data) ? eventResponse.data : [];
+      setWaEvents(eventData.map((row: any, index: number) => ({
+        id: String(row.id || `wa-event-${index}`),
+        sessionLabel: String(row.sessionLabel || row.session_label || ''),
+        eventType: String(row.eventType || row.event_type || 'unknown'),
+        message: String(row.message || row.payload?.message || ''),
+        createdAt: String(row.createdAt || row.created_at || ''),
+        metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {},
+      })));
+      if (isSuperAdmin) {
+        const detailedResponse = await backendApi.get(ENDPOINTS.whatsapp.healthDetailed);
+        const sessions = Array.isArray(detailedResponse.data?.sessions) ? detailedResponse.data.sessions : [];
+        const session = sessions.find((s: any) => s.status === 'connected' || s.status === 'reconnecting') || sessions[0] || null;
+        setWaDetailed(session ? {
+          label: String(session.label || ''),
+          status: String(session.status || 'disconnected'),
+          phoneNumber: typeof session.phoneNumber === 'string' ? session.phoneNumber : null,
+          diagnostics: session.diagnostics && typeof session.diagnostics === 'object' ? session.diagnostics : null,
+          liveData: session.liveData && typeof session.liveData === 'object' ? session.liveData : null,
+        } : null);
+      }
+    } catch { /* WA logs are secondary; don't surface errors */ }
+  }, [isSuperAdmin]);
+
   React.useEffect(() => {
     void refresh();
     const timer = window.setInterval(() => {
@@ -268,6 +372,26 @@ export default function ParsingTerminal() {
     }, isConnected ? 5000 : 15000);
     return () => window.clearInterval(timer);
   }, [isConnected, refresh]);
+
+  React.useEffect(() => {
+    void fetchWaLogs();
+    const timer = window.setInterval(() => { void fetchWaLogs(); }, 30000);
+    return () => window.clearInterval(timer);
+  }, [fetchWaLogs]);
+
+  const handleSubmitSupport = React.useCallback(async () => {
+    setIsSubmittingSupport(true);
+    setSupportFeedback(null);
+    setSupportError(null);
+    try {
+      const response = await backendApi.post(ENDPOINTS.whatsapp.supportLogs);
+      setSupportFeedback(response.data?.message || 'Support logs sent.');
+    } catch (err) {
+      setSupportError(handleApiError(err));
+    } finally {
+      setIsSubmittingSupport(false);
+    }
+  }, []);
 
   const updateHeaderCollapse = React.useCallback(() => {
     const hasPageScroll = window.scrollY > 40;
@@ -583,6 +707,106 @@ export default function ParsingTerminal() {
                 detail="Console clock"
                 tone="neutral"
               />
+            </div>
+          </div>
+
+          <div className={cn(terminalPanelClass, 'overflow-hidden')}>
+            <PanelHeader left="Session events" right={waEvents.length > 0 ? `${waEvents.length} events` : 'No events'} />
+            <div className="flex items-center justify-between gap-2 border-b border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.04)] px-4 py-2">
+              <button
+                type="button"
+                onClick={() => void handleSubmitSupport()}
+                disabled={isSubmittingSupport}
+                className="flex items-center gap-2 border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--accent)] disabled:opacity-60"
+              >
+                {isSubmittingSupport ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                Send logs to support
+              </button>
+              <button
+                type="button"
+                onClick={() => void fetchWaLogs()}
+                className="flex items-center gap-1 border border-[color:var(--border)] bg-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--text-secondary)]"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Refresh
+              </button>
+            </div>
+            {supportFeedback && (
+              <div className="border-b border-[color:var(--accent-border)] px-4 py-2 font-mono text-[9px] uppercase tracking-[0.1em] text-[var(--accent)]">
+                {supportFeedback}
+              </div>
+            )}
+            {supportError && (
+              <div className="border-b border-[rgba(239,68,68,0.3)] px-4 py-2 font-mono text-[9px] uppercase tracking-[0.1em] text-[var(--red)]">
+                {supportError}
+              </div>
+            )}
+            <div className="grid gap-2 p-3 sm:grid-cols-2">
+              {waHealth ? (
+                <>
+                  <MiniStat label="Groups" value={waHealth.groupCount} tone="neutral" />
+                  <MiniStat label="Rx 24h" value={waHealth.messagesReceived24h} tone="neutral" />
+                  <MiniStat label="Parsed" value={waHealth.messagesParsed24h} tone="positive" />
+                  <MiniStat label="Rate" value={waHealth.parserSuccessRate} tone={waHealth.parserSuccessRate >= 60 ? 'positive' : 'warning'} />
+                </>
+              ) : (
+                <TerminalEmpty text="No health data yet" />
+              )}
+            </div>
+            {isSuperAdmin && waDetailed && (
+              <div className="border-t border-[color:var(--accent-border)] p-3">
+                <p className="mb-2 font-mono text-[8px] uppercase tracking-[0.18em] text-[var(--text-muted)]">Runtime diagnostics</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="border border-[color:var(--border)] bg-[var(--bg-elevated)] p-2 font-mono text-[9px]">
+                    <p className="text-[var(--text-secondary)]">Stall signature</p>
+                    <p className="mt-1 break-all text-[var(--text-primary)]">{waDetailed.diagnostics?.lastIngestionStallAlertSignature || 'No stall'}</p>
+                  </div>
+                  <div className="border border-[color:var(--border)] bg-[var(--bg-elevated)] p-2 font-mono text-[9px]">
+                    <p className="text-[var(--text-secondary)]">Reconnect attempts</p>
+                    <p className="mt-1 text-[var(--text-primary)]">{waDetailed.liveData?.reconnectAttempts || 0}</p>
+                    <p className="mt-1 text-[var(--text-muted)]">{waDetailed.liveData?.isReconnecting ? 'Reconnecting now' : 'Idle'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="pulse-scrollbar max-h-[260px] overflow-y-auto border-t border-[color:var(--accent-border)]">
+              {waEvents.length === 0 ? (
+                <TerminalEmpty text="No lifecycle events yet" />
+              ) : (
+                waEvents.map((evt) => (
+                  <div key={evt.id} className="border-b border-[color:var(--border)] px-4 py-2 font-mono text-[10px]">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold uppercase tracking-[0.06em] text-[var(--text-primary)]">{evt.eventType.split('_').join(' ')}</span>
+                      <span className="shrink-0 text-[8px] text-[var(--text-muted)]">{formatDateTime(evt.createdAt)}</span>
+                    </div>
+                    {evt.sessionLabel && <p className="mt-1 text-[8px] uppercase tracking-[0.1em] text-[var(--text-muted)]">{evt.sessionLabel}</p>}
+                    <p className="mt-1 text-[9px] leading-4 text-[var(--text-secondary)]">{evt.message}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className={cn(terminalPanelClass, 'overflow-hidden')}>
+            <PanelHeader left="Raw messages" right={`${waLogs.length} recent`} />
+            <div className="pulse-scrollbar max-h-[320px] space-y-0 overflow-y-auto">
+              {waLogs.length === 0 ? (
+                <TerminalEmpty text="No recent WhatsApp messages" />
+              ) : (
+                waLogs.map((log) => (
+                  <div key={log.id} className="border-b border-[color:var(--border)] px-4 py-3 font-mono">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <MessageSquare className="h-3 w-3 shrink-0 text-[var(--text-muted)]" />
+                        <span className="truncate text-[11px] font-bold uppercase tracking-[0.04em] text-[var(--text-primary)]">{log.sender}</span>
+                      </div>
+                      <span className="shrink-0 text-[8px] text-[var(--text-muted)]">{formatDateTime(log.timestamp)}</span>
+                    </div>
+                    <p className="mt-2 text-[10px] leading-5 text-[var(--text-secondary)]">{log.message}</p>
+                    <p className="mt-1 truncate text-[8px] uppercase tracking-[0.1em] text-[var(--text-muted)]">{log.remoteJid}</p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </aside>
@@ -943,6 +1167,21 @@ function formatStamp(value?: string | null) {
     second: '2-digit',
     hour12: false,
   }).format(new Date(value));
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '--';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '--';
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Kolkata',
+  }).format(parsed);
 }
 
 function shouldPromptForParsing(group: GroupHealth) {

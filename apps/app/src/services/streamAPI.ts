@@ -33,6 +33,7 @@ export interface StreamItem {
   brokerCompany?: string | null;
   waLink?: string | null;
   brokerWaMeLinks?: string[] | null;
+  brokerContacts?: Array<{ name: string | null; phone: string; waLink: string }> | null;
   isNetworkItem?: boolean;
   isSyndicated?: boolean;
   sourceWorkspaceId?: string;

@@ -64,7 +64,7 @@ const STANDARD_LOCALITIES = new Set([
 
 type PublicStreamSource = "stream_items" | "stream_items_residential" | "stream_items_commercial";
 
-const PUBLIC_STREAM_SELECT = "id, tenant_id, canonical_record_id, type, deal_type, record_type, locality, city, configuration, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, updated_at, parsed_payload, property_category, asset_class";
+const PUBLIC_STREAM_SELECT = "id, tenant_id, canonical_record_id, type, deal_type, record_type, locality, city, configuration, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, updated_at, parsed_payload, property_category, asset_class, broker_wa_me_links";
 const PUBLIC_SOURCE_TABLES: Array<{ table: PublicStreamSource; select: string; includeCanonical: boolean }> = [
   { table: "stream_items_residential", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", ""), includeCanonical: false },
   { table: "stream_items_commercial", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", "").replace(", configuration", ""), includeCanonical: false },
@@ -122,6 +122,7 @@ export interface PublicListing {
   slug: string;
   floor?: string;
   origin?: string;
+  contacts?: Array<{ name: string | null; phone: string; waLink: string }>;
 }
 
 function normalizeLocalityQuery(value?: string | null) {
@@ -132,6 +133,53 @@ function normalizeLocalityQuery(value?: string | null) {
     .trim()
     .replace(/\s+/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function normalizeIndianMobile(value?: string | null): string | null {
+  const digits = String(value || "").replace(/\D/g, "");
+  const normalized = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits.slice(-10);
+  if (!/^[6-9]\d{9}$/.test(normalized)) return null;
+  return `91${normalized}`;
+}
+
+function extractContactActions(row: any, rawText: string): Array<{ name: string | null; phone: string; waLink: string }> {
+  const contacts: Array<{ name: string | null; phone: string; waLink: string }> = [];
+  const seen = new Set<string>();
+
+  const addContact = (phoneValue?: string | null, nameValue?: string | null, waLink?: string | null) => {
+    const phone = normalizeIndianMobile(phoneValue);
+    if (!phone || seen.has(phone)) return;
+    seen.add(phone);
+    contacts.push({
+      name: String(nameValue || "").trim() || null,
+      phone,
+      waLink: String(waLink || "").trim() || `https://wa.me/${phone}`,
+    });
+  };
+
+  const payloadContacts = Array.isArray(row?.parsed_payload?.brokerContacts) ? row.parsed_payload.brokerContacts : [];
+  for (const contact of payloadContacts) {
+    addContact(contact?.phone, contact?.name);
+  }
+
+  for (const line of String(rawText || "").split("\n")) {
+    const cleaned = line.replace(/[*_`~]/g, " ").replace(/\s+/g, " ").trim();
+    const matches = [...cleaned.matchAll(/(?:\+?\s*91[\s-]*)?([6-9]\d{2}[\s-]?\d{3}[\s-]?\d{4})\b/g)];
+    for (const match of matches) {
+      const before = cleaned.slice(0, match.index || 0).replace(/[-–—:|]+$/g, "").trim();
+      const label = before.split(/\s+/).filter((word) => /^[A-Za-z][A-Za-z.]*$/.test(word)).slice(-2).join(" ") || null;
+      addContact(match[0], label);
+    }
+  }
+
+  const links = Array.isArray(row?.broker_wa_me_links) ? row.broker_wa_me_links : [];
+  for (const link of links) {
+    addContact(link, null, link);
+  }
+
+  addContact(row?.source_phone || row?.parsed_payload?.sourcePhone || row?.parsed_payload?.contactPhone, row?.parsed_payload?.contactName || row?.parsed_payload?.sourceLabel);
+
+  return contacts;
 }
 
 export async function fetchPublicListings(locality?: string): Promise<PublicListing[]> {
@@ -333,6 +381,7 @@ export async function recordPublicWaClick(input: {
   }
 
   const rawText = String(row.raw_text || "");
+  const contacts = extractContactActions(row, rawText);
   const phone =
     String((row as any).source_phone || (row as any).parsed_payload?.contactPhone || (row as any).parsed_payload?.sourcePhone || "").replace(/\D/g, "") ||
     rawText.match(/(?:\+91[-\s]?)?([6-9]\d{9})/)?.[1] ||
@@ -511,6 +560,7 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
     slug,
     floor: floor || undefined,
     origin: origin || undefined,
+    contacts,
   };
 }
 

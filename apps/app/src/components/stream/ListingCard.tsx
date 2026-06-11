@@ -18,6 +18,12 @@ type ListingCardProps = {
     onSaveToChannel?: (channelId: string, streamItemId: string) => void;
 };
 
+type ContactAction = {
+    name: string | null;
+    phone: string;
+    waLink: string;
+};
+
 function formatPriceDisplay(item: StreamItem): string | null {
     const label = getStreamPriceLabel(item);
     return label === '—' ? null : label;
@@ -277,6 +283,39 @@ function buildChips(listing: StreamItem): string[] {
     return Array.from(new Set(chips)).slice(0, 6);
 }
 
+function buildContactActions(listing: StreamItem): ContactAction[] {
+    const seen = new Set<string>();
+    const contacts: ContactAction[] = [];
+
+    for (const contact of listing.brokerContacts || []) {
+        const phone = String(contact.phone || '').replace(/\D/g, '');
+        const waLink = String(contact.waLink || '').trim();
+        if (!phone || !waLink || seen.has(phone)) continue;
+        seen.add(phone);
+        contacts.push({ name: contact.name || null, phone, waLink });
+    }
+
+    for (const link of listing.brokerWaMeLinks || []) {
+        const phone = String(link || '').replace(/\D/g, '').slice(-12);
+        if (!phone || seen.has(phone)) continue;
+        seen.add(phone);
+        contacts.push({ name: null, phone, waLink: link });
+    }
+
+    if (contacts.length === 0 && listing.waLink) {
+        const phone = String(listing.waLink).replace(/\D/g, '').slice(-12) || 'primary';
+        contacts.push({ name: listing.brokerName || null, phone, waLink: listing.waLink });
+    }
+
+    return contacts;
+}
+
+function formatContactLabel(contact: ContactAction, index: number) {
+    if (contact.name) return contact.name;
+    if (index === 0) return 'Broker';
+    return `Contact ${index + 1}`;
+}
+
 export const ListingCard: React.FC<ListingCardProps> = ({
     listing,
     networkMode = false,
@@ -300,6 +339,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
     const displayTitle = buildDisplayTitle(listing);
     const chips = buildChips(listing);
     const description = buildDescription(listing);
+    const contactActions = buildContactActions(listing);
     const sourceLabel = listing.isSyndicated
       ? `Via ${listing.sourceWorkspaceName || 'partner network'}`
       : networkMode && listing.isNetworkItem
@@ -502,6 +542,11 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                             <MessageSquare className="h-4 w-4" />
                             {isOpening ? 'Opening...' : 'Contact on WhatsApp'}
                         </button>
+                        {contactActions.length > 1 ? (
+                            <span className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2 py-1 text-[10px] font-semibold text-[var(--text-secondary)]">
+                                +{contactActions.length - 1}
+                            </span>
+                        ) : null}
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onToggle(); }}
@@ -560,14 +605,31 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
-                                <button
-                                    onClick={handleOpenWa}
-                                    disabled={isOpening}
-                                    className="flex items-center gap-1.5 rounded-xl bg-[--propai-green] px-4 py-2 text-[11px] font-semibold text-[#0D1A12] hover:brightness-110 disabled:opacity-60"
-                                >
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                    {isOpening ? 'Opening...' : 'Open WhatsApp'}
-                                </button>
+                                {contactActions.length > 0 ? (
+                                    contactActions.map((contact, index) => (
+                                        <button
+                                            key={`${contact.phone}-${index}`}
+                                            type="button"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                window.open(contact.waLink, '_blank', 'noopener,noreferrer');
+                                            }}
+                                            className="flex items-center gap-1.5 rounded-xl bg-[--propai-green] px-4 py-2 text-[11px] font-semibold text-[#0D1A12] hover:brightness-110"
+                                        >
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                            {formatContactLabel(contact, index)}
+                                        </button>
+                                    ))
+                                ) : (
+                                    <button
+                                        onClick={handleOpenWa}
+                                        disabled={isOpening}
+                                        className="flex items-center gap-1.5 rounded-xl bg-[--propai-green] px-4 py-2 text-[11px] font-semibold text-[#0D1A12] hover:brightness-110 disabled:opacity-60"
+                                    >
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                        {isOpening ? 'Opening...' : 'Open WhatsApp'}
+                                    </button>
+                                )}
                                 <div className="relative">
                                     <button
                                         type="button"

@@ -110,8 +110,6 @@ export const Layout: React.FC = () => {
       case '/stream': return 'Stream';
       case '/sources':
         return 'WhatsApp';
-      case '/wa-logs':
-        return 'WA Logs';
       case '/pricing':
         return 'Pricing';
       case '/docs':

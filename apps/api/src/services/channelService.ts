@@ -105,6 +105,7 @@ export type StreamItemRecord = {
     parking?: string | null;
     propertyUse?: string | null;
     brokerWaMeLinks?: string[] | null;
+    brokerContacts?: Array<{ name: string | null; phone: string; waLink: string }> | null;
     posted: string;
     rawText?: string;
     source: string;
@@ -324,6 +325,58 @@ const generateWaLink = (item: any, brokerName: string | null, brokerPhone: strin
         : `${greeting}Regarding your listing for ${bhk || assetType}${building ? ` at ${building}` : ''} in ${locality}${price ? ` at ₹${price}` : ''}, is it still available?`;
 
     return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+};
+
+const buildBrokerContactActions = (item: any, rawText: string): Array<{ name: string | null; phone: string; waLink: string }> => {
+    const contactsFromPayload = Array.isArray(item.parsed_payload?.brokerContacts)
+        ? item.parsed_payload.brokerContacts
+        : [];
+    const structuredContacts = contactsFromPayload
+        .map((contact: any) => {
+            const phone = normaliseIndianPhone(contact?.phone);
+            if (!phone) return null;
+            return {
+                name: String(contact?.name || '').trim() || null,
+                phone,
+                waLink: `https://wa.me/${phone}`,
+            };
+        })
+        .filter(Boolean) as Array<{ name: string | null; phone: string; waLink: string }>;
+
+    const rawContacts = extractBrokerContacts(rawText).map((contact) => ({
+        name: contact.name || null,
+        phone: contact.phone,
+        waLink: `https://wa.me/${contact.phone}`,
+    }));
+
+    const links = Array.isArray(item.broker_wa_me_links) ? item.broker_wa_me_links : [];
+    const linkContacts = links
+        .map((link: string, index: number) => {
+            const phone = normaliseIndianPhone(link);
+            if (!phone) return null;
+            return {
+                name: null,
+                phone,
+                waLink: String(link || '').trim() || `https://wa.me/${phone}`,
+            };
+        })
+        .filter(Boolean) as Array<{ name: string | null; phone: string; waLink: string }>;
+
+    const sourcePhone = normaliseIndianPhone(item.source_phone || item.parsed_payload?.sourcePhone || item.parsed_payload?.contactPhone);
+    const sourceContact = sourcePhone
+        ? [{
+            name: String(item.parsed_payload?.contactName || item.parsed_payload?.sourceLabel || item.broker_name || '').trim() || null,
+            phone: sourcePhone,
+            waLink: `https://wa.me/${sourcePhone}`,
+        }]
+        : [];
+
+    const seen = new Set<string>();
+    return [...structuredContacts, ...rawContacts, ...linkContacts, ...sourceContact].filter((contact) => {
+        if (seen.has(contact.phone)) return false;
+        seen.add(contact.phone);
+        return true;
+    });
 };
 
 function isMissingSchemaEntityError(message?: string | null) {
@@ -4476,6 +4529,10 @@ ${rawText}
 
     private mapStreamItem(item: any, currentTenantId: string, isRead?: boolean): StreamItemRecord {
         const rawText = String(item.raw_text || '');
+        const brokerContacts = buildBrokerContactActions(item, rawText);
+        const brokerWaMeLinks = brokerContacts.length > 0
+            ? brokerContacts.map((contact) => contact.waLink)
+            : (Array.isArray(item.broker_wa_me_links) ? item.broker_wa_me_links : null);
         const locality = String(item.locality || '').trim();
         const dealType = String(item.deal_type || '').trim() || extractDealType(rawText);
         const inferredBhk = String(item.bhk || '').trim() || extractBhk(rawText);
@@ -4532,7 +4589,8 @@ ${rawText}
             totalFloors: String(item.total_floors || '').trim() || extractTotalFloors(rawText),
             parking: String(item.parking || '').trim() || extractParking(rawText),
             propertyUse: String(item.property_use || '').trim() || extractPropertyUse(rawText),
-            brokerWaMeLinks: Array.isArray(item.broker_wa_me_links) ? item.broker_wa_me_links : null,
+            brokerWaMeLinks,
+            brokerContacts: brokerContacts.length > 0 ? brokerContacts : null,
             posted: formatPostedTime(item.created_at),
             createdAt: item.created_at,
             source,

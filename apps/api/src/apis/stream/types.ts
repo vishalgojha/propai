@@ -15,6 +15,7 @@ export interface StreamItem {
   floorNumber?: string | null;
   totalFloors?: string | null;
   propertyUse?: string | null;
+  brokerContacts?: Array<{ name: string | null; phone: string; waLink: string }> | null;
   commercialType?: string | null;
   fitoutStatus?: string | null;
   workstationsCount?: number | null;
