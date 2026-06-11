@@ -26,7 +26,7 @@ System-level docs written for successor handoff. Read these before making change
 |-------------|-------------------|--------------|--------------|
 | `apps/api/**` | **API** + **WhatsApp Worker** | `propai api` | `k12r72fxjn4dz0p5vo3uwrkq` |
 | | (both use same Dockerfile) | `propai whatsapp worker` | `y33718hsvleeozw3m2mz2dl5` |
-| `apps/app/**` | App | `propai pulse` | `lburg4buwnc94z9zpx0walg5` |
+| `apps/app/**` | App | `propai pulse` | `lburg4buwnc94z9hpx0walg5` |
 | `apps/www/**` | WWW | `propai:web` | `x37zz4949pttnobai5ov9q3p` |
 | `apps/mcp/**` | MCP | `propaiMCP` | `agr47ygipjbqgnyuw9pl5fc8` |
 | `packages/**` | All that depend on it | — | — |
