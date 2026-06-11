@@ -131,11 +131,13 @@ export class KeyService {
     }
 
     async hasAnyKeys(tenantId: string): Promise<boolean> {
+        const aiProviders = ['Google', 'Groq', 'OpenRouter', 'Doubleword', 'OpenAI'];
         try {
             const { data, error } = await getKeyStoreClient()
                 .from(KEY_TABLE)
-                .select('provider', { count: 'exact', head: true })
-                .eq('tenant_id', tenantId);
+                .select('provider')
+                .eq('tenant_id', tenantId)
+                .in('provider', aiProviders);
 
             if (!error && data) {
                 return (data as any[]).length > 0;
