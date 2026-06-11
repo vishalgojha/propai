@@ -41,6 +41,7 @@ type HeartbeatSessionManager = {
     getAllSessions(): HeartbeatSessionSnapshot[];
     rehydratePersistedSessions?: () => Promise<void>;
     forceReconnect?: (tenantId: string, sessionKey?: string) => Promise<unknown>;
+    removeSession?: (tenantId: string, sessionKey?: string) => Promise<void>;
     createSession(
         tenantId: string,
         onQR: (qr: string) => void,
@@ -1019,6 +1020,27 @@ export class WhatsAppHealthService {
                 }
 
                 if (!row.creds || !row.keys) {
+                    if (liveSession) {
+                        if (this.shouldLogHeartbeat(`heartbeat_creds_cleared:${tenantId}:${sessionLabel}`, 5_000)) {
+                            await this.appendEvent(
+                                tenantId,
+                                sessionLabel,
+                                'heartbeat_creds_cleared',
+                                `Credentials cleared from DB for ${sessionLabel}; removing live session.`,
+                            );
+                        }
+                        try {
+                            if (sessionManager.removeSession) {
+                                await sessionManager.removeSession(tenantId, sessionLabel);
+                            }
+                        } catch (error) {
+                            console.warn('[WhatsAppHealthService] Failed to remove session with cleared creds', {
+                                tenantId,
+                                sessionLabel,
+                                error,
+                            });
+                        }
+                    }
                     continue;
                 }
 
