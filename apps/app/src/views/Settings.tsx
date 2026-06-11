@@ -675,6 +675,19 @@ export const Settings: React.FC = () => {
                         data-lpignore="true"
                         value={aiKeys[providerKey] || ''}
                         onChange={(e) => updateAiKey(providerKey, e.target.value)}
+                        onPaste={(e) => {
+                          const text = e.clipboardData.getData('text');
+                          if (/[\n\r]/.test(text)) {
+                            e.preventDefault();
+                            const cleaned = text.replace(/[\n\r]+/g, '').trim();
+                            if (!cleaned) return;
+                            const el = e.target as HTMLTextAreaElement;
+                            const val = el.value;
+                            const before = val.slice(0, el.selectionStart);
+                            const after = val.slice(el.selectionEnd);
+                            updateAiKey(providerKey, before + cleaned + after);
+                          }
+                        }}
                         placeholder={`Paste ${provider.name} keys, one per line`}
                         style={{ WebkitTextSecurity: showKeys[provider.id] ? 'none' : 'disc' } as React.CSSProperties}
                         className="min-h-[104px] w-full resize-y rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] py-3 pl-3 pr-10 text-[12px] leading-5 text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[color:var(--accent)]"
