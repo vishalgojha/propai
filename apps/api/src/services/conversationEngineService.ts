@@ -245,7 +245,6 @@ export class ConversationEngineService {
                 ? maybePersonalizeWhatsAppGreeting(renderedReply, input.greetingName, input.shouldGreetByName)
                 : renderedReply;
             await saveToHistory(event.conversation.key, rawPrompt, personalizedReply, input.sessionId);
-
             return {
                 reply: personalizedReply,
                 text: personalizedReply,
@@ -255,16 +254,6 @@ export class ConversationEngineService {
                 workflowData: sharedRouteResult.workflowData,
                 data: sharedRouteResult.data,
             };
-        }
-
-        if (route.intent === 'general_chat' && isFirstReply) {
-            const message = event.channel === 'web'
-                ? 'I can help with listings, buyer or tenant requirements, follow-ups, IGR checks, and workspace search. Send a locality, building, budget, or the task you want done.'
-                : 'Batao kya chahiye: listing search, buyer/tenant requirement, follow-up, ya IGR check?';
-            const agentResponse = toAgentResponse(message);
-            const renderedReply = renderChannelReply(event.channel, agentResponse);
-            await saveToHistory(event.conversation.key, rawPrompt, renderedReply, input.sessionId);
-            return { reply: renderedReply, text: renderedReply, agentResponse, route, capabilityHint };
         }
 
         const basePrompt = event.channel === 'web'
