@@ -34,7 +34,7 @@ import {
   revokeSyndication,
   type SyndicationPartner,
 } from '../services/syndicationApi';
-import { WabaEmbeddedSignup } from '../components/WabaEmbeddedSignup';
+
 
 interface AIConfig {
   gemini?: string;
@@ -764,10 +764,6 @@ export const Settings: React.FC = () => {
               value={settings.noiseFilter}
               onToggle={() => updateSetting('noiseFilter', !settings.noiseFilter)}
             />
-          </SurfaceSection>
-
-          <SurfaceSection title="Official WhatsApp Account" subtitle="Connect your Meta Cloud API account via Embedded Signup. No manual ID copy-paste." icon={LinkIcon}>
-            <WabaEmbeddedSignup metaAppId={process.env.NEXT_PUBLIC_META_APP_ID || process.env.REACT_APP_META_APP_ID || ''} />
           </SurfaceSection>
 
           <SurfaceSection title="AI Behavior" subtitle="How Pulse decides, thinks, and keeps context." icon={WorkflowIcon}>
