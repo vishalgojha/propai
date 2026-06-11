@@ -59,6 +59,7 @@ function hasActiveSessionStatus(value?: unknown) {
 }
 
 const CONNECTION_ARTIFACT_TTL_MS = 120_000;
+const CONNECT_START_RESPONSE_TIMEOUT_MS = 5_000;
 
 function getPersistedConnectionArtifact(sessionData?: Record<string, unknown> | null, mode: ConnectionArtifactMode = 'qr') {
     const artifact = sessionData?.connectionArtifact;
@@ -385,13 +386,98 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             return;
         }
 
-        await gateway.connect({
+        const connectingAt = new Date().toISOString();
+        const nextSessionData = {
+            ...existingData,
+            phoneNumber: phoneNumber || normalizedRequestedPhone || null,
+            ownerName: ownerName || null,
+            label: sessionLabel,
+            groupAuditPending: existingData.groupAuditCompletedAt ? Boolean(existingData.groupAuditPending) : true,
+            groupAuditCompletedAt: existingData.groupAuditCompletedAt || null,
+        };
+
+        await dbClient
+            .from('whatsapp_sessions')
+            .upsert({
+                tenant_id: tenantId,
+                label: sessionLabel,
+                owner_name: ownerName || null,
+                session_data: nextSessionData,
+                status: 'connecting',
+                last_sync: connectingAt,
+                updated_at: connectingAt,
+            }, { onConflict: 'tenant_id,label' });
+
+        const connectPromise = gateway.connect({
             workspaceOwnerId: tenantId,
             sessionLabel,
             ownerName,
             phoneNumber,
             mode: connectMethod,
         });
+
+        const connectResult = await Promise.race([
+            connectPromise,
+            new Promise<null>((resolve) => {
+                setTimeout(() => resolve(null), CONNECT_START_RESPONSE_TIMEOUT_MS);
+            }),
+        ]);
+
+        if (!connectResult) {
+            connectPromise.catch(async (error: unknown) => {
+                console.error('Connect Error after response:', error);
+                void sendWhatsAppCrashReport(
+                    `WhatsApp connect crash log — ${sessionLabel || 'unknown session'} — ${new Date().toISOString()}`,
+                    error,
+                    {
+                        operation: 'connectWhatsApp.background',
+                        tenantId,
+                        sessionLabel,
+                        connectMethod,
+                        phoneNumber: phoneNumber || null,
+                        ownerName: ownerName || null,
+                        requestedPhone: requestedPhone || null,
+                        lockedWorkspacePhone: lockedWorkspacePhone || null,
+                    },
+                );
+                await getDbClient()
+                    .from('whatsapp_sessions')
+                    .update({
+                        status: 'disconnected',
+                        last_sync: new Date().toISOString(),
+                    })
+                    .eq('tenant_id', tenantId)
+                    .eq('label', sessionLabel);
+            });
+
+            res.json({
+                message: 'Connection initiated, QR generation is still in progress',
+                label: sessionLabel,
+                artifact: null,
+                qr: null,
+                pairingCode: null,
+                connected: false,
+                mode: connectMethod,
+            });
+
+            void workspaceActivityService.track({
+                actor: req.user,
+                workspaceOwnerId: tenantId,
+                eventType: 'whatsapp.session.connecting',
+                entityType: 'whatsapp_session',
+                entityId: sessionLabel,
+                summary: `Started a WhatsApp connection for ${ownerName || phoneNumber || sessionLabel}.`,
+                metadata: {
+                    label: sessionLabel,
+                    phoneNumber: phoneNumber || null,
+                    ownerName: ownerName || null,
+                    deferredResponse: true,
+                },
+            });
+
+            void pushRecentAction(tenantId, `Started WhatsApp connection (${connectMethod})`);
+            return;
+        }
 
         const waitForArtifact = async () => {
             const deadline = Date.now() + 7000;
@@ -403,24 +489,6 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             return null;
         };
         const artifactAfterCreate = await waitForArtifact();
-
-        await dbClient
-            .from('whatsapp_sessions')
-            .upsert({
-                tenant_id: tenantId,
-                label: sessionLabel,
-                owner_name: ownerName || null,
-                session_data: {
-                    ...existingData,
-                    phoneNumber: phoneNumber || null,
-                    ownerName: ownerName || null,
-                    label: sessionLabel,
-                    groupAuditPending: existingData.groupAuditCompletedAt ? Boolean(existingData.groupAuditPending) : true,
-                    groupAuditCompletedAt: existingData.groupAuditCompletedAt || null,
-                },
-                status: 'connecting',
-                last_sync: new Date().toISOString(),
-            }, { onConflict: 'tenant_id,label' });
 
         const artifact = await gateway.getQRCode({ workspaceOwnerId: tenantId, sessionLabel }) || artifactAfterCreate;
         res.json({
