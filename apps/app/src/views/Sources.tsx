@@ -1053,17 +1053,23 @@ export const Sources: React.FC = () => {
     setCloudConfigFeedback(null);
     setError(null);
     try {
+      const accessToken = cloudAccessToken.trim();
       const response = await backendApi.post(ENDPOINTS.whatsapp.cloudConfig, {
         enabled: true,
         phoneNumberId,
         businessAccountId: cloudBusinessAccountId.trim() || null,
         displayPhoneNumber: cloudDisplayPhoneNumber.trim() || null,
         apiVersion: cloudApiVersion.trim() || 'v25.0',
-        accessToken: cloudAccessToken.trim() || null,
+        accessToken: accessToken || null,
       });
 
       applyCloudConfig(response.data?.config || null);
-      setCloudConfigFeedback({ tone: 'success', message: 'Official WhatsApp Cloud API config saved.' });
+      setCloudConfigFeedback({
+        tone: 'success',
+        message: accessToken
+          ? 'Official WhatsApp Cloud API config saved with the new token.'
+          : 'Official WhatsApp Cloud API config saved using the existing saved token.',
+      });
       await Promise.all([fetchStatus(), fetchHealth()]);
     } catch (err) {
       setCloudConfigFeedback({ tone: 'error', message: handleApiError(err) });

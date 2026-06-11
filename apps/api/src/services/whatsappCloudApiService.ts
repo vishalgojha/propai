@@ -171,6 +171,14 @@ export class WhatsAppCloudApiService {
             lastWebhookAt: null,
         };
 
+        const existingAccessToken = input.accessToken
+            ? null
+            : await keyService.getKey(input.tenantId, this.providerName).catch(() => null);
+
+        if (input.enabled && !input.accessToken && !existingAccessToken) {
+            throw new Error('Meta WhatsApp Cloud access token is required before enabling official API config');
+        }
+
         if (input.accessToken) {
             const tokenResult = await keyService.saveKey(input.tenantId, this.providerName, input.accessToken);
             if (!tokenResult.success) {
