@@ -1609,6 +1609,25 @@ export const Sources: React.FC = () => {
     setQrGeneratedAt(null);
     setQrTimeLeft(0);
     try {
+      if (sessionForLabel && currentSessionStatus === 'disconnected') {
+        try {
+          await backendApi.post(ENDPOINTS.whatsapp.reconnect, { label: sessionLabelToUse });
+          for (let attempt = 0; attempt < 10; attempt++) {
+            await new Promise((r) => window.setTimeout(r, 1000));
+            const statusCheck = await backendApi.get(ENDPOINTS.whatsapp.status);
+            const session = (Array.isArray(statusCheck.data?.sessions) ? statusCheck.data.sessions : [])
+              .find((s: any) => s.label === sessionLabelToUse);
+            if (session?.status === 'connected') {
+              setPendingConnection(null);
+              await fetchStatus();
+              setIsConnecting(false);
+              connectRequestInFlightRef.current = false;
+              return;
+            }
+          }
+        } catch { /* hydrate failed, fall through to fresh connect */ }
+      }
+
       console.log('[WhatsApp] connect request start', {
         mode,
         label: sessionLabelToUse,
@@ -3345,14 +3364,6 @@ export const Sources: React.FC = () => {
                 {disconnectTargetLabel && currentSessionStatus !== 'disconnected' && (
                   <div className="flex flex-wrap items-center gap-2">
                     <button
-                      onClick={() => void handleReconnectSession(disconnectTargetLabel)}
-                      disabled={isConnecting || isResettingSession}
-                      className={cn(sourceSecondaryButton, 'bg-[var(--bg-base)] px-3 py-2.5 text-[var(--text-secondary)] hover:text-[var(--amber)]')}
-                    >
-                      {isResettingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                      Reconnect stale session
-                    </button>
-                    <button
                       onClick={() => void handleResetAllSessions()}
                       disabled={isConnecting || isResettingSession}
                       className={cn(sourceSecondaryButton, 'bg-[var(--bg-base)] px-3 py-2.5 text-[var(--text-secondary)] hover:text-[var(--red)]')}
@@ -3370,24 +3381,6 @@ export const Sources: React.FC = () => {
                     </button>
                   </div>
                 )}
-              </div>
-            </div>
-            <div className="mt-3 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 text-[12px] text-[var(--text-secondary)]">
-              If WhatsApp keeps showing connecting or fails to finish, use Reconnect stale session first. We automatically send a crash log to <a className="text-[var(--accent)] underline" href="mailto:hello@propai.live">hello@propai.live</a> with the error reason so we can fix it.
-            </div>
-
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">Reconnect stale session</p>
-                <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
-                  Use this when the selected number is stuck reconnecting. It keeps the session and asks WhatsApp to link again.
-                </p>
-              </div>
-              <div className="rounded-[10px] border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.06)] px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--red)]">Start fresh</p>
-                <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
-                  Use this only when you want to wipe the session and begin from scratch with a new QR or pairing flow.
-                </p>
               </div>
             </div>
 
