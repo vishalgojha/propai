@@ -66,6 +66,18 @@ type Profile = {
   phoneLocked?: boolean;
 };
 
+type CloudApiConfig = {
+  configured: boolean;
+  enabled: boolean;
+  phoneNumberId: string;
+  businessAccountId: string;
+  displayPhoneNumber: string;
+  apiVersion: string;
+  verifyTokenSet: boolean;
+  hasAccessToken: boolean;
+  webhookUrl: string;
+};
+
 type HealthLogsResponse = {
   groupsDetected: number;
   messagesReceived: number;
@@ -759,6 +771,15 @@ export const Sources: React.FC = () => {
   const [parseDirectMessages, setParseDirectMessages] = useState(false);
   const [selfChatEnabled, setSelfChatEnabled] = useState(false);
   const [isSavingParsingPrefs, setIsSavingParsingPrefs] = useState(false);
+  const [cloudConfig, setCloudConfig] = useState<CloudApiConfig | null>(null);
+  const [cloudPhoneNumberId, setCloudPhoneNumberId] = useState('');
+  const [cloudBusinessAccountId, setCloudBusinessAccountId] = useState('');
+  const [cloudDisplayPhoneNumber, setCloudDisplayPhoneNumber] = useState('');
+  const [cloudApiVersion, setCloudApiVersion] = useState('v25.0');
+  const [cloudAccessToken, setCloudAccessToken] = useState('');
+  const [isLoadingCloudConfig, setIsLoadingCloudConfig] = useState(false);
+  const [isSavingCloudConfig, setIsSavingCloudConfig] = useState(false);
+  const [cloudConfigFeedback, setCloudConfigFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const [isLoadingOutbound, setIsLoadingOutbound] = useState(false);
   const [outboundFeedback, setOutboundFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const [savingGroupBehavior, setSavingGroupBehavior] = useState<Record<string, boolean>>({});
@@ -915,6 +936,32 @@ export const Sources: React.FC = () => {
     }
   }, []);
 
+  const applyCloudConfig = useCallback((config?: CloudApiConfig | null) => {
+    if (!config) {
+      setCloudConfig(null);
+      return;
+    }
+
+    setCloudConfig(config);
+    setCloudPhoneNumberId(config.phoneNumberId || '');
+    setCloudBusinessAccountId(config.businessAccountId || '');
+    setCloudDisplayPhoneNumber(config.displayPhoneNumber || '');
+    setCloudApiVersion(config.apiVersion || 'v25.0');
+    setCloudAccessToken('');
+  }, []);
+
+  const fetchCloudConfig = useCallback(async () => {
+    setIsLoadingCloudConfig(true);
+    try {
+      const response = await backendApi.get(ENDPOINTS.whatsapp.cloudConfig);
+      applyCloudConfig(response.data?.config || null);
+    } catch (err) {
+      console.error(handleApiError(err));
+    } finally {
+      setIsLoadingCloudConfig(false);
+    }
+  }, [applyCloudConfig]);
+
   const fetchStatus = useCallback(async () => {
     setIsRefreshing(true);
     try {
@@ -992,6 +1039,47 @@ export const Sources: React.FC = () => {
       setEventLogs([]);
     }
   }, []);
+
+  const handleSaveCloudConfig = useCallback(async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const phoneNumberId = cloudPhoneNumberId.trim();
+    if (!phoneNumberId) {
+      setCloudConfigFeedback({ tone: 'error', message: 'Phone Number ID is required.' });
+      return;
+    }
+
+    setIsSavingCloudConfig(true);
+    setCloudConfigFeedback(null);
+    setError(null);
+    try {
+      const response = await backendApi.post(ENDPOINTS.whatsapp.cloudConfig, {
+        enabled: true,
+        phoneNumberId,
+        businessAccountId: cloudBusinessAccountId.trim() || null,
+        displayPhoneNumber: cloudDisplayPhoneNumber.trim() || null,
+        apiVersion: cloudApiVersion.trim() || 'v25.0',
+        accessToken: cloudAccessToken.trim() || null,
+      });
+
+      applyCloudConfig(response.data?.config || null);
+      setCloudConfigFeedback({ tone: 'success', message: 'Official WhatsApp Cloud API config saved.' });
+      await Promise.all([fetchStatus(), fetchHealth()]);
+    } catch (err) {
+      setCloudConfigFeedback({ tone: 'error', message: handleApiError(err) });
+    } finally {
+      setIsSavingCloudConfig(false);
+    }
+  }, [
+    applyCloudConfig,
+    cloudAccessToken,
+    cloudApiVersion,
+    cloudBusinessAccountId,
+    cloudDisplayPhoneNumber,
+    cloudPhoneNumberId,
+    fetchHealth,
+    fetchStatus,
+  ]);
 
   const fetchDetailedHealth = useCallback(async () => {
     if (!isSuperAdmin) {
@@ -1095,12 +1183,13 @@ export const Sources: React.FC = () => {
   useEffect(() => {
     fetchProfile();
     fetchStatus();
+    fetchCloudConfig();
     fetchLogs();
     fetchHealth();
     if (isSuperAdmin) {
       void fetchDetailedHealth();
     }
-  }, [fetchDetailedHealth, fetchHealth, fetchLogs, fetchProfile, fetchStatus, isSuperAdmin]);
+  }, [fetchCloudConfig, fetchDetailedHealth, fetchHealth, fetchLogs, fetchProfile, fetchStatus, isSuperAdmin]);
 
   useEffect(() => {
     setOutboundSessionKey((current) => {
@@ -2989,6 +3078,110 @@ export const Sources: React.FC = () => {
       ) : (
       <div className="grid min-w-0 gap-4 lg:grid-cols-[1.05fr_0.95fr] lg:gap-6">
         <div className="space-y-6">
+          <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
+                  <ShieldCheck className="h-5 w-5 text-[var(--accent)]" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Official API</p>
+                  <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">Meta WhatsApp Cloud API</h3>
+                  <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">Save the Meta API setup values for the subscribed webhook number.</p>
+                </div>
+              </div>
+              <span className={cn(
+                sourcePill,
+                cloudConfig?.configured
+                  ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                  : 'text-[var(--text-secondary)]',
+              )}>
+                {isLoadingCloudConfig ? 'Loading' : cloudConfig?.configured ? 'Configured' : 'Not saved'}
+              </span>
+            </div>
+
+            <div className="mt-4 rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">
+              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Webhook callback URL</p>
+              <p className="mt-1 break-all text-[12px] font-semibold text-[var(--text-primary)]">
+                https://api.propai.live{cloudConfig?.webhookUrl || '/api/whatsapp/cloud/webhook'}
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveCloudConfig} className="mt-5 space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Phone Number ID</span>
+                  <input
+                    value={cloudPhoneNumberId}
+                    onChange={(event) => setCloudPhoneNumberId(event.target.value)}
+                    placeholder="954287247767423"
+                    className={sourceFieldClassName}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Business Account ID</span>
+                  <input
+                    value={cloudBusinessAccountId}
+                    onChange={(event) => setCloudBusinessAccountId(event.target.value)}
+                    placeholder="2209591086193992"
+                    className={sourceFieldClassName}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Display phone number</span>
+                  <input
+                    value={cloudDisplayPhoneNumber}
+                    onChange={(event) => setCloudDisplayPhoneNumber(event.target.value)}
+                    placeholder="919820056180"
+                    className={sourceFieldClassName}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Graph API version</span>
+                  <input
+                    value={cloudApiVersion}
+                    onChange={(event) => setCloudApiVersion(event.target.value)}
+                    placeholder="v25.0"
+                    className={sourceFieldClassName}
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                  Access token {cloudConfig?.hasAccessToken ? '(saved, paste only to replace)' : ''}
+                </span>
+                <input
+                  value={cloudAccessToken}
+                  onChange={(event) => setCloudAccessToken(event.target.value)}
+                  placeholder={cloudConfig?.hasAccessToken ? 'Token already saved' : 'Paste Meta temporary or permanent access token'}
+                  type="password"
+                  className={sourceFieldClassName}
+                />
+              </label>
+
+              {cloudConfigFeedback ? (
+                <div className={cn(
+                  'rounded-[12px] border px-3 py-2.5 text-[12px]',
+                  cloudConfigFeedback.tone === 'success'
+                    ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]'
+                    : 'border-[color:rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
+                )}>
+                  {cloudConfigFeedback.message}
+                </div>
+              ) : null}
+
+              <button
+                type="submit"
+                disabled={isSavingCloudConfig || isLoadingCloudConfig}
+                className={cn(sourcePrimaryButton, 'w-full')}
+              >
+                {isSavingCloudConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                <span>Save Cloud API config</span>
+              </button>
+            </form>
+          </div>
+
           <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-4 sm:p-6">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]">
