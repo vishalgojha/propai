@@ -136,6 +136,15 @@ export class KeyService {
     }
 
     async testConnection(tenantId: string, provider: string): Promise<{ success: boolean; error?: string }> {
+        const providerMap: Record<string, string> = {
+            gemini: 'Google',
+            groq: 'Groq',
+            openrouter: 'OpenRouter',
+            doubleword: 'Doubleword',
+            google: 'Google',
+            openai: 'OpenAI',
+        };
+        provider = providerMap[provider] || provider;
         const keys = await this.getKeys(tenantId, provider);
         if (!keys.length) return { success: false, error: 'API key not found' };
 
