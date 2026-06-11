@@ -14,11 +14,15 @@ export const getWorkspaceSettings = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
 
     const record = await getWorkspaceSettingsRecord(tenantId);
-    const [geminiKeys, groqKeys, openRouterKeys, doublewordKeys] = await Promise.all([
+    const [geminiKeys, groqKeys, openRouterKeys, doublewordKeys, geminiMeta, groqMeta, openRouterMeta, doublewordMeta] = await Promise.all([
         keyService.getKeys(tenantId, 'Google'),
         keyService.getKeys(tenantId, 'Groq'),
         keyService.getKeys(tenantId, 'OpenRouter'),
         keyService.getKeys(tenantId, 'Doubleword'),
+        keyService.getKeyMeta(tenantId, 'Google'),
+        keyService.getKeyMeta(tenantId, 'Groq'),
+        keyService.getKeyMeta(tenantId, 'OpenRouter'),
+        keyService.getKeyMeta(tenantId, 'Doubleword'),
     ]);
 
     res.json({
@@ -28,6 +32,12 @@ export const getWorkspaceSettings = async (req: Request, res: Response) => {
             groq: groqKeys.length ? groqKeys.join('\n') : record.aiKeys.groq || '',
             openrouter: openRouterKeys.length ? openRouterKeys.join('\n') : record.aiKeys.openrouter || '',
             doubleword: doublewordKeys.length ? doublewordKeys.join('\n') : record.aiKeys.doubleword || '',
+        },
+        keyMeta: {
+            gemini: geminiMeta,
+            groq: groqMeta,
+            openrouter: openRouterMeta,
+            doubleword: doublewordMeta,
         },
     });
 };

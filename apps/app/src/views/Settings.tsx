@@ -330,6 +330,7 @@ export const Settings: React.FC = () => {
     openrouter: '',
     doubleword: '',
   });
+  const [keyMeta, setKeyMeta] = useState<Record<string, { updatedAt: string | null }>>({});
 
   const roleLabel = user?.appRole === 'super_admin' ? 'PropAI Owner' : 'Broker Partner';
 
@@ -356,6 +357,7 @@ export const Settings: React.FC = () => {
       if (settingsResp.data) {
         setSettings((prev) => ({ ...prev, ...(settingsResp.data.settings || {}) }));
         setAiKeys(settingsResp.data.aiKeys || {});
+        setKeyMeta(settingsResp.data.keyMeta || {});
       }
       syncProfileEditor(profileResp.data?.profile || null, metadataResp.data?.metadata || null);
     } catch (err) {
@@ -701,12 +703,19 @@ export const Settings: React.FC = () => {
                       {showKeys[provider.id] ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
                       </button>
                     </div>
-                    <div className="mt-2 flex items-center justify-between">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                        {keyCount
-                          ? `${keyCount} key${keyCount === 1 ? '' : 's'} configured`
-                          : 'No keys configured'}
-                      </p>
+                    <div className="mt-2 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                          {keyCount
+                            ? `${keyCount} key${keyCount === 1 ? '' : 's'} configured`
+                            : 'No keys configured'}
+                        </p>
+                        {keyMeta[provider.id]?.updatedAt && (
+                          <p className="mt-0.5 truncate text-[9px] text-[var(--text-muted)]">
+                            Updated {new Date(keyMeta[provider.id].updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        )}
+                      </div>
                       <button
                         type="button"
                         onPointerDown={clickFeedback}

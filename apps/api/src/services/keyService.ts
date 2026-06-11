@@ -112,6 +112,24 @@ export class KeyService {
         return keys[0] || null;
     }
 
+    async getKeyMeta(tenantId: string, provider: string): Promise<{ updatedAt: string | null }> {
+        try {
+            const { data, error } = await getKeyStoreClient()
+                .from(KEY_TABLE)
+                .select('updated_at')
+                .eq('tenant_id', tenantId)
+                .eq('provider', provider)
+                .maybeSingle();
+
+            if (!error && data) {
+                return { updatedAt: (data as any).updated_at || null };
+            }
+        } catch {
+        }
+
+        return { updatedAt: null };
+    }
+
     async getKeys(tenantId: string, provider: string): Promise<string[]> {
         try {
             const { data, error } = await getKeyStoreClient()
