@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { connectWhatsApp, disconnectWhatsApp, getProfile, getQR, saveProfile } from '../src/controllers/whatsappController';
+import { connectWhatsApp, disconnectWhatsApp, forceRefreshQR, getProfile, getQR, saveProfile } from '../src/controllers/whatsappController';
 
 const { mockDb } = vi.hoisted(() => ({
     mockDb: {
@@ -104,6 +104,7 @@ function createResponse() {
 describe('whatsappController profile endpoints', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        delete process.env.PROPAI_PROCESS_ROLE;
         getSessions.mockResolvedValue([]);
         getStatus.mockResolvedValue(null);
     });
@@ -288,6 +289,52 @@ describe('whatsappController profile endpoints', () => {
             label: 'vishal-919820056180',
             ready: true,
         });
+    });
+
+    it('queues QR refresh for the WhatsApp worker when API runs without Baileys runtime', async () => {
+        process.env.PROPAI_PROCESS_ROLE = 'api';
+        const req = {
+            body: {
+                label: 'vishal-919820056180',
+            },
+            user: {
+                id: 'user-1',
+                email: 'vishal@example.com',
+            },
+        } as any;
+        const res = createResponse();
+
+        mockDb.maybeSingle.mockResolvedValueOnce({
+            data: {
+                label: 'vishal-919820056180',
+                owner_name: 'Vishal',
+                session_data: {
+                    phoneNumber: '919820056180',
+                    ownerName: 'Vishal',
+                },
+            },
+            error: null,
+        });
+
+        await forceRefreshQR(req, res as any);
+
+        expect(forceReconnect).not.toHaveBeenCalled();
+        expect(mockDb.update).toHaveBeenLastCalledWith(expect.objectContaining({
+            status: 'connecting',
+            session_data: expect.objectContaining({
+                pendingConnect: expect.objectContaining({
+                    mode: 'qr',
+                    phoneNumber: '919820056180',
+                    ownerName: 'Vishal',
+                }),
+            }),
+        }));
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: true,
+            message: 'QR regeneration queued',
+            label: 'vishal-919820056180',
+            status: 'connecting',
+        }));
     });
 
     it('returns the normalized payload even if the read-after-write returns no row', async () => {

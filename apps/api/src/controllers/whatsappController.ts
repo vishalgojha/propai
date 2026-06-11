@@ -482,6 +482,7 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
     const { label } = req.body || {};
     let sessionKey = label || undefined;
     const gateway = getWhatsAppGateway(tenantId);
+    const processRole = resolveProcessRole(process.env.PROPAI_PROCESS_ROLE);
 
     try {
         const dbClient = getDbClient();
@@ -516,6 +517,56 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
                 })
                 .eq('tenant_id', tenantId)
                 .eq('label', sessionKey);
+        }
+
+        if (processRole === 'api') {
+            if (!sessionKey) {
+                throw new Error('No active session found to refresh');
+            }
+
+            const requestedAt = new Date().toISOString();
+            const phoneNumber = typeof sessionData.phoneNumber === 'string' ? sessionData.phoneNumber : undefined;
+            const ownerName = sessionRow?.owner_name || (typeof sessionData.ownerName === 'string' ? sessionData.ownerName : undefined);
+            await dbClient
+                .from('whatsapp_sessions')
+                .update({
+                    session_data: {
+                        ...clearConnectionSessionData(sessionData),
+                        phoneNumber: phoneNumber || null,
+                        ownerName: ownerName || null,
+                        label: sessionKey,
+                        pendingConnect: {
+                            mode: 'qr',
+                            phoneNumber: phoneNumber || null,
+                            ownerName: ownerName || null,
+                            requestedAt,
+                            requestId: `${Date.now()}:${Math.random().toString(36).slice(2, 10)}`,
+                        },
+                    },
+                    status: 'connecting',
+                    updated_at: requestedAt,
+                    last_sync: requestedAt,
+                })
+                .eq('tenant_id', tenantId)
+                .eq('label', sessionKey);
+
+            res.json({
+                success: true,
+                message: 'QR regeneration queued',
+                label: sessionKey,
+                status: 'connecting',
+            });
+
+            void workspaceActivityService.track({
+                actor: req.user,
+                workspaceOwnerId: tenantId,
+                eventType: 'whatsapp.qr.force_refresh',
+                entityType: 'whatsapp_session',
+                entityId: sessionKey,
+                summary: `Queued QR refresh for session ${sessionKey}.`,
+                metadata: { label: sessionKey, queuedForWorker: true },
+            });
+            return;
         }
 
         let result: { label: string; message?: string };
