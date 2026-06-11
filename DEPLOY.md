@@ -17,7 +17,8 @@
 
 | Service | Directory | Port | Dockerfile | Domain | Type |
 |---------|-----------|------|------------|--------|------|
-| **API** | `apps/api` | 3001 | `apps/api/Dockerfile` | api.propai.live | Express backend |
+| **API** | `apps/api` | 3001 | `apps/api/Dockerfile` | api.propai.live | Express backend (REST API only, `PROPAI_PROCESS_ROLE=api`) |
+| **WhatsApp Worker** | `apps/api` | — | `apps/api/Dockerfile` | — | Baileys runtime only (`PROPAI_PROCESS_ROLE=whatsapp`, entrypoint: `node dist/whatsapp-worker.js`) |
 | **App** | `apps/app` | 3000 | `apps/app/Dockerfile` | app.propai.live | Next.js dashboard |
 | **WWW** | `apps/www` | 3002 | `apps/www/Dockerfile` | www.propai.live | Next.js public site |
 | **MCP** | `apps/mcp` | 3003 | `apps/mcp/Dockerfile` | mcp.propai.live | Express MCP server |
@@ -144,7 +145,7 @@ Then trigger a manual redeploy in Coolify for each affected service, OR visit th
 
 | Code Changed | Redeploy |
 |-------------|----------|
-| `apps/api/**` | API |
+| `apps/api/**` | **API** + **WhatsApp Worker** (both use same Dockerfile) |
 | `apps/app/**` | App |
 | `apps/www/**` | WWW |
 | `apps/mcp/**` | MCP |

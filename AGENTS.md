@@ -20,16 +20,31 @@ System-level docs written for successor handoff. Read these before making change
 # Repo Notes
 
 - After every completed task, push the relevant git branch/commit so the remote stays current.
-- After each push, redeploy the relevant Coolify service for the code you changed:
-  - `apps/api` -> backend API service
-  - `apps/app` -> frontend app service
-  - `apps/www` -> public website service
-  - If a task affects multiple deployable surfaces, redeploy each affected Coolify service.
+- After each push, redeploy the relevant Coolify service(s) for the code you changed:
+
+| Code Changed | Redeploy Service(s) | Coolify Name | Coolify UUID |
+|-------------|-------------------|--------------|--------------|
+| `apps/api/**` | **API** + **WhatsApp Worker** | `propai api` | `k12r72fxjn4dz0p5vo3uwrkq` |
+| | (both use same Dockerfile) | `propai whatsapp worker` | `y33718hsvleeozw3m2mz2dl5` |
+| `apps/app/**` | App | `propai pulse` | `lburg4buwnc94z9zpx0walg5` |
+| `apps/www/**` | WWW | `propai:web` | `x37zz4949pttnobai5ov9q3p` |
+| `apps/mcp/**` | MCP | `propaiMCP` | `agr47ygipjbqgnyuw9pl5fc8` |
+| `packages/**` | All that depend on it | — | — |
+
+## Architecture: Split WhatsApp Runtime
+
+The API (`apps/api`) is deployed as **two separate Coolify services** sharing the same Dockerfile but with different entrypoints and `PROPAI_PROCESS_ROLE`:
+
+1. **`propai api`** — `PROPAI_PROCESS_ROLE=api` → Express HTTP server only (no Baileys). Handles REST API, serves the frontend.
+2. **`propai whatsapp worker`** — `PROPAI_PROCESS_ROLE=whatsapp` → `node dist/whatsapp-worker.js` (Baileys only, no HTTP server). Handles WebSocket connections to WhatsApp, session management, message ingestion.
+
+Both share the same Supabase database. The API writes connection artifacts (QR, pairing code, session data) to DB; the worker picks them up and runs Baileys. This is why `apps/api` changes always need **both services redeployed**.
 
 ## Critical Single-Session Rule
 
-- Treat the main PropAI WhatsApp runtime in `apps/api` as the single owner of any live Baileys/linked-device session.
-- Do not add, run, revive, or deploy a second Baileys socket for the same WhatsApp number from any surface.
+- Only ONE Baileys socket per WhatsApp number may exist at any time.
+- The WhatsApp **worker** service (`propai whatsapp worker`) is the single owner of live Baileys/linked-device sessions.
+- Do not add, run, revive, or deploy a second Baileys socket for the same WhatsApp number from any surface (including `PROPAI_PROCESS_ROLE=all` on any service).
 - Multiple session owners cause WhatsApp `conflict type="replaced"` disconnects.
 
 ## PropAI Status Handoff
@@ -63,7 +78,7 @@ System-level docs written for successor handoff. Read these before making change
 ### Current Remote State
 
 - Latest local commits:
-  - `da10cea6` — `Add resilient backfill scripts, fix TS errors in embedding pipeline` (pushed)
+  - `9516e1c1` — `Update copy to match simplified Baileys-only connect flow` (pushed)
 
 ### Operational Rules
 
