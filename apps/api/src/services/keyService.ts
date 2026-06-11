@@ -155,6 +155,7 @@ export class KeyService {
     }
 
     async getKeys(tenantId: string, provider: string): Promise<string[]> {
+        let dbFailed = false;
         try {
             const { data, error } = await getKeyStoreClient()
                 .from(KEY_TABLE)
@@ -168,9 +169,15 @@ export class KeyService {
             }
 
             if ((data as any)?.key) return parseApiKeys((data as any).key);
+
+            if (!error) return []; // DB exists and has no key for this provider
+            dbFailed = true;
         } catch (error) {
             console.error('[KeyService] Unexpected DB load failure', error);
+            dbFailed = true;
         }
+
+        if (!dbFailed) return [];
 
         const store = await readWorkspaceStore();
         const fileKey = providerToWorkspaceKey(provider);
