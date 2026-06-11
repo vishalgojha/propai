@@ -135,6 +135,31 @@ export class KeyService {
         return parseApiKeys(store[tenantId]?.aiKeys?.[fileKey] || null);
     }
 
+    async deleteKey(tenantId: string, provider: string): Promise<{ success: boolean; error?: string }> {
+        try {
+            const { error } = await getKeyStoreClient()
+                .from(KEY_TABLE)
+                .delete()
+                .eq('tenant_id', tenantId)
+                .eq('provider', provider);
+
+            if (error) {
+                return { success: false, error: error.message };
+            }
+        } catch (error: any) {
+            return { success: false, error: error?.message || 'Failed to delete API key' };
+        }
+
+        const store = await readWorkspaceStore();
+        if (store[tenantId]?.aiKeys) {
+            const fileKey = providerToWorkspaceKey(provider);
+            delete store[tenantId].aiKeys![fileKey];
+            await writeWorkspaceStore(store);
+        }
+
+        return { success: true };
+    }
+
     async testConnection(tenantId: string, provider: string): Promise<{ success: boolean; error?: string }> {
         const providerMap: Record<string, string> = {
             gemini: 'Google',

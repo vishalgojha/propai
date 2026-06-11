@@ -52,10 +52,10 @@ export const saveWorkspaceSettings = async (req: Request, res: Response) => {
     await saveWorkspaceSettingsRecord(tenantId, settings, aiKeys);
 
     const keyResults: Array<{ success: boolean; error?: string }> = await Promise.all([
-        aiKeys.gemini ? keyService.saveKey(tenantId, 'Google', aiKeys.gemini) : Promise.resolve({ success: true }),
-        aiKeys.groq ? keyService.saveKey(tenantId, 'Groq', aiKeys.groq) : Promise.resolve({ success: true }),
-        aiKeys.openrouter ? keyService.saveKey(tenantId, 'OpenRouter', aiKeys.openrouter) : Promise.resolve({ success: true }),
-        aiKeys.doubleword ? keyService.saveKey(tenantId, 'Doubleword', aiKeys.doubleword) : Promise.resolve({ success: true }),
+        aiKeys.gemini ? keyService.saveKey(tenantId, 'Google', aiKeys.gemini) : keyService.deleteKey(tenantId, 'Google'),
+        aiKeys.groq ? keyService.saveKey(tenantId, 'Groq', aiKeys.groq) : keyService.deleteKey(tenantId, 'Groq'),
+        aiKeys.openrouter ? keyService.saveKey(tenantId, 'OpenRouter', aiKeys.openrouter) : keyService.deleteKey(tenantId, 'OpenRouter'),
+        aiKeys.doubleword ? keyService.saveKey(tenantId, 'Doubleword', aiKeys.doubleword) : keyService.deleteKey(tenantId, 'Doubleword'),
     ]);
 
     const failedWrite = keyResults.find((result) => !result.success);
