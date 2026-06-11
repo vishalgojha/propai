@@ -2282,7 +2282,7 @@ export const Sources: React.FC = () => {
     setup: {
       eyebrow: 'WhatsApp',
       title: 'Connect and manage WhatsApp ingestion.',
-      copy: 'Connect broker WhatsApp numbers so PropAI can ingest chats, parse groups into Stream, and run the assistant from the same workspace.',
+      copy: 'Connect your WhatsApp number so PropAI can read group messages and parse them into Stream. Baileys (WhatsApp Web library) handles the connection — same as linking a device on WhatsApp Web.',
     },
     audit: {
       eyebrow: 'Group Audit',
@@ -2297,7 +2297,7 @@ export const Sources: React.FC = () => {
     logs: {
       eyebrow: 'WA Logs',
       title: 'Monitor WhatsApp health, lifecycle events, and parsing coverage.',
-      copy: 'Use this dedicated log view for ingestion health, recent session events, support bundles, and parsed message checks.',
+      copy: 'This view is now part of Parsing Terminal. Check raw message logs, session events, and admin diagnostics there.',
     },
   }[activeTab];
 
@@ -3254,7 +3254,7 @@ export const Sources: React.FC = () => {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Connect mode</p>
-                    <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Use QR on desktop or pairing code if you are on a phone. Tap <span className="font-semibold text-[var(--text-primary)]">"Link with phone number"</span> in WhatsApp Linked Devices to enter the code.</p>
+                    <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Use QR on desktop or pairing code if you are on a phone. In WhatsApp, go to <span className="font-semibold text-[var(--text-primary)]">Linked Devices → Link a Device</span>, then scan the QR or tap <span className="font-semibold text-[var(--text-primary)]">"Link with phone number"</span> to enter the code.</p>
                   </div>
                   <div className="grid w-full grid-cols-2 gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-surface)] p-1 sm:w-auto">
                     <button
@@ -3350,10 +3350,7 @@ export const Sources: React.FC = () => {
                     <div className="mt-3 rounded-[10px] border border-[rgba(239,68,68,0.22)] bg-[rgba(239,68,68,0.08)] px-3 py-3 text-[12px] text-[var(--red)]">
                       <p className="font-semibold uppercase tracking-[0.08em]">Session replaced</p>
                       <p className="mt-1 leading-5 text-[var(--text-secondary)]">
-                        WhatsApp says this linked-device session was replaced by another owner. PropAI will not auto-reconnect this session until you reconnect it here.
-                      </p>
-                      <p className="mt-1 leading-5 text-[var(--text-secondary)]">
-                        Check for another Baileys runtime, another linked-device owner, or another login flow using the same number.
+                        WhatsApp says this linked-device session was replaced by another owner. Use <span className="font-semibold text-[var(--text-primary)]">Start fresh</span> to clear the session and connect again. Check for another Baileys runtime, another linked-device owner, or another login flow using the same number.
                       </p>
                     </div>
                   ) : null}
@@ -3437,7 +3434,7 @@ export const Sources: React.FC = () => {
             <div className="flex items-start gap-3">
               <Info className="mt-0.5 h-4 w-4 text-[var(--accent)]" />
               <p className="text-[12px] leading-5 text-[var(--text-secondary)]">
-                Save the broker details first, then connect with QR. If the broker is away from a laptop, use the pairing code fallback instead. If a session gets stuck, use Reconnect stale session and we will send a crash log to hello@propai.live with the reason.
+                Save the broker details first, then connect with QR or pairing code. If the session stays stuck on connecting, hit <span className="font-semibold text-[var(--text-primary)]">Start fresh</span> to wipe the session and try again.
               </p>
             </div>
           </div>
@@ -3466,18 +3463,18 @@ export const Sources: React.FC = () => {
 
             <p className="text-[12px] leading-6 text-[var(--text-secondary)]">
               {!artifactValue && !showConnectionArtifactPanel
-                ? 'This right panel is reserved for the active connection artifact. Start or refresh a connect flow on the left to show the QR or pairing code here.'
+                ? 'Start a connect flow on the left to show the QR or pairing code here.'
                 : !artifactValue
                   ? artifactMode === 'pairing'
-                    ? 'Preparing the WhatsApp pairing code. Keep this page open.'
-                    : 'Preparing the WhatsApp QR. Keep this page open.'
+                    ? 'Generating pairing code. Keep this page open.'
+                    : 'Generating QR. Keep this page open.'
                   : isQrExpired
                     ? artifactMode === 'pairing'
-                      ? 'This pairing code has expired. Request a fresh code to continue connecting.'
-                      : 'This QR has expired. Generate a fresh QR to continue connecting.'
+                      ? 'Pairing code expired. Request a fresh one.'
+                      : 'QR expired. Generate a fresh one.'
                     : artifactMode === 'pairing'
-                      ? 'Use this pairing code in WhatsApp on the broker phone to finish connecting.'
-                      : 'Scan this QR in WhatsApp on the broker phone to finish connecting.'}
+                      ? 'Enter this code in WhatsApp → Linked Devices → Link a Device → "Link with phone number".'
+                      : 'Scan this QR in WhatsApp → Linked Devices → Link a Device.'}
             </p>
 
             {artifactValue ? (
