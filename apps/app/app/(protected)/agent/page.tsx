@@ -1,7 +1,7 @@
 "use client";
 
-import { Agent } from "@/pages/Agent";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <Agent />;
+  redirect("/dashboard");
 }

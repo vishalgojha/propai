@@ -105,6 +105,12 @@ export const PulseAssistantDock: React.FC = () => {
   const context = React.useMemo(() => getRouteContext(location.pathname), [location.pathname]);
 
   React.useEffect(() => {
+    const handleOpen = () => setIsOpen(true);
+    window.addEventListener('propai:open-pulse', handleOpen as EventListener);
+    return () => window.removeEventListener('propai:open-pulse', handleOpen as EventListener);
+  }, []);
+
+  React.useEffect(() => {
     if (isOpen) {
       scrollRef.current?.scrollIntoView({ block: 'end' });
     }

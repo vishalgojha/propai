@@ -31,15 +31,6 @@ const TOUR_STEPS: TourStep[] = [
     },
   },
   {
-    element: '#tour-nav-agent',
-    popover: {
-      title: 'AI Agent',
-      description: 'Ask in plain language. It parses listings, requirements, and follow-ups.',
-      side: 'right',
-      align: 'start',
-    },
-  },
-  {
     element: '#tour-nav-stream',
     popover: {
       title: 'Stream',
@@ -96,7 +87,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     popover: {
       title: 'You are all set',
-      description: 'Connect WhatsApp, then work from Stream, Inbox, and Agent.',
+      description: 'Connect WhatsApp, then work from Stream, Inbox, and Pulse.',
       side: 'bottom',
       align: 'center',
     },

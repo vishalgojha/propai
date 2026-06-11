@@ -291,11 +291,11 @@ export const Dashboard: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => navigate('/agent')}
+            onClick={() => window.dispatchEvent(new Event('propai:open-pulse'))}
             className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[12px] font-semibold text-[#020f07] transition hover:brightness-95"
           >
             <MessageSquare className="h-4 w-4" />
-            Ask the agent
+            Ask Pulse
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
@@ -429,12 +429,12 @@ export const Dashboard: React.FC = () => {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <StatCard
-          title="AI Agent"
+          title="Pulse assistant"
           value="Plain-language ops"
-          hint="Save requirements, search CRM, check follow-ups, and work the workspace without opening another console."
+          hint="Save requirements, search CRM, check follow-ups, and work the workspace from the dock."
           icon={<Activity className="h-5 w-5" />}
-          onClick={() => navigate('/agent')}
-          cta="Open agent"
+          onClick={() => window.dispatchEvent(new Event('propai:open-pulse'))}
+          cta="Open Pulse"
         />
         <StatCard
           title="Next actions"
@@ -446,7 +446,11 @@ export const Dashboard: React.FC = () => {
           tone={isConnected ? (unread > 0 ? 'warn' : 'good') : 'warn'}
           onClick={() => {
             if (isConnected) {
-              navigate(unread > 0 ? '/stream' : '/agent');
+              if (unread > 0) {
+                navigate('/stream');
+              } else {
+                window.dispatchEvent(new Event('propai:open-pulse'));
+              }
             } else {
               window.open(PROPAI_CONNECT_WA_LINK, '_blank', 'noopener');
             }

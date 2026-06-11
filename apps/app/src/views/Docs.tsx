@@ -102,15 +102,15 @@ const apiReferenceSections = [
 
 const capabilitySections = [
   {
-    title: 'AI Agent',
+    title: 'Pulse assistant',
     icon: ActivityIcon,
-    copy: 'Ask Pulse in plain language to send messages, search your CRM, create channels, summarize activity, or answer product questions.',
+    copy: 'Ask Pulse from the dock in plain language to send messages, search your CRM, create channels, summarize activity, or answer product questions.',
     examples: [
       'Show my pending callback queue and tell me who I should call first.',
       'Search my CRM for 2BHK buyer requirements in Powai under 70k.',
       'Send a message to 9773757759 saying hello from PropAI Pulse.',
     ],
-    href: '/agent',
+    href: '/dashboard',
   },
   {
     title: 'Stream',
@@ -154,7 +154,7 @@ const capabilitySections = [
       'What did I save yesterday for Powai rentals?',
       'Sent? / do it / what about that one?',
     ],
-    href: '/agent',
+    href: '/dashboard',
   },
   {
     title: 'Web Tools',
@@ -165,7 +165,7 @@ const capabilitySections = [
       'Search the web for current MahaRERA updates.',
       'Extract structured details from a MagicBricks listing.',
     ],
-    href: '/agent',
+    href: '/dashboard',
   },
 ];
 
