@@ -17,6 +17,8 @@ export const ENDPOINTS = {
     sessions: '/ai/sessions',
     sessionById: (id: string) => `/ai/sessions/${encodeURIComponent(id)}`,
     sessionClear: (id: string) => `/ai/sessions/${encodeURIComponent(id)}/clear`,
+    keys: '/ai/keys',
+    keysTest: '/ai/keys/test',
   },
   agent: {
     control: '/agent/control',

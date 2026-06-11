@@ -239,6 +239,8 @@ export const Settings: React.FC = () => {
   const [acceptResult, setAcceptResult] = useState<string | null>(null);
   const [isPurging, setIsPurging] = useState(false);
   const [purgeResult, setPurgeResult] = useState<string | null>(null);
+  const [testingProvider, setTestingProvider] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
 
   const loadSyndicationPartners = React.useCallback(async () => {
     setSyndicationLoading(true);
@@ -367,6 +369,20 @@ export const Settings: React.FC = () => {
   useEffect(() => {
     fetchSettings();
   }, []);
+
+  const testConnection = async (provider: string) => {
+    setTestingProvider(provider);
+    setTestResults((prev) => ({ ...prev, [provider]: { success: false, message: 'Testing...' } }));
+    try {
+      const res = await backendApi.post(ENDPOINTS.ai.keysTest, { provider });
+      setTestResults((prev) => ({ ...prev, [provider]: { success: true, message: res.data?.message || 'Connected' } }));
+    } catch (err) {
+      const message = handleApiError(err);
+      setTestResults((prev) => ({ ...prev, [provider]: { success: false, message } }));
+    } finally {
+      setTestingProvider(null);
+    }
+  };
 
   const saveSettings = async () => {
     setIsSaving(true);
@@ -670,14 +686,64 @@ export const Settings: React.FC = () => {
                       {showKeys[provider.id] ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
                       </button>
                     </div>
-                    <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                      {keyCount
-                        ? `${keyCount} key${keyCount === 1 ? '' : 's'} configured`
-                        : 'No keys configured'}
-                    </p>
+                    <div className="mt-2 flex items-center justify-between">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                        {keyCount
+                          ? `${keyCount} key${keyCount === 1 ? '' : 's'} configured`
+                          : 'No keys configured'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => testConnection(provider.id)}
+                        disabled={testingProvider === provider.id || keyCount === 0}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] transition-all',
+                          testResults[provider.id]?.success
+                            ? 'bg-green-500/20 text-green-400'
+                            : testResults[provider.id] && !testResults[provider.id]?.success
+                              ? 'bg-red-500/20 text-red-400'
+                              : 'border border-[color:var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                        )}
+                      >
+                        {testingProvider === provider.id ? (
+                          <LoaderIcon className="h-3 w-3 animate-spin" />
+                        ) : testResults[provider.id]?.success ? (
+                          <CheckCircleIcon className="h-3 w-3" />
+                        ) : testResults[provider.id] && !testResults[provider.id]?.success ? (
+                          <XCircleIcon className="h-3 w-3" />
+                        ) : null}
+                        {testingProvider === provider.id
+                          ? 'Testing...'
+                          : testResults[provider.id]
+                            ? testResults[provider.id].message
+                            : 'Test'}
+                      </button>
+                    </div>
+                    {testResults[provider.id] && !testResults[provider.id].success && (
+                      <p className="mt-1 text-[10px] leading-4 text-red-400">{testResults[provider.id].message}</p>
+                    )}
                   </div>
                 );
               })}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={saveSettings}
+                disabled={isSaving}
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] transition-all',
+                  saved && !error ? 'bg-green-500 text-black' : 'bg-[var(--accent)] text-[#020f07] hover:brightness-95'
+                )}
+              >
+                {isSaving ? (
+                  <LoaderIcon className="h-4 w-4 animate-spin" />
+                ) : saved && !error ? (
+                  <CheckIcon className="h-4 w-4" />
+                ) : (
+                  <SaveIcon className="h-4 w-4" />
+                )}
+                {isSaving ? 'Saving...' : saved && !error ? 'Saved' : 'Save API Keys'}
+              </button>
             </div>
           </SurfaceSection>
 
