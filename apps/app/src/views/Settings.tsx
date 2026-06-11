@@ -24,6 +24,7 @@ import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { useAuth } from '../context/AuthContext';
 import { track } from '../services/analytics';
+import { useClickFeedback } from '../hooks/useClickFeedback';
 import { SurfaceSection } from '../components/ui/SurfaceSection';
 import { ProviderLogo } from '../components/ui/ProviderLogo';
 import { buildFullName, splitFullName } from '../lib/names';
@@ -202,6 +203,7 @@ function SelectRow({
 
 export const Settings: React.FC = () => {
   const { user } = useAuth();
+  const clickFeedback = useClickFeedback();
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -694,6 +696,7 @@ export const Settings: React.FC = () => {
                       </p>
                       <button
                         type="button"
+                        onPointerDown={clickFeedback}
                         onClick={() => testConnection(provider.id)}
                         disabled={testingProvider === provider.id || keyCount === 0}
                         className={cn(
@@ -729,6 +732,7 @@ export const Settings: React.FC = () => {
             <div className="mt-4 flex justify-end">
               <button
                 onClick={saveSettings}
+                onPointerDown={clickFeedback}
                 disabled={isSaving}
                 className={cn(
                   'inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] transition-all',
