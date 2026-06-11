@@ -1355,13 +1355,6 @@ if (brokerOnly) {
             >
               Upgrade plan
             </button>
-            <button
-              type="button"
-              onClick={() => navigate('/vault')}
-              className="inline-flex items-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-5 py-3 text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--text-primary)]"
-            >
-              Open Vault
-            </button>
           </div>
         </div>
       </div>

@@ -40,7 +40,6 @@ const NAV_ITEMS = [
   { label: 'AI Agent', path: '/agent', icon: ActivityIcon },
   { label: 'Inbox', path: '/inbox', icon: InboxIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
-  { label: 'Vault', path: '/vault', icon: ShieldIcon },
   { label: 'Intelligence', path: '/intelligence', icon: ActivityIcon },
   { label: 'IGR', path: '/igr', icon: MapPinIcon },
   { label: 'Parsing Terminal', path: '/parsing-terminal', icon: TerminalIcon },
