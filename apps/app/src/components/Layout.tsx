@@ -56,6 +56,20 @@ const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'propai.sidebar_collapsed';
 const MOBILE_COLLAPSE_BREAKPOINT = '(max-width: 1023px)';
 const WHATSAPP_DISCONNECT_GRACE_MS = 90_000;
+
+const isOfficialWhatsAppSession = (session?: WhatsAppSessionSummary | null) => (
+  String(session?.label || '').toLowerCase() === 'official api'
+);
+
+const formatHeaderPhone = (phone?: string | null) => {
+  const value = String(phone || '').trim();
+  if (!value) {
+    return null;
+  }
+
+  return value.startsWith('+') ? value : `+${value}`;
+};
+
 export const Layout: React.FC = () => {
   const { user, isLoading, logout } = useAuth();
   usePushNotifications(user?.id || null);
@@ -290,26 +304,44 @@ export const Layout: React.FC = () => {
     () => whatsappStatus.sessions.filter((session) => session.status === 'connected'),
     [whatsappStatus.sessions],
   );
+  const officialApiSession = React.useMemo(
+    () => whatsappStatus.sessions.find(isOfficialWhatsAppSession) || null,
+    [whatsappStatus.sessions],
+  );
+  const linkedDeviceSessions = React.useMemo(
+    () => whatsappStatus.sessions.filter((session) => !isOfficialWhatsAppSession(session)),
+    [whatsappStatus.sessions],
+  );
+  const connectedLinkedDeviceSessions = React.useMemo(
+    () => linkedDeviceSessions.filter((session) => session.status === 'connected'),
+    [linkedDeviceSessions],
+  );
 
   const selectedSession = React.useMemo(() => {
     if (!whatsappStatus.selectedSessionLabel) {
-      return connectedSessions[0] || whatsappStatus.sessions[0] || null;
+      return connectedLinkedDeviceSessions[0] || linkedDeviceSessions[0] || connectedSessions[0] || whatsappStatus.sessions[0] || null;
     }
 
     return (
       whatsappStatus.sessions.find((session) => session.label === whatsappStatus.selectedSessionLabel) ||
+      connectedLinkedDeviceSessions[0] ||
+      linkedDeviceSessions[0] ||
       connectedSessions[0] ||
       whatsappStatus.sessions[0] ||
       null
     );
-  }, [connectedSessions, whatsappStatus.selectedSessionLabel, whatsappStatus.sessions]);
+  }, [connectedLinkedDeviceSessions, connectedSessions, linkedDeviceSessions, whatsappStatus.selectedSessionLabel, whatsappStatus.sessions]);
+  const selectedLinkedDeviceSession = isOfficialWhatsAppSession(selectedSession) ? null : selectedSession;
+  const officialApiStatus = officialApiSession?.status || 'disconnected';
+  const officialApiPhone = formatHeaderPhone(officialApiSession?.phoneNumber);
+  const linkedDeviceStatus = selectedLinkedDeviceSession?.status || (connectedLinkedDeviceSessions.length > 0 ? 'connected' : 'disconnected');
   const whatsappBanner = React.useMemo(() => {
-    if (!selectedSession || selectedSession.status === 'connected') {
+    if (!selectedLinkedDeviceSession || selectedLinkedDeviceSession.status === 'connected') {
       return null;
     }
 
-    const isReconnecting = selectedSession.status === 'connecting' || selectedSession.status === 'reconnecting';
-    const label = selectedSession.phoneNumber || selectedSession.ownerName || selectedSession.label;
+    const isReconnecting = selectedLinkedDeviceSession.status === 'connecting' || selectedLinkedDeviceSession.status === 'reconnecting';
+    const label = selectedLinkedDeviceSession.phoneNumber || selectedLinkedDeviceSession.ownerName || selectedLinkedDeviceSession.label;
     return {
       tone: isReconnecting ? 'amber' : 'red',
       title: isReconnecting ? 'Selected WhatsApp session is reconnecting' : 'Selected WhatsApp session is disconnected',
@@ -318,7 +350,7 @@ export const Layout: React.FC = () => {
         : `Reconnect ${label} now so parsing and replies keep running.`,
       buttonLabel: isReconnecting ? 'Reconnect now' : 'Reconnect now',
     } as const;
-  }, [selectedSession]);
+  }, [selectedLinkedDeviceSession]);
   const subscription = user?.subscription;
   const planLabel = React.useMemo(() => {
     const normalized = String(subscription?.plan || '').trim().toLowerCase();
@@ -333,14 +365,14 @@ export const Layout: React.FC = () => {
   }, []);
 
   const handleDisconnectSelectedSession = React.useCallback(async () => {
-    if (!selectedSession?.label) {
+    if (!selectedLinkedDeviceSession?.label) {
       return;
     }
 
     setIsDisconnectingSession(true);
     try {
-      await backendApi.post(ENDPOINTS.whatsapp.disconnect, { label: selectedSession.label });
-      if (selectedSession.label === selectedSessionLabel) {
+      await backendApi.post(ENDPOINTS.whatsapp.disconnect, { label: selectedLinkedDeviceSession.label });
+      if (selectedLinkedDeviceSession.label === selectedSessionLabel) {
         syncSelectedSession(null);
       }
       window.dispatchEvent(new Event('channels:refresh'));
@@ -350,23 +382,23 @@ export const Layout: React.FC = () => {
     } finally {
       setIsDisconnectingSession(false);
     }
-  }, [loadWhatsappStatus, selectedSession?.label, selectedSessionLabel, syncSelectedSession]);
+  }, [loadWhatsappStatus, selectedLinkedDeviceSession?.label, selectedSessionLabel, syncSelectedSession]);
 
   const handleReconnectSelectedSession = React.useCallback(async () => {
-    if (!selectedSession?.label) {
+    if (!selectedLinkedDeviceSession?.label) {
       return;
     }
 
     setIsReconnectingSession(true);
     try {
-      await backendApi.post(ENDPOINTS.whatsapp.reconnect, { label: selectedSession.label });
+      await backendApi.post(ENDPOINTS.whatsapp.reconnect, { label: selectedLinkedDeviceSession.label });
       await loadWhatsappStatus(false);
     } catch (error) {
       console.error(handleApiError(error));
     } finally {
       setIsReconnectingSession(false);
     }
-  }, [loadWhatsappStatus, selectedSession?.label]);
+  }, [loadWhatsappStatus, selectedLinkedDeviceSession?.label]);
 
   return (
     <div className="flex min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] lg:h-screen lg:overflow-hidden">
@@ -479,27 +511,34 @@ export const Layout: React.FC = () => {
               </div>
             ) : null}
             <div className="flex min-w-0 items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1">
-              <span className={selectedSession?.status === 'connected' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : selectedSession?.status === 'connecting' || selectedSession?.status === 'reconnecting' ? 'h-2 w-2 rounded-full bg-[var(--amber)]' : 'h-2 w-2 rounded-full bg-[var(--red)]'} />
-              <span className="hidden text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)] sm:inline">WhatsApp</span>
-              {connectedSessions.length > 1 ? (
+              <span className={officialApiStatus === 'connected' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : officialApiStatus === 'connecting' || officialApiStatus === 'reconnecting' ? 'h-2 w-2 rounded-full bg-[var(--amber)]' : 'h-2 w-2 rounded-full bg-[var(--red)]'} />
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Cloud API</span>
+              <span className="max-w-[32vw] truncate text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] sm:max-w-[160px]">
+                {officialApiPhone || (officialApiSession ? officialApiStatus : 'Not saved')}
+              </span>
+            </div>
+            <div className="flex min-w-0 items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1">
+              <span className={linkedDeviceStatus === 'connected' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : linkedDeviceStatus === 'connecting' || linkedDeviceStatus === 'reconnecting' ? 'h-2 w-2 rounded-full bg-[var(--amber)]' : 'h-2 w-2 rounded-full bg-[var(--red)]'} />
+              <span className="hidden text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)] sm:inline">Linked device</span>
+              {connectedLinkedDeviceSessions.length > 1 ? (
                 <select
-                  value={selectedSession?.label || ''}
+                  value={selectedLinkedDeviceSession?.label || ''}
                   onChange={(event) => syncSelectedSession(event.target.value || null)}
-                  className="max-w-[42vw] rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] outline-none sm:max-w-[220px]"
+                  className="max-w-[42vw] rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] outline-none sm:max-w-[180px]"
                 >
-                  {connectedSessions.map((session) => (
+                  {connectedLinkedDeviceSessions.map((session) => (
                     <option key={session.label} value={session.label}>
-                      {session.phoneNumber || session.ownerName || session.label}
+                      {formatHeaderPhone(session.phoneNumber) || session.ownerName || session.label}
                     </option>
                   ))}
                 </select>
               ) : (
-                <span className="max-w-[42vw] truncate text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] sm:max-w-[220px]">
-                  {selectedSession?.phoneNumber || whatsappStatus.connectedPhoneNumber || (whatsappStatus.activeCount > 0 ? `${whatsappStatus.activeCount} connected` : 'Disconnected')}
+                <span className="max-w-[32vw] truncate text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] sm:max-w-[160px]">
+                  {formatHeaderPhone(selectedLinkedDeviceSession?.phoneNumber) || selectedLinkedDeviceSession?.ownerName || (connectedLinkedDeviceSessions.length > 0 ? `${connectedLinkedDeviceSessions.length} linked` : 'None')}
                 </span>
               )}
             </div>
-            {selectedSession?.status === 'connected' ? (
+            {selectedLinkedDeviceSession?.status === 'connected' ? (
               <button
                 type="button"
                 onClick={() => void handleDisconnectSelectedSession()}
@@ -509,15 +548,15 @@ export const Layout: React.FC = () => {
                 <PowerIcon className="h-3.5 w-3.5" />
                 {isDisconnectingSession ? 'Disconnecting' : 'Disconnect'}
               </button>
-            ) : selectedSession ? (
+            ) : selectedLinkedDeviceSession ? (
               <button
                 type="button"
                 onClick={() => void handleReconnectSelectedSession()}
-                disabled={isReconnectingSession || selectedSession.status === 'connecting' || selectedSession.status === 'reconnecting'}
+                disabled={isReconnectingSession || selectedLinkedDeviceSession.status === 'connecting' || selectedLinkedDeviceSession.status === 'reconnecting'}
                 className="inline-flex items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-colors hover:brightness-95 disabled:opacity-50"
               >
                 <PowerIcon className="h-3.5 w-3.5" />
-                {isReconnectingSession || selectedSession.status === 'reconnecting' ? 'Reconnecting' : selectedSession.status === 'connecting' ? 'Connecting' : 'Reconnect'}
+                {isReconnectingSession || selectedLinkedDeviceSession.status === 'reconnecting' ? 'Reconnecting' : selectedLinkedDeviceSession.status === 'connecting' ? 'Connecting' : 'Reconnect'}
               </button>
             ) : null}
             <button
