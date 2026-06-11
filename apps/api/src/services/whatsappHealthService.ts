@@ -1201,6 +1201,33 @@ export class WhatsAppHealthService {
                     }
                 }
             }
+
+            // Clean up live sessions whose DB row was deleted (e.g. reset-all)
+            const dbKeySet = new Set(
+                (data || []).map((row: { tenant_id?: string | null; label?: string | null }) =>
+                    `${String(row.tenant_id || '').trim()}:${String(row.label || '').trim()}`,
+                ),
+            );
+            for (const [key, liveSession] of liveSessions.entries()) {
+                if (!dbKeySet.has(key) && sessionManager.removeSession) {
+                    if (this.shouldLogHeartbeat(`heartbeat_orphan_session:${key}`, 5_000)) {
+                        await this.appendEvent(
+                            liveSession.tenantId,
+                            liveSession.label,
+                            'heartbeat_orphan_session',
+                            `Removing orphaned live session ${liveSession.label} with no DB row.`,
+                        );
+                    }
+                    try {
+                        await sessionManager.removeSession(liveSession.tenantId, liveSession.label);
+                    } catch (error) {
+                        console.warn('[WhatsAppHealthService] Failed to clear orphaned live session', {
+                            key,
+                            error,
+                        });
+                    }
+                }
+            }
         } finally {
             this.heartbeatRunning = false;
         }
