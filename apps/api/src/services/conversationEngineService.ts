@@ -257,7 +257,7 @@ export class ConversationEngineService {
             };
         }
 
-        if (route.intent === 'general_chat' || route.intent === 'general_answer') {
+        if (route.intent === 'general_chat' && isFirstReply) {
             const message = event.channel === 'web'
                 ? 'I can help with listings, buyer or tenant requirements, follow-ups, IGR checks, and workspace search. Send a locality, building, budget, or the task you want done.'
                 : 'Batao kya chahiye: listing search, buyer/tenant requirement, follow-up, ya IGR check?';
