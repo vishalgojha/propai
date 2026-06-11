@@ -130,6 +130,28 @@ export class KeyService {
         return { updatedAt: null };
     }
 
+    async hasAnyKeys(tenantId: string): Promise<boolean> {
+        try {
+            const { data, error } = await getKeyStoreClient()
+                .from(KEY_TABLE)
+                .select('provider', { count: 'exact', head: true })
+                .eq('tenant_id', tenantId);
+
+            if (!error && data) {
+                return (data as any[]).length > 0;
+            }
+        } catch {
+        }
+
+        const store = await readWorkspaceStore();
+        const userStore = store[tenantId];
+        if (userStore?.aiKeys) {
+            return Object.values(userStore.aiKeys).some((v) => Boolean(v));
+        }
+
+        return false;
+    }
+
     async getKeys(tenantId: string, provider: string): Promise<string[]> {
         try {
             const { data, error } = await getKeyStoreClient()
