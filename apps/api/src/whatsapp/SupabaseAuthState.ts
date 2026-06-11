@@ -110,7 +110,20 @@ export class SupabaseAuthState {
             throw error;
         }
 
-        const row = (data || null) as SessionRow | null;
+        let row = (data || null) as SessionRow | null;
+
+        if (!row && this.label) {
+            const { data: fallbackRow } = await db
+                .from('whatsapp_sessions')
+                .select('creds, keys')
+                .eq('label', this.label)
+                .maybeSingle();
+
+            if (fallbackRow?.creds) {
+                row = fallbackRow as SessionRow | null;
+            }
+        }
+
         if (row?.creds) {
             this.creds = deserializeFromJson<AuthenticationCreds>(row.creds, initAuthCreds());
         }

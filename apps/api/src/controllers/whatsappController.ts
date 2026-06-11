@@ -346,6 +346,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             await dbClient
                 .from('whatsapp_sessions')
                 .upsert({
+                    session_id: `${tenantId}:${sessionLabel}`,
                     tenant_id: tenantId,
                     label: sessionLabel,
                     owner_name: ownerName || null,
