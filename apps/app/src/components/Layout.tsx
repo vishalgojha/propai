@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-
 import { Sidebar } from './Sidebar';
 import { LegalFooter } from './LegalFooter';
 import { PropAITour } from './PropAITour';
+import { PulseAssistantDock } from './PulseAssistantDock';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
 import { BookOpenIcon, MenuIcon, PowerIcon, LogoutIcon } from '../lib/icons';
@@ -412,6 +413,7 @@ export const Layout: React.FC = () => {
       ) : null}
 
       <PropAITour autoStart={!isTourCompleted} onComplete={markTourCompleted} />
+      <PulseAssistantDock />
 
       <Sidebar
         isOpen={isSidebarOpen}

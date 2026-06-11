@@ -36,7 +36,6 @@ import { handleApiError } from '../services/api';
 import { SidebarCard } from './ui/SidebarCard';
 
 const NAV_ITEMS = [
-  { label: 'AI Agent', path: '/agent', icon: ActivityIcon },
   { label: 'Inbox', path: '/inbox', icon: InboxIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'Intelligence', path: '/intelligence', icon: ActivityIcon },
