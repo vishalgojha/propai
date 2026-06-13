@@ -222,6 +222,8 @@ export const Admin: React.FC = () => {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = React.useState<'overview' | 'partners' | 'groups' | 'evidence' | 'audit' | 'system' | 'scout'>(() => parseAdminTab(searchParams.get('tab')));
+  const parserEvidenceGroupId = String(searchParams.get('groupId') || '').trim();
+  const parserEvidenceSessionLabel = String(searchParams.get('sessionLabel') || '').trim();
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState<string | null>(null);
   const [scoutLoading, setScoutLoading] = React.useState(false);
@@ -622,6 +624,27 @@ export const Admin: React.FC = () => {
     return current || scoutQueue[0] || null;
   }, [scoutQueue, scoutSelectedId]);
   const selectedWorkerMeta = WORKER_TYPE_META[workerType];
+  const filteredParserEvidence = React.useMemo(() => {
+    if (!parserEvidence || !parserEvidenceGroupId) {
+      return parserEvidence;
+    }
+
+    const matchesGroup = (groupId?: string | null, sessionLabel?: string | null) => {
+      if (groupId !== parserEvidenceGroupId) return false;
+      if (!parserEvidenceSessionLabel) return true;
+      return sessionLabel === parserEvidenceSessionLabel;
+    };
+
+    return {
+      ...parserEvidence,
+      groupFailures: parserEvidence.groupFailures.filter((group) => matchesGroup(group.groupId, group.sessionLabel)),
+      rawRejects: parserEvidence.rawRejects.filter((row) => matchesGroup(row.groupId, row.sessionLabel)),
+      parserEvents: parserEvidence.parserEvents.filter((event) => {
+        const remoteJid = typeof event.metadata?.remoteJid === 'string' ? event.metadata.remoteJid : null;
+        return matchesGroup(remoteJid, event.sessionLabel);
+      }),
+    };
+  }, [parserEvidence, parserEvidenceGroupId, parserEvidenceSessionLabel]);
   const syncWorkerRoute = React.useCallback((next: { workerType?: AgentType; scoutFilter?: 'all' | ScoutStatus }) => {
     const params = new URLSearchParams(searchParams.toString());
     const nextWorkerType = next.workerType || workerType;
@@ -1187,6 +1210,31 @@ export const Admin: React.FC = () => {
             </div>
           </div>
 
+          {parserEvidenceGroupId ? (
+            <div className="rounded-[14px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">Filtered from parsing terminal</p>
+                  <p className="mt-1 truncate text-[12px] text-[var(--text-secondary)]">
+                    {parserEvidenceSessionLabel || 'Any session'} · {parserEvidenceGroupId}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const params = new URLSearchParams(searchParams.toString());
+                    params.delete('groupId');
+                    params.delete('sessionLabel');
+                    setSearchParams(params, { replace: true });
+                  }}
+                  className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] font-semibold text-[var(--text-primary)]"
+                >
+                  Clear filter
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {evidenceLoading ? (
             <div className="flex justify-center rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-12">
               <LoaderIcon className="h-6 w-6 animate-spin text-[var(--accent)]" />
@@ -1199,10 +1247,10 @@ export const Admin: React.FC = () => {
                   <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Groups sorted by stored failed parser count.</p>
                 </div>
                 <div className="divide-y divide-[color:var(--border)]">
-                  {(parserEvidence?.groupFailures || []).length === 0 ? (
+                  {(filteredParserEvidence?.groupFailures || []).length === 0 ? (
                     <div className="p-8 text-center text-[13px] text-[var(--text-secondary)]">No failing group rows found.</div>
                   ) : (
-                    (parserEvidence?.groupFailures || []).map((group) => {
+                    (filteredParserEvidence?.groupFailures || []).map((group) => {
                       const rate = group.received > 0 ? Math.round((group.parsed / group.received) * 100) : 0;
                       return (
                         <div key={`${group.tenantId}-${group.sessionLabel}-${group.groupId}`} className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
@@ -1236,10 +1284,10 @@ export const Admin: React.FC = () => {
                     <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Raw WhatsApp rows rejected before becoming stream items.</p>
                   </div>
                   <div className="max-h-[560px] divide-y divide-[color:var(--border)] overflow-y-auto">
-                    {(parserEvidence?.rawRejects || []).length === 0 ? (
+                    {(filteredParserEvidence?.rawRejects || []).length === 0 ? (
                       <div className="p-8 text-center text-[13px] text-[var(--text-secondary)]">No recent raw rejects found.</div>
                     ) : (
-                      (parserEvidence?.rawRejects || []).map((row) => (
+                      (filteredParserEvidence?.rawRejects || []).map((row) => (
                         <div key={row.id} className="p-4">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className={cn(adminPill, 'border-red-500/30 bg-red-500/10 text-red-300')}>{row.reason || row.gateStatus || 'rejected'}</span>
@@ -1261,10 +1309,10 @@ export const Admin: React.FC = () => {
                     <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Recent parse-related event logs with metadata.</p>
                   </div>
                   <div className="max-h-[560px] divide-y divide-[color:var(--border)] overflow-y-auto">
-                    {(parserEvidence?.parserEvents || []).length === 0 ? (
+                    {(filteredParserEvidence?.parserEvents || []).length === 0 ? (
                       <div className="p-8 text-center text-[13px] text-[var(--text-secondary)]">No parser events found.</div>
                     ) : (
-                      (parserEvidence?.parserEvents || []).map((event) => (
+                      (filteredParserEvidence?.parserEvents || []).map((event) => (
                         <div key={event.id} className="p-4">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className={cn(adminPill, 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]')}>{event.eventType.replace(/_/g, ' ')}</span>
