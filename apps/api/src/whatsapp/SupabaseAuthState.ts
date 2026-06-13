@@ -197,7 +197,7 @@ export class SupabaseAuthState {
 
             const { error } = await db
                 .from('whatsapp_sessions')
-                .upsert(payload, { onConflict: 'session_id' });
+                .upsert(payload, { onConflict: 'tenant_id,label' });
 
             if (error) {
                 throw error;
