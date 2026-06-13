@@ -6,7 +6,7 @@ import '../types/express';
 
 const db = supabaseAdmin || supabase;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const VALID_PERIODS = new Set([7, 14, 30]);
+const VALID_PERIODS = new Set([1, 3, 7, 14, 30]);
 
 type DemandSignal = 'high_demand' | 'balanced' | 'oversupplied';
 

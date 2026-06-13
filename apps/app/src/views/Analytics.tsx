@@ -12,7 +12,7 @@ import {
 } from './AnalyticsCharts';
 
 type TabId = 'pulse' | 'supply' | 'velocity' | 'brokers' | 'inventory';
-type Days = 7 | 14 | 30;
+type Days = 1 | 3 | 7 | 14 | 30;
 
 type IntelligenceResult = {
   scope?: 'all_accounts' | 'workspace';
@@ -69,7 +69,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'inventory', label: 'Inventory' },
 ];
 
-const PERIODS: Days[] = [7, 14, 30];
+const PERIODS: Days[] = [1, 3, 7, 14, 30];
 const panelClass = 'bg-[var(--bg-elevated)] border border-[color:var(--border)] rounded-[10px] p-4';
 const panelLabelClass = 'font-mono text-[9px] text-[var(--text-muted)] uppercase tracking-[0.1em] mb-3';
 const statNumberClass = 'text-[28px] font-bold text-[var(--text-primary)] tabular-nums';
