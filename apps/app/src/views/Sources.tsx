@@ -34,6 +34,11 @@ type WhatsappSession = {
   phoneNumber?: string | null;
   status: 'connected' | 'connecting' | 'reconnecting' | 'disconnected';
   sessionData?: {
+    connectedAt?: string | null;
+    disconnectedAt?: string | null;
+    disconnectReason?: string | null;
+    lastDisconnectReason?: string | null;
+    lastConnectedDurationMs?: number | string | null;
     parseDirectMessages?: boolean;
     parse_direct_messages?: boolean;
     selfChatEnabled?: boolean;
@@ -41,6 +46,10 @@ type WhatsappSession = {
     groupAuditPending?: boolean;
     groupAuditCompletedAt?: string | null;
   } | null;
+  connectedAt?: string | null;
+  disconnectedAt?: string | null;
+  disconnectReason?: string | null;
+  lastConnectedDurationMs?: number | null;
   lastSync?: string;
 };
 
@@ -253,6 +262,16 @@ const normalizeWhatsappSession = (session: unknown): WhatsappSession | null => {
     phoneNumber: typeof row.phoneNumber === 'string' ? row.phoneNumber : null,
     status,
     sessionData,
+    connectedAt: typeof row.connectedAt === 'string' ? row.connectedAt : sessionData?.connectedAt || null,
+    disconnectedAt: typeof row.disconnectedAt === 'string' ? row.disconnectedAt : sessionData?.disconnectedAt || null,
+    disconnectReason: typeof row.disconnectReason === 'string'
+      ? row.disconnectReason
+      : sessionData?.disconnectReason || sessionData?.lastDisconnectReason || null,
+    lastConnectedDurationMs: Number.isFinite(Number(row.lastConnectedDurationMs))
+      ? Number(row.lastConnectedDurationMs)
+      : Number.isFinite(Number(sessionData?.lastConnectedDurationMs))
+        ? Number(sessionData?.lastConnectedDurationMs)
+        : null,
     lastSync: typeof row.lastSync === 'string' ? row.lastSync : undefined,
   };
 };
@@ -2204,18 +2223,28 @@ export const Sources: React.FC = () => {
   const latestIssueLabel = latestIssueEvent
     ? formatReasonLabel(latestIssueEvent.eventType) || latestIssueEvent.eventType
     : null;
-  const latestDisconnectReason = formatReasonLabel(primaryHealthSession?.disconnectReason || null);
-  const sessionReplacedConflict = String(primaryHealthSession?.disconnectReason || '').trim().toLowerCase() === 'replaced'
+  const persistedDisconnectReason = currentSession?.disconnectReason || currentSession?.sessionData?.disconnectReason || currentSession?.sessionData?.lastDisconnectReason || null;
+  const latestDisconnectReason = formatReasonLabel(primaryHealthSession?.disconnectReason || persistedDisconnectReason || null);
+  const sessionReplacedConflict = String(primaryHealthSession?.disconnectReason || persistedDisconnectReason || '').trim().toLowerCase() === 'replaced'
     || Boolean(primaryHealthSession?.autoReconnectBlocked);
-  const connectedAtMs = getTimeMs(primaryHealthSession?.connectedAt);
-  const disconnectedAtMs = getTimeMs(primaryHealthSession?.disconnectedAt);
+  const persistedConnectedAt = currentSession?.connectedAt || currentSession?.sessionData?.connectedAt || null;
+  const persistedDisconnectedAt = currentSession?.disconnectedAt || currentSession?.sessionData?.disconnectedAt || null;
+  const connectedAtValue = primaryHealthSession?.connectedAt || persistedConnectedAt || null;
+  const disconnectedAtValue = primaryHealthSession?.disconnectedAt || persistedDisconnectedAt || null;
+  const connectedAtMs = getTimeMs(connectedAtValue);
+  const disconnectedAtMs = getTimeMs(disconnectedAtValue);
+  const persistedLastConnectedDurationMs = Number.isFinite(Number(currentSession?.lastConnectedDurationMs))
+    ? Number(currentSession?.lastConnectedDurationMs)
+    : Number.isFinite(Number(currentSession?.sessionData?.lastConnectedDurationMs))
+      ? Number(currentSession?.sessionData?.lastConnectedDurationMs)
+      : null;
   const lastConnectedDurationMs = connectedAtMs
     ? Math.max(0, (currentSessionStatus === 'connected' ? nowMs : (disconnectedAtMs || nowMs)) - connectedAtMs)
-    : null;
+    : persistedLastConnectedDurationMs;
   const connectionDurationLabel = lastConnectedDurationMs != null
     ? formatElapsed(lastConnectedDurationMs) || '0s'
     : 'No connected timestamp';
-  const disconnectReasonRaw = primaryHealthSession?.disconnectReason || selectedDetailedSession?.diagnostics?.disconnectReason || null;
+  const disconnectReasonRaw = primaryHealthSession?.disconnectReason || selectedDetailedSession?.diagnostics?.disconnectReason || persistedDisconnectReason || null;
   const disconnectReasonLabel = formatReasonLabel(disconnectReasonRaw) || 'No reason captured';
   const disconnectReasonEvidence = explainDisconnectReason(disconnectReasonRaw);
   const recentConnectionEvents = scopedEventLogs
@@ -2236,12 +2265,12 @@ export const Sources: React.FC = () => {
       label: currentSessionStatus === 'connected' ? 'Connected for' : 'Last connected for',
       value: connectionDurationLabel,
       note: connectedAtMs
-        ? `Started ${formatDateTime(primaryHealthSession?.connectedAt)}`
+        ? `Started ${formatDateTime(connectedAtValue)}`
         : 'Waiting for the first connected event.',
     },
     {
       label: 'Disconnected at',
-      value: primaryHealthSession?.disconnectedAt ? formatDateTime(primaryHealthSession.disconnectedAt) : (currentSessionStatus === 'connected' ? 'Still connected' : 'Not captured'),
+      value: disconnectedAtValue ? formatDateTime(disconnectedAtValue) : (currentSessionStatus === 'connected' ? 'Still connected' : 'Not captured'),
       note: currentSessionStatus === 'connected' ? 'Timer is live.' : disconnectReasonEvidence,
     },
     {
@@ -3341,6 +3370,20 @@ export const Sources: React.FC = () => {
                   <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{displayCurrentConnectionNumber}</p>
                   <p className="mt-1 text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">{displayCurrentConnectionName}</p>
                   <p className="mt-2 text-[11px] text-[var(--text-secondary)]">{workspaceConnectedCount}/{status.limit} numbers connected on this workspace</p>
+                  <div className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2">
+                    <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                        {currentSessionStatus === 'connected' ? 'Baileys uptime' : 'Last Baileys uptime'}
+                      </p>
+                      <p className="mt-1 font-semibold text-[var(--text-primary)]">{connectionDurationLabel}</p>
+                    </div>
+                    <div className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2">
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Disconnect reason</p>
+                      <p className="mt-1 font-semibold text-[var(--text-primary)]">
+                        {currentSessionStatus === 'connected' ? 'Still connected' : disconnectReasonLabel}
+                      </p>
+                    </div>
+                  </div>
                   {hasOtherConnectedSessions && !isCurrentSessionConnected ? (
                     <p className="mt-1 text-[11px] text-[var(--text-muted)]">
                       Another WhatsApp number is still connected. This selected session is the one reconnecting.
@@ -3391,41 +3434,63 @@ export const Sources: React.FC = () => {
                     : 'No WhatsApp sessions connected yet.'}
                 </div>
               ) : (
-                status.sessions.map((session) => (
-                  <div key={session.label} className="flex flex-col gap-3 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:flex-row sm:items-center sm:justify-between">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectExistingSession(session)}
-                      className="min-w-0 flex-1 text-left"
-                    >
-                      <p className="text-[12px] font-semibold text-[var(--text-primary)]">{session.ownerName || session.label}</p>
-                      <p className="text-[11px] text-[var(--text-secondary)]">{session.phoneNumber || 'No number stored'}</p>
-                    </button>
-                    <div className="flex flex-wrap items-center gap-2 sm:ml-3 sm:justify-end">
-                      <span className={cn(
-                        sourcePill,
-                        session.status === 'connected'
-                          ? 'bg-[rgba(62,232,138,0.12)] text-[var(--accent)]'
-                          : session.status === 'reconnecting'
-                            ? 'bg-[rgba(245,158,11,0.12)] text-amber-300'
-                          : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
-                      )}>
-                        {session.status}
-                      </span>
-                      {session.status === 'connected' && (
-                        <button
-                          type="button"
-                          onClick={() => handleDisconnect(session.label)}
-                          disabled={isConnecting}
-                          className={cn(sourceSecondaryButton, 'px-3 py-1.5 text-[10px] text-[var(--text-secondary)] hover:text-[var(--red)]')}
-                        >
-                          <Power className="h-3.5 w-3.5" />
-                          Disconnect
-                        </button>
-                      )}
+                status.sessions.map((session) => {
+                  const sessionConnectedAtMs = getTimeMs(session.connectedAt || session.sessionData?.connectedAt || null);
+                  const sessionDisconnectedAtMs = getTimeMs(session.disconnectedAt || session.sessionData?.disconnectedAt || null);
+                  const sessionPersistedDurationMs = Number.isFinite(Number(session.lastConnectedDurationMs))
+                    ? Number(session.lastConnectedDurationMs)
+                    : Number.isFinite(Number(session.sessionData?.lastConnectedDurationMs))
+                      ? Number(session.sessionData?.lastConnectedDurationMs)
+                      : null;
+                  const sessionDurationMs = sessionConnectedAtMs
+                    ? Math.max(0, (session.status === 'connected' ? nowMs : (sessionDisconnectedAtMs || nowMs)) - sessionConnectedAtMs)
+                    : sessionPersistedDurationMs;
+                  const sessionDurationLabel = sessionDurationMs != null ? formatElapsed(sessionDurationMs) || '0s' : null;
+                  const sessionReasonLabel = formatReasonLabel(
+                    session.disconnectReason || session.sessionData?.disconnectReason || session.sessionData?.lastDisconnectReason || null,
+                  );
+                  return (
+                    <div key={session.label} className="flex flex-col gap-3 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:flex-row sm:items-center sm:justify-between">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectExistingSession(session)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <p className="text-[12px] font-semibold text-[var(--text-primary)]">{session.ownerName || session.label}</p>
+                        <p className="text-[11px] text-[var(--text-secondary)]">{session.phoneNumber || 'No number stored'}</p>
+                        <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+                          {sessionDurationLabel
+                            ? `${session.status === 'connected' ? 'Connected for' : 'Last connected for'} ${sessionDurationLabel}`
+                            : 'Connection timer not captured yet'}
+                          {session.status !== 'connected' && sessionReasonLabel ? ` · ${sessionReasonLabel}` : ''}
+                        </p>
+                      </button>
+                      <div className="flex flex-wrap items-center gap-2 sm:ml-3 sm:justify-end">
+                        <span className={cn(
+                          sourcePill,
+                          session.status === 'connected'
+                            ? 'bg-[rgba(62,232,138,0.12)] text-[var(--accent)]'
+                            : session.status === 'reconnecting'
+                              ? 'bg-[rgba(245,158,11,0.12)] text-amber-300'
+                            : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
+                        )}>
+                          {session.status}
+                        </span>
+                        {session.status === 'connected' && (
+                          <button
+                            type="button"
+                            onClick={() => handleDisconnect(session.label)}
+                            disabled={isConnecting}
+                            className={cn(sourceSecondaryButton, 'px-3 py-1.5 text-[10px] text-[var(--text-secondary)] hover:text-[var(--red)]')}
+                          >
+                            <Power className="h-3.5 w-3.5" />
+                            Disconnect
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

@@ -101,6 +101,34 @@ function clearConnectionSessionData(sessionData?: Record<string, unknown> | null
     };
 }
 
+function buildFreshConnectionSessionData(input: {
+    sessionData?: Record<string, unknown> | null;
+    label: string;
+    ownerName?: string | null;
+    phoneNumber?: string | null;
+    requestedAt: string;
+    mode?: 'qr' | 'pairing';
+}) {
+    return {
+        ...clearConnectionSessionData(input.sessionData),
+        phoneNumber: input.phoneNumber || null,
+        ownerName: input.ownerName || null,
+        label: input.label,
+        connectedAt: null,
+        disconnectedAt: null,
+        lastConnectedDurationMs: null,
+        lastDisconnectReason: null,
+        pendingConnect: {
+            mode: input.mode || 'qr',
+            phoneNumber: input.phoneNumber || null,
+            ownerName: input.ownerName || null,
+            requestedAt: input.requestedAt,
+            requestId: `${Date.now()}:${Math.random().toString(36).slice(2, 10)}`,
+            freshStart: true,
+        },
+    };
+}
+
 function sessionStatusPriority(value?: unknown) {
     const status = String(value || '').toLowerCase();
     if (status === 'connected') return 3;
@@ -576,16 +604,13 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
             : {};
 
         if (sessionKey) {
-            await dbClient
-                .from('whatsapp_sessions')
-                .update({
-                    session_data: clearConnectionSessionData(sessionData),
-                    status: 'connecting',
-                    updated_at: new Date().toISOString(),
-                    last_sync: new Date().toISOString(),
-                })
-                .eq('tenant_id', tenantId)
-                .eq('label', sessionKey);
+            await sessionManager.hardResetSession(tenantId, sessionKey).catch((error) => {
+                console.warn('[forceRefreshQR] Hard reset before fresh QR failed; continuing with DB cleanup.', {
+                    tenantId,
+                    sessionKey,
+                    error,
+                });
+            });
         }
 
         if (processRole === 'api') {
@@ -599,19 +624,16 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
             await dbClient
                 .from('whatsapp_sessions')
                 .update({
-                    session_data: {
-                        ...clearConnectionSessionData(sessionData),
+                    creds: null,
+                    keys: null,
+                    session_data: buildFreshConnectionSessionData({
+                        sessionData,
+                        label: sessionKey,
                         phoneNumber: phoneNumber || null,
                         ownerName: ownerName || null,
-                        label: sessionKey,
-                        pendingConnect: {
-                            mode: 'qr',
-                            phoneNumber: phoneNumber || null,
-                            ownerName: ownerName || null,
-                            requestedAt,
-                            requestId: `${Date.now()}:${Math.random().toString(36).slice(2, 10)}`,
-                        },
-                    },
+                        requestedAt,
+                        mode: 'qr',
+                    }),
                     status: 'connecting',
                     updated_at: requestedAt,
                     last_sync: requestedAt,
@@ -621,7 +643,7 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
 
             res.json({
                 success: true,
-                message: 'QR regeneration queued',
+                message: 'Fresh QR start queued',
                 label: sessionKey,
                 status: 'connecting',
             });
@@ -629,18 +651,55 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
             void workspaceActivityService.track({
                 actor: req.user,
                 workspaceOwnerId: tenantId,
-                eventType: 'whatsapp.qr.force_refresh',
+                eventType: 'whatsapp.qr.fresh_start',
                 entityType: 'whatsapp_session',
                 entityId: sessionKey,
-                summary: `Queued QR refresh for session ${sessionKey}.`,
-                metadata: { label: sessionKey, queuedForWorker: true },
+                summary: `Queued a fresh QR start for session ${sessionKey}.`,
+                metadata: { label: sessionKey, queuedForWorker: true, freshStart: true },
             });
             return;
         }
 
         let result: { label: string; message?: string };
         try {
-            result = await gateway.forceReconnect({ workspaceOwnerId: tenantId, sessionLabel: sessionKey });
+            if (!sessionKey) {
+                throw new Error('No active session found to refresh');
+            }
+
+            const requestedAt = new Date().toISOString();
+            const phoneNumber = typeof sessionData.phoneNumber === 'string' ? sessionData.phoneNumber : undefined;
+            const ownerName = sessionRow?.owner_name || (typeof sessionData.ownerName === 'string' ? sessionData.ownerName : undefined);
+            await dbClient
+                .from('whatsapp_sessions')
+                .update({
+                    creds: null,
+                    keys: null,
+                    session_data: buildFreshConnectionSessionData({
+                        sessionData,
+                        label: sessionKey,
+                        phoneNumber: phoneNumber || null,
+                        ownerName: ownerName || null,
+                        requestedAt,
+                        mode: 'qr',
+                    }),
+                    status: 'connecting',
+                    updated_at: requestedAt,
+                    last_sync: requestedAt,
+                })
+                .eq('tenant_id', tenantId)
+                .eq('label', sessionKey);
+
+            await gateway.connect({
+                workspaceOwnerId: tenantId,
+                sessionLabel: sessionKey,
+                ownerName: ownerName || undefined,
+                phoneNumber,
+                mode: 'qr',
+            });
+            result = {
+                label: sessionKey,
+                message: 'Fresh QR start initiated',
+            };
         } catch (error) {
             const message = error instanceof Error ? error.message : '';
             const canRevivePersistedSession =
@@ -662,7 +721,7 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
             });
             result = {
                 label: sessionRow.label,
-                message: 'Persisted session revived, QR regenerating...',
+                message: 'Fresh QR start initiated',
             };
         }
         
@@ -672,7 +731,7 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
 
         res.json({
             success: true,
-            message: 'QR regeneration initiated',
+            message: 'Fresh QR start initiated',
             label: result.label,
             status: 'connecting',
         });
@@ -680,11 +739,11 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
         void workspaceActivityService.track({
             actor: req.user,
             workspaceOwnerId: tenantId,
-            eventType: 'whatsapp.qr.force_refresh',
+            eventType: 'whatsapp.qr.fresh_start',
             entityType: 'whatsapp_session',
             entityId: result.label,
-            summary: `Force refreshed QR code for session ${result.label}.`,
-            metadata: { label: result.label },
+            summary: `Started a fresh QR flow for session ${result.label}.`,
+            metadata: { label: result.label, freshStart: true },
         });
     } catch (error: unknown) {
         console.error('Force Refresh QR Error:', error);
@@ -801,14 +860,27 @@ export const getStatus = async (req: Request, res: Response) => {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    const dbSessions = (data || []).map((row: { label: string; owner_name: string | null; status: string; session_data: { phoneNumber?: string } | null; last_sync: string }) => ({
-        label: row.label,
-        ownerName: row.owner_name,
-        status: row.status,
-        phoneNumber: row.session_data?.phoneNumber || null,
-        sessionData: row.session_data || null,
-        lastSync: row.last_sync,
-    }));
+    const dbSessions = (data || []).map((row: { label: string; owner_name: string | null; status: string; session_data: Record<string, unknown> | null; last_sync: string }) => {
+        const sessionData = row.session_data || {};
+        return {
+            label: row.label,
+            ownerName: row.owner_name,
+            status: row.status,
+            phoneNumber: typeof sessionData.phoneNumber === 'string' ? sessionData.phoneNumber : null,
+            sessionData: row.session_data || null,
+            connectedAt: typeof sessionData.connectedAt === 'string' ? sessionData.connectedAt : null,
+            disconnectedAt: typeof sessionData.disconnectedAt === 'string' ? sessionData.disconnectedAt : null,
+            disconnectReason: typeof sessionData.disconnectReason === 'string'
+                ? sessionData.disconnectReason
+                : typeof sessionData.lastDisconnectReason === 'string'
+                    ? sessionData.lastDisconnectReason
+                    : null,
+            lastConnectedDurationMs: Number.isFinite(Number(sessionData.lastConnectedDurationMs))
+                ? Number(sessionData.lastConnectedDurationMs)
+                : null,
+            lastSync: row.last_sync,
+        };
+    });
         const liveSessions = await workspaceGateway.getSessions(workspaceOwnerId) as LiveSessionRecord[];
         const sessionMap = new Map<string, Record<string, unknown>>();
 

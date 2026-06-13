@@ -345,11 +345,11 @@ export const Layout: React.FC = () => {
     const label = selectedLinkedDeviceSession.phoneNumber || selectedLinkedDeviceSession.ownerName || selectedLinkedDeviceSession.label;
     return {
       tone: isReconnecting ? 'amber' : 'red',
-      title: isReconnecting ? 'Selected WhatsApp session is reconnecting' : 'Selected WhatsApp session is disconnected',
+      title: isReconnecting ? 'Selected WhatsApp session is starting fresh' : 'Selected WhatsApp session is disconnected',
       body: isReconnecting
-        ? `Keep this open while PropAI retries ${label}. If it stalls, reconnect now.`
-        : `Reconnect ${label} now so parsing and replies keep running.`,
-      buttonLabel: isReconnecting ? 'Reconnect now' : 'Reconnect now',
+        ? `Keep this open while PropAI prepares a fresh QR for ${label}. If it stalls, start fresh again.`
+        : `Start fresh for ${label} so parsing and replies keep running.`,
+      buttonLabel: 'Start fresh',
     } as const;
   }, [selectedLinkedDeviceSession]);
   const subscription = user?.subscription;
@@ -464,7 +464,7 @@ export const Layout: React.FC = () => {
                 }`}
               >
                 <PowerIcon className="h-3.5 w-3.5" />
-                {isReconnectingSession ? 'Reconnecting' : whatsappBanner.buttonLabel}
+                {isReconnectingSession ? 'Starting fresh' : whatsappBanner.buttonLabel}
               </button>
               <button
                 type="button"
@@ -554,11 +554,11 @@ export const Layout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => void handleReconnectSelectedSession()}
-                disabled={isReconnectingSession || selectedLinkedDeviceSession.status === 'connecting' || selectedLinkedDeviceSession.status === 'reconnecting'}
+                disabled={isReconnectingSession}
                 className="inline-flex items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-colors hover:brightness-95 disabled:opacity-50"
               >
                 <PowerIcon className="h-3.5 w-3.5" />
-                {isReconnectingSession || selectedLinkedDeviceSession.status === 'reconnecting' ? 'Reconnecting' : selectedLinkedDeviceSession.status === 'connecting' ? 'Connecting' : 'Reconnect'}
+                {isReconnectingSession ? 'Starting fresh' : 'Start fresh'}
               </button>
             ) : null}
             <button

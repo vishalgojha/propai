@@ -1504,6 +1504,7 @@ try {
 
     private async persistDisconnectMeta(status: ConnectionStatus) {
         try {
+            const now = new Date().toISOString();
             const { data: existing } = await supabase
                 .from('whatsapp_sessions')
                 .select('session_data')
@@ -1514,17 +1515,30 @@ try {
             const sessionData = (existing?.session_data && typeof existing.session_data === 'object')
                 ? existing.session_data as Record<string, unknown>
                 : {};
+            const existingConnectedAt = typeof sessionData.connectedAt === 'string' ? sessionData.connectedAt : null;
+            const disconnectReason = this.disconnectMeta.reason || null;
+            const connectedAtMs = existingConnectedAt ? new Date(existingConnectedAt).getTime() : NaN;
+            const disconnectedAtMs = Date.now();
+            const lastConnectedDurationMs = status === 'disconnected' && Number.isFinite(connectedAtMs)
+                ? Math.max(0, disconnectedAtMs - connectedAtMs)
+                : sessionData.lastConnectedDurationMs || null;
 
             const nextSessionData = {
                 ...sessionData,
-                disconnectReason: status === 'disconnected' ? this.disconnectMeta.reason : null,
+                connectedAt: status === 'connected'
+                    ? now
+                    : existingConnectedAt,
+                disconnectedAt: status === 'disconnected' ? now : null,
+                lastConnectedDurationMs,
+                disconnectReason: status === 'disconnected' ? disconnectReason : null,
+                lastDisconnectReason: status === 'disconnected' ? disconnectReason : sessionData.lastDisconnectReason || null,
                 autoReconnectBlocked: status === 'disconnected' ? this.disconnectMeta.replaced : false,
                 autoReconnectBlockedAt: status === 'disconnected' ? this.disconnectMeta.at : null,
             };
 
             await supabase
                 .from('whatsapp_sessions')
-                .update({ session_data: nextSessionData, updated_at: new Date().toISOString() })
+                .update({ session_data: nextSessionData, updated_at: now })
                 .eq('tenant_id', this.tenantId)
                 .eq('label', this.label);
         } catch (error) {
