@@ -21,6 +21,8 @@ type StreamTimeBand = '1h' | '1d' | '7d';
 type StreamFreshnessBand = '1h' | '6h';
 type StreamTable = 'stream_items_residential' | 'stream_items_commercial';
 
+const sourceOwnerCache = new Map<string, { tenantId: string | null; expiresAt: number }>();
+
 const streamTableFor = (propertyCategory?: string | null, propertyUse?: string | null, assetClass?: string | null): StreamTable => {
     const cat = (propertyCategory || assetClass || '').toLowerCase();
     const use = (propertyUse || '').toLowerCase();
@@ -2204,6 +2206,49 @@ private highValueLeadAlertKeys = new Set<string>();
         return Array.from(tenantIds);
     }
 
+    private async resolveSourceOwnerTenantId(scannerTenantId: string, sourcePhone?: string | null): Promise<string> {
+        const normalizedPhone = normaliseIndianPhone(sourcePhone || '');
+        if (!normalizedPhone) {
+            return scannerTenantId;
+        }
+
+        const cacheKey = `source-owner::${normalizedPhone}`;
+        const cached = sourceOwnerCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+            return cached.tenantId || scannerTenantId;
+        }
+
+        const phoneVariants = Array.from(new Set([
+            normalizedPhone,
+            normalizedPhone.startsWith('91') ? normalizedPhone.slice(2) : `91${normalizedPhone}`,
+            normalizedPhone.startsWith('+') ? normalizedPhone.slice(1) : `+${normalizedPhone}`,
+        ].filter(Boolean)));
+
+        const { data, error } = await this.db
+            .from('profiles')
+            .select('id, phone')
+            .in('phone', phoneVariants)
+            .limit(1)
+            .maybeSingle();
+
+        if (error) {
+            console.warn('[ChannelService] Source owner lookup failed', {
+                scannerTenantId,
+                sourcePhone: normalizedPhone,
+                error: error.message,
+            });
+            return scannerTenantId;
+        }
+
+        const ownerTenantId = String((data as any)?.id || '').trim() || null;
+        sourceOwnerCache.set(cacheKey, {
+            tenantId: ownerTenantId,
+            expiresAt: Date.now() + 5 * 60 * 1000,
+        });
+
+        return ownerTenantId || scannerTenantId;
+    }
+
     async listStreamItems(
         tenantId: string,
         accessToken?: string | null,
@@ -2382,7 +2427,7 @@ private highValueLeadAlertKeys = new Set<string>();
                 ...(Array.isArray(resResult.data) ? resResult.data : []),
                 ...(Array.isArray(comResult.data) ? comResult.data : []),
             ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, Math.max(effectiveLimit * 3, 400));
-            return this.buildInboxMatchesFromRows(tenantId, data, effectiveLimit);
+            return this.buildNetworkInboxMatchesFromRows(tenantId, data, effectiveLimit);
         }
 
         const { data, error } = await this.readAcceptedStreamItems(this.db, [tenantId], {
@@ -2846,6 +2891,9 @@ private highValueLeadAlertKeys = new Set<string>();
                 continue;
             }
 
+            const ownerTenantId = await this.resolveSourceOwnerTenantId(tenantId, parsed.sourcePhone);
+            const assignedToSourceOwner = ownerTenantId !== tenantId;
+
             if (deduplicationEnabled && ['listing', 'requirement'].includes(parsed.recordType)) {
                 const windowMinutes = parsed.recordType === 'requirement' ? 24 * 60 : 10;
                 const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
@@ -2855,7 +2903,7 @@ private highValueLeadAlertKeys = new Set<string>();
                 const { data: exactDupe } = await this.db
                     .from(targetTable)
                     .select('id, ingestion_status')
-                    .eq('tenant_id', tenantId)
+                    .eq('tenant_id', ownerTenantId)
                     .eq('content_hash', contentHash)
                     .maybeSingle();
 
@@ -2877,7 +2925,7 @@ private highValueLeadAlertKeys = new Set<string>();
                     const query = this.db
                         .from(targetTable)
                         .select('id, ingestion_status')
-                        .eq('tenant_id', tenantId)
+                        .eq('tenant_id', ownerTenantId)
                         .eq('locality', parsed.locality)
                         .eq('record_type', parsed.recordType)
                         .gte('created_at', cutoff);
@@ -2921,6 +2969,9 @@ private highValueLeadAlertKeys = new Set<string>();
 
             const parsedPayload = {
                 ...(parsed.parsedPayload || {}),
+                scannerTenantId: tenantId,
+                ownerTenantId,
+                assignedToSourceOwner,
                 ingestionStatus: qualityDecision.status,
                 suppressionReason: qualityDecision.suppressionReason,
                 qualityScore: qualityDecision.qualityScore,
@@ -2959,7 +3010,7 @@ private highValueLeadAlertKeys = new Set<string>();
 
             const { data, error } = await this.upsertStreamItemWithSchemaFallback(targetTable, {
                 ...(streamEmbedding ? { embedding: streamEmbedding } : {}),
-                tenant_id: tenantId,
+                tenant_id: ownerTenantId,
                 session_label: message.session_label || 'workspace',
                 message_id: parsed.messageId,
                 source_message_id: String(message.id),
@@ -3020,10 +3071,10 @@ private highValueLeadAlertKeys = new Set<string>();
                 continue;
             }
 
-            await this.upsertPublicListing(tenantId, parsed, message).catch((pe) => {
+            await this.upsertPublicListing(ownerTenantId, parsed, message).catch((pe) => {
                 console.error('[ChannelService] Failed to upsert public listing', pe);
             });
-            await this.upsertWebsiteListing(tenantId, parsed).catch((le) => {
+            await this.upsertWebsiteListing(ownerTenantId, parsed).catch((le) => {
                 console.error('[ChannelService] Failed to upsert website listing', le);
             });
 
@@ -3045,15 +3096,15 @@ private highValueLeadAlertKeys = new Set<string>();
 
             ingestedCount += 1;
             if (workspaceSettings?.highValueLeads !== false) {
-                void this.maybeAlertHighValueLead(tenantId, parsed, data.id);
+                void this.maybeAlertHighValueLead(ownerTenantId, parsed, data.id);
             }
             await canonicalizationService.canonicalizeStreamItem(data as any).catch((canonicalError) => {
                 console.error('[ChannelService] Canonicalization failed', canonicalError);
             });
-            await this.matchStreamItemToChannels(tenantId, data).catch((matchError) => {
+            await this.matchStreamItemToChannels(ownerTenantId, data).catch((matchError) => {
                 console.error('[ChannelService] Channel matching failed', matchError);
             });
-            await this.syncInboxMatchesForStreamItem(tenantId, data).catch((matchError) => {
+            await this.syncInboxMatchesForStreamItem(ownerTenantId, data).catch((matchError) => {
                 if (!isInboxItemsSchemaError(matchError as any)) {
                     console.error('[ChannelService] Inbox matching failed', matchError);
                 }
@@ -4059,8 +4110,88 @@ ${rawText}
         });
     }
 
+    private collectNetworkInboxPairCandidates(tenantId: string, rows: any[]): InboxPairCandidate[] {
+        const ownRows = rows.filter((row: any) => String(row.tenant_id || '') === tenantId);
+        const rowPool = ownRows.length > 0 ? ownRows : rows;
+        const pairMap = new Map<string, InboxPairCandidate>();
+
+        for (const source of rowPool) {
+            if (!this.isMatchableRecord(source)) {
+                continue;
+            }
+
+            for (const candidate of rows) {
+                if (String(candidate.id || '') === String(source.id || '')) {
+                    continue;
+                }
+
+                const sourceTenantId = String(source.tenant_id || '');
+                const candidateTenantId = String(candidate.tenant_id || '');
+                if (sourceTenantId && candidateTenantId && sourceTenantId === candidateTenantId) {
+                    continue;
+                }
+
+                const pair = this.getInboxPair(source, candidate);
+                if (!pair) {
+                    continue;
+                }
+
+                const sourcePhone = String(source.source_phone || '').trim();
+                const candidatePhone = String(candidate.source_phone || '').trim();
+                if (sourcePhone && candidatePhone && sourcePhone === candidatePhone) {
+                    continue;
+                }
+
+                const result = this.calculateItemMatchScore(source, candidate);
+                if (result.score <= 0) {
+                    continue;
+                }
+
+                const key = this.getInboxPairKey(String(pair.listing.id), String(pair.requirement.id));
+                const createdAt = pair.listing.created_at || pair.requirement.created_at || new Date().toISOString();
+                const current = pairMap.get(key);
+                if (!current) {
+                    pairMap.set(key, {
+                        listing: pair.listing,
+                        requirement: pair.requirement,
+                        score: result.score,
+                        reasons: result.reasons,
+                        createdAt,
+                    });
+                    continue;
+                }
+
+                const currentCreatedAt = new Date(current.createdAt || 0).getTime();
+                const nextCreatedAt = new Date(createdAt || 0).getTime();
+                if (result.score > current.score || (result.score === current.score && nextCreatedAt > currentCreatedAt)) {
+                    pairMap.set(key, {
+                        listing: pair.listing,
+                        requirement: pair.requirement,
+                        score: result.score,
+                        reasons: result.reasons,
+                        createdAt,
+                    });
+                }
+            }
+        }
+
+        return [...pairMap.values()].sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        });
+    }
+
     private async buildInboxMatchesFromRows(tenantId: string, rows: any[], limit: number): Promise<InboxMatchRecord[]> {
         const selected = this.collectInboxPairCandidates(rows).slice(0, limit);
+        return this.mapInboxPairCandidatesToResponse(tenantId, selected);
+    }
+
+    private async buildNetworkInboxMatchesFromRows(tenantId: string, rows: any[], limit: number): Promise<InboxMatchRecord[]> {
+        const selected = this.collectNetworkInboxPairCandidates(tenantId, rows).slice(0, limit);
+        return this.mapInboxPairCandidatesToResponse(tenantId, selected);
+    }
+
+    private async mapInboxPairCandidatesToResponse(tenantId: string, selected: InboxPairCandidate[]): Promise<InboxMatchRecord[]> {
         const sourceMapped = this.enrichSourcePhones(
             selected.map((match) => this.mapStreamItem(match.requirement, tenantId)),
         );

@@ -279,7 +279,7 @@ export function Inbox() {
           <InboxIcon className="h-6 w-6 text-[var(--accent)]" />
           <div>
             <h1 className="text-[22px] font-bold text-[var(--text-primary)]">Inbox</h1>
-            <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Auto-matched workspace listings and buyer or tenant requirements.</p>
+            <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Your broker-owned inventory and requirements matched against other realtor supply and demand.</p>
           </div>
           {unreadCount > 0 ? <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">{unreadCount}</span> : null}
         </div>
@@ -314,7 +314,7 @@ export function Inbox() {
         <div className="flex flex-col items-center justify-center py-16">
           <CheckCircle className="mb-3 h-10 w-10 text-[var(--accent)]" />
           <p className="text-[15px] font-semibold text-[var(--text-primary)]">You&apos;re all caught up</p>
-          <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{tab === 'unread' ? 'No unread listing-requirement matches.' : 'Matches appear here when your listings and requirements line up.'}</p>
+          <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{tab === 'unread' ? 'No unread broker-network matches.' : 'Matches appear here when your inventory or requirements line up with another realtor.'}</p>
         </div>
       ) : (
         <div className="space-y-4">
