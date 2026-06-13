@@ -831,6 +831,7 @@ export const Sources: React.FC = () => {
   const [healthLogs, setHealthLogs] = useState<HealthLogsResponse | null>(null);
   const [isSubmittingSupportLogs, setIsSubmittingSupportLogs] = useState(false);
   const [supportLogsFeedback, setSupportLogsFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const normalizedPhone = useMemo(() => normalizePhoneNumber(phoneNumber), [phoneNumber]);
@@ -1284,6 +1285,12 @@ export const Sources: React.FC = () => {
   }, [currentSessionStatus]);
 
   useEffect(() => {
+    if (!feedback) return;
+    const timer = window.setTimeout(() => setFeedback(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [feedback]);
+
+  useEffect(() => {
     setParseDirectMessages(currentSessionParseDirectMessages);
   }, [currentSessionParseDirectMessages, currentSession?.label]);
 
@@ -1714,6 +1721,7 @@ export const Sources: React.FC = () => {
       setQrGeneratedAt(null);
       setQrTimeLeft(0);
       setPendingConnection(null);
+      setFeedback({ tone: 'success', message: 'Disconnected.' });
       await fetchStatus();
     } catch (err) {
       setError(handleApiError(err));
@@ -1761,6 +1769,7 @@ export const Sources: React.FC = () => {
       setQrTimeLeft(0);
       setScanProgress(0);
       setPendingConnection(null);
+      setFeedback({ tone: 'success', message: 'All sessions cleared. Ready to connect fresh.' });
       await fetchStatus();
     } catch (err) {
       setError(handleApiError(err));
@@ -3419,6 +3428,16 @@ export const Sources: React.FC = () => {
                       <Power className="h-4 w-4" />
                       Disconnect
                     </button>
+                  </div>
+                )}
+                {feedback && (
+                  <div className={cn(
+                    'mt-2 rounded-[10px] border px-3 py-2 text-[11px]',
+                    feedback.tone === 'success'
+                      ? 'border-[color:var(--accent-border)] bg-[rgba(62,232,138,0.08)] text-[var(--accent)]'
+                      : 'border-[color:rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] text-[var(--red)]',
+                  )}>
+                    {feedback.message}
                   </div>
                 )}
               </div>

@@ -163,7 +163,8 @@ export class SessionManager {
         const existingClient = this.clients.get(fullKey);
         if (existingClient) {
             this.callbacks.set(fullKey, { onQR, onConnectionUpdate });
-            if (options.freshAuth) {
+            const snapshot = existingClient.getStatusSnapshot();
+            if (options.freshAuth && snapshot.status !== 'connecting' && !snapshot.isReconnecting) {
                 this.qrs.delete(fullKey);
                 await existingClient.stopTransport().catch((error) => {
                     void this.hooks.onError?.({
@@ -174,6 +175,8 @@ export class SessionManager {
                     });
                 });
                 this.clients.delete(fullKey);
+            } else if (options.freshAuth) {
+                return existingClient;
             } else {
                 const snapshot = existingClient.getStatusSnapshot();
                 if (snapshot.status === 'connected') {

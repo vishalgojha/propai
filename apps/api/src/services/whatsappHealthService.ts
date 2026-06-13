@@ -992,7 +992,11 @@ export class WhatsAppHealthService {
                     const requestedAtMs = requestedAt ? new Date(requestedAt).getTime() : NaN;
                     const requestAgeMs = Number.isFinite(requestedAtMs) ? Math.max(0, now - requestedAtMs) : ageMs;
 
-                    if (!liveSession || liveStatus === 'disconnected' || liveStatus === 'connecting' || liveStatus === 'reconnecting') {
+                    if (liveStatus === 'connecting' || liveStatus === 'reconnecting') {
+                        continue;
+                    }
+
+                    if (!liveSession || liveStatus === 'disconnected') {
                         if (this.shouldLogHeartbeat(`heartbeat_connect_request:${tenantId}:${sessionLabel}`, 30_000)) {
                             await this.appendEvent(
                                 tenantId,
