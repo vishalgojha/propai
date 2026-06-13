@@ -28,10 +28,10 @@ export const getWorkspaceSettings = async (req: Request, res: Response) => {
     res.json({
         settings: record.settings,
         aiKeys: {
-            gemini: geminiKeys.length ? geminiKeys.join('\n') : record.aiKeys.gemini || '',
-            groq: groqKeys.length ? groqKeys.join('\n') : record.aiKeys.groq || '',
-            openrouter: openRouterKeys.length ? openRouterKeys.join('\n') : record.aiKeys.openrouter || '',
-            doubleword: doublewordKeys.length ? doublewordKeys.join('\n') : record.aiKeys.doubleword || '',
+            gemini: geminiKeys.join('\n'),
+            groq: groqKeys.join('\n'),
+            openrouter: openRouterKeys.join('\n'),
+            doubleword: doublewordKeys.join('\n'),
         },
         keyMeta: {
             gemini: geminiMeta,
