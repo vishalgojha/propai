@@ -6,6 +6,7 @@ vi.mock('../src/services/keyService', () => ({
     keyService: {
         getKey: vi.fn().mockResolvedValue(null),
         getKeys: vi.fn().mockResolvedValue([]),
+        hasAnyKeys: vi.fn().mockResolvedValue(false),
     },
     parseApiKeys: vi.fn((value?: string | null) => String(value || '').split(/[\n,;]+/).map((entry) => entry.trim()).filter(Boolean)),
 }));
@@ -52,6 +53,26 @@ describe('AIService', () => {
             .mockRejectedValueOnce(new Error('Groq failed'));
 
         await expect(aiService.chat('Hi', 'Auto')).rejects.toThrow('All AI providers failed');
+    });
+
+    it('uses platform provider keys when the tenant only configured another provider', async () => {
+        const previousGoogleKey = process.env.GOOGLE_API_KEY;
+        try {
+            process.env.GOOGLE_API_KEY = 'platform-google-key';
+            (keyService.getKeys as any).mockImplementation(async (_tenantId: string, provider: string) => (
+                provider === 'Doubleword' ? ['tenant-doubleword-key'] : []
+            ));
+
+            const keys = await (aiService as any).getKeysForProvider('Google', 'tenant-1');
+
+            expect(keys).toEqual(['platform-google-key']);
+        } finally {
+            if (previousGoogleKey === undefined) {
+                delete process.env.GOOGLE_API_KEY;
+            } else {
+                process.env.GOOGLE_API_KEY = previousGoogleKey;
+            }
+        }
     });
 
     it('returns provider status for the current provider set', async () => {

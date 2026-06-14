@@ -300,9 +300,6 @@ export class AIService {
         if (tenantId) {
             const keys = await keyService.getKeys(tenantId, provider);
             if (keys.length) return keys;
-
-            const userHasKeys = await keyService.hasAnyKeys(tenantId);
-            if (userHasKeys) return [];
         }
 
         switch (provider) {
