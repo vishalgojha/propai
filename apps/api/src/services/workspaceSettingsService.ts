@@ -67,6 +67,8 @@ export function normalizeDefaultModel(value?: string | null) {
         case 'groq':
         case 'llama3-8b-8192':
         case 'groq llama3-8b-8192':
+        case 'llama-3.3-70b-versatile':
+        case 'groq llama-3.3-70b-versatile':
             return 'groq';
         case 'openrouter':
         case 'openai/gpt-4o-mini':

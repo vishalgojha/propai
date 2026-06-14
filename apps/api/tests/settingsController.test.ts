@@ -18,12 +18,21 @@ vi.mock('../src/services/workspaceSettingsService', () => ({
 vi.mock('../src/services/keyService', () => ({
     keyService: {
         getKeys: vi.fn(),
+        getKeyMeta: vi.fn().mockResolvedValue({ updatedAt: null }),
         saveKey: vi.fn(),
+        deleteKey: vi.fn().mockResolvedValue({ success: true }),
     },
+    parseApiKeys: vi.fn((value?: string | null) => String(value || '').split(/[\n,;]+/).map((entry) => entry.trim()).filter(Boolean)),
 }));
 
 vi.mock('../src/services/identityService', () => ({
     pushRecentAction: vi.fn(),
+}));
+
+vi.mock('../src/services/aiUsageService', () => ({
+    aiUsageService: {
+        resetUsage: vi.fn().mockResolvedValue({ deletedCount: 0 }),
+    },
 }));
 
 function createResponse() {
@@ -68,6 +77,12 @@ describe('settingsController workspace scoping', () => {
                 openrouter: '',
                 doubleword: '',
             },
+            keyMeta: {
+                gemini: { updatedAt: null },
+                groq: { updatedAt: null },
+                openrouter: { updatedAt: null },
+                doubleword: { updatedAt: null },
+            },
         });
     });
 
@@ -82,6 +97,7 @@ describe('settingsController workspace scoping', () => {
         const res = createResponse();
 
         (saveWorkspaceSettingsRecord as any).mockResolvedValue(undefined);
+        (keyService.getKeys as any).mockResolvedValue([]);
         (keyService.saveKey as any).mockResolvedValue({ success: true });
 
         await saveWorkspaceSettings(req, res as any);
@@ -92,6 +108,6 @@ describe('settingsController workspace scoping', () => {
             { groq: 'gsk_live_123' },
         );
         expect(keyService.saveKey).toHaveBeenCalledWith('workspace-owner-1', 'Groq', 'gsk_live_123');
-        expect(res.json).toHaveBeenCalledWith({ success: true });
+        expect(res.json).toHaveBeenCalledWith({ success: true, usageReset: { deletedCount: 0 } });
     });
 });

@@ -126,7 +126,7 @@ const defaultModelOptions = [
   {
     value: 'groq',
     title: 'Groq',
-    provider: 'Groq llama3-8b-8192',
+    provider: 'Groq llama-3.3-70b-versatile',
     logo: 'groq' as const,
     description: 'Fast fallback if you prefer lower latency than Gemini-first routing.',
   },

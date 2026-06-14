@@ -66,7 +66,7 @@ function extractGeminiUsage(payload: any) {
 export class AIService {
     private googleModel = process.env.GOOGLE_MODEL || 'gemini-2.5-flash';
     private groqBaseURL = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
-    private groqModel = process.env.GROQ_MODEL || 'llama3-70b-8192';
+    private groqModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
     private openRouterBaseURL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
     private openRouterModel = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
     private doublewordBaseURL = process.env.DOUBLEWORD_BASE_URL || 'https://api.doubleword.ai/v1';

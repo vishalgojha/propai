@@ -61,6 +61,21 @@ function isMissingRelationError(error: any) {
     return error?.code === '42P01' || message.includes('does not exist') || message.includes('schema cache');
 }
 
+function trimBaseUrl(value: string) {
+    return value.endsWith('/') ? value.slice(0, -1) : value;
+}
+
+function summarizeProviderError(error: any) {
+    const status = error?.response?.status;
+    const bodyMessage = String(
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        'Connection test failed',
+    );
+    return status ? `HTTP ${status}: ${bodyMessage}` : bodyMessage;
+}
+
 export class KeyService {
     async saveKey(tenantId: string, provider: string, key: string): Promise<{ success: boolean; error?: string }> {
         const updatedAt = new Date().toISOString();
@@ -221,26 +236,50 @@ export class KeyService {
                 try {
                     switch (provider) {
                         case 'Google':
-                            await axios.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+                            await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${process.env.GOOGLE_MODEL || 'gemini-2.5-flash'}:generateContent?key=${key}`, {
+                                contents: [{ role: 'user', parts: [{ text: 'Reply with OK.' }] }],
+                            });
                             break;
                         case 'OpenAI':
-                            await axios.get('https://api.openai.com/v1/models', { headers: { Authorization: `Bearer ${key}` } });
+                            await axios.post('https://api.openai.com/v1/chat/completions', {
+                                model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+                                messages: [{ role: 'user', content: 'Reply with OK.' }],
+                                max_tokens: 8,
+                            }, { headers: { Authorization: `Bearer ${key}` } });
                             break;
                         case 'Groq':
-                            await axios.get(`${process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1'}/models`, { headers: { Authorization: `Bearer ${key}` } });
+                            await axios.post(`${trimBaseUrl(process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1')}/chat/completions`, {
+                                model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+                                messages: [{ role: 'user', content: 'Reply with OK.' }],
+                                max_tokens: 8,
+                            }, { headers: { Authorization: `Bearer ${key}` } });
                             break;
                         case 'OpenRouter':
-                            await axios.get(`${process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'}/models`, { headers: { Authorization: `Bearer ${key}` } });
+                            await axios.post(`${trimBaseUrl(process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1')}/chat/completions`, {
+                                model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+                                messages: [{ role: 'user', content: 'Reply with OK.' }],
+                                max_tokens: 8,
+                            }, {
+                                headers: {
+                                    Authorization: `Bearer ${key}`,
+                                    'HTTP-Referer': process.env.APP_URL || 'https://app.propai.live',
+                                    'X-Title': 'PropAI Pulse',
+                                },
+                            });
                             break;
                         case 'Doubleword':
-                            await axios.get(`${process.env.DOUBLEWORD_BASE_URL || 'https://api.doubleword.ai/v1'}/models`, { headers: { Authorization: `Bearer ${key}` } });
+                            await axios.post(`${trimBaseUrl(process.env.DOUBLEWORD_BASE_URL || 'https://api.doubleword.ai/v1')}/chat/completions`, {
+                                model: process.env.DOUBLEWORD_MODEL || 'Qwen/Qwen3.6-35B-A3B-FP8',
+                                messages: [{ role: 'user', content: 'Reply with OK.' }],
+                                max_tokens: 8,
+                            }, { headers: { Authorization: `Bearer ${key}` } });
                             break;
                         default:
                             return { success: false, error: 'Unsupported provider' };
                     }
                     return { success: true };
                 } catch (error: any) {
-                    lastError = error.message;
+                    lastError = summarizeProviderError(error);
                 }
             }
             return { success: false, error: lastError || 'All API keys failed connection test' };
