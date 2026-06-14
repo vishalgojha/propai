@@ -41,6 +41,7 @@ function buildStreamItemsCacheKey(
         normalizeCacheSegment((filters.freshnessBands || []).join(',')),
         normalizeCacheSegment(filters.source),
         filters.brokerOnly ? '1' : '0',
+        filters.showAll ? '1' : '0',
     ].join('|');
 }
 
@@ -89,6 +90,7 @@ function parseStreamFilters(query: Request['query']): StreamListFilters {
         freshnessBands,
         source: typeof query.source === 'string' ? query.source.trim() || null : null,
         brokerOnly: query.brokerOnly === 'true',
+        showAll: query.showAll === 'true',
     };
 }
 

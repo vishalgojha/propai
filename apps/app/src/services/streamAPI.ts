@@ -42,6 +42,8 @@ export interface StreamItem {
   createdAt: string;
   igrTransactions?: IgrTransactionPreview[];
   igrQueueStatus?: IgrQueueStatusPreview | null;
+  ingestionStatus?: string;
+  suppressionReason?: string | null;
 }
 
 export interface IgrTransactionPreview {
@@ -109,6 +111,7 @@ export interface StreamFilters {
   configuration?: string;
   brokerOnly?: boolean;
   limit?: number;
+  showAll?: boolean;
 }
 
 export interface FuzzySuggestion {
@@ -163,6 +166,7 @@ export async function fetchStreamItems(filters?: StreamFilters): Promise<StreamR
   if (filters?.search) params.search = filters.search;
   if (filters?.brokerOnly) params.brokerOnly = 'true';
   if (filters?.limit) params.limit = filters.limit;
+  if (filters?.showAll) params.showAll = 'true';
 
   const response = await backendApi.get(ENDPOINTS.channels.stream, { params, timeout: 60000 });
   return {

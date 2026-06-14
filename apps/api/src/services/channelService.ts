@@ -42,6 +42,7 @@ export type StreamListFilters = {
     freshnessBands?: StreamFreshnessBand[];
     source?: string | null;
     brokerOnly?: boolean;
+    showAll?: boolean;
 };
 
 type ChannelRow = {
@@ -125,6 +126,8 @@ export type StreamItemRecord = {
     isRead?: boolean;
     igrTransactions?: IgrTransactionPreview[];
     igrQueueStatus?: IgrQueueStatusPreview | null;
+    ingestionStatus?: string;
+    suppressionReason?: string | null;
 };
 
 export type InboxMatchRecord = {
@@ -1678,13 +1681,14 @@ export class ChannelService {
         const initialSearch = options?.filters?.search;
         const hadStructuredFilters = searchParts.bhk || searchParts.locality || searchParts.fullTextSearch || typeFilters.length > 0;
 
-        let result = await buildQuery(true);
+        const acceptedOnly = !options?.filters?.showAll;
+        let result = await buildQuery(acceptedOnly);
         if (result.error && isMissingIngestionStatusError(result.error.message)) {
             result = await buildQuery(false);
         }
 
         if (result.data && Array.isArray(result.data) && result.data.length === 0 && initialSearch && hadStructuredFilters) {
-            const rawFallback = await this.buildQueryRawTextOnly(readClient, tenantIds, initialSearch, true, options?.limit);
+            const rawFallback = await this.buildQueryRawTextOnly(readClient, tenantIds, initialSearch, acceptedOnly, options?.limit);
             if (Array.isArray(rawFallback) && rawFallback.length > 0) {
                 result = { data: rawFallback, error: null, count: rawFallback.length };
             } else {
@@ -3068,6 +3072,7 @@ private highValueLeadAlertKeys = new Set<string>();
             }
 
             if (!isAccepted) {
+                ingestedCount += 1;
                 continue;
             }
 
@@ -4737,6 +4742,8 @@ ${rawText}
             assetClass: item.asset_class || 'unknown',
             isCorrected: Boolean(item.parsed_payload?.isCorrected),
             isRead,
+            ingestionStatus: item.ingestion_status || 'accepted',
+            suppressionReason: item.suppression_reason || null,
         };
     }
 

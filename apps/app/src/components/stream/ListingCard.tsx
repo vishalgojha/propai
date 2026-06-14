@@ -428,6 +428,15 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                         )}>
                             {listing.type}
                         </span>
+                        {listing.ingestionStatus && listing.ingestionStatus !== 'accepted' ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--amber)] bg-amber-900/20 px-2.5 py-1 text-[8px] font-bold uppercase tracking-[0.1em] text-[var(--amber)]">
+                                {listing.ingestionStatus === 'insufficient_data' ? 'Incomplete'
+                                    : listing.ingestionStatus === 'suppressed_low_effort' ? 'Low effort'
+                                    : listing.ingestionStatus === 'suppressed_bulk_spam' ? 'Bulk spam'
+                                    : listing.ingestionStatus === 'suppressed_unresolved_context' ? 'Unresolved'
+                                    : listing.ingestionStatus}
+                            </span>
+                        ) : null}
                         <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold text-[var(--text-secondary)]">
                             <MapPin className="h-3 w-3 text-[var(--accent)]" />
                             {listing.location || 'Mumbai market'}
@@ -576,6 +585,12 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                     </div>
                                 ))}
                             </div>
+                            {listing.suppressionReason ? (
+                                <div className="rounded-[18px] bg-amber-900/10 border border-[color:var(--amber)]/30 p-3">
+                                    <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--amber)] mb-1">Suppression reason</p>
+                                    <p className="text-[12px] leading-relaxed text-[var(--text-secondary)]">{listing.suppressionReason}</p>
+                                </div>
+                            ) : null}
 
                         </div>
 

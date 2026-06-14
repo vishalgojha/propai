@@ -636,6 +636,7 @@ export const Listings: React.FC = () => {
   const [filterCommercialFacet, setFilterCommercialFacet] = React.useState<string>('all');
   const [filterSource, setFilterSource] = React.useState<string>('all');
   const [brokerOnly, setBrokerOnly] = React.useState(false);
+  const [showAllItems, setShowAllItems] = React.useState(false);
   const [quickTypes, setQuickTypes] = React.useState<Array<StreamItem['type']>>([]);
   const [quickFreshnessBands, setQuickFreshnessBands] = React.useState<Array<'1h' | '6h'>>([]);
   const [filterPropertyCategory, setFilterPropertyCategory] = React.useState<string>('residential');
@@ -672,7 +673,8 @@ export const Listings: React.FC = () => {
     category: filterPropertyCategory as 'residential' | 'commercial',
     locality: localityFilter || undefined,
     limit: STREAM_INITIAL_FETCH_LIMIT,
-  }), [filterPropertyCategory, localityFilter]);
+    showAll: showAllItems || undefined,
+  }), [filterPropertyCategory, localityFilter, showAllItems]);
   const queryScopeKey = React.useMemo(
     () => [channelId || 'all', selectedSessionLabel || 'all', filterPropertyCategory, localityFilter || 'all'].join('|'),
     [channelId, selectedSessionLabel, filterPropertyCategory, localityFilter],
@@ -1562,6 +1564,18 @@ if (brokerOnly) {
                 {activeFilterCount}
               </span>
             ) : null}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAllItems((prev) => !prev)}
+            className={cn(
+              'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors',
+              showAllItems
+                ? 'border-[color:var(--amber)] bg-amber-900/20 text-[var(--amber)]'
+                : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+            )}
+          >
+            {showAllItems ? 'Showing all' : 'Accepted only'}
           </button>
           {activeFilterCount > 0 ? (
             <button
