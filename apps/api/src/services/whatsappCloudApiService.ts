@@ -22,6 +22,9 @@ type OfficialApiSessionData = {
     lastInboundAt?: string | null;
     lastOutboundAt?: string | null;
     lastWebhookAt?: string | null;
+    pendingConnect?: null;
+    connectionArtifact?: null;
+    connectionArtifactUpdatedAt?: null;
 };
 
 type OfficialApiConfigInput = {
@@ -169,6 +172,9 @@ export class WhatsAppCloudApiService {
             lastInboundAt: null,
             lastOutboundAt: null,
             lastWebhookAt: null,
+            pendingConnect: null,
+            connectionArtifact: null,
+            connectionArtifactUpdatedAt: null,
         };
 
         const existingAccessToken = input.accessToken

@@ -132,6 +132,12 @@ function getConnectionStatus(row: any) {
     return String(row?.connection_status || row?.status || 'disconnected');
 }
 
+function isOfficialCloudSession(sessionLabel: string, sessionData: Record<string, unknown>) {
+    return sessionLabel === 'Official API'
+        || sessionData.provider === 'cloud_api'
+        || sessionData.mode === 'official_api';
+}
+
 function deriveGroupStatus(lastMessageAt?: string | null, failedCount = 0) {
     if (failedCount > 0) {
         return 'error';
@@ -983,6 +989,35 @@ export class WhatsAppHealthService {
                     !autoReconnectBlocked &&
                     !liveSession?.isReconnecting &&
                     stallDetected;
+
+                if (isOfficialCloudSession(sessionLabel, sessionData)) {
+                    const enabled = sessionData.enabled !== false;
+                    const hasBaileysConnectState = Boolean(
+                        sessionData.pendingConnect
+                        || sessionData.connectionArtifact
+                        || sessionData.connectionArtifactUpdatedAt,
+                    );
+
+                    if (enabled && (dbStatus !== 'connected' || hasBaileysConnectState)) {
+                        await db
+                            .from('whatsapp_sessions')
+                            .update({
+                                status: 'connected',
+                                last_sync: new Date().toISOString(),
+                                updated_at: new Date().toISOString(),
+                                session_data: {
+                                    ...sessionData,
+                                    pendingConnect: null,
+                                    connectionArtifact: null,
+                                    connectionArtifactUpdatedAt: null,
+                                },
+                            })
+                            .eq('tenant_id', tenantId)
+                            .eq('label', sessionLabel);
+                    }
+
+                    continue;
+                }
 
                 if (pendingConnect && !autoReconnectBlocked) {
                     const mode = pendingConnect.mode === 'pairing' ? 'pairing' : 'qr';
