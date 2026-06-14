@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { validate } from '../middleware/validate';
 import { whatsappCloudApiService } from '../services/whatsappCloudApiService';
+import { workspaceAccessService } from '../services/workspaceAccessService';
 import { z } from 'zod';
 
 const router = Router();
@@ -53,7 +54,8 @@ router.use(authMiddleware);
 
 router.get('/config', async (req: Request, res: Response) => {
     try {
-        const tenantId = String(req.user?.id || '').trim();
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const tenantId = context.workspaceOwnerId;
         const config = await whatsappCloudApiService.getConfig(tenantId);
         return res.json({ config });
     } catch (error) {
@@ -64,7 +66,8 @@ router.get('/config', async (req: Request, res: Response) => {
 
 router.post('/config', validate(saveCloudConfigSchema), async (req: Request, res: Response) => {
     try {
-        const tenantId = String(req.user?.id || '').trim();
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const tenantId = context.workspaceOwnerId;
         const config = await whatsappCloudApiService.saveConfig({
             tenantId,
             enabled: Boolean(req.body?.enabled),
