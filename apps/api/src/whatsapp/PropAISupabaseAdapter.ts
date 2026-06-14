@@ -273,7 +273,7 @@ export class PropAISupabaseAdapter implements WhatsAppStorageAdapter {
             };
         }
 
-        if (classified.intent === 'listing' || (classified.intent === 'unknown' && !classified.shouldParse && !classified.hasPrice)) {
+        if (classified.intent === 'listing' || (classified.intent === 'unknown' && !classified.shouldParse && !classified.hasPrice && classified.confidence !== 'low')) {
             return {
                 hasPrice: classified.hasPrice,
                 isRequirement: false,
