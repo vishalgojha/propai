@@ -29,7 +29,7 @@ function providerToWorkspaceKey(provider: string) {
 export function parseApiKeys(value?: string | null): string[] {
     return (value || '')
         .split(/[\n,;]+/)
-        .map((entry) => entry.trim())
+        .map((entry) => entry.replace(/\s+/g, '').trim())
         .filter(Boolean);
 }
 
@@ -73,20 +73,34 @@ function summarizeProviderError(error: any) {
         error?.message ||
         'Connection test failed',
     );
-    return status ? `HTTP ${status}: ${bodyMessage}` : bodyMessage;
+    const normalized = bodyMessage.toLowerCase();
+    if (status === 429 || normalized.includes('quota') || normalized.includes('rate limit')) {
+        return 'Quota or rate limit reached for this key/model. Try another key or wait for quota reset.';
+    }
+    if (status === 402 || normalized.includes('billing') || normalized.includes('credit') || normalized.includes('payment')) {
+        return 'Billing or credits are not active for this provider key.';
+    }
+    if (status === 401 || status === 403 || normalized.includes('api key')) {
+        return 'The API key is invalid or does not have access to this model.';
+    }
+    if (status === 400 && normalized.includes('model')) {
+        return 'The configured model is not available for this provider key.';
+    }
+    return status ? `HTTP ${status}: ${bodyMessage.slice(0, 180)}` : bodyMessage.slice(0, 180);
 }
 
 export class KeyService {
     async saveKey(tenantId: string, provider: string, key: string): Promise<{ success: boolean; error?: string }> {
         const updatedAt = new Date().toISOString();
         const fileKey = providerToWorkspaceKey(provider);
+        const normalizedKey = parseApiKeys(key).join('\n');
 
         const store = await readWorkspaceStore();
         store[tenantId] = {
             ...store[tenantId],
             aiKeys: {
                 ...(store[tenantId]?.aiKeys || {}),
-                [fileKey]: key,
+                [fileKey]: normalizedKey,
             },
             updatedAt,
         };
@@ -95,7 +109,7 @@ export class KeyService {
         try {
             const { error } = await getKeyStoreClient()
                 .from(KEY_TABLE)
-                .upsert({ tenant_id: tenantId, provider, key, updated_at: updatedAt }, { onConflict: 'tenant_id, provider' });
+                .upsert({ tenant_id: tenantId, provider, key: normalizedKey, updated_at: updatedAt }, { onConflict: 'tenant_id, provider' });
 
             if (error) {
                 dbError = error.message;

@@ -63,6 +63,32 @@ function extractGeminiUsage(payload: any) {
     };
 }
 
+function summarizeAiError(error: any) {
+    const status = error?.response?.status;
+    const raw = String(
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        'AI provider unavailable',
+    );
+    const normalized = raw.toLowerCase();
+
+    if (status === 429 || normalized.includes('quota') || normalized.includes('rate limit')) {
+        return 'quota or rate limit reached';
+    }
+    if (status === 402 || normalized.includes('billing') || normalized.includes('credit') || normalized.includes('payment')) {
+        return 'billing or credits unavailable';
+    }
+    if (status === 401 || status === 403 || normalized.includes('api key') || normalized.includes('unauthorized')) {
+        return 'key invalid or unauthorized';
+    }
+    if (status === 400 && normalized.includes('model')) {
+        return 'configured model unavailable';
+    }
+
+    return raw.replace(/\s+/g, ' ').slice(0, 160);
+}
+
 export class AIService {
     private googleModel = process.env.GOOGLE_MODEL || 'gemini-2.5-flash';
     private groqBaseURL = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
@@ -128,7 +154,7 @@ export class AIService {
                 };
             } catch (error: any) {
                 const responseBody = error?.response?.data ? JSON.stringify(error.response.data).slice(0, 500) : '';
-                const message = error instanceof Error ? error.message : 'AI provider unavailable';
+                const message = summarizeAiError(error);
                 errors.push({ provider, message });
                 if (this.shouldLogProvider(`provider_error:${provider}`, 5 * 60_000)) {
                     console.error(`AI Error with ${provider}, falling back...`, error);

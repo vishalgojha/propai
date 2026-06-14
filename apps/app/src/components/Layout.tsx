@@ -71,6 +71,30 @@ const formatHeaderPhone = (phone?: string | null) => {
   return value.startsWith('+') ? value : `+${value}`;
 };
 
+const mergeRecentWhatsappSessions = (
+  incoming: WhatsAppSessionSummary[],
+  previous: WhatsAppStatusSummary | null,
+  hasRecentHealthyState: boolean,
+) => {
+  if (!hasRecentHealthyState || !previous?.sessions?.length) {
+    return incoming;
+  }
+
+  const incomingByLabel = new Map(incoming.map((session) => [session.label, session]));
+  for (const previousSession of previous.sessions) {
+    if (previousSession.status !== 'connected') {
+      continue;
+    }
+
+    const nextSession = incomingByLabel.get(previousSession.label);
+    if (!nextSession || nextSession.status === 'disconnected') {
+      incomingByLabel.set(previousSession.label, previousSession);
+    }
+  }
+
+  return Array.from(incomingByLabel.values());
+};
+
 export const Layout: React.FC = () => {
   const { user, isLoading, logout } = useAuth();
   usePushNotifications(user?.id || null);
@@ -198,12 +222,16 @@ export const Layout: React.FC = () => {
         const sessions = Array.isArray(response.data.sessions)
           ? response.data.sessions.map(normalizeWhatsAppSession).filter((session): session is WhatsAppSessionSummary => Boolean(session))
           : [];
-        const connectedSessions = sessions.filter((session) => session.status === 'connected');
-        const preferredLabel = selectedSessionLabel && sessions.some((session) => session.label === selectedSessionLabel)
+        const hasRecentHealthyState =
+          Boolean(lastHealthyWhatsappStatusRef.current) &&
+          Date.now() - lastHealthyWhatsappStatusAtRef.current < WHATSAPP_DISCONNECT_GRACE_MS;
+        const mergedSessions = mergeRecentWhatsappSessions(sessions, lastHealthyWhatsappStatusRef.current, hasRecentHealthyState);
+        const connectedSessions = mergedSessions.filter((session) => session.status === 'connected');
+        const preferredLabel = selectedSessionLabel && mergedSessions.some((session) => session.label === selectedSessionLabel)
           ? selectedSessionLabel
-          : connectedSessions[0]?.label || sessions[0]?.label || null;
+          : connectedSessions[0]?.label || mergedSessions[0]?.label || null;
         const selectedSession = preferredLabel
-          ? sessions.find((session) => session.label === preferredLabel) || null
+          ? mergedSessions.find((session) => session.label === preferredLabel) || null
           : null;
 
         if (!selectedSessionLabel && preferredLabel) {
@@ -216,7 +244,7 @@ export const Layout: React.FC = () => {
           connectedOwnerName: selectedSession?.ownerName || response.data.connectedOwnerName || null,
           activeCount: response.data.activeCount || 0,
           limit: response.data.limit || 0,
-          sessions,
+          sessions: mergedSessions,
           selectedSessionLabel: preferredLabel,
         };
 
@@ -235,10 +263,6 @@ export const Layout: React.FC = () => {
         }
 
         disconnectedSnapshotCountRef.current += 1;
-        const hasRecentHealthyState =
-          Boolean(lastHealthyWhatsappStatusRef.current) &&
-          Date.now() - lastHealthyWhatsappStatusAtRef.current < WHATSAPP_DISCONNECT_GRACE_MS;
-
         if (hasRecentHealthyState && disconnectedSnapshotCountRef.current < 2) {
           return;
         }

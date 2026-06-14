@@ -146,6 +146,31 @@ const defaultModelOptions = [
   },
 ] as const;
 
+function normalizeApiKeyText(value: string) {
+  return value
+    .split(/[\n,;]+/)
+    .map((entry) => entry.replace(/\s+/g, '').trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+function sanitizeApiKeyEditorText(value: string) {
+  return value
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((entry) => entry.replace(/[^\S\n]+/g, ''))
+    .join('\n');
+}
+
+function normalizeAiKeys(aiKeys: Partial<AIConfig> = {}): AIConfig {
+  return {
+    gemini: normalizeApiKeyText(aiKeys.gemini || ''),
+    groq: normalizeApiKeyText(aiKeys.groq || ''),
+    openrouter: normalizeApiKeyText(aiKeys.openrouter || ''),
+    doubleword: normalizeApiKeyText(aiKeys.doubleword || ''),
+  };
+}
+
 function ToggleRow({
   title,
   description,
@@ -356,7 +381,7 @@ export const Settings: React.FC = () => {
       ]);
       if (settingsResp.data) {
         setSettings((prev) => ({ ...prev, ...(settingsResp.data.settings || {}) }));
-        setAiKeys(settingsResp.data.aiKeys || {});
+        setAiKeys(normalizeAiKeys(settingsResp.data.aiKeys || {}));
         setKeyMeta(settingsResp.data.keyMeta || {});
       }
       syncProfileEditor(profileResp.data?.profile || null, metadataResp.data?.metadata || null);
@@ -392,7 +417,9 @@ export const Settings: React.FC = () => {
     setIsSaving(true);
     setError(null);
     try {
-      await backendApi.post(ENDPOINTS.settings.save, { settings, aiKeys });
+      const normalizedKeys = normalizeAiKeys(aiKeys);
+      setAiKeys(normalizedKeys);
+      await backendApi.post(ENDPOINTS.settings.save, { settings, aiKeys: normalizedKeys });
       track('settings_saved', {
         has_gemini_key: Boolean(aiKeys.gemini),
         has_groq_key: Boolean(aiKeys.groq),
@@ -416,7 +443,7 @@ export const Settings: React.FC = () => {
   };
 
   const updateAiKey = (provider: keyof AIConfig, value: string) => {
-    setAiKeys((prev) => ({ ...prev, [provider]: value }));
+    setAiKeys((prev) => ({ ...prev, [provider]: sanitizeApiKeyEditorText(value) }));
   };
 
   const replayTour = () => {
@@ -679,15 +706,15 @@ export const Settings: React.FC = () => {
                         onChange={(e) => updateAiKey(providerKey, e.target.value)}
                         onPaste={(e) => {
                           const text = e.clipboardData.getData('text');
-                          if (/[\n\r]/.test(text)) {
+                          if (/\s/.test(text)) {
                             e.preventDefault();
-                            const cleaned = text.replace(/[\n\r]+/g, '').trim();
+                            const cleaned = normalizeApiKeyText(text);
                             if (!cleaned) return;
                             const el = e.target as HTMLTextAreaElement;
                             const val = el.value;
                             const before = val.slice(0, el.selectionStart);
                             const after = val.slice(el.selectionEnd);
-                            updateAiKey(providerKey, before + cleaned + after);
+                            updateAiKey(providerKey, `${before}${cleaned}${after}`);
                           }
                         }}
                         placeholder={`Paste ${provider.name} keys, one per line`}

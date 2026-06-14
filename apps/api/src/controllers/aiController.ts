@@ -68,6 +68,21 @@ function isMissingChatSessionsSchemaError(error: unknown) {
         || haystack.includes('does not exist');
 }
 
+function buildFriendlyAiFallback(message: string) {
+    const normalized = message.toLowerCase();
+    if (normalized.includes('quota') || normalized.includes('rate limit')) {
+        return 'Pulse is temporarily out of AI quota on the configured providers. Add another working key or wait for quota reset.';
+    }
+    if (normalized.includes('billing') || normalized.includes('credit')) {
+        return 'Pulse could not use one provider because billing or credits are not active. Add a funded key or switch provider.';
+    }
+    if (normalized.includes('not configured')) {
+        return 'Pulse does not have a working AI provider configured yet.';
+    }
+
+    return `Pulse could not reach the model chain. ${message}`;
+}
+
 export const chat = async (req: Request, res: Response) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -124,7 +139,7 @@ export const chat = async (req: Request, res: Response) => {
     } catch (error: unknown) {
         const capabilityHint = buildCapabilityHint('general_answer');
         const fallbackError = getErrorMessage(error, 'AI provider unavailable');
-        const agentResponse = toAgentResponse(`Pulse could not reach the model chain. ${fallbackError}`);
+        const agentResponse = toAgentResponse(buildFriendlyAiFallback(fallbackError));
         res.json({
             reply: agentResponse.message,
             text: agentResponse.message,
