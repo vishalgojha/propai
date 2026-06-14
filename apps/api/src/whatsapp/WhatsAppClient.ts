@@ -593,6 +593,7 @@ export class WhatsAppClient {
                             sessionLabel: this.label,
                             groups: liveGroups,
                         });
+                        void whatsappHealthService.syncGroups(this.tenantId, this.label, liveGroups);
                     }
 
                     await this.persistChatTitles(chats);
@@ -1355,6 +1356,7 @@ try {
                 const groups = await this.getGroups();
                 if (groups && groups.length > 0) {
                     await this.persistStatus('connected');
+                    void whatsappHealthService.syncGroups(this.tenantId, this.label, groups as any);
                     return;
                 }
             } catch {
