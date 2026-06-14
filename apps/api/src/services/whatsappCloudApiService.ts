@@ -368,9 +368,11 @@ export class WhatsAppCloudApiService {
                         }).catch(() => undefined);
                     }
 
-                    const reply = await agentExecutor.processMessage(tenantId, remoteJid, text, sessionLabel, undefined, {
+                    let agentFailureMessage = '';
+                    let reply = await agentExecutor.processMessage(tenantId, remoteJid, text, sessionLabel, undefined, {
                         suppressFallbackOnError: true,
                         onError: async (error) => {
+                            agentFailureMessage = error instanceof Error ? error.message : String(error);
                             const serializedError = error instanceof Error
                                 ? {
                                     name: error.name,
@@ -395,6 +397,10 @@ export class WhatsAppCloudApiService {
                         console.error('[WhatsAppCloudApiService] Agent reply failed', error);
                         return '';
                     });
+
+                    if (!reply.trim() && agentFailureMessage) {
+                        reply = 'Pulse received your message, but the AI model provider is temporarily unavailable. Please try again in a few minutes.';
+                    }
 
                     if (reply.trim()) {
                         await this.sendTextMessage({
