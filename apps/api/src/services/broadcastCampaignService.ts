@@ -163,12 +163,18 @@ export class BroadcastCampaignService {
     const latestRecipientError = await this.getLatestRecipientError(campaign.id);
 
     let startBlocker: string | null = null;
-    if (campaign.status !== 'draft') {
+    if (campaign.status === 'draft') {
+      if (campaign.total_recipients === 0) {
+        startBlocker = 'Campaign has no recipients. Populate recipients first.';
+      } else if (!senderConnected) {
+        startBlocker = `Broadcast sender '${BROADCAST_SESSION_LABEL}' is not connected. Connect it from WhatsApp setup first.`;
+      }
+    } else if (campaign.status === 'failed') {
+      if (!senderConnected) {
+        startBlocker = `Broadcast sender '${BROADCAST_SESSION_LABEL}' is not connected. Connect a device for this label and retry.`;
+      }
+    } else {
       startBlocker = `Campaign is ${campaign.status}, so it cannot be started again.`;
-    } else if (campaign.total_recipients === 0) {
-      startBlocker = 'Campaign has no recipients. Populate recipients first.';
-    } else if (!senderConnected) {
-      startBlocker = `Broadcast sender '${BROADCAST_SESSION_LABEL}' is not connected. Connect it from WhatsApp setup first.`;
     }
 
     return {
@@ -407,12 +413,26 @@ export class BroadcastCampaignService {
         started_at: new Date().toISOString(),
       })
       .eq('id', campaignId)
-      .eq('status', 'draft')
+      .in('status', ['draft', 'failed'])
       .select()
       .single();
 
     if (error) throw new Error(error.message);
     return data;
+  }
+
+  async resetFailedRecipients(campaignId: string): Promise<number> {
+    if (!db) throw new Error('Database admin client is not configured');
+
+    const { data, error } = await db
+      .from('broadcast_recipients')
+      .update({ status: 'pending', error_message: null, failed_at: null })
+      .eq('campaign_id', campaignId)
+      .eq('status', 'failed')
+      .select('id');
+
+    if (error) throw new Error(error.message);
+    return data?.length || 0;
   }
 }
 

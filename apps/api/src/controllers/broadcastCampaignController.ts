@@ -174,17 +174,22 @@ export const startCampaign = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Campaign not found' });
     }
 
-    if (campaign.status !== 'draft') {
-      return res.status(400).json({ error: 'Campaign must be in draft status to start' });
+    if (!['draft', 'failed'].includes(campaign.status)) {
+      return res.status(400).json({ error: `Campaign cannot be started in ${campaign.status} status` });
     }
 
-    if (campaign.total_recipients === 0) {
+    if (campaign.status === 'draft' && campaign.total_recipients === 0) {
       return res.status(400).json({ error: 'Campaign has no recipients. Populate recipients first.' });
     }
 
     const diagnostics = await broadcastCampaignService.getDiagnostics(campaign);
     if (diagnostics.startBlocker) {
       return res.status(400).json({ error: diagnostics.startBlocker, diagnostics });
+    }
+
+    if (campaign.status === 'failed') {
+      const resetCount = await broadcastCampaignService.resetFailedRecipients(campaignId);
+      console.log(`[Broadcast] Reset ${resetCount} failed recipients for retry on campaign ${campaignId}`);
     }
 
     await broadcastCampaignService.startCampaign(campaignId);

@@ -301,7 +301,7 @@ export const BroadcastView: React.FC = () => {
               const isExpanded = expandedCampaign === campaign.id;
               const diagnostics = campaign.diagnostics;
               const startBlocker = diagnostics?.startBlocker || null;
-              const canStart = campaign.status === 'draft' && campaign.total_recipients > 0 && !startBlocker;
+              const canStart = ['draft', 'failed'].includes(campaign.status) && campaign.total_recipients > 0 && !startBlocker;
 
               return (
                 <div
@@ -372,6 +372,21 @@ export const BroadcastView: React.FC = () => {
                           )}
                         >
                           Send Now
+                        </button>
+                      )}
+                      {campaign.status === 'failed' && (
+                        <button
+                          onClick={() => handleStart(campaign.id)}
+                          disabled={!diagnostics?.senderConnected}
+                          title={!diagnostics?.senderConnected ? 'Connect broadcast sender device first' : undefined}
+                          className={cn(
+                            'rounded-[6px] px-3 py-1.5 text-xs font-semibold transition-colors',
+                            diagnostics?.senderConnected
+                              ? 'bg-amber-500 text-black hover:brightness-110'
+                              : 'cursor-not-allowed bg-gray-500/20 text-gray-400',
+                          )}
+                        >
+                          Retry
                         </button>
                       )}
                       {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
