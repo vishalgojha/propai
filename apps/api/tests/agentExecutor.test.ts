@@ -30,6 +30,7 @@ vi.mock('../src/config/supabase', () => {
         insert: vi.fn().mockReturnThis(),
         update: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
         limit: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -117,5 +118,20 @@ describe('AgentExecutor', () => {
         const response = await executor.processMessage('tenant-1', 'jid-1', 'Do something weird');
 
         expect(response).toContain('Something went wrong on my end');
+    });
+
+    it('can suppress generic fallback while reporting agent errors', async () => {
+        const error = new Error('model unavailable');
+        const onError = vi.fn();
+        (conversationEngineService.process as any).mockRejectedValueOnce(error);
+        (supabase.maybeSingle as any).mockResolvedValueOnce({ data: null, error: null });
+
+        const response = await executor.processMessage('tenant-1', 'jid-1', 'Hi', 'Official API', undefined, {
+            onError,
+            suppressFallbackOnError: true,
+        });
+
+        expect(response).toBe('');
+        expect(onError).toHaveBeenCalledWith(error);
     });
 });

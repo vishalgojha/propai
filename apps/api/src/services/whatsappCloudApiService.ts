@@ -368,7 +368,30 @@ export class WhatsAppCloudApiService {
                         }).catch(() => undefined);
                     }
 
-                    const reply = await agentExecutor.processMessage(tenantId, remoteJid, text, sessionLabel).catch((error) => {
+                    const reply = await agentExecutor.processMessage(tenantId, remoteJid, text, sessionLabel, undefined, {
+                        suppressFallbackOnError: true,
+                        onError: async (error) => {
+                            const serializedError = error instanceof Error
+                                ? {
+                                    name: error.name,
+                                    message: error.message,
+                                    stack: error.stack,
+                                }
+                                : { message: String(error) };
+                            await whatsappHealthService.appendEvent(
+                                tenantId,
+                                sessionLabel,
+                                'cloud_agent_reply_failed',
+                                'WhatsApp Cloud API agent reply failed.',
+                                {
+                                    phoneNumberId,
+                                    remoteJid,
+                                    messageId,
+                                    error: serializedError,
+                                },
+                            ).catch(() => undefined);
+                        },
+                    }).catch((error) => {
                         console.error('[WhatsAppCloudApiService] Agent reply failed', error);
                         return '';
                     });

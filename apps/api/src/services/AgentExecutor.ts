@@ -19,6 +19,11 @@ type ChatTurn = {
     content: string;
 };
 
+type ProcessMessageOptions = {
+    onError?: (error: unknown) => Promise<void> | void;
+    suppressFallbackOnError?: boolean;
+};
+
 function normalizeComparablePhone(value?: string | null) {
     const digits = String(value || '').split('').filter(c => c >= '0' && c <= '9').join('');
     return digits.slice(-10);
@@ -75,6 +80,7 @@ export class AgentExecutor {
             groupName: string | null;
             senderJid: string | null;
         },
+        options?: ProcessMessageOptions,
     ): Promise<string> {
         const ASSISTANT_PHONE = '7021045254'; // last 10 digits of +91 70210 45254
         let effectiveTenantId = tenantId;
@@ -224,6 +230,10 @@ export class AgentExecutor {
             return cleanWhatsAppReply(renderOutput(toAgentResponse("I'm having a bit of trouble with this one. Could you try saying it differently?")));
         } catch (error) {
             console.error('Agent Loop Error:', error);
+            await options?.onError?.(error);
+            if (options?.suppressFallbackOnError) {
+                return '';
+            }
             return cleanWhatsAppReply(renderOutput(toAgentResponse("Something went wrong on my end, but I'm trying to fix it. One moment!")));
         }
     }
