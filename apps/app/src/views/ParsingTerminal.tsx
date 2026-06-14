@@ -470,7 +470,7 @@ export default function ParsingTerminal() {
       await backendApi.patch(ENDPOINTS.whatsapp.toggleGroupParsing(group.groupId), { isParsing: enabled });
       if (enabled) {
         const result = await rebuildStreamFromSavedMessages(200, group.sessionLabel, group.groupId);
-        setInfoMessage(`${group.groupName} restored to default parsing. Replayed ${result.scanned} saved messages and mapped ${result.ingested}.`);
+        setInfoMessage(`${group.groupName} restored to default parsing. Scanned ${result.scanned} saved messages and mapped ${result.ingested}.`);
       } else {
         setInfoMessage(`${group.groupName} opted out of parsing.`);
       }
@@ -625,7 +625,7 @@ export default function ParsingTerminal() {
                 disabled={actionGroupId === promptGroup.groupId}
                 className="border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--accent)] disabled:opacity-60"
               >
-                {actionGroupId === promptGroup.groupId ? 'Working...' : promptGroup.isParsing === false ? 'Restore parsing' : 'Replay now'}
+                {actionGroupId === promptGroup.groupId ? 'Working...' : promptGroup.isParsing === false ? 'Restore parsing' : 'Scan missed'}
               </button>
               <button
                 type="button"
