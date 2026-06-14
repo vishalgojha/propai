@@ -27,6 +27,7 @@ import { ENDPOINTS } from '../services/endpoints';
 import { track } from '../services/analytics';
 import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK, PROPAI_ASSISTANT_PHONE_DIGITS, PROPAI_PLAN_CARDS } from '../lib/propai';
 import { useAuth } from '../context/AuthContext';
+import { useClickFeedback } from '../hooks/useClickFeedback';
 
 type WhatsappSession = {
   label: string;
@@ -770,6 +771,7 @@ export const Sources: React.FC = () => {
   const [isApplyingGroupAudit, setIsApplyingGroupAudit] = useState(false);
   const [isAllowingAllRealEstate, setIsAllowingAllRealEstate] = useState(false);
   const [isResettingSession, setIsResettingSession] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [selectedAuditParseIds, setSelectedAuditParseIds] = useState<string[]>([]);
   const [groupAuditSearchTerm, setGroupAuditSearchTerm] = useState('');
   const [groupAuditFilter, setGroupAuditFilter] = useState<GroupAuditFilter>('all');
@@ -791,6 +793,7 @@ export const Sources: React.FC = () => {
   const [selfChatEnabled, setSelfChatEnabled] = useState(false);
   const [isSavingParsingPrefs, setIsSavingParsingPrefs] = useState(false);
   const [cloudConfig, setCloudConfig] = useState<CloudApiConfig | null>(null);
+  const clickFeedback = useClickFeedback();
   const [cloudPhoneNumberId, setCloudPhoneNumberId] = useState('');
   const [cloudBusinessAccountId, setCloudBusinessAccountId] = useState('');
   const [cloudDisplayPhoneNumber, setCloudDisplayPhoneNumber] = useState('');
@@ -1710,7 +1713,7 @@ export const Sources: React.FC = () => {
   }, [deviceOwnerName, ensureConnectUiVisible, fetchStatus, isConnecting, normalizedDevicePhone, status.activeCount, status.limit, status.plan, status.sessions, waitForArtifact]);
 
   const handleDisconnect = async (label?: string) => {
-    setIsConnecting(true);
+    setIsDisconnecting(true);
     setError(null);
     try {
       await backendApi.post(ENDPOINTS.whatsapp.disconnect, { label });
@@ -1726,7 +1729,7 @@ export const Sources: React.FC = () => {
     } catch (err) {
       setError(handleApiError(err));
     } finally {
-      setIsConnecting(false);
+      setIsDisconnecting(false);
     }
   };
 
@@ -3414,19 +3417,21 @@ export const Sources: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => void handleResetAllSessions()}
-                      disabled={isConnecting || isResettingSession}
-                      className={cn(sourceSecondaryButton, 'bg-[var(--bg-base)] px-3 py-2.5 text-[var(--text-secondary)] hover:text-[var(--red)]')}
+                      onPointerDown={clickFeedback}
+                      disabled={isResettingSession || isDisconnecting}
+                      className={cn(sourceSecondaryButton, 'bg-[var(--bg-base)] px-3 py-2.5 text-[var(--text-secondary)] hover:text-[var(--red)]', isResettingSession && 'cursor-not-allowed opacity-60')}
                     >
                       {isResettingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <XIcon className="h-4 w-4" />}
-                      Start fresh
+                      {isResettingSession ? 'Clearing...' : 'Start fresh'}
                     </button>
                     <button
                       onClick={() => void handleDisconnect(disconnectTargetLabel)}
-                      disabled={isConnecting || isResettingSession}
-                      className={cn(sourceSecondaryButton, 'bg-[var(--bg-base)] px-3 py-2.5 text-[var(--text-secondary)] hover:text-[var(--red)]')}
+                      onPointerDown={clickFeedback}
+                      disabled={isDisconnecting || isResettingSession}
+                      className={cn(sourceSecondaryButton, 'bg-[var(--bg-base)] px-3 py-2.5 text-[var(--text-secondary)] hover:text-[var(--red)]', isDisconnecting && 'cursor-not-allowed opacity-60')}
                     >
-                      <Power className="h-4 w-4" />
-                      Disconnect
+                      {isDisconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
+                      {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
                     </button>
                   </div>
                 )}
@@ -3499,7 +3504,8 @@ export const Sources: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleDisconnect(session.label)}
-                            disabled={isConnecting}
+                            onPointerDown={clickFeedback}
+                            disabled={isDisconnecting}
                             className={cn(sourceSecondaryButton, 'px-3 py-1.5 text-[10px] text-[var(--text-secondary)] hover:text-[var(--red)]')}
                           >
                             <Power className="h-3.5 w-3.5" />
