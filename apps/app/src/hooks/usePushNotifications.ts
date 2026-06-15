@@ -61,7 +61,7 @@ export function usePushNotifications(tenantId: string | null) {
       if (!subscription) {
         const vapidKey = getVapidKey();
         if (!vapidKey) {
-          console.warn('[PushNotifications] VAPID public key not configured, push unavailable');
+          // Push notifications are optional — silently skip if VAPID key not configured
           return;
         }
         subscription = await registration.pushManager.subscribe({

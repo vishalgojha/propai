@@ -256,6 +256,11 @@ export const BroadcastView: React.FC = () => {
     );
   };
 
+  // Detect if any campaign has a disconnected sender
+  const anySenderDisconnected = campaigns.some(
+    (c) => c.diagnostics && c.diagnostics.senderConnected === false,
+  );
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -280,6 +285,25 @@ export const BroadcastView: React.FC = () => {
           New Campaign
         </button>
       </div>
+
+      {/* Sender disconnected banner — shown when broadcast device is offline */}
+      {anySenderDisconnected && (
+        <div className="mx-6 mt-4 flex items-start gap-3 rounded-[8px] border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+          <span className="mt-0.5 text-amber-400">⚠</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-amber-200">Broadcast sender device is disconnected</p>
+            <p className="mt-1 text-[11px] text-amber-300/80">
+              Your broadcast WhatsApp number is not linked. Campaigns cannot be sent until you reconnect it.
+            </p>
+          </div>
+          <a
+            href="/connect"
+            className="shrink-0 rounded-[6px] border border-amber-500/40 bg-amber-500/20 px-3 py-1.5 text-[10px] font-bold text-amber-200 hover:bg-amber-500/30 transition-colors"
+          >
+            Reconnect →
+          </a>
+        </div>
+      )}
 
       {error && (
         <div className="mx-6 mt-4 rounded-[8px] border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">
@@ -375,19 +399,31 @@ export const BroadcastView: React.FC = () => {
                         </button>
                       )}
                       {campaign.status === 'failed' && (
-                        <button
-                          onClick={() => handleStart(campaign.id)}
-                          disabled={!diagnostics?.senderConnected}
-                          title={!diagnostics?.senderConnected ? 'Connect broadcast sender device first' : undefined}
-                          className={cn(
-                            'rounded-[6px] px-3 py-1.5 text-xs font-semibold transition-colors',
-                            diagnostics?.senderConnected
-                              ? 'bg-amber-500 text-black hover:brightness-110'
-                              : 'cursor-not-allowed bg-gray-500/20 text-gray-400',
-                          )}
-                        >
-                          Retry
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleStart(campaign.id)}
+                            disabled={!diagnostics?.senderConnected}
+                            title={
+                              !diagnostics?.senderConnected
+                                ? 'Reconnect your broadcast WhatsApp device first (Settings → Connect WhatsApp)'
+                                : 'Retry sending this campaign'
+                            }
+                            className={cn(
+                              'rounded-[6px] px-3 py-1.5 text-xs font-semibold transition-colors',
+                              diagnostics?.senderConnected
+                                ? 'bg-amber-500 text-black hover:brightness-110'
+                                : 'cursor-not-allowed bg-gray-500/20 text-gray-400',
+                            )}
+                          >
+                            {diagnostics?.senderConnected ? 'Retry' : 'Retry (Offline)'}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(campaign.id)}
+                            className="rounded-[6px] border border-red-500/30 px-2 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10"
+                          >
+                            Delete
+                          </button>
+                        </>
                       )}
                       {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
                         <button
