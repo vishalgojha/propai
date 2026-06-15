@@ -188,8 +188,8 @@ export default function ParsingTerminal() {
 
       const [auditResponse, groupResponse, eventResponse] = await Promise.all([
         auditRequest,
-        backendApi.get(ENDPOINTS.whatsapp.groupsHealth),
-        backendApi.get(ENDPOINTS.whatsapp.events),
+        backendApi.get(ENDPOINTS.whatsapp.groupsHealth, { timeout: 60000 }),
+        backendApi.get(ENDPOINTS.whatsapp.events, { timeout: 60000 }),
       ]);
 
       const healthRows = Array.isArray(groupResponse.data)
@@ -469,8 +469,9 @@ export default function ParsingTerminal() {
     try {
       await backendApi.patch(ENDPOINTS.whatsapp.toggleGroupParsing(group.groupId), { isParsing: enabled });
       if (enabled) {
-        const result = await rebuildStreamFromSavedMessages(200, group.sessionLabel, group.groupId);
-        setInfoMessage(`${group.groupName} restored to default parsing. Scanned ${result.scanned} saved messages and mapped ${result.ingested}.`);
+        const result = await rebuildStreamFromSavedMessages(250, group.sessionLabel, group.groupId, true);
+        const replayStatus = result.queued ? 'Replay queued in the background.' : result.status === 'running' ? 'Replay is already running.' : 'Replay was recently queued.';
+        setInfoMessage(`${group.groupName} restored to default parsing. ${replayStatus}`);
       } else {
         setInfoMessage(`${group.groupName} opted out of parsing.`);
       }

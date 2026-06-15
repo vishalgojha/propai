@@ -215,6 +215,20 @@ export const rebuildStream = async (req: Request, res: Response) => {
         const limit = typeof req.body?.limit === 'number' ? Math.max(1, Math.min(2000, req.body.limit)) : 500;
         const sessionLabel = typeof req.body?.sessionLabel === 'string' ? req.body.sessionLabel.trim() || null : null;
         const remoteJid = typeof req.body?.remoteJid === 'string' ? req.body.remoteJid.trim() || null : null;
+        if (req.body?.async === true || req.body?.background === true) {
+            const queued = channelService.queueRawDumpReplay(tenantId, {
+                limit,
+                sessionLabel,
+                remoteJid,
+                force: req.body?.force === true,
+                reason: 'manual_rebuild',
+            });
+            return res.status(queued.queued ? 202 : 200).json({
+                success: true,
+                async: true,
+                ...queued,
+            });
+        }
         const result = await channelService.rebuildStreamFromMessages(tenantId, {
             limit,
             sessionLabel,

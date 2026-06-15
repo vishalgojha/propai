@@ -16,6 +16,7 @@ import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { whatsappPresenceService } from '../services/whatsappPresenceService';
 import { groupAuditService } from '../services/groupAuditService';
 import { whatsappThreadService } from '../services/whatsappThreadService';
+import { channelService } from '../services/channelService';
 import { resolveProcessRole } from '../runtime/processRole';
 import '../types/express';
 
@@ -1573,6 +1574,24 @@ export const getGroupHealth = async (req: Request, res: Response) => {
 
     try {
         const groups = await whatsappHealthService.getGroupHealth(tenantId);
+        const replayCandidates = groups
+            .filter((group: any) =>
+                String(group?.source || '') !== 'parsed_history'
+                && String(group?.groupId || '').endsWith('@g.us')
+                && group?.isParsing !== false
+                && Number(group?.messagesReceived24h || 0) > 0
+                && Number(group?.messagesParsed24h || 0) === 0)
+            .slice(0, 5);
+
+        for (const group of replayCandidates) {
+            channelService.queueRawDumpReplay(tenantId, {
+                sessionLabel: String(group.sessionLabel || '').trim() || null,
+                remoteJid: String(group.groupId || '').trim() || null,
+                limit: 250,
+                minIntervalMs: 5 * 60_000,
+                reason: 'group_health_zero_parse',
+            });
+        }
         res.json(groups);
     } catch (error: unknown) {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load WhatsApp group health') });

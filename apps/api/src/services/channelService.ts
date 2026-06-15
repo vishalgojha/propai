@@ -13,6 +13,7 @@ import { pushRecentAction } from './identityService';
 import { cleanNumber } from '../utils/number';
 import { embedStreamItem } from '../services/embeddingService';
 import { sanitizeBuildingNameCandidate, sanitizeMicroLocationCandidate } from '../utils/streamMetadataSanitizer';
+import { whatsappHealthService } from './whatsappHealthService';
 
 
 type ChannelType = 'listing' | 'requirement' | 'mixed';
@@ -1515,6 +1516,17 @@ type RawInboundMessage = {
     senderJid?: string | null;
 };
 
+type RawDumpReplayOptions = {
+    limit?: number;
+    remoteJid?: string | null;
+    sessionLabel?: string | null;
+    from?: string | null;
+    to?: string | null;
+    force?: boolean;
+    minIntervalMs?: number;
+    reason?: string;
+};
+
 type GroupIngestionContext = {
     groupJid: string;
     groupName: string | null;
@@ -2142,12 +2154,53 @@ export class ChannelService {
     }
 
 private backfillInitiatedScopes = new Map<string, number>();
+private rawDumpReplayInFlight = new Set<string>();
+private rawDumpReplayQueuedAt = new Map<string, number>();
 private dailyBriefingSentKeys = new Set<string>();
 private weeklyAnalyticsSentKeys = new Set<string>();
 private highValueLeadAlertKeys = new Set<string>();
 
     private getBackfillScopeKey(tenantId: string, sessionLabel?: string | null) {
         return `${tenantId}::${sessionLabel || 'all'}`;
+    }
+
+    private getRawDumpReplayScopeKey(tenantId: string, options: RawDumpReplayOptions = {}) {
+        return [
+            tenantId,
+            options.sessionLabel || 'all-sessions',
+            options.remoteJid || 'all-chats',
+        ].join('::');
+    }
+
+    queueRawDumpReplay(tenantId: string, options: RawDumpReplayOptions = {}) {
+        const scopeKey = this.getRawDumpReplayScopeKey(tenantId, options);
+        if (this.rawDumpReplayInFlight.has(scopeKey)) {
+            return { queued: false, status: 'running', scopeKey };
+        }
+
+        const now = Date.now();
+        const minIntervalMs = options.force ? 0 : Math.max(10_000, Number(options.minIntervalMs || 5 * 60_000));
+        const lastQueuedAt = this.rawDumpReplayQueuedAt.get(scopeKey) || 0;
+        if (lastQueuedAt && now - lastQueuedAt < minIntervalMs) {
+            return { queued: false, status: 'throttled', scopeKey };
+        }
+
+        this.rawDumpReplayQueuedAt.set(scopeKey, now);
+        this.rawDumpReplayInFlight.add(scopeKey);
+        void this.rebuildStreamFromRawDump(tenantId, options)
+            .catch((error) => {
+                console.error('[ChannelService] Raw dump replay failed', {
+                    tenantId,
+                    sessionLabel: options.sessionLabel || null,
+                    remoteJid: options.remoteJid || null,
+                    error,
+                });
+            })
+            .finally(() => {
+                this.rawDumpReplayInFlight.delete(scopeKey);
+            });
+
+        return { queued: true, status: 'queued', scopeKey };
     }
 
     private async getNetworkTenantIds(tenantId: string, networkMode: boolean) {
@@ -2673,6 +2726,138 @@ private highValueLeadAlertKeys = new Set<string>();
         return {
             scanned: orderedMessages.length,
             ingested: ingestedCount,
+            totalStreamItems: count || 0,
+            filters: {
+                sessionLabel: options.sessionLabel || null,
+                remoteJid: options.remoteJid || null,
+                from: options.from || null,
+                to: options.to || null,
+                limit,
+            },
+        };
+    }
+
+    async rebuildStreamFromRawDump(tenantId: string, options: RawDumpReplayOptions = {}) {
+        const limit = Math.max(1, Math.min(1000, Number(options.limit || 250)));
+
+        let query = this.db
+            .from('raw_dump')
+            .select('id, session_id, group_jid, sender_jid, raw_text, received_at')
+            .eq('workspace_id', tenantId)
+            .eq('gate_status', 'passed')
+            .order('received_at', { ascending: false })
+            .limit(limit);
+
+        if (options.sessionLabel) {
+            query = query.eq('session_id', options.sessionLabel);
+        }
+
+        if (options.remoteJid) {
+            query = query.eq('group_jid', options.remoteJid);
+        }
+
+        if (options.from) {
+            query = query.gte('received_at', options.from);
+        }
+
+        if (options.to) {
+            query = query.lte('received_at', options.to);
+        }
+
+        const { data, error } = await query;
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        const orderedRows = Array.isArray(data)
+            ? [...data].sort((left: any, right: any) => {
+                const leftTime = new Date(String(left?.received_at || 0)).getTime();
+                const rightTime = new Date(String(right?.received_at || 0)).getTime();
+                return leftTime - rightTime;
+            })
+            : [];
+
+        let ingestedCount = 0;
+        let failedCount = 0;
+        for (const row of orderedRows) {
+            const rawText = String((row as any)?.raw_text || '').trim();
+            const remoteJid = String((row as any)?.group_jid || '').trim();
+            const sessionLabel = String((row as any)?.session_id || options.sessionLabel || 'workspace').trim() || 'workspace';
+            if (!rawText || !remoteJid) {
+                continue;
+            }
+
+            try {
+                const parsedCount = await this.ingestMessage(tenantId, {
+                    id: String((row as any).id),
+                    session_label: sessionLabel,
+                    remote_jid: remoteJid,
+                    sender: String((row as any)?.sender_jid || '').trim() || null,
+                    text: rawText,
+                    timestamp: String((row as any)?.received_at || '').trim() || null,
+                    created_at: String((row as any)?.received_at || '').trim() || null,
+                    source: 'raw_dump_replay',
+                    sourceGroupId: remoteJid.endsWith('@g.us') ? remoteJid : null,
+                    senderJid: String((row as any)?.sender_jid || '').trim() || null,
+                });
+
+                ingestedCount += parsedCount;
+                if (parsedCount > 0) {
+                    await whatsappHealthService.recordMessageMetrics({
+                        tenantId,
+                        sessionLabel,
+                        remoteJid,
+                        parsed: true,
+                        countReceived: false,
+                        timestamp: String((row as any)?.received_at || '').trim() || null,
+                    }).catch(() => undefined);
+                }
+            } catch (error) {
+                failedCount += 1;
+                await whatsappHealthService.recordMessageMetrics({
+                    tenantId,
+                    sessionLabel,
+                    remoteJid,
+                    parsed: false,
+                    failed: true,
+                    countReceived: false,
+                    timestamp: String((row as any)?.received_at || '').trim() || null,
+                }).catch(() => undefined);
+                console.error('[ChannelService] Failed to ingest raw_dump row during replay', {
+                    tenantId,
+                    rawDumpId: String((row as any)?.id || ''),
+                    remoteJid,
+                    sessionLabel,
+                    error,
+                });
+            }
+        }
+
+        const eventSession = options.sessionLabel || String((orderedRows[0] as any)?.session_id || 'workspace');
+        await whatsappHealthService.appendEvent(
+            tenantId,
+            eventSession,
+            failedCount > 0 ? 'history_replay_failed' : 'history_replay_completed',
+            failedCount > 0
+                ? `Replay scanned ${orderedRows.length} stored WhatsApp rows with ${failedCount} failures.`
+                : `Replay scanned ${orderedRows.length} stored WhatsApp rows.`,
+            {
+                messageCount: orderedRows.length,
+                ingestedCount,
+                failedCount,
+                remoteJid: options.remoteJid || null,
+                sessionLabel: options.sessionLabel || null,
+                source: 'raw_dump',
+                reason: options.reason || null,
+            },
+        ).catch(() => undefined);
+
+        const { count } = await this.countAcceptedStreamItems([tenantId]);
+
+        return {
+            scanned: orderedRows.length,
+            ingested: ingestedCount,
+            failed: failedCount,
             totalStreamItems: count || 0,
             filters: {
                 sessionLabel: options.sessionLabel || null,
