@@ -71,6 +71,7 @@ export async function generateBroadcastLists(tenantId: string): Promise<number> 
   const { data: contacts, error } = await db!
     .from('broker_contacts')
     .select('id, phone, inferred_areas, updated_at')
+    .eq('tenant_id', tenantId)
     .eq('unsubscribed', false);
 
   if (error || !contacts?.length) return 0;
