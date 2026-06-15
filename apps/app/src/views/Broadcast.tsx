@@ -297,7 +297,7 @@ export const BroadcastView: React.FC = () => {
             </p>
           </div>
           <a
-            href="/connect"
+            href="/whatsapp/setup"
             className="shrink-0 rounded-[6px] border border-amber-500/40 bg-amber-500/20 px-3 py-1.5 text-[10px] font-bold text-amber-200 hover:bg-amber-500/30 transition-colors"
           >
             Reconnect →
