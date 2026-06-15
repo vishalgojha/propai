@@ -1578,6 +1578,7 @@ export class ChannelService {
     private readonly db = supabaseAdmin ?? supabase;
     private networkTenantIdsCache = new Map<string, { expiresAt: number; tenantIds: string[] }>();
     private igrEnrichmentCache = new Map<string, { expiresAt: number; transactions: IgrTransactionPreview[] }>();
+    private streamMissingColumnsCache = new Map<StreamTable, Set<string>>();
 
     private async readAcceptedStreamItems(readClient: any, tenantIds: string[], options?: {
         streamIds?: string[];
@@ -3129,9 +3130,17 @@ private highValueLeadAlertKeys = new Set<string>();
         targetTable: StreamTable,
         payload: Record<string, unknown>,
     ) {
+        const cachedMissingColumns = this.streamMissingColumnsCache.get(targetTable);
         let nextPayload = { ...payload };
 
-        for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (cachedMissingColumns?.size) {
+            for (const column of cachedMissingColumns) {
+                delete nextPayload[column];
+            }
+        }
+
+        const maxAttempts = Object.keys(nextPayload).length + 1;
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
             const { data, error } = await this.db
                 .from(targetTable)
                 .upsert(nextPayload, { onConflict: 'tenant_id,message_id' })
@@ -3158,13 +3167,18 @@ private highValueLeadAlertKeys = new Set<string>();
                 messageId: String(nextPayload.message_id || ''),
             });
 
+            if (!this.streamMissingColumnsCache.has(targetTable)) {
+                this.streamMissingColumnsCache.set(targetTable, new Set());
+            }
+            this.streamMissingColumnsCache.get(targetTable)?.add(missingColumn);
+
             const { [missingColumn]: _omitted, ...rest } = nextPayload;
             nextPayload = rest;
         }
 
         return {
             data: null,
-            error: new Error('Failed to upsert stream item after schema fallback retries'),
+            error: new Error(`Failed to upsert stream item after ${maxAttempts} schema fallback retries`),
         };
     }
 
@@ -3522,7 +3536,7 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
             return [];
         }
 
-        if (/^[^a-zA-Z0-9]/.test(rawText)) {
+        if (!/[a-zA-Z0-9]/.test(rawText)) {
             return [];
         }
 
@@ -3859,7 +3873,7 @@ ${rawText}
             return [];
         }
 
-        if (/^[^a-zA-Z0-9]/.test(rawText)) {
+        if (!/[a-zA-Z0-9]/.test(rawText)) {
             return [];
         }
 
