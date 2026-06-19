@@ -782,7 +782,7 @@ export const Settings: React.FC = () => {
                 );
               })}
             </div>
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex flex-col items-end gap-3">
               <button
                 onClick={saveSettings}
                 onPointerDown={clickFeedback}
@@ -801,6 +801,20 @@ export const Settings: React.FC = () => {
                 )}
                 {isSaving ? 'Saving...' : saved && !error ? 'Saved' : 'Save API Keys'}
               </button>
+              {error ? (
+                <div className="flex flex-wrap items-center justify-end gap-2 text-right">
+                  <span className="max-w-md text-[11px] text-red-400">{error}</span>
+                  <button
+                    type="button"
+                    onClick={() => void fetchSettings()}
+                    disabled={isLoading}
+                    className="inline-flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-60"
+                  >
+                    <RefreshIcon className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
+                    Retry loading saved keys
+                  </button>
+                </div>
+              ) : null}
             </div>
           </SurfaceSection>
 
