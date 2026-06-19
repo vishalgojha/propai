@@ -18,6 +18,11 @@ create index if not exists idx_stream_items_res_configuration
 create index if not exists idx_stream_items_com_configuration
     on public.stream_items_commercial (tenant_id, configuration);
 
+-- The previous RPC exposed bhk in its result row type. PostgreSQL requires a
+-- drop before replacing it with the configuration-based result contract.
+drop function if exists public.match_listings(vector(768), double precision, integer, uuid, text, text, text);
+drop function if exists public.market_stats(text, integer);
+
 create or replace function match_listings(
     query_embedding vector(768),
     match_threshold float default 0.7,
