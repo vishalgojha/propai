@@ -68,17 +68,15 @@ Both share the same Supabase database. The API writes connection artifacts (QR, 
 
 ### Completed in This Session
 
-- Fixed embedding backfill: added `POST /api/backfill-embeddings` endpoint
-- Fixed TypeScript errors in `embeddingService.ts` (cast) and `backfillEmbeddingsController.ts` (record_type select)
-- Fixed MCP OAuth FK violation: auto-create missing `mcp_oauth_clients` row in `oauth.ts`
-- Fixed `semantic_search` MCP tool: rewrote to query child tables (`stream_items_residential`/`stream_items_commercial`) directly with client-side cosine similarity instead of broken `match_listings` RPC
-- Added embedding generation hooks at ingest time: `ingestController.ts` and `channelService.ts` now call `embedStreamItem()` before insert/upsert
-- Deployed API, MCP, and www to Coolify (www has BHK fix, intent form, AI description, etc.)
+- **Fixed NVIDIA "API key not found" bug** — Root cause: the `api_keys` table's RLS policy was `ALL ... USING` (no `WITH CHECK` for INSERT), blocking key writes when `supabaseAdmin` (service role) wasn't available. Also fixed `saveKey()` error logic that silently returned success when file-write failed but DB succeeded. Added DB trigger to sync `workspace_settings.ai_keys` → `api_keys` automatically so `keyService.getKeys()` always finds saved keys.
+- **Added NVIDIA Nemotron provider** — Full integration across `aiService.ts`, `aiUsageService.ts`, `keyService.ts`, `settingsController.ts`, `workspaceSettingsService.ts`, `Settings.tsx`, `Agent.tsx`, `ProviderLogo.tsx`.
+- **Removed Groq from defaults/UI** — Taken out of default fallback chain and settings UI.
+- **Fixed configuration/BHK column** — `mapStreamItem` returns `configuration`, DB upsert writes `configuration`, `sanitizeBuildingNameCandidate` backstop prevents area values becoming building names.
 
 ### Current Remote State
 
 - Latest local commits:
-  - `9516e1c1` — `Update copy to match simplified Baileys-only connect flow` (pushed)
+  - `0032a019` — `Add NVIDIA Nemotron provider, remove Groq, fix configuration column empty bug` (pushed)
 
 ### Operational Rules
 

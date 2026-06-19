@@ -243,7 +243,9 @@ alter table model_preferences enable row level security;
 create policy "Tenants can manage their own model prefs" on model_preferences all using (auth.uid() = tenant_id);
 
 alter table api_keys enable row level security;
-create policy "Tenants can manage their own api keys" on api_keys all using (auth.uid() = tenant_id);
+create policy "Tenants can select their own api keys" on api_keys for select using ((select auth.uid()) = tenant_id);
+create policy "Tenants can insert their own api keys" on api_keys for insert with check ((select auth.uid()) = tenant_id);
+create policy "Tenants can update their own api keys" on api_keys for update using ((select auth.uid()) = tenant_id) with check ((select auth.uid()) = tenant_id);
 
 alter table agent_behavior_rules enable row level security;
 create policy "Tenants can manage their own rules" on agent_behavior_rules all using (auth.uid() = tenant_id);
@@ -257,3 +259,51 @@ create policy "Service role can insert agent events" on agent_events for insert 
 
 alter table subscriptions enable row level security;
 create policy "Tenants can manage their own subscriptions" on subscriptions all using (auth.uid() = tenant_id);
+
+-- Sync ai_keys from workspace_settings to api_keys table so both stores stay consistent
+create or replace function public.sync_ai_keys_to_api_keys()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  key_entry jsonb;
+  provider_name text;
+  key_value text;
+begin
+  if NEW.ai_keys is null then
+    return NEW;
+  end if;
+
+  for key_entry in select * from jsonb_each(NEW.ai_keys)
+  loop
+    key_value := trim(key_entry.value::text, '"');
+    if key_value = '' then
+      continue;
+    end if;
+
+    provider_name := case key_entry.key
+      when 'gemini' then 'Google'
+      when 'groq' then 'Groq'
+      when 'openrouter' then 'OpenRouter'
+      when 'doubleword' then 'Doubleword'
+      when 'nvidia' then 'Nvidia'
+      when 'openai' then 'OpenAI'
+      else key_entry.key
+    end;
+
+    insert into public.api_keys (tenant_id, provider, key, updated_at)
+    values (NEW.tenant_id, provider_name, key_value, now())
+    on conflict (tenant_id, provider)
+    do update set key = excluded.key, updated_at = now();
+  end loop;
+
+  return NEW;
+end;
+$$;
+
+create trigger trigger_sync_ai_keys_from_workspace_settings
+  after insert or update of ai_keys on public.workspace_settings
+  for each row
+  execute function public.sync_ai_keys_to_api_keys();

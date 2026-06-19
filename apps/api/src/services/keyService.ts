@@ -125,12 +125,12 @@ export class KeyService {
             fileError = error?.message || 'Failed to persist API key in workspace settings';
         }
 
-        if (fileError && dbError) {
-            return { success: false, error: `${fileError}; ${dbError}` };
-        }
-
         if (dbError) {
             return { success: false, error: dbError };
+        }
+
+        if (fileError) {
+            return { success: false, error: fileError };
         }
 
         return { success: true };
