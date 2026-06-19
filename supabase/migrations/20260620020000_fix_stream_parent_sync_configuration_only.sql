@@ -265,4 +265,9 @@ select
 from public.stream_items_commercial
 on conflict (tenant_id, message_id) do nothing;
 
+-- This SECURITY DEFINER function is trigger-only; it must not be callable by
+-- API roles or PUBLIC.
+revoke all on function public.sync_stream_item_to_parent() from public;
+revoke execute on function public.sync_stream_item_to_parent() from anon, authenticated;
+
 notify pgrst, 'reload schema';
