@@ -64,10 +64,10 @@ const STANDARD_LOCALITIES = new Set([
 
 type PublicStreamSource = "stream_items" | "stream_items_residential" | "stream_items_commercial";
 
-const PUBLIC_STREAM_SELECT = "id, tenant_id, canonical_record_id, type, deal_type, record_type, locality, city, configuration, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, updated_at, parsed_payload, property_category, asset_class, broker_wa_me_links";
+const PUBLIC_STREAM_SELECT = "id, tenant_id, canonical_record_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, updated_at, parsed_payload, property_category, asset_class, broker_wa_me_links";
 const PUBLIC_SOURCE_TABLES: Array<{ table: PublicStreamSource; select: string; includeCanonical: boolean }> = [
   { table: "stream_items_residential", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", ""), includeCanonical: false },
-  { table: "stream_items_commercial", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", "").replace(", configuration", ""), includeCanonical: false },
+  { table: "stream_items_commercial", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", "").replace(", bhk", ""), includeCanonical: false },
 ];
 const LEGACY_PUBLIC_SOURCE_TABLE: { table: PublicStreamSource; select: string; includeCanonical: boolean } = {
   table: "stream_items",
@@ -196,7 +196,7 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
 
   const [{ data: residentialRows, error: residentialError }, { data: commercialRows, error: commercialError }, { data: profiles }] = await Promise.all([
     fetchPublicSourceRows("stream_items_residential", PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", ""), normalizedLocality),
-    fetchPublicSourceRows("stream_items_commercial", PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", "").replace(", configuration", ""), normalizedLocality),
+    fetchPublicSourceRows("stream_items_commercial", PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", "").replace(", bhk", ""), normalizedLocality),
     supabaseAdmin.from("profiles").select("id, phone, full_name"),
   ]);
 
@@ -258,7 +258,7 @@ export async function fetchPublicListings(locality?: string): Promise<PublicList
     .filter((row) => {
       const isCommercial = String(row.property_category || '').trim() === 'commercial' || String(row.asset_class || '').trim() === 'commercial';
       if (isCommercial) return true;
-      const isJunk = String(row.configuration || '').trim() === 'N/A'
+      const isJunk = String(row.bhk || '').trim() === 'N/A'
         && (row.area_sqft == null || Number(row.area_sqft) === 0)
         && (row.confidence_score == null || Number(row.confidence_score) < 0.3);
       return !isJunk;
@@ -288,7 +288,8 @@ export async function fetchPublicListingBySlug(slug: string): Promise<PublicList
       const { data: rows } = await supabaseAdmin
         .from(source.table)
         .select(source.select)
-        .neq('record_type', 'buyer_requirement')
+        .eq('record_type', 'listing')
+        .eq('ingestion_status', 'accepted')
         .ilike('id::text', pattern)
         .order('created_at', { ascending: false })
         .limit(1);
@@ -335,8 +336,10 @@ async function fetchPublicSourceRows(table: PublicStreamSource, select: string, 
   let query = supabaseAdmin
     .from(table)
     .select(select)
-    .neq("record_type", "buyer_requirement")
-    .order("created_at", { ascending: false });
+    .eq("record_type", "listing")
+    .eq("ingestion_status", "accepted")
+    .order("created_at", { ascending: false })
+    .limit(500);
 
   if (normalizedLocality) {
     query = query.ilike("locality", normalizedLocality);
@@ -351,6 +354,8 @@ async function findPublicSourceRow(listingId: string) {
       .from(source.table)
       .select(source.select)
       .eq("id", listingId)
+      .eq("record_type", "listing")
+      .eq("ingestion_status", "accepted")
       .maybeSingle();
 
     if (error) {
@@ -508,6 +513,7 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
   const furnishing = pickString(data.furnishing, data.furnished) || null;
   const areaSqft = parseAreaSqft(data.area_sqft, data.carpet_area, data.area);
   const availability = pickString(data.availability, data.available_from, data.possession) || null;
+  const contacts = extractContactActions(row, rawText);
   const title = buildPublicListingTitle({
     title: pickString(data.title, data.name, data.displayTitle) || null,
     buildingName: pickString(data.buildingName, data.projectName, data.project_name) || null,
@@ -578,7 +584,7 @@ function normalizeStreamListing(
     inferLocation(rawText);
   const locality = normalizeLocality(location || "");
   if (!isListableLocation(locality)) return null;
-  const configuration = pickString(canonical?.configuration, row.configuration, data.configuration) || inferBhk(rawText) || null;
+  const configuration = pickString(canonical?.configuration, row.bhk, data.configuration) || inferBhk(rawText) || null;
   const type = normalizeType(pickString(canonical?.deal_type, row.type, row.deal_type, data.type, data.deal_type), rawText);
   const parsedPrice = parsePrice(
     `${String(canonical?.price_label || row.price_label || "")} ${rawText}`.trim(),
