@@ -18,7 +18,7 @@ select
         else 'requirement'
     end as listing_type,
     locality as area,
-    locality as location,
+    coalesce(locality, city, 'Unknown') as location,
     price_numeric as price,
     case
         when type = 'Rent' then 'monthly'
@@ -30,9 +30,9 @@ select
     building_name,
     coalesce(
         nullif(trim(parsed_payload->>'title'), ''),
-        coalesce(configuration || ' ' || locality, locality, 'Property in ' || city)
+        coalesce(configuration || ' ' || locality, locality, 'Property in ' || city, 'Property')
     ) as title,
-    raw_text as description,
+    coalesce(raw_text, '') as description,
     raw_text as raw_message,
     source_phone as sender_number,
     null as primary_contact_name,
