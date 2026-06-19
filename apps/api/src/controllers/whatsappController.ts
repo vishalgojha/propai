@@ -1587,7 +1587,7 @@ export const getGroupHealth = async (req: Request, res: Response) => {
             channelService.queueRawDumpReplay(tenantId, {
                 sessionLabel: String(group.sessionLabel || '').trim() || null,
                 remoteJid: String(group.groupId || '').trim() || null,
-                limit: 250,
+                limit: 50,
                 minIntervalMs: 5 * 60_000,
                 reason: 'group_health_zero_parse',
             });

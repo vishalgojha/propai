@@ -15,6 +15,7 @@ type OfficialApiSessionData = {
     mode?: string;
     enabled?: boolean;
     phoneNumberId?: string | null;
+    phoneNumber?: string | null;
     businessAccountId?: string | null;
     displayPhoneNumber?: string | null;
     apiVersion?: string | null;
@@ -241,9 +242,10 @@ export class WhatsAppCloudApiService {
         return { ok: true, status: 200 };
     }
 
-    async findConfigByPhoneNumberId(phoneNumberId?: string | null) {
+    async findConfigByPhoneNumberId(phoneNumberId?: string | null, displayPhoneNumber?: string | null) {
         const target = String(phoneNumberId || '').trim();
-        if (!target) {
+        const displayTarget = normalizeDigits(displayPhoneNumber || '');
+        if (!target && !displayTarget) {
             return null;
         }
 
@@ -260,7 +262,11 @@ export class WhatsAppCloudApiService {
         const rows = Array.isArray(data) ? data as OfficialApiConfigRow[] : [];
         const match = rows.find((row) => {
             const sessionData = (row.session_data && typeof row.session_data === 'object') ? row.session_data : {};
-            return String(sessionData.phoneNumberId || '').trim() === target;
+            const rowPhoneNumberId = String(sessionData.phoneNumberId || '').trim();
+            const rowDisplayPhone = normalizeDigits(
+                String(sessionData.displayPhoneNumber || sessionData.phoneNumber || row.owner_name || '').trim(),
+            );
+            return (target && rowPhoneNumberId === target) || (displayTarget && rowDisplayPhone === displayTarget);
         });
 
         return match || null;
@@ -275,7 +281,8 @@ export class WhatsAppCloudApiService {
             for (const change of changes) {
                 const value = change?.value || {};
                 const phoneNumberId = String(value?.metadata?.phone_number_id || '').trim();
-                const configRow = await this.findConfigByPhoneNumberId(phoneNumberId).catch(() => null);
+                const displayPhoneNumber = String(value?.metadata?.display_phone_number || '').trim();
+                const configRow = await this.findConfigByPhoneNumberId(phoneNumberId, displayPhoneNumber).catch(() => null);
                 if (!configRow?.tenant_id) {
                     continue;
                 }
@@ -409,13 +416,32 @@ export class WhatsAppCloudApiService {
                     }
 
                     if (reply.trim()) {
-                        await this.sendTextMessage({
-                            tenantId,
-                            phoneNumberId,
-                            to: remoteJid,
-                            text: reply,
-                            replyToMessageId: messageId,
-                        });
+                        try {
+                            await this.sendTextMessage({
+                                tenantId,
+                                phoneNumberId,
+                                to: remoteJid,
+                                text: reply,
+                                replyToMessageId: messageId,
+                            });
+                        } catch (error) {
+                            const serializedError = error instanceof Error
+                                ? { name: error.name, message: error.message, stack: error.stack }
+                                : { message: String(error) };
+                            await whatsappHealthService.appendEvent(
+                                tenantId,
+                                sessionLabel,
+                                'cloud_outbound_reply_failed',
+                                'WhatsApp Cloud API outbound reply failed.',
+                                {
+                                    phoneNumberId,
+                                    remoteJid,
+                                    messageId,
+                                    error: serializedError,
+                                },
+                            ).catch(() => undefined);
+                            continue;
+                        }
 
                         const outboundTimestamp = new Date().toISOString();
                         const { error: outboundInsertError } = await db.from('messages').insert({

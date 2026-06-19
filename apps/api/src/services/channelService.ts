@@ -716,11 +716,28 @@ export const extractCabinsCount = (text: string): number | null => {
     return match ? parseInt(match[1], 10) : null;
 };
 
+const hasPreLeasedSignal = (text: string) => /\bpre[-\s]?leased\b/i.test(String(text || ''));
+const hasLeaseSignal = (text: string) => {
+    const value = String(text || '');
+    return hasPreLeasedSignal(value)
+        || /\bleas(?:e|ed|ing)\b/i.test(value)
+        || /\bleave\s*(?:and|&)\s*license\b/i.test(value)
+        || /\bl\s*&\s*l\b/i.test(value)
+        || /\bll\b/i.test(value);
+};
+const hasRentSignal = (text: string) => /\brent(?:al|ed|ing)?\b|\bmonthly\b|\bper\s+month\b/i.test(String(text || ''));
+const hasSaleSignal = (text: string) => /\b(?:sale|selling|resale|outright)\b/i.test(String(text || ''));
+const hasAvailabilitySignal = (text: string) => /\b(?:available|direct\s+available|inventory|listing)\b/i.test(String(text || ''));
+const hasRequirementSignal = (text: string) => {
+    const value = String(text || '');
+    const withoutConfigurableArea = value.replace(/\bas\s+per\s+requirement\b/gi, ' ');
+    return /\b(?:requirement|required|requires?|wanted|need|needs|searching)\b|\blooking\s+for\b|\bclient\s+(?:needs|wants)\b|\b(?:buyer|tenant)\s+(?:needs|wants)\b|\blooking\s+to\s+(?:buy|rent)\b|\burgently\s+require\b/i.test(withoutConfigurableArea);
+};
+
 const inferType = (text: string): StreamType => {
     const normalized = text.toLowerCase();
     
-    if (normalized.includes('pre leased') || normalized.includes('pre-leased') || 
-        normalized.includes('yield') || normalized.includes('tenant in place')) {
+    if (hasPreLeasedSignal(text) || /\byield\b|\btenant\s+in\s+place\b/i.test(text)) {
         return 'Pre-leased';
     }
     
@@ -732,18 +749,11 @@ const inferType = (text: string): StreamType => {
     ];
     const hasListingFeatures = listingIndicators.some(w => normalized.includes(w));
     
-    const explicitRequirement = [
-        'looking for', 'wanted', 'need ', 'require', 'searching',
-        'client needs', 'buyer needs', 'tenant needs', 'requirement for',
-        'client wants', 'tenant wants', 'buyer wants', 'requirement:',
-        'looking to buy', 'looking to rent', 'urgently require',
-    ];
-    const isExplicitRequirement = explicitRequirement.some(w => normalized.includes(w));
+    const isExplicitRequirement = hasRequirementSignal(text);
+    const isExplicitAvailability = hasAvailabilitySignal(text);
     
-    if (hasListingFeatures && !isExplicitRequirement) {
-        if (normalized.includes('rent') || normalized.includes('lease') || 
-            normalized.includes('leave and license') || normalized.includes('leave & license') ||
-            normalized.includes('l&l') || normalized.includes(' ll') || normalized.endsWith(' ll')) {
+    if ((hasListingFeatures || isExplicitAvailability) && !(isExplicitRequirement && !isExplicitAvailability)) {
+        if (hasRentSignal(text) || hasLeaseSignal(text)) {
             return 'Rent';
         }
         return 'Sale';
@@ -753,9 +763,7 @@ const inferType = (text: string): StreamType => {
         return 'Requirement';
     }
     
-    if (normalized.includes('rent') || normalized.includes('lease') || 
-        normalized.includes('leave and license') || normalized.includes('leave & license') ||
-        normalized.includes('l&l') || normalized.includes(' ll') || normalized.endsWith(' ll')) {
+    if (hasRentSignal(text) || hasLeaseSignal(text)) {
         return 'Rent';
     }
     
@@ -1104,33 +1112,21 @@ const LOW_SIGNAL_BROKER_PATTERNS = [
 const detectLowSignalBrokerRelay = (text: string) => LOW_SIGNAL_BROKER_PATTERNS.some((pattern) => pattern.test(String(text || '')));
 
 const extractDealType = (text: string) => {
-    const lower = text.toLowerCase();
-    if (lower.includes('pre leased') || lower.includes('pre-leased')) return 'pre-leased';
-    if (lower.includes('lease') || lower.includes('leave and license') || lower.includes('leave & license') ||
-        lower.includes('l&l') || lower.includes(' ll') || lower.endsWith(' ll')) {
+    if (hasPreLeasedSignal(text)) return 'pre-leased';
+    if (hasLeaseSignal(text)) {
         return 'lease';
     }
-    if (lower.includes('rent')) {
+    if (hasRentSignal(text)) {
         return 'rent';
     }
     return 'sale';
 };
 
 const inferDealTypeFromPrice = (text: string, currentDealType: string | null | undefined, priceNumeric: number | null) => {
-    const lower = String(text || '').toLowerCase();
-    const explicitKeywords = [
-        { keywords: ['pre leased', 'pre-leased'], dealType: 'pre-leased' as const },
-        { keywords: ['leave and license', 'leave & license', 'l&l'], dealType: 'lease' as const },
-        { keywords: ['lease', 'leased'], dealType: 'lease' as const },
-        { keywords: ['rent', 'rental', 'monthly', 'per month'], dealType: 'rent' as const },
-        { keywords: ['sale', 'selling', 'resale', 'outright'], dealType: 'sale' as const },
-    ];
-
-    for (const entry of explicitKeywords) {
-        if (entry.keywords.some((keyword) => lower.includes(keyword))) {
-            return entry.dealType;
-        }
-    }
+    if (hasPreLeasedSignal(text)) return 'pre-leased';
+    if (hasLeaseSignal(text)) return 'lease';
+    if (hasRentSignal(text)) return 'rent';
+    if (hasSaleSignal(text)) return 'sale';
 
     const baseDealType = String(currentDealType || '').trim().toLowerCase();
     if (priceNumeric == null || !Number.isFinite(priceNumeric) || priceNumeric <= 0) {
@@ -1157,19 +1153,23 @@ const inferDealTypeFromPrice = (text: string, currentDealType: string | null | u
 };
 
 const inferStreamTypeFromPrice = (text: string, currentStreamType: string | null | undefined, priceNumeric: number | null): StreamType => {
-    const lower = String(text || '').toLowerCase();
-
-    if (lower.includes('pre leased') || lower.includes('pre-leased')) return 'Pre-leased';
-    if (lower.includes('requirement') || lower.includes('looking for') || lower.includes('wanted') || lower.includes('need ') || lower.includes('require')) {
+    if (hasPreLeasedSignal(text)) return 'Pre-leased';
+    if (hasAvailabilitySignal(text) && (hasLeaseSignal(text) || hasRentSignal(text))) {
+        return hasLeaseSignal(text) ? 'Lease' : 'Rent';
+    }
+    if (hasAvailabilitySignal(text) && hasSaleSignal(text)) {
+        return 'Sale';
+    }
+    if (hasRequirementSignal(text)) {
         return 'Requirement';
     }
-    if (lower.includes('lease') || lower.includes('leave and license') || lower.includes('leave & license') || lower.includes('l&l')) {
+    if (hasLeaseSignal(text)) {
         return 'Lease';
     }
-    if (lower.includes('rent') || lower.includes('monthly') || lower.includes('per month')) {
+    if (hasRentSignal(text)) {
         return 'Rent';
     }
-    if (lower.includes('sale') || lower.includes('selling') || lower.includes('resale') || lower.includes('outright')) {
+    if (hasSaleSignal(text)) {
         return 'Sale';
     }
 
@@ -1201,7 +1201,7 @@ const extractAssetClass = (text: string) => {
     const lower = text.toLowerCase();
     const commercialWords = ['office', 'shop', 'showroom', 'warehouse', 'commercial', 'gaming', 'retail', 'restaurant', 'cafe', 'salon', 'clinic', 'entertainment zone', 'co-working', 'co working', 'coworking', 'pcmc'];
     if (commercialWords.some(w => lower.includes(w))) return 'commercial';
-    if (lower.includes('pre leased') || lower.includes('pre-leased')) return 'commercial';
+    if (hasPreLeasedSignal(text)) return 'commercial';
     return 'residential';
 };
 
@@ -1247,7 +1247,18 @@ const sanitizeLine = (line: string) => {
 
 const detectSectionType = (line: string): StreamType | null => {
     const lower = line.toLowerCase();
+    if (hasAvailabilitySignal(line) && (hasLeaseSignal(line) || hasRentSignal(line))) {
+        return hasLeaseSignal(line) ? 'Lease' : 'Rent';
+    }
+    if (hasAvailabilitySignal(line) && hasSaleSignal(line)) {
+        return 'Sale';
+    }
     for (const entry of SECTION_TYPE_KEYWORDS) {
+        if (entry.type === 'Lease' && hasLeaseSignal(line)) return entry.type;
+        if (entry.type === 'Requirement' && hasRequirementSignal(line)) return entry.type;
+        if (entry.type === 'Rent' && hasRentSignal(line)) return entry.type;
+        if (entry.type === 'Sale' && hasSaleSignal(line)) return entry.type;
+        if (entry.type === 'Pre-leased' && hasPreLeasedSignal(line)) return entry.type;
         if (entry.keywords.some(kw => lower.includes(kw))) {
             return entry.type;
         }
@@ -1522,6 +1533,7 @@ type RawDumpReplayOptions = {
     sessionLabel?: string | null;
     from?: string | null;
     to?: string | null;
+    includeNonGroup?: boolean;
     force?: boolean;
     minIntervalMs?: number;
     reason?: string;
@@ -1776,6 +1788,42 @@ export class ChannelService {
     }
 
     private shouldPersistParsedCandidate(parsed: ParsedStreamCandidate) {
+        const payload = (parsed.parsedPayload || {}) as Record<string, unknown>;
+        const source = String(payload.source || '').trim().toLowerCase();
+        const rawText = String(parsed.rawText || '').trim();
+        const lower = rawText.toLowerCase();
+
+        if (source === 'raw_dump_replay' || source === 'fallback') {
+            if (rawText.length < 25) {
+                return false;
+            }
+
+            if (
+                /\b(?:please\s+add|add\s+(?:these\s+)?(?:numbers?|contacts?)|broadcast\s+list|save\s+(?:my\s+)?number|join\s+(?:this\s+)?group)\b/i.test(rawText)
+                && !hasAvailabilitySignal(rawText)
+            ) {
+                return false;
+            }
+
+            if (typeof parsed.priceNumeric === 'number' && Number.isFinite(parsed.priceNumeric) && parsed.priceNumeric > 0 && parsed.priceNumeric < 5_000) {
+                return false;
+            }
+
+            const hasTypology = this.hasMeaningfulTypology(parsed);
+            const hasAnchor = this.hasStructuralAnchor(parsed);
+            const hasLocation = !this.isPlaceholderLocation(parsed.locality);
+            const hasExplicitDeal = hasAvailabilitySignal(rawText) || hasRentSignal(rawText) || hasLeaseSignal(rawText) || hasSaleSignal(rawText);
+            const hasPropertyKeyword = /\b(?:bhk|flat|apartment|office|shop|showroom|warehouse|godown|industrial|carpet|sq\s*ft|sqft|floor|parking|building|project|society)\b/i.test(lower);
+
+            if (!hasPropertyKeyword || (!hasExplicitDeal && !hasTypology && !hasAnchor)) {
+                return false;
+            }
+
+            if (!hasLocation && !hasTypology && !hasAnchor && !this.hasUsefulPrice(parsed)) {
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -2738,7 +2786,8 @@ private highValueLeadAlertKeys = new Set<string>();
     }
 
     async rebuildStreamFromRawDump(tenantId: string, options: RawDumpReplayOptions = {}) {
-        const limit = Math.max(1, Math.min(1000, Number(options.limit || 250)));
+        const defaultLimit = options.reason === 'group_health_zero_parse' ? 50 : 250;
+        const limit = Math.max(1, Math.min(1000, Number(options.limit || defaultLimit)));
 
         let query = this.db
             .from('raw_dump')
@@ -2784,6 +2833,9 @@ private highValueLeadAlertKeys = new Set<string>();
             const remoteJid = String((row as any)?.group_jid || '').trim();
             const sessionLabel = String((row as any)?.session_id || options.sessionLabel || 'workspace').trim() || 'workspace';
             if (!rawText || !remoteJid) {
+                continue;
+            }
+            if (!options.includeNonGroup && !remoteJid.endsWith('@g.us')) {
                 continue;
             }
 
@@ -4085,7 +4137,7 @@ ${rawText}
             const streamType = inferStreamTypeFromPrice(candidateText, segment.streamType, price.numeric);
             const bhkRaw = extractBhk(candidateText);
             const bhk = bhkRaw === 'N/A' ? null : bhkRaw;
-            const buildingName = extractBuildingName(candidateText);
+            const buildingName = sanitizeBuildingNameCandidate(extractBuildingName(candidateText));
             const microLocation = extractMicroLocation(candidateText) || extractMicroLocation(rawText);
             const displayTitle = buildDisplayTitle(buildingName, microLocation, location);
             const assetClass = extractAssetClass(candidateText);
@@ -4871,8 +4923,12 @@ ${rawText}
         const locality = String(item.locality || '').trim();
         const dealType = String(item.deal_type || '').trim() || extractDealType(rawText);
         const inferredBhk = String(item.bhk || '').trim() || extractBhk(rawText);
-        const inferredBuildingName = String(item.parsed_payload?.buildingName || '').trim() || extractBuildingName(rawText);
-        const inferredMicroLocation = String(item.parsed_payload?.microLocation || '').trim() || extractMicroLocation(rawText);
+        const inferredBuildingName = sanitizeBuildingNameCandidate(
+            String(item.building_name || item.parsed_payload?.buildingName || '').trim() || extractBuildingName(rawText),
+        );
+        const inferredMicroLocation = sanitizeMicroLocationCandidate(
+            String(item.micro_location || item.parsed_payload?.microLocation || '').trim() || extractMicroLocation(rawText),
+        );
         const inferredTitle = buildDisplayTitle(inferredBuildingName, inferredMicroLocation, locality || 'Mumbai market');
         const propertyCategory = item.property_category === 'commercial' ? 'commercial' : 'residential';
         const areaSqft = item.area_sqft != null && Number.isFinite(Number(item.area_sqft))

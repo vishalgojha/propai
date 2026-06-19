@@ -57,6 +57,9 @@ const AMENITY_WORDS = new Set([
   'clubhouse',
 ]);
 
+const GENERIC_BUILDING_PATTERN =
+  /\b(?:clear\s+title|title\s+preferred|prime\s+location|near\s+prime|direct\s+available|inspection|rera|carpet|configuration|as\s+per\s+requirement|development\s+potential|landmark|road|sq\s*ft|sqft)\b/i;
+
 const METADATA_NOISE_PATTERN =
   /\b(?:bhk|rent|sale|lease|deposit|budget|asking|carpet|sq\s*ft|sqft|floor|furnished|unfurnished|negotiable|available|family|bachelor|client|tenant|buyer|seller|call|contact|mobile|phone)\b/i;
 
@@ -118,6 +121,7 @@ export function sanitizeBuildingNameCandidate(value: string | null | undefined):
   const cleaned = normalizeCandidate(value);
   if (!cleaned || cleaned.length < 3) return null;
   if (/^\d+\s*(?:bhk|sq\s*ft|sqft|floor|room)\b/i.test(cleaned)) return null;
+  if (GENERIC_BUILDING_PATTERN.test(cleaned)) return null;
   if (METADATA_NOISE_PATTERN.test(cleaned)) return null;
   if (isDescriptorOnlyBuilding(cleaned)) return null;
   if (isAmenityOnlyMicroLocation(cleaned)) return null;
