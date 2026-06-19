@@ -62,11 +62,6 @@ export class AgentRouterService {
     ].join(' ');
 
     async route(tenantId: string, prompt: string, history: ConversationMessage[] = []): Promise<AgentRoutePlan> {
-        const deterministicRoute = this.detectDeterministicRoute(prompt);
-        if (deterministicRoute) {
-            return deterministicRoute;
-        }
-
         try {
             const response = await aiService.chat(
                 prompt,
@@ -93,76 +88,6 @@ export class AgentRouterService {
                 args: {},
             };
         }
-    }
-
-    private detectDeterministicRoute(prompt: string): AgentRoutePlan | null {
-        const normalized = String(prompt || '')
-            .toLowerCase()
-            .replace(/\s+/g, ' ')
-            .trim();
-
-        if (!normalized) {
-            return null;
-        }
-
-        if (/^(?:hi|hello|hey|hii+|namaste|good\s+(?:morning|afternoon|evening)|thanks?|thank\s+you)[!.\s]*$/i.test(normalized)) {
-            return {
-                intent: 'general_chat',
-                confidence: 1,
-                rationale: 'Deterministic greeting guard',
-                args: {},
-            };
-        }
-
-        const asksToSearch = /\b(search|find|show|pull|get|lookup|look up)\b/.test(normalized);
-        const mentionsCrm = /\b(my\s+)?crm\b/.test(normalized)
-            || /\bsaved\s+(records|data|listings|requirements|leads)\b/.test(normalized);
-        const mentionsRequirementRecords = /\b(requirement|requirements|buyer|buyers|tenant|tenants|lead|leads)\b/.test(normalized);
-
-        if (asksToSearch && mentionsRequirementRecords && !mentionsCrm) {
-            return {
-                intent: 'search_requirements',
-                confidence: 1,
-                rationale: 'Deterministic requirement search guard',
-                args: {},
-            };
-        }
-
-        if (/\b(match|matches|matching|broker)\b/.test(normalized) && mentionsRequirementRecords) {
-            return {
-                intent: 'match_requirement_to_broker',
-                confidence: 1,
-                rationale: 'Deterministic requirement-to-broker match guard',
-                args: {},
-            };
-        }
-
-        if (asksToSearch && mentionsCrm) {
-            return {
-                intent: 'search_my_crm',
-                confidence: 1,
-                rationale: 'Deterministic CRM search guard',
-                args: {},
-            };
-        }
-
-        const inventorySearchIntent = (
-            /\b(any|find|show|search|looking|available|mil\s*gaya|mila|hai kya|kya hai)\b/.test(normalized)
-            || normalized.includes('?')
-        ) && (
-            /\b(1bhk|2bhk|3bhk|4bhk|bhk|flat|apartment|listing|listings|inventory|property|properties|rent|rental|lease|sale|buy)\b/.test(normalized)
-        );
-
-        if (inventorySearchIntent) {
-            return {
-                intent: 'search_listings',
-                confidence: 1,
-                rationale: 'Deterministic inventory search guard',
-                args: {},
-            };
-        }
-
-        return null;
     }
 
     private parsePlan(text: string) {

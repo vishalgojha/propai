@@ -377,7 +377,14 @@ export class CanonicalizationService {
             Boolean(process.env.DOUBLEWORD_API_KEY);
 
         if (!hasConfiguredAi) {
-            return this.fallbackMatchDecision(item, fingerprint, candidates);
+            return {
+                decision: 'new',
+                canonicalRecordId: null,
+                confidence: 0,
+                summary: 'AI matcher unavailable; candidate left unmerged.',
+                agreeingFields: [],
+                conflictingFields: [],
+            } satisfies MatchDecision;
         }
 
         const systemPrompt = 'You are PropAI\'s canonical market matcher. Decide if a new parsed stream item matches one existing canonical record. Return valid JSON only.';
@@ -447,59 +454,20 @@ Return only this JSON:
                 conflictingFields: Array.isArray(parsed.conflictingFields) ? parsed.conflictingFields.map((field) => String(field)) : [],
             } satisfies MatchDecision;
         } catch (error) {
-            console.warn('[Canonicalization] AI matcher unavailable, using deterministic fallback', {
+            console.warn('[Canonicalization] AI matcher unavailable; leaving the candidate unmerged', {
                 streamItemId: item.id,
                 tenantId: item.tenant_id,
                 error: error instanceof Error ? error.message : String(error || 'Unknown error'),
             });
-            return this.fallbackMatchDecision(item, fingerprint, candidates);
-        }
-    }
-
-    private fallbackMatchDecision(item: StreamRow, fingerprint: string, candidates: CanonicalRow[]) {
-        const normalizedFingerprint = fingerprint.trim().toLowerCase();
-        const exactFingerprintMatch = candidates.find((candidate) => String(candidate.semantic_fingerprint_text || '').trim().toLowerCase() === normalizedFingerprint);
-        if (exactFingerprintMatch) {
             return {
-                decision: 'match',
-                canonicalRecordId: exactFingerprintMatch.id,
-                confidence: 0.98,
-                summary: 'Matched by identical semantic fingerprint.',
-                agreeingFields: ['semantic_fingerprint_text'],
+                decision: 'new',
+                canonicalRecordId: null,
+                confidence: 0,
+                summary: 'AI matcher unavailable; candidate left unmerged.',
+                agreeingFields: [],
                 conflictingFields: [],
             } satisfies MatchDecision;
         }
-
-        const sameLocationMatch = candidates.find((candidate) => {
-            const sameLocality = Boolean(item.locality) && String(candidate.locality || '').trim().toLowerCase() === String(item.locality || '').trim().toLowerCase();
-            const sameCity = Boolean(item.city) && String(candidate.city || '').trim().toLowerCase() === String(item.city || '').trim().toLowerCase();
-            const sameBhk = Boolean(item.bhk) && String(candidate.bhk || '').trim().toLowerCase() === String(item.bhk || '').trim().toLowerCase();
-            const samePrice = typeof item.price_numeric === 'number' && typeof candidate.price_numeric === 'number'
-                ? Math.abs(Number(candidate.price_numeric) - Number(item.price_numeric)) <= Math.max(Number(candidate.price_numeric) * 0.15, 250000)
-                : false;
-            const sameBuilding = Boolean(item.parsed_payload?.buildingName) && String(candidate.building_name || '').trim().toLowerCase() === String(item.parsed_payload?.buildingName || '').trim().toLowerCase();
-            return (sameLocality || sameCity) && (sameBuilding || sameBhk || samePrice);
-        });
-
-        if (sameLocationMatch) {
-            return {
-                decision: 'match',
-                canonicalRecordId: sameLocationMatch.id,
-                confidence: 0.82,
-                summary: 'Matched by locality and structured fields.',
-                agreeingFields: ['locality', 'city', 'bhk', 'price_numeric', 'building_name'],
-                conflictingFields: [],
-            } satisfies MatchDecision;
-        }
-
-        return {
-            decision: 'new',
-            canonicalRecordId: null,
-            confidence: 0.7,
-            summary: 'AI unavailable; created a new canonical record.',
-            agreeingFields: [],
-            conflictingFields: [],
-        } satisfies MatchDecision;
     }
 
     private async attachToCanonical(item: StreamRow, fingerprint: string, decision: MatchDecision, candidates: CanonicalRow[]) {

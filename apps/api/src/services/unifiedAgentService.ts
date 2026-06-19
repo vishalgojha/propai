@@ -92,17 +92,6 @@ export async function executeSharedRoute(
     route: AgentRoutePlan,
     prompt: string,
 ): Promise<SharedRouteExecutionResult> {
-    if (route.intent === 'general_chat') {
-        const reply = 'Hi. Send a listing, requirement, locality, or buyer brief and I will help you work it into the right PropAI flow.';
-        return {
-            handled: true,
-            reply,
-            agentResponse: toAgentResponse(reply),
-            capabilityHint: buildCapabilityHint(route.intent),
-            data: { type: 'general_chat' },
-        };
-    }
-
     if (isProductKnowledgeIntent(route.intent)) {
         const answer = await productKnowledgeService.answer(tenantId, prompt, route.intent);
         if (answer) {

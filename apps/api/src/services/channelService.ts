@@ -3855,15 +3855,10 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
                 return aiResult;
             }
         } catch (error) {
-            console.error('[ChannelService] AI stream parser failed, falling back to regex', error);
+            console.error('[ChannelService] AI stream parser failed; message retained as raw evidence without creating a stream item', error);
         }
 
-        try {
-            return this.parseMessageFallback(message);
-        } catch (error) {
-            console.error('[ChannelService] Regex fallback parser also failed', error);
-            return [];
-        }
+        return [];
     }
 
     private async parseMessageWithAI(tenantId: string, message: RawInboundMessage): Promise<ParsedStreamCandidate[]> {
