@@ -110,8 +110,8 @@ const aiProviders = [
   {
     id: 'nvidia',
     name: 'NVIDIA',
-    logo: 'doubleword',
-    description: 'Free Nemotron-3 Ultra 550B via NVIDIA API.',
+    logo: 'nvidia',
+    description: 'DeepSeek V4 Flash via NVIDIA API with thinking enabled.',
   },
 ] as const;
 
@@ -140,9 +140,9 @@ const defaultModelOptions = [
   {
     value: 'nvidia',
     title: 'NVIDIA',
-    provider: 'NVIDIA Nemotron-3 Ultra 550B',
-    logo: 'doubleword' as const,
-    description: 'Free Nemotron-3 Ultra 550B fallback.',
+    provider: 'NVIDIA DeepSeek V4 Flash',
+    logo: 'nvidia' as const,
+    description: 'DeepSeek V4 Flash via NVIDIA, thinking enabled.',
   },
 ] as const;
 

@@ -71,6 +71,21 @@ function DoublewordLogo({ className }: { className?: string }) {
   );
 }
 
+function NvidiaLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={cn('h-5 w-5', className)} aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M7.5 16.5V7.5l4.5 6V7.5l4.5 6V7.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function ProviderLogo({ provider, className }: ProviderLogoProps) {
   switch (provider) {
     case 'gemini':
@@ -82,7 +97,7 @@ export function ProviderLogo({ provider, className }: ProviderLogoProps) {
     case 'doubleword':
       return <DoublewordLogo className={className} />;
     case 'nvidia':
-      return <DoublewordLogo className={className} />;
+      return <NvidiaLogo className={className} />;
     default:
       return <GeminiLogo className={className} />;
   }
