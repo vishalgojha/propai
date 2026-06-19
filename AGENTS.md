@@ -68,7 +68,11 @@ Both share the same Supabase database. The API writes connection artifacts (QR, 
 
 ### Completed in This Session
 
-- **Fixed NVIDIA "API key not found" bug** — Root cause: the `api_keys` table's RLS policy was `ALL ... USING` (no `WITH CHECK` for INSERT), blocking key writes when `supabaseAdmin` (service role) wasn't available. Also fixed `saveKey()` error logic that silently returned success when file-write failed but DB succeeded. Added DB trigger to sync `workspace_settings.ai_keys` → `api_keys` automatically so `keyService.getKeys()` always finds saved keys.
+- **Fixed api_keys RLS and NVIDIA key sync** — RLS policy was `ALL ... USING` (blocking INSERT), now proper per-command policies. Added DB trigger to auto-sync `workspace_settings.ai_keys` → `api_keys`. Fixed `saveKey()` error logic (returned silent success on file-write-only failure).
+- **Fixed stream read paths (zero results bug)** — Two breaks found after Jun 9 wipe migration:
+  1. `match_listings`/`market_stats` RPCs queried `stream_items` (empty parent table) instead of child tables (`stream_items_residential`/`commercial`) which have 21k+ rows. Rewrote both to UNION ALL child tables.
+  2. `public_listings` remained empty despite 18k accepted items — schema columns missing, RLS blocking. Added all required columns, RLS policies (public read, service_role write), sync trigger from child tables, and backfill.
+  3. Added sync trigger: child table INSERT/UPDATE → auto-inserts into `stream_items` parent.
 - **Added NVIDIA Nemotron provider** — Full integration across `aiService.ts`, `aiUsageService.ts`, `keyService.ts`, `settingsController.ts`, `workspaceSettingsService.ts`, `Settings.tsx`, `Agent.tsx`, `ProviderLogo.tsx`.
 - **Removed Groq from defaults/UI** — Taken out of default fallback chain and settings UI.
 - **Fixed configuration/BHK column** — `mapStreamItem` returns `configuration`, DB upsert writes `configuration`, `sanitizeBuildingNameCandidate` backstop prevents area values becoming building names.
