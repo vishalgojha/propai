@@ -298,6 +298,7 @@ export class WhatsAppCloudApiService {
         }
         const entries = Array.isArray(payload?.entry) ? payload.entry : [];
         const results: Array<{ tenantId: string; processed: number; replied: number; ignored: number }> = [];
+        const recentProcessedMessageIds = new Set<string>();
 
         for (const entry of entries) {
             const changes = Array.isArray(entry?.changes) ? entry.changes : [];
@@ -318,9 +319,15 @@ export class WhatsAppCloudApiService {
                 let ignored = 0;
 
                 for (const message of messages) {
+                    const messageId = String(message?.id || crypto.randomUUID()).trim();
+                    if (recentProcessedMessageIds.has(messageId)) {
+                        ignored += 1;
+                        continue;
+                    }
+                    recentProcessedMessageIds.add(messageId);
+
                     const remoteJid = buildRemoteJid(message?.from);
                     const text = extractText(message);
-                    const messageId = String(message?.id || remoteJid || crypto.randomUUID()).trim();
                     if (!remoteJid || !text) {
                         ignored += 1;
                         continue;

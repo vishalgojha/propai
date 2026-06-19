@@ -33,39 +33,53 @@ function cleanWhatsAppReply(text: string) {
     let cleaned = String(text || '').trim();
     if (!cleaned) return '';
 
-    const fenced = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    if (fenced?.[1]) {
-        cleaned = fenced[1].trim();
-    }
+    const extractJsonText = (value: string): string | null => {
+        const fenced = value.match(/```(?:json)?\s*([\s\S]*?)```/i);
+        if (fenced?.[1]) return fenced[1].trim();
+        const start = value.indexOf('{');
+        const end = value.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+            const candidate = value.slice(start, end + 1).trim();
+            if (candidate.length < value.length * 0.9) return candidate;
+        }
+        return null;
+    };
 
-    const unwrapJsonMessage = (value: string) => {
+    const tryParseJson = (value: string): string | null => {
         try {
             const parsed = JSON.parse(value) as any;
             if (parsed && typeof parsed === 'object') {
-                if (typeof parsed.message === 'string' && parsed.message.trim()) {
-                    return parsed.message.trim();
+                if (typeof parsed.message === 'string' && parsed.message.trim()) return parsed.message.trim();
+                if (typeof parsed.reply === 'string' && parsed.reply.trim()) return parsed.reply.trim();
+                if (typeof parsed.text === 'string' && parsed.text.trim()) return parsed.text.trim();
+                if (parsed.AgentResponse && typeof parsed.AgentResponse === 'object') {
+                    if (typeof parsed.AgentResponse.message === 'string' && parsed.AgentResponse.message.trim()) return parsed.AgentResponse.message.trim();
                 }
-                if (typeof parsed.reply === 'string' && parsed.reply.trim()) {
-                    return parsed.reply.trim();
-                }
-                if (typeof parsed.text === 'string' && parsed.text.trim()) {
-                    return parsed.text.trim();
-                }
-                if (parsed.AgentResponse && typeof parsed.AgentResponse === 'object' && typeof parsed.AgentResponse.message === 'string') {
-                    return String(parsed.AgentResponse.message).trim();
-                }
+                const vals = Object.values(parsed).filter((v): v is string => typeof v === 'string' && !!v.trim());
+                if (vals.length === 1) return vals[0].trim();
             }
-        } catch {
-            return value;
-        }
-        return value;
+        } catch {}
+        return null;
     };
 
-    cleaned = unwrapJsonMessage(cleaned);
-    cleaned = cleaned.replace(/^\s*AgentResponse:\s*/i, '').trim();
-    cleaned = cleaned.replace(/^\s*\{[\s\S]*"message"\s*:\s*"([^"]+)"[\s\S]*\}\s*$/i, '$1').trim();
-    cleaned = cleaned.replace(/\\"/g, '"').trim();
+    const jsonText = extractJsonText(cleaned);
+    if (jsonText) {
+        const extracted = tryParseJson(jsonText);
+        if (extracted) return extracted;
+    }
 
+    const directParsed = tryParseJson(cleaned);
+    if (directParsed) return directParsed;
+
+    cleaned = cleaned.replace(/^\s*AgentResponse:\s*/i, '').trim();
+
+    const jsonMsgMatch = cleaned.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/i);
+    if (jsonMsgMatch) return jsonMsgMatch[1].replace(/\\"/g, '"').trim();
+
+    const jsonReplyMatch = cleaned.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/i);
+    if (jsonReplyMatch) return jsonReplyMatch[1].replace(/\\"/g, '"').trim();
+
+    cleaned = cleaned.replace(/\\"/g, '"').trim();
     return cleaned;
 }
 

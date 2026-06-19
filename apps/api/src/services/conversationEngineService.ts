@@ -104,25 +104,50 @@ function cleanWhatsAppReply(text: string) {
     let cleaned = String(text || '').trim();
     if (!cleaned) return '';
 
-    const fenced = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    if (fenced?.[1]) {
-        cleaned = fenced[1].trim();
+    const extractJsonText = (value: string): string | null => {
+        const fenced = value.match(/```(?:json)?\s*([\s\S]*?)```/i);
+        if (fenced?.[1]) return fenced[1].trim();
+        const start = value.indexOf('{');
+        const end = value.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+            const candidate = value.slice(start, end + 1).trim();
+            if (candidate.length < value.length * 0.9) return candidate;
+        }
+        return null;
+    };
+
+    const tryParseJson = (value: string): string | null => {
+        try {
+            const parsed = JSON.parse(value) as Record<string, unknown>;
+            if (parsed && typeof parsed === 'object') {
+                if (typeof parsed.message === 'string' && parsed.message.trim()) return parsed.message.trim();
+                if (typeof parsed.reply === 'string' && parsed.reply.trim()) return parsed.reply.trim();
+                if (typeof parsed.text === 'string' && parsed.text.trim()) return parsed.text.trim();
+                if (parsed.AgentResponse && typeof parsed.AgentResponse === 'object') {
+                    if (typeof (parsed.AgentResponse as Record<string, unknown>).message === 'string' && String((parsed.AgentResponse as Record<string, unknown>).message).trim()) return String((parsed.AgentResponse as Record<string, unknown>).message).trim();
+                }
+            }
+        } catch {}
+        return null;
+    };
+
+    const jsonText = extractJsonText(cleaned);
+    if (jsonText) {
+        const extracted = tryParseJson(jsonText);
+        if (extracted) return extracted;
     }
 
-    try {
-        const parsed = JSON.parse(cleaned) as Record<string, unknown>;
-        if (typeof parsed.message === 'string' && parsed.message.trim()) {
-            cleaned = parsed.message.trim();
-        } else if (typeof parsed.reply === 'string' && parsed.reply.trim()) {
-            cleaned = parsed.reply.trim();
-        } else if (typeof parsed.text === 'string' && parsed.text.trim()) {
-            cleaned = parsed.text.trim();
-        }
-    } catch {
-        // plain text response
-    }
+    const directParsed = tryParseJson(cleaned);
+    if (directParsed) return directParsed;
 
     cleaned = cleaned.replace(/^\s*AgentResponse:\s*/i, '').trim();
+
+    const jsonMsgMatch = cleaned.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/i);
+    if (jsonMsgMatch) return jsonMsgMatch[1].replace(/\\"/g, '"').trim();
+
+    const jsonReplyMatch = cleaned.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/i);
+    if (jsonReplyMatch) return jsonReplyMatch[1].replace(/\\"/g, '"').trim();
+
     cleaned = cleaned.replace(/\\"/g, '"').trim();
     return cleaned;
 }
