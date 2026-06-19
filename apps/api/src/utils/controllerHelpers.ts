@@ -10,8 +10,19 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
   'hello@propai.live',
 ]);
 
+const OWNER_SUPER_ADMIN_PHONES = new Set([
+  '9820056180',
+  '7021045254',
+]);
+
 export function isOwnerSuperAdminEmail(email?: string | null) {
   return OWNER_SUPER_ADMIN_EMAILS.has(String(email || '').trim().toLowerCase());
+}
+
+export function isOwnerSuperAdminPhone(phone?: string | null) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  const last10 = digits.slice(-10);
+  return OWNER_SUPER_ADMIN_PHONES.has(last10);
 }
 
 export function getTenantId(req: Request) {

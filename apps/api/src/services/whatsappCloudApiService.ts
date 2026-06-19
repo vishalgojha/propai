@@ -5,6 +5,7 @@ import { whatsappThreadService } from './whatsappThreadService';
 import { channelService } from './channelService';
 import { agentExecutor } from './AgentExecutor';
 import { supabase, supabaseAdmin } from '../config/supabase';
+import { isOwnerSuperAdminPhone } from '../utils/controllerHelpers';
 
 const db = supabaseAdmin || supabase;
 const SESSION_LABEL = 'Official API';
@@ -412,6 +413,11 @@ export class WhatsAppCloudApiService {
                     }
 
                     let agentFailureMessage = '';
+                    const isAdmin = isOwnerSuperAdminPhone(remoteJid);
+                    if (isAdmin) {
+                        agentFailureMessage = '__admin__';
+                    }
+                    await this.sendTypingIndicator(tenantId, phoneNumberId, remoteJid).catch(() => {});
                     let reply = await agentExecutor.processMessage(tenantId, remoteJid, text, sessionLabel, undefined, {
                         suppressFallbackOnError: true,
                         onError: async (error) => {
@@ -567,6 +573,28 @@ export class WhatsAppCloudApiService {
         }
 
         return response.json().catch(() => ({}));
+    }
+
+    private async sendTypingIndicator(tenantId: string, phoneNumberId: string, to: string) {
+        const accessToken = await keyService.getKey(tenantId, this.providerName);
+        if (!accessToken) return;
+
+        const payload = {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: normalizeDigits(to),
+            type: 'action',
+            action: { name: 'typing_on' },
+        };
+
+        await fetch(`${getCloudBaseUrl()}/${encodeURIComponent(phoneNumberId)}/messages`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        }).catch(() => {});
     }
 }
 
