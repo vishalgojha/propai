@@ -3,7 +3,7 @@
 insert into public.public_listings (
     source_message_id, source_group_id, source_group_name,
     listing_type, area, location, price, price_type, size_sqft,
-    furnishing, bhk, building_name, title, description,
+    furnishing, building_name, title, description,
     raw_message, sender_number, primary_contact_name,
     primary_contact_number, primary_contact_wa, confidence,
     message_timestamp, search_text, created_at
@@ -27,11 +27,10 @@ select
     end as price_type,
     area_sqft as size_sqft,
     furnishing,
-    nullif(regexp_replace(bhk, '\D', '', 'g'), '')::integer as bhk,
     building_name,
     coalesce(
         nullif(trim(parsed_payload->>'title'), ''),
-        coalesce(bhk || ' ' || locality, locality, 'Property in ' || city)
+        coalesce(configuration || ' ' || locality, locality, 'Property in ' || city)
     ) as title,
     raw_text as description,
     raw_text as raw_message,
@@ -41,13 +40,13 @@ select
     source_phone as primary_contact_wa,
     confidence_score as confidence,
     created_at as message_timestamp,
-    coalesce(raw_text || ' ' || locality || ' ' || bhk || ' ' || type, raw_text) as search_text,
+    coalesce(raw_text || ' ' || locality || ' ' || configuration || ' ' || type, raw_text) as search_text,
     created_at
 from (
     select
         coalesce(message_id, source_message_id) as source_message_id,
         source_group_id, source_group_name, type, locality, price_numeric,
-        area_sqft, furnishing, bhk, building_name, parsed_payload,
+        area_sqft, furnishing, configuration, building_name, parsed_payload,
         raw_text, source_phone, confidence_score, created_at, city
     from public.stream_items_residential
     where ingestion_status = 'accepted'
@@ -58,7 +57,7 @@ from (
     select
         coalesce(message_id, source_message_id) as source_message_id,
         source_group_id, source_group_name, type, locality, price_numeric,
-        area_sqft, furnishing, bhk, building_name, parsed_payload,
+        area_sqft, furnishing, configuration, building_name, parsed_payload,
         raw_text, source_phone, confidence_score, created_at, city
     from public.stream_items_commercial
     where ingestion_status = 'accepted'
