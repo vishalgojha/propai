@@ -7,10 +7,10 @@ declare
 begin
   -- Drop the old ALL policy (no WITH CHECK = INSERT blocked)
   for pol in
-    select polname from pg_policies
+    select policyname from pg_policies
     where schemaname = 'public'
       and tablename = 'api_keys'
-      and polname = 'Tenants can manage their own api keys'
+      and policyname = 'Tenants can manage their own api keys'
   loop
     execute format('drop policy "Tenants can manage their own api keys" on public.api_keys');
   end loop;
