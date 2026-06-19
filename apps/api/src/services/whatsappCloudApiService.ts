@@ -293,6 +293,9 @@ export class WhatsAppCloudApiService {
     }
 
     async handleWebhook(payload: MetaWebhookPayload) {
+        if (!process.env.CLOUD_API_WEBHOOK_ENABLED) {
+            return [];
+        }
         const entries = Array.isArray(payload?.entry) ? payload.entry : [];
         const results: Array<{ tenantId: string; processed: number; replied: number; ignored: number }> = [];
 
