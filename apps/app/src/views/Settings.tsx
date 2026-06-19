@@ -419,7 +419,11 @@ export const Settings: React.FC = () => {
     try {
       const normalizedKeys = normalizeAiKeys(aiKeys);
       setAiKeys(normalizedKeys);
-      await backendApi.post(ENDPOINTS.settings.save, { settings, aiKeys: normalizedKeys });
+      await backendApi.post(
+        ENDPOINTS.settings.save,
+        { settings, aiKeys: normalizedKeys },
+        { timeout: 90_000 },
+      );
       track('settings_saved', {
         has_gemini_key: Boolean(aiKeys.gemini),
         has_openrouter_key: Boolean(aiKeys.openrouter),

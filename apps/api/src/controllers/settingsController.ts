@@ -67,13 +67,19 @@ export const saveWorkspaceSettings = async (req: Request, res: Response) => {
 
     await saveWorkspaceSettingsRecord(tenantId, settings, aiKeys);
 
-    const keyResults: Array<{ success: boolean; error?: string }> = await Promise.all([
-        aiKeys.gemini ? keyService.saveKey(tenantId, 'Google', aiKeys.gemini) : keyService.deleteKey(tenantId, 'Google'),
-        aiKeys.groq ? keyService.saveKey(tenantId, 'Groq', aiKeys.groq) : keyService.deleteKey(tenantId, 'Groq'),
-        aiKeys.openrouter ? keyService.saveKey(tenantId, 'OpenRouter', aiKeys.openrouter) : keyService.deleteKey(tenantId, 'OpenRouter'),
-        aiKeys.doubleword ? keyService.saveKey(tenantId, 'Doubleword', aiKeys.doubleword) : keyService.deleteKey(tenantId, 'Doubleword'),
-        aiKeys.nvidia ? keyService.saveKey(tenantId, 'Nvidia', aiKeys.nvidia) : keyService.deleteKey(tenantId, 'Nvidia'),
-    ]);
+    const keyWrites = [
+        { provider: 'Google', next: normalizeKeyPayload(aiKeys.gemini), existing: existingKeys[0].join('\n') },
+        { provider: 'Groq', next: normalizeKeyPayload(aiKeys.groq), existing: existingKeys[1].join('\n') },
+        { provider: 'OpenRouter', next: normalizeKeyPayload(aiKeys.openrouter), existing: existingKeys[2].join('\n') },
+        { provider: 'Doubleword', next: normalizeKeyPayload(aiKeys.doubleword), existing: existingKeys[3].join('\n') },
+        { provider: 'Nvidia', next: normalizeKeyPayload(aiKeys.nvidia), existing: existingKeys[4].join('\n') },
+    ].filter((entry) => entry.next !== entry.existing);
+
+    const keyResults: Array<{ success: boolean; error?: string }> = await Promise.all(
+        keyWrites.map((entry) => entry.next
+            ? keyService.saveKey(tenantId, entry.provider, entry.next)
+            : keyService.deleteKey(tenantId, entry.provider)),
+    );
 
     const failedWrite = keyResults.find((result) => !result.success);
     if (failedWrite) {
@@ -83,12 +89,13 @@ export const saveWorkspaceSettings = async (req: Request, res: Response) => {
         });
     }
 
-    let usageReset: { deletedCount: number } | null = null;
     if (shouldResetUsage) {
-        usageReset = await aiUsageService.resetUsage(tenantId);
+        void aiUsageService.resetUsage(tenantId).catch((error) => {
+            console.error('[Settings] Failed to reset AI usage after key change', error);
+        });
     }
 
     void pushRecentAction(tenantId, `Updated workspace settings / AI keys`);
 
-    res.json({ success: true, usageReset });
+    res.json({ success: true, usageResetScheduled: shouldResetUsage });
 };
