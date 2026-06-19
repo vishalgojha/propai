@@ -237,6 +237,7 @@ export class KeyService {
             groq: 'Groq',
             openrouter: 'OpenRouter',
             doubleword: 'Doubleword',
+            nvidia: 'Nvidia',
             google: 'Google',
             openai: 'OpenAI',
         };
@@ -284,6 +285,13 @@ export class KeyService {
                         case 'Doubleword':
                             await axios.post(`${trimBaseUrl(process.env.DOUBLEWORD_BASE_URL || 'https://api.doubleword.ai/v1')}/chat/completions`, {
                                 model: process.env.DOUBLEWORD_MODEL || 'Qwen/Qwen3.6-35B-A3B-FP8',
+                                messages: [{ role: 'user', content: 'Reply with OK.' }],
+                                max_tokens: 8,
+                            }, { headers: { Authorization: `Bearer ${key}` } });
+                            break;
+                        case 'Nvidia':
+                            await axios.post(`${trimBaseUrl(process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1')}/chat/completions`, {
+                                model: process.env.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b',
                                 messages: [{ role: 'user', content: 'Reply with OK.' }],
                                 max_tokens: 8,
                             }, { headers: { Authorization: `Bearer ${key}` } });

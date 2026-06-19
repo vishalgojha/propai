@@ -14,15 +14,17 @@ export const getWorkspaceSettings = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
 
     const record = await getWorkspaceSettingsRecord(tenantId);
-    const [geminiKeys, groqKeys, openRouterKeys, doublewordKeys, geminiMeta, groqMeta, openRouterMeta, doublewordMeta] = await Promise.all([
+    const [geminiKeys, groqKeys, openRouterKeys, doublewordKeys, nvidiaKeys, geminiMeta, groqMeta, openRouterMeta, doublewordMeta, nvidiaMeta] = await Promise.all([
         keyService.getKeys(tenantId, 'Google'),
         keyService.getKeys(tenantId, 'Groq'),
         keyService.getKeys(tenantId, 'OpenRouter'),
         keyService.getKeys(tenantId, 'Doubleword'),
+        keyService.getKeys(tenantId, 'Nvidia'),
         keyService.getKeyMeta(tenantId, 'Google'),
         keyService.getKeyMeta(tenantId, 'Groq'),
         keyService.getKeyMeta(tenantId, 'OpenRouter'),
         keyService.getKeyMeta(tenantId, 'Doubleword'),
+        keyService.getKeyMeta(tenantId, 'Nvidia'),
     ]);
 
     res.json({
@@ -32,12 +34,14 @@ export const getWorkspaceSettings = async (req: Request, res: Response) => {
             groq: groqKeys.join('\n'),
             openrouter: openRouterKeys.join('\n'),
             doubleword: doublewordKeys.join('\n'),
+            nvidia: nvidiaKeys.join('\n'),
         },
         keyMeta: {
             gemini: geminiMeta,
             groq: groqMeta,
             openrouter: openRouterMeta,
             doubleword: doublewordMeta,
+            nvidia: nvidiaMeta,
         },
     });
 };
@@ -52,12 +56,14 @@ export const saveWorkspaceSettings = async (req: Request, res: Response) => {
         keyService.getKeys(tenantId, 'Groq'),
         keyService.getKeys(tenantId, 'OpenRouter'),
         keyService.getKeys(tenantId, 'Doubleword'),
+        keyService.getKeys(tenantId, 'Nvidia'),
     ]);
     const shouldResetUsage =
         (typeof aiKeys.gemini === 'string' && normalizeKeyPayload(aiKeys.gemini) !== existingKeys[0].join('\n')) ||
         (typeof aiKeys.groq === 'string' && normalizeKeyPayload(aiKeys.groq) !== existingKeys[1].join('\n')) ||
         (typeof aiKeys.openrouter === 'string' && normalizeKeyPayload(aiKeys.openrouter) !== existingKeys[2].join('\n')) ||
-        (typeof aiKeys.doubleword === 'string' && normalizeKeyPayload(aiKeys.doubleword) !== existingKeys[3].join('\n'));
+        (typeof aiKeys.doubleword === 'string' && normalizeKeyPayload(aiKeys.doubleword) !== existingKeys[3].join('\n')) ||
+        (typeof aiKeys.nvidia === 'string' && normalizeKeyPayload(aiKeys.nvidia) !== existingKeys[4].join('\n'));
 
     await saveWorkspaceSettingsRecord(tenantId, settings, aiKeys);
 
@@ -66,6 +72,7 @@ export const saveWorkspaceSettings = async (req: Request, res: Response) => {
         aiKeys.groq ? keyService.saveKey(tenantId, 'Groq', aiKeys.groq) : keyService.deleteKey(tenantId, 'Groq'),
         aiKeys.openrouter ? keyService.saveKey(tenantId, 'OpenRouter', aiKeys.openrouter) : keyService.deleteKey(tenantId, 'OpenRouter'),
         aiKeys.doubleword ? keyService.saveKey(tenantId, 'Doubleword', aiKeys.doubleword) : keyService.deleteKey(tenantId, 'Doubleword'),
+        aiKeys.nvidia ? keyService.saveKey(tenantId, 'Nvidia', aiKeys.nvidia) : keyService.deleteKey(tenantId, 'Nvidia'),
     ]);
 
     const failedWrite = keyResults.find((result) => !result.success);

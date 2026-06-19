@@ -39,9 +39,9 @@ import {
 
 interface AIConfig {
   gemini?: string;
-  groq?: string;
   openrouter?: string;
   doubleword?: string;
+  nvidia?: string;
 }
 
 interface SettingsState {
@@ -96,12 +96,6 @@ const aiProviders = [
     description: 'Primary model path. Gemini 2.5 Flash is now the default.',
   },
   {
-    id: 'groq',
-    name: 'Groq',
-    logo: 'groq',
-    description: 'Fast OpenAI-compatible fallback for agent responses.',
-  },
-  {
     id: 'openrouter',
     name: 'OpenRouter',
     logo: 'openrouter',
@@ -113,6 +107,12 @@ const aiProviders = [
     logo: 'doubleword',
     description: 'OpenAI-compatible provider with Qwen3.6 and Kimi models.',
   },
+  {
+    id: 'nvidia',
+    name: 'NVIDIA',
+    logo: 'doubleword',
+    description: 'Free Nemotron-3 Ultra 550B via NVIDIA API.',
+  },
 ] as const;
 
 const defaultModelOptions = [
@@ -122,13 +122,6 @@ const defaultModelOptions = [
     provider: 'Google Gemini',
     logo: 'gemini' as const,
     description: 'Primary default for agent chat, routing, and structured extraction.',
-  },
-  {
-    value: 'groq',
-    title: 'Groq',
-    provider: 'Groq llama-3.3-70b-versatile',
-    logo: 'groq' as const,
-    description: 'Fast fallback if you prefer lower latency than Gemini-first routing.',
   },
   {
     value: 'openrouter',
@@ -143,6 +136,13 @@ const defaultModelOptions = [
     provider: 'Doubleword Qwen3.6-35B',
     logo: 'doubleword' as const,
     description: 'OpenAI-compatible provider with Qwen3 235B and Kimi K2 models.',
+  },
+  {
+    value: 'nvidia',
+    title: 'NVIDIA',
+    provider: 'NVIDIA Nemotron-3 Ultra 550B',
+    logo: 'doubleword' as const,
+    description: 'Free Nemotron-3 Ultra 550B fallback.',
   },
 ] as const;
 
@@ -165,9 +165,9 @@ function sanitizeApiKeyEditorText(value: string) {
 function normalizeAiKeys(aiKeys: Partial<AIConfig> = {}): AIConfig {
   return {
     gemini: normalizeApiKeyText(aiKeys.gemini || ''),
-    groq: normalizeApiKeyText(aiKeys.groq || ''),
     openrouter: normalizeApiKeyText(aiKeys.openrouter || ''),
     doubleword: normalizeApiKeyText(aiKeys.doubleword || ''),
+    nvidia: normalizeApiKeyText(aiKeys.nvidia || ''),
   };
 }
 
@@ -351,9 +351,9 @@ export const Settings: React.FC = () => {
 
   const [aiKeys, setAiKeys] = useState<AIConfig>({
     gemini: '',
-    groq: '',
     openrouter: '',
     doubleword: '',
+    nvidia: '',
   });
   const [keyMeta, setKeyMeta] = useState<Record<string, { updatedAt: string | null }>>({});
 
@@ -422,9 +422,9 @@ export const Settings: React.FC = () => {
       await backendApi.post(ENDPOINTS.settings.save, { settings, aiKeys: normalizedKeys });
       track('settings_saved', {
         has_gemini_key: Boolean(aiKeys.gemini),
-        has_groq_key: Boolean(aiKeys.groq),
         has_openrouter_key: Boolean(aiKeys.openrouter),
         has_doubleword_key: Boolean(aiKeys.doubleword),
+        has_nvidia_key: Boolean(aiKeys.nvidia),
         model: settings.defaultModel,
       });
       setSaved(true);

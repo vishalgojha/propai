@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
 
-type ProviderKind = 'gemini' | 'groq' | 'openrouter' | 'doubleword';
+type ProviderKind = 'gemini' | 'groq' | 'openrouter' | 'doubleword' | 'nvidia';
 
 type ProviderLogoProps = {
   provider: ProviderKind;
@@ -80,6 +80,8 @@ export function ProviderLogo({ provider, className }: ProviderLogoProps) {
     case 'openrouter':
       return <OpenRouterLogo className={className} />;
     case 'doubleword':
+      return <DoublewordLogo className={className} />;
+    case 'nvidia':
       return <DoublewordLogo className={className} />;
     default:
       return <GeminiLogo className={className} />;

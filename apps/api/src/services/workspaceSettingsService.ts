@@ -7,6 +7,7 @@ export type AIConfig = {
     groq?: string;
     openrouter?: string;
     doubleword?: string;
+    nvidia?: string;
 };
 
 export type WorkspaceSettings = {
@@ -79,6 +80,10 @@ export function normalizeDefaultModel(value?: string | null) {
         case 'kimi-k2':
         case 'qwen/qwen3.6-35b-a3b-fp8':
             return 'doubleword';
+        case 'nvidia':
+        case 'nemotron':
+        case 'nvidia/nemotron-3-ultra-550b-a55b':
+            return 'nvidia';
         default:
             return GEMINI_DEFAULT_MODEL;
     }
@@ -143,6 +148,7 @@ export async function getWorkspaceSettingsRecord(tenantId: string) {
                     groq: typeof storedKeys.groq === 'string' ? storedKeys.groq : '',
                     openrouter: typeof storedKeys.openrouter === 'string' ? storedKeys.openrouter : '',
                     doubleword: typeof storedKeys.doubleword === 'string' ? storedKeys.doubleword : '',
+                    nvidia: typeof storedKeys.nvidia === 'string' ? storedKeys.nvidia : '',
                 },
                 updatedAt: (data as any).updated_at || null,
             };
@@ -161,6 +167,7 @@ export async function getWorkspaceSettingsRecord(tenantId: string) {
                 groq: record?.aiKeys?.groq || '',
                 openrouter: record?.aiKeys?.openrouter || '',
                 doubleword: record?.aiKeys?.doubleword || '',
+                nvidia: record?.aiKeys?.nvidia || '',
             },
         updatedAt: record?.updatedAt || null,
     };
@@ -181,6 +188,7 @@ export async function saveWorkspaceSettingsRecord(tenantId: string, settings: Pa
             groq: typeof aiKeys.groq === 'string' ? aiKeys.groq : '',
             openrouter: typeof aiKeys.openrouter === 'string' ? aiKeys.openrouter : '',
             doubleword: typeof aiKeys.doubleword === 'string' ? aiKeys.doubleword : '',
+            nvidia: typeof aiKeys.nvidia === 'string' ? aiKeys.nvidia : '',
         },
         updatedAt: new Date().toISOString(),
     };

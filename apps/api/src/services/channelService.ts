@@ -3339,7 +3339,7 @@ private highValueLeadAlertKeys = new Set<string>();
                 deal_type: parsed.dealType,
                 asset_class: parsed.assetClass,
                 property_category: parsed.propertyCategory,
-                building_name: String(parsed.parsedPayload?.buildingName || '').trim() || null,
+                building_name: sanitizeBuildingNameCandidate(String(parsed.parsedPayload?.buildingName || '').trim()) || null,
                 micro_location: (parsed.parsedPayload as any)?.microLocation || null,
                 locality: parsed.locality,
                 city: parsed.city,
@@ -3367,7 +3367,8 @@ private highValueLeadAlertKeys = new Set<string>();
                 locality: parsed.locality,
                 city: parsed.city,
                 bhk: parsed.bhk,
-                building_name: String(parsed.parsedPayload?.buildingName || '').trim() || null,
+                configuration: parsed.configuration || parsed.bhk || null,
+                building_name: sanitizeBuildingNameCandidate(String(parsed.parsedPayload?.buildingName || '').trim()) || null,
                 price_label: parsed.priceLabel,
                 price_numeric: parsed.priceNumeric,
                 deal_type: parsed.dealType,
@@ -5032,7 +5033,7 @@ ${rawText}
             : (Array.isArray(item.broker_wa_me_links) ? item.broker_wa_me_links : null);
         const locality = String(item.locality || '').trim();
         const dealType = String(item.deal_type || '').trim() || extractDealType(rawText);
-        const inferredBhk = String(item.bhk || '').trim() || extractBhk(rawText);
+        const inferredBhk = String(item.configuration || item.bhk || '').trim() || extractBhk(rawText);
         const inferredBuildingName = sanitizeBuildingNameCandidate(
             String(item.building_name || item.parsed_payload?.buildingName || '').trim() || extractBuildingName(rawText),
         );
@@ -5083,6 +5084,7 @@ ${rawText}
             price: String(item.price_label || '').trim() || '',
             priceNumeric: item.price_numeric != null ? Number(item.price_numeric) : null,
             bhk: inferredBhk,
+            configuration: inferredBhk,
             propertyCategory,
             areaSqft,
             furnishing: normalizeFurnishing(item.furnishing) || normalizeFurnishing(item.parsed_payload?.furnishing) || normalizeFurnishing(rawText),

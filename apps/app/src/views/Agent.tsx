@@ -32,8 +32,8 @@ type RuntimeModel = {
 };
 
 type RuntimeStatusPayload = {
-  preferredProvider?: 'Google' | 'Groq' | 'OpenRouter' | 'Doubleword';
-  providerOrder?: Array<'Google' | 'Groq' | 'OpenRouter' | 'Doubleword'>;
+  preferredProvider?: 'Google' | 'OpenRouter' | 'Doubleword' | 'Nvidia';
+  providerOrder?: Array<'Google' | 'OpenRouter' | 'Doubleword' | 'Nvidia'>;
   defaultModel?: string;
   models?: Record<string, RuntimeModel>;
   whatsapp?: {
@@ -67,7 +67,7 @@ const quickActions = [
     prompt: 'Show overlapping broker contacts across groups and highlight the strongest brokers by area coverage.',
   },
 ] as const;
-const runtimeProviderOrder = ['Google', 'Groq', 'OpenRouter', 'Doubleword'] as const;
+const runtimeProviderOrder = ['Google', 'OpenRouter', 'Doubleword', 'Nvidia'] as const;
 const CONTROL_INTENT_PATTERN = /\b(kar do|karo|open karo|create|connect|show me how|mujhe dikhao|help me|set up)\b/i;
 
 const starterMessages: ChatMessage[] = [

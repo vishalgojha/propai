@@ -2,7 +2,7 @@ import { supabase, supabaseAdmin } from '../config/supabase';
 
 const db = supabaseAdmin || supabase;
 
-type ProviderId = 'Groq' | 'Google' | 'OpenRouter' | 'Doubleword';
+type ProviderId = 'Groq' | 'Google' | 'OpenRouter' | 'Doubleword' | 'Nvidia';
 
 type UsageRecordInput = {
     tenantId: string;
@@ -29,6 +29,7 @@ const PROVIDER_RATE_CARD: Record<ProviderId, { inputRate: number; outputRate: nu
     Groq: { inputRate: 0.05, outputRate: 0.08 },
     OpenRouter: { inputRate: 0.15, outputRate: 0.6 },
     Doubleword: { inputRate: 0.1, outputRate: 0.4 },
+    Nvidia: { inputRate: 0.1, outputRate: 0.4 },
 };
 
 function safeInt(value: unknown) {

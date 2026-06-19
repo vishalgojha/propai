@@ -26,7 +26,7 @@ type ProviderError = {
     message: string;
 };
 
-type ProviderId = 'Groq' | 'Google' | 'OpenRouter' | 'Doubleword';
+type ProviderId = 'Groq' | 'Google' | 'OpenRouter' | 'Doubleword' | 'Nvidia';
 
 type OpenAICompatibleConfig = {
     baseURL: string;
@@ -97,6 +97,8 @@ export class AIService {
     private openRouterModel = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
     private doublewordBaseURL = process.env.DOUBLEWORD_BASE_URL || 'https://api.doubleword.ai/v1';
     private doublewordModel = process.env.DOUBLEWORD_MODEL || 'Qwen/Qwen3.6-35B-A3B-FP8';
+    private nvidiaBaseURL = process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1';
+    private nvidiaModel = process.env.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b';
     private readonly providerLogAt = new Map<string, number>();
 
     private shouldLogProvider(key: string, cooldownMs: number) {
@@ -204,6 +206,10 @@ export class AIService {
         case 'kimi-k2':
         case 'qwen/qwen3.6-35b-a3b-fp8':
             return 'Doubleword';
+        case 'nvidia':
+        case 'nemotron':
+        case 'nvidia/nemotron-3-ultra-550b-a55b':
+            return 'Nvidia';
         default:
             return null;
         }
@@ -218,7 +224,7 @@ export class AIService {
             explicitPreference ||
             savedPreference ||
             this.routeByTask(taskType);
-        const order: ProviderId[] = ['Google', 'Groq', 'OpenRouter', 'Doubleword'];
+        const order: ProviderId[] = ['Google', 'OpenRouter', 'Doubleword', 'Nvidia'];
 
         // If the workspace or request explicitly selected a provider, do not silently
         // cascade across unrelated providers. Fallback chaining is only useful in Auto mode.
@@ -314,6 +320,8 @@ export class AIService {
                 return await this.callOpenRouter(prompt, tenantId, systemPrompt, conversationHistory);
             case 'Doubleword':
                 return await this.callDoubleword(prompt, tenantId, systemPrompt, conversationHistory);
+            case 'Nvidia':
+                return await this.callNvidia(prompt, tenantId, systemPrompt, conversationHistory);
         }
     }
 
@@ -337,6 +345,8 @@ export class AIService {
                 return this.getEnvKeys(process.env.OPENROUTER_API_KEY);
             case 'Doubleword':
                 return this.getEnvKeys(process.env.DOUBLEWORD_API_KEY);
+            case 'Nvidia':
+                return this.getEnvKeys(process.env.NVIDIA_API_KEY);
         }
     }
 
@@ -473,6 +483,25 @@ export class AIService {
         };
     }
 
+    private async callNvidia(prompt: string, tenantId?: string, systemPrompt?: string, conversationHistory: ChatMessage[] = []): Promise<AIResponse> {
+        const keys = await this.getKeysForProvider('Nvidia', tenantId);
+        if (!keys.length) {
+            throw new Error('NVIDIA API key not configured');
+        }
+        const res = await this.withKeyRotation('Nvidia', keys, (key) => this.callOpenAICompatible(prompt, {
+            baseURL: this.nvidiaBaseURL,
+            model: this.nvidiaModel,
+        }, key, systemPrompt, conversationHistory));
+        return { 
+            text: res.data.choices[0].message.content, 
+            model: `Nvidia ${this.nvidiaModel}`, 
+            latency: 0,
+            provider: 'Nvidia',
+            modelId: this.nvidiaModel,
+            usage: extractOpenAIUsage(res.data),
+        };
+    }
+
     private async callOpenAICompatible(prompt: string, config: OpenAICompatibleConfig, apiKey: string, systemPrompt?: string, conversationHistory: ChatMessage[] = []): Promise<any> {
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
@@ -494,16 +523,18 @@ export class AIService {
         const tenantGoogleKey = tenantId ? await keyService.getKey(tenantId, 'Google') : null;
         const tenantOpenRouterKey = tenantId ? await keyService.getKey(tenantId, 'OpenRouter') : null;
         const tenantDoublewordKey = tenantId ? await keyService.getKey(tenantId, 'Doubleword') : null;
+        const tenantNvidiaKey = tenantId ? await keyService.getKey(tenantId, 'Nvidia') : null;
         const savedDefault = tenantId ? await getWorkspaceDefaultModel(tenantId).catch(() => null) : null;
         const explicitDefault = tenantId ? await getWorkspaceExplicitDefaultModel(tenantId).catch(() => null) : null;
         const hasGroq = Boolean(tenantGroqKey || process.env.GROQ_API_KEY);
         const hasGoogle = Boolean(tenantGoogleKey || process.env.GOOGLE_API_KEY);
         const hasOpenRouter = Boolean(tenantOpenRouterKey || process.env.OPENROUTER_API_KEY);
         const hasDoubleword = Boolean(tenantDoublewordKey || process.env.DOUBLEWORD_API_KEY);
+        const hasNvidia = Boolean(tenantNvidiaKey || process.env.NVIDIA_API_KEY);
         const preferred =
             this.normalizeProviderPreference(explicitDefault || savedDefault) ||
             'Google';
-        const providerOrder: ProviderId[] = ['Google', 'Groq', 'OpenRouter', 'Doubleword'];
+        const providerOrder: ProviderId[] = ['Google', 'OpenRouter', 'Doubleword', 'Nvidia'];
         const orderedProviders = preferred && providerOrder.includes(preferred)
             ? [preferred, ...providerOrder.filter((provider) => provider !== preferred)]
             : providerOrder;
@@ -517,6 +548,7 @@ export class AIService {
             Google: { name: 'Gemini 2.5 Flash', latency: 300, status: hasGoogle ? 'online' : 'offline' },
             OpenRouter: { name: `OpenRouter ${this.openRouterModel}`, latency: 350, status: hasOpenRouter ? 'online' : 'offline' },
             Doubleword: { name: `Doubleword ${this.doublewordModel}`, latency: 300, status: hasDoubleword ? 'online' : 'offline' },
+            Nvidia: { name: `Nvidia ${this.nvidiaModel}`, latency: 350, status: hasNvidia ? 'online' : 'offline' },
           }
         };
     }
