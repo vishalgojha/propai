@@ -3175,33 +3175,33 @@ export const Sources: React.FC = () => {
 
             <form onSubmit={handleSaveCloudConfig} className="mt-5 space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Phone Number ID</span>
-                  <input
-                    value={cloudPhoneNumberId}
-                    onChange={(event) => setCloudPhoneNumberId(event.target.value)}
-                    placeholder="954287247767423"
-                    className={sourceFieldClassName}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Business Account ID</span>
-                  <input
-                    value={cloudBusinessAccountId}
-                    onChange={(event) => setCloudBusinessAccountId(event.target.value)}
-                    placeholder="2209591086193992"
-                    className={sourceFieldClassName}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Display phone number</span>
-                  <input
-                    value={cloudDisplayPhoneNumber}
-                    onChange={(event) => setCloudDisplayPhoneNumber(event.target.value)}
-                    placeholder="919820056180"
-                    className={sourceFieldClassName}
-                  />
-                </label>
+	                <label className="block">
+	                  <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Phone Number ID</span>
+	                  <input
+	                    value={cloudPhoneNumberId}
+	                    onChange={(event) => setCloudPhoneNumberId(event.target.value)}
+	                    placeholder="Enter Meta phone number ID"
+	                    className={sourceFieldClassName}
+	                  />
+	                </label>
+	                <label className="block">
+	                  <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Business Account ID</span>
+	                  <input
+	                    value={cloudBusinessAccountId}
+	                    onChange={(event) => setCloudBusinessAccountId(event.target.value)}
+	                    placeholder="Enter Meta business account ID"
+	                    className={sourceFieldClassName}
+	                  />
+	                </label>
+	                <label className="block">
+	                  <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Display phone number</span>
+	                  <input
+	                    value={cloudDisplayPhoneNumber}
+	                    onChange={(event) => setCloudDisplayPhoneNumber(event.target.value)}
+	                    placeholder="Enter subscribed WhatsApp number"
+	                    className={sourceFieldClassName}
+	                  />
+	                </label>
                 <label className="block">
                   <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Graph API version</span>
                   <input

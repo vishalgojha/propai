@@ -137,13 +137,33 @@ export class WhatsAppCloudApiService {
         const row = data as OfficialApiConfigRow | null;
         const sessionData = (row?.session_data && typeof row.session_data === 'object') ? row.session_data : {};
         const hasAccessToken = Boolean(await keyService.getKey(tenantId, this.providerName).catch(() => null));
+        const phoneNumberId = String(
+            sessionData.phoneNumberId ||
+            (sessionData as any).phone_number_id ||
+            '',
+        ).trim();
+        const businessAccountId = String(
+            sessionData.businessAccountId ||
+            (sessionData as any).business_account_id ||
+            '',
+        ).trim();
+        const displayPhoneNumber = String(
+            sessionData.displayPhoneNumber ||
+            (sessionData as any).display_phone_number ||
+            '',
+        ).trim();
+        const isCloudConfig = Boolean(
+            phoneNumberId ||
+            sessionData.provider === 'cloud_api' ||
+            sessionData.mode === 'official_api',
+        );
 
         return {
-            configured: Boolean(row),
-            enabled: Boolean(sessionData.enabled || row?.status === 'connected'),
-            phoneNumberId: String(sessionData.phoneNumberId || ''),
-            businessAccountId: String(sessionData.businessAccountId || ''),
-            displayPhoneNumber: String(sessionData.displayPhoneNumber || ''),
+            configured: Boolean(isCloudConfig && phoneNumberId),
+            enabled: Boolean(isCloudConfig && phoneNumberId && (sessionData.enabled || row?.status === 'connected')),
+            phoneNumberId,
+            businessAccountId,
+            displayPhoneNumber,
             apiVersion: String(sessionData.apiVersion || getApiVersion()),
             verifyTokenSet: Boolean(sessionData.webhookVerifyTokenSet),
             hasAccessToken,

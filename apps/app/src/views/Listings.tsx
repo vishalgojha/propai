@@ -2255,7 +2255,9 @@ if (brokerOnly) {
           )}
 
         <div ref={sentinelRef} className="px-6 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-          {hasMore ? `${renderedStream.length} of ${visibleStream.length} loaded. More items appear as you scroll.` : 'End of feed'}
+          {hasMore
+            ? `${renderedStream.length} of ${visibleStream.length} loaded. More items appear as you scroll.`
+            : `Showing latest ${renderedStream.length.toLocaleString('en-IN')} parsed items`}
         </div>
       </div>
       {showScrollTop && (

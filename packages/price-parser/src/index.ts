@@ -98,11 +98,14 @@ function scoreCandidate(before: string, after: string, explicitUnit: string, amo
 
   if (CURRENCY_PATTERN.test(before)) score += 8;
   if (PRICE_HINT_PATTERN.test(before)) score += 6;
+  if (/@\s*$/i.test(before)) score += 8;
+  if (/\b(?:rent|rental|asking|ask|budget|price|cost|quote|token|deposit|all\s*in|negotiable|nego)\s*[:\-]?\s*$/i.test(before)) score += 8;
   if (explicitUnit) score += 8;
   if (amount >= 5000 && amount <= 100000000) score += 3;
   if (!explicitUnit && amount >= 1000000000) score -= 12;
   const basisValue = String(basis);
   if (basisValue === 'per_sqft' && PER_SQFT_CONTEXT_PATTERN.test(`${before} ${after}`)) score += 4;
+  if (/\b(carpet|cpt|sq\s*ft|sqft|sq\.?\s*ft|area)\s*[:\-]?\s*$/i.test(before)) score -= 12;
   if (AREA_FOLLOW_PATTERN.test(after) || BHK_FOLLOW_PATTERN.test(after)) score -= 10;
   if (CONTACT_FOLLOW_PATTERN.test(after)) score -= 10;
 

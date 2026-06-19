@@ -484,6 +484,19 @@ const extractBrokerContacts = (text: string): BrokerContact[] => {
     return contacts;
 };
 
+const buildBrokerContactList = (contacts: BrokerContact[], fallbackPhone?: string | null) => {
+    if (contacts.length > 0) return contacts;
+    return fallbackPhone ? [{ name: '', phone: fallbackPhone }] : [];
+};
+
+const buildBrokerWaLinks = (contacts: BrokerContact[]) => {
+    const links = contacts
+        .map((contact) => contact.phone.replace(/\D/g, ''))
+        .filter(Boolean)
+        .map((phone) => `https://wa.me/${phone}`);
+    return links.length > 0 ? Array.from(new Set(links)) : null;
+};
+
 const extractContactPhoneFromBody = (text: string) => {
     // Look for phone-like tokens and normalise only valid Indian mobiles.
     const words = text.split(/\s+/); // Simple split, not using regex patterns
@@ -585,7 +598,9 @@ export const normalizeFurnishing = (value?: string | null) => {
 };
 
 const extractAreaSqft = (text: string) => {
-    const match = text.match(/(\d{2,5}(?:\.\d+)?)\s*(sqft|sq ft|carpet|builtup|built-up)\b/i);
+    const match =
+        text.match(/(\d{2,5}(?:\.\d+)?)\s*(sqft|sq ft|sq\.?\s*ft|cpt|carpet|builtup|built-up)\b/i) ||
+        text.match(/\b(?:area|carpet|cpt)\s*[:\-]?\s*(\d{2,5}(?:\.\d+)?)/i);
     return match ? Number(match[1]) : null;
 };
 
@@ -862,6 +877,32 @@ const extractPriceNumeric = (text: string) => {
 
 export const extractPriceInfo = (text: string, dealTypeHint?: string) => {
     const chosen = parsePrice(text, dealTypeHint);
+    const areaSqft = extractAreaSqft(text);
+    const hasExplicitPriceContext = /\b(?:rent|rental|asking|ask|budget|price|cost|quote|token|deposit|all\s*in|negotiable|nego|rs|inr|lakh|lac|cr|crore|k)\b|₹|@/i.test(text);
+    if (
+        chosen.numeric != null &&
+        Number.isFinite(chosen.numeric) &&
+        areaSqft != null &&
+        Math.round(Number(chosen.numeric)) === Math.round(areaSqft) &&
+        !hasExplicitPriceContext
+    ) {
+        return {
+            label: null,
+            numeric: null,
+        };
+    }
+    if (
+        chosen.numeric != null &&
+        Number.isFinite(chosen.numeric) &&
+        Number(chosen.numeric) < 5_000 &&
+        /\b(?:sqft|sq\s*ft|sq\.?\s*ft|cpt|carpet|area)\b/i.test(text) &&
+        !hasExplicitPriceContext
+    ) {
+        return {
+            label: null,
+            numeric: null,
+        };
+    }
     return {
         label: chosen.label || 'Unspecified',
         numeric: chosen.numeric,
@@ -1222,6 +1263,17 @@ const isBulletLine = (line: string): boolean => {
     return bulletChars.some(b => trimmed.startsWith(b));
 };
 
+const isLikelyNewRecordBullet = (line: string) => {
+    const cleaned = sanitizeLine(line);
+    if (!cleaned) return false;
+    if (/^\d{1,2}[\).]\s+/.test(cleaned)) return true;
+    if (hasAvailabilitySignal(cleaned) || hasRequirementSignal(cleaned) || hasPreLeasedSignal(cleaned)) return true;
+    const hasLayoutOrUse = extractBhk(cleaned) !== 'N/A' || /\b(?:office|shop|showroom|warehouse|godown|flat|apartment|plot)\b/i.test(cleaned);
+    const hasDeal = hasRentSignal(cleaned) || hasLeaseSignal(cleaned) || hasSaleSignal(cleaned);
+    const hasPrice = extractPriceInfo(cleaned).numeric != null;
+    return hasLayoutOrUse && (hasDeal || hasPrice);
+};
+
 const sanitizeLine = (line: string) => {
     // Remove bullet characters from start
     let result = line;
@@ -1383,7 +1435,7 @@ const splitMessageIntoSegments = (rawText: string) => {
             }
         }
 
-        if (bullet && currentLines.length > 0) {
+        if (bullet && currentLines.length > 0 && isLikelyNewRecordBullet(cleaned)) {
             flush();
         }
 
@@ -1793,6 +1845,10 @@ export class ChannelService {
         const rawText = String(parsed.rawText || '').trim();
         const lower = rawText.toLowerCase();
 
+        if (this.isFragmentaryParsedCandidate(parsed)) {
+            return false;
+        }
+
         if (source === 'raw_dump_replay' || source === 'fallback') {
             if (rawText.length < 25) {
                 return false;
@@ -1825,6 +1881,50 @@ export class ChannelService {
         }
 
         return true;
+    }
+
+    private isFragmentaryParsedCandidate(parsed: ParsedStreamCandidate) {
+        const rawText = String(parsed.rawText || '').trim();
+        const lower = rawText.toLowerCase();
+        const lineCount = rawText.split('\n').map((line) => line.trim()).filter(Boolean).length;
+        const hasExplicitListingOrRequirement = hasAvailabilitySignal(rawText) || hasRequirementSignal(rawText) || hasPreLeasedSignal(rawText);
+        const hasExplicitDeal = hasRentSignal(rawText) || hasLeaseSignal(rawText) || hasSaleSignal(rawText);
+        const hasPrice = this.hasUsefulPrice(parsed);
+        const hasLayout = this.hasMeaningfulTypology(parsed);
+        const hasAnchor = this.hasStructuralAnchor(parsed);
+        const hasLocation = !this.isPlaceholderLocation(parsed.locality);
+
+        if (
+            !hasExplicitListingOrRequirement &&
+            !hasExplicitDeal &&
+            !hasPrice &&
+            (hasAnchor || hasLayout) &&
+            rawText.length < 140
+        ) {
+            return true;
+        }
+
+        if (
+            !hasPrice &&
+            !hasLayout &&
+            !hasAnchor &&
+            /\b(?:site\s+visit|for\s+details|call\s+for|whatsapp|contact|broker|realtors?|properties)\b/i.test(lower)
+        ) {
+            return true;
+        }
+
+        if (
+            lineCount <= 4 &&
+            !hasExplicitListingOrRequirement &&
+            !hasPrice &&
+            !hasLocation &&
+            !hasLayout &&
+            !hasAnchor
+        ) {
+            return true;
+        }
+
+        return false;
     }
 
     private isPlaceholderLocation(value?: string | null) {
@@ -4068,11 +4168,14 @@ ${rawText}
                 } satisfies ParsedStreamCandidate;
             })
             .flatMap((item) => {
-                const activeBrokers = brokerContacts.length > 0 ? brokerContacts : (fallbackPhone ? [{ name: '', phone: fallbackPhone }] : []);
-                return activeBrokers.map((broker) => {
+                const activeBrokers = buildBrokerContactList(brokerContacts, fallbackPhone);
+                const broker = activeBrokers[0];
+                if (!broker) return [];
+                const allBrokerWaLinks = buildBrokerWaLinks(activeBrokers);
+                return [broker].map((broker) => {
                     const sourcePhone = broker.phone;
                     const sourceLabel = broker.name || null;
-                    const brokerWaMeLinks = sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
+                    const brokerWaMeLinks = allBrokerWaLinks || (sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null);
                     const completeness = computeStreamCompleteness({
                         locality: item.locality,
                         bhk: item.bhk,
@@ -4094,7 +4197,8 @@ ${rawText}
                             sourcePhone,
                             sourceLabel,
                             contactName: sourceLabel,
-                            contactPhone: sourcePhone,
+	                            contactPhone: sourcePhone,
+	                            brokerContacts: activeBrokers,
                         },
                     };
                 });
@@ -4157,12 +4261,17 @@ ${rawText}
                 : bhk;
             const parseNotes = null;
 
-            const activeBrokers = brokerContacts.length > 0 ? brokerContacts : (fallbackPhone ? [{ name: '', phone: fallbackPhone }] : []);
+            const activeBrokers = buildBrokerContactList(brokerContacts, fallbackPhone);
+            const primaryBroker = activeBrokers[0];
+            if (!primaryBroker) {
+                continue;
+            }
+            const allBrokerWaLinks = buildBrokerWaLinks(activeBrokers);
 
-            for (const broker of activeBrokers) {
+            for (const broker of [primaryBroker]) {
                 const sourcePhone = broker.phone;
                 const sourceLabel = broker.name || null;
-                const brokerWaMeLinks = sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null;
+                const brokerWaMeLinks = allBrokerWaLinks || (sourcePhone ? [`https://wa.me/${sourcePhone.replace(/\D/g, '')}`] : null);
                 const completeness = computeStreamCompleteness({
                     locality: location,
                     bhk,
@@ -4222,9 +4331,10 @@ ${rawText}
                         microLocation,
                         sourcePhone,
                         sourceLabel,
-                        contactName: sourceLabel,
-                        contactPhone: sourcePhone,
-                        normalizedText: candidateText.toLowerCase(),
+	                        contactName: sourceLabel,
+	                        contactPhone: sourcePhone,
+	                        brokerContacts: activeBrokers,
+	                        normalizedText: candidateText.toLowerCase(),
                         sourceRemoteJid: message.remote_jid || null,
                         sourceMessageId: String(message.id),
                         segmentIndex: segIdx,

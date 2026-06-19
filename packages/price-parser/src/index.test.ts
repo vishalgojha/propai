@@ -70,4 +70,21 @@ describe('parsePrice', () => {
       basis: 'per_sqft',
     });
   });
+
+  it('prefers explicit @ crore price over carpet area', () => {
+    expect(parsePrice('PRE LEASED : IMPERIAL PLAZA : 1250 Carpet, Fully Furnished, @ 7 Crs')).toMatchObject({
+      numeric: 70000000,
+      label: '₹7 Cr',
+      basis: 'total',
+      confidence: 'high',
+    });
+  });
+
+  it('prefers rent amount over deposit amount in rental blasts', () => {
+    expect(parsePrice('Rent 1,85,000 Dep 7 Lac', 'rent')).toMatchObject({
+      numeric: 185000,
+      label: '₹1.85 Lakh/mo',
+      basis: 'monthly_rent',
+    });
+  });
 });
