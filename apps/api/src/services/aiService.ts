@@ -90,6 +90,7 @@ function summarizeAiError(error: any) {
 }
 
 export class AIService {
+    private readonly providerRequestTimeoutMs = Number(process.env.AI_PROVIDER_TIMEOUT_MS || 12_000);
     private googleModel = process.env.GOOGLE_MODEL || 'gemini-2.5-flash';
     private groqBaseURL = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
     private groqModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
@@ -427,7 +428,7 @@ export class AIService {
             ...(systemPrompt?.trim()
                 ? { systemInstruction: { parts: [{ text: systemPrompt.trim() }] } }
                 : {}),
-        }));
+        }, { timeout: this.providerRequestTimeoutMs }));
         return { 
             text: res.data.candidates[0].content.parts[0].text, 
             model: 'Gemini 2.5 Flash', 
@@ -514,7 +515,7 @@ export class AIService {
             model: config.model,
             messages: this.buildMessages(prompt, systemPrompt, conversationHistory),
             ...(config.responseFormat ? { response_format: config.responseFormat } : {}),
-        }, { headers });
+        }, { headers, timeout: this.providerRequestTimeoutMs });
     }
 
 

@@ -105,6 +105,15 @@ export class AgentRouterService {
             return null;
         }
 
+        if (/^(?:hi|hello|hey|hii+|namaste|good\s+(?:morning|afternoon|evening)|thanks?|thank\s+you)[!.\s]*$/i.test(normalized)) {
+            return {
+                intent: 'general_chat',
+                confidence: 1,
+                rationale: 'Deterministic greeting guard',
+                args: {},
+            };
+        }
+
         const asksToSearch = /\b(search|find|show|pull|get|lookup|look up)\b/.test(normalized);
         const mentionsCrm = /\b(my\s+)?crm\b/.test(normalized)
             || /\bsaved\s+(records|data|listings|requirements|leads)\b/.test(normalized);
