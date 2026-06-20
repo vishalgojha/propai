@@ -97,7 +97,7 @@ function getWebhookVerifyToken() {
 }
 
 function getApiVersion() {
-    return String(process.env.WHATSAPP_CLOUD_API_VERSION || 'v20.0').trim();
+    return String(process.env.WHATSAPP_CLOUD_API_VERSION || 'v25.0').trim();
 }
 
 function getCloudBaseUrl() {
