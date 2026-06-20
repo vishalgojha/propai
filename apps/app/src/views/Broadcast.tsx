@@ -405,7 +405,7 @@ export const BroadcastView: React.FC = () => {
                             disabled={!diagnostics?.senderConnected}
                             title={
                               !diagnostics?.senderConnected
-                                ? 'Reconnect your broadcast WhatsApp device first (Settings → Connect WhatsApp)'
+                                ? 'Connect your WhatsApp Business account first (WhatsApp setup)'
                                 : 'Retry sending this campaign'
                             }
                             className={cn(

@@ -80,7 +80,7 @@ const EmptyState: React.FC = () => {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">No live data yet</p>
-            <h2 className="mt-1 text-[22px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">Connect WhatsApp, then work from data.</h2>
+            <h2 className="mt-1 text-[22px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">Connect WhatsApp Business, then work from data.</h2>
             <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
               Clean inputs matter: one connected number, one workspace profile, and verified listings are what make the dashboard useful.
             </p>
@@ -94,7 +94,7 @@ const EmptyState: React.FC = () => {
               className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-2 text-[12px] font-semibold text-[#020f07] transition hover:brightness-95"
             >
               <Sparkles className="h-4 w-4" />
-              Connect WhatsApp
+              Connect WhatsApp Business
               <ArrowRight className="h-4 w-4" />
             </a>
           </div>
@@ -102,7 +102,7 @@ const EmptyState: React.FC = () => {
 
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           {[
-            ['Connect WhatsApp', 'Required for live parsing and session status.'],
+            ['Connect WhatsApp Business', 'Required for official Cloud API messaging and session status.'],
             ['Add workspace profile', 'Agency, city, and service areas improve matching.'],
             ['Open Stream', 'Review new items and remove bad data quickly.'],
           ].map(([title, copy]) => (
@@ -246,7 +246,7 @@ export const Dashboard: React.FC = () => {
     ? `Pulse is receiving data from ${whatsapp.connectedOwnerName || 'your device'}${whatsapp.connectedPhoneNumber ? ` · ${whatsapp.connectedPhoneNumber}` : ''}.`
     : whatsapp?.status === 'connecting'
       ? 'Finish pairing / QR scan to start live parsing.'
-      : 'Connect WhatsApp to start live group parsing.';
+      : 'Connect WhatsApp Business to start official Cloud API messaging.';
 
   const unread = Number(streamStats?.unread || 0);
   const total = Number(streamStats?.total || 0);
@@ -438,10 +438,10 @@ export const Dashboard: React.FC = () => {
         />
         <StatCard
           title="Next actions"
-          value={isConnected ? (unread > 0 ? 'Review Stream' : 'Ask agent') : 'Connect WhatsApp'}
+          value={isConnected ? (unread > 0 ? 'Review Stream' : 'Ask agent') : 'Connect WhatsApp Business'}
           hint={isConnected
             ? (unread > 0 ? 'Clear unread items to keep follow-ups moving.' : 'Describe a buyer need and get matching inventory instantly.')
-            : 'Connect WhatsApp to start live group parsing and auto-capture.'}
+            : 'Connect WhatsApp Business to start Cloud API messaging and auto-capture.'}
           icon={<ArrowRight className="h-5 w-5" />}
           tone={isConnected ? (unread > 0 ? 'warn' : 'good') : 'warn'}
           onClick={() => {

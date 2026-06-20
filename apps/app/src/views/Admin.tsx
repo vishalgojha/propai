@@ -1125,7 +1125,7 @@ export const Admin: React.FC = () => {
              <div className="text-center p-12 text-[13px] text-[var(--text-secondary)]">Please select a workspace above.</div>
           ) : groupDirectory.length === 0 ? (
             <div className="rounded-[16px] border border-dashed border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
-              No synced groups yet for this workspace. Partner must connect WhatsApp.
+              No synced groups yet for this workspace. Partner must connect WhatsApp Business.
             </div>
           ) : (
             <div className="grid gap-3">

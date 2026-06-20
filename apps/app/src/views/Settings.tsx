@@ -332,7 +332,7 @@ export const Settings: React.FC = () => {
   };
 
   const handlePurgeAllData = async () => {
-    const confirmed = window.confirm('Clear all saved WhatsApp session state for this workspace? You will need to reconnect WhatsApp.');
+    const confirmed = window.confirm('Clear all saved WhatsApp connection state for this workspace? You will need to reconnect WhatsApp Business.');
     if (!confirmed) return;
 
     setIsPurging(true);
@@ -1093,7 +1093,7 @@ export const Settings: React.FC = () => {
             </div>
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <p className="max-w-lg text-[12px] leading-6 text-[var(--text-secondary)]">
-                Clearing WhatsApp session state will remove saved linked-device credentials and disconnect WhatsApp. This action cannot be undone.
+                Clearing WhatsApp connection state will remove saved account credentials and disconnect WhatsApp Business. This action cannot be undone.
               </p>
               <button
                 type="button"

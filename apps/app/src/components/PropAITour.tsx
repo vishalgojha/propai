@@ -87,7 +87,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     popover: {
       title: 'You are all set',
-      description: 'Connect WhatsApp, then work from Stream, Inbox, and Pulse.',
+      description: 'Connect WhatsApp Business, then work from Stream, Inbox, and Pulse.',
       side: 'bottom',
       align: 'center',
     },

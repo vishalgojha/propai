@@ -683,7 +683,7 @@ export default function ParsingTerminal() {
             />
             <div ref={eventsScrollRef} className="pulse-scrollbar max-h-[calc(50vh-120px)] space-y-0 overflow-y-auto">
             {events.length === 0 ? (
-              <TerminalEmpty text={isConnected ? 'Waiting for parsed broadcast items' : 'Connect WhatsApp to resume parser monitoring'} />
+              <TerminalEmpty text={isConnected ? 'Waiting for parsed broadcast items' : 'Connect WhatsApp Business to resume parser monitoring'} />
             ) : (
               events.map((event, index) => (
                 <ParseEvent key={event.id} event={event} groups={groups} index={index} />

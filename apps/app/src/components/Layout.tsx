@@ -4,9 +4,9 @@ import { Sidebar } from './Sidebar';
 import { LegalFooter } from './LegalFooter';
 import { PropAITour } from './PropAITour';
 import { PulseAssistantDock } from './PulseAssistantDock';
-import backendApi, { handleApiError } from '../services/api';
+import backendApi from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
-import { BookOpenIcon, MenuIcon, PowerIcon, LogoutIcon } from '../lib/icons';
+import { BookOpenIcon, MenuIcon, LogoutIcon } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
 import { useTour } from '../hooks/useTour';
 import { usePushNotifications } from '../hooks/usePushNotifications';
@@ -114,8 +114,6 @@ export const Layout: React.FC = () => {
       return false;
     }
   });
-  const [isDisconnectingSession, setIsDisconnectingSession] = React.useState(false);
-  const [isReconnectingSession, setIsReconnectingSession] = React.useState(false);
   const [selectedSessionLabel, setSelectedSessionLabel] = React.useState<string | null>(() => {
     try {
       return window.localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
@@ -325,57 +323,12 @@ export const Layout: React.FC = () => {
     };
   }, [loadWhatsappStatus, user?.token]);
 
-  const connectedSessions = React.useMemo(
-    () => whatsappStatus.sessions.filter((session) => session.status === 'connected'),
-    [whatsappStatus.sessions],
-  );
   const officialApiSession = React.useMemo(
     () => whatsappStatus.sessions.find(isOfficialWhatsAppSession) || null,
     [whatsappStatus.sessions],
   );
-  const linkedDeviceSessions = React.useMemo(
-    () => whatsappStatus.sessions.filter((session) => !isOfficialWhatsAppSession(session)),
-    [whatsappStatus.sessions],
-  );
-  const connectedLinkedDeviceSessions = React.useMemo(
-    () => linkedDeviceSessions.filter((session) => session.status === 'connected'),
-    [linkedDeviceSessions],
-  );
-
-  const selectedSession = React.useMemo(() => {
-    if (!whatsappStatus.selectedSessionLabel) {
-      return connectedLinkedDeviceSessions[0] || linkedDeviceSessions[0] || connectedSessions[0] || whatsappStatus.sessions[0] || null;
-    }
-
-    return (
-      whatsappStatus.sessions.find((session) => session.label === whatsappStatus.selectedSessionLabel) ||
-      connectedLinkedDeviceSessions[0] ||
-      linkedDeviceSessions[0] ||
-      connectedSessions[0] ||
-      whatsappStatus.sessions[0] ||
-      null
-    );
-  }, [connectedLinkedDeviceSessions, connectedSessions, linkedDeviceSessions, whatsappStatus.selectedSessionLabel, whatsappStatus.sessions]);
-  const selectedLinkedDeviceSession = isOfficialWhatsAppSession(selectedSession) ? null : selectedSession;
   const officialApiStatus = officialApiSession?.status || 'disconnected';
   const officialApiPhone = formatHeaderPhone(officialApiSession?.phoneNumber);
-  const linkedDeviceStatus = selectedLinkedDeviceSession?.status || (connectedLinkedDeviceSessions.length > 0 ? 'connected' : 'disconnected');
-  const whatsappBanner = React.useMemo(() => {
-    if (!selectedLinkedDeviceSession || selectedLinkedDeviceSession.status === 'connected') {
-      return null;
-    }
-
-    const isReconnecting = selectedLinkedDeviceSession.status === 'connecting' || selectedLinkedDeviceSession.status === 'reconnecting';
-    const label = selectedLinkedDeviceSession.phoneNumber || selectedLinkedDeviceSession.ownerName || selectedLinkedDeviceSession.label;
-    return {
-      tone: isReconnecting ? 'amber' : 'red',
-      title: isReconnecting ? 'Selected WhatsApp session is starting fresh' : 'Selected WhatsApp session is disconnected',
-      body: isReconnecting
-        ? `Keep this open while PropAI prepares a fresh QR for ${label}. If it stalls, start fresh again.`
-        : `Start fresh for ${label} so parsing and replies keep running.`,
-      buttonLabel: 'Start fresh',
-    } as const;
-  }, [selectedLinkedDeviceSession]);
   const subscription = user?.subscription;
   const planLabel = React.useMemo(() => {
     const normalized = String(subscription?.plan || '').trim().toLowerCase();
@@ -388,42 +341,6 @@ export const Layout: React.FC = () => {
   const startTour = React.useCallback(() => {
     window.__propai_start_tour?.();
   }, []);
-
-  const handleDisconnectSelectedSession = React.useCallback(async () => {
-    if (!selectedLinkedDeviceSession?.label) {
-      return;
-    }
-
-    setIsDisconnectingSession(true);
-    try {
-      await backendApi.post(ENDPOINTS.whatsapp.disconnect, { label: selectedLinkedDeviceSession.label });
-      if (selectedLinkedDeviceSession.label === selectedSessionLabel) {
-        syncSelectedSession(null);
-      }
-      window.dispatchEvent(new Event('channels:refresh'));
-      await loadWhatsappStatus(false);
-    } catch (error) {
-      console.error(handleApiError(error));
-    } finally {
-      setIsDisconnectingSession(false);
-    }
-  }, [loadWhatsappStatus, selectedLinkedDeviceSession?.label, selectedSessionLabel, syncSelectedSession]);
-
-  const handleReconnectSelectedSession = React.useCallback(async () => {
-    if (!selectedLinkedDeviceSession?.label) {
-      return;
-    }
-
-    setIsReconnectingSession(true);
-    try {
-      await backendApi.post(ENDPOINTS.whatsapp.reconnect, { label: selectedLinkedDeviceSession.label });
-      await loadWhatsappStatus(false);
-    } catch (error) {
-      console.error(handleApiError(error));
-    } finally {
-      setIsReconnectingSession(false);
-    }
-  }, [loadWhatsappStatus, selectedLinkedDeviceSession?.label]);
 
   return (
     <div className="flex min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] lg:h-screen lg:overflow-hidden">
@@ -446,10 +363,10 @@ export const Layout: React.FC = () => {
         onToggleCollapsed={() => setIsSidebarCollapsed((current) => !current)}
         whatsappStatus={{
           ...whatsappStatus,
-          connectedPhoneNumber: selectedSession?.phoneNumber || whatsappStatus.connectedPhoneNumber || null,
-          connectedOwnerName: selectedSession?.ownerName || whatsappStatus.connectedOwnerName || null,
-          status: selectedSession?.status || whatsappStatus.status,
-          selectedSessionLabel: selectedSession?.label || whatsappStatus.selectedSessionLabel || null,
+          connectedPhoneNumber: officialApiSession?.phoneNumber || whatsappStatus.connectedPhoneNumber || null,
+          connectedOwnerName: officialApiSession?.ownerName || whatsappStatus.connectedOwnerName || null,
+          status: officialApiStatus,
+          selectedSessionLabel: officialApiSession?.label || null,
         }}
       />
 
@@ -459,51 +376,6 @@ export const Layout: React.FC = () => {
             <span className="animate-pulse">⚠️</span> ADMIN VIEW: Impersonating {user.email}
           </div>
         )}
-        {whatsappBanner ? (
-          <div
-            role="alert"
-            className={`flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--border)] px-4 py-3 text-[11px] font-medium sm:px-6 lg:px-8 ${
-              whatsappBanner.tone === 'red'
-                ? 'bg-[rgba(96,19,28,0.92)] text-[#ffd4d9]'
-                : 'bg-[rgba(66,49,7,0.92)] text-[#fff4c2]'
-            }`}
-          >
-            <div className="min-w-0">
-              <div className="text-[10px] font-bold uppercase tracking-[0.16em]">
-                {whatsappBanner.title}
-              </div>
-              <div className="mt-1 text-[12px] font-medium normal-case tracking-normal">
-                {whatsappBanner.body}
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void handleReconnectSelectedSession()}
-                disabled={isReconnectingSession || !selectedSession}
-                className={`inline-flex items-center gap-2 rounded-[18px] border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] transition-colors disabled:opacity-50 ${
-                  whatsappBanner.tone === 'red'
-                    ? 'border-[#ff909f] bg-[#ff465f] text-white hover:bg-[#ff5a70]'
-                    : 'border-[#ffdc73] bg-[#ffcc33] text-[#221900] hover:bg-[#ffd54d]'
-                }`}
-              >
-                <PowerIcon className="h-3.5 w-3.5" />
-                {isReconnectingSession ? 'Starting fresh' : whatsappBanner.buttonLabel}
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/whatsapp/setup')}
-                className={`inline-flex items-center gap-2 rounded-[18px] border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] transition-colors ${
-                  whatsappBanner.tone === 'red'
-                    ? 'border-[#ff909f]/60 bg-transparent text-[#ffd4d9] hover:bg-white/10'
-                    : 'border-[#ffdc73]/60 bg-transparent text-[#fff4c2] hover:bg-white/10'
-                }`}
-              >
-                WhatsApp setup
-              </button>
-            </div>
-          </div>
-        ) : null}
         <header className="sticky top-0 z-20 flex min-h-16 flex-wrap items-center justify-between gap-3 border-b-[0.5px] border-[color:var(--border)] bg-[rgba(13,17,23,0.92)] px-4 py-3 backdrop-blur-xl sm:px-6 lg:h-16 lg:flex-nowrap lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <button
