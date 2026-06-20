@@ -9,6 +9,14 @@ interface DescriptionListing {
 
 export function formatPrice(price: number, type?: string): string {
   if (!price || price <= 0) return 'Price on Request';
+
+  // Sanity cap: prices above these thresholds are almost certainly data errors
+  // (e.g. AI returning priceNumeric scaled 1M× too large for rent listings)
+  const isRent = type === 'Rent';
+  if ((isRent && price > 100_000_000) || (!isRent && price > 10_000_000_000)) {
+    return 'Price on Request';
+  }
+
   const cr = price / 10000000;
   const l = price / 100000;
   if (cr >= 1) {

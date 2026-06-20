@@ -23,7 +23,6 @@ export default function ListingCard({ listing }: ListingCardProps) {
 
   const features = [];
   const configurationLabel = formatBhk(listing.configuration);
-  if (configurationLabel) features.push(configurationLabel);
   if (listing.raw_text?.toLowerCase().includes('furnish')) features.push('Furnished');
   if (listing.raw_text?.toLowerCase().includes('parking')) features.push('Parking');
   if (listing.raw_text?.toLowerCase().includes('sea view') || listing.raw_text?.toLowerCase().includes('ocean')) features.push('Sea View');

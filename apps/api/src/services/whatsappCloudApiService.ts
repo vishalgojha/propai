@@ -110,10 +110,43 @@ function extractText(message: Record<string, any>) {
         || message?.interactive?.button_reply?.title
         || message?.interactive?.list_reply?.title
         || message?.button?.text
+        || message?.image?.caption
+        || message?.video?.caption
+        || message?.document?.caption
         || message?.body
         || '',
     ).trim();
 }
+
+type MediaInfo = {
+    mediaId: string;
+    mimeType: string;
+    fileName: string;
+};
+
+const WABA_MEDIA_MSG_TYPES = new Set(['image', 'video', 'document', 'audio', 'sticker']);
+
+function getMediaInfo(message: Record<string, any>): MediaInfo | null {
+    const msgType = String(message?.type || '').toLowerCase();
+    if (!WABA_MEDIA_MSG_TYPES.has(msgType)) return null;
+    const media = message?.[msgType];
+    if (!media?.id) return null;
+    return {
+        mediaId: String(media.id),
+        mimeType: String(media.mime_type || 'application/octet-stream'),
+        fileName: String(media.filename || `waba_media_${Date.now()}`),
+    };
+}
+
+const WABA_MEDIA_EXT: Record<string, string> = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+    'image/gif': '.gif',
+    'video/mp4': '.mp4',
+    'video/3gp': '.3gp',
+    'application/pdf': '.pdf',
+};
 
 function buildRemoteJid(waId?: string | null) {
     const digits = normalizeDigits(waId);
@@ -294,7 +327,7 @@ export class WhatsAppCloudApiService {
     }
 
     async handleWebhook(payload: MetaWebhookPayload) {
-        if (!process.env.CLOUD_API_WEBHOOK_ENABLED) {
+        if (process.env.CLOUD_API_WEBHOOK_ENABLED === 'false') {
             return [];
         }
         const entries = Array.isArray(payload?.entry) ? payload.entry : [];
@@ -328,8 +361,24 @@ export class WhatsAppCloudApiService {
                     recentProcessedMessageIds.add(messageId);
 
                     const remoteJid = buildRemoteJid(message?.from);
-                    const text = extractText(message);
-                    if (!remoteJid || !text) {
+                    if (!remoteJid) {
+                        ignored += 1;
+                        continue;
+                    }
+
+                    let text = extractText(message);
+                    const mediaInfo = getMediaInfo(message);
+                    if (mediaInfo) {
+                        const stored = await this.storeIncomingMedia(tenantId, mediaInfo).catch(() => null);
+                        if (stored?.attachmentCtx) {
+                            text = `${text}\n\n---\n${stored.attachmentCtx}\n---`;
+                        }
+                        if (!text.trim()) {
+                            const typeLabel = String(message?.type || 'file').toLowerCase();
+                            text = `[User sent ${typeLabel === 'image' ? 'an image' : typeLabel === 'video' ? 'a video' : typeLabel === 'document' ? 'a document' : 'a file'}]`;
+                        }
+                    }
+                    if (!text.trim()) {
                         ignored += 1;
                         continue;
                     }
@@ -533,6 +582,106 @@ export class WhatsAppCloudApiService {
         }
 
         return results;
+    }
+
+    private async getMediaDownloadUrl(tenantId: string, mediaId: string): Promise<string | null> {
+        const accessToken = await keyService.getKey(tenantId, this.providerName);
+        if (!accessToken) return null;
+
+        const response = await fetch(`${getCloudBaseUrl()}/${encodeURIComponent(mediaId)}`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!response.ok) return null;
+
+        const body = await response.json().catch(() => null);
+        const url = body?.url || body?.data?.url || null;
+        return url ? String(url) : null;
+    }
+
+    private async downloadMediaBuffer(tenantId: string, downloadUrl: string): Promise<Buffer | null> {
+        const accessToken = await keyService.getKey(tenantId, this.providerName);
+        if (!accessToken) return null;
+
+        const response = await fetch(downloadUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!response.ok) return null;
+
+        const arrayBuffer = await response.arrayBuffer().catch(() => null);
+        if (!arrayBuffer) return null;
+        return Buffer.from(arrayBuffer);
+    }
+
+    private async ensureMediaBucket(): Promise<boolean> {
+        if (!supabaseAdmin) return false;
+        try {
+            const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+            if (Array.isArray(buckets) && buckets.some((b) => b.name === 'waba-media')) {
+                return true;
+            }
+            const { error } = await supabaseAdmin.storage.createBucket('waba-media', { public: false });
+            return !error;
+        } catch {
+            return false;
+        }
+    }
+
+    private async storeIncomingMedia(
+        tenantId: string,
+        media: MediaInfo,
+    ): Promise<{ fileId: string; attachmentCtx: string } | null> {
+        try {
+            const downloadUrl = await this.getMediaDownloadUrl(tenantId, media.mediaId);
+            if (!downloadUrl) return null;
+
+            const buffer = await this.downloadMediaBuffer(tenantId, downloadUrl);
+            if (!buffer || buffer.length === 0) return null;
+
+            const bucketOk = await this.ensureMediaBucket();
+            if (!bucketOk) return null;
+
+            const ext = WABA_MEDIA_EXT[media.mimeType] || '.bin';
+            const fileId = crypto.randomUUID();
+            const storagePath = `${tenantId}/${new Date().toISOString().slice(0, 10)}/${fileId}${ext}`;
+
+            const { error: uploadError } = await supabaseAdmin!.storage
+                .from('waba-media')
+                .upload(storagePath, buffer, {
+                    contentType: media.mimeType,
+                    upsert: false,
+                });
+
+            if (uploadError) return null;
+
+            const now = new Date().toISOString();
+            const { data: row, error: insertError } = await db
+                .from('workspace_files')
+                .insert({
+                    workspace_id: tenantId,
+                    file_name: media.fileName,
+                    mime_type: media.mimeType,
+                    byte_size: buffer.length,
+                    storage_bucket: 'waba-media',
+                    storage_path: storagePath,
+                    extracted_text: null,
+                    extraction_status: 'pending',
+                    created_at: now,
+                    updated_at: now,
+                })
+                .select('id')
+                .single();
+
+            if (insertError || !row) {
+                await supabaseAdmin!.storage.from('waba-media').remove([storagePath]).catch(() => {});
+                return null;
+            }
+
+            const ctx = `[${media.fileName} (${media.mimeType})] Incoming WhatsApp media saved.`;
+
+            return { fileId: row.id, attachmentCtx: ctx };
+        } catch {
+            return null;
+        }
     }
 
     async sendTextMessage(input: {
