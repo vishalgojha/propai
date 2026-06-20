@@ -23,7 +23,6 @@ import {
   UsersIcon,
   InboxIcon,
   TerminalIcon,
-  BroadcastIcon,
 } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
 import { useInbox } from '../hooks/useInbox';
@@ -41,9 +40,8 @@ const NAV_ITEMS = [
   { label: 'Intelligence', path: '/intelligence', icon: ActivityIcon },
   { label: 'IGR', path: '/igr', icon: MapPinIcon },
   { label: 'Parsing Terminal', path: '/parsing-terminal', icon: TerminalIcon },
-  { label: 'WhatsApp', path: '/whatsapp/setup', icon: GroupsIcon },
+  { label: 'WhatsApp Business', path: '/whatsapp/setup', icon: GroupsIcon },
   { label: 'Broker Network', path: '/broker-network/contacts', icon: UsersIcon },
-  { label: 'Broadcast', path: '/broadcast', icon: BroadcastIcon },
   { label: 'Syndication', path: '/broker-network/partners', icon: UsersIcon },
   { label: 'Profile & Team', path: '/team', icon: ShieldIcon },
   { label: 'Super Admin', path: '/admin', icon: ShieldIcon },
