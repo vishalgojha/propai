@@ -100,7 +100,11 @@ export function WabaSetup() {
           <label className="text-sm text-[var(--text-secondary)]">Graph API version<input value={apiVersion} onChange={(event) => setApiVersion(event.target.value)} className={fieldClass} placeholder="v25.0" /></label>
         </div>
 
-        <label className="block text-sm text-[var(--text-secondary)]">Access token {config?.hasAccessToken ? "(saved — paste only to replace)" : ""}<input type="password" value={accessToken} onChange={(event) => setAccessToken(event.target.value)} className={fieldClass} placeholder={config?.hasAccessToken ? "Token already saved" : "Permanent system-user access token"} /></label>
+        <label className="block text-sm text-[var(--text-secondary)]">
+          <span>Access token {config?.hasAccessToken ? "(saved — paste only to replace)" : ""}</span>
+          <a href="https://business.facebook.com/settings/system-users" target="_blank" rel="noreferrer" className="ml-2 text-[var(--accent)] underline underline-offset-2">Get permanent token in Meta Business Settings ↗</a>
+          <input type="password" value={accessToken} onChange={(event) => setAccessToken(event.target.value)} className={fieldClass} placeholder={config?.hasAccessToken ? "Token already saved" : "Permanent system-user access token"} />
+        </label>
         <label className="flex items-center gap-3 text-sm text-[var(--text-secondary)]"><input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} /> Enable this Cloud API number</label>
 
         {feedback ? <div className={feedback.tone === "success" ? "rounded-[12px] bg-[var(--accent-dim)] px-4 py-3 text-sm text-[var(--accent)]" : "rounded-[12px] bg-red-500/10 px-4 py-3 text-sm text-red-300"}>{feedback.message}</div> : null}
