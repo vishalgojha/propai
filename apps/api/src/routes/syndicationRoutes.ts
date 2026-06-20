@@ -279,15 +279,25 @@ router.get('/list', async (req, res) => {
       return res.status(500).json({ error: 'Failed to list syndications' });
     }
 
-    const enrichPartnerName = (row: any, partnerIdField: string, labelField: string) => ({
-      id: row.id,
-      status: row.status,
-      scope: row.scope,
-      partnerName: row[labelField] || 'Unknown',
-      direction: partnerIdField === 'acceptor_workspace_id' ? 'outgoing' : 'incoming',
-      createdAt: row.created_at,
-      acceptedAt: row.accepted_at,
-    });
+    const enrichPartnerName = (row: any, partnerIdField: string, labelField: string) => {
+      let partnerName: string;
+      if (row[labelField]) {
+        partnerName = row[labelField];
+      } else if (partnerIdField === 'acceptor_workspace_id') {
+        partnerName = row.status === 'revoked' ? 'Revoked invite' : 'Awaiting acceptance';
+      } else {
+        partnerName = 'Unknown';
+      }
+      return {
+        id: row.id,
+        status: row.status,
+        scope: row.scope,
+        partnerName,
+        direction: partnerIdField === 'acceptor_workspace_id' ? 'outgoing' : 'incoming',
+        createdAt: row.created_at,
+        acceptedAt: row.accepted_at,
+      };
+    };
 
     res.json({
       outgoing: (asRequester || []).map((r) => enrichPartnerName(r, 'acceptor_workspace_id', 'acceptor_label')),
