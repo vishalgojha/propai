@@ -361,6 +361,21 @@ export class WhatsAppCloudApiService {
                     }
                     recentProcessedMessageIds.add(messageId);
 
+                    const claimed = await this.claimWebhookMessage({
+                        tenantId,
+                        messageId,
+                        from: String(message?.from || ''),
+                        senderName: String(value?.contacts?.[0]?.profile?.name || ''),
+                        messageType: String(message?.type || 'unknown'),
+                        text: extractText(message),
+                        timestamp: toIso(message?.timestamp || message?.message_timestamp || null),
+                        rawPayload: message,
+                    });
+                    if (!claimed) {
+                        ignored += 1;
+                        continue;
+                    }
+
                     const remoteJid = buildRemoteJid(message?.from);
                     if (!remoteJid) {
                         ignored += 1;
@@ -455,6 +470,7 @@ export class WhatsAppCloudApiService {
                             });
                         }
                         processed += 1;
+                        await this.markWebhookMessageProcessed(tenantId, messageId);
                         continue;
                     }
                     // --- end activation code detection ---
@@ -493,7 +509,15 @@ export class WhatsAppCloudApiService {
                     if (isAdmin) {
                         agentFailureMessage = '__admin__';
                     }
-                    await this.sendTypingIndicator(tenantId, phoneNumberId, remoteJid).catch(() => {});
+                    await this.sendTypingIndicator(tenantId, phoneNumberId, messageId).catch(async (error) => {
+                        await whatsappHealthService.appendEvent(
+                            tenantId,
+                            sessionLabel,
+                            'cloud_typing_indicator_failed',
+                            'WhatsApp Cloud API typing indicator failed.',
+                            { messageId, error: error instanceof Error ? error.message : String(error) },
+                        ).catch(() => undefined);
+                    });
                     let reply = await agentExecutor.processMessage(tenantId, remoteJid, text, sessionLabel, undefined, {
                         suppressFallbackOnError: true,
                         onError: async (error) => {
@@ -552,6 +576,7 @@ export class WhatsAppCloudApiService {
                                     error: serializedError,
                                 },
                             ).catch(() => undefined);
+                            await this.markWebhookMessageFailed(tenantId, messageId, error);
                             continue;
                         }
 
@@ -594,6 +619,7 @@ export class WhatsAppCloudApiService {
                     }
 
                     processed += 1;
+                    await this.markWebhookMessageProcessed(tenantId, messageId);
                 }
 
                 await whatsappHealthService.upsertConnectionSnapshot({
@@ -768,26 +794,70 @@ export class WhatsAppCloudApiService {
         return response.json().catch(() => ({}));
     }
 
-    private async sendTypingIndicator(tenantId: string, phoneNumberId: string, to: string) {
+    private async claimWebhookMessage(input: {
+        tenantId: string;
+        messageId: string;
+        from: string;
+        senderName: string;
+        messageType: string;
+        text: string;
+        timestamp: string;
+        rawPayload: Record<string, any>;
+    }) {
+        const { error } = await db.from('cloud_api_webhook_events').insert({
+            tenant_id: input.tenantId,
+            meta_message_id: input.messageId,
+            meta_contact_wa_id: normalizeDigits(input.from) || null,
+            from_name: input.senderName || null,
+            message_type: input.messageType,
+            message_body: input.text || null,
+            timestamp: input.timestamp,
+            raw_payload: input.rawPayload,
+            processed: false,
+        });
+
+        if (!error) return true;
+        if (error.code === '23505') return false;
+        throw error;
+    }
+
+    private async markWebhookMessageProcessed(tenantId: string, messageId: string) {
+        await db.from('cloud_api_webhook_events')
+            .update({ processed: true, processing_error: null })
+            .eq('tenant_id', tenantId)
+            .eq('meta_message_id', messageId);
+    }
+
+    private async markWebhookMessageFailed(tenantId: string, messageId: string, error: unknown) {
+        await db.from('cloud_api_webhook_events')
+            .update({ processing_error: error instanceof Error ? error.message.slice(0, 2000) : String(error).slice(0, 2000) })
+            .eq('tenant_id', tenantId)
+            .eq('meta_message_id', messageId);
+    }
+
+    private async sendTypingIndicator(tenantId: string, phoneNumberId: string, messageId: string) {
         const accessToken = await keyService.getKey(tenantId, this.providerName);
-        if (!accessToken) return;
+        if (!accessToken) throw new Error('WhatsApp Cloud access token is not configured');
 
         const payload = {
             messaging_product: 'whatsapp',
-            recipient_type: 'individual',
-            to: normalizeDigits(to),
-            type: 'action',
-            action: { name: 'typing_on' },
+            status: 'read',
+            message_id: messageId,
+            typing_indicator: { type: 'text' },
         };
 
-        await fetch(`${getCloudBaseUrl()}/${encodeURIComponent(phoneNumberId)}/messages`, {
+        const response = await fetch(`${getCloudBaseUrl()}/${encodeURIComponent(phoneNumberId)}/messages`, {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(payload),
-        }).catch(() => {});
+        });
+
+        if (!response.ok) {
+            throw new Error(`WhatsApp Cloud typing indicator failed (${response.status}): ${await response.text().catch(() => response.statusText)}`);
+        }
     }
 }
 

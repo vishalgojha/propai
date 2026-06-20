@@ -13,6 +13,10 @@ function normalizeConversationKey(phoneNumber: string) {
         return '';
     }
 
+    if (/^waba:[0-9a-f-]+:[0-9a-z@._-]+$/i.test(raw)) {
+        return raw.toLowerCase();
+    }
+
     const identifier = raw.split('@')[0].trim();
     const digitsOnly = identifier.split('').filter(c => c >= '0' && c <= '9').join('');
     return digitsOnly || identifier.toLowerCase();

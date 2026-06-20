@@ -85,6 +85,10 @@ function normalizeAgentResponseShape(value: unknown): AgentResponse | null {
         return toAgentResponse(parsed.reply.trim());
     }
 
+    if (typeof parsed.response === 'string') {
+        return toAgentResponse(parsed.response.trim());
+    }
+
     if (typeof parsed.text === 'string') {
         return toAgentResponse(parsed.text.trim());
     }

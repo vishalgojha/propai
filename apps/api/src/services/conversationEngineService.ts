@@ -122,6 +122,7 @@ function cleanWhatsAppReply(text: string) {
             if (parsed && typeof parsed === 'object') {
                 if (typeof parsed.message === 'string' && parsed.message.trim()) return parsed.message.trim();
                 if (typeof parsed.reply === 'string' && parsed.reply.trim()) return parsed.reply.trim();
+                if (typeof parsed.response === 'string' && parsed.response.trim()) return parsed.response.trim();
                 if (typeof parsed.text === 'string' && parsed.text.trim()) return parsed.text.trim();
                 if (parsed.AgentResponse && typeof parsed.AgentResponse === 'object') {
                     if (typeof (parsed.AgentResponse as Record<string, unknown>).message === 'string' && String((parsed.AgentResponse as Record<string, unknown>).message).trim()) return String((parsed.AgentResponse as Record<string, unknown>).message).trim();

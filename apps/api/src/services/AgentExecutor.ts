@@ -51,6 +51,7 @@ function cleanWhatsAppReply(text: string) {
             if (parsed && typeof parsed === 'object') {
                 if (typeof parsed.message === 'string' && parsed.message.trim()) return parsed.message.trim();
                 if (typeof parsed.reply === 'string' && parsed.reply.trim()) return parsed.reply.trim();
+                if (typeof parsed.response === 'string' && parsed.response.trim()) return parsed.response.trim();
                 if (typeof parsed.text === 'string' && parsed.text.trim()) return parsed.text.trim();
                 if (parsed.AgentResponse && typeof parsed.AgentResponse === 'object') {
                     if (typeof parsed.AgentResponse.message === 'string' && parsed.AgentResponse.message.trim()) return parsed.AgentResponse.message.trim();
@@ -103,10 +104,15 @@ export class AgentExecutor {
         let brokerProfile: Awaited<ReturnType<typeof getUnifiedBrokerProfile>> = null;
         let brokerFullName: string | undefined;
         let shouldGreetBrokerByName = false;
-        const conversationKey = normalizeConversationPhoneNumber(remoteJid);
+        let conversationKey = normalizeConversationPhoneNumber(remoteJid);
 
         const assistantSessionPhone = await this.getSessionPhoneNumber(tenantId, sessionLabel);
         const isAssistantSession = normalizeComparablePhone(assistantSessionPhone) === normalizeComparablePhone(ASSISTANT_PHONE);
+        const isOfficialCloudSession = sessionLabel === 'Official API';
+
+        if (isOfficialCloudSession) {
+            conversationKey = `waba:${tenantId}:${normalizeConversationPhoneNumber(remoteJid)}`;
+        }
 
         if (isAssistantSession) {
             const brokerResolution = await this.resolveBrokerWorkspaceBySender(remoteJid);
@@ -190,6 +196,7 @@ export class AgentExecutor {
                         },
                     },
                     profileLookupTenantId: effectiveTenantId,
+                    modelPreference: isOfficialCloudSession ? 'Doubleword' : undefined,
                     greetingName: brokerFullName,
                     shouldGreetByName: shouldGreetBrokerByName,
                 });
@@ -445,7 +452,12 @@ Always wrap responses in the AgentResponse JSON schema.`;
             ? data.session_data as Record<string, any>
             : {};
 
-        return String(sessionData.phoneNumber || '').trim();
+        return String(
+            sessionData.phoneNumber
+            || sessionData.displayPhoneNumber
+            || sessionData.display_phone_number
+            || '',
+        ).trim();
     }
 
     private async resolveBrokerWorkspaceBySender(remoteJid: string): Promise<{
