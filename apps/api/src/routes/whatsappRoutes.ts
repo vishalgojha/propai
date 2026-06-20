@@ -1,11 +1,11 @@
 import { Router, Request, Response } from 'express';
-import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getMonitorMessages, disconnectWhatsApp, resetWhatsAppSession, resetAllWhatsAppSessions, getMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getHistoryDebug, getGroupHealth, getEvents, getHealthLogs, submitSupportLogs, getGroups, getGroupsAudit, applyGroupsAudit, rescanGroups, getGroupStreamItems, getOutboundRecipients } from '../controllers/whatsappController';
+import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getMonitorMessages, disconnectWhatsApp, resetWhatsAppSession, resetAllWhatsAppSessions, getMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getHistoryDebug, getEvents, getHealthLogs, submitSupportLogs, getOutboundRecipients } from '../controllers/whatsappController';
 import { importHistoryTxt, getHistoryImports, checkDuplicateImports, backfillHistoryToStream } from '../controllers/historyController';
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { validate } from '../middleware/validate';
-import { whatsappGroupService } from '../services/whatsappGroupService';
+
 import { connectWhatsAppSchema, forceRefreshQRSchema, saveProfileSchema, sendMessageSchema, sendBulkSchema, broadcastSchema, disconnectSchema, resetSessionSchema, resetAllSessionSchema, historyBackfillStreamSchema } from '../schemas/whatsappSchemas';
 
 const router = Router();
@@ -26,7 +26,6 @@ router.get(ROUTE_PATHS.whatsapp.health, getIngestionHealth);
 router.get(ROUTE_PATHS.whatsapp.healthDetailed, getDetailedHealth);
 router.get(ROUTE_PATHS.whatsapp.historyDebug, getHistoryDebug);
 router.get(ROUTE_PATHS.whatsapp.healthLogs, getHealthLogs);
-router.get(ROUTE_PATHS.whatsapp.groupsHealth, getGroupHealth);
 router.get(ROUTE_PATHS.whatsapp.events, getEvents);
 router.post(ROUTE_PATHS.whatsapp.supportLogs, submitSupportLogs);
 router.get(ROUTE_PATHS.whatsapp.profile, getProfile);
@@ -38,11 +37,6 @@ router.post(ROUTE_PATHS.whatsapp.broadcast, validate(broadcastSchema), broadcast
 router.post(ROUTE_PATHS.whatsapp.disconnect, validate(disconnectSchema), disconnectWhatsApp);
 router.post(ROUTE_PATHS.whatsapp.reset, validate(resetSessionSchema), resetWhatsAppSession);
 router.post(ROUTE_PATHS.whatsapp.resetAll, validate(resetAllSessionSchema), resetAllWhatsAppSessions);
-router.get(ROUTE_PATHS.whatsapp.groups, getGroups);
-router.get(ROUTE_PATHS.whatsapp.groupsAudit, getGroupsAudit);
-router.post(ROUTE_PATHS.whatsapp.groupsAudit, applyGroupsAudit);
-router.post(ROUTE_PATHS.whatsapp.rescanGroups, rescanGroups);
-router.get(ROUTE_PATHS.whatsapp.groupStreamItems, getGroupStreamItems);
 router.get(ROUTE_PATHS.whatsapp.recipients, getOutboundRecipients);
 
 router.post(ROUTE_PATHS.whatsapp.config, async (req: Request, res: Response) => {
@@ -97,72 +91,6 @@ router.post(ROUTE_PATHS.whatsapp.config, async (req: Request, res: Response) => 
     res.json({ success: true });
 });
 
-router.patch('/groups/:groupJid/toggle-parsing', async (req: Request, res: Response) => {
-    try {
-        const tenantId = req.user?.id;
-        if (!tenantId) return res.status(401).json({ error: 'Unauthorized' });
 
-        const groupJid = String(req.params.groupJid || '');
-        const { isParsing } = req.body;
-
-        if (!groupJid) {
-            return res.status(400).json({ error: 'groupJid is required' });
-        }
-
-        if (typeof isParsing !== 'boolean') {
-            return res.status(400).json({ error: 'isParsing boolean is required' });
-        }
-
-        if (isParsing) {
-            const { error: configError } = await (supabaseAdmin || supabase)
-                .from('group_configs')
-                .upsert({ group_id: groupJid, tenant_id: tenantId, behavior: 'Listen' }, { onConflict: 'group_id' });
-
-            if (configError) {
-                return res.status(500).json({ error: configError.message });
-            }
-        } else {
-            const { error: configError } = await (supabaseAdmin || supabase)
-                .from('group_configs')
-                .upsert({ group_id: groupJid, tenant_id: tenantId, behavior: 'Ignore' }, { onConflict: 'group_id' });
-
-            if (configError) {
-                return res.status(500).json({ error: configError.message });
-            }
-        }
-
-        const result = await whatsappGroupService.updateGroup(tenantId, groupJid, { isParsing });
-        res.json({ success: true, group: result });
-    } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Failed to toggle group parsing';
-        res.status(500).json({ error: message });
-    }
-});
-
-router.patch('/groups/:groupJid/visibility', async (req: Request, res: Response) => {
-    try {
-        const tenantId = req.user?.id;
-        if (!tenantId) return res.status(401).json({ error: 'Unauthorized' });
-
-        const groupJid = String(req.params.groupJid || '');
-        const { visibilityStatus } = req.body;
-
-        if (!groupJid) {
-            return res.status(400).json({ error: 'groupJid is required' });
-        }
-
-        if (visibilityStatus !== 'visible' && visibilityStatus !== 'hidden') {
-            return res.status(400).json({ error: 'visibilityStatus must be visible or hidden' });
-        }
-
-        const result = await whatsappGroupService.updateGroup(tenantId, groupJid, {
-            visibilityStatus,
-        });
-        res.json({ success: true, group: result });
-    } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Failed to update group visibility';
-        res.status(500).json({ error: message });
-    }
-});
 
 export default router;

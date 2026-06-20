@@ -1,8 +1,7 @@
-import type { WhatsAppGateway } from './WhatsAppGateway';
-import { BaileysWhatsAppGateway } from './BaileysWhatsAppGateway';
+import { CloudApiWhatsAppGateway } from './CloudApiWhatsAppGateway';
 
-const baileysGateway = new BaileysWhatsAppGateway();
+const cloudApiGateway = new CloudApiWhatsAppGateway();
 
-export function getWhatsAppGateway(_workspaceOwnerId?: string): WhatsAppGateway {
-    return baileysGateway;
+export function getWhatsAppGateway(_workspaceOwnerId?: string): CloudApiWhatsAppGateway {
+    return cloudApiGateway;
 }

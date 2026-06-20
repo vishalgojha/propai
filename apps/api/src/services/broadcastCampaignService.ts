@@ -1,5 +1,4 @@
 import { supabaseAdmin } from '../config/supabase';
-import { sessionManager } from '../whatsapp/SessionManager';
 
 const db = supabaseAdmin;
 export const BROADCAST_SESSION_LABEL = process.env.BROADCAST_SESSION_LABEL || 'broadcast';
@@ -155,12 +154,9 @@ export class BroadcastCampaignService {
   async getDiagnostics(campaign: CampaignRecord): Promise<BroadcastCampaignDiagnostic> {
     if (!db) throw new Error('Database admin client is not configured');
 
-    const senderSnapshot = sessionManager
-      .getLiveSessionSnapshots(campaign.tenant_id)
-      .find((session) => session.label === BROADCAST_SESSION_LABEL);
-    const senderStatus = senderSnapshot?.status || 'disconnected';
-    const senderConnected = senderStatus === 'connected';
     const latestRecipientError = await this.getLatestRecipientError(campaign.id);
+    const senderConnected = false;
+    const senderStatus = 'cloud_api';
 
     let startBlocker: string | null = null;
     if (campaign.status === 'draft') {
@@ -181,8 +177,8 @@ export class BroadcastCampaignService {
       senderLabel: BROADCAST_SESSION_LABEL,
       senderStatus,
       senderConnected,
-      senderOwnerName: senderSnapshot?.ownerName || null,
-      senderPhoneNumber: senderSnapshot?.phoneNumber || null,
+      senderOwnerName: null,
+      senderPhoneNumber: null,
       startBlocker,
       lastApiError: latestRecipientError?.error_message || null,
       lastApiErrorAt: latestRecipientError?.failed_at || null,

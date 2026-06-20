@@ -144,10 +144,8 @@ export const Layout: React.FC = () => {
     switch (path) {
       case '/listings':
       case '/stream': return 'Stream';
-      case '/sources':
-        return 'WhatsApp';
       case '/pricing':
-        return 'Pricing';
+        return 'WhatsApp';
       case '/docs':
         return 'Docs';
       case '/team':

@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
-import { sessionManager } from '../whatsapp/SessionManager';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { subscriptionService } from '../services/subscriptionService';
 import { whatsappHealthService } from '../services/whatsappHealthService';
@@ -8,7 +7,7 @@ import { whatsappGroupService } from '../services/whatsappGroupService';
 import { workspaceMonitorService } from '../services/workspaceMonitorService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { workspaceActivityService } from '../services/workspaceActivityService';
-import { sendWhatsAppLifecycleEmail } from '../whatsapp/propaiRuntimeHooks';
+import { sendWhatsAppLifecycleEmail } from '../services/lifecycleNotificationService';
 import { pushRecentAction, syncBrokerIdentityPhone } from '../services/identityService';
 import { sessionEventService } from '../services/sessionEventService';
 import { emailNotificationService } from '../services/emailNotificationService';
@@ -605,13 +604,7 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
             : {};
 
         if (sessionKey) {
-            await sessionManager.hardResetSession(tenantId, sessionKey).catch((error) => {
-                console.warn('[forceRefreshQR] Hard reset before fresh QR failed; continuing with DB cleanup.', {
-                    tenantId,
-                    sessionKey,
-                    error,
-                });
-            });
+            console.log('[forceRefreshQR] Cleaning up session state for', { tenantId, sessionKey });
         }
 
         if (processRole === 'api') {
@@ -1223,7 +1216,7 @@ export const resetWhatsAppSession = async (req: Request, res: Response) => {
         }
 
         if (targetLabel) {
-            await sessionManager.hardResetSession(tenantId, targetLabel);
+            console.log('[resetWhatsAppSession] Cleaning up session state for', { tenantId, targetLabel });
         }
 
         const sessionFilter = targetLabel
@@ -1309,13 +1302,7 @@ export const resetAllWhatsAppSessions = async (req: Request, res: Response) => {
             }
         }
 
-        for (const label of labels) {
-            try {
-                await sessionManager.hardResetSession(tenantId, label);
-            } catch (error) {
-                console.error(`[resetAllWhatsAppSessions] Failed to hard reset ${label}:`, error);
-            }
-        }
+        console.log('[resetAllWhatsAppSessions] Cleaning up sessions for', { tenantId, labels: [...labels] });
 
         await Promise.all([
             dbClient

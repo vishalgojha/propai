@@ -1,5 +1,5 @@
 import { BROADCAST_SESSION_LABEL, broadcastCampaignService } from './broadcastCampaignService';
-import { sessionManager } from '../whatsapp/SessionManager';
+import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -19,6 +19,8 @@ export class BroadcastExecutor {
       if (campaign.status !== 'sending') throw new Error('Campaign is not in sending status');
       if (!campaign.accepted_risk) throw new Error('Risk not accepted for this campaign');
 
+      const gateway = getWhatsAppGateway(campaign.tenant_id);
+
       const { supabaseAdmin } = await import('../config/supabase');
       const { data: recipients, error } = await supabaseAdmin!
         .from('broadcast_recipients')
@@ -33,11 +35,6 @@ export class BroadcastExecutor {
         return;
       }
 
-      const client = await sessionManager.getSession(campaign.tenant_id, BROADCAST_SESSION_LABEL);
-      if (!client || client.getStatusSnapshot().status !== 'connected') {
-        throw new Error(`Broadcast session '${BROADCAST_SESSION_LABEL}' is not connected. Connect it first.`);
-      }
-
       const delayMs = campaign.delay_between_messages_ms || 5000;
       const maxFailures = Math.max(10, Math.floor(recipients.length * 0.2));
       let consecutiveFailures = 0;
@@ -47,18 +44,13 @@ export class BroadcastExecutor {
           break;
         }
 
-        const phone = recipient.phone.replace(/[^0-9]/g, '');
-        const remoteJid = `${phone}@s.whatsapp.net`;
-
         try {
-          if (campaign.media_url) {
-            await client.sendMedia(remoteJid, {
-              url: campaign.media_url,
-              caption: campaign.message,
-            });
-          } else {
-            await client.sendText(remoteJid, campaign.message);
-          }
+          const remoteJid = `${recipient.phone.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+          await gateway.sendMessage({
+            workspaceOwnerId: campaign.tenant_id,
+            remoteJid,
+            text: campaign.message,
+          });
 
           await broadcastCampaignService.updateRecipientStatus(
             recipient.id,

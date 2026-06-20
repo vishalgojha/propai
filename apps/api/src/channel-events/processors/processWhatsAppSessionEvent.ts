@@ -1,6 +1,6 @@
 import { sessionEventService } from '../../services/sessionEventService';
 import { whatsappHealthService } from '../../services/whatsappHealthService';
-import { sendWhatsAppLifecycleEmail } from '../../whatsapp/propaiRuntimeHooks';
+import { sendWhatsAppLifecycleEmail } from '../../services/lifecycleNotificationService';
 
 export async function processWhatsAppSessionEvent(input: {
     tenantId: string;

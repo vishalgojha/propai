@@ -1,7 +1,6 @@
-"use client";
-
-import { Sources } from "@/pages/Sources";
+import { redirect } from "next/navigation";
+import { protectedRouteRedirects } from "../routeRedirects";
 
 export default function Page() {
-  return <Sources />;
+  redirect(protectedRouteRedirects.whatsapp);
 }

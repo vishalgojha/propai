@@ -1,7 +1,6 @@
-"use client";
-
-import { SetupGroups } from "@/pages/SetupGroups";
+import { redirect } from "next/navigation";
+import { protectedRouteRedirects } from "../routeRedirects";
 
 export default function Page() {
-  return <SetupGroups />;
+  redirect(protectedRouteRedirects.whatsapp);
 }
