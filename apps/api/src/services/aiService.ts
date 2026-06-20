@@ -92,7 +92,7 @@ function summarizeAiError(error: any) {
 }
 
 export class AIService {
-    private readonly providerRequestTimeoutMs = Number(process.env.AI_PROVIDER_TIMEOUT_MS || 12_000);
+    private readonly providerRequestTimeoutMs = Number(process.env.AI_PROVIDER_TIMEOUT_MS || 30_000);
     private googleModel = process.env.GOOGLE_MODEL || 'gemini-2.5-flash';
     private groqBaseURL = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
     private groqModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';

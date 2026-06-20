@@ -261,7 +261,7 @@ export class ConversationEngineService {
         }
 
         const routePrompt = shouldUseAttachmentContextForRouting(rawPrompt, hasWebAttachments) ? prompt : rawPrompt;
-        const route = await agentRouterService.route(event.tenantId, routePrompt, history);
+        const route = await agentRouterService.route(event.tenantId, routePrompt, history, input.modelPreference || 'Auto');
         const capabilityHint = buildCapabilityHint(route.intent);
 
         const sharedRouteResult = await executeSharedRoute(event.tenantId, route, routePrompt);

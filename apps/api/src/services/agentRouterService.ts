@@ -154,7 +154,12 @@ export class AgentRouterService {
         'Output shape: {"intent":"...","confidence":0-1,"rationale":"...","reply":"optional direct reply","args":{...}}',
     ].join(' ');
 
-    async route(tenantId: string, prompt: string, history: ConversationMessage[] = []): Promise<AgentRoutePlan> {
+    async route(
+        tenantId: string,
+        prompt: string,
+        history: ConversationMessage[] = [],
+        modelPreference: string = 'Auto',
+    ): Promise<AgentRoutePlan> {
         const deterministicRoute = this.routeDeterministically(prompt);
         if (deterministicRoute) {
             return deterministicRoute;
@@ -163,7 +168,7 @@ export class AgentRouterService {
         try {
             const response = await aiService.chat(
                 prompt,
-                'Auto',
+                modelPreference,
                 'agent_router',
                 tenantId,
                 this.systemPrompt,
