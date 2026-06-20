@@ -35,6 +35,8 @@ const AgentRoutePlanSchema = z.object({
         'general_answer',
         'teach_correction',
         'clarify_locality',
+        'igr_last_transaction',
+        'igr_locality_stats',
     ]),
     confidence: z.number().min(0).max(1).optional(),
     rationale: z.string().optional(),

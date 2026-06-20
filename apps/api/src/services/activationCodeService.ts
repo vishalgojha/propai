@@ -130,12 +130,16 @@ export class ActivationCodeService {
 
         const formattedPhone = digits.length > 10 ? digits : `91${digits}`;
 
-        await db.from('broker_contacts').upsert({
-            tenant_id: tenantId,
-            phone: formattedPhone,
-            display_name: `WhatsApp User (${formattedPhone.slice(-10)})`,
-            last_seen_at: new Date().toISOString(),
-        }, { onConflict: 'tenant_id,phone', ignoreDuplicates: false }).catch(() => {});
+        try {
+            await db.from('broker_contacts').upsert({
+                tenant_id: tenantId,
+                phone: formattedPhone,
+                display_name: `WhatsApp User (${formattedPhone.slice(-10)})`,
+                last_seen_at: new Date().toISOString(),
+            }, { onConflict: 'tenant_id,phone', ignoreDuplicates: false });
+        } catch {
+            // broker_contacts upsert is non-critical
+        }
     }
 
     buildDeepLink(phoneNumber: string, code: string): string {
