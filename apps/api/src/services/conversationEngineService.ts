@@ -281,6 +281,25 @@ export class ConversationEngineService {
             };
         }
 
+        // The router produces the reply for general chat. This keeps ambiguous
+        // requests to one model call instead of classifying and then asking a
+        // second model to restate the answer.
+        if (route.intent === 'general_answer' && route.reply?.trim()) {
+            const agentResponse = toAgentResponse(route.reply.trim());
+            const renderedReply = renderChannelReply(event.channel, agentResponse);
+            const personalizedReply = event.channel === 'whatsapp'
+                ? maybePersonalizeWhatsAppGreeting(renderedReply, input.greetingName, input.shouldGreetByName)
+                : renderedReply;
+            await saveToHistory(event.conversation.key, rawPrompt, personalizedReply, input.sessionId);
+            return {
+                reply: personalizedReply,
+                text: personalizedReply,
+                agentResponse,
+                route,
+                capabilityHint,
+            };
+        }
+
         const basePrompt = event.channel === 'web'
             ? WEB_PULSE_CHAT_SYSTEM_PROMPT
             : (input.basePrompt || PULSE_CHAT_SYSTEM_PROMPT);

@@ -92,6 +92,21 @@ export async function executeSharedRoute(
     route: AgentRoutePlan,
     prompt: string,
 ): Promise<SharedRouteExecutionResult> {
+    if (route.intent === 'clarify_locality') {
+        const candidates = Array.isArray(route.args?.candidates)
+            ? route.args.candidates.map((candidate) => String(candidate).trim()).filter(Boolean)
+            : [];
+        const reply = candidates.length === 2
+            ? `Do you mean ${candidates[0]} or ${candidates[1]}?`
+            : 'Which locality do you mean? Please include East or West where relevant.';
+        return {
+            handled: true,
+            reply,
+            agentResponse: toAgentResponse(reply),
+            data: { type: 'locality_clarification', candidates },
+        };
+    }
+
     if (isProductKnowledgeIntent(route.intent)) {
         const answer = await productKnowledgeService.answer(tenantId, prompt, route.intent);
         if (answer) {
