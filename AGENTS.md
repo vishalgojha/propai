@@ -77,6 +77,7 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
 - **Fixed www price overflow** — `format.ts` added sanity caps: rent > ₹10Cr or sale > ₹1000Cr returns "Price on Request".
 - **Added WhatsApp activation-code linking flow** — New DB table `whatsapp_activation_codes`, `activationCodeService.ts` (generate/validate/activate/link), webhook detects `PROP-XXXXXXXX` codes and short-circuits to activation, 24-hour window check in `sendTextMessage()`, API route `POST /api/whatsapp/cloud/activation-code`.
 - **Added ref_no (visible ID) for listings/requirements** — Migration `20260621000001_add_ref_no.sql`: sequences `listing_ref_seq`/`requirement_ref_seq`, `ref_no text` column on child tables + parent + `public_listings`, before-insert trigger auto-generates `L-0001`/`R-0001` format, updated `sync_stream_item_to_parent()` function, backfill for existing records. www: `PublicListing.ref_no`, shown in `ListingCard`/`ListingDetail`. App: `StreamItem.refNo`, shown in `ListingCard`. Pulse prompt updated to include ref_no in match replies.
+- **Removed Parsing Terminal page** — Deleted route (`app/(protected)/parsing-terminal/`), view (`ParsingTerminal.tsx`), sidebar nav item, Layout title, PulseAssistantDock context prompts, PropAITour step, Sources redirects, Admin label, and TerminalIcon alias.
 
 ### Current Remote State
 
