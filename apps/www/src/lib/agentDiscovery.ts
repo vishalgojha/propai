@@ -15,7 +15,7 @@ export function buildAgentDiscoveryText() {
   return [
     "# PropAI Pulse",
     "",
-    "PropAI Pulse is a real-time B2B broker broadcast and WhatsApp group signal intelligence platform.",
+    "PropAI Pulse is a B2B broker CRM and WhatsApp Business market-intelligence platform.",
     "The public MCP layer documents the concept for crawlers, LLMs, and developer agents.",
     "The private MCP server remains Supabase-authenticated and permissioned.",
     "",

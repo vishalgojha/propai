@@ -8,16 +8,16 @@ export default function About() {
         <div className="space-y-4">
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--accent)]">About PropAI Pulse</p>
           <h1 className="text-[36px] md:text-[52px] font-bold leading-tight tracking-tight text-[var(--text-primary)]">
-            Fresh Mumbai property listings, straight from broker WhatsApp groups.
+            Broker property intelligence for Mumbai.
           </h1>
         </div>
 
         <p className="text-[16px] leading-8 text-[var(--text-secondary)]">
-          Most property portals show you listings that are weeks old, already sold, or inflated to leave room for negotiation. PropAI is different. Every listing you see here comes directly from what Mumbai brokers are actively sharing with each other — real inventory, in real time.
+          Property decisions need clearer information than fragmented portals provide. PropAI brings broker-listed inventory, requirements, and market context into one searchable experience.
         </p>
 
         <p className="text-[16px] leading-8 text-[var(--text-secondary)]">
-          <strong>No fake listings. No portal reposts. No bait-and-switch pricing.</strong>
+          <strong>Clearer inventory. Better context. Faster broker follow-up.</strong>
         </p>
 
         <p className="text-[16px] leading-8 text-[var(--text-secondary)]">
@@ -27,13 +27,13 @@ export default function About() {
         <h2 className="text-[22px] md:text-[28px] font-bold text-[var(--text-primary)] mt-10">How it works</h2>
 
         <p className="text-[16px] leading-8 text-[var(--text-secondary)]">
-          Mumbai's real estate market runs on WhatsApp. Brokers share hundreds of listings every day across private groups — but that inventory never makes it to public portals. PropAI taps directly into that network, structures the data, and makes it searchable for buyers and renters like you.
+          Mumbai's real estate market moves quickly. PropAI helps brokers manage official WhatsApp Business conversations, structure incoming leads, and keep listings and requirements searchable.
         </p>
 
         <h2 className="text-[22px] md:text-[28px] font-bold text-[var(--text-primary)] mt-10">Why trust PropAI listings?</h2>
 
         <p className="text-[16px] leading-8 text-[var(--text-secondary)]">
-          Because they come from brokers talking to other brokers — not from sellers trying to attract clicks. Prices are real asking prices. Localities are verified. Availability is as fresh as the last message.
+          Listings are presented with broker-supplied details and market context. Always confirm price and availability with the broker before making a decision.
         </p>
 
         <h2 className="text-[22px] md:text-[28px] font-bold text-[var(--text-primary)] mt-10">Find your next home in Mumbai — without the noise.</h2>

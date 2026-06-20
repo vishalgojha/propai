@@ -506,7 +506,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
       <header className="relative z-10 px-6 pt-12 pb-8 flex flex-col items-center text-center max-w-5xl mx-auto">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[var(--accent-glow)] border border-[color:var(--accent-border)] rounded-full mb-6">
           <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
-          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">Live from Broker WhatsApp Groups</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">Broker inventory intelligence</span>
         </div>
         
         <h1 className="text-[44px] sm:text-[62px] font-black leading-[1.05] tracking-[-0.04em] text-[var(--text-primary)] font-display max-w-4xl mb-4">
@@ -516,7 +516,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
         </h1>
         
         <p className="text-[var(--text-secondary)] text-[14px] sm:text-[16px] max-w-2xl mb-8 mx-auto leading-relaxed">
-          PropAI bypasses stale property websites. We structure real-time professional Realtor broadcasts using AI to index authentic, active listings straight from private network streams.
+          PropAI brings broker-listed inventory, requirements, and market context into a searchable workspace built for faster decisions.
         </p>
 
         {/* Global Search Bar */}
@@ -1099,7 +1099,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     <span className="text-[11px] font-bold uppercase tracking-wider text-white">Direct Broadcast Speed</span>
                   </div>
                   <p className="text-[11.5px] text-[var(--text-secondary)] leading-relaxed">
-                    By aggregating live professional Realtor WhatsApp groups, properties are captured and closed in hours. Retail portals typically retain properties for 42 days.
+                    PropAI helps brokers respond quickly to qualified enquiries and keep active inventory organised outside stale portal workflows.
                   </p>
                 </div>
                 <div className="p-4 rounded-xl bg-[var(--bg-surface)]/60 space-y-1.5">
@@ -1149,7 +1149,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                 <Shield className="h-7 w-7 text-[var(--accent)]" />
                 <h4 className="text-[14px] font-bold text-white">Live B2B Realtor Ledger</h4>
                 <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
-                  Our system parses and structures thousands of private professional Realtor WhatsApp broadcasts daily, capturing fresh, authentic property flows with zero retail noise.
+                  Our system structures broker inventory, requirements, and WhatsApp Business enquiries into a practical market workspace.
                 </p>
               </div>
             </div>
@@ -1167,7 +1167,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
               <div>
                 <h2 className="text-[20px] sm:text-[24px] font-black text-[var(--text-primary)] font-display">Transform the way you hunt rentals</h2>
                 <p className="mt-1 text-[13px] text-[var(--text-secondary)] leading-relaxed max-w-md">
-                  Ditch stale retail listing websites. Browse live group streams, inspect direct Realtor group details, and connect with professional co-Realtors immediately.
+                  Ditch stale retail listing websites. Browse broker inventory, compare market context, and connect with professional Realtors directly.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
@@ -1201,11 +1201,11 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
           {[
             {
               q: "What is PropAI Pulse and how does it beat traditional property portals?",
-              a: "Traditional property portals are filled with stale, duplicate, or bait listings uploaded weeks ago to capture leads. PropAI Pulse is a real-time aggregator that parses active co-Realtoring broadcasts and requirements directly from closed, private professional Realtor WhatsApp communication groups in Mumbai. You see active inventory within minutes of Realtors sharing them, straight from the source."
+              a: "Traditional property portals can contain stale, duplicate, or incomplete listings. PropAI Pulse gives brokers and buyers a searchable view of broker-listed inventory, requirements, and locality-level market context."
             },
             {
               q: "How does PropAI guarantee listings are active and not fake?",
-              a: "Our system structures broadcasts from private Realtor-only co-Realtoring groups where professionals share actual inventory they need to close immediately. Because Realtors co-Realtor directly within their peer groups, posting fake listings or stale inventory would ruin their professional reputation. This structural alignment guarantees that the feeds are 100% authentic and active."
+              a: "PropAI helps brokers structure inventory and enquiries, track follow-ups, and keep the information they choose to publish searchable. Prices and availability should always be confirmed with the responsible broker."
             },
             {
               q: "How do I connect with the professional Realtor who posted a listing?",
@@ -1271,7 +1271,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                   "name": "What is PropAI Pulse and how does it beat traditional property portals?",
                   "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Traditional property portals are filled with stale, duplicate, or bait listings uploaded weeks ago to capture leads. PropAI Pulse is a real-time aggregator that parses active co-Realtoring broadcasts and requirements directly from closed, private professional Realtor WhatsApp communication groups in Mumbai. You see active inventory within minutes of Realtors sharing them, straight from the source."
+                    "text": "Traditional property portals can contain stale, duplicate, or incomplete listings. PropAI Pulse gives brokers and buyers a searchable view of broker-listed inventory, requirements, and locality-level market context."
                   }
                 },
                 {
@@ -1279,7 +1279,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                   "name": "How does PropAI guarantee listings are active and not fake?",
                   "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Our system structures broadcasts from private Realtor-only co-Realtoring groups where professionals share actual inventory they need to close immediately. Because Realtors co-Realtor directly within their peer groups, posting fake listings or stale inventory would ruin their professional reputation. This structural alignment guarantees that the feeds are 100% authentic and active."
+                    "text": "PropAI helps brokers structure inventory and enquiries, track follow-ups, and keep the information they choose to publish searchable. Prices and availability should always be confirmed with the responsible broker."
                   }
                 },
                 {

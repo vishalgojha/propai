@@ -48,7 +48,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const title = `Property listings in ${localityName} - PropAI Pulse`;
-  const description = `Browse ${listingCount} live broker group listings and requirements in ${localityName}. Updated continuously. Rentals, sales, and more.`;
+  const description = `Browse ${listingCount} broker listings and requirements in ${localityName}. Rentals, sales, and market context in one place.`;
 
   return {
     title,
@@ -98,7 +98,7 @@ export default async function Page({ params }: PageProps) {
     "@context": "https://schema.org",
     "@type": "ItemList",
     name: `Property listings in ${localityName}`,
-    description: `Live broker group listings in ${localityName}`,
+    description: `Broker listings in ${localityName}`,
     numberOfItems: listings.length,
     itemListElement: listings.slice(0, 10).map((item, index) => ({
       "@type": "ListItem",

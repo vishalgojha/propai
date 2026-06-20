@@ -74,7 +74,7 @@ const starterMessages: ChatMessage[] = [
   {
     role: 'ai',
     content:
-      'Ask me in plain language. I can save listings, save buyer requirements, schedule follow-ups, check the follow-up queue, search inventory, or explain which live tools are up. WhatsApp is the main transport for group parsing and replies, so if it is disconnected I can still answer from CRM and web tools but live parsing pauses.',
+      'Ask me in plain language. I can save listings, save buyer requirements, schedule follow-ups, check the follow-up queue, search inventory, or explain which live tools are up. WhatsApp Business handles approved customer conversations and replies; CRM and web tools remain available when it is disconnected.',
     timestamp: 'Now',
   },
 ];
@@ -1222,7 +1222,7 @@ export const Agent: React.FC = () => {
                   <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
                     {runtimeStatus?.whatsapp?.connectedPhoneNumber
                       ? `${runtimeStatus.whatsapp.connectedPhoneNumber}${runtimeStatus.whatsapp.connectedOwnerName ? ` · ${runtimeStatus.whatsapp.connectedOwnerName}` : ''}`
-                      : 'Live group parsing and replies pause until WhatsApp reconnects.'}
+                      : 'WhatsApp Business messaging is unavailable until the Cloud API reconnects.'}
                   </p>
                 </div>
                 <div className="rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2">

@@ -288,7 +288,7 @@ export const BrokerNetwork: React.FC = () => {
               Your broker network
             </h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              Brokers extracted from WhatsApp group broadcasts and participant lists across all broker workspaces — {contacts.length} unique contact{contacts.length === 1 ? '' : 's'}, {overlaps.length} overlapping contact{overlaps.length === 1 ? '' : 's'}, {totalListings} listing{totalListings === 1 ? '' : 's'} parsed.
+              Broker contacts and workspace relationships — {contacts.length} unique contact{contacts.length === 1 ? '' : 's'}, {overlaps.length} overlapping contact{overlaps.length === 1 ? '' : 's'}, and {totalListings} listing{totalListings === 1 ? '' : 's'} on record.
             </p>
           </div>
           <button
@@ -548,7 +548,7 @@ export const BrokerNetwork: React.FC = () => {
       ) : activeView === 'contacts' && contacts.length === 0 ? (
         <div className="rounded-[18px] border border-dashed border-[color:var(--border)] px-4 py-16 text-center text-sm text-[var(--text-secondary)]">
           <UserRound className="mx-auto h-8 w-8 mb-3 opacity-40" />
-          No broker contacts yet. They will appear as WhatsApp group messages are parsed.
+          No broker contacts yet. Add contacts or capture them from approved WhatsApp Business conversations.
         </div>
       ) : activeView === 'contacts' ? (
         <div className="overflow-hidden rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)]">

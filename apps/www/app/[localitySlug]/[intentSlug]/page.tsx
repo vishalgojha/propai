@@ -156,7 +156,7 @@ export default async function Page({ params }: PageProps) {
             {intent.label} in {localityName}
           </h1>
           <p className="text-[15px] leading-7 text-[var(--text-secondary)] max-w-2xl">
-            Live broker inventory from WhatsApp for {localityName}. This page is built for search, AI discovery, and brokers who want the active market view without digging through chat noise.
+            Broker inventory and market context for {localityName}. This page is built for search, AI discovery, and brokers who want an active market view.
           </p>
         </div>
       </section>
@@ -219,7 +219,7 @@ export default async function Page({ params }: PageProps) {
               ) : (
                 <tr>
                   <td className="px-4 py-8 text-center text-[var(--text-secondary)]" colSpan={4}>
-                    This search page is live, but the matching inventory is still being refreshed from WhatsApp.
+                    This search page is live, but matching inventory is still being refreshed.
                   </td>
                 </tr>
               )}
@@ -253,7 +253,7 @@ export default async function Page({ params }: PageProps) {
               ))
             ) : (
               <p className="text-[13px] text-[var(--text-secondary)]">
-                No strong secondary-market records matched this exact search yet. That usually means the query is very specific or the market is still refreshing from WhatsApp.
+                No strong secondary-market records matched this exact search yet. The query may be very specific or the market data may still be refreshing.
               </p>
             )}
           </div>

@@ -8,7 +8,7 @@ import "../src/index.css";
 export const metadata: Metadata = {
   title: "PropAI Pulse | Live Broker-Network Real Estate",
   description:
-    "Access India's direct broker-network property inventory, parsed in real-time from active professional WhatsApp groups with 100% authenticity.",
+    "Discover broker-listed property inventory and market intelligence for India's active real-estate markets.",
   metadataBase: new URL("https://www.propai.live"),
   manifest: "/manifest.webmanifest",
   appleWebApp: {

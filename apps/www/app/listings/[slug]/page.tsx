@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     ].filter(Boolean);
     const description = descriptionBits.length
       ? descriptionBits.join(" · ")
-      : `Direct property listing in ${listing.locality} aggregated from private broker groups with real-time market intelligence.`;
+      : `Broker-listed property in ${listing.locality} with PropAI market intelligence.`;
     return {
       title,
       description,
@@ -88,4 +88,3 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     </>
   );
 }
-

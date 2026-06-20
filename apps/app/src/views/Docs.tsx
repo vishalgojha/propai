@@ -33,15 +33,10 @@ const apiReferenceSections = [
     base: '/api/whatsapp',
     auth: 'Bearer token required',
     endpoints: [
-      { method: 'POST', path: '/connect', note: 'Start QR or pairing-based session connection.' },
       { method: 'GET', path: '/status', note: 'Get live WhatsApp session status and connected numbers.' },
-      { method: 'GET', path: '/qr', note: 'Fetch current QR artifact for a session.' },
-      { method: 'POST', path: '/qr/force-refresh', note: 'Force QR regeneration / reconnect.' },
-      { method: 'POST', path: '/disconnect', note: 'Disconnect a WhatsApp session.' },
+      { method: 'GET', path: '/cloud/config', note: 'Read the official Cloud API configuration.' },
+      { method: 'POST', path: '/cloud/config', note: 'Save official Cloud API configuration.' },
       { method: 'GET', path: '/monitor/messages', note: 'Load thread messages for a chat.' },
-      { method: 'GET', path: '/groups', note: 'List synced WhatsApp groups.' },
-      { method: 'GET', path: '/groups/audit', note: 'Build and fetch group audit recommendations.' },
-      { method: 'POST', path: '/config', note: 'Save parsing, self-chat, and group behavior settings.' },
       { method: 'POST', path: '/send', note: 'Send one direct WhatsApp message.' },
       { method: 'POST', path: '/send-bulk', note: 'Send bulk direct WhatsApp messages.' },
       { method: 'POST', path: '/broadcast', note: 'Broadcast to selected groups using a session.' },
@@ -221,7 +216,7 @@ export const Docs: React.FC = () => {
           <div className="grid min-w-[220px] gap-3 sm:grid-cols-2">
             {[
               ['CRM memory', 'Listings, requirements, callbacks, and follow-up context'],
-              ['Live intake', 'WhatsApp groups, parsed stream items, and health metrics'],
+              ['Live intake', 'WhatsApp Business messages, parsed stream items, and health metrics'],
               ['Web tools', 'Fetch listings, search builders, verify RERA context'],
               ['Actions', 'Send messages, create channels, and prioritize next moves'],
             ].map(([title, copy]) => (
@@ -300,7 +295,7 @@ export const Docs: React.FC = () => {
               'Create a channel for Bandra West rental listings and urgent buyer requirements.',
               'Search my CRM for 2BHK buyer requirements in Powai under 70k.',
               'Extract the structured details from this property URL: <paste link>',
-              'How many WhatsApp groups am I on right now?',
+              'Is my WhatsApp Business Cloud API connected right now?',
               'Show only broker-tagged messages from today in Stream.',
             ].map((prompt) => (
               <div key={prompt} className="rounded-[10px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[11px] leading-5 text-[var(--text-secondary)]">

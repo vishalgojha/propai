@@ -74,7 +74,7 @@ export function getLongTailPageDescription(localityName: string, intent: LongTai
   const demandText = requirementCount > 0
     ? ` and ${requirementCount} active requirement${requirementCount === 1 ? "" : "s"}`
     : "";
-  return `Broker-verified ${intent.label.toLowerCase()} in ${localityName} with ${inventoryText}${demandText}. Updated from WhatsApp inventory and ready for search engines and LLMs.`;
+  return `Broker-listed ${intent.label.toLowerCase()} in ${localityName} with ${inventoryText}${demandText}. Ready for search engines and LLMs.`;
 }
 
 export function getLongTailStaticParams() {
