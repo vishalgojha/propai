@@ -224,23 +224,31 @@ export class AIService {
         const explicitDefault = tenantId ? await getWorkspaceExplicitDefaultModel(tenantId).catch(() => null) : null;
         const explicitPreference = this.normalizeProviderPreference(modelPreference && modelPreference !== 'Auto' ? modelPreference : null);
         const savedPreference = this.normalizeProviderPreference(explicitDefault || savedDefault);
-        const preferred =
-            explicitPreference ||
-            savedPreference ||
-            this.routeByTask(taskType);
-        const order: ProviderId[] = ['Google', 'OpenRouter', 'Doubleword', 'Nvidia'];
+        const taskPreference = this.routeByTask(taskType);
+        const preferred = explicitPreference || savedPreference;
+
+        // Admin tenant uses Nvidia-first chain; regular users use Google-first
+        const isAdmin = tenantId === '796c59fb-5e34-43b9-a4b5-bf1f2c7f9ac0';
+        const defaultOrder: ProviderId[] = isAdmin
+            ? ['Nvidia', 'Doubleword', 'OpenRouter', 'Google']
+            : ['Google', 'OpenRouter', 'Doubleword', 'Nvidia'];
 
         // If the workspace or request explicitly selected a provider, do not silently
         // cascade across unrelated providers. Fallback chaining is only useful in Auto mode.
-        if (explicitPreference && preferred && order.includes(preferred)) {
+        if (explicitPreference && preferred && defaultOrder.includes(preferred)) {
             return [preferred];
         }
 
-        if (preferred && order.includes(preferred)) {
-            return [preferred, ...order.filter((provider) => provider !== preferred)];
+        if (preferred && defaultOrder.includes(preferred)) {
+            return [preferred, ...defaultOrder.filter((provider) => provider !== preferred)];
         }
 
-        return order;
+        // Task-level routing (e.g. listing_parsing → Google) only applies when no user preference set
+        if (taskPreference && defaultOrder.includes(taskPreference)) {
+            return [taskPreference, ...defaultOrder.filter((provider) => provider !== taskPreference)];
+        }
+
+        return defaultOrder;
     }
 
     private formatFallbackError(errors: ProviderError[]): string {
@@ -536,10 +544,13 @@ export class AIService {
         const hasOpenRouter = Boolean(tenantOpenRouterKey || process.env.OPENROUTER_API_KEY);
         const hasDoubleword = Boolean(tenantDoublewordKey || process.env.DOUBLEWORD_API_KEY);
         const hasNvidia = Boolean(tenantNvidiaKey || process.env.NVIDIA_API_KEY);
+        const isAdmin = tenantId === '796c59fb-5e34-43b9-a4b5-bf1f2c7f9ac0';
+        const providerOrder: ProviderId[] = isAdmin
+            ? ['Nvidia', 'Doubleword', 'OpenRouter', 'Google']
+            : ['Google', 'OpenRouter', 'Doubleword', 'Nvidia'];
         const preferred =
             this.normalizeProviderPreference(explicitDefault || savedDefault) ||
-            'Google';
-        const providerOrder: ProviderId[] = ['Google', 'OpenRouter', 'Doubleword', 'Nvidia'];
+            (isAdmin ? 'Nvidia' : 'Google');
         const orderedProviders = preferred && providerOrder.includes(preferred)
             ? [preferred, ...providerOrder.filter((provider) => provider !== preferred)]
             : providerOrder;
