@@ -1325,18 +1325,18 @@ if (brokerOnly) {
       network_mode: streamNetworkMode,
     };
     const scopeLabel = activeChannel
-      ? `${formatChannelTitle(activeChannel.name)} parsed feed`
+      ? `${formatChannelTitle(activeChannel.name)} routed feed`
       : streamNetworkMode
-        ? 'Shared parsed feed'
-        : 'Workspace parsed feed';
+        ? 'Shared workspace feed'
+        : 'Workspace feed';
 
     return [
-      { label: 'Parsed last 15 min', value: summary.fifteenMinutes, hint: scopeLabel },
-      { label: 'Parsed last 1 hour', value: summary.oneHour, hint: scopeLabel },
-      { label: 'Parsed last 4 hours', value: summary.fourHours, hint: scopeLabel },
-      { label: 'Parsed last 1 day', value: summary.oneDay, hint: scopeLabel },
-      { label: 'Parsed last 7 days', value: summary.sevenDays, hint: scopeLabel },
-      { label: 'Parsed all time', value: summary.allTime, hint: scopeLabel },
+      { label: 'Received last 15 min', value: summary.fifteenMinutes, hint: scopeLabel },
+      { label: 'Received last 1 hour', value: summary.oneHour, hint: scopeLabel },
+      { label: 'Received last 4 hours', value: summary.fourHours, hint: scopeLabel },
+      { label: 'Received last 1 day', value: summary.oneDay, hint: scopeLabel },
+      { label: 'Received last 7 days', value: summary.sevenDays, hint: scopeLabel },
+      { label: 'Received all time', value: summary.allTime, hint: scopeLabel },
     ];
   }, [activeChannel, streamNetworkMode, visibleStream, computeMinutes, streamSummary]);
 
@@ -1347,7 +1347,7 @@ if (brokerOnly) {
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--amber)]">Stream locked</p>
           <h2 className="mt-2 text-[24px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Upgrade to view the feed</h2>
           <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-            Free and trial accounts can use the workspace, but the live stream, summaries, and parsed inventory feed are restricted to Starter and Pro plans.
+            Free and trial accounts can use the workspace, but the live stream, summaries, and routed inventory feed are restricted to Starter and Pro plans.
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <button
@@ -1373,7 +1373,7 @@ if (brokerOnly) {
               Shared feed for listings, requirements, and follow-up signals
             </h2>
             <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-              This view is the shared working surface for parsed inventory and buyer demand. Review fresh items,
+              This view is the shared working surface for broker-posted listings and buyer demand. Review fresh items,
               filter by quality and type, route the right records into channels, and act on high-signal entries first.
             </p>
             <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
@@ -1778,7 +1778,7 @@ if (brokerOnly) {
             </div>
           ) : renderedStream.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-[var(--text-secondary)]">
-              No parsed inventory or buyer records are available yet.
+              No broker-posted inventory or buyer records are available yet.
             </div>
           ) : (
             <>
@@ -2257,7 +2257,7 @@ if (brokerOnly) {
         <div ref={sentinelRef} className="px-6 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
           {hasMore
             ? `${renderedStream.length} of ${visibleStream.length} loaded. More items appear as you scroll.`
-            : `Showing latest ${renderedStream.length.toLocaleString('en-IN')} parsed items`}
+            : `Showing latest ${renderedStream.length.toLocaleString('en-IN')} items`}
         </div>
       </div>
       {showScrollTop && (
