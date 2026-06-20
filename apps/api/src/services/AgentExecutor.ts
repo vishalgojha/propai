@@ -126,7 +126,7 @@ export class AgentExecutor {
                     brokerProfile?.full_name
                     && !remoteJid.endsWith('@g.us')
                     && brokerProfile.phone
-                    && brokerProfile.phone === conversationKey
+                    && normalizeComparablePhone(brokerProfile.phone) === normalizeComparablePhone(remoteJid)
                 );
                 shouldUseUnifiedBrokerFlow = true;
             } else {
@@ -146,15 +146,21 @@ export class AgentExecutor {
                 }
             }
         } else {
-            // Original flow for broker's own sessions
-            brokerProfile = await getUnifiedBrokerProfile(tenantId);
+            // WABA / non-assistant session — resolve sender by phone
+            const brokerResolution = await this.resolveBrokerWorkspaceBySender(remoteJid);
+            if (brokerResolution.isBroker && brokerResolution.verified && brokerResolution.tenantId) {
+                effectiveTenantId = brokerResolution.tenantId;
+                brokerProfile = await getUnifiedBrokerProfile(effectiveTenantId);
+            } else {
+                brokerProfile = await getUnifiedBrokerProfile(tenantId);
+            }
+            brokerFullName = brokerProfile?.full_name || undefined;
             shouldGreetBrokerByName = Boolean(
                 brokerProfile?.full_name
                 && !remoteJid.endsWith('@g.us')
                 && brokerProfile.phone
-                && brokerProfile.phone === conversationKey
+                && normalizeComparablePhone(brokerProfile.phone) === normalizeComparablePhone(remoteJid)
             );
-            brokerFullName = brokerProfile?.full_name;
             shouldUseUnifiedBrokerFlow = true;
         }
 

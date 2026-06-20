@@ -743,12 +743,20 @@ export class WhatsAppCloudApiService {
     private async resolveTenantFromPhone(phone: string): Promise<string | null> {
         const normalized = normalizeDigits(phone);
         if (!normalized) return null;
-        const { data } = await supabaseAdmin!
+        // Check broker_contacts first (activation-code linked)
+        const { data: bc } = await supabaseAdmin!
             .from('broker_contacts')
             .select('tenant_id')
             .eq('phone', normalized)
             .maybeSingle();
-        return data?.tenant_id || null;
+        if (bc?.tenant_id) return bc.tenant_id;
+        // Fall back to profiles (registered users)
+        const { data: profile } = await supabaseAdmin!
+            .from('profiles')
+            .select('id')
+            .or(`phone.eq.${normalized},phone.eq.+${normalized}`)
+            .maybeSingle();
+        return profile?.id || null;
     }
 
     async sendTextMessage(input: {
