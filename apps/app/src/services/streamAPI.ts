@@ -3,6 +3,7 @@ import { ENDPOINTS } from './endpoints';
 
 export interface StreamItem {
   id: string;
+  refNo?: string;
   type: 'Rent' | 'Sale' | 'Requirement' | 'Pre-leased' | 'Lease';
   title?: string;
   location: string;

@@ -144,21 +144,6 @@ const CAPABILITIES: PulseCapability[] = [
     hint: 'You can paste a listing URL and I will extract structured property details.',
   },
   {
-    key: 'igr',
-    promptBullet: 'pull IGR transaction and locality registration stats',
-    answerLine: 'Pull latest IGR transaction and locality registration stats.',
-    routerIntent: 'igr_last_transaction',
-    routerLine: '- igr_last_transaction: broker wants the latest IGR / registration transaction for a building or locality',
-    hint: 'You can ask for the latest IGR transaction or locality registration stats using building plus locality.',
-  },
-  {
-    key: 'igr_locality_stats',
-    promptBullet: 'pull locality-level IGR pricing stats and recent registration averages',
-    answerLine: 'Pull locality-level IGR pricing stats and recent registration averages.',
-    routerIntent: 'igr_locality_stats',
-    routerLine: '- igr_locality_stats: broker wants locality-level IGR pricing stats or recent registration averages',
-  },
-  {
     key: 'runtime_status',
     promptBullet: 'answer product, runtime, privacy, and support questions clearly without pretending',
     answerLine: 'Check live runtime status like active model, WhatsApp connection, linked number, groups, and web-tool availability.',

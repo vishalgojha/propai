@@ -71,6 +71,12 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
 - **Added WABA typing indicator + admin phone detection** — Typing indicator via Meta Cloud API before processing messages. `OWNER_SUPER_ADMIN_PHONES` set with `9820056180` and `7021045254`. `isOwnerSuperAdminPhone()` for admin detection.
 - **Added PropAI founder context to system prompt** — Vishal Ojha as founder, super admin numbers, website/email info in Pulse prompt.
 - **Removed IGR standalone page** — `/igr` route, view, and API service deleted. IGR transaction display preserved on listing cards.
+- **Added WABA image upload support** — `extractText()` includes captions for image/video/document media. New helpers: `getMediaInfo()`, `getMediaDownloadUrl()`, `downloadMediaBuffer()`, `ensureMediaBucket()`, `storeIncomingMedia()` download from Meta API → upload to Supabase `waba-media` bucket → create `workspace_files` record.
+- **Added image collection flow to Pulse prompt** — `pulseChatPrompt.ts` updated: Pulse offers to collect photos after parsing a listing, guides user to send photos, says "done" when finished, acknowledges each photo.
+- **Fixed www BHK duplicate** — `ListingCard.tsx` removed `features.push(configurationLabel)` (BHK was rendered twice).
+- **Fixed www price overflow** — `format.ts` added sanity caps: rent > ₹10Cr or sale > ₹1000Cr returns "Price on Request".
+- **Added WhatsApp activation-code linking flow** — New DB table `whatsapp_activation_codes`, `activationCodeService.ts` (generate/validate/activate/link), webhook detects `PROP-XXXXXXXX` codes and short-circuits to activation, 24-hour window check in `sendTextMessage()`, API route `POST /api/whatsapp/cloud/activation-code`.
+- **Added ref_no (visible ID) for listings/requirements** — Migration `20260621000001_add_ref_no.sql`: sequences `listing_ref_seq`/`requirement_ref_seq`, `ref_no text` column on child tables + parent + `public_listings`, before-insert trigger auto-generates `L-0001`/`R-0001` format, updated `sync_stream_item_to_parent()` function, backfill for existing records. www: `PublicListing.ref_no`, shown in `ListingCard`/`ListingDetail`. App: `StreamItem.refNo`, shown in `ListingCard`. Pulse prompt updated to include ref_no in match replies.
 
 ### Current Remote State
 

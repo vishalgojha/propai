@@ -38,7 +38,6 @@ const NAV_ITEMS = [
   { label: 'Inbox', path: '/inbox', icon: InboxIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'Intelligence', path: '/intelligence', icon: ActivityIcon },
-  { label: 'IGR', path: '/igr', icon: MapPinIcon },
   { label: 'Parsing Terminal', path: '/parsing-terminal', icon: TerminalIcon },
   { label: 'WhatsApp Business', path: '/whatsapp/setup', icon: GroupsIcon },
   { label: 'Broker Network', path: '/broker-network/contacts', icon: UsersIcon },

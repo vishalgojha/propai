@@ -22,7 +22,6 @@ import whatsappPresenceRoutes from './routes/whatsappPresenceRoutes';
 import brokerContactRoutes from './routes/brokerContactRoutes';
 import syndicationRoutes from './routes/syndicationRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
-import igrRoutes from './routes/igrRoutes';
 import locationRoutes from './routes/locationRoutes';
 import whatsappCloudRoutes from './routes/whatsappCloudRoutes';
 import wabaRoutes from './routes/wabaRoutes';
@@ -272,7 +271,6 @@ app.use(ROUTE_PATHS.api.brokerContacts, authMiddleware, brokerContactRoutes);
 app.use(ROUTE_PATHS.api.syndication, authMiddleware, syndicationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.post('/api/backfill-embeddings', backfillEmbeddings);
-app.use('/api/igr', igrRoutes);
 app.use('/api/location', locationRoutes);
 app.use('/api/waba', wabaRoutes);
 

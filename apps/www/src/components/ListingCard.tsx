@@ -49,14 +49,21 @@ export default function ListingCard({ listing }: ListingCardProps) {
                   <span>{listing.locality}</span>
                 </div>
               </div>
-              <span className={cn(
-                "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.1em] backdrop-blur-md",
-                listing.type === 'Rent' ? "bg-[var(--propai-green)]/10 text-[var(--propai-green)]" : 
-                listing.type === 'Sale' ? "bg-amber-500/10 text-amber-500" :
-                "bg-blue-500/10 text-blue-400"
-              )}>
-                {listing.type}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.1em] backdrop-blur-md",
+                  listing.type === 'Rent' ? "bg-[var(--propai-green)]/10 text-[var(--propai-green)]" : 
+                  listing.type === 'Sale' ? "bg-amber-500/10 text-amber-500" :
+                  "bg-blue-500/10 text-blue-400"
+                )}>
+                  {listing.type}
+                </span>
+                {listing.ref_no && (
+                  <span className="px-2.5 py-1 rounded-full bg-[var(--bg-elevated)]/60 text-[10px] font-mono font-bold text-[var(--text-muted)]">
+                    {listing.ref_no}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Short Description */}

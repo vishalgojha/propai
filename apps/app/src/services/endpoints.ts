@@ -116,11 +116,6 @@ export const ENDPOINTS = {
     listing: (id: string) => `/wa-click/listing/${encodeURIComponent(id)}`,
     export: '/wa-click/export',
   },
-  igr: {
-    search: '/igr/search',
-    fetch: '/igr/fetch',
-    buildingNames: '/igr/building-names',
-  },
   properties: {
     search: (query: string) => `/properties/search?q=${encodeURIComponent(query)}`,
   },

@@ -216,6 +216,11 @@ export default function ListingDetail({
           <span className="inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-glow)] px-3 py-1 text-[var(--accent)]">
             {listing.type}
           </span>
+          {listing.ref_no && (
+            <span className="inline-flex items-center rounded-full bg-[var(--bg-elevated)]/85 px-3 py-1 font-mono text-[var(--text-muted)]">
+              {listing.ref_no}
+            </span>
+          )}
           <span className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-elevated)]/85 px-3 py-1 text-[var(--text-secondary)]">
             <Clock className="h-3 w-3 text-[var(--accent)]" />
             {formatDistanceToNow(new Date(listing.created_at))} ago

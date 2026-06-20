@@ -437,6 +437,11 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                     : listing.ingestionStatus}
                             </span>
                         ) : null}
+                        {listing.refNo ? (
+                            <span className="inline-flex items-center rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1 text-[9px] font-mono font-bold text-[var(--text-muted)]">
+                                {listing.refNo}
+                            </span>
+                        ) : null}
                         <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-semibold text-[var(--text-secondary)]">
                             <MapPin className="h-3 w-3 text-[var(--accent)]" />
                             {listing.location || 'Mumbai market'}

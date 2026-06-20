@@ -6,6 +6,7 @@ import { channelService } from './channelService';
 import { agentExecutor } from './AgentExecutor';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { isOwnerSuperAdminPhone } from '../utils/controllerHelpers';
+import { activationCodeService } from './activationCodeService';
 
 const db = supabaseAdmin || supabase;
 const SESSION_LABEL = 'Official API';
@@ -432,6 +433,32 @@ export class WhatsAppCloudApiService {
                         },
                     ).catch(() => undefined);
 
+                    // --- Activation code detection ---
+                    if (activationCodeService.isActivationCode(text)) {
+                        const code = text.trim().toUpperCase();
+                        const codeRow = await activationCodeService.validateCode(code);
+                        if (codeRow) {
+                            await activationCodeService.activateCode(code, normalizeDigits(remoteJid));
+                            await activationCodeService.linkBrokerPhone(codeRow.tenant_id, normalizeDigits(remoteJid));
+                            await this.sendTextMessage({
+                                tenantId,
+                                phoneNumberId,
+                                to: remoteJid,
+                                text: '✅ *WhatsApp Activation Successful!*\n\nYour WhatsApp number has been linked to your PropAI account. You can now send listings and requirements directly to Pulse.',
+                            });
+                        } else {
+                            await this.sendTextMessage({
+                                tenantId,
+                                phoneNumberId,
+                                to: remoteJid,
+                                text: '❌ *Activation Failed*\n\nThe code you sent is invalid or expired. Please generate a new activation code from the PropAI web app.',
+                            });
+                        }
+                        processed += 1;
+                        continue;
+                    }
+                    // --- end activation code detection ---
+
                     const ingestedCount = await channelService.ingestMessage(tenantId, {
                         id: messageId,
                         session_label: sessionLabel,
@@ -696,9 +723,26 @@ export class WhatsAppCloudApiService {
             throw new Error('WhatsApp Cloud access token is not configured');
         }
 
+        // 24-hour customer-care window check
+        const normalizedTo = normalizeDigits(input.to);
+        const remoteJid = `${normalizedTo}@s.whatsapp.net`;
+        const { data: thread } = await supabaseAdmin!
+            .from('whatsapp_threads')
+            .select('last_inbound_at')
+            .eq('remote_jid', remoteJid)
+            .order('last_inbound_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (thread?.last_inbound_at) {
+            const hoursSinceInbound = (Date.now() - new Date(thread.last_inbound_at).getTime()) / 3_600_000;
+            if (hoursSinceInbound > 24) {
+                throw new Error('24-hour customer care window has expired. Use a message template to send outbound messages.');
+            }
+        }
+
         const payload: Record<string, unknown> = {
             messaging_product: 'whatsapp',
-            to: normalizeDigits(input.to),
+            to: normalizedTo,
             type: 'text',
             text: { body: String(input.text || '') },
         };

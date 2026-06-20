@@ -64,7 +64,7 @@ const STANDARD_LOCALITIES = new Set([
 
 type PublicStreamSource = "stream_items" | "stream_items_residential" | "stream_items_commercial";
 
-const PUBLIC_STREAM_SELECT = "id, tenant_id, canonical_record_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, updated_at, parsed_payload, property_category, asset_class, broker_wa_me_links";
+const PUBLIC_STREAM_SELECT = "id, ref_no, tenant_id, canonical_record_id, type, deal_type, record_type, locality, city, bhk, area_sqft, price_label, price_numeric, confidence_score, source_phone, raw_text, created_at, updated_at, parsed_payload, property_category, asset_class, broker_wa_me_links";
 const PUBLIC_SOURCE_TABLES: Array<{ table: PublicStreamSource; select: string; includeCanonical: boolean }> = [
   { table: "stream_items_residential", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", ""), includeCanonical: false },
   { table: "stream_items_commercial", select: PUBLIC_STREAM_SELECT.replace(", canonical_record_id", "").replace(", updated_at", "").replace(", bhk", ""), includeCanonical: false },
@@ -108,6 +108,7 @@ function setCached<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T, 
 
 export interface PublicListing {
   id: string;
+  ref_no?: string;
   title: string;
   price: number;
   locality: string;
@@ -552,6 +553,7 @@ function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; 
 
   return {
     id: row.id,
+    ref_no: row.ref_no || undefined,
     title,
     price: priceAmount || 0,
     locality,
@@ -639,6 +641,7 @@ function normalizeStreamListing(
 
   return {
     id: row.id,
+    ref_no: row.ref_no || undefined,
     title,
     price: priceAmount || 0,
     locality,
