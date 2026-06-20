@@ -387,17 +387,11 @@ let server: ReturnType<typeof app.listen> | null = null;
 async function gracefulShutdown(signal: string) {
     console.log(`[${signal}] Graceful shutdown initiated...`);
 
-    if (shouldRunWhatsAppRuntime(PROCESS_ROLE)) {
-        await whatsappRuntime.stop();
-    }
-
-    if (shouldRunApiSurface(PROCESS_ROLE)) {
-        try {
-            backgroundJobService.stop();
-            console.log('[shutdown] Background workers stopped.');
-        } catch (error) {
-            console.error('[shutdown] Error stopping background workers:', error);
-        }
+    try {
+        backgroundJobService.stop();
+        console.log('[shutdown] Background workers stopped.');
+    } catch (error) {
+        console.error('[shutdown] Error stopping background workers:', error);
     }
 
     // Close HTTP server
@@ -424,13 +418,7 @@ server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT} (role=${PROCESS_ROLE})`);
 
     void (async () => {
-        if (shouldRunWhatsAppRuntime(PROCESS_ROLE)) {
-            await whatsappRuntime.start();
-        }
-
-        if (shouldRunApiSurface(PROCESS_ROLE)) {
-            backgroundJobService.start();
-        }
+        backgroundJobService.start();
 
         console.log('[startup] All initialization complete.');
     })();
