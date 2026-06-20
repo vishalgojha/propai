@@ -31,8 +31,8 @@ import { AuthCard } from '../components/ui/AuthCard';
 const capabilities = [
   {
     icon: MessageSquareTextIcon,
-    title: 'WhatsApp intake',
-    copy: 'Keep group messages in one place.',
+    title: 'WhatsApp Business',
+    copy: 'Connect your official WhatsApp Business account through Cloud API.',
   },
   {
     icon: WorkflowIcon,
@@ -54,7 +54,7 @@ const capabilities = [
 const proofPoints = [
   { label: 'Setup', value: '<5 min' },
   { label: 'Workflows', value: '8+' },
-  { label: 'Device', value: '1 per account' },
+  { label: 'Integration', value: 'Cloud API' },
 ];
 
 const OWNER_SUPER_ADMIN_EMAILS = new Set([
@@ -387,7 +387,7 @@ export const Login: React.FC = () => {
                 <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Session active</p>
                 <p className="text-[12px] text-[var(--text-primary)]">{user.email}</p>
                 <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
-                  This device already has an active session.
+                  This browser already has an active session.
                 </p>
               </div>
               <button
