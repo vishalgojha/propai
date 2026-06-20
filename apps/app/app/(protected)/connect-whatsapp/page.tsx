@@ -1,7 +1,5 @@
-"use client";
-
-import { ConnectWhatsApp } from "@/pages/ConnectWhatsApp";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <ConnectWhatsApp />;
+  redirect("/whatsapp/setup");
 }

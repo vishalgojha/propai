@@ -5,10 +5,10 @@
 PropAI Pulse is an AI-powered real estate platform for Indian brokers. It ingests WhatsApp group messages, parses them into structured property listings/requirements, enriches them with market data, and exposes the result through a dashboard, public feed, and MCP tools for AI assistants.
 
 ```
-WhatsApp Groups → Baileys → Parse → Enrich → Canonicalize → Publish
-                                                              ├── Broker Dashboard (app.propai.live)
-                                                              ├── Public Feed (propai.live)
-                                                              └── MCP Tools (AI assistants)
+Meta WhatsApp Cloud API → Webhook → Parse → Enrich → Canonicalize → Publish
+                                                                  ├── Broker Dashboard (app.propai.live)
+                                                                  ├── Public Feed (propai.live)
+                                                                  └── MCP Tools (AI assistants)
 ```
 
 ## Services
@@ -86,38 +86,13 @@ Each message segment is parsed by `channelService.ts` to extract:
 
 ## WhatsApp Runtime
 
-### Session Architecture
+### Cloud API Architecture
 
-```
-SessionManager (singleton)
-  ├── Map<"tenantId:label", WhatsAppClient>
-  ├── getSession() / createSession() / removeSession()
-  └── rehydratePersistedSessions() — on startup, resume all DB-persisted sessions
+1. A broker connects a WABA account through Meta Embedded Signup.
+2. The API exchanges and stores the account credentials, then Meta posts events to `POST /api/whatsapp/cloud/webhook`.
+3. The webhook persists inbound messages and sends agent replies through the official Cloud API.
 
-WhatsAppClient (per session)
-  ├── makeWASocket() — Baileys WebSocket
-  ├── connect() — QR or pairing code auth
-  ├── connection.update handler — open/close/reconnect
-  ├── messages.upsert handler — inbound messages
-  └── CircuitBreaker — prevents reconnect storms
-```
-
-### Process Modes
-
-Controlled by `PROPAI_PROCESS_ROLE`:
-- **`all`** (default): API server + WhatsApp runtime in one process
-- **`api`**: API surface only, no Baileys (for separate worker deployment)
-- **`whatsapp`**: WhatsApp runtime only, no API (dedicated worker)
-
-### Connection Lifecycle
-
-1. **Initiation**: User provides phone number via UI → `POST /api/whatsapp/connect`
-2. **Auth**: QR code (desktop) or pairing code (mobile) generated
-3. **Linked**: User links via WhatsApp mobile app
-4. **Connected**: Socket opens, history sync begins, groups registered
-5. **Reconnection**: Automatic with exponential backoff (10 attempts, 1s → 18s)
-6. **Conflict**: If replaced by another device → blocked from auto-reconnect
-7. **Stall detection**: If no inbound messages for threshold → push notification alert
+`CLOUD_API_WEBHOOK_ENABLED` must be set only after the intended WABA number and webhook are configured in Meta.
 
 ---
 
@@ -181,7 +156,7 @@ Auth: Bearer token (JWT or static API key) or OAuth 2.0 with PKCE.
 
 ## Key Tech Decisions
 
-- **Baileys** (`@whiskeysockets/baileys`) for WhatsApp WebJS — not Meta Cloud API (except WABA Embedded Signup)
+- **Meta WhatsApp Cloud API** for the official WhatsApp Business Platform integration
 - **Supabase** for auth, DB, realtime, storage — no separate backend for auth
 - **PostgREST** for some DB queries via Supabase JS client
 - **Tailwind CSS v4** throughout all frontend apps

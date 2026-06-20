@@ -543,48 +543,6 @@ export const Layout: React.FC = () => {
                 {officialApiPhone || (officialApiSession ? officialApiStatus : 'Not saved')}
               </span>
             </div>
-            <div className="flex min-w-0 items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1">
-              <span className={linkedDeviceStatus === 'connected' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : linkedDeviceStatus === 'connecting' || linkedDeviceStatus === 'reconnecting' ? 'h-2 w-2 rounded-full bg-[var(--amber)]' : 'h-2 w-2 rounded-full bg-[var(--red)]'} />
-              <span className="hidden text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)] sm:inline">Linked device</span>
-              {connectedLinkedDeviceSessions.length > 1 ? (
-                <select
-                  value={selectedLinkedDeviceSession?.label || ''}
-                  onChange={(event) => syncSelectedSession(event.target.value || null)}
-                  className="max-w-[42vw] rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] outline-none sm:max-w-[180px]"
-                >
-                  {connectedLinkedDeviceSessions.map((session) => (
-                    <option key={session.label} value={session.label}>
-                      {formatHeaderPhone(session.phoneNumber) || session.ownerName || session.label}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <span className="max-w-[32vw] truncate text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] sm:max-w-[160px]">
-                  {formatHeaderPhone(selectedLinkedDeviceSession?.phoneNumber) || selectedLinkedDeviceSession?.ownerName || (connectedLinkedDeviceSessions.length > 0 ? `${connectedLinkedDeviceSessions.length} linked` : 'None')}
-                </span>
-              )}
-            </div>
-            {selectedLinkedDeviceSession?.status === 'connected' ? (
-              <button
-                type="button"
-                onClick={() => void handleDisconnectSelectedSession()}
-                disabled={isDisconnectingSession}
-                className="inline-flex items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)] transition-colors hover:text-[var(--red)] disabled:opacity-50"
-              >
-                <PowerIcon className="h-3.5 w-3.5" />
-                {isDisconnectingSession ? 'Disconnecting' : 'Disconnect'}
-              </button>
-            ) : selectedLinkedDeviceSession ? (
-              <button
-                type="button"
-                onClick={() => void handleReconnectSelectedSession()}
-                disabled={isReconnectingSession}
-                className="inline-flex items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07] transition-colors hover:brightness-95 disabled:opacity-50"
-              >
-                <PowerIcon className="h-3.5 w-3.5" />
-                {isReconnectingSession ? 'Starting fresh' : 'Start fresh'}
-              </button>
-            ) : null}
             <button
               type="button"
               onClick={startTour}

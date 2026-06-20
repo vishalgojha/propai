@@ -3,7 +3,7 @@
 PropAI Pulse is a high-performance workspace for real estate brokers to automate WhatsApp lead capture, listing parsing, and client qualification.
 
 ## Monorepo Structure
-- `apps/api`: Node.js + Express + Baileys (the backend intelligence engine)
+- `apps/api`: Node.js + Express (the backend intelligence engine)
 - `apps/app`: React + Vite + Framer Motion (the inbox workspace)
 - `apps/www`: Next.js 14 public marketing + listings site
 - `packages/agent`: Extension and agent UI/tooling
@@ -20,7 +20,6 @@ PropAI Pulse is a high-performance workspace for real estate brokers to automate
    - Build context: `/` (repo root)
    - Port: `3001`
    - Add all env vars from `apps/api/.env.example` via Coolify UI
-   - Keep `ENABLE_SYSTEM_WHATSAPP_SESSION=false` unless you explicitly want the legacy global verification session to auto-start
 3. Add Service 2 - Frontend:
    - Type: Dockerfile
    - Repo: this repo

@@ -24,28 +24,18 @@ System-level docs written for successor handoff. Read these before making change
 
 | Code Changed | Redeploy Service(s) | Coolify Name | Coolify UUID |
 |-------------|-------------------|--------------|--------------|
-| `apps/api/**` | **API** + **WhatsApp Worker** | `propai api` | `k12r72fxjn4dz0p5vo3uwrkq` |
-| | (both use same Dockerfile) | `propai whatsapp worker` | `y33718hsvleeozw3m2mz2dl5` |
+| `apps/api/**` | **API** | `propai api` | `k12r72fxjn4dz0p5vo3uwrkq` |
 | `apps/app/**` | App | `propai pulse` | `lburg4buwnc94z9hpx0walg5` |
 | `apps/www/**` | WWW | `propai:web` | `x37zz4949pttnobai5ov9q3p` |
 | `apps/mcp/**` | MCP | `propaiMCP` | `agr47ygipjbqgnyuw9pl5fc8` |
 | `packages/**` | All that depend on it | — | — |
 
-## Architecture: Split WhatsApp Runtime
+## Architecture: WhatsApp Cloud API
 
-The API (`apps/api`) is deployed as **two separate Coolify services** sharing the same Dockerfile but with different entrypoints and `PROPAI_PROCESS_ROLE`:
+PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API service receives webhooks and sends replies through Cloud API; it does not run a Baileys socket or a linked-device worker.
 
-1. **`propai api`** — `PROPAI_PROCESS_ROLE=api` → Express HTTP server only (no Baileys). Handles REST API, serves the frontend.
-2. **`propai whatsapp worker`** — `PROPAI_PROCESS_ROLE=whatsapp` → `node dist/whatsapp-worker.js` (Baileys only, no HTTP server). Handles WebSocket connections to WhatsApp, session management, message ingestion.
-
-Both share the same Supabase database. The API writes connection artifacts (QR, pairing code, session data) to DB; the worker picks them up and runs Baileys. This is why `apps/api` changes always need **both services redeployed**.
-
-## Critical Single-Session Rule
-
-- Only ONE Baileys socket per WhatsApp number may exist at any time.
-- The WhatsApp **worker** service (`propai whatsapp worker`) is the single owner of live Baileys/linked-device sessions.
-- Do not add, run, revive, or deploy a second Baileys socket for the same WhatsApp number from any surface (including `PROPAI_PROCESS_ROLE=all` on any service).
-- Multiple session owners cause WhatsApp `conflict type="replaced"` disconnects.
+- Keep `CLOUD_API_WEBHOOK_ENABLED=false` until the intended WABA number has been onboarded, verified, and its Meta webhook is configured.
+- Do not run, revive, or deploy a linked-device/Baileys runtime for a WABA number.
 
 ## PropAI Status Handoff
 
@@ -57,7 +47,7 @@ Both share the same Supabase database. The API writes connection artifacts (QR, 
 ### Pending Actions
 
 - **propai-gras fix**: Live IGR fetch (`/api/igr/fetch`) times out on government portal (`igrmaharashtra.gov.in`). Needs Camoufox-based browser navigation instead of direct HTTP fetch. Full prompt at `.agents/prompts/propai-gras.md`.
-- **official-whatsapp-cloud-migration**: Retire/delete the current linked-device WhatsApp number before onboarding the official Meta Cloud API number. Do not migrate Cloud API onto the same live Baileys owner session.
+- **official-whatsapp-cloud-migration**: Onboard and verify the WABA number, configure the Meta webhook, then enable `CLOUD_API_WEBHOOK_ENABLED`.
 
 ### Backfill Status
 

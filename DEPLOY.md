@@ -17,8 +17,7 @@
 
 | Service | Directory | Port | Dockerfile | Domain | Type |
 |---------|-----------|------|------------|--------|------|
-| **API** | `apps/api` | 3001 | `apps/api/Dockerfile` | api.propai.live | Express backend (REST API only, `PROPAI_PROCESS_ROLE=api`) |
-| **WhatsApp Worker** | `apps/api` | — | `apps/api/Dockerfile` | — | Baileys runtime only (`PROPAI_PROCESS_ROLE=whatsapp`, entrypoint: `node dist/whatsapp-worker.js`) |
+| **API** | `apps/api` | 3001 | `apps/api/Dockerfile` | api.propai.live | Express backend and WhatsApp Cloud API webhook |
 | **App** | `apps/app` | 3000 | `apps/app/Dockerfile` | app.propai.live | Next.js dashboard |
 | **WWW** | `apps/www` | 3002 | `apps/www/Dockerfile` | www.propai.live | Next.js public site |
 | **MCP** | `apps/mcp` | 3003 | `apps/mcp/Dockerfile` | mcp.propai.live | Express MCP server |
@@ -38,8 +37,6 @@ All Dockerfiles use the repo root as build context.
 | `SUPABASE_ANON_KEY` | Yes | — | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | — | Service role key (bypasses RLS) |
 | `JWT_SECRET` | Yes | — | Auth token secret |
-| `ENABLE_SYSTEM_WHATSAPP_SESSION` | No | `false` | Auto-start legacy global session |
-| `PROPAI_PROCESS_ROLE` | No | `all` | `all` / `api` / `whatsapp` |
 | | | | |
 | **LLM Providers** | | | |
 | `GROQ_API_KEY` | Yes* | — | Primary LLM (recommended primary) |
@@ -79,6 +76,7 @@ All Dockerfiles use the repo root as build context.
 | `KAGGLE_API_KEY` | No | — | — |
 | `META_APP_ID` | No | — | Meta App ID for WABA token exchange |
 | `META_APP_SECRET` | No | — | Meta App Secret for WABA token exchange |
+| `CLOUD_API_WEBHOOK_ENABLED` | No | unset (disabled) | Enables processing of incoming Meta Cloud API webhooks |
 
 \* At least one LLM provider key required.
 
@@ -145,7 +143,7 @@ Then trigger a manual redeploy in Coolify for each affected service, OR visit th
 
 | Code Changed | Redeploy |
 |-------------|----------|
-| `apps/api/**` | **API** + **WhatsApp Worker** (both use same Dockerfile) |
+| `apps/api/**` | **API** |
 | `apps/app/**` | App |
 | `apps/www/**` | WWW |
 | `apps/mcp/**` | MCP |

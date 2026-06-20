@@ -32,19 +32,11 @@ import path from 'path';
 import { errorHandler } from './middleware/errorMiddleware';
 import { authMiddleware } from './middleware/authMiddleware';
 import { ROUTE_PATHS } from './routes/routePaths';
-import { resolveProcessRole, shouldRunApiSurface, shouldRunWhatsAppRuntime } from './runtime/processRole';
-import { createWhatsAppRuntimeService } from './runtime/whatsappRuntimeService';
 import { backgroundJobService } from './runtime/backgroundJobService';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const ENABLE_SYSTEM_WHATSAPP_SESSION = process.env.ENABLE_SYSTEM_WHATSAPP_SESSION === 'true';
-const PROCESS_ROLE = resolveProcessRole(process.env.PROPAI_PROCESS_ROLE);
-const STARTUP_TIMEOUT_MS = Number(process.env.WHATSAPP_RUNTIME_STARTUP_TIMEOUT_MS || 60_000);
-const whatsappRuntime = createWhatsAppRuntimeService({
-    enableSystemSession: ENABLE_SYSTEM_WHATSAPP_SESSION,
-    startupTimeoutMs: STARTUP_TIMEOUT_MS,
-});
+const PROCESS_ROLE = 'cloud_api';
 const corsOptions = {
     origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
         if (!origin) {

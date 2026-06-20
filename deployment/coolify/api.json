@@ -7,7 +7,6 @@
   },
     "environment": {
     "PORT": "3001",
-    "ENABLE_SYSTEM_WHATSAPP_SESSION": "false",
     "CAMOFOX_URL": "http://camofox:9377",
     "GOOGLE_MODEL": "gemini-2.5-flash",
     "GROQ_BASE_URL": "https://api.groq.com/openai/v1",

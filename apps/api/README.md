@@ -5,8 +5,7 @@ Express server (port 3001) — backend for PropAI Pulse.
 ## Quick Start
 
 ```bash
-pnpm dev            # Full server + WhatsApp runtime
-pnpm dev:whatsapp-worker  # WhatsApp-only worker
+pnpm dev            # API server + Cloud API webhook
 pnpm build          # Compile TypeScript
 pnpm start          # Run compiled JS
 pnpm test:run       # Run tests
@@ -16,9 +15,7 @@ pnpm test:run       # Run tests
 
 | File | Purpose |
 |------|---------|
-| `src/index.ts` | Main server — Express app + WhatsApp runtime (role: `all`) |
-| `src/whatsapp-worker.ts` | WhatsApp-only worker process (no API) |
-| `src/runtime/processRole.ts` | Selects process mode from `PROPAI_PROCESS_ROLE` env var |
+| `src/index.ts` | Main Express API and WhatsApp Cloud API webhook |
 
 ## Environment Variables
 
@@ -28,7 +25,6 @@ See `DEPLOY.md` for the full env var reference. Key ones:
 |----------|----------|---------|-------------|
 | `SUPABASE_URL` | Yes | — | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | — | Service role key (bypasses RLS) |
-| `PROPAI_PROCESS_ROLE` | No | `all` | `all` / `api` / `whatsapp` |
 | `PORT` | No | `3001` | HTTP port |
 | `JWT_SECRET` | Yes | — | Auth token signing |
 | `GROQ_API_KEY` | Yes | — | Primary LLM provider |
@@ -42,8 +38,7 @@ See `DEPLOY.md` for the full env var reference. Key ones:
 
 ```
 src/
-├── index.ts                 # Server entry point (Express + Baileys)
-├── whatsapp-worker.ts       # WhatsApp-only worker entry point
+├── index.ts                 # Server entry point (Express + Cloud API webhook)
 ├── config/supabase.ts       # Supabase client singleton
 │
 ├── routes/                  # Express route definitions (26 files)
@@ -161,13 +156,7 @@ Request → route (routePaths.ts path) → controller (req/res) → service (bus
 
 ## WhatsApp Runtime
 
-Two deployment modes:
-- **Combined** (`PROPAI_PROCESS_ROLE=all`): Express + Baileys in one Node process
-- **Separate**: API-only (role=`api`) and WhatsApp-worker-only (role=`whatsapp`)
-
-The WhatsApp runtime uses `@whiskeysockets/baileys` for WebSocket-based WhatsApp WebJS protocol. Sessions are persisted to `whatsapp_sessions` table (via `session_data` jsonb).
-
-**Session lifecycle**: `POST /api/whatsapp/connect` → QR/pairing code → user links → socket open → message handling → reconnection on disconnect.
+WhatsApp traffic uses the official Meta Cloud API. The API receives Meta webhooks at `POST /api/whatsapp/cloud/webhook`; account onboarding is handled through WABA Embedded Signup at `/api/waba`.
 
 ---
 

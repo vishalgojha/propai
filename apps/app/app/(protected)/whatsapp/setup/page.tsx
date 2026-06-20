@@ -1,7 +1,7 @@
 "use client";
 
-import { Sources } from "@/pages/Sources";
+import { WabaSetup } from "@/pages/WabaSetup";
 
 export default function Page() {
-  return <Sources />;
+  return <WabaSetup />;
 }
