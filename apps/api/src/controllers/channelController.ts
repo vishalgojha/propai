@@ -317,3 +317,15 @@ export const getAnalytics = async (req: Request, res: Response) => {
         res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load analytics') });
     }
 };
+
+export const deleteChannel = async (req: Request, res: Response) => {
+    const tenantId = getTenantId(req);
+    const channelId = String(req.params.channelId || '');
+
+    try {
+        await channelService.deleteChannel(tenantId, channelId);
+        res.json({ success: true });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to delete channel') });
+    }
+};

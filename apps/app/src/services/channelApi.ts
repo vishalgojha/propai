@@ -54,3 +54,7 @@ export async function markChannelRead(channelId: string) {
 export async function attachStreamItemToChannel(channelId: string, streamItemId: string) {
   await backendApi.post(ENDPOINTS.channels.attachItem(channelId), { streamItemId });
 }
+
+export async function deleteChannel(channelId: string) {
+  await backendApi.delete(ENDPOINTS.channels.delete(channelId));
+}

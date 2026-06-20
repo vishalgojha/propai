@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { attachStreamItemToChannel, correctStreamItem, createChannel, listChannels, listInboxMatches, listStreamItems, listStreamSummary, markChannelRead, rebuildStream, getAnalytics } from '../controllers/channelController';
+import { attachStreamItemToChannel, correctStreamItem, createChannel, deleteChannel, listChannels, listInboxMatches, listStreamItems, listStreamSummary, markChannelRead, rebuildStream, getAnalytics } from '../controllers/channelController';
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
 
@@ -16,6 +16,7 @@ router.post(ROUTE_PATHS.channels.rebuild, rebuildStream);
 router.post(ROUTE_PATHS.channels.correct, correctStreamItem);
 router.post(ROUTE_PATHS.channels.markRead, markChannelRead);
 router.post(ROUTE_PATHS.channels.attachItem, attachStreamItemToChannel);
+router.delete(ROUTE_PATHS.channels.delete, deleteChannel);
 router.get(ROUTE_PATHS.channels.analytics, getAnalytics);
 
 export default router;

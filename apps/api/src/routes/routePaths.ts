@@ -39,6 +39,7 @@ export const ROUTE_PATHS = {
     correct: '/stream/:streamItemId/correct',
     markRead: '/:channelId/read',
     attachItem: '/:channelId/items',
+    delete: '/:channelId',
     analytics: '/analytics',
   },
   broadcast: {

@@ -18,6 +18,7 @@ import {
   SearchIcon,
   SettingsIcon,
   StreamIcon,
+  TrashIcon,
   XIcon,
   WorkflowIcon,
   UsersIcon,
@@ -28,6 +29,7 @@ import { useInbox } from '../hooks/useInbox';
 import {
   createChannel,
   fetchChannels,
+  deleteChannel as deleteChannelApi,
   type PersonalChannel,
 } from '../services/channelApi';
 import { handleApiError } from '../services/api';
@@ -220,12 +222,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
     void loadChannels();
     window.addEventListener('channels:refresh', handleRefresh);
     window.addEventListener('channels:created', handleCreated as EventListener);
+    window.addEventListener('channel:deleted', handleRefresh);
     const interval = window.setInterval(handleRefresh, 12000);
 
     return () => {
       mounted = false;
       window.removeEventListener('channels:refresh', handleRefresh);
       window.removeEventListener('channels:created', handleCreated as EventListener);
+      window.removeEventListener('channel:deleted', handleRefresh);
       window.clearInterval(interval);
     };
   }, [canViewStream, user?.email, user?.token]);
@@ -468,34 +472,56 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
                   const count = channel.unreadCount;
 
                   return (
-                    <button
+                    <div
                       key={channel.id}
-                      type="button"
-                      onClick={() => openChannel(channel)}
-                      className={cn(
-                        'flex w-full items-center gap-2 rounded-[8px] border-l-[3px] px-3 py-2 text-left transition-colors',
-                        isActive
-                          ? 'border-[color:var(--accent)] bg-[var(--bg-hover)] text-[var(--text-primary)]'
-                          : 'border-transparent bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
-                      )}
+                      className="group flex items-center rounded-[8px] transition-colors hover:bg-[var(--bg-hover)]"
                     >
-                      <ChannelIcon className={cn('h-3 w-3 shrink-0', isActive ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]')} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate text-[12px] font-medium">{channel.name}</span>
-                          {channel.pinned ? <PinIcon className="h-3 w-3 shrink-0 text-[var(--accent)]" /> : null}
+                      <button
+                        type="button"
+                        onClick={() => openChannel(channel)}
+                        className={cn(
+                          'flex w-full min-w-0 items-center gap-2 border-l-[3px] px-3 py-2 text-left transition-colors',
+                          isActive
+                            ? 'border-[color:var(--accent)] text-[var(--text-primary)]'
+                            : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                        )}
+                      >
+                        <ChannelIcon className={cn('h-3 w-3 shrink-0', isActive ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]')} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate text-[12px] font-medium">{channel.name}</span>
+                            {channel.pinned ? <PinIcon className="h-3 w-3 shrink-0 text-[var(--accent)]" /> : null}
+                          </div>
+                          <p className="mt-0.5 truncate text-[10px] text-[var(--text-secondary)]">
+                            {channel.localities.slice(0, 2).join(' / ') || channel.keywords.slice(0, 2).join(' / ') || 'keyword filter'}
+                          </p>
                         </div>
-                        <p className="mt-0.5 truncate text-[10px] text-[var(--text-secondary)]">
-                          {channel.localities.slice(0, 2).join(' / ') || channel.keywords.slice(0, 2).join(' / ') || 'keyword filter'}
-                        </p>
-                      </div>
-                      {count > 0 ? (
-                        <span className="ml-1 inline-flex min-w-6 justify-center rounded-full bg-[var(--accent-dim)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
-                          {count}
-                        </span>
-                      ) : null}
-                      {isActive ? <ChevronRightIcon className="h-3.5 w-3.5 text-[var(--accent)]" /> : null}
-                    </button>
+                        {count > 0 ? (
+                          <span className="ml-1 inline-flex min-w-6 justify-center rounded-full bg-[var(--accent-dim)] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
+                            {count}
+                          </span>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const confirmed = window.confirm(`Delete "${channel.name}"?`);
+                            if (!confirmed) return;
+                            try {
+                              await deleteChannelApi(channel.id);
+                              window.dispatchEvent(new CustomEvent('channel:deleted', { detail: channel.id }));
+                            } catch {
+                              alert('Failed to delete channel');
+                            }
+                          }}
+                          className="ml-1 hidden h-5 w-5 shrink-0 items-center justify-center rounded text-[var(--text-muted)] opacity-0 transition-all hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] group-hover:flex group-hover:opacity-100"
+                          title={`Delete ${channel.name}`}
+                        >
+                          <TrashIcon className="h-3 w-3" />
+                        </button>
+                      </button>
+                      {isActive ? <ChevronRightIcon className="ml-0.5 h-3.5 w-3.5 shrink-0 text-[var(--accent)]" /> : null}
+                    </div>
                   );
                 })
               )}

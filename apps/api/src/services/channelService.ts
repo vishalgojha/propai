@@ -3151,6 +3151,27 @@ private highValueLeadAlertKeys = new Set<string>();
         }
     }
 
+    async deleteChannel(tenantId: string, channelId: string) {
+        const { data: channel, error: fetchError } = await this.db
+            .from('broker_channels')
+            .select('id')
+            .eq('tenant_id', tenantId)
+            .eq('id', channelId)
+            .eq('is_active', true)
+            .maybeSingle();
+
+        if (fetchError) throw new Error(fetchError.message);
+        if (!channel) throw new Error('Channel not found');
+
+        const { error } = await this.db
+            .from('broker_channels')
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .eq('tenant_id', tenantId)
+            .eq('id', channelId);
+
+        if (error) throw new Error(error.message);
+    }
+
     async attachStreamItemToChannel(tenantId: string, channelId: string, streamItemId: string) {
         const { data: channel, error: channelError } = await this.db
             .from('broker_channels')

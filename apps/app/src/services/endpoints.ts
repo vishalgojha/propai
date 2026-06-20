@@ -66,7 +66,7 @@ export const ENDPOINTS = {
     cloudConfig: '/whatsapp/cloud/config',
     cloudWebhook: '/whatsapp/cloud/webhook',
   },
-  channels: {
+    channels: {
     list: '/channels',
     create: '/channels',
     inbox: '/channels/inbox',
@@ -77,6 +77,7 @@ export const ENDPOINTS = {
     correct: (streamItemId: string) => `/channels/stream/${streamItemId}/correct`,
     markRead: (channelId: string) => `/channels/${channelId}/read`,
     attachItem: (channelId: string) => `/channels/${channelId}/items`,
+    delete: (channelId: string) => `/channels/${channelId}`,
     search: '/stream-items/search',
   },
   streamItems: {
