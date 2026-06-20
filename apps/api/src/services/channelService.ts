@@ -2239,7 +2239,6 @@ export class ChannelService {
             throw new Error(error?.message || 'Failed to create channel');
         }
 
-        await this.ensureStreamBackfilled(tenantId);
         await this.backfillChannelMatches(tenantId, data.id);
 
         const created = await this.getChannelById(tenantId, data.id);
@@ -2251,8 +2250,6 @@ export class ChannelService {
     }
 
     async listChannels(tenantId: string): Promise<PersonalChannelRecord[]> {
-        void this.ensureStreamBackfilled(tenantId);
-
         const { data, error } = await this.db
             .from('broker_channels')
             .select('*')
@@ -2301,16 +2298,11 @@ export class ChannelService {
         return this.mapChannelRow(data as ChannelRow, counts.get(channelId));
     }
 
-private backfillInitiatedScopes = new Map<string, number>();
 private rawDumpReplayInFlight = new Set<string>();
 private rawDumpReplayQueuedAt = new Map<string, number>();
 private dailyBriefingSentKeys = new Set<string>();
 private weeklyAnalyticsSentKeys = new Set<string>();
 private highValueLeadAlertKeys = new Set<string>();
-
-    private getBackfillScopeKey(tenantId: string, sessionLabel?: string | null) {
-        return `${tenantId}::${sessionLabel || 'all'}`;
-    }
 
     private getRawDumpReplayScopeKey(tenantId: string, options: RawDumpReplayOptions = {}) {
         return [
@@ -2465,33 +2457,6 @@ private highValueLeadAlertKeys = new Set<string>();
         email?: string | null,
         filters?: StreamListFilters | null,
     ): Promise<StreamItemRecord[]> {
-         // FIX 3: Auto-sync period — re-trigger backfill if enough time has elapsed
-         const backfillScopeKey = this.getBackfillScopeKey(tenantId, sessionLabel);
-         const lastBackfill = this.backfillInitiatedScopes.get(backfillScopeKey);
-         let shouldBackfill = false;
-         if (!lastBackfill) {
-             shouldBackfill = true;
-         } else {
-             try {
-                 const settingsRecord = await getWorkspaceSettingsRecord(tenantId);
-                 const period = String(settingsRecord.settings.autoSyncPeriod || 'Auto').toLowerCase();
-                 let intervalMs = 24 * 60 * 60 * 1000;
-                 if (period === '5 mins' || period === '5 minutes') intervalMs = 5 * 60 * 1000;
-                 else if (period === '15 mins' || period === '15 minutes') intervalMs = 15 * 60 * 1000;
-                 else if (period === '1 hour' || period === 'hourly') intervalMs = 60 * 60 * 1000;
-                 else if (period === 'daily') intervalMs = 24 * 60 * 60 * 1000;
-                 else if (period === 'weekly') intervalMs = 7 * 24 * 60 * 60 * 1000;
-                 else if (period === 'auto') intervalMs = 6 * 60 * 60 * 1000;
-                 shouldBackfill = (Date.now() - lastBackfill) > intervalMs;
-             } catch {
-                 shouldBackfill = (Date.now() - lastBackfill) > 24 * 60 * 60 * 1000;
-             }
-         }
-         if (shouldBackfill) {
-             this.backfillInitiatedScopes.set(backfillScopeKey, Date.now());
-             void this.ensureStreamBackfilled(tenantId, sessionLabel);
-         }
-
          // FIX 1: Daily market briefing — fire-and-forget on first load of day
          const today = new Date().toISOString().slice(0, 10);
          const briefingKey = `${tenantId}::${today}`;
@@ -3665,86 +3630,6 @@ private highValueLeadAlertKeys = new Set<string>();
         return m ? normaliseIndianPhone(m[0]) : null;
     }
 
-private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | null) {
-         // Keep this path scoped and cheap. Reads should not synchronously depend on a full rebuild.
-         let messagesQuery = this.db
-             .from('messages')
-             .select('id', { count: 'exact', head: true })
-             .eq('tenant_id', tenantId);
-
-         if (sessionLabel) {
-             messagesQuery = messagesQuery.eq('session_label', sessionLabel);
-         }
-
-         const messageResult = await messagesQuery;
-         const totalMessages = typeof messageResult.count === 'number' ? messageResult.count : 0;
-         if (messageResult.error || totalMessages === 0) {
-             return;
-         }
-
-          let streamQueryRes = this.db
-              .from('stream_items_residential')
-              .select('id', { count: 'exact', head: true })
-              .eq('tenant_id', tenantId)
-              .eq('ingestion_status', 'accepted');
-
-          if (sessionLabel) {
-              streamQueryRes = streamQueryRes.eq('session_label', sessionLabel);
-          }
-
-          let streamQueryCom = this.db
-              .from('stream_items_commercial')
-              .select('id', { count: 'exact', head: true })
-              .eq('tenant_id', tenantId)
-              .eq('ingestion_status', 'accepted');
-
-          if (sessionLabel) {
-              streamQueryCom = streamQueryCom.eq('session_label', sessionLabel);
-          }
-
-          const [streamResultRes, streamResultCom] = await Promise.all([streamQueryRes, streamQueryCom]);
-          const totalStreamItems = (typeof streamResultRes.count === 'number' ? streamResultRes.count : 0)
-              + (typeof streamResultCom.count === 'number' ? streamResultCom.count : 0);
-
-          // Only skip backfill if we have a meaningful portion already ingested
-          if (!streamResultRes.error && totalStreamItems >= Math.max(10, totalMessages * 0.5)) {
-              return;
-          }
-
-          try {
-               const { data: latestItem } = sessionLabel
-                   ? await this.db
-                       .from('stream_items_residential')
-                       .select('created_at')
-                       .eq('tenant_id', tenantId)
-                       .eq('session_label', sessionLabel)
-                       .order('created_at', { ascending: false })
-                       .limit(1)
-                       .maybeSingle()
-                   : await this.db
-                       .from('stream_items_residential')
-                       .select('created_at')
-                       .eq('tenant_id', tenantId)
-                       .order('created_at', { ascending: false })
-                       .limit(1)
-                       .maybeSingle();
-
-              const from = latestItem?.created_at || null;
-
-              await this.rebuildStreamFromMessages(tenantId, {
-                  limit: sessionLabel ? 2000 : 500,
-                  sessionLabel: sessionLabel || null,
-                  from,
-              });
-          } catch (error) {
-              console.error('[ChannelService] Failed to backfill stream items from messages', {
-                  tenantId,
-                  sessionLabel: sessionLabel || null,
-                  error,
-              });
-           }
-       }
-
     private async maybeSendDailyBriefing(tenantId: string, email?: string | null) {
         if (!email) {
             return;
@@ -3905,79 +3790,34 @@ private async ensureStreamBackfilled(tenantId: string, sessionLabel?: string | n
         const commonLocation = commonResolution?.locality || extractIndianLocality(rawText) || '';
         const commonCity = commonResolution?.city || extractIndianCity(rawText);
 
-        const systemPrompt = `You are PropAI's parser for raw Indian real estate WhatsApp broker messages.
-A single message may contain multiple listings or requirements. Return valid JSON only. No markdown.
+        const systemPrompt = `You are PropAI's parser for Indian real estate WhatsApp broker messages. Return valid JSON only. No markdown.
 
-### Contact Sanitization & wa.me Link Rule:
-Extract every phone number from the message. Sanitize each by removing all spaces, hyphens, plus signs, and country code prefixes. Prepend '91' if not present. Append to "https://wa.me/" to create click-to-chat links.
-- Output these in the "broker_wa_me_links" array for each item.
-- Example: "+91 90043 98827" → "https://wa.me/919004398827"`;
+Extract every phone number, sanitize (remove spaces/hyphens/+/country code, prepend 91), and output as "https://wa.me/91XXXXXXXXXX" in broker_wa_me_links per item.`;
 
-        const userPrompt = `Extract all real-estate records from this WhatsApp message.
+        const userPrompt = `Extract real-estate records from this WhatsApp message.
 
-Return ONLY this JSON:
-{
-  "items": [
-    {
-      "title": "string or null",
-      "streamType": "Rent" | "Sale" | "Requirement" | "Pre-leased",
-      "recordType": "listing" | "requirement",
-      "dealType": "rent" | "sale" | "pre-leased" | "unknown",
-      "assetClass": "residential" | "commercial" | "plot" | "unknown",
-      "locality": "string or null",
-      "city": "string or null",
-      "configuration": "string or null (broker-facing configuration, e.g. '2 BHK', 'Studio', 'Office', 'Retail Shop', '2500 sqft Office')",
-      "priceLabel": "string or null (e.g. '45k', '3.5 Cr', '95 Lakhs')",
-      "priceNumeric": number or null (full absolute INR value, e.g. 45000, 35500000),
-      "price": "number or string or null (numeric value only, e.g. 45000, 3.5, 95)",
-      "priceUnit": "crores or lakhs or thousands or rupees or null",
-      "buildingName": "string or null",
-      "microLocation": "string or null",
-      "propertyCategory": "residential" | "commercial" | null,
-      "areaSqft": number or null,
-      "furnishing": "unfurnished" | "semi-furnished" | "fully-furnished" | "furnished" | null,
-      "floorNumber": "string or null",
-      "totalFloors": "string or null",
-      "parking": "string or null",
-      "propertyUse": "string or null",
-      "commercialType": "office" | "retail" | "shop" | "showroom" | "warehouse" | "godown" | "industrial" | "factory" | "co-working" | null (only for commercial properties)",
-      "fitoutStatus": "bare-shell" | "fully-fitted" | "semi-fitted" | "furnished" | "unfurnished" | null (only for commercial properties)",
-      "workstationsCount": number or null (only for commercial office spaces)",
-      "cabinsCount": number or null (only for commercial office spaces)",
-      "broker_wa_me_links": ["https://wa.me/91XXXXXXXXXX"],
-      "parseNotes": "string or null",
-      "confidence": number,
-      "rawText": "string"
-    }
-  ]
-}
+Return ONLY JSON: {"items":[{
+  "title","streamType":"Rent|Sale|Requirement|Pre-leased","recordType":"listing|requirement",
+  "dealType":"rent|sale|pre-leased|unknown","assetClass":"residential|commercial|plot|unknown",
+  "locality","city","configuration","priceLabel","priceNumeric":number,
+  "price","priceUnit":"crores|lakhs|thousands|rupees|null",
+  "buildingName","microLocation","propertyCategory":"residential|commercial|null",
+  "areaSqft":number,"furnishing":"unfurnished|semi-furnished|fully-furnished|furnished|null",
+  "floorNumber","totalFloors","parking","propertyUse",
+  "commercialType":"office|retail|shop|showroom|warehouse|godown|industrial|factory|co-working|null",
+  "fitoutStatus":"bare-shell|fully-fitted|semi-fitted|furnished|unfurnished|null",
+  "workstationsCount":number,"cabinsCount":number,
+  "broker_wa_me_links":["https://wa.me/91..."],
+  "parseNotes","confidence":number,"rawText"
+}]}
 
 Rules:
-- Split multi-listing broker blasts into separate items
-- splitMultiListing() must handle ALL these patterns found in Mumbai broker groups:
-  - PATTERN 1: Block separated with blank line between units, e.g. @ Building, Locality followed by 2 BHK - 781 sqft, Semi Furnished, Rent: 2L and another unit after a blank line
-  - PATTERN 2: Inline CSV style, e.g. Andheri West followed by 2bhk 650sqft 95L | 3bhk 900sqft 1.4cr | 4bhk 1200sqft 2.1cr
-  - PATTERN 3: Numbered list, e.g. 1) 2BHK 850sqft @1.2cr, 2) 3BHK 1100sqft @1.8cr, 3) 4BHK 1400sqft @2.5cr
-  - PATTERN 4: Repeated BHK keyword without blank line separator, e.g. 2BHK sale 1.2cr Andheri, 3BHK sale 1.8cr Andheri, 4BHK sale 2.5cr Andheri
-  - PATTERN 5: Dual deal type in the same message, e.g. Lease & Outright listing @ BKC-X and 2BHK Rent: 2L | Outright: 2.5cr; split into TWO records per unit, one rent and one sale
-  - PATTERN 6: Floor-wise listing, e.g. Raheja Classique, Andheri West followed by 4th floor 2BHK 1.2cr, 8th floor 2BHK 1.35cr, 12th floor 3BHK 1.9cr
-- Detection rule: treat a message as multi-listing if ANY of these are true:
-  - Contains 2 or more BHK mentions
-  - Contains 2 or more price mentions with different amounts
-  - Contains a numbered list pattern such as 1. or 1) or bullet markers
-  - Contains pipe | separators between property details
-  - Contains multiple options or various options in the header
-- Single listing messages must pass through unchanged as a single item using the original rawText
-- Inherit top-level locality or section header into child listings when needed
-- Detect building/project names and road/landmark references
-- Use configuration as the canonical layout/type field. For residential this may be BHK/RK/Studio. For commercial this should be office/shop/showroom/warehouse or a useful commercial configuration, not BHK.
-- Normalize rent vs sale vs pre-leased correctly
-- streamType "Requirement" means the sender is explicitly SEARCHING for a property (e.g. "looking for", "wanted", "need", "require", "client needs", "buyer wants")
-- Messages describing a property's floor, furnishing, condition, building name, address, or amenities are listings (Rent/Sale), NOT Requirements
-- priceNumeric must be full INR integer
-- If price is not clearly present, return null for priceNumeric and priceLabel
-- Use null instead of guessing
-- Only return actual property records, not greetings or signatures
+- Split multi-listings into separate items (blank lines, pipe |, numbered lists, repeated BHK)
+- Inherit shared locality/building from headers into child items
+- Requirement = sender IS searching ("looking for", "wanted", "need", "client wants")
+- Property descriptions (floor, furnishing, building, amenities) are Rent/Sale listings, NOT Requirements
+- priceNumeric = full INR integer (e.g. 45000, 35500000). Use null if unclear
+- Use null instead of guessing. Skip greetings/signatures
 
 Message:
 """

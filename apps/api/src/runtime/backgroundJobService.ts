@@ -1,4 +1,3 @@
-import { historySyncWorker } from '../services/historySyncWorker';
 import { syndicationSyncJob } from '../jobs/syndicationSyncJob';
 import { generateMarketInsightsJob } from '../jobs/generateMarketInsights';
 import { igrEnrichmentJob } from '../jobs/igrEnrichmentJob';
@@ -11,7 +10,6 @@ type JobStarter = {
 };
 
 const JOBS: JobStarter[] = [
-    { name: 'historySyncWorker', start: () => historySyncWorker.start(), stop: () => historySyncWorker.stop() },
     { name: 'syndicationSyncJob', start: () => syndicationSyncJob.start(), stop: () => syndicationSyncJob.stop?.() },
     { name: 'generateMarketInsightsJob', start: () => generateMarketInsightsJob.start(), stop: () => generateMarketInsightsJob.stop?.() },
     { name: 'igrEnrichmentJob', start: () => igrEnrichmentJob.start(), stop: () => igrEnrichmentJob.stop?.() },
