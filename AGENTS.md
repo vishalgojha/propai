@@ -46,8 +46,7 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
 
 ### Pending Actions
 
-- **propai-gras fix**: Live IGR fetch (`/api/igr/fetch`) times out on government portal (`igrmaharashtra.gov.in`). Needs Camoufox-based browser navigation instead of direct HTTP fetch. Full prompt at `.agents/prompts/propai-gras.md`.
-- **official-whatsapp-cloud-migration**: Onboard and verify the WABA number, configure the Meta webhook, then enable `CLOUD_API_WEBHOOK_ENABLED`.
+- None — Baileys removed, WABA is the only WhatsApp integration. Webhook enabled by default.
 
 ### Backfill Status
 
@@ -66,10 +65,19 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
 - **Added NVIDIA Nemotron provider** — Full integration across `aiService.ts`, `aiUsageService.ts`, `keyService.ts`, `settingsController.ts`, `workspaceSettingsService.ts`, `Settings.tsx`, `Agent.tsx`, `ProviderLogo.tsx`.
 - **Removed Groq from defaults/UI** — Taken out of default fallback chain and settings UI.
 - **Fixed configuration/BHK column** — `mapStreamItem` returns `configuration`, DB upsert writes `configuration`, `sanitizeBuildingNameCandidate` backstop prevents area values becoming building names.
+- **Updated NVIDIA to DeepSeek V4 Flash with reasoning** — Default model changed to `deepseek-ai/deepseek-v4-flash`, added `chat_template_kwargs: { thinking: true }` to enable thinking, extract `reasoning_content`/`reasoning` from response. Added proper NVIDIA SVG logo.
+- **Gated Cloud API webhook** — Added `CLOUD_API_WEBHOOK_ENABLED` flag (disabled by default) to stop duplicate "AI provider unavailable" replies from deprecated Cloud API integration.
+- **Fixed WABA JSON response + duplicate replies** — Rewrote `cleanWhatsAppReply` in both `AgentExecutor.ts` and `conversationEngineService.ts` to properly extract text from all JSON formats (code fences, bare JSON, escaped quotes, nested AgentResponse). Added message-level dedup (`Set<messageId>`) in Cloud API webhook handler to prevent duplicate replies from webhook retries.
+- **Added WABA typing indicator + admin phone detection** — Typing indicator via Meta Cloud API before processing messages. `OWNER_SUPER_ADMIN_PHONES` set with `9820056180` and `7021045254`. `isOwnerSuperAdminPhone()` for admin detection.
+- **Added PropAI founder context to system prompt** — Vishal Ojha as founder, super admin numbers, website/email info in Pulse prompt.
+- **Removed IGR standalone page** — `/igr` route, view, and API service deleted. IGR transaction display preserved on listing cards.
 
 ### Current Remote State
 
 - Latest local commits:
+  - `e0a91477` — `Fix JSON response and duplicate reply bugs in WABA webhook` (pushed)
+  - `216df01d` — `Gate Cloud API webhook handler behind CLOUD_API_WEBHOOK_ENABLED flag` (pushed)
+  - `ab6aa2c8` — `Update NVIDIA to DeepSeek V4 Flash with thinking/reasoning extraction` (pushed)
   - `0032a019` — `Add NVIDIA Nemotron provider, remove Groq, fix configuration column empty bug` (pushed)
 
 ### Operational Rules
