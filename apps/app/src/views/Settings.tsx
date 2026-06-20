@@ -111,7 +111,7 @@ const aiProviders = [
     id: 'nvidia',
     name: 'NVIDIA',
     logo: 'nvidia',
-    description: 'DeepSeek V4 Flash via NVIDIA API with thinking enabled.',
+    description: 'Llama 4 Maverick 17B via NVIDIA API.',
   },
 ] as const;
 
@@ -140,9 +140,9 @@ const defaultModelOptions = [
   {
     value: 'nvidia',
     title: 'NVIDIA',
-    provider: 'NVIDIA DeepSeek V4 Flash',
+    provider: 'NVIDIA Llama 4 Maverick',
     logo: 'nvidia' as const,
-    description: 'DeepSeek V4 Flash via NVIDIA, thinking enabled.',
+    description: 'Llama 4 Maverick 17B via NVIDIA.',
   },
 ] as const;
 

@@ -101,7 +101,7 @@ export class AIService {
     private doublewordBaseURL = process.env.DOUBLEWORD_BASE_URL || 'https://api.doubleword.ai/v1';
     private doublewordModel = process.env.DOUBLEWORD_MODEL || 'Qwen/Qwen3.6-35B-A3B-FP8';
     private nvidiaBaseURL = process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1';
-    private nvidiaModel = process.env.NVIDIA_MODEL || 'deepseek-ai/deepseek-v4-flash';
+    private nvidiaModel = process.env.NVIDIA_MODEL || 'meta/llama-4-maverick-17b-128e-instruct';
     private readonly providerLogAt = new Map<string, number>();
 
     private shouldLogProvider(key: string, cooldownMs: number) {
@@ -211,8 +211,8 @@ export class AIService {
             return 'Doubleword';
         case 'nvidia':
         case 'nemotron':
-        case 'nvidia/nemotron-3-ultra-550b-a55b':
-        case 'deepseek-ai/deepseek-v4-flash':
+        case 'llama-4-maverick':
+        case 'meta/llama-4-maverick-17b-128e-instruct':
             return 'Nvidia';
         default:
             return null;
@@ -495,19 +495,13 @@ export class AIService {
         const res = await this.withKeyRotation('Nvidia', keys, (key) => this.callOpenAICompatible(prompt, {
             baseURL: this.nvidiaBaseURL,
             model: this.nvidiaModel,
-            extraBody: {
-                chat_template_kwargs: { thinking: true },
-            },
         }, key, systemPrompt, conversationHistory));
-        const message = res.data.choices[0].message;
-        const reasoning = message.reasoning_content || message.reasoning || null;
         return { 
-            text: message.content, 
+            text: res.data.choices[0].message.content, 
             model: `Nvidia ${this.nvidiaModel}`, 
             latency: 0,
             provider: 'Nvidia',
             modelId: this.nvidiaModel,
-            reasoning: reasoning || undefined,
             usage: extractOpenAIUsage(res.data),
         };
     }

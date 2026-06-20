@@ -291,7 +291,7 @@ export class KeyService {
                             break;
                         case 'Nvidia':
                             await axios.post(`${trimBaseUrl(process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1')}/chat/completions`, {
-                                model: process.env.NVIDIA_MODEL || 'deepseek-ai/deepseek-v4-flash',
+                                model: process.env.NVIDIA_MODEL || 'meta/llama-4-maverick-17b-128e-instruct',
                                 messages: [{ role: 'user', content: 'Reply with OK.' }],
                                 max_tokens: 8,
                             }, { headers: { Authorization: `Bearer ${key}` } });

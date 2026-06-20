@@ -82,7 +82,8 @@ export function normalizeDefaultModel(value?: string | null) {
             return 'doubleword';
         case 'nvidia':
         case 'nemotron':
-        case 'nvidia/nemotron-3-ultra-550b-a55b':
+        case 'llama-4-maverick':
+        case 'meta/llama-4-maverick-17b-128e-instruct':
             return 'nvidia';
         default:
             return GEMINI_DEFAULT_MODEL;
