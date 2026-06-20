@@ -1233,7 +1233,7 @@ export const Agent: React.FC = () => {
                     </span>
                   </div>
                   <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
-                    AI providers, CRM, follow-ups, IGR, web, and browser tools can still work even if WhatsApp is down.
+                    AI providers, CRM, follow-ups, web, and browser tools can still work even if WhatsApp is down.
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {runtimeStatusPills.map((pill) => (

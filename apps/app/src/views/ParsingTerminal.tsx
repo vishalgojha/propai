@@ -588,7 +588,7 @@ export default function ParsingTerminal() {
           <TransportCard
             label="Agent tools"
             value={auditSummary ? 'Observed data' : 'Tool ready'}
-            detail={auditSummary ? `${auditSummary.totalGroups} groups in the last synced snapshot.` : 'CRM, search, follow-ups, IGR, and web tools stay available independently of WhatsApp.'}
+            detail={auditSummary ? `${auditSummary.totalGroups} groups in the last synced snapshot.` : 'CRM, search, follow-ups, and web tools stay available independently of WhatsApp.'}
             tone="neutral"
             footer="WhatsApp is the live transport; tools are the assistant layer."
           />

@@ -71,21 +71,9 @@ const getRouteContext = (pathname: string) => {
     };
   }
 
-  if (pathname.startsWith('/igr')) {
-    return {
-      title: 'IGR helper',
-      intro: 'Ask Pulse to plan price checks and interpret market-rate evidence.',
-      prompts: [
-        'How should I verify a building price using IGR?',
-        'Explain what evidence I need before countering a lowball offer.',
-        'Summarize the latest market-rate check into a broker reply.',
-      ],
-    };
-  }
-
   return {
     title: 'Pulse helper',
-    intro: 'Ask about listings, requirements, follow-ups, IGR checks, or WhatsApp setup.',
+    intro: 'Ask about listings, requirements, follow-ups, or WhatsApp setup.',
     prompts: [
       'Show me urgent follow-ups I should handle first.',
       'Find fresh buyer requirements for 2BHK and 3BHK today.',
