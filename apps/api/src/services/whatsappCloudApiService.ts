@@ -346,7 +346,7 @@ export class WhatsAppCloudApiService {
                     continue;
                 }
 
-                const tenantId = String(configRow.tenant_id);
+                const adminTenantId = String(configRow.tenant_id);
                 const sessionLabel = SESSION_LABEL;
                 const messages = Array.isArray(value.messages) ? value.messages : [];
                 let processed = 0;
@@ -362,7 +362,7 @@ export class WhatsAppCloudApiService {
                     recentProcessedMessageIds.add(messageId);
 
                     const claimed = await this.claimWebhookMessage({
-                        tenantId,
+                        tenantId: adminTenantId,
                         messageId,
                         from: String(message?.from || ''),
                         senderName: String(value?.contacts?.[0]?.profile?.name || ''),
@@ -385,7 +385,7 @@ export class WhatsAppCloudApiService {
                     let text = extractText(message);
                     const mediaInfo = getMediaInfo(message);
                     if (mediaInfo) {
-                        const stored = await this.storeIncomingMedia(tenantId, mediaInfo).catch(() => null);
+                        const stored = await this.storeIncomingMedia(adminTenantId, mediaInfo).catch(() => null);
                         if (stored?.attachmentCtx) {
                             text = `${text}\n\n---\n${stored.attachmentCtx}\n---`;
                         }
@@ -402,8 +402,11 @@ export class WhatsAppCloudApiService {
                     const timestamp = toIso(message?.timestamp || message?.message_timestamp || null);
                     const senderName = String(value?.contacts?.[0]?.profile?.name || value?.contacts?.[0]?.wa_id || remoteJid || 'Client').trim();
 
+                    // Resolve broker tenant from sender phone so data is attributed to the right broker
+                    const dataTenantId = await this.resolveTenantFromPhone(String(message?.from || '')) || adminTenantId;
+
                     const { error: inboundInsertError } = await db.from('messages').insert({
-                        tenant_id: tenantId,
+                        tenant_id: dataTenantId,
                         session_label: sessionLabel,
                         remote_jid: remoteJid,
                         sender: senderName,
@@ -415,7 +418,7 @@ export class WhatsAppCloudApiService {
                     }
 
                     await whatsappThreadService.upsertFromMessage({
-                        tenantId,
+                        tenantId: dataTenantId,
                         sessionLabel,
                         remoteJid,
                         sender: senderName,
@@ -426,7 +429,7 @@ export class WhatsAppCloudApiService {
                     });
 
                     await whatsappHealthService.recordMessageMetrics({
-                        tenantId,
+                        tenantId: dataTenantId,
                         sessionLabel,
                         remoteJid,
                         parsed: false,
@@ -436,7 +439,7 @@ export class WhatsAppCloudApiService {
                     }).catch(() => undefined);
 
                     await whatsappHealthService.appendEvent(
-                        tenantId,
+                        dataTenantId,
                         sessionLabel,
                         'cloud_inbound_message',
                         'Inbound WhatsApp Cloud API message received.',
@@ -456,26 +459,26 @@ export class WhatsAppCloudApiService {
                             await activationCodeService.activateCode(code, normalizeDigits(remoteJid));
                             await activationCodeService.linkBrokerPhone(codeRow.tenant_id, normalizeDigits(remoteJid));
                             await this.sendTextMessage({
-                                tenantId,
+                                tenantId: adminTenantId,
                                 phoneNumberId,
                                 to: remoteJid,
                                 text: '✅ *WhatsApp Activation Successful!*\n\nYour WhatsApp number has been linked to your PropAI account. You can now send listings and requirements directly to Pulse.',
                             });
                         } else {
                             await this.sendTextMessage({
-                                tenantId,
+                                tenantId: adminTenantId,
                                 phoneNumberId,
                                 to: remoteJid,
                                 text: '❌ *Activation Failed*\n\nThe code you sent is invalid or expired. Please generate a new activation code from the PropAI web app.',
                             });
                         }
                         processed += 1;
-                        await this.markWebhookMessageProcessed(tenantId, messageId);
+                        await this.markWebhookMessageProcessed(adminTenantId, messageId);
                         continue;
                     }
                     // --- end activation code detection ---
 
-                    const ingestedCount = await channelService.ingestMessage(tenantId, {
+                    const ingestedCount = await channelService.ingestMessage(dataTenantId, {
                         id: messageId,
                         session_label: sessionLabel,
                         remote_jid: remoteJid,
@@ -494,7 +497,7 @@ export class WhatsAppCloudApiService {
 
                     if (ingestedCount > 0) {
                         await whatsappHealthService.recordMessageMetrics({
-                            tenantId,
+                            tenantId: dataTenantId,
                             sessionLabel,
                             remoteJid,
                             parsed: true,
@@ -509,16 +512,16 @@ export class WhatsAppCloudApiService {
                     if (isAdmin) {
                         agentFailureMessage = '__admin__';
                     }
-                    await this.sendTypingIndicator(tenantId, phoneNumberId, messageId).catch(async (error) => {
+                    await this.sendTypingIndicator(adminTenantId, phoneNumberId, messageId).catch(async (error) => {
                         await whatsappHealthService.appendEvent(
-                            tenantId,
+                            adminTenantId,
                             sessionLabel,
                             'cloud_typing_indicator_failed',
                             'WhatsApp Cloud API typing indicator failed.',
                             { messageId, error: error instanceof Error ? error.message : String(error) },
                         ).catch(() => undefined);
                     });
-                    let reply = await agentExecutor.processMessage(tenantId, remoteJid, text, sessionLabel, undefined, {
+                    let reply = await agentExecutor.processMessage(adminTenantId, remoteJid, text, sessionLabel, undefined, {
                         suppressFallbackOnError: true,
                         onError: async (error) => {
                             agentFailureMessage = error instanceof Error ? error.message : String(error);
@@ -530,7 +533,7 @@ export class WhatsAppCloudApiService {
                                 }
                                 : { message: String(error) };
                             await whatsappHealthService.appendEvent(
-                                tenantId,
+                                dataTenantId,
                                 sessionLabel,
                                 'cloud_agent_reply_failed',
                                 'WhatsApp Cloud API agent reply failed.',
@@ -554,7 +557,7 @@ export class WhatsAppCloudApiService {
                     if (reply.trim()) {
                         try {
                             await this.sendTextMessage({
-                                tenantId,
+                                tenantId: adminTenantId,
                                 phoneNumberId,
                                 to: remoteJid,
                                 text: reply,
@@ -565,7 +568,7 @@ export class WhatsAppCloudApiService {
                                 ? { name: error.name, message: error.message, stack: error.stack }
                                 : { message: String(error) };
                             await whatsappHealthService.appendEvent(
-                                tenantId,
+                                dataTenantId,
                                 sessionLabel,
                                 'cloud_outbound_reply_failed',
                                 'WhatsApp Cloud API outbound reply failed.',
@@ -576,13 +579,13 @@ export class WhatsAppCloudApiService {
                                     error: serializedError,
                                 },
                             ).catch(() => undefined);
-                            await this.markWebhookMessageFailed(tenantId, messageId, error);
+                            await this.markWebhookMessageFailed(adminTenantId, messageId, error);
                             continue;
                         }
 
                         const outboundTimestamp = new Date().toISOString();
                         const { error: outboundInsertError } = await db.from('messages').insert({
-                            tenant_id: tenantId,
+                            tenant_id: dataTenantId,
                             session_label: sessionLabel,
                             remote_jid: remoteJid,
                             sender: 'AI',
@@ -594,7 +597,7 @@ export class WhatsAppCloudApiService {
                         }
 
                         await whatsappThreadService.upsertFromMessage({
-                            tenantId,
+                            tenantId: dataTenantId,
                             sessionLabel,
                             remoteJid,
                             sender: 'AI',
@@ -605,7 +608,7 @@ export class WhatsAppCloudApiService {
                         });
 
                         await whatsappHealthService.appendEvent(
-                            tenantId,
+                            dataTenantId,
                             sessionLabel,
                             'cloud_outbound_reply',
                             'Outbound WhatsApp Cloud API reply sent.',
@@ -619,18 +622,18 @@ export class WhatsAppCloudApiService {
                     }
 
                     processed += 1;
-                    await this.markWebhookMessageProcessed(tenantId, messageId);
+                    await this.markWebhookMessageProcessed(adminTenantId, messageId);
                 }
 
                 await whatsappHealthService.upsertConnectionSnapshot({
-                    tenantId,
+                    tenantId: adminTenantId,
                     sessionLabel,
                     phoneNumber: value?.metadata?.display_phone_number || configRow.session_data?.displayPhoneNumber || null,
                     ownerName: configRow.owner_name || 'Official WhatsApp',
                     status: 'connected',
                 }).catch(() => undefined);
 
-                results.push({ tenantId, processed, replied, ignored });
+                results.push({ tenantId: adminTenantId, processed, replied, ignored });
             }
         }
 
@@ -735,6 +738,17 @@ export class WhatsAppCloudApiService {
         } catch {
             return null;
         }
+    }
+
+    private async resolveTenantFromPhone(phone: string): Promise<string | null> {
+        const normalized = normalizeDigits(phone);
+        if (!normalized) return null;
+        const { data } = await supabaseAdmin!
+            .from('broker_contacts')
+            .select('tenant_id')
+            .eq('phone', normalized)
+            .maybeSingle();
+        return data?.tenant_id || null;
     }
 
     async sendTextMessage(input: {
