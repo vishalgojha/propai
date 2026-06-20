@@ -152,7 +152,7 @@ export class AgentExecutor {
                 effectiveTenantId = brokerResolution.tenantId;
                 brokerProfile = await getUnifiedBrokerProfile(effectiveTenantId);
             } else {
-                brokerProfile = await getUnifiedBrokerProfile(tenantId);
+                brokerProfile = null;
             }
             brokerFullName = brokerProfile?.full_name || undefined;
             shouldGreetBrokerByName = Boolean(

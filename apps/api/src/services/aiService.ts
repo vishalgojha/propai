@@ -484,6 +484,11 @@ export class AIService {
         const res = await this.withKeyRotation('Doubleword', keys, (key) => this.callOpenAICompatible(prompt, {
             baseURL: this.doublewordBaseURL,
             model: this.doublewordModel,
+            extraBody: {
+                chat_template_kwargs: {
+                    enable_thinking: false,
+                },
+            },
         }, key, systemPrompt, conversationHistory));
         return { 
             text: res.data.choices[0].message.content, 
