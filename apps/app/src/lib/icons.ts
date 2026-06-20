@@ -49,7 +49,6 @@ export {
   ShieldCheck as ShieldCheckIcon,
   Smartphone as SmartphoneIcon,
   Sparkles as SparklesIcon,
-  TerminalSquare as TerminalIcon,
   Trash2 as TrashIcon,
   Users as GroupsIcon,
   Users as UsersIcon,

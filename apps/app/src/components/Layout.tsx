@@ -155,7 +155,6 @@ export const Layout: React.FC = () => {
       case '/admin':
         return 'Admin';
       case '/agent': return 'Pulse';
-      case '/parsing-terminal': return 'Parsing Terminal';
       case '/settings': return 'Studio Settings';
       default: return 'PropAI Pulse';
     }

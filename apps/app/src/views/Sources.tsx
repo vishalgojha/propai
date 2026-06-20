@@ -1462,13 +1462,8 @@ export const Sources: React.FC = () => {
       return;
     }
 
-    if (searchParams.get('audit') === '1') {
-      navigate('/parsing-terminal', { replace: true });
-      return;
-    }
-
     if (location.pathname === '/whatsapp' && currentSessionAuditPending) {
-      navigate('/parsing-terminal', { replace: true });
+      navigate('/whatsapp/setup', { replace: true });
     }
   }, [auditSessionLabel, currentSessionAuditPending, fetchGroupAudit, location.pathname, navigate, searchParams]);
 

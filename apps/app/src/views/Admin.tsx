@@ -1214,7 +1214,7 @@ export const Admin: React.FC = () => {
             <div className="rounded-[14px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">Filtered from parsing terminal</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">Filtered evidence group</p>
                   <p className="mt-1 truncate text-[12px] text-[var(--text-secondary)]">
                     {parserEvidenceSessionLabel || 'Any session'} · {parserEvidenceGroupId}
                   </p>

@@ -22,7 +22,6 @@ import {
   WorkflowIcon,
   UsersIcon,
   InboxIcon,
-  TerminalIcon,
 } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
 import { useInbox } from '../hooks/useInbox';
@@ -38,7 +37,6 @@ const NAV_ITEMS = [
   { label: 'Inbox', path: '/inbox', icon: InboxIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'Intelligence', path: '/intelligence', icon: ActivityIcon },
-  { label: 'Parsing Terminal', path: '/parsing-terminal', icon: TerminalIcon },
   { label: 'WhatsApp Business', path: '/whatsapp/setup', icon: GroupsIcon },
   { label: 'Broker Network', path: '/broker-network/contacts', icon: UsersIcon },
   { label: 'Syndication', path: '/broker-network/partners', icon: UsersIcon },

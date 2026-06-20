@@ -35,18 +35,6 @@ const getRouteContext = (pathname: string) => {
     };
   }
 
-  if (pathname.startsWith('/parsing-terminal')) {
-    return {
-      title: 'Parsing helper',
-      intro: 'Ask Pulse to explain feed faults, group coverage, and parse activity.',
-      prompts: [
-        'Explain the current parsing terminal state in plain language.',
-        'What should I check when the feed says network error?',
-        'How do I know whether Cloud API messages are being parsed?',
-      ],
-    };
-  }
-
   if (pathname.startsWith('/broker-network')) {
     return {
       title: 'Broker network helper',

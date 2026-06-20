@@ -58,15 +58,6 @@ const TOUR_STEPS: TourStep[] = [
     },
   },
   {
-    element: '#tour-nav-parsing-terminal',
-    popover: {
-      title: 'Parsing Terminal',
-      description: 'Turn groups on or off and rescan when new groups appear.',
-      side: 'right',
-      align: 'start',
-    },
-  },
-  {
     element: '#tour-nav-broker-network',
     popover: {
       title: 'Broker Network',
