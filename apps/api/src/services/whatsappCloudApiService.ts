@@ -7,6 +7,7 @@ import { agentExecutor } from './AgentExecutor';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { isOwnerSuperAdminPhone } from '../utils/controllerHelpers';
 import { activationCodeService } from './activationCodeService';
+import { getPhoneOwnership } from './phoneOwnershipService';
 
 const db = supabaseAdmin || supabase;
 const SESSION_LABEL = 'Official API';
@@ -152,6 +153,19 @@ const WABA_MEDIA_EXT: Record<string, string> = {
 function buildRemoteJid(waId?: string | null) {
     const digits = normalizeDigits(waId);
     return digits ? `${digits}@s.whatsapp.net` : '';
+}
+
+function shouldIngestPropertySubmission(text: string) {
+    const normalized = String(text || '').trim();
+    if (!normalized) return false;
+
+    // Search and chat messages use the agent and existing Stream data. They are not
+    // source material for a new listing/requirement record.
+    if (/^(?:search|find|show|match|check|what|where|when|why|how|hi|hello|hey|thanks?)\b/i.test(normalized)) {
+        return false;
+    }
+
+    return /\b(?:for\s+(?:sale|rent|lease)|available|listing|requirement|client\s+(?:needs|looking)|buyer\s+(?:needs|looking)|owner|possession|carpet\s*(?:area)?|built\s*up|sq\.?\s*ft|\d(?:\.5)?\s*bhk\s*(?:[-|,/]?\s*)?(?:@|rs\.?|₹|inr|\d+\s*(?:cr|crore|lac|lakh)))\b/i.test(normalized);
 }
 
 export class WhatsAppCloudApiService {
@@ -478,22 +492,24 @@ export class WhatsAppCloudApiService {
                     }
                     // --- end activation code detection ---
 
-                    const ingestedCount = await channelService.ingestMessage(dataTenantId, {
-                        id: messageId,
-                        session_label: sessionLabel,
-                        remote_jid: remoteJid,
-                        sender: senderName,
-                        text,
-                        timestamp,
-                        created_at: timestamp,
-                        source: 'whatsapp_cloud',
-                        sourceGroupId: null,
-                        sourceGroupName: null,
-                        senderJid: null,
-                    } as any).catch((error) => {
-                        console.warn('[WhatsAppCloudApiService] Stream ingest failed', error);
-                        return 0;
-                    });
+                    const ingestedCount = shouldIngestPropertySubmission(text)
+                        ? await channelService.ingestMessage(dataTenantId, {
+                            id: messageId,
+                            session_label: sessionLabel,
+                            remote_jid: remoteJid,
+                            sender: senderName,
+                            text,
+                            timestamp,
+                            created_at: timestamp,
+                            source: 'whatsapp_cloud',
+                            sourceGroupId: null,
+                            sourceGroupName: null,
+                            senderJid: null,
+                        } as any).catch((error) => {
+                            console.warn('[WhatsAppCloudApiService] Stream ingest failed', error);
+                            return 0;
+                        })
+                        : 0;
 
                     if (ingestedCount > 0) {
                         await whatsappHealthService.recordMessageMetrics({
@@ -750,13 +766,9 @@ export class WhatsAppCloudApiService {
             .eq('phone', normalized)
             .maybeSingle();
         if (bc?.tenant_id) return bc.tenant_id;
-        // Fall back to profiles (registered users)
-        const { data: profile } = await supabaseAdmin!
-            .from('profiles')
-            .select('id')
-            .or(`phone.eq.${normalized},phone.eq.+${normalized}`)
-            .maybeSingle();
-        return profile?.id || null;
+        // Profiles can store either a national or E.164 Indian number. Resolve
+        // ownership after normalisation so a WABA 91-prefixed sender is recognised.
+        return (await getPhoneOwnership(normalized))?.canonicalOwnerId || null;
     }
 
     async sendTextMessage(input: {

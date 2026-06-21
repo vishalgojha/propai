@@ -13,6 +13,8 @@ import {
     saveToHistory,
 } from '../memory/conversationMemory';
 import { conversationEngineService } from './conversationEngineService';
+import { wabaConversationOnboardingService } from './wabaConversationOnboardingService';
+import { isOwnerSuperAdminPhone } from '../utils/controllerHelpers';
 
 type ChatTurn = {
     role: 'system' | 'user' | 'assistant';
@@ -104,6 +106,7 @@ export class AgentExecutor {
         let brokerProfile: Awaited<ReturnType<typeof getUnifiedBrokerProfile>> = null;
         let brokerFullName: string | undefined;
         let shouldGreetBrokerByName = false;
+        let isKnownVerifiedBroker = false;
         let conversationKey = normalizeConversationPhoneNumber(remoteJid);
 
         const assistantSessionPhone = await this.getSessionPhoneNumber(tenantId, sessionLabel);
@@ -118,6 +121,7 @@ export class AgentExecutor {
             const brokerResolution = await this.resolveBrokerWorkspaceBySender(remoteJid);
 
             if (brokerResolution.isBroker && brokerResolution.verified) {
+                isKnownVerifiedBroker = true;
                 // Verified broker → CRM mode inside their workspace
                 effectiveTenantId = brokerResolution.tenantId!;
                 brokerProfile = await getUnifiedBrokerProfile(effectiveTenantId);
@@ -149,6 +153,7 @@ export class AgentExecutor {
             // WABA / non-assistant session — resolve sender by phone
             const brokerResolution = await this.resolveBrokerWorkspaceBySender(remoteJid);
             if (brokerResolution.isBroker && brokerResolution.verified && brokerResolution.tenantId) {
+                isKnownVerifiedBroker = true;
                 effectiveTenantId = brokerResolution.tenantId;
                 brokerProfile = await getUnifiedBrokerProfile(effectiveTenantId);
             } else {
@@ -165,6 +170,7 @@ export class AgentExecutor {
         }
 
         const history = await getConversationHistory(conversationKey);
+        const isFirstContact = history.length === 0;
         const currentMessages: ChatTurn[] = [...history];
         let currentPrompt = text;
 
@@ -173,6 +179,19 @@ export class AgentExecutor {
 
         try {
             if (shouldUseUnifiedBrokerFlow) {
+                if (isOfficialCloudSession) {
+                    const onboardingReply = await wabaConversationOnboardingService.maybeHandle({
+                        text,
+                        remoteJid,
+                        isFirstContact,
+                        isKnownBroker: isKnownVerifiedBroker,
+                        history,
+                    });
+                    if (onboardingReply) {
+                        await saveToHistory(conversationKey, text, onboardingReply);
+                        return onboardingReply;
+                    }
+                }
                 const result = await conversationEngineService.process({
                     event: {
                         schemaVersion: '2026-05-15',
@@ -488,9 +507,11 @@ Always wrap responses in the AgentResponse JSON schema.`;
         if (ownerProfile?.id) {
             return {
                 isBroker: true,
-                verified: Boolean(ownerProfile.phone_verified),
+                // Founder/admin phones are explicitly trusted even if the legacy
+                // profile has not had its phone_verified flag backfilled yet.
+                verified: Boolean(ownerProfile.phone_verified) || isOwnerSuperAdminPhone(phone),
                 tenantId: ownerProfile.id,
-                role: 'owner',
+                role: isOwnerSuperAdminPhone(phone) ? 'super_admin' : 'owner',
             };
         }
 

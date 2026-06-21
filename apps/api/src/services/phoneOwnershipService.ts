@@ -46,10 +46,20 @@ export async function getPhoneOwnership(phone?: string | null): Promise<PhoneOwn
         return null;
     }
 
+    const nationalNumber = normalizedPhone.slice(-10);
+    const phoneVariants = [...new Set([
+        normalizedPhone,
+        nationalNumber,
+        `+${normalizedPhone}`,
+        `+${nationalNumber}`,
+        normalizedPhone.length === 10 ? `91${normalizedPhone}` : '',
+        normalizedPhone.length === 10 ? `+91${normalizedPhone}` : '',
+    ].filter(Boolean))];
+
     const { data, error } = await db
         .from('profiles')
         .select('id, phone, phone_verified, created_at, updated_at')
-        .or(`phone.eq.${normalizedPhone},phone.eq.+${normalizedPhone}`)
+        .or(phoneVariants.map((value) => `phone.eq.${value}`).join(','))
         .order('created_at', { ascending: true });
 
     if (error) {
@@ -57,7 +67,7 @@ export async function getPhoneOwnership(phone?: string | null): Promise<PhoneOwn
     }
 
     const matchingProfiles = ((data || []) as PhoneProfileRow[])
-        .filter((profile) => normalizePhone(profile.phone) === normalizedPhone)
+        .filter((profile) => normalizePhone(profile.phone).slice(-10) === nationalNumber)
         .sort(compareProfiles);
 
     const canonicalOwner = matchingProfiles[0] || null;
