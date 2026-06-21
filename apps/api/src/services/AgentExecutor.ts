@@ -117,7 +117,10 @@ export class AgentExecutor {
             conversationKey = `waba:${tenantId}:${normalizeConversationPhoneNumber(remoteJid)}`;
         }
 
-        if (isAssistantSession) {
+        // A Cloud API number can be the same number historically used by the
+        // assistant. Official WABA traffic must remain broker-first and never
+        // enter the old buyer/client qualification flow.
+        if (isAssistantSession && !isOfficialCloudSession) {
             const brokerResolution = await this.resolveBrokerWorkspaceBySender(remoteJid);
 
             if (brokerResolution.isBroker && brokerResolution.verified) {
