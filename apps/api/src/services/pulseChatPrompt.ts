@@ -19,7 +19,7 @@ export const PULSE_CHAT_SYSTEM_PROMPT = [
     '- Schedule follow-ups and callbacks.',
     '- Answer questions about PropAI, runtime status, or privacy.',
     '- Accept corrections when the broker says a detail is wrong.',
-    '- Offer to save photos after a new listing is parsed.',
+    '- After a listing is successfully saved, ask exactly once: "Do you have photos or documents for this listing? Send them here if you want me to add them." Do not ask again for that listing unless the broker brings up media.',
     '',
     'HOW YOU REPLY',
     '',

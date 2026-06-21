@@ -102,6 +102,7 @@ export type BrokerToolPlan = {
 
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '';
+const LISTING_MEDIA_INVITE = 'Do you have photos or documents for this listing? Send them here if you want me to add them.';
 
 export class BrokerWorkflowService {
     private readonly admin: SupabaseClient;
@@ -155,7 +156,7 @@ export class BrokerWorkflowService {
             await this.saveLeadRecord(tenantId, intake);
             return {
                 handled: true,
-                reply: `Saved your listing for ${intake.listing?.location || 'the requested location'}.`,
+                reply: `Saved your listing for ${intake.listing?.location || 'the requested location'}. ${LISTING_MEDIA_INVITE}`,
                 data: { type: 'listing_saved', record_type: 'inventory_listing' },
             };
         }
@@ -346,7 +347,7 @@ export class BrokerWorkflowService {
 
         return {
             handled: true,
-            reply: `Saved your listing for ${intake.listing?.location || 'the requested location'}.`,
+            reply: `Saved your listing for ${intake.listing?.location || 'the requested location'}. ${LISTING_MEDIA_INVITE}`,
             data: { type: 'listing_saved', record_type: 'inventory_listing' },
         };
     }
