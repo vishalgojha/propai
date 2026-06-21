@@ -72,6 +72,9 @@ export class WabaBrokerProvisioningService {
                 tenant_id: brokerId,
                 phone: `91${phone}`,
                 display_name: input.fullName.trim(),
+                inferred_areas: [input.city.trim()],
+                source_groups: ['WABA onboarding'],
+                group_count: 0,
                 last_seen_at: now,
             }, { onConflict: 'tenant_id,phone' }),
         ]);
