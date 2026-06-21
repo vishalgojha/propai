@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Building2,
   Check,
   Clock,
   Copy,
@@ -11,13 +10,12 @@ import {
   RefreshCw,
   ShieldCheck,
   UserRound,
-  UsersRound,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { formatPriceNumeric } from '../lib/formatPrice';
 import { Link, useLocation, useNavigate, useSearchParams } from '../lib/router';
-import backendApi, { handleApiError } from '../services/api';
-import { fetchBrokerContactOverlaps, fetchBrokerContacts, type BrokerContact, type BrokerContactOverlap } from '../services/brokerContactApi';
+import { handleApiError } from '../services/api';
+import { fetchBrokerContacts, type BrokerContact } from '../services/brokerContactApi';
 import {
   acceptSyndicationInvite,
   createSyndicationInvite,
@@ -25,15 +23,13 @@ import {
   revokeSyndication,
   type SyndicationPartner,
 } from '../services/syndicationApi';
-import { ENDPOINTS } from '../services/endpoints';
 
-type BrokerNetworkView = 'contacts' | 'overlaps' | 'partners';
+type BrokerNetworkView = 'contacts' | 'partners';
 
 const brokerNetworkPathForView = (view: BrokerNetworkView) => `/broker-network/${view}`;
 
 const brokerNetworkViewFromPath = (pathname: string): BrokerNetworkView => {
   if (pathname.endsWith('/partners')) return 'partners';
-  if (pathname.endsWith('/overlaps')) return 'overlaps';
   return 'contacts';
 };
 
@@ -100,31 +96,11 @@ const extractToken = (value: string): string => {
   }
 };
 
-function resolveActiveSessionLabel(data: any): string | null {
-  const sessions = Array.isArray(data?.sessions) ? data.sessions : [];
-  const preferredLabel = String(data?.selectedSessionLabel || data?.preferredOutboundSessionLabel || '').trim();
-
-  if (preferredLabel) {
-    return preferredLabel;
-  }
-
-  const activeSession =
-    sessions.find((session: any) => String(session?.status || '') === 'connected')
-    || sessions.find((session: any) => String(session?.status || '') === 'connecting')
-    || sessions.find((session: any) => String(session?.status || '') === 'reconnecting')
-    || sessions[0]
-    || null;
-
-  return String(activeSession?.label || '').trim() || null;
-}
-
 export const BrokerNetwork: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [contacts, setContacts] = React.useState<BrokerContact[]>([]);
-  const [overlaps, setOverlaps] = React.useState<BrokerContactOverlap[]>([]);
-  const [sessionLabel, setSessionLabel] = React.useState<string | null>(null);
   const initialView = brokerNetworkViewFromPath(location.pathname);
   const [activeView, setActiveView] = React.useState<BrokerNetworkView>(initialView);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -141,39 +117,8 @@ export const BrokerNetwork: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setContacts([]);
-    setOverlaps([]);
     try {
-      let activeSessionLabel: string | null = null;
-
-      try {
-        const statusResponse = await backendApi.get(ENDPOINTS.whatsapp.status);
-        activeSessionLabel = resolveActiveSessionLabel(statusResponse.data);
-      } catch {
-        activeSessionLabel = null;
-      }
-
-      setSessionLabel(activeSessionLabel);
-
-      const [contactResult, overlapResult] = await Promise.allSettled([
-        fetchBrokerContacts({ sessionLabel: activeSessionLabel }),
-        fetchBrokerContactOverlaps({ sessionLabel: activeSessionLabel }),
-      ]);
-
-      if (contactResult.status === 'fulfilled') {
-        setContacts(contactResult.value);
-      }
-
-      if (overlapResult.status === 'fulfilled') {
-        setOverlaps(overlapResult.value);
-      }
-
-      const loadErrors = [contactResult, overlapResult]
-        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
-        .map((result) => handleApiError(result.reason));
-
-      if (loadErrors.length > 0) {
-        setError(loadErrors[0]);
-      }
+      setContacts(await fetchBrokerContacts());
     } catch (err) {
       setError(handleApiError(err));
     } finally {
@@ -271,7 +216,6 @@ export const BrokerNetwork: React.FC = () => {
   }, [inviteLink]);
 
   const totalListings = contacts.reduce((sum, c) => sum + c.listing_count, 0);
-  const overlappingGroupLinks = overlaps.reduce((sum, contact) => sum + contact.group_count, 0);
   const activePartners = partners.filter((partner) => partner.status === 'active').length;
   const pendingPartners = partners.filter((partner) => partner.status === 'pending').length;
 
@@ -288,7 +232,7 @@ export const BrokerNetwork: React.FC = () => {
               Your broker network
             </h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              Broker contacts and workspace relationships — {contacts.length} unique contact{contacts.length === 1 ? '' : 's'}, {overlaps.length} overlapping contact{overlaps.length === 1 ? '' : 's'}, and {totalListings} listing{totalListings === 1 ? '' : 's'} on record.
+              WhatsApp-native broker directory — {contacts.length} broker{contacts.length === 1 ? '' : 's'} and {totalListings} listing{totalListings === 1 ? '' : 's'} on record.
             </p>
           </div>
           <button
@@ -303,7 +247,7 @@ export const BrokerNetwork: React.FC = () => {
         </div>
 
         <div className="mt-5 rounded-[18px] border border-[color:rgba(62,232,138,0.18)] bg-[rgba(62,232,138,0.06)] px-4 py-3 text-[12px] leading-6 text-[var(--text-secondary)]">
-          Broker contact data is shown for legitimate brokerage outreach only. If you want a number or group reviewed for removal, email <a className="font-semibold text-[var(--accent)] hover:underline" href="mailto:support@propai.live">support@propai.live</a>.
+          Broker contact data is shown for legitimate brokerage outreach only. If you want a number reviewed for removal, email <a className="font-semibold text-[var(--accent)] hover:underline" href="mailto:support@propai.live">support@propai.live</a>.
           Please review the <Link className="font-semibold text-[var(--accent)] hover:underline" to="/terms">Terms &amp; Conditions</Link> before using this workspace.
         </div>
       </div>
@@ -332,20 +276,6 @@ export const BrokerNetwork: React.FC = () => {
           </button>
           <button
             type="button"
-            data-action="broker-network-tab-overlaps"
-            onClick={() => selectView('overlaps')}
-            className={cn(
-              'inline-flex flex-1 items-center justify-center gap-2 rounded-[10px] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors md:flex-none',
-              activeView === 'overlaps'
-                ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
-            )}
-          >
-            <UsersRound className="h-4 w-4" />
-            Overlaps
-          </button>
-          <button
-            type="button"
             data-action="broker-network-tab-partners"
             onClick={() => selectView('partners')}
             className={cn(
@@ -359,11 +289,7 @@ export const BrokerNetwork: React.FC = () => {
             Partner / Team
           </button>
         </div>
-        {activeView === 'overlaps' ? (
-          <div className="text-[12px] text-[var(--text-secondary)]">
-            {overlaps.length} contact{overlaps.length === 1 ? '' : 's'} across {overlappingGroupLinks} group membership link{overlappingGroupLinks === 1 ? '' : 's'}
-          </div>
-        ) : activeView === 'partners' ? (
+        {activeView === 'partners' ? (
           <div className="text-[12px] text-[var(--text-secondary)]">
             {activePartners} active partner{activePartners === 1 ? '' : 's'}
             {pendingPartners > 0 ? `, ${pendingPartners} pending` : ''}
@@ -559,7 +485,7 @@ export const BrokerNetwork: React.FC = () => {
                   <th className="px-5 py-4">Broker</th>
                   <th className="px-5 py-4">WhatsApp</th>
                   <th className="px-5 py-4">Areas</th>
-                  <th className="px-5 py-4">Groups</th>
+                  <th className="px-5 py-4">Source</th>
                   <th className="px-5 py-4">Listings</th>
                   <th className="px-5 py-4">Last seen</th>
                 </tr>
@@ -582,12 +508,6 @@ export const BrokerNetwork: React.FC = () => {
                           <p className="font-semibold text-[var(--text-primary)]">
                             {getBrokerLabel(contact)}
                           </p>
-                          {contact.source_groups.length > 0 ? (
-                            <p className="mt-0.5 flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
-                              <Building2 className="h-3 w-3" />
-                              {contact.source_groups.length} group{contact.source_groups.length === 1 ? '' : 's'}
-                            </p>
-                          ) : null}
                         </div>
                       </div>
                     </td>
@@ -632,8 +552,8 @@ export const BrokerNetwork: React.FC = () => {
                     </td>
                     <td className="px-5 py-4">
                       <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)]">
-                        <UsersRound className="h-3 w-3" />
-                        {contact.group_count}
+                        <Phone className="h-3 w-3" />
+                        WhatsApp
                       </span>
                     </td>
                     <td className="px-5 py-4">
@@ -653,126 +573,7 @@ export const BrokerNetwork: React.FC = () => {
             </table>
           </div>
         </div>
-      ) : overlaps.length === 0 ? (
-        <div className="rounded-[18px] border border-dashed border-[color:var(--border)] px-4 py-16 text-center text-sm text-[var(--text-secondary)]">
-          <UsersRound className="mx-auto mb-3 h-8 w-8 opacity-40" />
-          No overlapping contacts yet. They will appear once the same number is seen in two or more synced groups.
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-[24px] border border-[color:var(--border)] bg-[var(--bg-surface)]">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-white/[0.04] text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-                  <th className="px-5 py-4">Contact</th>
-                  <th className="px-5 py-4">Shared groups</th>
-                  <th className="px-5 py-4">Areas</th>
-                  <th className="px-5 py-4">WhatsApp</th>
-                  <th className="px-5 py-4">Listings</th>
-                  <th className="px-5 py-4">Last seen</th>
-                </tr>
-              </thead>
-              <tbody>
-                {overlaps.map((contact, index) => (
-                  <tr
-                    key={contact.id}
-                    className={cn(
-                      'border-b border-white/[0.02] transition-colors hover:bg-[var(--bg-elevated)]',
-                      index === overlaps.length - 1 && 'border-b-0',
-                    )}
-                  >
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent-dim)] text-[13px] font-bold text-[var(--accent)]">
-                          {getBrokerLabel(contact)[0].toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-[var(--text-primary)]">
-                            {getBrokerLabel(contact)}
-                          </p>
-                          <a
-                            href={buildBrokerWhatsAppLink(contact.phone) || undefined}
-                            target={buildBrokerWhatsAppLink(contact.phone) ? '_blank' : undefined}
-                            rel={buildBrokerWhatsAppLink(contact.phone) ? 'noreferrer' : undefined}
-                            className={cn(
-                              'mt-1 inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] transition-colors',
-                              buildBrokerWhatsAppLink(contact.phone)
-                                ? 'border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)] hover:brightness-110'
-                                : 'border-[color:var(--border)] bg-[var(--bg-elevated)] text-[var(--text-muted)] pointer-events-none',
-                            )}
-                            aria-label={`Open WhatsApp chat for ${getBrokerLabel(contact)}`}
-                          >
-                            {getWhatsAppActionLabel(contact.phone)}
-                          </a>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 min-w-[260px]">
-                      <div className="flex flex-col gap-1.5">
-                        <span className="inline-flex w-fit items-center gap-1 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--accent)]">
-                          <UsersRound className="h-3 w-3" />
-                          {contact.group_count} groups
-                        </span>
-                        <div className="flex flex-wrap gap-1">
-                          {contact.source_groups.slice(0, 4).map((group) => (
-                            <span
-                              key={group.id}
-                              className="inline-flex max-w-[220px] items-center gap-1 truncate rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]"
-                              title={group.name}
-                            >
-                              <Building2 className="h-3 w-3 shrink-0" />
-                              <span className="truncate">{group.name}</span>
-                            </span>
-                          ))}
-                          {contact.source_groups.length > 4 ? (
-                            <span className="text-[10px] text-[var(--text-muted)]">
-                              +{contact.source_groups.length - 4}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {contact.inferred_areas.length > 0 ? (
-                          contact.inferred_areas.slice(0, 3).map((area) => (
-                            <span
-                              key={area}
-                              className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]"
-                            >
-                              <MapPin className="h-3 w-3" />
-                              {area}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-[12px] text-[var(--text-muted)]">—</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)]">
-                        <Phone className="h-3 w-3 text-[var(--text-muted)]" />
-                        wa.me
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--accent)]">
-                        {contact.listing_count}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className="inline-flex items-center gap-1 text-[12px] text-[var(--text-secondary)]">
-                        <Clock className="h-3 w-3 text-[var(--text-muted)]" />
-                        {formatDate(contact.last_seen_at)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 };
