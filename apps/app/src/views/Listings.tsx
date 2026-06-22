@@ -444,15 +444,12 @@ const buildStreamDedupeKey = (item: StreamItem) =>
       item.configuration,
       item.areaSqft,
       item.furnishing,
-      item.floorNumber,
-      item.totalFloors,
       item.propertyUse,
       item.commercialType,
       item.fitoutStatus,
       item.workstationsCount,
       item.cabinsCount,
-      item.description,
-      item.rawText,
+      item.sourcePhone,
     ]
       .filter((value) => value != null && String(value).trim().length > 0)
       .join('|'),
@@ -1681,6 +1678,7 @@ if (brokerOnly) {
                           data-action="stream-item"
                           onClick={() => {
                             setExpandedListingId(isExpanded ? null : listing.id);
+                            setOpenActionMenuId(null);
                             if (!isExpanded && editingListingId && editingListingId !== listing.id) {
                               setEditingListingId(null);
                               setCorrectionDraft(null);
@@ -1779,25 +1777,31 @@ if (brokerOnly) {
                           </div>
 
                           {openActionMenuId === listing.id ? (
-                            <div className="mt-3 flex flex-wrap gap-2">
+                            <div className="mt-3">
                               {channels.length === 0 ? (
                                 <div className="text-[12px] text-[var(--text-secondary)]">No channels available.</div>
                               ) : (
-                                channels.map((channel) => (
-                                  <button
-                                    key={channel.id}
-                                    type="button"
-                                    data-action="save-to-channel"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      void handleAttachStreamItemToChannel(channel.id, listing.id);
-                                    }}
-                                    disabled={savingChannelItemId === listing.id}
-                                    className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] text-[var(--text-primary)] disabled:opacity-60"
-                                  >
-                                    {savingChannelItemId === listing.id ? 'Saving...' : formatChannelTitle(channel.name)}
-                                  </button>
-                                ))
+                                <select
+                                  data-action="save-to-channel"
+                                  value=""
+                                  onClick={(event) => event.stopPropagation()}
+                                  onChange={(event) => {
+                                    event.stopPropagation();
+                                    const nextChannelId = event.target.value;
+                                    if (!nextChannelId) return;
+                                    void handleAttachStreamItemToChannel(nextChannelId, listing.id);
+                                    setOpenActionMenuId(null);
+                                  }}
+                                  disabled={savingChannelItemId === listing.id}
+                                  className="w-full rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none disabled:opacity-60"
+                                >
+                                  <option value="">{savingChannelItemId === listing.id ? 'Saving...' : 'Choose channel'}</option>
+                                  {channels.map((channel) => (
+                                    <option key={channel.id} value={channel.id}>
+                                      {channel.name}
+                                    </option>
+                                  ))}
+                                </select>
                               )}
                             </div>
                           ) : null}
@@ -1808,12 +1812,12 @@ if (brokerOnly) {
                 ))}
               </div>
               <div className="hidden overflow-x-auto md:block">
-            <table className="min-w-[1080px] w-full border-separate border-spacing-0 text-left">
+              <table className="min-w-[1200px] w-full border-separate border-spacing-0 text-left">
               <thead>
                 <tr className="border-b border-[color:var(--accent-border)] bg-[color:var(--propai-green-dim)]">
                   {(filterPropertyCategory === 'commercial'
-                    ? ['Record', 'Type', 'Locality', 'Fit-out / Type', 'Area', 'Price', 'Workstations / Cabins', 'Floor', 'Posted', 'WA']
-                    : ['Record', 'Type', 'Locality', 'Configuration', 'Area', 'Price', 'Furnishing', 'Floor', 'Posted', 'WA']
+                    ? ['Record', 'Type', 'Locality', 'Building', 'Fit-out / Type', 'Area', 'Price', 'Workstations / Cabins', 'Floor', 'Posted', 'WA']
+                    : ['Record', 'Type', 'Locality', 'Building', 'Configuration', 'Area', 'Price', 'Furnishing', 'Floor', 'Posted', 'WA']
                   ).map((header) => (
                     <th
                       key={header}
@@ -1828,7 +1832,7 @@ if (brokerOnly) {
                 <tbody key={group.locality}>
                   <tr className="sticky top-0 z-10">
                     <td
-                      colSpan={10}
+                      colSpan={11}
                       className="border-y border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 text-[12px] font-semibold text-[var(--text-primary)] backdrop-blur"
                     >
                       {group.locality} · {group.listingCount} listing{group.listingCount === 1 ? '' : 's'} · {group.requirementCount} requirement{group.requirementCount === 1 ? '' : 's'}
@@ -1848,6 +1852,7 @@ if (brokerOnly) {
                           data-action="stream-item"
                           onClick={() => {
                             setExpandedListingId(isExpanded ? null : listing.id);
+                            setOpenActionMenuId(null);
                             if (!isExpanded && editingListingId && editingListingId !== listing.id) {
                               setEditingListingId(null);
                               setCorrectionDraft(null);
@@ -1877,6 +1882,9 @@ if (brokerOnly) {
                               <div>{formatLocalityCell(listing.location)}</div>
                           </td>
                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
+                            {listing.buildingName || '—'}
+                          </td>
+                          <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
                              {filterPropertyCategory === 'commercial'
                                ? (() => {
                                    const type = listing.commercialType || listing.propertyUse || listing.assetClass || '—';
@@ -1888,17 +1896,21 @@ if (brokerOnly) {
                            <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{formatAreaCell(listing.areaSqft)}</td>
                            <td className="px-4 py-3 text-[13px] font-semibold text-[var(--text-primary)]">{normalizePriceDisplay(listing).label || 'Price on request'}</td>
                            <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
-                             {filterPropertyCategory === 'commercial'
-                               ? (() => {
-                                   const ws = listing.workstationsCount;
-                                   const cabins = listing.cabinsCount;
-                                   if (ws || cabins) {
-                                     return `${ws || '—'} Seats / ${cabins || '—'} Cabins`;
-                                   }
-                                   return listing.furnishing || '—';
-                                 })()
-                               : formatFurnishingCell(listing.furnishing)}
-                           </td>
+                              {filterPropertyCategory === 'commercial'
+                                ? (() => {
+                                    const ws = listing.workstationsCount;
+                                    const cabins = listing.cabinsCount;
+                                    if (ws || cabins) {
+                                      return `${ws || '—'} Seats / ${cabins || '—'} Cabins`;
+                                    }
+                                    return (listing.type === 'Rent' || listing.type === 'Lease' || listing.type === 'Pre-leased') && listing.furnishing
+                                      ? listing.furnishing
+                                      : '—';
+                                  })()
+                                : (listing.type === 'Rent' || listing.type === 'Lease' || listing.type === 'Pre-leased')
+                                  ? formatFurnishingCell(listing.furnishing)
+                                  : '—'}
+                            </td>
                            <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">{formatFloorCell(listing)}</td>
                           <td className="px-4 py-3 text-[13px] text-[var(--text-secondary)]">{formatPostedCell(listing.createdAt)}</td>
                           <td className="px-4 py-3">
@@ -1985,25 +1997,31 @@ if (brokerOnly) {
                                         </button>
                                       </div>
                                       {openActionMenuId === listing.id ? (
-                                        <div className="mt-3 flex flex-wrap gap-2">
+                                        <div className="mt-3 max-w-sm">
                                           {channels.length === 0 ? (
                                             <div className="text-[12px] text-[var(--text-secondary)]">No channels available.</div>
                                           ) : (
-                                            channels.map((channel) => (
-                                              <button
-                                                key={channel.id}
-                                                type="button"
-                                                data-action="save-to-channel"
-                                                onClick={(event) => {
-                                                  event.stopPropagation();
-                                                  void handleAttachStreamItemToChannel(channel.id, listing.id);
-                                                }}
-                                                disabled={savingChannelItemId === listing.id}
-                                                className="rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] text-[var(--text-primary)] disabled:opacity-60"
-                                              >
-                                                {savingChannelItemId === listing.id ? 'Saving...' : formatChannelTitle(channel.name)}
-                                              </button>
-                                            ))
+                                            <select
+                                              data-action="save-to-channel"
+                                              value=""
+                                              onClick={(event) => event.stopPropagation()}
+                                              onChange={(event) => {
+                                                event.stopPropagation();
+                                                const nextChannelId = event.target.value;
+                                                if (!nextChannelId) return;
+                                                void handleAttachStreamItemToChannel(nextChannelId, listing.id);
+                                                setOpenActionMenuId(null);
+                                              }}
+                                              disabled={savingChannelItemId === listing.id}
+                                              className="w-full rounded-xl border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none disabled:opacity-60"
+                                            >
+                                              <option value="">{savingChannelItemId === listing.id ? 'Saving...' : 'Choose channel'}</option>
+                                              {channels.map((channel) => (
+                                                <option key={channel.id} value={channel.id}>
+                                                  {channel.name}
+                                                </option>
+                                              ))}
+                                            </select>
                                           )}
                                         </div>
                                       ) : null}
