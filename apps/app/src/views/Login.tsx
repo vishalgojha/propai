@@ -350,7 +350,7 @@ export const Login: React.FC = () => {
                     Open WhatsApp onboarding first, then come back here and enter the same broker number.
                   </p>
                   <a href="/onboarding" className="mt-4 inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07]">
-                    Open onboarding
+                    Start WhatsApp onboarding
                   </a>
                 </div>
               </AuthCard>

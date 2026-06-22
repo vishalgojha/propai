@@ -16,7 +16,7 @@ export const Onboarding: React.FC = () => (
                 href={onboardingWhatsAppLink}
                 className="mt-9 inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-6 py-3.5 text-base font-semibold text-black transition hover:opacity-90"
             >
-                Open WhatsApp and send “ONBOARD ME” <ArrowRightIcon className="h-5 w-5" />
+                Start WhatsApp onboarding and send “ONBOARD ME” <ArrowRightIcon className="h-5 w-5" />
             </a>
             <p className="mt-5 text-sm text-gray-500">No web form. Listings, requirements, and support stay in WhatsApp.</p>
         </section>
