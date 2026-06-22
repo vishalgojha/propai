@@ -124,6 +124,8 @@ export interface PublicListing {
   floor?: string;
   origin?: string;
   contacts?: Array<{ name: string | null; phone: string; waLink: string }>;
+  cover_image?: string | null;
+  images?: string[] | null;
 }
 
 function normalizeLocalityQuery(value?: string | null) {

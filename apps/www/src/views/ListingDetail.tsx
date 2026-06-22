@@ -175,6 +175,10 @@ export default function ListingDetail({
   );
 
   const description = buildDescription(listing);
+  const galleryImages = Array.from(new Set([
+    listing.cover_image,
+    ...(listing.images || []),
+  ].filter((value): value is string => Boolean(value && String(value).trim()))));
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -212,6 +216,39 @@ export default function ListingDetail({
 
       {/* Main detail wrapper - clean borderless glass panel */}
       <section className="rounded-[28px] border border-white/3 bg-[var(--bg-surface)]/60 backdrop-blur-md p-6 shadow-[0_24px_70px_rgba(0,0,0,0.24)] md:p-8">
+        {galleryImages.length > 0 ? (
+          <div className="mb-7">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Photos</p>
+                <h2 className="mt-1 text-[18px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Listing gallery</h2>
+              </div>
+              <p className="text-[11px] text-[var(--text-secondary)]">Photos pulled from the listing record.</p>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {galleryImages.slice(0, 6).map((image, index) => (
+                <a
+                  key={`${image}-${index}`}
+                  href={image}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group block overflow-hidden rounded-[18px] border border-[color:rgba(255,255,255,0.08)] bg-[var(--bg-elevated)]"
+                >
+                  <img
+                    src={image}
+                    alt={`${listing.title} photo ${index + 1}`}
+                    className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="mb-7 rounded-[18px] border border-dashed border-[color:var(--border)] bg-[rgba(255,255,255,0.02)] p-4 text-[12px] text-[var(--text-secondary)]">
+            Photos are not published for this listing yet. When image URLs are stored with the record, they will appear here.
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em]">
           <span className="inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-glow)] px-3 py-1 text-[var(--accent)]">
             {listing.type}

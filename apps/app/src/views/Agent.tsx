@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import backendApi, { handleApiError } from '../services/api';
 import { ENDPOINTS } from '../services/endpoints';
@@ -922,7 +922,40 @@ export const Agent: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachmentNote, setAttachmentNote] = useState<string | null>(null);
-  const [attachedFiles, setAttachedFiles] = useState<Array<{ id: string; fileName: string; mimeType: string | null; byteSize: number; hasText: boolean }>>([]);
+  const [attachedFiles, setAttachedFiles] = useState<Array<{
+    id: string;
+    fileName: string;
+    mimeType: string | null;
+    byteSize: number;
+    hasText: boolean;
+    kind: 'image' | 'file';
+    previewUrl?: string | null;
+  }>>([]);
+  const attachedFilesRef = useRef<typeof attachedFiles>([]);
+
+  useEffect(() => {
+    attachedFilesRef.current = attachedFiles;
+  }, [attachedFiles]);
+
+  useEffect(() => {
+    return () => {
+      attachedFilesRef.current.forEach((file) => {
+        if (file.previewUrl) {
+          URL.revokeObjectURL(file.previewUrl);
+        }
+      });
+    };
+  }, []);
+
+  const removeAttachedFile = useCallback((fileId: string) => {
+    setAttachedFiles((current) => {
+      const removed = current.find((file) => file.id === fileId);
+      if (removed?.previewUrl) {
+        URL.revokeObjectURL(removed.previewUrl);
+      }
+      return current.filter((file) => file.id !== fileId);
+    });
+  }, []);
 
   const handleAttachFile = async (file: File) => {
     try {
@@ -946,16 +979,26 @@ export const Agent: React.FC = () => {
         return;
       }
 
-      setAttachedFiles((current) => ([
-        ...current,
-        {
-          id: String(uploaded.id),
-          fileName: String(uploaded.fileName || file.name || 'attachment'),
-          mimeType: uploaded.mimeType ? String(uploaded.mimeType) : null,
-          byteSize: Number(uploaded.byteSize || file.size || 0),
-          hasText: Boolean(uploaded.extractedText && String(uploaded.extractedText).trim().length > 0),
-        },
-      ]).slice(0, 6));
+      const nextFile = {
+        id: String(uploaded.id),
+        fileName: String(uploaded.fileName || file.name || 'attachment'),
+        mimeType: uploaded.mimeType ? String(uploaded.mimeType) : null,
+        byteSize: Number(uploaded.byteSize || file.size || 0),
+        hasText: Boolean(uploaded.extractedText && String(uploaded.extractedText).trim().length > 0),
+        kind: file.type.startsWith('image/') ? 'image' : 'file',
+        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+      } as const;
+
+      setAttachedFiles((current) => {
+        const next = [...current, nextFile];
+        const overflow = next.slice(0, Math.max(0, next.length - 6));
+        overflow.forEach((item) => {
+          if (item.previewUrl) {
+            URL.revokeObjectURL(item.previewUrl);
+          }
+        });
+        return next.slice(0, 6);
+      });
 
       const hasText = Boolean(uploaded.extractedText && String(uploaded.extractedText).trim().length > 0);
       const status = String(uploaded.extractionStatus || '');
@@ -1436,13 +1479,13 @@ export const Agent: React.FC = () => {
  		              <input
  		                ref={fileInputRef}
  		                type="file"
- 		                accept=".txt,.csv,.md,.json,.pdf,text/plain,text/csv,application/json,application/pdf"
+		                accept=".txt,.csv,.md,.json,.pdf,.png,.jpg,.jpeg,.webp,.gif,text/plain,text/csv,application/json,application/pdf,image/*"
  		                className="hidden"
  		                onChange={(e) => {
  		                  const file = e.target.files?.[0] || null;
- 		                  if (file) {
- 	                    void handleAttachFile(file);
- 	                  }
+                  if (file) {
+                    void handleAttachFile(file);
+                  }
  	                  e.currentTarget.value = '';
  	                }}
  	              />
@@ -1491,7 +1534,7 @@ export const Agent: React.FC = () => {
 		                  <button
 		                    key={file.id}
 		                    type="button"
-		                    onClick={() => setAttachedFiles((current) => current.filter((f) => f.id !== file.id))}
+		                    onClick={() => removeAttachedFile(file.id)}
 		                    className={cn(
 		                      'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold transition',
 		                      file.hasText
@@ -1503,12 +1546,39 @@ export const Agent: React.FC = () => {
 		                    <PaperclipIcon className="h-3 w-3" />
 		                    <span className="max-w-[220px] truncate">{file.fileName}</span>
 		                    <span className="opacity-70">×</span>
-		                  </button>
-		                ))}
-		              </div>
-		            ) : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
-		            <div className="flex flex-wrap gap-2">
+            {attachedFiles.some((file) => file.kind === 'image' && file.previewUrl) ? (
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {attachedFiles
+                  .filter((file) => file.kind === 'image' && file.previewUrl)
+                  .map((file) => (
+                    <div
+                      key={`${file.id}-preview`}
+                      className="relative overflow-hidden rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)]"
+                    >
+                      <img
+                        src={file.previewUrl || ''}
+                        alt={file.fileName}
+                        className="h-24 w-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeAttachedFile(file.id)}
+                        className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white"
+                        aria-label={`Remove ${file.fileName}`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap gap-2">
               {quickActions.map((action) => (
                 <button
                   key={action.label}

@@ -20,6 +20,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
   const description = buildDescription(listing);
 
   const formattedPrice = formatPrice(listing.price, listing.type);
+  const coverImage = listing.cover_image || listing.images?.[0] || null;
 
   const features = [];
   const configurationLabel = formatBhk(listing.configuration);
@@ -36,6 +37,20 @@ export default function ListingCard({ listing }: ListingCardProps) {
         
         <div className="flex flex-col h-full justify-between relative z-10">
           <div className="space-y-6">
+            <div className="overflow-hidden rounded-[18px] border border-[color:rgba(255,255,255,0.08)] bg-[var(--bg-base)]">
+              {coverImage ? (
+                <img
+                  src={coverImage}
+                  alt={listing.title}
+                  className="h-44 w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                />
+              ) : (
+                <div className="flex h-44 items-center justify-center bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-[var(--bg-base)] text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                  Photos available in the listing
+                </div>
+              )}
+            </div>
+
             {/* Header: Title and Type */}
             <div className="flex justify-between items-start gap-4">
               <div className="space-y-1.5">
