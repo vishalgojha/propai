@@ -56,6 +56,34 @@ type OfficialApiConfigRow = {
     last_sync?: string | null;
 };
 
+type WabaCredentialRow = {
+    id: string;
+    tenant_id: string;
+    phone_number_id: string;
+    phone_number: string;
+    business_account_id?: string | null;
+    business_account_name?: string | null;
+};
+
+type WebhookQueueRow = {
+    id: string;
+    tenant_id: string;
+    waba_credential_id: string | null;
+    meta_message_id: string | null;
+    meta_contact_wa_id: string | null;
+    from_name: string | null;
+    message_type: string | null;
+    message_body: string | null;
+    media_url: string | null;
+    media_mime_type: string | null;
+    media_sha256: string | null;
+    timestamp: string;
+    raw_payload: Record<string, any>;
+    processed: boolean;
+    processing_error: string | null;
+    created_at: string;
+};
+
 type MetaWebhookPayload = {
     entry?: Array<{
         changes?: Array<{
@@ -356,8 +384,7 @@ export class WhatsAppCloudApiService {
             return [];
         }
         const entries = Array.isArray(payload?.entry) ? payload.entry : [];
-        const results: Array<{ tenantId: string; processed: number; replied: number; ignored: number }> = [];
-        const recentProcessedMessageIds = new Set<string>();
+        const results: Array<{ tenantId: string; queued: number; ignored: number }> = [];
 
         for (const entry of entries) {
             const changes = Array.isArray(entry?.changes) ? entry.changes : [];
@@ -365,28 +392,22 @@ export class WhatsAppCloudApiService {
                 const value = change?.value || {};
                 const phoneNumberId = String(value?.metadata?.phone_number_id || '').trim();
                 const displayPhoneNumber = String(value?.metadata?.display_phone_number || '').trim();
-                const configRow = await this.findConfigByPhoneNumberId(phoneNumberId, displayPhoneNumber).catch(() => null);
-                if (!configRow?.tenant_id) {
+                const credential = await this.findCredentialByPhoneNumberId(phoneNumberId, displayPhoneNumber).catch(() => null);
+                if (!credential?.tenant_id || !credential?.id) {
                     continue;
                 }
 
-                const adminTenantId = String(configRow.tenant_id);
-                const sessionLabel = SESSION_LABEL;
+                const adminTenantId = String(credential.tenant_id);
                 const messages = Array.isArray(value.messages) ? value.messages : [];
-                let processed = 0;
-                let replied = 0;
+                let queued = 0;
                 let ignored = 0;
 
                 for (const message of messages) {
                     const messageId = String(message?.id || crypto.randomUUID()).trim();
-                    if (recentProcessedMessageIds.has(messageId)) {
-                        ignored += 1;
-                        continue;
-                    }
-                    recentProcessedMessageIds.add(messageId);
 
                     const claimed = await this.claimWebhookMessage({
                         tenantId: adminTenantId,
+                        wabaCredentialId: credential.id,
                         messageId,
                         from: String(message?.from || ''),
                         senderName: String(value?.contacts?.[0]?.profile?.name || ''),
@@ -399,281 +420,370 @@ export class WhatsAppCloudApiService {
                         ignored += 1;
                         continue;
                     }
-
-                    const remoteJid = buildRemoteJid(message?.from);
-                    if (!remoteJid) {
-                        ignored += 1;
-                        continue;
-                    }
-
-                    let text = extractText(message);
-                    const mediaInfo = getMediaInfo(message);
-                    if (mediaInfo) {
-                        const stored = await this.storeIncomingMedia(adminTenantId, mediaInfo).catch(() => null);
-                        if (mediaInfo.kind === 'audio' && stored?.transcript) {
-                            text = text.trim() ? `${stored.transcript}\n\n${text}` : stored.transcript;
-                        } else if (stored?.attachmentCtx) {
-                            text = `${text}\n\n---\n${stored.attachmentCtx}\n---`;
-                        }
-                        if (!text.trim()) {
-                            const typeLabel = String(message?.type || 'file').toLowerCase();
-                            text = mediaInfo.kind === 'audio'
-                                ? '[User sent a voice note]'
-                                : `[User sent ${typeLabel === 'image' ? 'an image' : typeLabel === 'video' ? 'a video' : typeLabel === 'document' ? 'a document' : 'a file'}]`;
-                        }
-                    }
-                    if (!text.trim()) {
-                        ignored += 1;
-                        continue;
-                    }
-
-                    const timestamp = toIso(message?.timestamp || message?.message_timestamp || null);
-                    const senderName = String(value?.contacts?.[0]?.profile?.name || value?.contacts?.[0]?.wa_id || remoteJid || 'Client').trim();
-
-                    // Resolve broker tenant from sender phone so data is attributed to the right broker
-                    const dataTenantId = await this.resolveTenantFromPhone(String(message?.from || '')) || adminTenantId;
-
-                    const { error: inboundInsertError } = await db.from('messages').insert({
-                        tenant_id: dataTenantId,
-                        session_label: sessionLabel,
-                        remote_jid: remoteJid,
-                        sender: senderName,
-                        text,
-                        timestamp,
-                    });
-                    if (inboundInsertError) {
-                        console.warn('[WhatsAppCloudApiService] Failed to persist inbound message', inboundInsertError);
-                    }
-
-                    await whatsappThreadService.upsertFromMessage({
-                        tenantId: dataTenantId,
-                        sessionLabel,
-                        remoteJid,
-                        sender: senderName,
-                        text,
-                        timestamp,
-                    }).catch((error) => {
-                        console.warn('[WhatsAppCloudApiService] Failed to update thread row', error);
-                    });
-
-                    await whatsappHealthService.recordMessageMetrics({
-                        tenantId: dataTenantId,
-                        sessionLabel,
-                        remoteJid,
-                        parsed: false,
-                        failed: false,
-                        countReceived: true,
-                        timestamp,
-                    }).catch(() => undefined);
-
-                    await whatsappHealthService.appendEvent(
-                        dataTenantId,
-                        sessionLabel,
-                        'cloud_inbound_message',
-                        'Inbound WhatsApp Cloud API message received.',
-                        {
-                            phoneNumberId,
-                            remoteJid,
-                            messageId,
-                            displayPhoneNumber: value?.metadata?.display_phone_number || null,
-                        },
-                    ).catch(() => undefined);
-
-                    // --- Activation code detection ---
-                    if (activationCodeService.isActivationCode(text)) {
-                        const code = text.trim().toUpperCase();
-                        const codeRow = await activationCodeService.validateCode(code);
-                        if (codeRow) {
-                            await activationCodeService.activateCode(code, normalizeDigits(remoteJid));
-                            if (codeRow.context_type !== 'broker_login') {
-                                await activationCodeService.linkBrokerPhone(codeRow.tenant_id, normalizeDigits(remoteJid));
-                            } else {
-                                const { data: profile } = await db
-                                    .from('profiles')
-                                    .select('full_name')
-                                    .eq('id', codeRow.context_id || codeRow.tenant_id)
-                                    .maybeSingle();
-                                const displayName = String(profile?.full_name || '').trim();
-                                const greetingName = displayName || 'there';
-                                await this.sendTextMessage({
-                                    tenantId: codeRow.tenant_id,
-                                    phoneNumberId,
-                                    to: normalizeDigits(remoteJid),
-                                    text: `Welcome back, ${greetingName}. You’re logged in to Pulse. Open your browser if it does not switch automatically.`,
-                                    replyToMessageId: messageId,
-                                }).catch((error) => {
-                                    console.warn('[WhatsAppCloudApiService] Failed to send login confirmation', error);
-                                });
-                            }
-                        }
-                        processed += 1;
-                        await this.markWebhookMessageProcessed(adminTenantId, messageId);
-                        continue;
-                    }
-                    // --- end activation code detection ---
-
-                    const ingestedCount = shouldIngestPropertySubmission(text)
-                        ? await channelService.ingestMessage(dataTenantId, {
-                            id: messageId,
-                            session_label: sessionLabel,
-                            remote_jid: remoteJid,
-                            sender: senderName,
-                            text,
-                            timestamp,
-                            created_at: timestamp,
-                            source: 'whatsapp_cloud',
-                            sourceGroupId: null,
-                            sourceGroupName: null,
-                            senderJid: null,
-                        } as any).catch((error) => {
-                            console.warn('[WhatsAppCloudApiService] Stream ingest failed', error);
-                            return 0;
-                        })
-                        : 0;
-
-                    if (ingestedCount > 0) {
-                        await whatsappHealthService.recordMessageMetrics({
-                            tenantId: dataTenantId,
-                            sessionLabel,
-                            remoteJid,
-                            parsed: true,
-                            failed: false,
-                            countReceived: false,
-                            timestamp,
-                        }).catch(() => undefined);
-                    }
-
-                    let agentFailureMessage = '';
-                    const isAdmin = isOwnerSuperAdminPhone(remoteJid);
-                    if (isAdmin) {
-                        agentFailureMessage = '__admin__';
-                    }
-                    await this.sendTypingIndicator(adminTenantId, phoneNumberId, messageId).catch(async (error) => {
-                        await whatsappHealthService.appendEvent(
-                            adminTenantId,
-                            sessionLabel,
-                            'cloud_typing_indicator_failed',
-                            'WhatsApp Cloud API typing indicator failed.',
-                            { messageId, error: error instanceof Error ? error.message : String(error) },
-                        ).catch(() => undefined);
-                    });
-                    let reply = await agentExecutor.processMessage(adminTenantId, remoteJid, text, sessionLabel, undefined, {
-                        suppressFallbackOnError: true,
-                        onError: async (error) => {
-                            agentFailureMessage = error instanceof Error ? error.message : String(error);
-                            const serializedError = error instanceof Error
-                                ? {
-                                    name: error.name,
-                                    message: error.message,
-                                    stack: error.stack,
-                                }
-                                : { message: String(error) };
-                            await whatsappHealthService.appendEvent(
-                                dataTenantId,
-                                sessionLabel,
-                                'cloud_agent_reply_failed',
-                                'WhatsApp Cloud API agent reply failed.',
-                                {
-                                    phoneNumberId,
-                                    remoteJid,
-                                    messageId,
-                                    error: serializedError,
-                                },
-                            ).catch(() => undefined);
-                        },
-                    }).catch((error) => {
-                        console.error('[WhatsAppCloudApiService] Agent reply failed', error);
-                        return '';
-                    });
-
-                    if (!reply.trim() && agentFailureMessage) {
-                        reply = 'Pulse received your message, but the AI model provider is temporarily unavailable. Please try again in a few minutes.';
-                    }
-
-                    if (reply.trim()) {
-                        try {
-                            await this.sendTextMessage({
-                                tenantId: adminTenantId,
-                                phoneNumberId,
-                                to: remoteJid,
-                                text: reply,
-                                replyToMessageId: messageId,
-                            });
-                        } catch (error) {
-                            const serializedError = error instanceof Error
-                                ? { name: error.name, message: error.message, stack: error.stack }
-                                : { message: String(error) };
-                            await whatsappHealthService.appendEvent(
-                                dataTenantId,
-                                sessionLabel,
-                                'cloud_outbound_reply_failed',
-                                'WhatsApp Cloud API outbound reply failed.',
-                                {
-                                    phoneNumberId,
-                                    remoteJid,
-                                    messageId,
-                                    error: serializedError,
-                                },
-                            ).catch(() => undefined);
-                            await this.markWebhookMessageFailed(adminTenantId, messageId, error);
-                            continue;
-                        }
-
-                        const outboundTimestamp = new Date().toISOString();
-                        const { error: outboundInsertError } = await db.from('messages').insert({
-                            tenant_id: dataTenantId,
-                            session_label: sessionLabel,
-                            remote_jid: remoteJid,
-                            sender: 'AI',
-                            text: reply,
-                            timestamp: outboundTimestamp,
-                        });
-                        if (outboundInsertError) {
-                            console.warn('[WhatsAppCloudApiService] Failed to persist outbound reply', outboundInsertError);
-                        }
-
-                        await whatsappThreadService.upsertFromMessage({
-                            tenantId: dataTenantId,
-                            sessionLabel,
-                            remoteJid,
-                            sender: 'AI',
-                            text: reply,
-                            timestamp: outboundTimestamp,
-                        }).catch((error) => {
-                            console.warn('[WhatsAppCloudApiService] Failed to update outbound thread row', error);
-                        });
-
-                        await whatsappHealthService.appendEvent(
-                            dataTenantId,
-                            sessionLabel,
-                            'cloud_outbound_reply',
-                            'Outbound WhatsApp Cloud API reply sent.',
-                            {
-                                phoneNumberId,
-                                remoteJid,
-                                messageId,
-                            },
-                        ).catch(() => undefined);
-                        replied += 1;
-                    }
-
-                    processed += 1;
-                    await this.markWebhookMessageProcessed(adminTenantId, messageId);
+                    queued += 1;
                 }
 
                 await whatsappHealthService.upsertConnectionSnapshot({
                     tenantId: adminTenantId,
-                    sessionLabel,
-                    phoneNumber: value?.metadata?.display_phone_number || configRow.session_data?.displayPhoneNumber || null,
-                    ownerName: configRow.owner_name || 'Official WhatsApp',
+                    sessionLabel: SESSION_LABEL,
+                    phoneNumber: credential.phone_number || displayPhoneNumber || null,
+                    ownerName: credential.business_account_name || 'Official WhatsApp',
                     status: 'connected',
                 }).catch(() => undefined);
 
-                results.push({ tenantId: adminTenantId, processed, replied, ignored });
+                results.push({ tenantId: adminTenantId, queued, ignored });
             }
         }
 
         return results;
+    }
+
+    async processQueuedWebhookEvents(limit = 10) {
+        if (process.env.CLOUD_API_WEBHOOK_ENABLED === 'false') {
+            return { processed: 0, replied: 0, ignored: 0 };
+        }
+
+        const { data, error } = await db
+            .from('cloud_api_webhook_events')
+            .select('id, tenant_id, waba_credential_id, meta_message_id, meta_contact_wa_id, from_name, message_type, message_body, media_url, media_mime_type, media_sha256, timestamp, raw_payload, processed, processing_error, created_at')
+            .eq('processed', false)
+            .order('created_at', { ascending: true })
+            .limit(limit);
+
+        if (error) {
+            throw error;
+        }
+
+        const rows = Array.isArray(data) ? data as WebhookQueueRow[] : [];
+        let processed = 0;
+        let replied = 0;
+        let ignored = 0;
+
+        for (const row of rows) {
+            try {
+                const result = await this.processQueuedWebhookEvent(row);
+                processed += 1;
+                replied += result.replied ? 1 : 0;
+                ignored += result.ignored ? 1 : 0;
+            } catch (err) {
+                console.error('[WhatsAppCloudApiService] Failed to process queued webhook event', {
+                    messageId: row.meta_message_id,
+                    error: err,
+                });
+            }
+        }
+
+        return { processed, replied, ignored };
+    }
+
+    private async processQueuedWebhookEvent(row: WebhookQueueRow) {
+        const credential = row.waba_credential_id
+            ? await this.getWabaCredentialById(row.waba_credential_id).catch(() => null)
+            : null;
+        if (!credential?.tenant_id || !credential?.phone_number_id) {
+            await this.markWebhookMessageFailed(row.tenant_id, row.meta_message_id || row.id, new Error('Missing WABA credential reference'));
+            return { replied: false, ignored: true };
+        }
+
+        const tenantId = credential.tenant_id;
+        const phoneNumberId = credential.phone_number_id;
+        const sessionLabel = SESSION_LABEL;
+        const rawMessage = (row.raw_payload || {}) as Record<string, any>;
+        const remoteJid = buildRemoteJid(row.meta_contact_wa_id || rawMessage?.from || null);
+        if (!remoteJid) {
+            await this.markWebhookMessageFailed(tenantId, row.meta_message_id || row.id, new Error('Missing sender phone'));
+            return { replied: false, ignored: true };
+        }
+
+        let text = String(row.message_body || extractText(rawMessage) || '').trim();
+        const mediaInfo = getMediaInfo(rawMessage);
+        if (mediaInfo) {
+            const stored = await this.storeIncomingMedia(tenantId, mediaInfo).catch(() => null);
+            if (mediaInfo.kind === 'audio' && stored?.transcript) {
+                text = text.trim() ? `${stored.transcript}\n\n${text}` : stored.transcript;
+            } else if (stored?.attachmentCtx) {
+                text = `${text}\n\n---\n${stored.attachmentCtx}\n---`;
+            }
+            if (!text.trim()) {
+                const typeLabel = String(rawMessage?.type || 'file').toLowerCase();
+                text = mediaInfo.kind === 'audio'
+                    ? '[User sent a voice note]'
+                    : `[User sent ${typeLabel === 'image' ? 'an image' : typeLabel === 'video' ? 'a video' : typeLabel === 'document' ? 'a document' : 'a file'}]`;
+            }
+        }
+        if (!text.trim()) {
+            await this.markWebhookMessageProcessed(tenantId, row.meta_message_id || row.id);
+            return { replied: false, ignored: true };
+        }
+
+        const messageId = row.meta_message_id || row.id;
+        const timestamp = row.timestamp || toIso(rawMessage?.timestamp || rawMessage?.message_timestamp || null);
+        const senderName = String(row.from_name || row.meta_contact_wa_id || remoteJid || 'Client').trim();
+        const dataTenantId = await this.resolveTenantFromPhone(remoteJid) || tenantId;
+
+        const { error: inboundInsertError } = await db.from('messages').insert({
+            tenant_id: dataTenantId,
+            session_label: sessionLabel,
+            remote_jid: remoteJid,
+            sender: senderName,
+            text,
+            timestamp,
+        });
+        if (inboundInsertError) {
+            console.warn('[WhatsAppCloudApiService] Failed to persist inbound message', inboundInsertError);
+        }
+
+        await whatsappThreadService.upsertFromMessage({
+            tenantId: dataTenantId,
+            sessionLabel,
+            remoteJid,
+            sender: senderName,
+            text,
+            timestamp,
+        }).catch((error) => {
+            console.warn('[WhatsAppCloudApiService] Failed to update thread row', error);
+        });
+
+        await whatsappHealthService.recordMessageMetrics({
+            tenantId: dataTenantId,
+            sessionLabel,
+            remoteJid,
+            parsed: false,
+            failed: false,
+            countReceived: true,
+            timestamp,
+        }).catch(() => undefined);
+
+        await whatsappHealthService.appendEvent(
+            dataTenantId,
+            sessionLabel,
+            'cloud_inbound_message',
+            'Inbound WhatsApp Cloud API message received.',
+            {
+                phoneNumberId,
+                remoteJid,
+                messageId,
+                displayPhoneNumber: credential.phone_number || null,
+            },
+        ).catch(() => undefined);
+
+        if (activationCodeService.isActivationCode(text)) {
+            const code = text.trim().toUpperCase();
+            const codeRow = await activationCodeService.validateCode(code);
+            if (codeRow) {
+                await activationCodeService.activateCode(code, normalizeDigits(remoteJid));
+                if (codeRow.context_type !== 'broker_login') {
+                    await activationCodeService.linkBrokerPhone(codeRow.tenant_id, normalizeDigits(remoteJid));
+                } else {
+                    const { data: profile } = await db
+                        .from('profiles')
+                        .select('full_name')
+                        .eq('id', codeRow.context_id || codeRow.tenant_id)
+                        .maybeSingle();
+                    const displayName = String(profile?.full_name || '').trim();
+                    const greetingName = displayName || 'there';
+                    await this.sendTextMessage({
+                        tenantId: codeRow.tenant_id,
+                        phoneNumberId,
+                        to: normalizeDigits(remoteJid),
+                        text: `Welcome back, ${greetingName}. You’re logged in to Pulse. Open your browser if it does not switch automatically.`,
+                        replyToMessageId: messageId,
+                    }).catch((error) => {
+                        console.warn('[WhatsAppCloudApiService] Failed to send login confirmation', error);
+                    });
+                }
+            }
+            await this.markWebhookMessageProcessed(tenantId, messageId);
+            return { replied: false, ignored: false };
+        }
+
+        const ingestedCount = shouldIngestPropertySubmission(text)
+            ? await channelService.ingestMessage(dataTenantId, {
+                id: messageId,
+                session_label: sessionLabel,
+                remote_jid: remoteJid,
+                sender: senderName,
+                text,
+                timestamp,
+                created_at: timestamp,
+                source: 'whatsapp_cloud',
+                sourceGroupId: null,
+                sourceGroupName: null,
+                senderJid: null,
+            } as any).catch((error) => {
+                console.warn('[WhatsAppCloudApiService] Stream ingest failed', error);
+                return 0;
+            })
+            : 0;
+
+        if (ingestedCount > 0) {
+            await whatsappHealthService.recordMessageMetrics({
+                tenantId: dataTenantId,
+                sessionLabel,
+                remoteJid,
+                parsed: true,
+                failed: false,
+                countReceived: false,
+                timestamp,
+            }).catch(() => undefined);
+        }
+
+        let agentFailureMessage = '';
+        const isAdmin = isOwnerSuperAdminPhone(remoteJid);
+        if (isAdmin) {
+            agentFailureMessage = '__admin__';
+        }
+        await this.sendTypingIndicator(tenantId, phoneNumberId, messageId).catch(async (error) => {
+            await whatsappHealthService.appendEvent(
+                tenantId,
+                sessionLabel,
+                'cloud_typing_indicator_failed',
+                'WhatsApp Cloud API typing indicator failed.',
+                { messageId, error: error instanceof Error ? error.message : String(error) },
+            ).catch(() => undefined);
+        });
+
+        let reply = await agentExecutor.processMessage(tenantId, remoteJid, text, sessionLabel, undefined, {
+            suppressFallbackOnError: true,
+            onError: async (error) => {
+                agentFailureMessage = error instanceof Error ? error.message : String(error);
+                const serializedError = error instanceof Error
+                    ? {
+                        name: error.name,
+                        message: error.message,
+                        stack: error.stack,
+                    }
+                    : { message: String(error) };
+                await whatsappHealthService.appendEvent(
+                    dataTenantId,
+                    sessionLabel,
+                    'cloud_agent_reply_failed',
+                    'WhatsApp Cloud API agent reply failed.',
+                    {
+                        phoneNumberId,
+                        remoteJid,
+                        messageId,
+                        error: serializedError,
+                    },
+                ).catch(() => undefined);
+            },
+        }).catch((error) => {
+            console.error('[WhatsAppCloudApiService] Agent reply failed', error);
+            return '';
+        });
+
+        if (!reply.trim() && agentFailureMessage) {
+            reply = 'Pulse received your message, but the AI model provider is temporarily unavailable. Please try again in a few minutes.';
+        }
+
+        if (reply.trim()) {
+            try {
+                await this.sendTextMessage({
+                    tenantId,
+                    phoneNumberId,
+                    to: remoteJid,
+                    text: reply,
+                    replyToMessageId: messageId,
+                });
+            } catch (error) {
+                const serializedError = error instanceof Error
+                    ? { name: error.name, message: error.message, stack: error.stack }
+                    : { message: String(error) };
+                await whatsappHealthService.appendEvent(
+                    dataTenantId,
+                    sessionLabel,
+                    'cloud_outbound_reply_failed',
+                    'WhatsApp Cloud API outbound reply failed.',
+                    {
+                        phoneNumberId,
+                        remoteJid,
+                        messageId,
+                        error: serializedError,
+                    },
+                ).catch(() => undefined);
+                await this.markWebhookMessageFailed(tenantId, messageId, error);
+                return { replied: false, ignored: false };
+            }
+
+            const outboundTimestamp = new Date().toISOString();
+            const { error: outboundInsertError } = await db.from('messages').insert({
+                tenant_id: dataTenantId,
+                session_label: sessionLabel,
+                remote_jid: remoteJid,
+                sender: 'AI',
+                text: reply,
+                timestamp: outboundTimestamp,
+            });
+            if (outboundInsertError) {
+                console.warn('[WhatsAppCloudApiService] Failed to persist outbound reply', outboundInsertError);
+            }
+
+            await whatsappThreadService.upsertFromMessage({
+                tenantId: dataTenantId,
+                sessionLabel,
+                remoteJid,
+                sender: 'AI',
+                text: reply,
+                timestamp: outboundTimestamp,
+            }).catch((error) => {
+                console.warn('[WhatsAppCloudApiService] Failed to update outbound thread row', error);
+            });
+
+            await whatsappHealthService.appendEvent(
+                dataTenantId,
+                sessionLabel,
+                'cloud_outbound_reply',
+                'Outbound WhatsApp Cloud API reply sent.',
+                {
+                    phoneNumberId,
+                    remoteJid,
+                    messageId,
+                },
+            ).catch(() => undefined);
+        }
+
+        await this.markWebhookMessageProcessed(tenantId, messageId);
+        return { replied: Boolean(reply.trim()), ignored: false };
+    }
+
+    private async findCredentialByPhoneNumberId(phoneNumberId?: string | null, displayPhoneNumber?: string | null) {
+        const target = String(phoneNumberId || '').trim();
+        const displayTarget = normalizeDigits(displayPhoneNumber || '');
+        if (!target && !displayTarget) {
+            return null;
+        }
+
+        const { data, error } = await db
+            .from('waba_credentials')
+            .select('id, tenant_id, phone_number_id, phone_number, business_account_id, business_account_name')
+            .eq('is_active', true);
+
+        if (error) {
+            throw error;
+        }
+
+        const rows = Array.isArray(data) ? data as WabaCredentialRow[] : [];
+        const match = rows.find((row) => {
+            const rowPhoneNumberId = String(row.phone_number_id || '').trim();
+            const rowPhone = normalizeDigits(row.phone_number || '');
+            return (target && rowPhoneNumberId === target) || (displayTarget && rowPhone === displayTarget);
+        });
+
+        return match || null;
+    }
+
+    private async getWabaCredentialById(id: string) {
+        const { data, error } = await db
+            .from('waba_credentials')
+            .select('id, tenant_id, phone_number_id, phone_number, business_account_id, business_account_name')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (error) {
+            throw error;
+        }
+
+        return data as WabaCredentialRow | null;
     }
 
     private async getMediaDownloadUrl(tenantId: string, mediaId: string): Promise<string | null> {
@@ -950,6 +1060,7 @@ export class WhatsAppCloudApiService {
 
     private async claimWebhookMessage(input: {
         tenantId: string;
+        wabaCredentialId?: string | null;
         messageId: string;
         from: string;
         senderName: string;
@@ -960,6 +1071,7 @@ export class WhatsAppCloudApiService {
     }) {
         const { error } = await db.from('cloud_api_webhook_events').insert({
             tenant_id: input.tenantId,
+            waba_credential_id: input.wabaCredentialId || null,
             meta_message_id: input.messageId,
             meta_contact_wa_id: normalizeDigits(input.from) || null,
             from_name: input.senderName || null,
