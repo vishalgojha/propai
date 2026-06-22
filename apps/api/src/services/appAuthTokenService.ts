@@ -26,9 +26,14 @@ function base64UrlDecode(input: string) {
 }
 
 function getSecret() {
-    const secret = String(process.env.JWT_SECRET || '').trim();
+    const secret = String(
+        process.env.JWT_SECRET ||
+        process.env.SUPABASE_JWT_SECRET ||
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        '',
+    ).trim();
     if (!secret) {
-        throw new Error('JWT_SECRET is not configured');
+        throw new Error('JWT_SECRET or SUPABASE_SERVICE_ROLE_KEY is not configured');
     }
     return secret;
 }
