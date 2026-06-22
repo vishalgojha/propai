@@ -13,6 +13,14 @@ function isPlausibleName(text: string) {
     return /^[a-z][a-z .'-]{1,79}$/i.test(text.trim());
 }
 
+function isPlausibleEmail(text: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim());
+}
+
+function parseLocalities(text: string) {
+    return [...new Set(text.split(/[,\n/]+/).map((value) => value.trim()).filter((value) => value.length >= 2 && value.length <= 80))].slice(0, 30);
+}
+
 function isWhatsAppPhone(value: string) {
     return String(value || '').replace(/\D/g, '').slice(-10).length === 10;
 }
@@ -49,13 +57,19 @@ export class WabaConversationOnboardingService {
 
         const text = input.text.trim();
         if (input.isFirstContact) {
+            if (/\bonboard\s+me\b/i.test(text)) {
+                return 'Welcome to PropAI. What name should I use for your workspace?';
+            }
             return 'Hi, I’m Pulse from PropAI — built for brokers. I can set up your WhatsApp workspace here, or you can send a listing, requirement, or search brief. Want to get set up?';
         }
 
         const previousReply = lastAssistantReply(input.history);
+        if (/^onboard\s+me$/i.test(text) && !/(?:What name should I use|agency name|primarily work in|localities|email)/i.test(previousReply)) {
+            return 'Welcome to PropAI. What name should I use for your workspace?';
+        }
         if (!previousReply) return null;
 
-        if (isNegative(text) && /(?:get set up|What name should I use|agency name|primarily work in)/i.test(previousReply)) {
+        if (isNegative(text) && /(?:get set up|What name should I use|agency name|primarily work in|localities|email)/i.test(previousReply)) {
             return 'No problem. Send a listing, requirement, or search brief whenever you want to try Pulse.';
         }
 
@@ -74,20 +88,39 @@ export class WabaConversationOnboardingService {
         if (/Which city do you primarily work in\?/i.test(previousReply)) {
             if (text.length < 2 || text.length > 80) return 'Please send your primary city, for example: Mumbai.';
 
+            return 'Which localities do you operate in? Send them comma-separated, for example: Bandra West, Khar West, Santacruz West.';
+        }
+
+        if (/Which localities do you operate in\?/i.test(previousReply)) {
+            return parseLocalities(text).length > 0
+                ? 'What email should I keep on your PropAI workspace? I’ll send the optional dashboard login link here on WhatsApp.'
+                : 'Please send at least one locality, separated by commas if there are several.';
+        }
+
+        if (/What email should I keep on your PropAI workspace\?/i.test(previousReply)) {
+            if (!isPlausibleEmail(text)) return 'Please send a valid email address, for example: rahul@agency.com.';
+
             const fullName = answerAfterQuestion(input.history, /What name should I use for your PropAI workspace\?/i);
             const agencyName = answerAfterQuestion(input.history, /What is your brokerage or agency name\?/i);
-            if (!fullName || !agencyName) {
+            const city = answerAfterQuestion(input.history, /Which city do you primarily work in\?/i);
+            const localities = parseLocalities(answerAfterQuestion(input.history, /Which localities do you operate in\?/i));
+            if (!fullName || !agencyName || !city || localities.length === 0) {
                 return 'I lost one setup detail. Please reply with your name and agency name in one message.';
             }
 
             try {
-                await wabaBrokerProvisioningService.provision({
+                const provisioned = await wabaBrokerProvisioningService.provision({
                     phone: input.remoteJid,
                     fullName,
                     agencyName,
-                    city: text,
+                    city,
+                    localities,
+                    email: text,
                 });
-                return `Done, ${fullName.split(/\s+/)[0]} — your ${agencyName} workspace is live. Send listings, requirements, photos, or a search brief here anytime.`;
+                const loginLine = provisioned.dashboardLoginUrl
+                    ? `\n\nOptional dashboard login (one-time link): ${provisioned.dashboardLoginUrl}`
+                    : '';
+                return `Done, ${fullName.split(/\s+/)[0]} — your ${agencyName} workspace is live. Send listings, requirements, photos, or a search brief here anytime.${loginLine}`;
             } catch (error) {
                 console.error('[WabaConversationOnboarding] Workspace provisioning failed', error);
                 return 'I could not finish your workspace setup just now. Please send “setup” once more in a minute.';

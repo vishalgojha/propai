@@ -12,7 +12,9 @@ export class WabaBrokerProvisioningService {
         fullName: string;
         agencyName: string;
         city: string;
-    }): Promise<string> {
+        localities: string[];
+        email: string;
+    }): Promise<{ brokerId: string; dashboardLoginUrl: string | null }> {
         if (!supabaseAdmin) {
             throw new Error('Supabase service role is not configured');
         }
@@ -20,6 +22,15 @@ export class WabaBrokerProvisioningService {
         const phone = nationalPhone(input.phone);
         if (phone.length !== 10) {
             throw new Error('A valid WhatsApp phone number is required');
+        }
+
+        const email = input.email.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            throw new Error('A valid email address is required');
+        }
+        const localities = [...new Set(input.localities.map((locality) => locality.trim()).filter(Boolean))].slice(0, 30);
+        if (localities.length === 0) {
+            throw new Error('At least one operating locality is required');
         }
 
         const existing = await getPhoneOwnership(phone);
@@ -39,6 +50,12 @@ export class WabaBrokerProvisioningService {
             brokerId = data.user.id;
         }
 
+        // The WhatsApp number is the verified onboarding channel. Email is collected
+        // as the dashboard identity so a one-time browser login can be delivered back
+        // over WhatsApp; it is not marked email-confirmed merely because it was typed.
+        const { error: authEmailError } = await supabaseAdmin.auth.admin.updateUserById(brokerId, { email });
+        if (authEmailError) throw authEmailError;
+
         const now = new Date().toISOString();
         const profileResult = await supabaseAdmin
             .from('profiles')
@@ -46,6 +63,7 @@ export class WabaBrokerProvisioningService {
                 id: brokerId,
                 full_name: input.fullName.trim(),
                 phone: `91${phone}`,
+                email,
                 phone_verified: true,
                 updated_at: now,
             }, { onConflict: 'id' });
@@ -82,11 +100,42 @@ export class WabaBrokerProvisioningService {
         if (workspaceResult.error) throw workspaceResult.error;
         if (contactResult.error) throw contactResult.error;
 
+        const { error: clearAreasError } = await supabaseAdmin
+            .from('workspace_service_areas')
+            .delete()
+            .eq('workspace_id', brokerId);
+        if (clearAreasError) throw clearAreasError;
+
+        const { error: insertAreasError } = await supabaseAdmin
+            .from('workspace_service_areas')
+            .insert(localities.map((locality, index) => ({
+                workspace_id: brokerId,
+                city: input.city.trim(),
+                locality,
+                priority: index,
+                created_at: now,
+                updated_at: now,
+            })));
+        if (insertAreasError) throw insertAreasError;
+
         await subscriptionService.ensureTrialSubscription(brokerId, null).catch((error) => {
             console.warn('[WabaBrokerProvisioning] Failed to initialise trial subscription', error);
         });
 
-        return brokerId;
+        const appUrl = (process.env.APP_URL || 'https://app.propai.live').replace(/\/$/, '');
+        const { data: loginLink, error: loginLinkError } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'magiclink',
+            email,
+            options: { redirectTo: `${appUrl}/auth/callback` },
+        });
+        if (loginLinkError) {
+            console.warn('[WabaBrokerProvisioning] Could not generate dashboard login link', loginLinkError);
+        }
+
+        return {
+            brokerId,
+            dashboardLoginUrl: loginLink?.properties?.action_link || null,
+        };
     }
 }
 
