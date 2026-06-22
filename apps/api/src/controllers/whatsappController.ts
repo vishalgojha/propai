@@ -352,7 +352,11 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
 
         if (existingRow?.status !== 'connected') {
             if (existingSession) {
-                await gateway.disconnect({ workspaceOwnerId: tenantId, sessionLabel });
+                try {
+                    await gateway.disconnect({ workspaceOwnerId: tenantId, sessionLabel });
+                } catch {
+                    // Cloud API mode does not support disconnect — skip gracefully
+                }
             }
 
             await dbClient
