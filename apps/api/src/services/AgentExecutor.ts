@@ -14,6 +14,7 @@ import {
 } from '../memory/conversationMemory';
 import { conversationEngineService } from './conversationEngineService';
 import { wabaConversationOnboardingService } from './wabaConversationOnboardingService';
+import { wabaInventoryIntelligenceService } from './wabaInventoryIntelligenceService';
 import { isOwnerSuperAdminPhone } from '../utils/controllerHelpers';
 
 type ChatTurn = {
@@ -193,6 +194,17 @@ export class AgentExecutor {
                     if (onboardingReply) {
                         await saveToHistory(conversationKey, text, onboardingReply);
                         return onboardingReply;
+                    }
+                    const inventoryReply = await wabaInventoryIntelligenceService.maybeHandle({
+                        remoteJid,
+                        text,
+                        isFirstContact,
+                        isKnownBroker: isKnownVerifiedBroker,
+                        history,
+                    });
+                    if (inventoryReply) {
+                        await saveToHistory(conversationKey, text, inventoryReply);
+                        return inventoryReply;
                     }
                 }
                 const result = await conversationEngineService.process({
