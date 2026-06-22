@@ -125,7 +125,6 @@ Requirements:
 - Use clear Indian real-estate language, not hype.
 - Keep it around 180-280 words.
 - Return valid HTML with 3-4 short paragraphs.
-- End with a brief CTA to visit PropAI Pulse.
 
 DATA:
 - Locality: {locality}, Mumbai
