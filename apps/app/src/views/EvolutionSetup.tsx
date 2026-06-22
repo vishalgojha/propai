@@ -182,7 +182,7 @@ export function EvolutionSetup() {
             <div className="flex flex-col items-center gap-3 py-8">
               <CheckCircleIcon className="h-16 w-16 text-[var(--accent)]" />
               <p className="text-sm font-semibold text-[var(--text-primary)]">WhatsApp connected!</p>
-              <p className="text-xs text-[var(--text-secondary)]">The broker phone is now linked via Evolution API.</p>
+              <p className="text-xs text-[var(--text-secondary)]">Messages from groups will now flow into your Stream automatically.</p>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-4 py-8">

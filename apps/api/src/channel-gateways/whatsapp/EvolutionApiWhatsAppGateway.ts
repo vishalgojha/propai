@@ -36,6 +36,11 @@ function getApiKey(): string {
     return String(process.env.EVOLUTION_API_KEY || '');
 }
 
+function getWebhookUrl(): string {
+    const base = String(process.env.EVOLUTION_WEBHOOK_BASE_URL || process.env.API_BASE_URL || 'https://api.propai.live').replace(/\/+$/, '');
+    return `${base}/webhook/evolution`;
+}
+
 async function evolutionFetch(path: string, options: RequestInit = {}): Promise<Response> {
     const baseUrl = getBaseUrl();
     const apiKey = getApiKey();
@@ -59,6 +64,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export class EvolutionApiWhatsAppGateway implements WhatsAppGateway {
     async connect(input: WhatsAppConnectInput): Promise<WhatsAppConnectResult> {
         const instanceName = buildInstanceName(input.workspaceOwnerId, input.sessionLabel);
+        const webhookUrl = getWebhookUrl();
         const createResponse = await evolutionFetch('/instance/create', {
             method: 'POST',
             body: JSON.stringify({
@@ -71,12 +77,23 @@ export class EvolutionApiWhatsAppGateway implements WhatsAppGateway {
                 readMessages: true,
                 readStatus: true,
                 syncFullHistory: true,
+                webhook: webhookUrl,
+                webhookByEvents: true,
+                events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
             }),
         });
         if (!createResponse.ok) {
             const body = await createResponse.text().catch(() => '');
             throw new Error(`Evolution API instance creation failed (${createResponse.status}): ${body || createResponse.statusText}`);
         }
+        await evolutionFetch(`/instance/setWebhook/${encodeURIComponent(instanceName)}`, {
+            method: 'POST',
+            body: JSON.stringify({
+                webhook: getWebhookUrl(),
+                webhookByEvents: true,
+                events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
+            }),
+        }).catch(() => undefined);
         const qrResponse = await evolutionFetch(`/instance/connect/${encodeURIComponent(instanceName)}`);
         if (!qrResponse.ok) {
             const body = await qrResponse.text().catch(() => '');
