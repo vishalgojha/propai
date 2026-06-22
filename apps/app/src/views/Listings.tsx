@@ -449,7 +449,6 @@ const buildStreamDedupeKey = (item: StreamItem) =>
       item.fitoutStatus,
       item.workstationsCount,
       item.cabinsCount,
-      item.sourcePhone,
     ]
       .filter((value) => value != null && String(value).trim().length > 0)
       .join('|'),
