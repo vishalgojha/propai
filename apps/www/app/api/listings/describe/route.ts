@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getLocalityBlurb } from "@/data/localityBlurbs";
+import { getLocalityBlurb, LOCALITY_NAMES } from "@/data/localityBlurbs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -19,6 +19,23 @@ function stripComparativeClauses(text: string): string {
     .filter((sentence) => !/(\bthan\b|\bcounterpart\b|\bbetter value\b|\blower than\b|\bhigher than\b|\bsame postal code\b|\bminutes away\b.*\bpreferred\b)/i.test(sentence))
     .join(' ')
     .trim();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function mentionsOtherTrackedLocality(text: string, locality: string) {
+  const normalizedText = String(text || '').toLowerCase();
+  const normalizedLocality = String(locality || '').trim().toLowerCase();
+  return LOCALITY_NAMES.some((name) => {
+    const normalizedName = name.toLowerCase();
+    if (!normalizedName || normalizedName === normalizedLocality) {
+      return false;
+    }
+    const pattern = new RegExp(`\\b${escapeRegExp(normalizedName)}\\b`, 'i');
+    return pattern.test(normalizedText);
+  });
 }
 
 function buildFallbackDescription(input: {
@@ -115,7 +132,17 @@ export async function POST(request: Request) {
 
     const data = await res.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    const description = String(text).trim() || buildFallbackDescription({ locality, configuration, deal_type, priceStr, area_sqft, days });
+    const description = String(text).trim();
+    if (!description || mentionsOtherTrackedLocality(description, locality)) {
+      console.warn('[Describe] Rejected AI description due to locality leakage', {
+        locality,
+        rejected: Boolean(description),
+      });
+      return NextResponse.json({
+        description: buildFallbackDescription({ locality, configuration, deal_type, priceStr, area_sqft, days }),
+      });
+    }
+
     return NextResponse.json({ description });
   } catch (error) {
     return NextResponse.json(

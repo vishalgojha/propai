@@ -122,6 +122,8 @@ const RAW: Record<string, [string, string]> = {
   ],
 };
 
+export const LOCALITY_NAMES = Object.keys(RAW);
+
 function join(a: string | null, b: string): string {
   return a ? `${a} ${b}` : b;
 }
