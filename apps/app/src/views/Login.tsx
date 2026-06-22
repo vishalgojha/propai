@@ -42,6 +42,11 @@ const capabilities = [
     copy: 'There is no browser code entry and no password to remember.',
   },
   {
+    icon: MessageSquareTextIcon,
+    title: 'Voice notes',
+    copy: 'Send a voice note on WhatsApp and Pulse will transcribe it for the agent.',
+  },
+  {
     icon: SearchIcon,
     title: 'Workspace ready',
     copy: 'The same session opens your stream, team, and follow-up tools.',
