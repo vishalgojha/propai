@@ -1,10 +1,7 @@
 export const ENDPOINTS = {
   auth: {
-    requestVerification: '/auth/request-verification',
-    verify: '/auth/verify',
-    password: '/auth/password',
+    requestLoginLink: '/auth/request-login-link',
     me: '/auth/me',
-    resetPassword: '/auth/reset-password',
     referralPreview: (code: string) => `/auth/referral/${encodeURIComponent(code)}`,
   },
   ai: {

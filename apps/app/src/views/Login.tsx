@@ -1,151 +1,82 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LegalFooter } from '../components/LegalFooter';
 import backendApi, { handleApiError } from '../services/api';
 import { backendApiUrl } from '../services/apiBase';
 import { ENDPOINTS } from '../services/endpoints';
-import { buildSessionFromSupabase } from '../services/authSession';
-import { track } from '../services/analytics';
 import { cn } from '../lib/utils';
-import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_WA_LINK } from '../lib/propai';
-import { buildFullName } from '../lib/names';
-import { deleteCookie, readCookie, writeCookie } from '../services/browserCookies';
 import {
-  ArrowRightIcon,
   ActivityIcon,
   CheckIcon,
-  EyeIcon,
-  EyeOffIcon,
-  FollowUpIcon,
   LoaderIcon,
-  ListingIcon,
-  MailIcon,
   MessageSquareTextIcon,
-  SearchIcon,
   ShieldCheckIcon,
   WorkflowIcon,
+  SearchIcon,
+  FollowUpIcon,
 } from '../lib/icons';
 import { AuthCard } from '../components/ui/AuthCard';
+
+const proofPoints = [
+  { label: 'Setup', value: '<5 min' },
+  { label: 'Login method', value: 'WhatsApp link' },
+  { label: 'Security', value: 'No password' },
+];
 
 const capabilities = [
   {
     icon: MessageSquareTextIcon,
-    title: 'WhatsApp Business',
-    copy: 'Connect your official WhatsApp Business account through Cloud API.',
+    title: 'Number based',
+    copy: 'Use your registered WhatsApp number to request access.',
   },
   {
     icon: WorkflowIcon,
-    title: 'Parsed stream',
-    copy: 'Listings and requirements are structured automatically.',
+    title: 'One-click access',
+    copy: 'Open the secure login link sent to that number and you are in.',
   },
   {
     icon: FollowUpIcon,
-    title: 'Follow-up',
-    copy: 'Track callbacks and next actions.',
+    title: 'No OTP field',
+    copy: 'There is no code to type and no password to remember.',
   },
   {
     icon: SearchIcon,
-    title: 'Shared workspace',
-    copy: 'Work solo or with a team on the same workspace.',
+    title: 'Workspace ready',
+    copy: 'The same session opens your stream, team, and follow-up tools.',
   },
 ];
-
-const proofPoints = [
-  { label: 'Setup', value: '<5 min' },
-  { label: 'Workflows', value: '8+' },
-  { label: 'Integration', value: 'Cloud API' },
-];
-
-const OWNER_SUPER_ADMIN_EMAILS = new Set([
-  'vishal@chaoscraftlabs.com',
-  'vishal@chaoscraftslabs.com',
-  'chariotrealty@gmail.com',
-  'hello@chaoscraftlabs.com',
-  'ojha007@gmail.com',
-  'hello@propai.live',
-]);
 
 const authPrimaryButton =
   'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] shadow-[0_10px_28px_rgba(62,232,138,0.18)] transition-all duration-150 hover:-translate-y-[1px] hover:brightness-95 disabled:opacity-50 disabled:hover:translate-y-0';
 const authSecondaryButton =
   'inline-flex items-center justify-center gap-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-all duration-150 hover:border-[color:var(--accent-border)] hover:bg-[var(--bg-hover)]';
-const authPill =
-  'inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]';
 const authFieldClassName =
   'w-full rounded-[10px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)] py-3 px-3 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none transition-colors duration-150 focus:border-[color:var(--accent)] focus:bg-[var(--bg-hover)]';
-const REFERRAL_STORAGE_KEY = 'propai.referral_code';
-const REFERRAL_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
-const resolveAppRole = (email?: string | null, appRole?: string) => {
-  if (appRole === 'super_admin') {
-    return appRole;
-  }
-
-  return OWNER_SUPER_ADMIN_EMAILS.has(String(email || '').trim().toLowerCase()) ? 'super_admin' : appRole || 'broker';
-};
-
-async function attemptBrowserPasswordSignIn(email: string, password: string) {
-  const { createSupabaseBrowserClient, isSupabaseBrowserConfigured } = await import('../services/supabaseBrowser');
-  if (!isSupabaseBrowserConfigured) {
-    throw new Error('Browser Supabase auth is not configured on this build.');
-  }
-
-  const client = createSupabaseBrowserClient();
-  const { data, error } = await client.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  if (!data.session?.access_token || !data.user?.id) {
-    throw new Error('Supabase sign-in did not return a valid session.');
-  }
-
-  return data;
+function normalizeIndianPhone(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.startsWith('91') && digits.length === 12) return digits;
+  if (digits.startsWith('0') && digits.length === 11) return `91${digits.slice(1)}`;
+  if (digits.length === 10) return `91${digits}`;
+  return digits;
 }
 
-function isNetworkLikeAuthError(error: any) {
-  const code = String(error?.code || '').trim();
-  const message = String(error?.message || error?.response?.data?.error || error?.response?.data?.message || '').toLowerCase();
-  const status = Number(error?.response?.status || 0);
-
-  return (
-    code === 'ERR_NETWORK'
-    || code === 'ECONNABORTED'
-    || message.includes('network error')
-    || message.includes('failed to fetch')
-    || message.includes('cors')
-    || message.includes('timed out')
-    || status === 502
-    || status === 503
-    || status === 504
-  );
+function formatPhone(value: string) {
+  const normalized = normalizeIndianPhone(value);
+  if (!normalized) return '';
+  if (normalized.startsWith('91') && normalized.length === 12) {
+    return `+${normalized}`;
+  }
+  return normalized;
 }
 
 export const Login: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sentMessage, setSentMessage] = useState<string | null>(null);
   const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'degraded' | 'offline'>('checking');
-  const [rememberMe, setRememberMe] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetSent, setResetSent] = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
-  const [resetError, setResetError] = useState<string | null>(null);
-  const [referralCode, setReferralCode] = useState('');
-  const [referralLabel, setReferralLabel] = useState('');
-  const { user, login, logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -156,25 +87,10 @@ export const Login: React.FC = () => {
   }, [location.search]);
 
   useEffect(() => {
-    if (!isLoading && user) {
+    if (user) {
       navigate(nextPath, { replace: true });
     }
-  }, [isLoading, navigate, nextPath, user]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const nextCode = String(params.get('ref') || readCookie(REFERRAL_STORAGE_KEY) || '').trim().toUpperCase();
-    if (!nextCode) {
-      setReferralCode('');
-      setReferralLabel('');
-      return;
-    }
-
-    writeCookie(REFERRAL_STORAGE_KEY, nextCode, { maxAge: REFERRAL_COOKIE_MAX_AGE_SECONDS });
-    setReferralCode(nextCode);
-    setReferralLabel(`Referral code applied: ${nextCode}`);
-    setMode('signup');
-  }, [location.search]);
+  }, [navigate, nextPath, user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -218,133 +134,39 @@ export const Login: React.FC = () => {
     };
   }, []);
 
-  const handlePasswordAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendLoginLink = async (event: React.FormEvent) => {
+    event.preventDefault();
     setIsLoading(true);
     setError(null);
-    const normalizedEmail = email.trim();
-
-    const ensureIndiaPrefix = (phone: string) => {
-      const digits = phone.replace(/\D/g, '');
-      if (digits.startsWith('91') && digits.length === 12) return digits;
-      if (digits.startsWith('+91') && digits.length === 13) return digits.slice(1);
-      if (digits.length === 10) return `91${digits}`;
-      return digits;
-    };
+    setSentMessage(null);
 
     try {
-      const fullName = buildFullName(firstName, lastName);
-      if (mode === 'signup' && (!firstName.trim() || !lastName.trim())) {
-        setError('First name and last name are required.');
-        setIsLoading(false);
+      const normalizedPhone = normalizeIndianPhone(phoneNumber);
+      if (normalizedPhone.length !== 12) {
+        setError('Enter your 10-digit WhatsApp number.');
         return;
       }
 
-      const loginWithBrowserSupabase = async (fallbackReason: string) => {
-        if (mode === 'signup') {
-          throw new Error(fallbackReason);
-        }
+      const response = await backendApi.post(ENDPOINTS.auth.requestLoginLink, {
+        phone: normalizedPhone,
+        next: nextPath,
+      });
 
-        const fallbackSession = await attemptBrowserPasswordSignIn(normalizedEmail, password);
-        const fallbackUser = (fallbackSession.user || {}) as Record<string, any>;
-        login(
-          fallbackUser.email || normalizedEmail,
-          {
-            ...buildSessionFromSupabase(fallbackUser.email || normalizedEmail, fallbackSession.session),
-            id: fallbackUser.id,
-            appRole: resolveAppRole(
-              fallbackUser.email || normalizedEmail,
-              fallbackUser.user_metadata?.app_role || fallbackUser.user_metadata?.appRole,
-            ),
-          },
-          rememberMe,
-        );
-        track('signin_success', {
-          remember: rememberMe,
-          has_email: Boolean(fallbackUser.email || email),
-          auth_path: 'browser-supabase-fallback',
-        });
-        navigate(nextPath, { replace: true });
-      };
-
-      try {
-        const response = await backendApi.post(ENDPOINTS.auth.password, {
-          mode,
-          email: normalizedEmail,
-          password,
-          fullName,
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          phone: mode === 'signup' ? ensureIndiaPrefix(phoneNumber) : phoneNumber,
-          referralCode: mode === 'signup' ? referralCode || undefined : undefined,
-        });
-        const session = response.data?.session;
-        if (response.data.success && session?.access_token) {
-          login(
-            response.data?.user?.email || normalizedEmail,
-            {
-              ...buildSessionFromSupabase(response.data?.user?.email || normalizedEmail, session),
-              id: response.data?.user?.id,
-              appRole: resolveAppRole(
-                response.data?.user?.email || normalizedEmail,
-                response.data?.profile?.appRole || response.data?.user?.appRole
-              ),
-              subscription: response.data?.subscription,
-              referral: response.data?.referral || null,
-            },
-            rememberMe,
-          );
-          if (mode === 'signup') {
-            deleteCookie(REFERRAL_STORAGE_KEY);
-            setReferralCode('');
-            setReferralLabel('');
-          }
-          track(mode === 'signup' ? 'signup_success' : 'signin_success', {
-            remember: rememberMe,
-            has_email: Boolean(response.data?.user?.email || email),
-            auth_path: 'backend',
-          });
-          navigate(nextPath, { replace: true });
-        } else {
-          track(mode === 'signup' ? 'signup_failed' : 'signin_failed');
-          setError('Login failed. Please try again.');
-        }
-      } catch (backendErr) {
-        if (mode === 'signin' && isNetworkLikeAuthError(backendErr)) {
-          setError('Backend sign-in is unavailable. Trying direct browser login...');
-          await loginWithBrowserSupabase('Backend sign-in is unavailable.');
-          return;
-        }
-
-        throw backendErr;
+      if (response.data?.success) {
+        setSentMessage(`Login link sent to ${formatPhone(normalizedPhone)} on WhatsApp.`);
+        return;
       }
+
+      setError('Could not send the login link. Try again.');
     } catch (err) {
-      track(mode === 'signup' ? 'signup_error' : 'signin_error');
       const message = handleApiError(err);
-      if ((err as any)?.response?.status === 409 || message.toLowerCase().includes('no broker profile exists yet')) {
-        setMode('signup');
+      if ((err as any)?.response?.status === 404) {
+        setError('No account found for that number. Open the WhatsApp onboarding flow first.');
+      } else {
+        setError(message);
       }
-      setError(message);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setResetLoading(true);
-    setResetError(null);
-    setResetSent(false);
-
-    try {
-      await backendApi.post(ENDPOINTS.auth.resetPassword, {
-        email: resetEmail || email,
-      });
-      setResetSent(true);
-    } catch (err) {
-      setResetError(handleApiError(err));
-    } finally {
-      setResetLoading(false);
     }
   };
 
@@ -373,8 +195,8 @@ export const Login: React.FC = () => {
             </div>
             <div className="hidden md:flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">
               <ShieldCheckIcon className="h-3.5 w-3.5" />
-              <span>Email login | Stream | Follow-up</span>
-              <span className={cn('ml-2', authPill)}>
+              <span>Phone login | Stream | Follow-up</span>
+              <span className={cn('ml-2 inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-primary)]')}>
                 <span className={apiStatus === 'online' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : apiStatus === 'offline' ? 'h-2 w-2 rounded-full bg-[var(--red)]' : 'h-2 w-2 rounded-full bg-[var(--amber)]'} />
                 {apiStatus === 'online' ? 'API connected' : apiStatus === 'degraded' ? 'API degraded' : apiStatus === 'offline' ? 'API offline' : 'Checking API'}
               </span>
@@ -386,20 +208,11 @@ export const Login: React.FC = () => {
               <div>
                 <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Session active</p>
                 <p className="text-[12px] text-[var(--text-primary)]">{user.email}</p>
-                <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
-                  This browser already has an active session.
-                </p>
+                <p className="mt-1 text-[10px] text-[var(--text-secondary)]">This browser already has an active session.</p>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  logout();
-                  setPassword('');
-                  setFirstName('');
-                  setLastName('');
-                  setPhoneNumber('');
-                  setMode('signin');
-                }}
+                onClick={() => logout()}
                 className={cn(authSecondaryButton, 'px-4 py-2.5 hover:border-[color:var(--red)] hover:text-[var(--red)]')}
               >
                 Sign out
@@ -412,17 +225,17 @@ export const Login: React.FC = () => {
               <AuthCard className="p-6 md:p-8">
                 <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
                   <WorkflowIcon className="h-3.5 w-3.5" />
-                  WhatsApp workspace
+                  Secure WhatsApp login
                 </div>
 
                 <div className="mt-6 max-w-3xl">
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">PropAI Pulse</p>
                   <h1 className="mt-3 text-3xl font-bold leading-tight tracking-[-0.02em] text-[var(--text-primary)] sm:text-4xl md:text-5xl">
-                    Sign in to
-                    <span className="block text-[var(--accent)]">PropAI Pulse.</span>
+                    Sign in with
+                    <span className="block text-[var(--accent)]">your WhatsApp number.</span>
                   </h1>
                   <p className="mt-5 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                    Open your workspace, stream, and follow-up tools.
+                    No password. No OTP screen. We send a secure login link to the number on file and the link restores your session in the browser.
                   </p>
                 </div>
 
@@ -437,20 +250,18 @@ export const Login: React.FC = () => {
               </AuthCard>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                {capabilities.map((item, index) => (
-                  <div key={item.title}>
-                    <AuthCard className="p-5 transition-all duration-150 hover:-translate-y-[1px] hover:border-[color:var(--border-strong)]">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]">
-                          <item.icon className="h-4 w-4" strokeWidth={1.5} />
-                        </div>
-                        <div className="min-w-0">
-                          <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">{item.title}</h2>
-                          <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{item.copy}</p>
-                        </div>
+                {capabilities.map((item) => (
+                  <AuthCard key={item.title} className="p-5 transition-all duration-150 hover:-translate-y-[1px] hover:border-[color:var(--border-strong)]">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] text-[var(--accent)]">
+                        <item.icon className="h-4 w-4" strokeWidth={1.5} />
                       </div>
-                    </AuthCard>
-                  </div>
+                      <div className="min-w-0">
+                        <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">{item.title}</h2>
+                        <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">{item.copy}</p>
+                      </div>
+                    </div>
+                  </AuthCard>
                 ))}
               </div>
 
@@ -459,16 +270,14 @@ export const Login: React.FC = () => {
                   <WorkflowIcon className="h-4 w-4 text-[var(--accent)]" />
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Help</p>
                 </div>
-                <div className="mt-4 space-y-4">
-                  <div className="rounded-[14px] border border-[color:var(--border)] bg-[rgba(255,255,255,0.015)] p-4">
-                    <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">Need help setting up?</h2>
-                    <p className="mt-2 max-w-4xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                      Message the PropAI Assistant on WhatsApp at {PROPAI_ASSISTANT_NUMBER}.
-                    </p>
-                    <a href={PROPAI_ASSISTANT_WA_LINK} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07]">
-                      Open WhatsApp
-                    </a>
-                  </div>
+                <div className="mt-4 rounded-[14px] border border-[color:var(--border)] bg-[rgba(255,255,255,0.015)] p-4">
+                  <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">Need help setting up?</h2>
+                  <p className="mt-2 max-w-4xl text-[13px] leading-6 text-[var(--text-secondary)]">
+                    Open WhatsApp onboarding first, then come back here and enter the same broker number.
+                  </p>
+                  <a href="/onboarding" className="mt-4 inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07]">
+                    Open onboarding
+                  </a>
                 </div>
               </AuthCard>
             </section>
@@ -476,380 +285,67 @@ export const Login: React.FC = () => {
             <aside className="order-1 lg:order-2 lg:sticky lg:top-8">
               <AuthCard variant="accent" className="p-6">
                 <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
-              <MailIcon className="h-3.5 w-3.5" />
+                  <MessageSquareTextIcon className="h-3.5 w-3.5" />
                   Account access
                 </div>
                 <div className="mb-5">
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access PropAI Pulse</p>
-                  <h2 className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">
-                    {mode === 'signup' ? 'Create your partner account' : 'Sign in with email and password'}
-                  </h2>
+                  <h2 className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">Send me a login link</h2>
                   <p className="mt-2 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
-                    {mode === 'signup'
-                      ? 'Add your name, WhatsApp number, email, and password once.'
-                      : 'Sign in to open your workspace.'}
+                    Enter the 10-digit WhatsApp number on your account. We will send a one-click magic link to that chat.
                   </p>
                 </div>
 
-                {referralLabel ? (
-                  <div className="mb-5 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">Referral applied</p>
-                    <p className="mt-1 text-[12px] leading-5 text-[var(--text-primary)]">{referralLabel}</p>
+                <form onSubmit={handleSendLoginLink} className="space-y-4">
+                  <label className="block">
+                    <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                      WhatsApp number
+                    </span>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      value={phoneNumber}
+                      onChange={(event) => setPhoneNumber(event.target.value)}
+                      placeholder="9876543210"
+                      className={authFieldClassName}
+                    />
+                    <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
+                      We only use this number to send the login link and open your workspace session.
+                    </p>
+                  </label>
+
+                  {error ? (
+                    <div className="rounded-[12px] border border-[color:var(--red)]/40 bg-[rgba(255,76,76,0.08)] px-4 py-3 text-[12px] leading-5 text-[var(--text-primary)]">
+                      {error}
+                    </div>
+                  ) : null}
+
+                  {sentMessage ? (
+                    <div className="rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 text-[12px] leading-5 text-[var(--text-primary)]">
+                      {sentMessage}
+                    </div>
+                  ) : null}
+
+                  <button type="submit" disabled={isLoading} className={authPrimaryButton + ' w-full'}>
+                    {isLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : null}
+                    Send login link
+                  </button>
+                </form>
+
+                <div className="mt-5 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
+                  <div className="flex items-start gap-2">
+                    <CheckIcon className="mt-0.5 h-4 w-4 text-[var(--accent)]" />
+                    <p className="text-[11px] leading-5 text-[var(--text-secondary)]">
+                      The link is sent to WhatsApp and lands in your browser session without asking for a password or OTP.
+                    </p>
                   </div>
-                ) : null}
-
-                <div className="mb-5 grid grid-cols-2 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('signin');
-                      setError(null);
-                    }}
-                    className={cn(
-                      'rounded-[10px] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                      mode === 'signin'
-                        ? 'bg-[var(--accent)] text-[#020f07]'
-                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
-                    )}
-                  >
-                    Sign in
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('signup');
-                      setError(null);
-                    }}
-                    className={cn(
-                      'rounded-[10px] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors',
-                      mode === 'signup'
-                        ? 'bg-[var(--accent)] text-[#020f07]'
-                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
-                    )}
-                  >
-                    Create account
-                  </button>
                 </div>
-
-                {mode === 'signin' ? (
-                    <div key="signin-form">
-                      <form onSubmit={handlePasswordAuth} className="space-y-4">
-                        <label className="block">
-                          <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                            Email address
-                          </span>
-                          <div className="relative">
-            <MailIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-muted)]" />
-                            <input
-                              type="email"
-                              required
-                              autoComplete="email"
-                              value={email}
-                              onChange={(e) => setEmail(e.target.value)}
-                              placeholder="you@agency.com"
-                              className={cn(authFieldClassName, 'pl-9')}
-                            />
-                          </div>
-                        </label>
-
-                        <label className="block">
-                          <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                            Password
-                          </span>
-                          <div className="relative">
-                            <input
-                              type={showPassword ? 'text' : 'password'}
-                              required
-                              autoComplete="current-password"
-                              value={password}
-                              onChange={(e) => setPassword(e.target.value)}
-                              placeholder="Enter password"
-                              className={cn(authFieldClassName, 'pr-11')}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword((current) => !current)}
-                              className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-base)] text-[var(--text-secondary)] transition-colors duration-150 hover:border-[color:var(--accent-border)] hover:text-[var(--text-primary)]"
-                              aria-label={showPassword ? 'Hide password' : 'Show password'}
-                            >
-              {showPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
-                            </button>
-                          </div>
-                        </label>
-
-                        <div className="flex items-center justify-between">
-                          <label className="flex items-start gap-3">
-                            <input
-                              type="checkbox"
-                              checked={rememberMe}
-                              onChange={(e) => setRememberMe(e.target.checked)}
-                              className="mt-0.5 h-4 w-4 rounded border-[color:var(--border-strong)] bg-[var(--bg-base)] text-[var(--accent)] accent-[var(--accent)]"
-                            />
-                            <span className="text-[12px] font-medium text-[var(--text-secondary)]">Remember me</span>
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowForgotPassword(true);
-                              setResetEmail(email);
-                              setResetSent(false);
-                              setResetError(null);
-                            }}
-                            className="text-[12px] font-medium text-[var(--accent)] transition-colors hover:underline"
-                          >
-                            Forgot password?
-                          </button>
-                        </div>
-
-                        {error && (
-                          <div className="rounded-[6px] border-[0.5px] border-[color:rgba(239,68,68,0.2)] bg-[var(--red-dim)] px-3 py-2 text-[12px] text-[var(--red)]">
-                            {error}
-                          </div>
-                        )}
-
-                        <button
-                          type="submit"
-                          disabled={isLoading}
-                          className={cn(authPrimaryButton, 'w-full')}
-                        >
-            {isLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <ArrowRightIcon className="h-4 w-4" strokeWidth={2} />}
-                          <span>Sign in</span>
-                        </button>
-                      </form>
-
-                      <div className="mt-5 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-4">
-                        <div className="flex items-center gap-2">
-            <CheckIcon className="h-3.5 w-3.5 text-[var(--accent)]" />
-                          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">No tool names needed</p>
-                        </div>
-                        <p className="mt-2 text-[12px] leading-5 text-[var(--text-primary)]">
-                          Use this if your account is already set up. New brokers can switch to Create account.
-                          
-                        </p>
-                      </div>
-
-
-                      {showForgotPassword && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => setShowForgotPassword(false)}>
-                          <div
-                            className="w-full max-w-md rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-base)] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.4)]"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="mb-4 flex items-center justify-between">
-                              <h3 className="text-[14px] font-bold text-[var(--text-primary)]">Reset your password</h3>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setShowForgotPassword(false);
-                                  setResetSent(false);
-                                  setResetError(null);
-                                }}
-                                className="rounded-[6px] p-1 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
-                              >
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            </div>
-
-                            {resetSent ? (
-                              <div className="space-y-3">
-                                <div className="rounded-[8px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-4 text-[12px] text-[var(--accent)]">
-                                  Reset link sent! Check your email for a password reset link. The link will redirect you to set a new password.
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setShowForgotPassword(false);
-                                    setResetSent(false);
-                                  }}
-                                  className={cn(authSecondaryButton, 'w-full')}
-                                >
-                                  Back to sign in
-                                </button>
-                              </div>
-                            ) : (
-                              <form onSubmit={handleForgotPassword} className="space-y-4">
-                                <p className="text-[12px] text-[var(--text-secondary)]">
-                                  Enter your email address and we will send you a password reset link.
-                                </p>
-                                <label className="block">
-                                  <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                                    Email address
-                                  </span>
-                                  <div className="relative">
-                                    <MailIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-muted)]" />
-                                    <input
-                                      type="email"
-                                      required
-                                      value={resetEmail}
-                                      onChange={(e) => setResetEmail(e.target.value)}
-                                      placeholder="you@agency.com"
-                                      className={cn(authFieldClassName, 'pl-9')}
-                                    />
-                                  </div>
-                                </label>
-
-                                {resetError && (
-                                  <div className="rounded-[6px] border-[0.5px] border-[color:rgba(239,68,68,0.2)] bg-[var(--red-dim)] px-3 py-2 text-[12px] text-[var(--red)]">
-                                    {resetError}
-                                  </div>
-                                )}
-
-                                <button
-                                  type="submit"
-                                  disabled={resetLoading}
-                                  className={cn(authPrimaryButton, 'w-full')}
-                                >
-                                  {resetLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <ArrowRightIcon className="h-4 w-4" strokeWidth={2} />}
-                                  <span>Send reset link</span>
-                                </button>
-                              </form>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div key="signup-form">
-                      <form onSubmit={handlePasswordAuth} className="space-y-4">
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <label className="block">
-                            <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                              First name
-                            </span>
-                            <input
-                              type="text"
-                              required
-                              autoComplete="given-name"
-                              value={firstName}
-                              onChange={(e) => setFirstName(e.target.value)}
-                              placeholder="First name"
-                              className={authFieldClassName}
-                            />
-                          </label>
-
-                          <label className="block">
-                            <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                              Last name
-                            </span>
-                            <input
-                              type="text"
-                              required
-                              autoComplete="family-name"
-                              value={lastName}
-                              onChange={(e) => setLastName(e.target.value)}
-                              placeholder="Last name"
-                              className={authFieldClassName}
-                            />
-                          </label>
-                        </div>
-
-                        <label className="block">
-                          <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                            WhatsApp number
-                          </span>
-                          <input
-                            type="tel"
-                            required
-                            value={phoneNumber}
-                            onChange={(e) => setPhoneNumber(e.target.value.split('').filter(c => c >= '0' && c <= '9').join(''))}
-                            placeholder="9876543210"
-                            className={authFieldClassName}
-                          />
-                          <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
-                            Enter your 10-digit number. We'll add the India prefix automatically.
-                          </p>
-                        </label>
-
-                        <label className="block">
-                          <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                            Email address
-                          </span>
-                          <input
-                            type="email"
-                            required
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="you@agency.com"
-                            className={authFieldClassName}
-                          />
-                        </label>
-
-                        <label className="block">
-                          <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                            Password
-                          </span>
-                          <div className="relative">
-                            <input
-                              type={showPassword ? 'text' : 'password'}
-                              required
-                              minLength={8}
-                              value={password}
-                              onChange={(e) => setPassword(e.target.value)}
-                              placeholder="Create a password"
-                              className={cn(authFieldClassName, 'pr-11')}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword((current) => !current)}
-                              className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-[8px] border border-[color:var(--border)] bg-[var(--bg-base)] text-[var(--text-secondary)] transition-colors duration-150 hover:border-[color:var(--accent-border)] hover:text-[var(--text-primary)]"
-                              aria-label={showPassword ? 'Hide password' : 'Show password'}
-                            >
-          {showPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
-                            </button>
-                          </div>
-                        </label>
-
-                        {referralCode ? (
-                          <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[11px] text-[var(--text-secondary)]">
-                            Referral link applied. When you complete trial and payment, your referrer gets credit.
-                          </div>
-                        ) : null}
-
-                        {error && (
-                          <div className="rounded-[6px] border-[0.5px] border-[color:rgba(239,68,68,0.2)] bg-[var(--red-dim)] px-3 py-2 text-[12px] text-[var(--red)]">
-                            {error}
-                          </div>
-                        )}
-
-                        <button
-                          type="submit"
-                          disabled={isLoading}
-                          className={cn(authPrimaryButton, 'w-full')}
-                        >
-          {isLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : 'Create account'}
-                        </button>
-                      </form>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMode('signin');
-                          setError(null);
-                        }}
-                        className={cn(authSecondaryButton, 'mt-3 w-full')}
-                      >
-                        I already have an account
-                      </button>
-                    </div>
-                  )}
-              </AuthCard>
-
-              <AuthCard className="mt-4 p-4">
-                <div className="flex items-center gap-2">
-              <ListingIcon className="h-3.5 w-3.5 text-[var(--accent)]" />
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Workspace capability reminder</p>
-                </div>
-                <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">
-                  After login you can work in Threads, Stream, and follow-up.
-                </p>
               </AuthCard>
             </aside>
           </div>
         </div>
       </div>
-      <LegalFooter className="border-t-0 bg-[#000000]" />
     </div>
   );
 };

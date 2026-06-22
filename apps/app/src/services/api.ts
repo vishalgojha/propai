@@ -66,7 +66,7 @@ export function setBackendApiAuthToken(token?: string | null) {
 }
 
 // Public auth routes that must never be blocked by session checks
-const PUBLIC_AUTH_PATHS = ['/auth/password', '/auth/request-verification', '/auth/verify', '/auth/refresh', '/auth/reset-password'];
+const PUBLIC_AUTH_PATHS = ['/auth/request-login-link', '/auth/refresh'];
 
 backendApi.interceptors.request.use(async (config) => {
   // Skip session validation for public auth endpoints

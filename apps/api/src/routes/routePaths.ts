@@ -53,12 +53,9 @@ export const ROUTE_PATHS = {
     campaignStats: '/campaigns/:id/stats',
   },
   auth: {
-    requestVerification: '/request-verification',
-    verify: '/verify',
-    password: '/password',
+    requestLoginLink: '/request-login-link',
     me: '/me',
     refresh: '/refresh',
-    resetPassword: '/reset-password',
     referralPreview: '/referral/:code',
   },
     whatsapp: {

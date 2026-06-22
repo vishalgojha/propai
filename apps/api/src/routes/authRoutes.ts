@@ -3,17 +3,15 @@ import { validate } from '../middleware/validate';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { createSupabaseAnonClient, supabaseAdmin } from '../config/supabase';
 import { ROUTE_PATHS } from './routePaths';
+import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 import { referralService } from '../services/referralService';
 import { subscriptionService } from '../services/subscriptionService';
 import { emailNotificationService } from '../services/emailNotificationService';
 import { syncBrokerIdentityPhone } from '../services/identityService';
 import { getPhoneOwnership, normalizePhone as normalizePhoneValue } from '../services/phoneOwnershipService';
 import {
-    requestVerificationBodySchema,
-    passwordAuthBodySchema,
-    verifyOtpBodySchema,
+    requestLoginLinkBodySchema,
     refreshTokenBodySchema,
-    resetPasswordBodySchema,
     updateProfileBodySchema,
 } from '../schemas/authSchemas';
 
@@ -29,28 +27,7 @@ const PROFILE_BASE_SELECT = 'id, full_name, phone, email, phone_verified';
 const normalizePhone = (value?: string) => normalizePhoneValue(value);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const AUTH_OPTIONAL_WORK_TIMEOUT_MS = 2500;
-// Password auth is a hard dependency for sign-in; give production enough headroom
-// for Supabase auth latency instead of failing fast with a 504.
-const AUTH_REQUIRED_WORK_TIMEOUT_MS = 45000;
-const AUTH_SUPABASE_FETCH_TIMEOUT_MS = AUTH_REQUIRED_WORK_TIMEOUT_MS;
-
-type DirectPasswordSession = {
-    access_token: string;
-    refresh_token: string;
-    expires_in?: number;
-    expires_at?: number;
-};
-
-type DirectPasswordUser = {
-    id: string;
-    email?: string | null;
-    user_metadata?: Record<string, unknown> | null;
-};
-
-type DirectPasswordAuthResult = {
-    session: DirectPasswordSession;
-    user: DirectPasswordUser;
-};
+const AUTH_SUPABASE_FETCH_TIMEOUT_MS = 45_000;
 
 function extractAuthErrorMessage(error: any, fallback = 'Authentication failed'): string {
     if (!error) return fallback;
@@ -107,104 +84,6 @@ async function withRequiredTimeout<T>(task: Promise<T>, timeoutMs: number, label
             clearTimeout(timeoutHandle);
         }
     }
-}
-
-async function signInWithPasswordDirect(email: string, password: string): Promise<DirectPasswordAuthResult> {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Supabase URL or anon key is not configured');
-    }
-
-    const controller = new AbortController();
-    const timeoutHandle = setTimeout(() => controller.abort(), AUTH_SUPABASE_FETCH_TIMEOUT_MS);
-    let response: Response;
-
-    try {
-        response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
-            method: 'POST',
-            headers: {
-                apikey: supabaseAnonKey,
-                Authorization: `Bearer ${supabaseAnonKey}`,
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-            },
-            body: JSON.stringify({
-                email,
-                password,
-            }),
-            signal: controller.signal,
-        });
-    } catch (error: any) {
-        if (error?.name === 'AbortError') {
-            const timeoutError = new Error('Supabase password auth request timed out');
-            (timeoutError as any).status = 504;
-            throw timeoutError;
-        }
-        throw error;
-    } finally {
-        clearTimeout(timeoutHandle);
-    }
-
-    const responseText = await response.text();
-    let payload: any = null;
-    if (responseText) {
-        try {
-            payload = JSON.parse(responseText);
-        } catch {
-            payload = null;
-        }
-    }
-
-    if (!response.ok) {
-        const message = payload?.error_description || payload?.msg || payload?.message || 'Authentication failed';
-        const error = new Error(message);
-        (error as any).status = response.status;
-        throw error;
-    }
-
-    if (!payload?.access_token || !payload?.refresh_token || !payload?.user?.id) {
-        throw new Error('Supabase password auth returned an incomplete session');
-    }
-
-    return {
-        session: {
-            access_token: payload.access_token,
-            refresh_token: payload.refresh_token,
-            expires_in: payload.expires_in,
-            expires_at: payload.expires_at,
-        },
-        user: {
-            id: payload.user.id,
-            email: payload.user.email,
-            user_metadata: payload.user.user_metadata || {},
-        },
-    };
-}
-
-async function findAuthUserByEmail(email: string) {
-    if (!supabaseAdmin) return null;
-
-    const targetEmail = email.trim().toLowerCase();
-    const pageSize = 100;
-
-    for (let page = 1; page <= 10; page += 1) {
-        const { data, error } = await supabaseAdmin.auth.admin.listUsers({
-            page,
-            perPage: pageSize,
-        });
-
-        if (error) throw error;
-
-        const users = data?.users || [];
-        const match = users.find((user) => (user.email || '').trim().toLowerCase() === targetEmail);
-        if (match) return match;
-
-        if (users.length < pageSize) break;
-    }
-
-    return null;
 }
 
 function getProfileClient(accessToken?: string) {
@@ -348,271 +227,98 @@ async function getLegacyUserSeed(userId: string) {
     return data;
 }
 
-router.post(ROUTE_PATHS.auth.requestVerification, validate(requestVerificationBodySchema), async (req, res) => {
-    const { email } = req.body;
-
-    try {
-        const authClient = createSupabaseAnonClient();
-        const { error } = await authClient.auth.signInWithOtp({
-            email,
-            options: {
-                emailRedirectTo: `${process.env.APP_URL || 'https://app.propai.live'}/auth/callback`,
-            },
-        });
-
-        if (error) {
-            console.error('Supabase auth error:', error);
-            return res.status(400).json({ error: error.message || 'Failed to send verification code' });
-        }
-
-        res.json({
-            message: 'Verification code sent',
-        });
-    } catch (error: any) {
-        console.error('Email send error:', error);
-        res.status(500).json({ error: error.message || 'Failed to send verification code' });
+async function resolveLoginIdentityByPhone(phone: string) {
+    const ownership = await getPhoneOwnership(phone);
+    const canonicalOwnerId = ownership?.canonicalOwnerId || null;
+    if (!canonicalOwnerId) {
+        return null;
     }
-});
 
-router.post(ROUTE_PATHS.auth.password, validate(passwordAuthBodySchema), async (req, res) => {
-    const { mode, email, password, phone, referralCode } = req.body || {};
-    const firstName = typeof req.body?.firstName === 'string' ? req.body.firstName.trim() : '';
-    const lastName = typeof req.body?.lastName === 'string' ? req.body.lastName.trim() : '';
-    const fullName = String(req.body?.fullName || [firstName, lastName].filter(Boolean).join(' ')).replace(/\s+/g, ' ').trim();
+    const profile = await getProfileById(canonicalOwnerId).catch(() => null);
+    if (!profile?.email) {
+        return null;
+    }
 
-    const loginMode = mode === 'signup' ? 'signup' : 'signin';
+    return {
+        phone: normalizePhone(phone),
+        ownership,
+        profile,
+    };
+}
+
+async function generateMagicLinkForEmail(email: string, nextPath: string) {
+    if (!supabaseAdmin) {
+        throw new Error('Supabase service role key is not configured');
+    }
+
+    const appUrl = (process.env.APP_URL || 'https://app.propai.live').replace(/\/$/, '');
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+        options: {
+            redirectTo: `${appUrl}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    const actionLink = data?.properties?.action_link || null;
+    if (!actionLink) {
+        throw new Error('Could not generate a login link');
+    }
+
+    return actionLink;
+}
+
+router.post(ROUTE_PATHS.auth.requestLoginLink, validate(requestLoginLinkBodySchema), async (req, res) => {
+    const phone = normalizePhone(req.body?.phone);
+    const next = typeof req.body?.next === 'string' && req.body.next.startsWith('/') ? req.body.next : '/dashboard';
+
+    if (!phone) {
+        return res.status(400).json({ error: 'Phone number is required' });
+    }
 
     try {
-        if (loginMode === 'signup') {
-            if (!supabaseAdmin) {
-                return res.status(503).json({ error: 'Supabase service role key is not configured' });
-            }
-
-            const normalizedPhone = normalizePhone(phone);
-            if (!fullName || !normalizedPhone) {
-                return res.status(400).json({ error: 'Full name and WhatsApp number are required for sign up' });
-            }
-
-            const existingUser = await findAuthUserByEmail(email);
-            if (existingUser?.id) {
-                return res.status(409).json({
-                    error: 'An account with this email already exists. Use Login instead of Create account.',
-                });
-            } else {
-                const { error: createError } = await supabaseAdmin.auth.admin.createUser({
-                    email,
-                    password,
-                    email_confirm: true,
-                    user_metadata: {
-                        full_name: fullName,
-                        phone: normalizedPhone,
-                    },
-                });
-
-                if (createError) {
-                    const message = createError.message || 'Could not create account';
-                    const normalizedMessage = message.toLowerCase();
-                    if (
-                        normalizedMessage.includes('already registered')
-                        || normalizedMessage.includes('already exists')
-                        || normalizedMessage.includes('already been registered')
-                    ) {
-                        return res.status(409).json({
-                            error: 'An account with this email already exists. Use Login instead of Create account.',
-                        });
-                    }
-                    return res.status(400).json({ error: message });
-                }
-            }
-
-            await sleep(750);
+        const loginIdentity = await resolveLoginIdentityByPhone(phone);
+        if (!loginIdentity) {
+            return res.status(404).json({
+                error: 'No account found for this phone number. Open WhatsApp onboarding first, then try again.',
+            });
         }
 
-        let authError: any = null;
-        let authData: DirectPasswordAuthResult | null = null;
-
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-            try {
-                authData = await withRequiredTimeout(
-                    signInWithPasswordDirect(
-                        email,
-                        password,
-                    ),
-                    AUTH_REQUIRED_WORK_TIMEOUT_MS,
-                    'signInWithPassword',
-                );
-                authError = null;
-                if (authData?.session && authData?.user) break;
-            } catch (error: any) {
-                authError = error;
-                authData = null;
-            }
-
-            const normalizedMessage = String(authError?.message || '').toLowerCase();
-            if (attempt < 2 && normalizedMessage.includes('invalid login credentials')) {
-                await sleep(500 * (attempt + 1));
-                continue;
-            }
-
-            break;
-        }
-
-        if (authError || !authData?.session || !authData?.user) {
-            const rawMessage = extractAuthErrorMessage(authError);
-            const normalizedMessage = rawMessage.toLowerCase();
-            if (normalizedMessage.includes('invalid login credentials') || normalizedMessage.includes('invalid email') || normalizedMessage.includes('email or password')) {
-                return res.status(401).json({ error: 'Email or password is incorrect' });
-            }
-            if (normalizedMessage.includes('timed out')) {
-                return res.status(504).json({
-                    error: 'Sign in is taking too long right now. Please try again in a moment.',
-                });
-            }
-            return res.status(Number(authError?.status || 400)).json({ error: rawMessage });
-        }
-
-        const accessToken = authData.session.access_token;
-        const authUserMetadata = (authData.user.user_metadata || {}) as Record<string, any>;
-        let profile: Record<string, unknown> | null = null;
-        try {
-            profile = await withTimeout(
-                getProfileById(authData.user.id, accessToken),
-                AUTH_OPTIONAL_WORK_TIMEOUT_MS,
-                'getProfileById',
-            );
-        } catch (profileError: unknown) {
-            console.error('[Auth] getProfileById failed (non-fatal):', profileError);
-        }
-
-        try {
-            if (loginMode === 'signup') {
-                profile = await withTimeout(
-                    upsertProfile(
-                        authData.user.id,
-                        authData.user.email || email,
-                        fullName,
-                        phone,
-                        accessToken
-                    ),
-                    AUTH_OPTIONAL_WORK_TIMEOUT_MS,
-                    'signup upsertProfile',
-                );
-            } else if (!profile) {
-                const legacyUser = await getLegacyUserSeed(authData.user.id);
-                void withTimeout(
-                    upsertProfile(
-                        authData.user.id,
-                        authData.user.email || email || legacyUser?.email || null,
-                        authUserMetadata.full_name || legacyUser?.full_name || undefined,
-                        authUserMetadata.phone || legacyUser?.profile?.phone || undefined,
-                        accessToken
-                    ),
-                    AUTH_OPTIONAL_WORK_TIMEOUT_MS,
-                    'signin backfill upsertProfile',
-                ).catch((profileError) => {
-                    console.error('[Auth] Deferred signin upsertProfile failed (non-fatal):', profileError);
-                });
-            }
-        } catch (profileError: unknown) {
-            console.error('[Auth] upsertProfile failed (non-fatal):', profileError);
-        }
-
-        try {
-            if (loginMode === 'signup') {
-                await subscriptionService.ensureTrialSubscription(authData.user.id, authData.user.email || email);
-                await referralService.ensureParticipant(authData.user.id, authData.user.email || email, fullName);
-                if (referralCode) {
-                    await referralService.applyReferralCode(authData.user.id, referralCode, authData.user.email || email, fullName);
-                }
-                void emailNotificationService.sendWelcomeEmail({
-                    to: authData.user.email || email,
-                    fullName,
-                    phone,
-                });
-            }
-        } catch (onboardingError: unknown) {
-            console.error('[Auth] Signup onboarding failed (non-fatal):', onboardingError);
-        }
-
-        let subscription: unknown = null;
-        let referral: unknown = null;
-        try {
-            const [subscriptionResult, referralResult] = await Promise.all([
-                withTimeout(
-                    subscriptionService.ensureTrialSubscription(authData.user.id, authData.user.email || email),
-                    AUTH_OPTIONAL_WORK_TIMEOUT_MS,
-                    'ensureTrialSubscription',
-                ),
-                withTimeout(
-                    referralService.getSummary(
-                        authData.user.id,
-                        authData.user.email || email,
-                        String(profile?.full_name || fullName || '').trim() || null,
-                    ),
-                    AUTH_OPTIONAL_WORK_TIMEOUT_MS,
-                    'referral getSummary',
-                ),
-            ]);
-            subscription = subscriptionResult;
-            referral = referralResult;
-        } catch (postAuthError: unknown) {
-            console.error('[Auth] Post-auth subscription/referral failed (non-fatal):', postAuthError);
-        }
+        const loginLink = await generateMagicLinkForEmail(String(loginIdentity.profile.email || '').trim().toLowerCase(), next);
+        const gateway = getWhatsAppGateway('system');
+        await gateway.sendMessage({
+            workspaceOwnerId: 'system',
+            remoteJid: `${phone}@s.whatsapp.net`,
+            text: [
+                'Your PropAI login link is ready.',
+                '',
+                'Tap the link below to open your workspace securely:',
+                loginLink,
+                '',
+                `If the app does not open the right screen, use this next path after login: ${next}`,
+            ].join('\n'),
+        });
 
         return res.json({
             success: true,
-            user: {
-                id: authData.user.id,
-                email: authData.user.email,
-            },
-            session: authData.session,
-            profile: profile
-                ? {
-                    id: profile.id,
-                    fullName: profile.full_name,
-                    phone: profile.phone,
-                    email: profile.email,
-                    phoneVerified: profile.phone_verified,
-                    appRole: profile.app_role || (isOwnerSuperAdminEmail(authData.user.email) ? 'super_admin' : 'broker'),
-                    phoneOwnership: (profile as any).phone_ownership || null,
-                }
-                : null,
-            subscription,
-            referral,
+            message: 'Login link sent to your WhatsApp number',
         });
     } catch (error: any) {
-        if (String(error?.message || '').includes('timed out')) {
-            return res.status(504).json({
-                error: 'Sign in is taking too long right now. Please try again in a moment.',
+        console.error('[Auth] Login link request failed:', error);
+        const message = String(error?.message || '').toLowerCase();
+        if (message.includes('24-hour customer care window') || message.includes('message template')) {
+            return res.status(409).json({
+                error: 'WhatsApp has not seen a recent message from this number. Open onboarding in WhatsApp first, then request the login link again.',
             });
         }
-        console.error('Password auth error:', error);
-        return res.status(Number(error?.status || 500)).json({ error: error.message || 'Failed to authenticate' });
+        return res.status(Number(error?.status || 500)).json({
+            error: error?.message || 'Failed to send login link',
+        });
     }
-});
-
-router.post(ROUTE_PATHS.auth.verify, validate(verifyOtpBodySchema), async (req, res) => {
-    const { email, otp } = req.body;
-
-    const authClient = createSupabaseAnonClient();
-    const { data, error } = await authClient.auth.verifyOtp({
-        email,
-        token: otp,
-        type: 'email',
-    });
-
-    if (error || !data?.session || !data.user) {
-        return res.status(400).json({ error: error?.message || 'Invalid verification code' });
-    }
-
-    res.json({
-        success: true,
-        user: {
-            id: data.user.id,
-            email: data.user.email,
-        },
-        session: data.session,
-    });
 });
 
 router.post(ROUTE_PATHS.auth.refresh, validate(refreshTokenBodySchema), async (req, res) => {
@@ -673,30 +379,6 @@ router.post(ROUTE_PATHS.auth.refresh, validate(refreshTokenBodySchema), async (r
     } catch (error: any) {
         console.error('Refresh error:', error);
         res.status(500).json({ error: error.message || 'Failed to refresh session' });
-    }
-});
-
-router.post(ROUTE_PATHS.auth.resetPassword, validate(resetPasswordBodySchema), async (req, res) => {
-    const { email } = req.body;
-
-    try {
-        const authClient = createSupabaseAnonClient();
-        const { error } = await authClient.auth.resetPasswordForEmail(email.trim(), {
-            redirectTo: `${process.env.APP_URL || 'https://app.propai.live'}/auth/callback`,
-        });
-
-        if (error) {
-            console.error('Password reset error:', error);
-            return res.status(400).json({ error: error.message || 'Failed to send reset email' });
-        }
-
-        res.json({
-            success: true,
-            message: 'Password reset link sent. Check your email.',
-        });
-    } catch (error: any) {
-        console.error('Password reset error:', error);
-        res.status(500).json({ error: error.message || 'Failed to send reset email' });
     }
 });
 

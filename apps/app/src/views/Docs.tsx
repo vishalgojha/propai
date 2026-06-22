@@ -19,13 +19,10 @@ const apiReferenceSections = [
     base: '/api/auth',
     auth: 'Public except /me',
     endpoints: [
-      { method: 'POST', path: '/request-verification', note: 'Send OTP / verification code.' },
-      { method: 'POST', path: '/verify', note: 'Verify OTP and establish session.' },
-      { method: 'POST', path: '/password', note: 'Password-based sign-in.' },
+      { method: 'POST', path: '/request-login-link', note: 'Send a WhatsApp login link to the registered number.' },
       { method: 'GET', path: '/me', note: 'Get current authenticated user state.' },
       { method: 'POST', path: '/me', note: 'Update current profile name.' },
       { method: 'POST', path: '/refresh', note: 'Refresh auth session.' },
-      { method: 'POST', path: '/reset-password', note: 'Reset password flow.' },
     ],
   },
   {
