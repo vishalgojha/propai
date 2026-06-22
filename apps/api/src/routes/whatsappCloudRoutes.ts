@@ -41,8 +41,14 @@ router.get('/webhook', async (req: Request, res: Response) => {
 
 router.post('/webhook', async (req: Request, res: Response) => {
     try {
-        const results = await whatsappCloudApiService.handleWebhook(req.body || {});
-        return res.json({ success: true, results });
+        void whatsappCloudApiService.handleWebhook(req.body || {}).catch((error) => {
+            console.error('[whatsappCloudRoutes] background webhook processing failed', error);
+        });
+
+        return res.status(200).json({
+            success: true,
+            queued: true,
+        });
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Webhook processing failed';
         console.error('[whatsappCloudRoutes] webhook error', error);
