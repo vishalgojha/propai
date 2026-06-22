@@ -410,6 +410,14 @@ const formatLocalityCell = (value?: string | null) => {
   return text;
 };
 
+const formatBuildingName = (value?: string | null): string => {
+  const text = String(value || '').trim();
+  if (!text || text === '-' || /^n\/?a$/i.test(text) || /^unknown$/i.test(text)) {
+    return 'On Request';
+  }
+  return text;
+};
+
 const buildWaShareUrl = (listing: StreamItem): string | null => {
   const link = listing.brokerWaMeLinks?.[0] || listing.waLink;
   if (!link) return null;
@@ -421,7 +429,8 @@ const buildWaShareUrl = (listing: StreamItem): string | null => {
   const recordLabel = getRecordLabel(listing);
   const config = listing.configuration || '';
   const locality = listing.location || '';
-  const building = listing.buildingName ? ` in ${listing.buildingName}` : '';
+  const formattedBuilding = formatBuildingName(listing.buildingName);
+  const building = formattedBuilding !== 'On Request' ? ` in ${formattedBuilding}` : '';
   const area = listing.areaSqft ? `${formatAreaCell(listing.areaSqft)}` : '';
   const price = listing.price ? `${normalizePriceDisplay(listing).label || listing.price}` : '';
   const furnishing = listing.furnishing || '';
@@ -432,8 +441,14 @@ const buildWaShareUrl = (listing: StreamItem): string | null => {
   return `https://wa.me/${phone}?text=${encodeURIComponent(`${ref}${recordLabel} — ${typeLabel} — ${config}${building} in ${locality}${detailLine}`.trim())}`;
 };
 
-const buildStreamDedupeKey = (item: StreamItem) =>
-  normalizeSearchText(
+const buildStreamDedupeKey = (item: StreamItem) => {
+  const isValid = (value: unknown): boolean => {
+    if (value == null) return false;
+    const s = String(value).trim();
+    return s.length > 0 && s !== '-';
+  };
+
+  return normalizeSearchText(
     [
       item.type,
       item.recordType,
@@ -450,9 +465,10 @@ const buildStreamDedupeKey = (item: StreamItem) =>
       item.workstationsCount,
       item.cabinsCount,
     ]
-      .filter((value) => value != null && String(value).trim().length > 0)
+      .filter(isValid)
       .join('|'),
   );
+};
 
 
 
@@ -1718,8 +1734,8 @@ if (brokerOnly) {
                           </div>
 
                           <div className="mt-3 space-y-1 text-[12px] leading-5 text-[var(--text-secondary)]">
-                            {listing.buildingName ? (
-                              <div>Building: <span className="font-semibold text-[var(--text-primary)]">{listing.buildingName}</span></div>
+                            {formatBuildingName(listing.buildingName) !== 'On Request' ? (
+                              <div>Building: <span className="font-semibold text-[var(--text-primary)]">{formatBuildingName(listing.buildingName)}</span></div>
                             ) : null}
                             {listing.microLocation ? (
                               <div>Landmark: <span className="font-semibold text-[var(--text-primary)]">{listing.microLocation}</span></div>
@@ -1881,7 +1897,7 @@ if (brokerOnly) {
                               <div>{formatLocalityCell(listing.location)}</div>
                           </td>
                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
-                            {listing.buildingName || '—'}
+                            {formatBuildingName(listing.buildingName)}
                           </td>
                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
                              {filterPropertyCategory === 'commercial'

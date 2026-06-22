@@ -83,7 +83,7 @@ function formatQueueTime(value?: string | null): string | null {
 function buildIgrQueueCopy(listing: StreamItem): { label: string; body: string } | null {
     const status = listing.igrQueueStatus;
     const buildingName = String(listing.buildingName || status?.buildingName || '').trim();
-    if (!buildingName) return null;
+    if (!buildingName || buildingName === '-') return null;
 
     const lastChecked = formatQueueTime(status?.lastCheckedAt);
     const nextRetry = formatQueueTime(status?.nextRetryAt);
@@ -189,7 +189,7 @@ function buildDisplayTitle(listing: StreamItem): string {
     };
     const purpose = purposeMap[listing.type] || '';
 
-    const skip = (v: string) => !v || /^n\/?a$/i.test(v);
+    const skip = (v: string) => !v || v === '-' || /^n\/?a$/i.test(v);
 
     if (listing.type === 'Requirement') {
         const parts = [usableBhk, toTitleCase(assetClass || 'property'), 'Wanted in', location].filter((v) => !skip(v));
@@ -346,7 +346,11 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         ? 'Shared network feed'
         : 'Private workspace feed';
     const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
-    const hasBuildingName = Boolean(String(listing.buildingName || '').trim());
+    const formatBuildingName = (v?: string | null): string => {
+      const t = String(v || '').trim();
+      return !t || t === '-' || /^n\/?a$/i.test(t) || /^unknown$/i.test(t) ? 'On Request' : t;
+    };
+    const hasBuildingName = formatBuildingName(listing.buildingName) !== 'On Request';
     const igrQueueCopy = buildIgrQueueCopy(listing);
     const showIgrQueueStatus = hasBuildingName && igrTransactions.length === 0 && Boolean(igrQueueCopy);
 
@@ -460,7 +464,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                             {displayTitle}
                         </h3>
                         <p className="mt-0.5 text-[12px] font-medium text-[var(--text-secondary)] sm:text-[13px]">
-                            {listing.buildingName || sourceLabel}
+                            {formatBuildingName(listing.buildingName)}
                         </p>
                     </div>
                 </div>
@@ -491,7 +495,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                             <div>
                                 <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">Recent registrations</p>
                                 <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
-                                    Last {igrTransactions.length} IGR transaction{igrTransactions.length > 1 ? 's' : ''} for {listing.buildingName || listing.location}
+                                    Last {igrTransactions.length} IGR transaction{igrTransactions.length > 1 ? 's' : ''} for {formatBuildingName(listing.buildingName)}
                                 </p>
                             </div>
                             <Zap className="h-4 w-4 text-[var(--accent)]" />
