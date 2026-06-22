@@ -446,100 +446,7 @@ const buildStreamDedupeKey = (item: StreamItem) =>
       .join('|'),
   );
 
-const formatIgrCompact = (transaction: StreamItem['igrTransactions'][number]) => {
-  const price = transaction?.consideration != null && Number.isFinite(transaction.consideration)
-    ? formatPriceNumeric(transaction.consideration)
-    : 'Price N/A';
-  const date = transaction?.reg_date
-    ? new Date(transaction.reg_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })
-    : 'Date N/A';
-  const rate = transaction?.price_per_sqft != null && Number.isFinite(transaction.price_per_sqft)
-    ? `₹${Math.round(transaction.price_per_sqft).toLocaleString('en-IN')}/sqft`
-    : 'Rate N/A';
-  return `${price} · ${date} · ${rate}`;
-};
 
-const summarizeIgrBuildingIntel = (buildingName?: string | null, transactions?: StreamItem['igrTransactions']) => {
-  const trimmedBuildingName = String(buildingName || '').trim();
-  const rows = Array.isArray(transactions) ? transactions.filter(Boolean) : [];
-  const latest = rows[0] || null;
-
-  if (!trimmedBuildingName && !latest) {
-    return null;
-  }
-
-  const latestRate = latest?.price_per_sqft != null && Number.isFinite(latest.price_per_sqft)
-    ? `₹${Math.round(latest.price_per_sqft).toLocaleString('en-IN')}/sqft`
-    : null;
-  const latestPrice = latest?.consideration != null && Number.isFinite(latest.consideration)
-    ? formatPriceNumeric(latest.consideration)
-    : null;
-  const latestDate = latest?.reg_date
-    ? new Date(latest.reg_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })
-    : null;
-
-  return {
-    title: trimmedBuildingName || latest?.building_name || 'Building intel',
-    subtitle: rows.length > 0
-      ? `${rows.length} recent registration${rows.length === 1 ? '' : 's'}`
-      : 'Awaiting transaction history',
-    latest: [latestPrice, latestDate, latestRate].filter(Boolean).join(' · ') || 'Latest registration not parsed yet',
-    locality: latest?.locality || null,
-  };
-};
-
-const formatQueueTime = (value?: string | null) => {
-  if (!value) return null;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-};
-
-const summarizeIgrQueueStatus = (listing: StreamItem) => {
-  const buildingName = String(listing.buildingName || listing.igrQueueStatus?.buildingName || '').trim();
-  if (!buildingName) return null;
-
-  const status = listing.igrQueueStatus;
-  const lastChecked = formatQueueTime(status?.lastCheckedAt);
-  const nextRetry = formatQueueTime(status?.nextRetryAt);
-
-  if (!status) {
-    return {
-      label: 'IGR lookup queued',
-      detail: `${buildingName} is in the background lookup flow.`,
-    };
-  }
-
-  if (status.status === 'done') {
-    return {
-      label: 'IGR lookup done',
-      detail: lastChecked
-        ? `${buildingName} was checked on ${lastChecked}; no matching saved registrations are attached yet.`
-        : `${buildingName} was checked; no matching saved registrations are attached yet.`,
-    };
-  }
-
-  if (status.status === 'failed') {
-    return {
-      label: 'IGR lookup failed',
-      detail: lastChecked
-        ? `${buildingName} failed during the last portal check on ${lastChecked}.`
-        : `${buildingName} failed during the last portal check.`,
-    };
-  }
-
-  if (lastChecked && nextRetry) {
-    return {
-      label: 'IGR lookup pending',
-      detail: `${buildingName} was last checked on ${lastChecked}. Next retry: ${nextRetry}.`,
-    };
-  }
-
-  return {
-    label: 'IGR lookup pending',
-    detail: `${buildingName} is waiting for its first background registration lookup.`,
-  };
-};
 
 const buildCopyText = (item: StreamItem) => {
   const snippet = buildSnippet(item);
@@ -1799,10 +1706,6 @@ if (brokerOnly) {
                       const snippet = buildSnippet(listing);
                       const rawNote = listing.rawText || listing.description || '';
                       const cleanNote = sanitizeBrokerText(rawNote);
-                      const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
-                      const buildingIntel = summarizeIgrBuildingIntel(listing.buildingName, listing.igrTransactions);
-                      const igrQueueStatus = summarizeIgrQueueStatus(listing);
-                      const showIgrQueueStatus = Boolean(String(listing.buildingName || '').trim()) && igrTransactions.length === 0 && Boolean(igrQueueStatus);
                       const commercialSummary = listing.propertyCategory === 'commercial' || listing.assetClass === 'commercial'
                         ? [listing.commercialType || listing.propertyUse || listing.assetClass, listing.fitoutStatus].filter(Boolean).join(' · ')
                         : '';
@@ -1858,16 +1761,8 @@ if (brokerOnly) {
                             {listing.buildingName ? (
                               <div>Building: <span className="font-semibold text-[var(--text-primary)]">{listing.buildingName}</span></div>
                             ) : null}
-                            {showIgrQueueStatus && igrQueueStatus ? (
-                              <div className="inline-flex w-fit rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">
-                                {igrQueueStatus.label}
-                              </div>
-                            ) : null}
                             {listing.microLocation ? (
                               <div>Landmark: <span className="font-semibold text-[var(--text-primary)]">{listing.microLocation}</span></div>
-                            ) : null}
-                            {buildingIntel ? (
-                              <div>Intel: <span className="font-semibold text-[var(--text-primary)]">{buildingIntel.latest}</span></div>
                             ) : null}
                             {!snippet.isLowSignal ? (
                               <div>Signal: <span className="font-semibold text-[var(--text-primary)]">{snippet.label}</span></div>
@@ -1876,19 +1771,6 @@ if (brokerOnly) {
 
                           {isExpanded ? (
                             <div className="mt-4 border-t border-[color:var(--border)] pt-3">
-                              {igrTransactions.length > 0 ? (
-                                <div className="mb-3 space-y-2">
-                                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">IGR Transactions</p>
-                                  {igrTransactions.map((transaction) => (
-                                    <div
-                                      key={`${transaction.doc_number || 'txn'}-${transaction.reg_date || ''}`}
-                                      className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] text-[var(--text-primary)]"
-                                    >
-                                      {formatIgrCompact(transaction)}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : null}
                               <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Broker Note</p>
                               <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-5 text-[var(--text-primary)]">{cleanNote || '—'}</pre>
                             </div>
@@ -1996,10 +1878,6 @@ if (brokerOnly) {
                     const rawNote = listing.rawText || listing.description || '';
                     const cleanNote = sanitizeBrokerText(rawNote);
                     const snippet = buildSnippet(listing);
-                    const igrTransactions = Array.isArray(listing.igrTransactions) ? listing.igrTransactions.slice(0, 3) : [];
-                    const buildingIntel = summarizeIgrBuildingIntel(listing.buildingName, listing.igrTransactions);
-                    const igrQueueStatus = summarizeIgrQueueStatus(listing);
-                    const showIgrQueueStatus = Boolean(String(listing.buildingName || '').trim()) && igrTransactions.length === 0 && Boolean(igrQueueStatus);
 
                     return (
                       <React.Fragment key={listing.id}>
@@ -2040,19 +1918,9 @@ if (brokerOnly) {
                                   Building: <span className="font-semibold text-[var(--text-primary)]">{listing.buildingName}</span>
                                 </div>
                               ) : null}
-                              {showIgrQueueStatus && igrQueueStatus ? (
-                                <div className="inline-flex w-fit rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">
-                                  {igrQueueStatus.label}
-                                </div>
-                              ) : null}
                               {listing.microLocation ? (
                                 <div className="text-[11px] text-[var(--text-secondary)]">
                                   Landmark: <span className="font-semibold text-[var(--text-primary)]">{listing.microLocation}</span>
-                                </div>
-                              ) : null}
-                              {buildingIntel ? (
-                                <div className="text-[11px] text-[var(--text-secondary)]">
-                                  Intel: <span className="font-semibold text-[var(--text-primary)]">{buildingIntel.latest}</span>
                                 </div>
                               ) : null}
                               {!snippet.isLowSignal ? (
@@ -2110,27 +1978,6 @@ if (brokerOnly) {
                               <div className="rounded-[18px] border border-[color:var(--border)] bg-[var(--bg-base)] p-4">
                                 <div className="grid gap-3 md:grid-cols-2">
                                   <div className="space-y-3">
-                                    {buildingIntel ? (
-                                      <div className="rounded-[16px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]/30 p-4">
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">Building intel</p>
-                                        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
-                                          <div className="min-w-0">
-                                            <p className="text-[14px] font-semibold text-[var(--text-primary)]">
-                                              {buildingIntel.title}
-                                            </p>
-                                            <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
-                                              {buildingIntel.subtitle}
-                                              {buildingIntel.locality ? ` · ${buildingIntel.locality}` : ''}
-                                            </p>
-                                          </div>
-                                          <div className="text-right">
-                                            <p className="text-[11px] font-semibold text-[var(--text-primary)]">
-                                              {buildingIntel.latest}
-                                            </p>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ) : null}
                                     {listing.microLocation ? (
                                       <div>
                                         <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Landmark</p>
@@ -2150,29 +1997,6 @@ if (brokerOnly) {
                                   </div>
 
                                   <div className="space-y-3">
-                                    {igrTransactions.length > 0 ? (
-                                      <div>
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">IGR Transactions</p>
-                                        <div className="mt-2 space-y-2">
-                                          {igrTransactions.map((transaction) => (
-                                            <div
-                                              key={`${transaction.doc_number || 'txn'}-${transaction.reg_date || ''}`}
-                                              className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[12px] text-[var(--text-primary)]"
-                                            >
-                                              {formatIgrCompact(transaction)}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ) : showIgrQueueStatus && igrQueueStatus ? (
-                                      <div className="rounded-[14px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)]/30 px-3 py-3">
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">{igrQueueStatus.label}</p>
-                                        <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
-                                          {igrQueueStatus.detail} Transactions will appear here after the Maharashtra IGR fetch succeeds.
-                                        </p>
-                                      </div>
-                                    ) : null}
-
                                     <div>
                                       <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Actions</p>
                                       <div className="mt-2 flex flex-wrap items-center gap-2">
