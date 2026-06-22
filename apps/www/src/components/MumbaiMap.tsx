@@ -67,74 +67,102 @@ export default function MumbaiMap({ localities, onHover, onSelect }: MumbaiMapPr
       const style = document.createElement('style');
       style.textContent = `
         .leaflet-container {
-          background: #07111a;
+          background: #020508;
           font-family: inherit;
         }
-        .propai-marker {
+        .propai-marker-container {
           position: relative;
-        }
-        .propai-marker-inner {
+          display: flex;
+          align-items: center;
+          justify-content: center;
           width: 14px;
           height: 14px;
-          background: #101620;
-          border: 2.5px solid #3EE88A;
-          border-radius: 50%;
-          box-shadow: 0 0 10px rgba(62,232,138,0.5), 0 0 20px rgba(62,232,138,0.2);
-          transition: all 0.2s ease;
-          cursor: pointer;
         }
-        .propai-marker-inner:hover,
+        .propai-marker-inner {
+          width: 10px;
+          height: 10px;
+          background: #101620;
+          border: 2px solid #3EE88A;
+          border-radius: 50%;
+          box-shadow: 0 0 8px rgba(62,232,138,0.6);
+          transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+          cursor: pointer;
+          z-index: 2;
+        }
+        .propai-marker-container:hover .propai-marker-inner {
+          background: #3EE88A;
+          box-shadow: 0 0 16px rgba(62,232,138,0.9), 0 0 32px rgba(62,232,138,0.5);
+          transform: scale(1.35);
+        }
         .propai-marker-inner.hot {
           background: #3EE88A;
-          box-shadow: 0 0 16px rgba(62,232,138,0.8), 0 0 32px rgba(62,232,138,0.4);
-          transform: scale(1.3);
+          box-shadow: 0 0 12px rgba(62,232,138,0.7), 0 0 24px rgba(62,232,138,0.3);
         }
         .propai-marker-pulse {
           position: absolute;
-          top: -5px;
-          left: -5px;
-          width: 24px;
-          height: 24px;
+          width: 28px;
+          height: 28px;
           border-radius: 50%;
-          background: rgba(62,232,138,0.2);
+          background: rgba(62,232,138,0.22);
           animation: propai-pulse 2.5s ease-out infinite;
+          z-index: 1;
         }
         @keyframes propai-pulse {
-          0% { transform: scale(0.8); opacity: 0.8; }
+          0% { transform: scale(0.6); opacity: 0.8; }
           100% { transform: scale(2.2); opacity: 0; }
         }
-        .propai-label {
-          background: transparent;
-          border: none;
-          box-shadow: none;
-        }
-        .propai-label-text {
+        .propai-label-badge {
+          position: absolute;
+          bottom: 20px;
+          background: rgba(7, 11, 17, 0.88);
+          backdrop-filter: blur(8px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 6px;
+          padding: 3px 8px;
           font-size: 10px;
-          font-weight: 800;
-          color: rgba(255,255,255,0.75);
+          font-weight: 700;
+          color: rgba(248, 250, 252, 0.85);
           white-space: nowrap;
-          text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.9);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+          transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
           pointer-events: none;
           letter-spacing: 0.03em;
           font-family: ui-sans-serif, system-ui, sans-serif;
+          z-index: 3;
         }
-        .leaflet-control-zoom {
-          border: 1px solid rgba(255,255,255,0.07) !important;
-          border-radius: 10px !important;
+        .propai-marker-container:hover .propai-label-badge {
+          color: #3EE88A;
+          border-color: rgba(62, 232, 138, 0.4);
+          transform: translateY(-2px);
+          box-shadow: 0 0 12px rgba(62, 232, 138, 0.25), 0 4px 16px rgba(0, 0, 0, 0.6);
+          background: rgba(7, 11, 17, 0.98);
+        }
+        .leaflet-container .leaflet-bar {
+          border: 1px solid rgba(255,255,255,0.12) !important;
+          border-radius: 8px !important;
           overflow: hidden;
-          box-shadow: none !important;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
         }
-        .leaflet-control-zoom a {
+        .leaflet-container .leaflet-bar a {
           background: rgba(7, 11, 17, 0.9) !important;
-          color: rgba(255,255,255,0.6) !important;
-          border-bottom: 1px solid rgba(255,255,255,0.07) !important;
-          width: 28px !important;
-          height: 28px !important;
-          line-height: 28px !important;
-          font-size: 14px !important;
+          backdrop-filter: blur(8px);
+          color: rgba(255,255,255,0.7) !important;
+          border: none !important;
+          border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+          width: 30px !important;
+          height: 30px !important;
+          line-height: 30px !important;
+          font-size: 15px !important;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
         }
-        .leaflet-control-zoom a:hover {
-          background: rgba(62, 232, 138, 0.1) !important;
+        .leaflet-container .leaflet-bar a:last-child {
+          border-bottom: none !important;
+        }
+        .leaflet-container .leaflet-bar a:hover {
+          background: rgba(62, 232, 138, 0.15) !important;
           color: #3EE88A !important;
         }
         .leaflet-control-attribution {
@@ -147,8 +175,9 @@ export default function MumbaiMap({ localities, onHover, onSelect }: MumbaiMapPr
       // Add locality markers
       localities.forEach((loc) => {
         const markerEl = document.createElement('div');
-        markerEl.className = 'propai-marker';
+        markerEl.className = 'propai-marker-container';
         markerEl.innerHTML = `
+          <div class="propai-label-badge">${loc.name}</div>
           ${loc.hot ? '<div class="propai-marker-pulse"></div>' : ''}
           <div class="propai-marker-inner${loc.hot ? ' hot' : ''}"></div>
         `;
@@ -163,35 +192,12 @@ export default function MumbaiMap({ localities, onHover, onSelect }: MumbaiMapPr
         const marker = L.marker([loc.lat, loc.lng], { icon });
         marker.addTo(map);
 
-        // Label
-        const labelIcon = L.divIcon({
-          html: `<div class="propai-label-text">${loc.name}</div>`,
-          className: 'propai-label',
-          iconSize: [120, 20],
-          iconAnchor: [60, 22],
-        });
-        L.marker([loc.lat, loc.lng], { icon: labelIcon, interactive: false }).addTo(map);
-
         // Events
         marker.on('mouseover', () => {
-          const inner = markerEl.querySelector('.propai-marker-inner');
-          if (inner) {
-            (inner as HTMLElement).style.background = '#3EE88A';
-            (inner as HTMLElement).style.transform = 'scale(1.4)';
-            (inner as HTMLElement).style.boxShadow = '0 0 16px rgba(62,232,138,0.9), 0 0 32px rgba(62,232,138,0.5)';
-          }
           onHover(loc);
         });
 
         marker.on('mouseout', () => {
-          const inner = markerEl.querySelector('.propai-marker-inner');
-          if (inner) {
-            (inner as HTMLElement).style.background = loc.hot ? '#3EE88A' : '#101620';
-            (inner as HTMLElement).style.transform = 'scale(1)';
-            (inner as HTMLElement).style.boxShadow = loc.hot
-              ? '0 0 16px rgba(62,232,138,0.8), 0 0 32px rgba(62,232,138,0.4)'
-              : '0 0 10px rgba(62,232,138,0.5), 0 0 20px rgba(62,232,138,0.2)';
-          }
           onHover(null);
         });
 
@@ -199,6 +205,12 @@ export default function MumbaiMap({ localities, onHover, onSelect }: MumbaiMapPr
           onSelect(loc.name);
         });
       });
+
+      // Automatically adjust map boundaries to show all markers perfectly
+      if (localities.length > 0) {
+        const bounds = L.latLngBounds(localities.map(loc => [loc.lat, loc.lng]));
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
     });
 
     return () => {
