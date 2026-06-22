@@ -497,6 +497,31 @@ Always wrap responses in the AgentResponse JSON schema.`;
         const strippedPhone = remoteJid.replace('@s.whatsapp.net', '');
         const phone = normalizePhoneValue(strippedPhone.startsWith('+') ? strippedPhone.slice(1) : strippedPhone);
         const client = supabaseAdmin ?? supabase;
+        const nationalPhone = phone.slice(-10);
+        const phoneVariants = [...new Set([
+            phone,
+            nationalPhone,
+            `+${phone}`,
+            `+${nationalPhone}`,
+            `91${nationalPhone}`,
+            `+91${nationalPhone}`,
+        ])];
+
+        // A completed broker identity is authoritative even when a legacy profile
+        // is missing its phone or phone_verified backfill.
+        const { data: identity } = await client
+            .from('broker_identity')
+            .select('broker_id')
+            .or(phoneVariants.map((value) => `mobile.eq.${value}`).join(','))
+            .maybeSingle();
+        if (identity?.broker_id) {
+            return {
+                isBroker: true,
+                verified: true,
+                tenantId: identity.broker_id,
+                role: 'owner',
+            };
+        }
 
         // 1) Direct profile match (owner)
         const ownership = await getPhoneOwnership(phone);
