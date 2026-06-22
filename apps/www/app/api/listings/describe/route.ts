@@ -25,10 +25,67 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const STRICT_LOCALITY_TERMS = [
+  'Andheri West',
+  'Andheri East',
+  'Bandra West',
+  'Bandra East',
+  'Bandra Kurla Complex',
+  'Khar West',
+  'Khar East',
+  'Santacruz West',
+  'Santacruz East',
+  'Juhu',
+  'Dadar West',
+  'Dadar East',
+  'Lower Parel',
+  'Lalbaug',
+  'Worli',
+  'Powai',
+  'Ghatkopar East',
+  'Kanjurmarg',
+  'Malad West',
+  'Goregaon West',
+  'Goregaon East',
+  'Borivali West',
+  'Kandivali West',
+  'Kandivali East',
+  'Mira Road',
+  'Nalasopara',
+  'Chembur',
+  'Kurla',
+  'Thane West',
+  'Thane East',
+  'Vashi',
+  'Kharghar',
+  'CBD Belapur',
+  'Panvel',
+  'Nerul',
+  'Parel',
+  'Marine Lines',
+  'Churchgate',
+  'Carter Road',
+  'Hill Road',
+  'Bandstand',
+  'Linking Road',
+  'JVLR',
+  'BKC',
+  'SEEPZ',
+  'MIDC',
+  'Lokhandwala',
+  'Gulmohar Road',
+  'Juhu Tara',
+  'Palm Beach Road',
+  'Western Express Highway',
+  'Eastern Express Highway',
+  'Sion-Bandra Link Road',
+  'Bandra-Worli Sea Link',
+];
+
 function mentionsOtherTrackedLocality(text: string, locality: string) {
   const normalizedText = String(text || '').toLowerCase();
   const normalizedLocality = String(locality || '').trim().toLowerCase();
-  return LOCALITY_NAMES.some((name) => {
+  return [...LOCALITY_NAMES, ...STRICT_LOCALITY_TERMS].some((name) => {
     const normalizedName = name.toLowerCase();
     if (!normalizedName || normalizedName === normalizedLocality) {
       return false;
