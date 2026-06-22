@@ -2447,6 +2447,79 @@ private highValueLeadAlertKeys = new Set<string>();
         return ownerTenantId || scannerTenantId;
     }
 
+    private normalizeComparableText(value?: string | number | null): string {
+        return String(value || '')
+            .toLowerCase()
+            .replace(/\bbedrooms?\b/g, 'bhk')
+            .replace(/[^a-z0-9]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    private numbersClose(left?: number | null, right?: number | null, toleranceRatio = 0.02): boolean {
+        if (left == null || right == null) return false;
+        const a = Number(left);
+        const b = Number(right);
+        if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) return false;
+        return Math.abs(a - b) <= Math.max(1, Math.max(a, b) * toleranceRatio);
+    }
+
+    private isLikelyStreamUpdate(existing: any, parsed: ParsedStreamCandidate): boolean {
+        const existingConfig = this.normalizeComparableText(existing.configuration || existing.bhk);
+        const nextConfig = this.normalizeComparableText(parsed.configuration || parsed.bhk);
+        if (existingConfig && nextConfig && existingConfig !== nextConfig) return false;
+
+        const existingBuilding = this.normalizeComparableText(existing.building_name || existing.parsed_payload?.buildingName);
+        const nextBuilding = this.normalizeComparableText(String(parsed.parsedPayload?.buildingName || ''));
+        const buildingMatches = Boolean(existingBuilding && nextBuilding && existingBuilding === nextBuilding);
+        const areaMatches = this.numbersClose(existing.area_sqft, parsed.areaSqft, 0.02);
+        const priceMatches = this.numbersClose(existing.price_numeric, parsed.priceNumeric, 0.01);
+
+        if (buildingMatches && (areaMatches || priceMatches)) return true;
+        if (areaMatches && priceMatches && existingConfig && nextConfig) return true;
+
+        return false;
+    }
+
+    private async findLikelyStreamUpdate(
+        targetTable: StreamTable,
+        tenantId: string,
+        parsed: ParsedStreamCandidate,
+        cutoff: string,
+    ): Promise<any | null> {
+        if (!parsed.sourcePhone || !parsed.locality || !parsed.recordType) return null;
+
+        let query = this.db
+            .from(targetTable)
+            .select('id, message_id, raw_text, ingestion_status, created_at, source_phone, record_type, locality, type, deal_type, bhk, configuration, building_name, price_numeric, area_sqft, parsed_payload')
+            .eq('tenant_id', tenantId)
+            .eq('source_phone', parsed.sourcePhone)
+            .eq('record_type', parsed.recordType)
+            .eq('locality', parsed.locality)
+            .gte('created_at', cutoff)
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+        if (parsed.dealType && parsed.dealType !== 'unknown') {
+            query = query.eq('deal_type', parsed.dealType);
+        }
+
+        const { data, error } = await query;
+        if (error || !Array.isArray(data)) {
+            if (error) {
+                console.warn('[ChannelService] Similar stream update lookup failed', {
+                    targetTable,
+                    tenantId,
+                    messageId: parsed.messageId,
+                    error: error.message,
+                });
+            }
+            return null;
+        }
+
+        return data.find((row: any) => this.isLikelyStreamUpdate(row, parsed)) || null;
+    }
+
     async listStreamItems(
         tenantId: string,
         accessToken?: string | null,
@@ -3336,7 +3409,7 @@ private highValueLeadAlertKeys = new Set<string>();
                 property_use: parsed.propertyUse,
             }).catch(() => null);
 
-            const { data, error } = await this.upsertStreamItemWithSchemaFallback(targetTable, {
+            const streamPayload = {
                 ...(streamEmbedding ? { embedding: streamEmbedding } : {}),
                 tenant_id: ownerTenantId,
                 session_label: message.session_label || 'workspace',
@@ -3389,7 +3462,46 @@ private highValueLeadAlertKeys = new Set<string>();
                     },
                 },
                 created_at: parsed.createdAt,
-            });
+            };
+
+            let data: any | null = null;
+            let error: any = null;
+
+            if (deduplicationEnabled && ['listing', 'requirement'].includes(parsed.recordType)) {
+                const windowMinutes = parsed.recordType === 'requirement' ? 24 * 60 : 12 * 60;
+                const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
+                const likelyUpdate = await this.findLikelyStreamUpdate(targetTable, ownerTenantId, parsed, cutoff);
+
+                if (likelyUpdate) {
+                    const updatePayload = {
+                        ...streamPayload,
+                        parsed_payload: {
+                            ...(streamPayload.parsed_payload as Record<string, unknown>),
+                            updatedFromMessageId: parsed.messageId,
+                            previousMessageId: likelyUpdate.message_id || null,
+                        },
+                    };
+                    delete (updatePayload as Record<string, unknown>).id;
+                    delete (updatePayload as Record<string, unknown>).message_id;
+
+                    const updateResult = await this.db
+                        .from(targetTable)
+                        .update(updatePayload)
+                        .eq('tenant_id', ownerTenantId)
+                        .eq('id', likelyUpdate.id)
+                        .select('*')
+                        .single();
+
+                    data = updateResult.data;
+                    error = updateResult.error;
+                }
+            }
+
+            if (!data && !error) {
+                const upsertResult = await this.upsertStreamItemWithSchemaFallback(targetTable, streamPayload);
+                data = upsertResult.data;
+                error = upsertResult.error;
+            }
 
             if (error || !data) {
                 console.error('[ChannelService] Failed to upsert stream item', error);

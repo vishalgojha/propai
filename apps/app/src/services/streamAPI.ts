@@ -30,6 +30,7 @@ export interface StreamItem {
   cabinsCount?: number | null;
   areaSqft?: number | null;
   source: string;
+  sourcePhone?: string | null;
   brokerName?: string | null;
   brokerCompany?: string | null;
   waLink?: string | null;
