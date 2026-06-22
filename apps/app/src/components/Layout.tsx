@@ -58,8 +58,15 @@ const SIDEBAR_COLLAPSED_STORAGE_KEY = 'propai.sidebar_collapsed';
 const MOBILE_COLLAPSE_BREAKPOINT = '(max-width: 1023px)';
 const WHATSAPP_DISCONNECT_GRACE_MS = 90_000;
 
+const PROPAI_API_PHONE = '+917021045254';
+const PROPAI_API_LABEL = 'PropAI API';
+
 const isOfficialWhatsAppSession = (session?: WhatsAppSessionSummary | null) => (
   String(session?.label || '').toLowerCase() === 'official api'
+);
+
+const isEvolutionWhatsAppSession = (session?: WhatsAppSessionSummary | null) => (
+  !isOfficialWhatsAppSession(session)
 );
 
 const formatHeaderPhone = (phone?: string | null) => {
@@ -325,6 +332,12 @@ export const Layout: React.FC = () => {
   );
   const officialApiStatus = officialApiSession?.status || 'disconnected';
   const officialApiPhone = formatHeaderPhone(officialApiSession?.phoneNumber);
+  const evolutionApiSession = React.useMemo(
+    () => whatsappStatus.sessions.find(isEvolutionWhatsAppSession) || null,
+    [whatsappStatus.sessions],
+  );
+  const evolutionApiStatus = evolutionApiSession?.status || 'disconnected';
+  const evolutionApiPhone = formatHeaderPhone(evolutionApiSession?.phoneNumber);
   const subscription = user?.subscription;
   const planLabel = React.useMemo(() => {
     const normalized = String(subscription?.plan || '').trim().toLowerCase();
@@ -406,11 +419,20 @@ export const Layout: React.FC = () => {
             ) : null}
             <div className="flex min-w-0 items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1">
               <span className={officialApiStatus === 'connected' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : officialApiStatus === 'connecting' || officialApiStatus === 'reconnecting' ? 'h-2 w-2 rounded-full bg-[var(--amber)]' : 'h-2 w-2 rounded-full bg-[var(--red)]'} />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Cloud API</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">{PROPAI_API_LABEL}</span>
               <span className="max-w-[32vw] truncate text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] sm:max-w-[160px]">
-                {officialApiPhone || (officialApiSession ? officialApiStatus : 'Not saved')}
+                {PROPAI_API_PHONE}
               </span>
             </div>
+            {evolutionApiSession ? (
+              <div className="flex min-w-0 items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1">
+                <span className={evolutionApiStatus === 'connected' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : evolutionApiStatus === 'connecting' || evolutionApiStatus === 'reconnecting' ? 'h-2 w-2 rounded-full bg-[var(--amber)]' : 'h-2 w-2 rounded-full bg-[var(--red)]'} />
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Evolution API</span>
+                <span className="max-w-[32vw] truncate text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] sm:max-w-[160px]">
+                  {evolutionApiPhone || evolutionApiStatus}
+                </span>
+              </div>
+            ) : null}
             <button
               type="button"
               onClick={startTour}
