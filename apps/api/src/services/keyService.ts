@@ -284,7 +284,7 @@ export class KeyService {
                             break;
                         case 'Doubleword':
                             await axios.post(`${trimBaseUrl(process.env.DOUBLEWORD_BASE_URL || 'https://api.doubleword.ai/v1')}/chat/completions`, {
-                                model: process.env.DOUBLEWORD_MODEL || 'nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4',
+                                model: process.env.DOUBLEWORD_MODEL || 'Qwen/Qwen3-14B-FP8',
                                 messages: [{ role: 'user', content: 'Reply with OK.' }],
                                 max_tokens: 8,
                             }, { headers: { Authorization: `Bearer ${key}` } });
