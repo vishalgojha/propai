@@ -632,210 +632,63 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
               ))}
             </div>
 
-            {/* Double-Panel Split Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              
-              {/* Left Column: Property List (45%) */}
-              <div className="lg:col-span-5 space-y-3 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
-                <div className="flex items-center justify-between mb-1.5">
+            <div className="space-y-5">
+              <div className="flex flex-col gap-4 border-b border-white/3 pb-5 md:flex-row md:items-end md:justify-between">
+                <div>
                   <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-                    {selectedLocality ? `Locality: ${selectedLocality} (${listings.length})` : `All Live Streams (${listings.length})`}
+                    {selectedLocality ? `${selectedLocality} homes (${listings.length})` : `Homes for buyers and tenants (${listings.length})`}
                   </div>
-                  {selectedLocality && (
-                    <button 
-                      onClick={() => selectLocality(null)}
-                      className="text-[10px] font-bold text-[var(--accent)] hover:underline uppercase tracking-wider"
-                    >
-                      Clear Filter
-                    </button>
-                  )}
+                  <h2 className="mt-2 text-[26px] font-black leading-tight text-[var(--text-primary)] font-display md:text-[34px]">
+                    Browse fresh broker-listed homes
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
+                    Compare rentals and sale inventory from active Mumbai broker networks, then open the listing to request details on WhatsApp.
+                  </p>
                 </div>
-
-                {loading ? (
-                  <div className="bg-[var(--bg-surface)]/45 backdrop-blur-md rounded-[20px] p-12 text-center space-y-4">
-                    <Compass className="h-10 w-10 text-[var(--accent)] mx-auto animate-spin" />
-                    <h3 className="text-[14px] font-bold text-[var(--text-primary)]">Syncing seeded listings...</h3>
-                    <p className="text-[11px] text-[var(--text-secondary)]">Connecting to the live Realtor-network database pipeline.</p>
-                  </div>
-                ) : listings.length === 0 ? (
-                  <div className="bg-[var(--bg-surface)]/45 backdrop-blur-md rounded-[20px] p-12 text-center space-y-4">
-                    <AlertCircle className="h-10 w-10 text-[var(--text-muted)] mx-auto" />
-                    <h3 className="text-[16px] font-bold text-[var(--text-primary)]">No active signals in this viewport</h3>
-                    <p className="text-[12px] text-[var(--text-secondary)]">The locality may not have active Realtor-group leads surfaced today.</p>
-                    <button 
-                      onClick={() => { handleSearch(''); selectLocality(null); }}
-                      className="px-4 py-2 bg-[var(--accent)] text-[var(--on-propai-green)] font-bold text-[11px] rounded-lg uppercase tracking-wider"
+                <div className="flex flex-wrap gap-2">
+                  {selectedLocality ? (
+                    <button
+                      onClick={() => selectLocality(null)}
+                      className="inline-flex h-11 items-center justify-center rounded-[12px] border border-[color:var(--border-strong)] px-4 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--text-secondary)] transition-all hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
                     >
-                      Reset Filter
+                      Clear area
                     </button>
-                  </div>
-                ) : (
-                  listings.map(item => (
-                    <div 
-                      key={item.id}
-                      onClick={() => setSelectedListing(item)}
-                      className={cn(
-                        "text-left cursor-pointer p-4 rounded-2xl transition-all duration-300 animate-stream-in",
-                        selectedListing?.id === item.id 
-                          ? "bg-[var(--bg-surface)] border border-[color:var(--accent-border)] shadow-[0_4px_25px_-5px_rgba(62,232,138,0.12)]" 
-                          : "bg-transparent border border-transparent hover:bg-[var(--bg-elevated)]/40"
-                      )}
-                    >
-                      <div className="flex justify-between items-start gap-2">
-                        <div>
-                          <h4 className="text-[14px] font-bold text-[var(--text-primary)] leading-[1.3] line-clamp-1">
-                            {item.title}
-                          </h4>
-                          <div className="flex items-center gap-1 mt-1 text-[11px] text-[var(--text-secondary)]">
-                            <MapPin className="h-3 w-3 text-[var(--accent)]" />
-                            <span>{item.locality}</span>
-                          </div>
-                        </div>
-                        <span className={cn(
-                          "px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider",
-                          item.type === 'Rent' ? "bg-[var(--propai-green)]/10 text-[var(--propai-green)]" : "bg-amber-500/10 text-amber-500"
-                        )}>
-                          {item.type}
-                        </span>
-                      </div>
-
-                      <div className="mt-3 flex justify-between items-center pt-3 border-t border-white/2">
-                        <div className="text-[15px] font-black text-[var(--text-primary)]">
-                          {formatPrice(item.price, item.type)}
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          {item.configuration && (
-                            <span className="text-[9px] font-bold px-2 py-1 rounded bg-[var(--bg-surface)]/80 text-[var(--text-secondary)]">
-                              {item.configuration}
-                            </span>
-                          )}
-                          {item.area_sqft && (
-                            <span className="text-[9px] font-bold px-2 py-1 rounded bg-[var(--bg-surface)]/80 text-[var(--text-secondary)]">
-                              {item.area_sqft} Sqft
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
+                  ) : null}
+                  <Link
+                    href="/listings"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-[var(--accent)] px-5 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--on-propai-green)] transition-all hover:brightness-110"
+                  >
+                    View all listings
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
               </div>
 
-              {/* Right Column: Listing Detail Inspection Desk */}
-              <div className="lg:col-span-7">
-                {selectedListing ? (
-                  <div className="glass-panel rounded-[24px] p-6 sm:p-8 space-y-6 sticky top-24 border border-white/3 transition-all duration-300">
-                    
-                    {/* Header Detail Badge */}
-                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/3 pb-5">
-                      <div className="flex items-center gap-2">
-                        <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.15em] bg-[var(--accent-glow)] text-[var(--accent)] border border-[color:var(--accent-border)]">
-                          Direct Realtor-Network {selectedListing.type}
-                        </span>
-                        <span className="px-2 py-1 rounded-full text-[9px] font-bold text-[var(--text-muted)] bg-[var(--bg-surface)]/80 flex items-center gap-1">
-                          <CheckCircle className="h-3 w-3 text-[var(--accent)]" /> Live Broadcast
-                        </span>
-                      </div>
-                      
-                      <span className="text-[11px] font-semibold text-[var(--text-secondary)]">
-                        Indexed {new Date(selectedListing.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-
-                    {/* Listing Title */}
-                    <div className="space-y-2">
-                      <h2 className="text-[24px] sm:text-[30px] font-black leading-[1.15] text-[var(--text-primary)] font-display">
-                        {selectedListing.title}
-                      </h2>
-                      <div className="flex items-center gap-2 text-[13px] text-[var(--text-secondary)]">
-                        <MapPin className="h-4 w-4 text-[var(--accent)]" />
-                        <span className="font-bold text-[var(--text-primary)]">{selectedListing.locality}</span>
-                      </div>
-                    </div>
-
-                    {/* Pricing Desk Card */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      <div className="bg-[var(--bg-surface)]/45 rounded-2xl p-4">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                          {selectedListing.type === 'Rent' ? 'Asking Rent' : selectedListing.type === 'Sale' ? 'Asking Price' : 'Requirement'}
-                        </div>
-                        <div className="text-[22px] font-black text-[var(--accent)] mt-1 tracking-tight">
-                          {formatPrice(selectedListing.price, selectedListing.type)}
-                        </div>
-                      </div>
-                      <div className="bg-[var(--bg-surface)]/45 rounded-2xl p-4">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Local Premium Delta</div>
-                        <div className="text-[20px] font-black text-blue-400 mt-1 flex items-center gap-1">
-                          <TrendingUp className="h-4.5 w-4.5" />
-                          <span>+14.8%</span>
-                        </div>
-                      </div>
-                      <div className="bg-[var(--bg-surface)]/45 rounded-2xl p-4 col-span-2 md:col-span-1">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">AI Matching Confidence</div>
-                        <div className="text-[20px] font-black text-purple-400 mt-1">98.4%</div>
-                      </div>
-                    </div>
-
-                    {/* Listing Attributes */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[var(--bg-base)]/40 p-4 rounded-2xl">
-                      <div>
-                        <div className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-wider">Size</div>
-                        <div className="text-[13px] font-bold text-[var(--text-primary)] mt-0.5">{selectedListing.area_sqft || 1450} Sqft</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-wider">Layout</div>
-                        <div className="text-[13px] font-bold text-[var(--text-primary)] mt-0.5">{selectedListing.configuration || 'Flexible'}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-wider">Furnishing</div>
-                        <div className="text-[13px] font-bold text-[var(--text-primary)] mt-0.5">{selectedListing.furnishing || 'Standard'}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-wider">Floor Node</div>
-                        <div className="text-[13px] font-bold text-[var(--text-primary)] mt-0.5">{selectedListing.floor || 'High Floor'}</div>
-                      </div>
-                    </div>
-
-                    {/* Raw parsed communication logs */}
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Parsed Communication Signal (Raw Node)</div>
-                      <div className="bg-[var(--bg-base)]/50 p-4 rounded-2xl font-mono text-[11px] text-[var(--text-secondary)] leading-relaxed relative overflow-hidden select-text">
-                        <div className="absolute top-2 right-2 flex items-center gap-1 text-[9px] bg-[var(--bg-surface)] px-2 py-0.5 rounded">
-                          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)] animate-live-pulse" />
-                          <span>AI Organiser</span>
-                        </div>
-                        {selectedListing.raw_text}
-                      </div>
-                    </div>
-
-                    {/* Direct Connect Action Area */}
-                    <div className="flex gap-3 pt-2">
-                      <Link
-                        href={`/listings/${selectedListing.slug}`}
-                        className="flex items-center justify-center gap-2 h-13 px-5 rounded-2xl border border-[color:var(--border)] text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-all"
-                      >
-                        View Details
-                      </Link>
-                      <button 
-                        onClick={() => startBrokerChat(selectedListing)}
-                        className="flex-1 flex items-center justify-center gap-2.5 h-13 px-6 rounded-2xl bg-[var(--accent)] text-[var(--on-propai-green)] text-[12px] font-black uppercase tracking-[0.08em] shadow-[0_12px_24px_rgba(62,232,138,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all"
-                      >
-                        <MessageCircle className="h-4.5 w-4.5" />
-                        <span>Connect & Negotiate Instantly</span>
-                      </button>
-                    </div>
-
-                  </div>
-                ) : (
-                  <div className="glass-panel rounded-[24px] p-16 text-center space-y-4 border border-white/3">
-                    <Compass className="h-12 w-12 text-[var(--text-muted)] mx-auto" />
-                    <h3 className="text-[18px] font-bold text-[var(--text-primary)]">Ready to inspect properties</h3>
-                    <p className="text-[13px] text-[var(--text-secondary)]">Search and select a live signal in the left sidebar to open the active inspection desk.</p>
-                  </div>
-                )}
-              </div>
-
+              {loading ? (
+                <div className="rounded-[18px] bg-[var(--bg-surface)]/55 p-12 text-center">
+                  <Compass className="mx-auto h-10 w-10 animate-spin text-[var(--accent)]" />
+                  <h3 className="mt-4 text-[15px] font-bold text-[var(--text-primary)]">Loading homes</h3>
+                  <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Fetching the latest public listings.</p>
+                </div>
+              ) : listings.length === 0 ? (
+                <div className="rounded-[18px] bg-[var(--bg-surface)]/55 p-12 text-center">
+                  <AlertCircle className="mx-auto h-10 w-10 text-[var(--text-muted)]" />
+                  <h3 className="mt-4 text-[16px] font-bold text-[var(--text-primary)]">No listings found</h3>
+                  <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Try a different locality or browse all current homes.</p>
+                  <button
+                    onClick={() => { handleSearch(''); selectLocality(null); }}
+                    className="mt-5 rounded-[12px] bg-[var(--accent)] px-5 py-3 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--on-propai-green)]"
+                  >
+                    Reset search
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                  {listings.slice(0, 9).map(item => (
+                    <ListingCard key={item.id} listing={item} />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

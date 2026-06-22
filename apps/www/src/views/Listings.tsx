@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Search, Filter, LayoutGrid, List as ListIcon, X } from 'lucide-react';
+import { Search, Filter, SlidersHorizontal } from 'lucide-react';
 import { getListings, type PublicListing } from '@/lib/listings';
 import ListingCard from '@/components/ListingCard';
 import { cn } from '@/lib/utils';
@@ -88,24 +88,32 @@ export default function Listings({ initialListings = [], initialLocality = '', i
   }));
 
   return (
-    <div className="mx-auto max-w-7xl px-5 py-12 space-y-10">
-      <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
-        <div className="relative w-full md:max-w-md">
+    <div className="mx-auto max-w-7xl px-5 py-10 space-y-8 md:py-12">
+      <div className="grid gap-6 lg:grid-cols-[1fr_420px] lg:items-end">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-[var(--accent-glow)] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--accent)]">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Public listings
+          </div>
+          <h1 className="mt-4 text-[32px] font-black leading-tight text-[var(--text-primary)] font-display md:text-[44px]">
+            Find homes from active Mumbai broker networks
+          </h1>
+          <p className="mt-3 max-w-2xl text-[14px] leading-7 text-[var(--text-secondary)]">
+            Browse rentals and sale inventory, compare essential details, and contact the listing broker directly.
+          </p>
+        </div>
+        <div className="relative w-full">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-muted)]" />
           <input 
             type="text" 
-            placeholder="Search by locality or keywords (e.g. Bandra, 3 BHK)..."
-            className="w-full rounded-[12px] border border-white/3 bg-[var(--bg-elevated)]/60 backdrop-blur-sm py-3 pl-10 pr-4 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--accent)]/30 transition-all shadow-sm"
+            placeholder="Search locality, building, 3 BHK..."
+            className="h-12 w-full rounded-[12px] border border-[color:var(--border-strong)] bg-[var(--bg-surface)]/75 py-3 pl-10 pr-4 text-[13px] text-[var(--text-primary)] shadow-sm outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[color:var(--accent-border)]"
             value={filters.query}
             onChange={(e) => {
               const val = e.target.value;
               setFilters(prev => ({ ...prev, query: val, locality: '' }));
             }}
           />
-        </div>
-
-        <div className="flex items-center gap-4 self-end md:self-auto">
-          {/* View toggle removed to focus on vertical Airbnb-style cards */}
         </div>
       </div>
 
@@ -133,7 +141,11 @@ export default function Listings({ initialListings = [], initialLocality = '', i
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-[12px] font-semibold text-[var(--text-secondary)]">
+          {filteredListings.length.toLocaleString()} {filteredListings.length === 1 ? 'home' : 'homes'} available
+        </div>
+        <div className="flex flex-wrap gap-2">
         {['All', 'Rent', 'Sale'].map(type => (
           <button 
             key={type}
@@ -148,6 +160,7 @@ export default function Listings({ initialListings = [], initialLocality = '', i
             {type}
           </button>
         ))}
+        </div>
       </div>
 
       {filteredListings.length > 0 ? (

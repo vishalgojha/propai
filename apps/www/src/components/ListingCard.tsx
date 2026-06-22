@@ -2,25 +2,32 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns';
-import { MapPin, BedDouble, Move, Zap } from 'lucide-react';
+import { MapPin, BedDouble, Move, MessageCircle, ArrowUpRight, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPrice, formatBhk, buildDescription } from '@/lib/format';
 import type { PublicListing } from '@/lib/listings';
 
 interface ListingCardProps {
   listing: PublicListing;
-  view?: 'grid' | 'list';
-  key?: React.Key;
 }
-
-
 
 export default function ListingCard({ listing }: ListingCardProps) {
   const description = buildDescription(listing);
-
   const formattedPrice = formatPrice(listing.price, listing.type);
   const coverImage = listing.cover_image || listing.images?.[0] || null;
+  const detailsHref = `/listings/${listing.slug}`;
+  const contact = listing.contacts?.[0] || null;
+  const contactHref = contact?.waLink || null;
+  const contactLabel = contact?.name ? `Contact ${contact.name.split(' ')[0]}` : 'Contact broker';
+  const typeLabel = listing.type === 'Rent' ? 'For rent' : listing.type === 'Sale' ? 'For sale' : 'Requirement';
+  const configurationLabel = formatBhk(listing.configuration);
+  const tags = [
+    configurationLabel,
+    listing.area_sqft ? `${listing.area_sqft} sqft` : null,
+    listing.furnishing || null,
+    listing.floor || null,
+  ].filter(Boolean).slice(0, 4);
+
   const imageSection = coverImage ? (
     <img
       src={coverImage}
@@ -28,105 +35,94 @@ export default function ListingCard({ listing }: ListingCardProps) {
       className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
     />
   ) : (
-    <div className="flex h-full items-center justify-center bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-[var(--bg-base)] text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-      Photos available in the listing
+    <div className="flex h-full items-center justify-center bg-[linear-gradient(135deg,rgba(62,232,138,0.10),rgba(59,130,246,0.08)_48%,rgba(255,255,255,0.03))]">
+      <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-[var(--bg-surface)]/75 text-[var(--accent)] shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
+        <Home className="h-7 w-7" />
+      </div>
     </div>
   );
 
-  const features = [];
-  const configurationLabel = formatBhk(listing.configuration);
-  if (listing.raw_text?.toLowerCase().includes('furnish')) features.push('Furnished');
-  if (listing.raw_text?.toLowerCase().includes('parking')) features.push('Parking');
-  if (listing.raw_text?.toLowerCase().includes('sea view') || listing.raw_text?.toLowerCase().includes('ocean')) features.push('Sea View');
-  if (listing.raw_text?.toLowerCase().includes('metro')) features.push('Metro Nearby');
-
   return (
-    <Link href={`/listings/${listing.slug}`} className="group block animate-stream-in">
-      <div className="h-full overflow-hidden rounded-[24px] border border-[color:rgba(255,255,255,0.08)] bg-[var(--bg-elevated)] transition-all duration-300 shadow-[0_10px_28px_rgba(0,0,0,0.16)] hover:-translate-y-1 hover:bg-[var(--bg-surface)] hover:border-[color:var(--accent-border)] hover:shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
-        <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/22 to-transparent opacity-70" />
-        <div className="absolute -top-32 -right-32 h-64 w-64 bg-[var(--accent)]/3 blur-[100px] rounded-full group-hover:bg-[var(--accent)]/8 transition-all duration-700" />
-        
-        <div className="flex flex-col h-full justify-between relative z-10">
-          <div className="space-y-5">
-            <div className="h-52 overflow-hidden border-b border-[color:rgba(255,255,255,0.08)] bg-[var(--bg-base)]">
-              {imageSection}
-            </div>
+    <article className="group flex h-full animate-stream-in flex-col overflow-hidden rounded-[18px] border border-[color:var(--border-strong)] bg-[var(--bg-surface)] shadow-[0_14px_36px_rgba(0,0,0,0.16)] transition-all duration-300 hover:-translate-y-1 hover:border-[color:var(--accent-border)] hover:shadow-[0_22px_46px_rgba(0,0,0,0.22)]">
+      <Link href={detailsHref} className="relative block aspect-[4/3] overflow-hidden bg-[var(--bg-elevated)]">
+        {imageSection}
+        <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+          <span className={cn(
+            "rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.1em] shadow-sm backdrop-blur-md",
+            listing.type === 'Rent' ? "bg-[var(--propai-green)] text-[var(--on-propai-green)]" :
+            listing.type === 'Sale' ? "bg-amber-400 text-[#211400]" :
+            "bg-blue-400 text-[#06121f]"
+          )}>
+            {typeLabel}
+          </span>
+          {listing.ref_no ? (
+            <span className="rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-bold text-white/85 backdrop-blur-md">
+              {listing.ref_no}
+            </span>
+          ) : null}
+        </div>
+      </Link>
 
-            <div className="px-6">
-              <div className="flex justify-between items-start gap-4">
-              <div className="space-y-1.5">
-                <h3 className="text-[19px] font-bold text-[var(--text-primary)] leading-[1.28] group-hover:text-[var(--accent)] transition-colors duration-300">
-                  {listing.title}
-                </h3>
-                <div className="flex items-center gap-2 text-[13px] text-[var(--text-secondary)] font-medium">
-                  <div className="flex items-center justify-center w-5 h-5 rounded-full bg-[var(--accent-glow)] text-[var(--accent)] opacity-80">
-                    <MapPin className="h-3 w-3" />
-                  </div>
-                  <span>{listing.locality}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={cn(
-                  "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.1em] backdrop-blur-md",
-                  listing.type === 'Rent' ? "bg-[var(--propai-green)]/10 text-[var(--propai-green)]" : 
-                  listing.type === 'Sale' ? "bg-amber-500/10 text-amber-500" :
-                  "bg-blue-500/10 text-blue-400"
-                )}>
-                  {listing.type}
-                </span>
-                {listing.ref_no && (
-                  <span className="px-2.5 py-1 rounded-full bg-[var(--bg-elevated)]/60 text-[10px] font-mono font-bold text-[var(--text-muted)]">
-                    {listing.ref_no}
-                  </span>
-                )}
-              </div>
-              </div>
-
-              {/* Short Description */}
-              {description ? (
-                <p className="mt-4 text-[14px] leading-relaxed text-[var(--text-secondary)] font-medium">
-                  {description}
-                </p>
-              ) : null}
-
-              {/* Tags */}
-              <div className="mt-4 flex flex-wrap gap-2">
-                {configurationLabel && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)]">
-                    <BedDouble className="h-3.5 w-3.5" />
-                    {configurationLabel}
-                  </span>
-                )}
-                {listing.area_sqft && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)]">
-                    <Move className="h-3.5 w-3.5" />
-                    {listing.area_sqft} sqft
-                  </span>
-                )}
-                {features.map((f, i) => (
-                  <span key={i} className="rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)] transition-colors group-hover:border-[color:var(--accent-border)] group-hover:text-[var(--text-primary)]">
-                    {f}
-                  </span>
-                ))}
-              </div>
+      <div className="flex flex-1 flex-col p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 space-y-2">
+            <Link href={detailsHref} className="block">
+              <h3 className="line-clamp-2 text-[18px] font-bold leading-[1.25] text-[var(--text-primary)] transition-colors group-hover:text-[var(--accent)]">
+                {listing.title}
+              </h3>
+            </Link>
+            <div className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--text-secondary)]">
+              <MapPin className="h-4 w-4 shrink-0 text-[var(--accent)]" />
+              <span className="truncate">{listing.locality}</span>
             </div>
           </div>
-
-          {/* Footer Area */}
-          <div className="mt-6 border-t border-[color:rgba(255,255,255,0.06)] px-6 py-5 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <div className="text-[26px] font-bold text-[var(--text-primary)] tracking-tight">
-                {formattedPrice}
-                {listing.type === 'Rent' && <span className="text-[14px] ml-1 text-[var(--text-muted)] font-medium">/mo</span>}
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-[var(--accent)]/10 px-5 py-3 text-[11px] font-bold text-[var(--accent)] uppercase tracking-wider">
-              Verified
+          <div className="shrink-0 text-right">
+            <div className="text-[20px] font-black leading-none tracking-tight text-[var(--text-primary)]">
+              {formattedPrice}
             </div>
           </div>
         </div>
+
+        {description ? (
+          <p className="mt-4 line-clamp-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+            {description}
+          </p>
+        ) : null}
+
+        <div className="mt-4 grid min-h-16 grid-cols-2 gap-2">
+          {tags.length > 0 ? tags.map((tag, index) => (
+            <div key={`${tag}-${index}`} className="flex items-center gap-2 rounded-[12px] bg-[var(--bg-elevated)]/65 px-3 py-2 text-[11px] font-bold text-[var(--text-secondary)]">
+              {index === 0 ? <BedDouble className="h-3.5 w-3.5 text-[var(--accent)]" /> : <Move className="h-3.5 w-3.5 text-[var(--text-muted)]" />}
+              <span className="truncate">{tag}</span>
+            </div>
+          )) : (
+            <div className="col-span-2 rounded-[12px] bg-[var(--bg-elevated)]/65 px-3 py-2 text-[11px] font-bold text-[var(--text-secondary)]">
+              Details available on request
+            </div>
+          )}
+        </div>
+
+        <div className="mt-auto flex gap-2 pt-5">
+          <Link
+            href={detailsHref}
+            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-[12px] border border-[color:var(--border-strong)] bg-[var(--bg-elevated)]/55 px-4 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--text-primary)] transition-all hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
+          >
+            View details
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
+          {contactHref ? (
+            <a
+              href={contactHref}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[var(--accent)] px-4 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--on-propai-green)] transition-all hover:brightness-110"
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              {contactLabel}
+            </a>
+          ) : null}
+        </div>
       </div>
-    </Link>
+    </article>
   );
 }
