@@ -26,26 +26,8 @@ export function EvolutionSetup() {
     return stopPolling;
   }, [stopPolling]);
 
-  const startConnection = async () => {
-    setLoading(true);
-    setFeedback(null);
-    setStatus("connecting");
-    setQrCode(null);
-    try {
-      await backendApi.post(ENDPOINTS.whatsapp.connect, {
-        label: "Evolution",
-        ownerName: "Evolution",
-        connectMethod: "qr",
-        gateway: "evolution",
-      });
-      setFeedback({ tone: "success", message: "Connection initiated. Fetching QR code..." });
-      await fetchQR();
-    } catch (error) {
-      setStatus("failed");
-      setFeedback({ tone: "error", message: handleApiError(error) });
-      setLoading(false);
-    }
-  };
+  const maxRetries = 15;
+  const qrRetryRef = useRef(0);
 
   const fetchQR = async () => {
     try {
@@ -54,14 +36,54 @@ export function EvolutionSetup() {
         setQrCode(response.data.qr);
         setStatus("qr_ready");
         setLoading(false);
+        setFeedback({ tone: "success", message: "QR code ready — scan with your broker's WhatsApp" });
         startPolling();
-      } else if (response.data?.ready) {
+        return;
+      }
+      if (response.data?.ready) {
         setStatus("connected");
         setFeedback({ tone: "success", message: "WhatsApp already connected!" });
         setLoading(false);
-      } else {
-        setTimeout(fetchQR, 2000);
+        return;
       }
+      qrRetryRef.current++;
+      if (qrRetryRef.current < maxRetries) {
+        setFeedback({ tone: "success", message: `Waiting for QR code... (${qrRetryRef.current}/${maxRetries})` });
+        setTimeout(fetchQR, 3000);
+      } else {
+        setStatus("failed");
+        setFeedback({ tone: "error", message: "QR code generation timed out. Try again." });
+        setLoading(false);
+        qrRetryRef.current = 0;
+      }
+    } catch (error) {
+      qrRetryRef.current++;
+      if (qrRetryRef.current < maxRetries) {
+        setTimeout(fetchQR, 3000);
+      } else {
+        setStatus("failed");
+        setFeedback({ tone: "error", message: handleApiError(error) });
+        setLoading(false);
+        qrRetryRef.current = 0;
+      }
+    }
+  };
+
+  const startConnection = async () => {
+    setLoading(true);
+    setFeedback(null);
+    setStatus("connecting");
+    setQrCode(null);
+    qrRetryRef.current = 0;
+    try {
+      await backendApi.post(ENDPOINTS.whatsapp.connect, {
+        label: "Evolution",
+        ownerName: "Evolution",
+        connectMethod: "qr",
+        gateway: "evolution",
+      });
+      setFeedback({ tone: "success", message: "Connection initiated. Waiting for QR code..." });
+      await fetchQR();
     } catch (error) {
       setStatus("failed");
       setFeedback({ tone: "error", message: handleApiError(error) });
@@ -113,10 +135,10 @@ export function EvolutionSetup() {
     <main className="mx-auto max-w-4xl space-y-6">
       <section className="rounded-[20px] border border-[color:var(--border)] bg-[var(--bg-surface)] p-6 sm:p-8">
         <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--accent)]">QR pairing</p>
-        <h2 className="mt-2 text-xl font-semibold text-[var(--text-primary)]">Evolution API — Connect Broker Phone</h2>
+        <h2 className="mt-2 text-xl font-semibold text-[var(--text-primary)]">WhatsApp Groups — Connect Broker Phone</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-          Scan the QR code with your broker WhatsApp phone to connect via Evolution API.
-          Works just like the old Baileys QR flow — groups, messages, everything.
+          Scan the QR code with your broker WhatsApp phone to start monitoring groups.
+          Messages from connected groups are parsed into your Stream automatically.
         </p>
       </section>
 
@@ -196,7 +218,7 @@ export function EvolutionSetup() {
       </section>
 
       <section className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-5 text-sm text-[var(--text-secondary)]">
-        <p><strong className="text-[var(--text-primary)]">Note:</strong> Evolution API runs alongside Cloud API — both active simultaneously. Cloud API handles platform messaging (magic links, Pulse replies). Evolution API connects broker phones via QR for group monitoring. <a href="/settings" className="text-[var(--accent)] underline underline-offset-2">Settings</a></p>
+        <p><strong className="text-[var(--text-primary)]">Note:</strong> This connects your broker phone for group monitoring only. Platform messaging (magic links, Pulse replies) still uses the official Cloud API — both run simultaneously. <a href="/settings" className="text-[var(--accent)] underline underline-offset-2">Settings</a></p>
       </section>
     </main>
   );
