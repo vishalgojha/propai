@@ -57,35 +57,31 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
 
 ### Completed in This Session
 
-- **Fixed api_keys RLS and NVIDIA key sync** — RLS policy was `ALL ... USING` (blocking INSERT), now proper per-command policies. Added DB trigger to auto-sync `workspace_settings.ai_keys` → `api_keys`. Fixed `saveKey()` error logic (returned silent success on file-write-only failure).
-- **Fixed stream read paths (zero results bug)** — Two breaks found after Jun 9 wipe migration:
-  1. `match_listings`/`market_stats` RPCs queried `stream_items` (empty parent table) instead of child tables (`stream_items_residential`/`commercial`) which have 21k+ rows. Rewrote both to UNION ALL child tables.
-  2. `public_listings` remained empty despite 18k accepted items — schema columns missing, RLS blocking. Added all required columns, RLS policies (public read, service_role write), sync trigger from child tables, and backfill.
-  3. Added sync trigger: child table INSERT/UPDATE → auto-inserts into `stream_items` parent.
-- **Added NVIDIA Nemotron provider** — Full integration across `aiService.ts`, `aiUsageService.ts`, `keyService.ts`, `settingsController.ts`, `workspaceSettingsService.ts`, `Settings.tsx`, `Agent.tsx`, `ProviderLogo.tsx`.
-- **Removed Groq from defaults/UI** — Taken out of default fallback chain and settings UI.
-- **Fixed configuration/BHK column** — `mapStreamItem` returns `configuration`, DB upsert writes `configuration`, `sanitizeBuildingNameCandidate` backstop prevents area values becoming building names.
-- **Updated NVIDIA to DeepSeek V4 Flash with reasoning** — Default model changed to `deepseek-ai/deepseek-v4-flash`, added `chat_template_kwargs: { thinking: true }` to enable thinking, extract `reasoning_content`/`reasoning` from response. Added proper NVIDIA SVG logo.
-- **Gated Cloud API webhook** — Added `CLOUD_API_WEBHOOK_ENABLED` flag (disabled by default) to stop duplicate "AI provider unavailable" replies from deprecated Cloud API integration.
-- **Fixed WABA JSON response + duplicate replies** — Rewrote `cleanWhatsAppReply` in both `AgentExecutor.ts` and `conversationEngineService.ts` to properly extract text from all JSON formats (code fences, bare JSON, escaped quotes, nested AgentResponse). Added message-level dedup (`Set<messageId>`) in Cloud API webhook handler to prevent duplicate replies from webhook retries.
-- **Added WABA typing indicator + admin phone detection** — Typing indicator via Meta Cloud API before processing messages. `OWNER_SUPER_ADMIN_PHONES` set with `9820056180` and `7021045254`. `isOwnerSuperAdminPhone()` for admin detection.
-- **Added PropAI founder context to system prompt** — Vishal Ojha as founder, super admin numbers, website/email info in Pulse prompt.
-- **Removed IGR standalone page** — `/igr` route, view, and API service deleted. IGR transaction display preserved on listing cards.
-- **Added WABA image upload support** — `extractText()` includes captions for image/video/document media. New helpers: `getMediaInfo()`, `getMediaDownloadUrl()`, `downloadMediaBuffer()`, `ensureMediaBucket()`, `storeIncomingMedia()` download from Meta API → upload to Supabase `waba-media` bucket → create `workspace_files` record.
-- **Added image collection flow to Pulse prompt** — `pulseChatPrompt.ts` updated: Pulse offers to collect photos after parsing a listing, guides user to send photos, says "done" when finished, acknowledges each photo.
-- **Fixed www BHK duplicate** — `ListingCard.tsx` removed `features.push(configurationLabel)` (BHK was rendered twice).
-- **Fixed www price overflow** — `format.ts` added sanity caps: rent > ₹10Cr or sale > ₹1000Cr returns "Price on Request".
-- **Added WhatsApp activation-code linking flow** — New DB table `whatsapp_activation_codes`, `activationCodeService.ts` (generate/validate/activate/link), webhook detects `PROP-XXXXXXXX` codes and short-circuits to activation, 24-hour window check in `sendTextMessage()`, API route `POST /api/whatsapp/cloud/activation-code`.
-- **Added ref_no (visible ID) for listings/requirements** — Migration `20260621000001_add_ref_no.sql`: sequences `listing_ref_seq`/`requirement_ref_seq`, `ref_no text` column on child tables + parent + `public_listings`, before-insert trigger auto-generates `L-0001`/`R-0001` format, updated `sync_stream_item_to_parent()` function, backfill for existing records. www: `PublicListing.ref_no`, shown in `ListingCard`/`ListingDetail`. App: `StreamItem.refNo`, shown in `ListingCard`. Pulse prompt updated to include ref_no in match replies.
-- **Removed Parsing Terminal page** — Deleted route (`app/(protected)/parsing-terminal/`), view (`ParsingTerminal.tsx`), sidebar nav item, Layout title, PulseAssistantDock context prompts, PropAITour step, Sources redirects, Admin label, and TerminalIcon alias.
+- **DB-backed webhook queue** — Webhook handler now inserts raw events into `cloud_api_webhook_events` and returns immediately. New `WebhookQueueWorker` polls every 2s, batch of 10. Added index `(processed, created_at) WHERE processed = false`.
+- **Stream plan gating removed** — `resolveStreamAccess()` always returns `canViewStream: true`. Removed all 403 access checks, `isSuperAdmin`/`canViewStreamPlan` memos, "Stream locked" card, Sidebar gate.
+- **IGR removed from listing cards** — Removed all IGR badges, building intel, transaction display from `Listings.tsx`. ~176 lines deleted.
+- **Provider order tenant-aware** — `buildProviderOrder()`: admin tenant gets Nvidia-first chain, regular users get Google-first.
+- **Partner "Unknown" fix** — `enrichPartnerName()` shows "Revoked invite" / "Awaiting acceptance" instead of "Unknown" for unaccepted invites.
+- **WABA sender recognition** — `resolveTenantFromPhone()` checks `profiles` as fallback. `AgentExecutor.ts` resolves sender by phone in else branch. `shouldGreetBrokerByName` compares normalized phones.
+- **Pulse prompt rewrite** — Natural colleague tone, no capability bullets, no sales language, banned "unfortunately" / "we regret".
+- **Conversation history fix** — `general_answer` shortcut removed. Main AI always runs with full history. Router prompt: "do NOT include a reply field".
+- **Qwen thinking disabled** — `chat_template_kwargs: { enable_thinking: false }` on Doubleword.
+- **Password login → WhatsApp magic link** — Replaced password auth with WhatsApp-based login link flow. Removed `authController.ts`, simplified `Login.tsx`, `authRoutes.ts`, `authSchemas.ts`.
+- **`public_listings` live sync** — Added trigger `sync_stream_item_to_public_listings()` on both `stream_items_residential` and `stream_items_commercial`, with `ON CONFLICT (source_message_id) DO UPDATE`. Backfill uses `DISTINCT ON` + `ON CONFLICT DO NOTHING`.
+- **Building name `-` → `"On Request"`** — `formatBuildingName()` helper in `Listings.tsx` and `ListingCard.tsx` treats `-`, empty, N/A, unknown as `"On Request"`. Applied in table cell, card view, card subtitle, WA share text, dedupe key, card title, IGR section.
+- **`building_intel` MCP tool** — Queries `stream_items_residential`/`commercial` for: price/sqft benchmarks (sale + rent), locality supply snapshot (listing vs requirement counts + market label), configuration demand map. Params: `building_name` (req), `locality`, `days_back` (default 90). Token-level building matching, dedup via `source_message_id` Sets.
 
 ### Current Remote State
 
-- Latest local commits:
-  - `e0a91477` — `Fix JSON response and duplicate reply bugs in WABA webhook` (pushed)
-  - `216df01d` — `Gate Cloud API webhook handler behind CLOUD_API_WEBHOOK_ENABLED flag` (pushed)
-  - `ab6aa2c8` — `Update NVIDIA to DeepSeek V4 Flash with thinking/reasoning extraction` (pushed)
-  - `0032a019` — `Add NVIDIA Nemotron provider, remove Groq, fix configuration column empty bug` (pushed)
+- Latest commits:
+  - `c875ebe7` — `Add building_intel MCP tool: price/sqft benchmarks, locality supply snapshot, configuration demand map`
+  - `d5b3e5ac` — `Show 'On Request' instead of '-' for building name in all listing views`
+  - `78b9e649` — `Fix: use ON CONFLICT DO NOTHING for public_listings backfill, add DISTINCT ON for dedup`
+  - `9c8b814c` — `Replace password login with WhatsApp magic link`
+  - `66800a82` — `Add DB-backed webhook queue with polling worker`
+  - `549ae1b5` — `Remove stream plan gating (canViewStream always true)`
+  - `04e10c33` — `Remove all IGR references from stream listing cards`
+  - `c713dc15` — `Remove general_answer shortcut, set brokerProfile to null for unknown senders, disable Qwen thinking`
 
 ### Operational Rules
 

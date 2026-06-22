@@ -418,6 +418,21 @@ const formatBuildingName = (value?: string | null): string => {
   return text;
 };
 
+const formatPerSqftCell = (value?: number | null): string => {
+  if (value == null) return 'N/A';
+  return `₹${Math.round(value).toLocaleString('en-IN')}/sqft`;
+};
+
+const formatAgeShort = (timestampMs: number): string => {
+  const diff = Date.now() - timestampMs;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
+
 const buildWaShareUrl = (listing: StreamItem): string | null => {
   const link = listing.brokerWaMeLinks?.[0] || listing.waLink;
   if (!link) return null;
@@ -502,6 +517,17 @@ type StreamLocalityGroup = {
   latestTimestamp: number;
 };
 
+type StreamBuildingGroup = {
+  locality: string;
+  buildingName: string;
+  items: StreamItem[];
+  listingCount: number;
+  requirementCount: number;
+  latestTimestamp: number;
+  saleBenchmark: { avg: number; samples: number } | null;
+  rentBenchmark: { avg: number; samples: number } | null;
+};
+
 const isBrokerTagged = (item: StreamItem) =>
   BROKER_TAG_PATTERN.test([item.source, item.description].filter(Boolean).join(' '));
 
@@ -546,6 +572,8 @@ export const Listings: React.FC = () => {
   const [channels, setChannels] = React.useState<PersonalChannel[]>([]);
   const [search, setSearch] = React.useState('');
   const [expandedListingId, setExpandedListingId] = React.useState<string | null>(null);
+  const [viewMode, setViewMode] = React.useState<'locality' | 'building'>('locality');
+  const [expandedBuildingKey, setExpandedBuildingKey] = React.useState<string | null>(null);
   const [editingListingId, setEditingListingId] = React.useState<string | null>(null);
   const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
   const [streamItems, setStreamItems] = React.useState<StreamItem[]>([]);
@@ -1194,6 +1222,72 @@ if (brokerOnly) {
       }))
       .sort((left, right) => right.latestTimestamp - left.latestTimestamp);
   }, [renderedStream]);
+
+  const buildingGroups = React.useMemo<StreamBuildingGroup[]>(() => {
+    const groups = new Map<string, StreamBuildingGroup>();
+    const groupSeenKeys = new Map<string, Set<string>>();
+
+    for (const item of renderedStream) {
+      const locality = String(item.location || '').trim();
+      if (!locality) continue;
+
+      const rawBuilding = String(item.buildingName || '').trim();
+      const buildingName = !rawBuilding || rawBuilding === '-' || /^n\/?a$/i.test(rawBuilding) || /^unknown$/i.test(rawBuilding)
+        ? 'On Request'
+        : rawBuilding;
+
+      const groupKey = `${locality}||${buildingName}`;
+
+      const dedupeKey = buildStreamDedupeKey(item);
+      const seenKeys = groupSeenKeys.get(groupKey) || new Set<string>();
+      if (seenKeys.has(dedupeKey)) {
+        continue;
+      }
+      seenKeys.add(dedupeKey);
+      groupSeenKeys.set(groupKey, seenKeys);
+
+      const timestamp = item.createdAt ? new Date(item.createdAt).getTime() : 0;
+      const existing = groups.get(groupKey);
+      if (existing) {
+        existing.items.push(item);
+        existing.latestTimestamp = Math.max(existing.latestTimestamp, timestamp);
+        if (getRecordLabel(item) === 'REQUIREMENT') {
+          existing.requirementCount += 1;
+        } else {
+          existing.listingCount += 1;
+        }
+      } else {
+        groups.set(groupKey, {
+          locality,
+          buildingName,
+          items: [item],
+          listingCount: getRecordLabel(item) === 'REQUIREMENT' ? 0 : 1,
+          requirementCount: getRecordLabel(item) === 'REQUIREMENT' ? 1 : 0,
+          latestTimestamp: timestamp,
+          saleBenchmark: null,
+          rentBenchmark: null,
+        });
+      }
+    }
+
+    const computeBenchmark = (items: StreamItem[], types: string[]) => {
+      const samples = items
+        .filter((i) => types.includes(i.type) && i.priceNumeric != null && i.areaSqft != null && i.areaSqft > 0)
+        .map((i) => i.priceNumeric! / i.areaSqft!);
+      if (samples.length === 0) return null;
+      return { avg: Math.round(samples.reduce((a, b) => a + b, 0) / samples.length), samples: samples.length };
+    };
+
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        items: [...group.items].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()),
+        saleBenchmark: computeBenchmark(group.items, ['Sale']),
+        rentBenchmark: computeBenchmark(group.items, ['Rent', 'Lease', 'Pre-leased']),
+      }))
+      .sort((left, right) => right.latestTimestamp - left.latestTimestamp);
+  }, [renderedStream]);
+
   const hasMore = visibleCount < visibleStream.length;
   const computeMinutes = React.useCallback((item: StreamItem): number | null => {
     const createdAt = item.createdAt ? new Date(item.createdAt) : null;
@@ -1430,6 +1524,31 @@ if (brokerOnly) {
           >
             Commercial
           </button>
+          <span className="mx-1 hidden h-5 w-px bg-[var(--border)] sm:block" />
+          <button
+            type="button"
+            onClick={() => setViewMode('locality')}
+            className={cn(
+              'rounded-lg border px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors sm:px-4',
+              viewMode === 'locality'
+                ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
+            )}
+          >
+            Locality
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('building')}
+            className={cn(
+              'rounded-lg border px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors sm:px-4',
+              viewMode === 'building'
+                ? 'border-[color:var(--accent-border)] bg-[var(--accent)] text-[#020f07]'
+                : 'border-neutral-700 bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-white',
+            )}
+          >
+            Building
+          </button>
         </div>
       </div>
 
@@ -1663,9 +1782,107 @@ if (brokerOnly) {
               No broker-posted inventory or buyer records are available yet.
             </div>
           ) : (
-            <>
-              <div className="space-y-4 p-3 md:hidden">
-                {renderedGroups.map((group) => (
+            <div className="contents">
+              {viewMode === 'building' ? (
+                <div className="space-y-4 p-3 md:hidden">
+                  {buildingGroups.map((group) => {
+                    const isExpanded = expandedBuildingKey === `${group.locality}||${group.buildingName}`;
+                    const benchmarkParts: string[] = [];
+                    if (group.saleBenchmark) benchmarkParts.push(`Sale avg ${formatPerSqftCell(group.saleBenchmark.avg)}`);
+                    if (group.rentBenchmark) benchmarkParts.push(`Rent avg ${formatPerSqftCell(group.rentBenchmark.avg)}/mo`);
+
+                    return (
+                      <section key={`${group.locality}||${group.buildingName}`} className="space-y-3">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedBuildingKey(isExpanded ? null : `${group.locality}||${group.buildingName}`)}
+                          className="w-full rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-left transition-colors hover:bg-[var(--bg-elevated)]"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="truncate text-[13px] font-bold text-[var(--text-primary)]">{group.buildingName}</span>
+                                {group.saleBenchmark || group.rentBenchmark ? (
+                                  <span className="shrink-0 rounded-full bg-[var(--accent-dim)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">
+                                    {group.saleBenchmark?.samples || group.rentBenchmark?.samples || 0} samples
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="mt-1 text-[11px] text-[var(--text-secondary)]">{group.locality}</div>
+                              {benchmarkParts.length > 0 ? (
+                                <div className="mt-1.5 space-y-0.5">
+                                  {benchmarkParts.map((part) => (
+                                    <div key={part} className="text-[11px] font-medium text-[var(--accent)]">{part}</div>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <div className="text-[12px] font-bold text-[var(--text-primary)]">{group.listingCount}</div>
+                              <div className="text-[9px] text-[var(--text-secondary)]">listings</div>
+                              {group.requirementCount > 0 ? (
+                                <div className="mt-1 text-[10px] text-sky-400">{group.requirementCount} req</div>
+                              ) : null}
+                              <div className="mt-1 text-[9px] text-[var(--text-muted)]">
+                                {formatAgeShort(group.latestTimestamp)}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+
+                        {isExpanded ? (
+                          <div className="space-y-2 px-2">
+                            {group.items.map((listing) => {
+                              const recordLabel = getRecordLabel(listing);
+                              const typeLabel = getTypeLabel(listing);
+                              const waLink = listing.brokerWaMeLinks?.[0] || listing.waLink;
+
+                              return (
+                                <article
+                                  key={listing.id}
+                                  className="rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] transition-colors hover:bg-[var(--bg-surface)]"
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className={cn(
+                                          'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em]',
+                                          recordLabel === 'REQUIREMENT' ? 'bg-sky-500/10 text-sky-300' : 'bg-[var(--accent-dim)] text-[var(--accent)]',
+                                        )}>
+                                          {recordLabel === 'REQUIREMENT' ? 'REQ' : listing.type}
+                                        </span>
+                                        <span className="font-medium text-[var(--text-primary)]">{listing.configuration || formatAreaCell(listing.areaSqft) || 'Property'}</span>
+                                      </div>
+                                      <div className="mt-1 text-[var(--text-secondary)]">
+                                        {normalizePriceDisplay(listing).label || 'Price on request'}
+                                        {listing.areaSqft ? ` · ${formatAreaCell(listing.areaSqft)}` : ''}
+                                        {listing.furnishing ? ` · ${formatFurnishingCell(listing.furnishing)}` : ''}
+                                      </div>
+                                    </div>
+                                    {waLink ? (
+                                      <a
+                                        href={waLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="shrink-0 rounded-full border border-[color:var(--accent-border)] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--accent)] hover:bg-[var(--accent-dim)]"
+                                      >
+                                        WA
+                                      </a>
+                                    ) : null}
+                                  </div>
+                                </article>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </section>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-4 p-3 md:hidden">
+                  {renderedGroups.map((group) => (
                   <section key={group.locality} className="space-y-3">
                     <div className="sticky top-0 z-10 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[11px] font-semibold text-[var(--text-primary)]">
                       <div className="truncate">{group.locality}</div>
@@ -1826,6 +2043,107 @@ if (brokerOnly) {
                   </section>
                 ))}
               </div>
+            )}
+
+              {viewMode === 'building' ? (
+                <div className="hidden md:block">
+                  <div className="grid grid-cols-1 gap-4 p-3 lg:grid-cols-2">
+                    {buildingGroups.map((group) => {
+                      const isExpanded = expandedBuildingKey === `${group.locality}||${group.buildingName}`;
+                      const benchmarkParts: string[] = [];
+                      if (group.saleBenchmark) benchmarkParts.push(`Sale avg ${formatPerSqftCell(group.saleBenchmark.avg)}`);
+                      if (group.rentBenchmark) benchmarkParts.push(`Rent avg ${formatPerSqftCell(group.rentBenchmark.avg)}/mo`);
+
+                      return (
+                        <div key={`${group.locality}||${group.buildingName}`} className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-surface)]">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedBuildingKey(isExpanded ? null : `${group.locality}||${group.buildingName}`)}
+                            className="w-full px-4 py-3 text-left transition-colors hover:bg-[var(--bg-elevated)]"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="truncate text-[14px] font-bold text-[var(--text-primary)]">{group.buildingName}</span>
+                                  {group.saleBenchmark || group.rentBenchmark ? (
+                                    <span className="shrink-0 rounded-full bg-[var(--accent-dim)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">
+                                      {group.saleBenchmark?.samples || group.rentBenchmark?.samples || 0} samples
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="mt-0.5 text-[12px] text-[var(--text-secondary)]">{group.locality}</div>
+                                {benchmarkParts.length > 0 ? (
+                                  <div className="mt-1.5 space-y-0.5">
+                                    {benchmarkParts.map((part) => (
+                                      <div key={part} className="text-[12px] font-medium text-[var(--accent)]">{part}</div>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <div className="text-[13px] font-bold text-[var(--text-primary)]">{group.listingCount}</div>
+                                <div className="text-[10px] text-[var(--text-secondary)]">listings</div>
+                                {group.requirementCount > 0 ? (
+                                  <div className="mt-1 text-[11px] text-sky-400">{group.requirementCount} req</div>
+                                ) : null}
+                                <div className="mt-1 text-[10px] text-[var(--text-muted)]">
+                                  {formatAgeShort(group.latestTimestamp)}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+
+                          {isExpanded ? (
+                            <div className="space-y-1 border-t border-[color:var(--border)] px-3 py-2">
+                              {group.items.map((listing) => {
+                                const recordLabel = getRecordLabel(listing);
+                                const waLink = listing.brokerWaMeLinks?.[0] || listing.waLink;
+
+                                return (
+                                  <div
+                                    key={listing.id}
+                                    className="rounded-[10px] bg-[var(--bg-elevated)] px-3 py-2 text-[12px]"
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className={cn(
+                                            'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em]',
+                                            recordLabel === 'REQUIREMENT' ? 'bg-sky-500/10 text-sky-300' : 'bg-[var(--accent-dim)] text-[var(--accent)]',
+                                          )}>
+                                            {recordLabel === 'REQUIREMENT' ? 'REQ' : listing.type}
+                                          </span>
+                                          <span className="font-medium text-[var(--text-primary)]">{listing.configuration || formatAreaCell(listing.areaSqft) || 'Property'}</span>
+                                        </div>
+                                        <div className="mt-0.5 text-[var(--text-secondary)]">
+                                          {normalizePriceDisplay(listing).label || 'Price on request'}
+                                          {listing.areaSqft ? ` · ${formatAreaCell(listing.areaSqft)}` : ''}
+                                          {listing.furnishing ? ` · ${formatFurnishingCell(listing.furnishing)}` : ''}
+                                        </div>
+                                      </div>
+                                      {waLink ? (
+                                        <a
+                                          href={waLink}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="shrink-0 rounded-full border border-[color:var(--accent-border)] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--accent)] hover:bg-[var(--accent-dim)]"
+                                        >
+                                          WA
+                                        </a>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
               <div className="hidden overflow-x-auto md:block">
               <table className="min-w-[1200px] w-full border-separate border-spacing-0 text-left">
               <thead>
@@ -2053,8 +2371,9 @@ if (brokerOnly) {
                 </tbody>
               ))}
             </table>
-              </div>
-            </>
+                </div>
+              )}
+            </div>
           )}
 
         <div ref={sentinelRef} className="px-6 py-4 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">

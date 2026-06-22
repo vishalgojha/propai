@@ -78,7 +78,6 @@ If using pairing code on mobile, the backend retries 3 times with 3s/6s/9s backo
 
 1. Ensure `CAMOFOX_URL` env var is set to a running Camoufox instance.
 2. The browser-based fetch is the primary path; HTTP fetch is fallback.
-3. This is tracked as a pending fix — see `.agents/prompts/propai-gras.md`.
 
 ### Embedding Provider Unreachable
 

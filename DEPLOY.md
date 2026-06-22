@@ -49,6 +49,7 @@ All Dockerfiles use the repo root as build context.
 | `OPENROUTER_API_KEY` | No | — | OpenRouter fallback |
 | `OPENROUTER_BASE_URL` | No | `https://openrouter.ai/api/v1` | — |
 | `OPENROUTER_MODEL` | No | `openai/gpt-4o-mini` | — |
+| `DOUBLEWORD_MODEL` | No | `nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4` | Doubleword chat model |
 | | | | |
 | **Embeddings** | | | |
 | `DOUBLEWORD_EMBEDDING_API_KEY` | No | — | Embedding provider (falls back to DOUBLEWORD_API_KEY) |

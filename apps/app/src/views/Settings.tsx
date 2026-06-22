@@ -105,7 +105,7 @@ const aiProviders = [
     id: 'doubleword',
     name: 'Doubleword',
     logo: 'doubleword',
-    description: 'OpenAI-compatible provider with Qwen3.6 and Kimi models.',
+    description: 'OpenAI-compatible provider for the Doubleword chat fallback.',
   },
   {
     id: 'nvidia',
@@ -133,9 +133,9 @@ const defaultModelOptions = [
   {
     value: 'doubleword',
     title: 'Doubleword',
-    provider: 'Doubleword Qwen3.6-35B',
+    provider: 'Doubleword NVIDIA Nemotron 3 Super 120B',
     logo: 'doubleword' as const,
-    description: 'OpenAI-compatible provider with Qwen3 235B and Kimi K2 models.',
+    description: 'Doubleword chat fallback using the configured default model.',
   },
   {
     value: 'nvidia',

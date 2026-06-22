@@ -52,9 +52,10 @@ function mapDefaultModelToProvider(defaultModel?: string | null) {
         case 'qwen3-235b':
         case 'kimi-k2':
         case 'qwen/qwen3.6-35b-a3b-fp8':
+        case 'nvidia/nvidia-nemotron-3-super-120b-a12b-nvfp4':
             return {
                 provider: 'Doubleword' as const,
-                model: process.env.DOUBLEWORD_MODEL || 'Qwen/Qwen3.6-35B-A3B-FP8',
+                model: process.env.DOUBLEWORD_MODEL || 'nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4',
             };
         default:
             return {

@@ -99,7 +99,7 @@ export class AIService {
     private openRouterBaseURL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
     private openRouterModel = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
     private doublewordBaseURL = process.env.DOUBLEWORD_BASE_URL || 'https://api.doubleword.ai/v1';
-    private doublewordModel = process.env.DOUBLEWORD_MODEL || 'Qwen/Qwen3.6-35B-A3B-FP8';
+    private doublewordModel = process.env.DOUBLEWORD_MODEL || 'nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4';
     private nvidiaBaseURL = process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1';
     private nvidiaModel = process.env.NVIDIA_MODEL || 'meta/llama-4-maverick-17b-128e-instruct';
     private readonly providerLogAt = new Map<string, number>();
