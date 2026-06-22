@@ -93,7 +93,7 @@ export class WabaConversationOnboardingService {
 
         if (/Which localities do you operate in\?/i.test(previousReply)) {
             return parseLocalities(text).length > 0
-                ? 'What email should I keep on your PropAI workspace? I’ll send the optional dashboard login link here on WhatsApp.'
+                ? 'What email should I keep on your PropAI workspace? I’ll keep the optional dashboard access tied to this setup.'
                 : 'Please send at least one locality, separated by commas if there are several.';
         }
 

@@ -129,7 +129,7 @@ export class WabaBrokerProvisioningService {
             options: { redirectTo: `${appUrl}/auth/callback` },
         });
         if (loginLinkError) {
-            console.warn('[WabaBrokerProvisioning] Could not generate dashboard login link', loginLinkError);
+            console.warn('[WabaBrokerProvisioning] Could not generate dashboard access link', loginLinkError);
         }
 
         return {

@@ -21,7 +21,7 @@ import { AuthCard } from '../components/ui/AuthCard';
 
 const proofPoints = [
   { label: 'Setup', value: '<5 min' },
-  { label: 'Login method', value: 'WhatsApp link' },
+  { label: 'Login method', value: 'WhatsApp code' },
   { label: 'Security', value: 'No password' },
 ];
 
@@ -34,12 +34,12 @@ const capabilities = [
   {
     icon: WorkflowIcon,
     title: 'One-click access',
-    copy: 'Open the secure login link sent to that number and you are in.',
+    copy: 'Open WhatsApp, send the login code from that number, and you are in.',
   },
   {
     icon: FollowUpIcon,
-    title: 'No OTP field',
-    copy: 'There is no code to type and no password to remember.',
+    title: 'No code entry',
+    copy: 'There is no browser code entry and no password to remember.',
   },
   {
     icon: SearchIcon,
@@ -226,7 +226,7 @@ export const Login: React.FC = () => {
         return;
       }
 
-      setError('Could not send the login link. Try again.');
+      setError('Could not create the login code. Try again.');
     } catch (err) {
       const message = handleApiError(err);
       if ((err as any)?.response?.status === 404) {
@@ -304,7 +304,7 @@ export const Login: React.FC = () => {
                     <span className="block text-[var(--accent)]">your WhatsApp number.</span>
                   </h1>
                   <p className="mt-5 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                    No password. No OTP screen. We send a secure login link to the number on file and the link restores your session in the browser.
+                    No password. We create a secure login code for the number on file, you send it from WhatsApp, and the browser restores your session.
                   </p>
                 </div>
 
@@ -380,7 +380,7 @@ export const Login: React.FC = () => {
                       className={authFieldClassName}
                     />
                     <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
-                      We only use this number to send the login link and open your workspace session.
+                      We only use this number to create the login code and open your workspace session.
                     </p>
                   </label>
 

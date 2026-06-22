@@ -275,12 +275,12 @@ router.post(ROUTE_PATHS.auth.requestLoginLink, validate(requestLoginLinkBodySche
             code,
             expiresAt,
             next,
-            message: 'Open the WhatsApp link and send the code from your number.',
+            message: 'Open WhatsApp and send the code from your number.',
         });
     } catch (error: any) {
         console.error('[Auth] Login link request failed:', error);
         return res.status(Number(error?.status || 500)).json({
-            error: error?.message || 'Failed to send login link',
+            error: error?.message || 'Failed to create login code',
         });
     }
 });

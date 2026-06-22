@@ -10,7 +10,7 @@ export const Onboarding: React.FC = () => (
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">PropAI Pulse</p>
             <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Set up on WhatsApp</h1>
             <p className="mx-auto mt-4 max-w-md text-base leading-7 text-gray-400">
-                Pulse sets up your broker workspace in WhatsApp. It will collect your details there and send your optional dashboard login link back to this chat.
+                Pulse sets up your broker workspace in WhatsApp. It will collect your details there and keep the dashboard access flow tied to your account.
             </p>
             <a
                 href={onboardingWhatsAppLink}
