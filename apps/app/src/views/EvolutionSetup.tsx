@@ -117,6 +117,22 @@ export function EvolutionSetup() {
     }, 3000);
   };
 
+  const handleDisconnect = async () => {
+    if (!window.confirm('Disconnect this phone? Group monitoring will stop.')) return;
+    setLoading(true);
+    try {
+      await backendApi.post(ENDPOINTS.whatsapp.disconnect, { label: 'Evolution' });
+      setStatus('idle');
+      setQrCode(null);
+      setFeedback({ tone: 'success', message: 'Disconnected successfully.' });
+      stopPolling();
+    } catch (error) {
+      setFeedback({ tone: 'error', message: handleApiError(error) });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const connectViaPairing = async () => {
     if (!phoneNumber.trim()) return;
     setLoading(true);
@@ -179,10 +195,18 @@ export function EvolutionSetup() {
               </button>
             </div>
           ) : status === "connected" ? (
-            <div className="flex flex-col items-center gap-3 py-8">
+            <div className="flex flex-col items-center gap-4 py-8">
               <CheckCircleIcon className="h-16 w-16 text-[var(--accent)]" />
               <p className="text-sm font-semibold text-[var(--text-primary)]">WhatsApp connected!</p>
               <p className="text-xs text-[var(--text-secondary)]">Messages from groups will now flow into your Stream automatically.</p>
+              <button
+                type="button"
+                onClick={handleDisconnect}
+                disabled={loading}
+                className="inline-flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/20 transition-all disabled:opacity-50"
+              >
+                Disconnect
+              </button>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-4 py-8">
