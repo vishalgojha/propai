@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
+
+const MumbaiMap = dynamic(() => import('@/components/MumbaiMap'), { ssr: false });
 import Link from 'next/link';
 import { 
   ArrowRight, 
@@ -32,12 +35,12 @@ import { formatPrice } from '@/lib/format';
 import ListingCard from '@/components/ListingCard';
 import { cn } from '@/lib/utils';
 
-// Premium interactive mockup localities for Mumbai Vector Map
+// Mumbai locality data with real geographic coordinates
 interface MapLocality {
   id: string;
   name: string;
-  x: number;
-  y: number;
+  lat: number;
+  lng: number;
   count: number;
   avgRent: string;
   demandIndex: number;
@@ -46,14 +49,14 @@ interface MapLocality {
 }
 
 const MAP_LOCALITIES: MapLocality[] = [
-  { id: 'Bandra West', name: 'Bandra West', x: 180, y: 220, count: 432, avgRent: '₹1.4L', demandIndex: 96, delta: '+15%', hot: true },
-  { id: 'Juhu', name: 'Juhu', x: 140, y: 150, count: 65, avgRent: '₹2.1L', demandIndex: 91, delta: '+12%', hot: false },
-  { id: 'Andheri West', name: 'Andheri West', x: 130, y: 80, count: 660, avgRent: '₹85K', demandIndex: 94, delta: '+18%', hot: true },
-  { id: 'Worli', name: 'Worli', x: 210, y: 310, count: 85, avgRent: '₹1.8L', demandIndex: 88, delta: '+10%', hot: false },
-  { id: 'Lower Parel', name: 'Lower Parel', x: 230, y: 360, count: 120, avgRent: '₹1.2L', demandIndex: 89, delta: '+8%', hot: false },
-  { id: 'Powai', name: 'Powai', x: 320, y: 130, count: 195, avgRent: '₹75K', demandIndex: 92, delta: '+14%', hot: true },
-  { id: 'Thane West', name: 'Thane West', x: 420, y: 60, count: 26, avgRent: '₹38K', demandIndex: 78, delta: '+5%', hot: false },
-  { id: 'Chembur', name: 'Chembur', x: 330, y: 250, count: 142, avgRent: '₹62K', demandIndex: 84, delta: '+7%', hot: false }
+  { id: 'Bandra West', name: 'Bandra West', lat: 19.0596, lng: 72.8295, count: 432, avgRent: '₹1.4L', demandIndex: 96, delta: '+15%', hot: true },
+  { id: 'Juhu', name: 'Juhu', lat: 19.1075, lng: 72.8263, count: 65, avgRent: '₹2.1L', demandIndex: 91, delta: '+12%', hot: false },
+  { id: 'Andheri West', name: 'Andheri West', lat: 19.1197, lng: 72.8397, count: 660, avgRent: '₹85K', demandIndex: 94, delta: '+18%', hot: true },
+  { id: 'Worli', name: 'Worli', lat: 19.0130, lng: 72.8174, count: 85, avgRent: '₹1.8L', demandIndex: 88, delta: '+10%', hot: false },
+  { id: 'Lower Parel', name: 'Lower Parel', lat: 18.9945, lng: 72.8230, count: 120, avgRent: '₹1.2L', demandIndex: 89, delta: '+8%', hot: false },
+  { id: 'Powai', name: 'Powai', lat: 19.1197, lng: 72.9050, count: 195, avgRent: '₹75K', demandIndex: 92, delta: '+14%', hot: true },
+  { id: 'Thane West', name: 'Thane West', lat: 19.2183, lng: 72.9781, count: 26, avgRent: '₹38K', demandIndex: 78, delta: '+5%', hot: false },
+  { id: 'Chembur', name: 'Chembur', lat: 19.0622, lng: 72.9005, count: 142, avgRent: '₹62K', demandIndex: 84, delta: '+7%', hot: false }
 ];
 
 // Mock Broker Dialogues Database for Chat Simulation
@@ -97,7 +100,6 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
 
   // Map Hover States
   const [hoveredLocality, setHoveredLocality] = useState<MapLocality | null>(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   // Real Dynamic Lead Qualification Chat State Machine
   const [chatOpen, setChatOpen] = useState(false);
@@ -449,14 +451,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
     }
   }, [activeTab]);
 
-  // Map mouse movement
-  const handleMapMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setTooltipPos({
-      x: e.clientX - rect.left + 15,
-      y: e.clientY - rect.top - 70
-    });
-  };
+
 
   // Base metrics derived strictly from real DB data — no hardcoded bases or fake fallbacks
   const liveCount = allListings.length;
@@ -751,172 +746,17 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                 )}
               </div>
 
-              {/* Vector SVG Map Container (right 8 columns) */}
-              <div className="lg:col-span-8 flex justify-center relative overflow-hidden bg-[var(--bg-base)] rounded-2xl p-4">
+              {/* Leaflet Map Container (right 8 columns) */}
+              <div className="lg:col-span-8 relative overflow-hidden bg-[var(--bg-base)] rounded-2xl">
                 
-                <svg 
-                  viewBox="0 0 500 450" 
-                  className="w-full max-w-[500px] h-[360px] sm:h-[450px] relative z-10 transition-all duration-300"
-                  onMouseMove={handleMapMouseMove}
-                >
-                  <defs>
-                    <radialGradient id="mapGlow" cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stopColor="rgba(62,232,138,0.22)" />
-                      <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-                    </radialGradient>
-                    <linearGradient id="landGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="rgba(62,232,138,0.02)" />
-                      <stop offset="100%" stopColor="rgba(62,232,138,0.003)" />
-                    </linearGradient>
-                    <pattern id="radarGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-                      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255, 255, 255, 0.018)" strokeWidth="0.75"/>
-                      <circle cx="40" cy="0" r="1" fill="rgba(62, 232, 138, 0.12)"/>
-                    </pattern>
-                  </defs>
-
-                  {/* Grid System Background */}
-                  <rect width="100%" height="100%" fill="url(#radarGrid)" rx="16" />
-                  
-                  {/* Subtle Coordinate Text at Edges */}
-                  <text x="15" y="20" fill="rgba(255,255,255,0.18)" fontSize="7" fontWeight="bold" fontFamily="monospace">LAT: 19.0760° N</text>
-                  <text x="15" y="32" fill="rgba(255,255,255,0.18)" fontSize="7" fontWeight="bold" fontFamily="monospace">LON: 72.8777° E</text>
-                  <text x="480" y="20" fill="rgba(255,255,255,0.18)" fontSize="7" fontWeight="bold" fontFamily="monospace" textAnchor="end">SYS: ACTIVE</text>
-                  <text x="480" y="32" fill="rgba(255,255,255,0.18)" fontSize="7" fontWeight="bold" fontFamily="monospace" textAnchor="end">SCALE: 1:45,000</text>
-                  
-                  {/* Radar/Sonar Pulsing Sweep line across map */}
-                  <line x1="0" y1="225" x2="500" y2="225" stroke="rgba(62,232,138,0.035)" strokeWidth="1" strokeDasharray="5 5" className="animate-pulse" />
-                  <line x1="250" y1="0" x2="250" y2="450" stroke="rgba(62,232,138,0.035)" strokeWidth="1" strokeDasharray="5 5" className="animate-pulse" />
-
-                  {hoveredLocality && (
-                    <circle 
-                      cx={hoveredLocality.x} 
-                      cy={hoveredLocality.y} 
-                      r="130" 
-                      fill="url(#mapGlow)" 
-                      className="transition-all duration-300 pointer-events-none animate-pulse" 
-                    />
-                  )}
-
-                  {/* Organic glowing Mumbai Coastline landmass */}
-                  {/* Blurred Back-Glow Coastline */}
-                  <path 
-                    d="M 90 20 C 100 60, 80 100, 100 130 C 110 150, 130 160, 130 190 C 130 210, 150 240, 160 270 C 170 300, 190 320, 195 340 C 200 360, 180 390, 190 430 L 225 430 C 230 390, 240 370, 240 340 C 240 310, 230 280, 220 250 C 210 220, 230 190, 250 160 C 270 130, 280 100, 290 50 Z" 
-                    fill="url(#landGrad)" 
-                    stroke="rgba(62, 232, 138, 0.14)" 
-                    strokeWidth="6" 
-                    className="opacity-40 blur-[4px] pointer-events-none"
-                  />
-                  {/* Sharp Front Coastline */}
-                  <path 
-                    d="M 90 20 C 100 60, 80 100, 100 130 C 110 150, 130 160, 130 190 C 130 210, 150 240, 160 270 C 170 300, 190 320, 195 340 C 200 360, 180 390, 190 430 L 225 430 C 230 390, 240 370, 240 340 C 240 310, 230 280, 220 250 C 210 220, 230 190, 250 160 C 270 130, 280 100, 290 50 Z" 
-                    fill="transparent" 
-                    stroke="rgba(62, 232, 138, 0.28)" 
-                    strokeWidth="1.75" 
-                    strokeDasharray="1 1"
-                    className="pointer-events-none"
-                  />
-
-                  {/* Neural Coordinate Network Grid (Physical/Logical commute matching rails) */}
-                  {/* Western Line: Juhu - Andheri West */}
-                  <line x1="140" y1="150" x2="130" y2="80" stroke="rgba(62, 232, 138, 0.12)" strokeWidth="1" strokeDasharray="3 3" />
-                  {/* Western Line: Juhu - Bandra West */}
-                  <line x1="140" y1="150" x2="180" y2="220" stroke="rgba(62, 232, 138, 0.12)" strokeWidth="1" strokeDasharray="3 3" />
-                  {/* Western Line: Bandra West - Worli */}
-                  <line x1="180" y1="220" x2="210" y2="310" stroke="rgba(62, 232, 138, 0.12)" strokeWidth="1.25" strokeDasharray="3 3" />
-                  {/* Western Line: Worli - Lower Parel */}
-                  <line x1="210" y1="310" x2="230" y2="360" stroke="rgba(62, 232, 138, 0.12)" strokeWidth="1.25" strokeDasharray="3 3" />
-                  
-                  {/* Central-Eastern Line: Andheri West - Powai */}
-                  <line x1="130" y1="80" x2="320" y2="130" stroke="rgba(62, 232, 138, 0.1)" strokeWidth="1" strokeDasharray="4 4" />
-                  {/* Central-Eastern Line: Powai - Chembur */}
-                  <line x1="320" y1="130" x2="330" y2="250" stroke="rgba(62, 232, 138, 0.12)" strokeWidth="1.25" strokeDasharray="3 3" />
-                  {/* Central-Eastern Line: Chembur - Lower Parel */}
-                  <line x1="330" y1="250" x2="230" y2="360" stroke="rgba(62, 232, 138, 0.1)" strokeWidth="1" strokeDasharray="4 4" />
-                  
-                  {/* Northern Line: Thane West - Powai */}
-                  <line x1="420" y1="60" x2="320" y2="130" stroke="rgba(62, 232, 138, 0.12)" strokeWidth="1" strokeDasharray="3 3" />
-
-                  {MAP_LOCALITIES.map((loc) => {
-                    const isHovered = hoveredLocality?.id === loc.id;
-                    return (
-                      <g 
-                        key={loc.id}
-                        className="cursor-pointer"
-                        onMouseEnter={() => setHoveredLocality(loc)}
-                        onMouseLeave={() => setHoveredLocality(null)}
-                        onClick={() => {
-                          selectLocality(loc.name);
-                          setActiveTab('feed');
-                        }}
-                      >
-                        {(loc.hot || isHovered) && (
-                          <circle 
-                            cx={loc.x} 
-                            cy={loc.y} 
-                            r={isHovered ? 20 : 12} 
-                            fill="rgba(62,232,138,0.12)" 
-                            className="animate-ping" 
-                            style={{ animationDuration: '2.5s' }}
-                          />
-                        )}
-                        
-                        <circle 
-                          cx={loc.x} 
-                          cy={loc.y} 
-                          r={isHovered ? 9 : 6.5} 
-                          fill={isHovered ? '#3EE88A' : 'rgba(16, 22, 32, 0.9)'}
-                          stroke="#3EE88A"
-                          strokeWidth={isHovered ? 3.5 : 2}
-                          className="transition-all duration-200"
-                        />
-
-                        <text 
-                          x={loc.x} 
-                          y={loc.y - 12} 
-                          textAnchor="middle" 
-                          fill={isHovered ? '#3EE88A' : 'rgba(255,255,255,0.7)'}
-                          fontSize="9" 
-                          fontWeight={isHovered ? '900' : 'bold'}
-                          className="font-sans transition-all duration-200 pointer-events-none select-none bg-black"
-                        >
-                          {loc.name}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
-
-                {hoveredLocality && (
-                  <div 
-                    className="absolute z-30 pointer-events-none bg-[var(--bg-surface)] border border-white/5 p-3.5 rounded-xl shadow-xl w-48 text-left space-y-2 animate-stream-in"
-                    style={{ 
-                      left: `${tooltipPos.x}px`, 
-                      top: `${tooltipPos.y}px`,
-                      backdropFilter: 'blur(12px)',
-                      background: 'rgba(7, 11, 17, 0.92)'
-                    }}
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-black text-white">{hoveredLocality.name}</span>
-                      <span className="text-[8px] font-extrabold text-[var(--accent)] uppercase tracking-widest">{hoveredLocality.delta} Delta</span>
-                    </div>
-                    <div className="h-px bg-white/5" />
-                    <div className="grid grid-cols-2 gap-1 text-[9px] text-[var(--text-secondary)]">
-                      <div>
-                        <span>Live signals:</span>
-                        <div className="font-bold text-white mt-0.5">{hoveredLocality.count}</div>
-                      </div>
-                      <div>
-                        <span>Average Rent:</span>
-                        <div className="font-bold text-white mt-0.5">{hoveredLocality.avgRent}</div>
-                      </div>
-                      <div className="col-span-2">
-                        <span>AI Demand Index:</span>
-                        <div className="font-bold text-white mt-0.5">{hoveredLocality.demandIndex}% (Very High)</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <MumbaiMap
+                  localities={MAP_LOCALITIES}
+                  onHover={(loc) => setHoveredLocality(loc)}
+                  onSelect={(name) => {
+                    selectLocality(name);
+                    setActiveTab('feed');
+                  }}
+                />
               </div>
 
             </div>

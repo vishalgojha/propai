@@ -588,7 +588,6 @@ export const Listings: React.FC = () => {
   const [showFilters, setShowFilters] = React.useState(false);
   const [filterConfiguration, setFilterConfiguration] = React.useState<string>('all');
   const [filterCommercialFacet, setFilterCommercialFacet] = React.useState<string>('all');
-  const [filterSource, setFilterSource] = React.useState<string>('all');
   const [brokerOnly, setBrokerOnly] = React.useState(false);
   const [showAllItems, setShowAllItems] = React.useState(false);
   const [quickTypes, setQuickTypes] = React.useState<Array<StreamItem['type']>>([]);
@@ -901,12 +900,6 @@ export const Listings: React.FC = () => {
     [channels, channelId],
   );
 
-  const uniqueSources = React.useMemo(() => {
-    const sources = new Set<string>();
-    streamItems.forEach((item) => sources.add(item.source));
-    return Array.from(sources).sort();
-  }, [streamItems]);
-
   const visibleStream = React.useMemo(() => {
     // When using unified search API, results are already filtered server-side
     if (isSearching || (search.trim() && streamTotal > 0 && streamItems.length !== streamTotal)) {
@@ -990,11 +983,7 @@ export const Listings: React.FC = () => {
       });
     }
 
-    if (filterSource !== 'all') {
-      filtered = filtered.filter((item) => item.source === filterSource);
-    }
-
-if (brokerOnly) {
+    if (brokerOnly) {
         filtered = filtered.filter(isBrokerTagged);
       }
 
@@ -1002,7 +991,7 @@ if (brokerOnly) {
     filtered = filtered.filter((item) => (item.propertyCategory || 'residential') === filterPropertyCategory);
 
     return filtered;
-  }, [streamItems, search, quickTypes, filterConfiguration, filterCommercialFacet, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory]);
+  }, [streamItems, search, quickTypes, filterConfiguration, filterCommercialFacet, quickFreshnessBands, quickTimeBands, brokerOnly, filterPropertyCategory]);
 
   const activeFilterCount = React.useMemo(() => {
     let count = 0;
@@ -1014,11 +1003,10 @@ if (brokerOnly) {
       count++;
     }
     if (quickFreshnessBands.length > 0) count++;
-    if (filterSource !== 'all') count++;
     if (brokerOnly) count++;
     if (filterPropertyCategory !== 'all') count++;
     return count;
-  }, [quickTypes, quickTimeBands, filterConfiguration, filterCommercialFacet, quickFreshnessBands, filterSource, brokerOnly, filterPropertyCategory]);
+  }, [quickTypes, quickTimeBands, filterConfiguration, filterCommercialFacet, quickFreshnessBands, brokerOnly, filterPropertyCategory]);
 
   const clearAllFilters = () => {
     setQuickTypes([]);
@@ -1026,7 +1014,6 @@ if (brokerOnly) {
     setQuickFreshnessBands([]);
     setFilterConfiguration('all');
     setFilterCommercialFacet('all');
-    setFilterSource('all');
     setBrokerOnly(false);
     setSearch('');
     setSearchSuggestions([]);
@@ -1093,7 +1080,7 @@ if (brokerOnly) {
 
   React.useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [activeChannel?.id, search, quickTypes, filterConfiguration, quickFreshnessBands, quickTimeBands, filterSource, brokerOnly, filterPropertyCategory, localityFilter]);
+  }, [activeChannel?.id, search, quickTypes, filterConfiguration, quickFreshnessBands, quickTimeBands, brokerOnly, filterPropertyCategory, localityFilter]);
 
   React.useEffect(() => {
     const fetch = async () => {
@@ -1716,19 +1703,6 @@ if (brokerOnly) {
             </div>
 
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Source</p>
-              <select
-                value={filterSource}
-                onChange={(event) => setFilterSource(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none transition-colors focus:border-[color:var(--accent-border)]"
-              >
-                <option value="all">All sources</option>
-                {uniqueSources.map((source) => (
-                  <option key={source} value={source}>
-                    {source}
-                  </option>
-                ))}
-              </select>
               <label className="mt-3 inline-flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
                 <input
                   type="checkbox"
