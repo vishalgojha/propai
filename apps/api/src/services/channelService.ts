@@ -4922,34 +4922,23 @@ ${rawText}
         });
     }
 
-    private rankAcceptedRows<T extends { confidence_score?: number | string | null; source_phone?: string | null; source_group_name?: string | null; raw_text?: string | null; created_at?: string | null }>(items: T[]): T[] {
+    private rankAcceptedRows<T extends { confidence_score?: number | string | null; created_at?: string | null }>(items: T[]): T[] {
         if (!Array.isArray(items) || items.length === 0) return items;
 
-        // Count how many items per source for source_count factor
-        const sourceCounts = new Map<string, number>();
-        for (const item of items) {
-            const key = item.source_phone || item.source_group_name || 'unknown';
-            sourceCounts.set(key, (sourceCounts.get(key) || 0) + 1);
-        }
-        const maxSourceCount = Math.max(1, ...sourceCounts.values());
+        // Stream is a chronological feed. Source frequency must not push a fresh
+        // post below older bulk imports; confidence is only a stable tie-breaker.
+        return [...items].sort((left, right) => {
+            const leftCreatedAt = new Date(left.created_at || 0).getTime();
+            const rightCreatedAt = new Date(right.created_at || 0).getTime();
+            const leftTimestamp = Number.isFinite(leftCreatedAt) ? leftCreatedAt : 0;
+            const rightTimestamp = Number.isFinite(rightCreatedAt) ? rightCreatedAt : 0;
 
-        const now = Date.now();
-        const ranked = items.map((item) => {
-            const confidence = Math.max(0, Math.min(1, Number(item.confidence_score || 0) / 100));
-            const sourceCount = sourceCounts.get(item.source_phone || item.source_group_name || 'unknown') || 1;
-            const sourceCountScore = Math.min(1, sourceCount / maxSourceCount);
+            if (leftTimestamp !== rightTimestamp) {
+                return rightTimestamp - leftTimestamp;
+            }
 
-            const ageHours = (now - new Date(item.created_at || 0).getTime()) / (1000 * 60 * 60);
-            const recencyScore = Math.max(0, Math.min(1, 1 - (ageHours / 720)));
-
-            return {
-                item,
-                rank: (confidence * 0.4) + (sourceCountScore * 0.3) + (recencyScore * 0.3),
-            };
+            return Number(right.confidence_score || 0) - Number(left.confidence_score || 0);
         });
-
-        ranked.sort((a, b) => b.rank - a.rank);
-        return ranked.map((r) => r.item);
     }
 
     private enrichSourcePhones(items: StreamItemRecord[]) {
