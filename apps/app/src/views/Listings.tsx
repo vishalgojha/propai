@@ -1778,7 +1778,7 @@ export const Listings: React.FC = () => {
                                 <span className="truncate text-[13px] font-bold text-[var(--text-primary)]">{group.buildingName}</span>
                                 {group.saleBenchmark || group.rentBenchmark ? (
                                   <span className="shrink-0 rounded-full bg-[var(--accent-dim)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">
-                                    {group.saleBenchmark?.samples || group.rentBenchmark?.samples || 0} samples
+                                    {group.saleBenchmark?.samples || group.rentBenchmark?.samples || 0} signals
                                   </span>
                                 ) : null}
                               </div>
@@ -2041,7 +2041,7 @@ export const Listings: React.FC = () => {
                                   <span className="truncate text-[14px] font-bold text-[var(--text-primary)]">{group.buildingName}</span>
                                   {group.saleBenchmark || group.rentBenchmark ? (
                                     <span className="shrink-0 rounded-full bg-[var(--accent-dim)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">
-                                      {group.saleBenchmark?.samples || group.rentBenchmark?.samples || 0} samples
+                                      {group.saleBenchmark?.samples || group.rentBenchmark?.samples || 0} signals
                                     </span>
                                   ) : null}
                                 </div>
