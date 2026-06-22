@@ -46,6 +46,7 @@ WORKDIR /app/apps/api
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libstdc++6 \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Preserve pnpm's symlink layout for runtime dependencies

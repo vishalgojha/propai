@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { spawn } from 'child_process';
 import { keyService } from './keyService';
 import { whatsappHealthService } from './whatsappHealthService';
 import { whatsappThreadService } from './whatsappThreadService';
@@ -8,6 +9,7 @@ import { supabase, supabaseAdmin } from '../config/supabase';
 import { isOwnerSuperAdminPhone } from '../utils/controllerHelpers';
 import { activationCodeService } from './activationCodeService';
 import { getPhoneOwnership } from './phoneOwnershipService';
+import { env as transformersEnv, pipeline } from '@xenova/transformers';
 
 const db = supabaseAdmin || supabase;
 const SESSION_LABEL = 'Official API';
@@ -124,6 +126,7 @@ type MediaInfo = {
     mediaId: string;
     mimeType: string;
     fileName: string;
+    kind: string;
 };
 
 const WABA_MEDIA_MSG_TYPES = new Set(['image', 'video', 'document', 'audio', 'sticker']);
@@ -137,6 +140,7 @@ function getMediaInfo(message: Record<string, any>): MediaInfo | null {
         mediaId: String(media.id),
         mimeType: String(media.mime_type || 'application/octet-stream'),
         fileName: String(media.filename || `waba_media_${Date.now()}`),
+        kind: msgType,
     };
 }
 
@@ -149,6 +153,11 @@ const WABA_MEDIA_EXT: Record<string, string> = {
     'video/3gp': '.3gp',
     'application/pdf': '.pdf',
 };
+
+const WABA_AUDIO_TRANSCRIPTION_MODEL = String(process.env.WABA_AUDIO_TRANSCRIPTION_MODEL || 'Xenova/whisper-small').trim();
+const WABA_AUDIO_TRANSCRIPTION_LANGUAGE = String(process.env.WABA_AUDIO_TRANSCRIPTION_LANGUAGE || '').trim() || null;
+const WABA_AUDIO_TRANSCRIPTION_ENABLED = String(process.env.WABA_AUDIO_TRANSCRIPTION_ENABLED || 'true').toLowerCase() !== 'false';
+const WABA_AUDIO_TRANSCRIPTION_TIMEOUT_MS = Number(process.env.WABA_AUDIO_TRANSCRIPTION_TIMEOUT_MS || 45_000);
 
 function buildRemoteJid(waId?: string | null) {
     const digits = normalizeDigits(waId);
@@ -170,6 +179,7 @@ function shouldIngestPropertySubmission(text: string) {
 
 export class WhatsAppCloudApiService {
     private readonly providerName = CLOUD_PROVIDER;
+    private audioTranscriberPromise: Promise<any> | null = null;
 
     async getConfig(tenantId: string) {
         const { data, error } = await db
@@ -400,12 +410,16 @@ export class WhatsAppCloudApiService {
                     const mediaInfo = getMediaInfo(message);
                     if (mediaInfo) {
                         const stored = await this.storeIncomingMedia(adminTenantId, mediaInfo).catch(() => null);
-                        if (stored?.attachmentCtx) {
+                        if (mediaInfo.kind === 'audio' && stored?.transcript) {
+                            text = text.trim() ? `${stored.transcript}\n\n${text}` : stored.transcript;
+                        } else if (stored?.attachmentCtx) {
                             text = `${text}\n\n---\n${stored.attachmentCtx}\n---`;
                         }
                         if (!text.trim()) {
                             const typeLabel = String(message?.type || 'file').toLowerCase();
-                            text = `[User sent ${typeLabel === 'image' ? 'an image' : typeLabel === 'video' ? 'a video' : typeLabel === 'document' ? 'a document' : 'a file'}]`;
+                            text = mediaInfo.kind === 'audio'
+                                ? '[User sent a voice note]'
+                                : `[User sent ${typeLabel === 'image' ? 'an image' : typeLabel === 'video' ? 'a video' : typeLabel === 'document' ? 'a document' : 'a file'}]`;
                         }
                     }
                     if (!text.trim()) {
@@ -687,16 +701,115 @@ export class WhatsAppCloudApiService {
         }
     }
 
+    private async getAudioTranscriber() {
+        if (this.audioTranscriberPromise) {
+            return this.audioTranscriberPromise;
+        }
+
+        transformersEnv.allowRemoteModels = true;
+        transformersEnv.allowLocalModels = true;
+        this.audioTranscriberPromise = pipeline('automatic-speech-recognition', WABA_AUDIO_TRANSCRIPTION_MODEL);
+        return this.audioTranscriberPromise;
+    }
+
+    private async decodeAudioBufferToWaveform(buffer: Buffer): Promise<Float32Array | null> {
+        return new Promise((resolve) => {
+            const ffmpeg = spawn('ffmpeg', [
+                '-hide_banner',
+                '-loglevel',
+                'error',
+                '-i',
+                'pipe:0',
+                '-ac',
+                '1',
+                '-ar',
+                '16000',
+                '-f',
+                's16le',
+                'pipe:1',
+            ], {
+                stdio: ['pipe', 'pipe', 'pipe'],
+            });
+
+            const stdoutChunks: Buffer[] = [];
+            let settled = false;
+            const timeout = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                ffmpeg.kill('SIGKILL');
+                resolve(null);
+            }, WABA_AUDIO_TRANSCRIPTION_TIMEOUT_MS);
+
+            const finish = (value: Float32Array | null) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timeout);
+                resolve(value);
+            };
+
+            ffmpeg.stdout.on('data', (chunk) => stdoutChunks.push(Buffer.from(chunk)));
+            ffmpeg.on('error', () => finish(null));
+            ffmpeg.on('close', (code) => {
+                if (code !== 0) {
+                    return finish(null);
+                }
+
+                const pcm = Buffer.concat(stdoutChunks);
+                if (pcm.length < 2) {
+                    return finish(null);
+                }
+
+                const sampleCount = Math.floor(pcm.length / 2);
+                const waveform = new Float32Array(sampleCount);
+                for (let i = 0; i < sampleCount; i += 1) {
+                    waveform[i] = pcm.readInt16LE(i * 2) / 32768;
+                }
+                return finish(waveform);
+            });
+
+            ffmpeg.stdin.on('error', () => finish(null));
+            ffmpeg.stdin.end(buffer);
+        });
+    }
+
+    private async transcribeAudioBuffer(buffer: Buffer): Promise<string | null> {
+        if (!WABA_AUDIO_TRANSCRIPTION_ENABLED) return null;
+
+        const waveform = await this.decodeAudioBufferToWaveform(buffer);
+        if (!waveform || waveform.length === 0) {
+            return null;
+        }
+
+        try {
+            const transcriber = await this.getAudioTranscriber();
+            const result = await transcriber(waveform, {
+                task: 'transcribe',
+                ...(WABA_AUDIO_TRANSCRIPTION_LANGUAGE ? { language: WABA_AUDIO_TRANSCRIPTION_LANGUAGE } : {}),
+                chunk_length_s: 30,
+                stride_length_s: 5,
+            });
+            const transcript = String(result?.text || '').trim();
+            return transcript || null;
+        } catch (error) {
+            console.warn('[WhatsAppCloudApiService] Audio transcription failed', error);
+            return null;
+        }
+    }
+
     private async storeIncomingMedia(
         tenantId: string,
         media: MediaInfo,
-    ): Promise<{ fileId: string; attachmentCtx: string } | null> {
+    ): Promise<{ fileId: string; attachmentCtx: string; transcript?: string | null } | null> {
         try {
             const downloadUrl = await this.getMediaDownloadUrl(tenantId, media.mediaId);
             if (!downloadUrl) return null;
 
             const buffer = await this.downloadMediaBuffer(tenantId, downloadUrl);
             if (!buffer || buffer.length === 0) return null;
+
+            const transcript = media.kind === 'audio'
+                ? await this.transcribeAudioBuffer(buffer)
+                : null;
 
             const bucketOk = await this.ensureMediaBucket();
             if (!bucketOk) return null;
@@ -724,8 +837,9 @@ export class WhatsAppCloudApiService {
                     byte_size: buffer.length,
                     storage_bucket: 'waba-media',
                     storage_path: storagePath,
-                    extracted_text: null,
-                    extraction_status: 'pending',
+                    extracted_text: transcript,
+                    extraction_status: transcript ? 'extracted' : 'not_supported',
+                    extraction_error: transcript ? null : null,
                     created_at: now,
                     updated_at: now,
                 })
@@ -739,7 +853,7 @@ export class WhatsAppCloudApiService {
 
             const ctx = `[${media.fileName} (${media.mimeType})] Incoming WhatsApp media saved.`;
 
-            return { fileId: row.id, attachmentCtx: ctx };
+            return { fileId: row.id, attachmentCtx: ctx, transcript };
         } catch {
             return null;
         }
