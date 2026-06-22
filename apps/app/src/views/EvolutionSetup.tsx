@@ -76,14 +76,23 @@ export function EvolutionSetup() {
     setQrCode(null);
     qrRetryRef.current = 0;
     try {
-      await backendApi.post(ENDPOINTS.whatsapp.connect, {
+      const resp = await backendApi.post(ENDPOINTS.whatsapp.connect, {
         label: "Evolution",
         ownerName: "Evolution",
         connectMethod: "qr",
         gateway: "evolution",
       });
-      setFeedback({ tone: "success", message: "Connection initiated. Waiting for QR code..." });
-      await fetchQR();
+      const qrFromResponse = resp.data?.qr;
+      if (qrFromResponse) {
+        setQrCode(qrFromResponse);
+        setStatus("qr_ready");
+        setLoading(false);
+        setFeedback({ tone: "success", message: "QR code ready — scan with your broker's WhatsApp" });
+        startPolling();
+      } else {
+        setFeedback({ tone: "success", message: "Connection initiated. Waiting for QR code..." });
+        await fetchQR();
+      }
     } catch (error) {
       setStatus("failed");
       setFeedback({ tone: "error", message: handleApiError(error) });
