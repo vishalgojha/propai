@@ -2,6 +2,7 @@ import { syndicationSyncJob } from '../jobs/syndicationSyncJob';
 import { generateMarketInsightsJob } from '../jobs/generateMarketInsights';
 import { igrEnrichmentJob } from '../jobs/igrEnrichmentJob';
 import { followUpOverdueJob } from '../jobs/followUpOverdueJob';
+import { webhookQueueWorker } from '../jobs/webhookQueueWorker';
 
 type JobStarter = {
     name: string;
@@ -14,6 +15,7 @@ const JOBS: JobStarter[] = [
     { name: 'generateMarketInsightsJob', start: () => generateMarketInsightsJob.start(), stop: () => generateMarketInsightsJob.stop?.() },
     { name: 'igrEnrichmentJob', start: () => igrEnrichmentJob.start(), stop: () => igrEnrichmentJob.stop?.() },
     { name: 'followUpOverdueJob', start: () => followUpOverdueJob.start(), stop: () => followUpOverdueJob.stop() },
+    { name: 'webhookQueueWorker', start: () => webhookQueueWorker.start(), stop: () => webhookQueueWorker.stop() },
 ];
 
 export class BackgroundJobService {
