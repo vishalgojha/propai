@@ -109,7 +109,7 @@ function buildFallbackDescription(input: {
   return `<div class="prose">
 <p><strong>${configLabel} for ${dealLabel} in ${input.locality}, Mumbai.</strong> This listing was posted ${input.days} day${input.days === 1 ? "" : "s"} ago and is currently shown at ${input.priceStr}${input.area_sqft ? ` with ${areaLabel}` : ""}.</p>
 <p>This page keeps the description factual and uses only the listing record plus locality context. It does not invent missing details.</p>
-<p><em>Interested in this property? Visit PropAI Pulse for more details, site visits, and direct contact information.</em></p>
+<p><em>This listing is published on PropAI Pulse — Mumbai's intelligence platform for real estate brokers.</em></p>
 </div>`;
 }
 
