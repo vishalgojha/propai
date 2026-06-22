@@ -120,11 +120,13 @@ export const ENDPOINTS = {
     campaignRecipients: (id: string) => `/broadcast/campaigns/${encodeURIComponent(id)}/recipients`,
     campaignStats: (id: string) => `/broadcast/campaigns/${encodeURIComponent(id)}/stats`,
   },
-  syndication: {
+    syndication: {
     invite: '/syndication/invite',
     accept: '/syndication/accept',
-    feed: '/syndication/feed',
-    list: '/syndication/list',
+    partners: '/syndication/partners',
     revoke: (id: string) => `/syndication/${encodeURIComponent(id)}`,
+  },
+  mcp: {
+    token: '/mcp/token',
   },
 } as const;

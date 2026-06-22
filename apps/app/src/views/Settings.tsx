@@ -268,6 +268,11 @@ export const Settings: React.FC = () => {
   const [purgeResult, setPurgeResult] = useState<string | null>(null);
   const [testingProvider, setTestingProvider] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
+  const [mcpToken, setMcpToken] = useState<string | null>(null);
+  const [mcpHasToken, setMcpHasToken] = useState(false);
+  const [mcpLoading, setMcpLoading] = useState(false);
+  const [mcpCopied, setMcpCopied] = useState(false);
+  const [mcpError, setMcpError] = useState<string | null>(null);
 
   const loadSyndicationPartners = React.useCallback(async () => {
     setSyndicationLoading(true);
@@ -349,6 +354,51 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const checkMcpToken = async () => {
+    try {
+      const res = await backendApi.get(ENDPOINTS.mcp.token);
+      setMcpHasToken(res.data?.hasToken ?? false);
+    } catch { }
+  };
+
+  const handleGenerateMcpToken = async () => {
+    setMcpLoading(true);
+    setMcpError(null);
+    setMcpToken(null);
+    try {
+      const res = await backendApi.post(ENDPOINTS.mcp.token);
+      setMcpToken(res.data?.token ?? null);
+      setMcpHasToken(true);
+    } catch (err) {
+      setMcpError(handleApiError(err));
+    } finally {
+      setMcpLoading(false);
+    }
+  };
+
+  const handleRevokeMcpToken = async () => {
+    if (!window.confirm('Revoke the current MCP connector token? Any tools using this token will stop working.')) return;
+    setMcpLoading(true);
+    setMcpError(null);
+    try {
+      await backendApi.delete(ENDPOINTS.mcp.token);
+      setMcpToken(null);
+      setMcpHasToken(false);
+    } catch (err) {
+      setMcpError(handleApiError(err));
+    } finally {
+      setMcpLoading(false);
+    }
+  };
+
+  const copyMcpToken = () => {
+    if (mcpToken) {
+      navigator.clipboard.writeText(mcpToken);
+      setMcpCopied(true);
+      setTimeout(() => setMcpCopied(false), 2000);
+    }
+  };
+
   const [aiKeys, setAiKeys] = useState<AIConfig>({
     gemini: '',
     openrouter: '',
@@ -385,6 +435,7 @@ export const Settings: React.FC = () => {
         setKeyMeta(settingsResp.data.keyMeta || {});
       }
       syncProfileEditor(profileResp.data?.profile || null, metadataResp.data?.metadata || null);
+      checkMcpToken();
     } catch (err) {
       const message = handleApiError(err);
       const schemaDrift = /workspace_settings|api_keys|schema cache|does not exist/i.test(message);
@@ -1084,6 +1135,78 @@ export const Settings: React.FC = () => {
                   <p className="text-[11px] text-[var(--text-muted)] mt-1">Invite a trusted broker to start sharing listings.</p>
                 </div>
               )}
+            </div>
+          </SurfaceSection>
+
+          <SurfaceSection title="MCP Connector" icon={ShieldIcon}>
+            <div className="space-y-4">
+              <p className="text-[12px] leading-6 text-[var(--text-secondary)]">
+                Generate an MCP connector token to authenticate Claude Desktop (or any MCP client) with PropAI Pulse. The token is shown once — copy it before leaving this page.
+              </p>
+
+              {mcpError && (
+                <div className="rounded-[14px] border border-red-500/20 bg-red-500/10 px-4 py-3 text-[12px] text-red-100">
+                  {mcpError}
+                </div>
+              )}
+
+              {mcpToken ? (
+                <div className="rounded-[14px] border border-[color:var(--border)] bg-[var(--bg-secondary)] p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">Your new token</span>
+                    <button
+                      type="button"
+                      onClick={copyMcpToken}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--accent)] hover:underline"
+                    >
+                      {mcpCopied ? <CheckIcon className="h-3.5 w-3.5" /> : <CopyIcon className="h-3.5 w-3.5" />}
+                      {mcpCopied ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <code className="block break-all rounded-[10px] bg-[var(--bg-primary)] px-3 py-2.5 text-[12px] font-mono text-[var(--text-primary)] select-all">
+                    {mcpToken}
+                  </code>
+                  <p className="mt-3 text-[11px] text-[var(--warning)] flex items-center gap-1.5">
+                    <AlertTriangleIcon className="h-3.5 w-3.5 shrink-0" />
+                    Save this token. It will not be shown again.
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="flex items-center gap-3">
+                {mcpHasToken && !mcpToken ? (
+                  <button
+                    type="button"
+                    onClick={handleGenerateMcpToken}
+                    disabled={mcpLoading}
+                    className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[var(--bg-secondary)] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {mcpLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <RefreshIcon className="h-4 w-4" />}
+                    {mcpLoading ? 'Generating...' : 'Rotate token'}
+                  </button>
+                ) : !mcpHasToken && !mcpToken ? (
+                  <button
+                    type="button"
+                    onClick={handleGenerateMcpToken}
+                    disabled={mcpLoading}
+                    className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {mcpLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <ShieldIcon className="h-4 w-4" />}
+                    {mcpLoading ? 'Generating...' : 'Generate token'}
+                  </button>
+                ) : null}
+                {mcpHasToken ? (
+                  <button
+                    type="button"
+                    onClick={handleRevokeMcpToken}
+                    disabled={mcpLoading}
+                    className="inline-flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-red-500 transition-colors hover:bg-red-500 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {mcpLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : <TrashIcon className="h-4 w-4" />}
+                    {mcpLoading ? 'Revoking...' : 'Revoke'}
+                  </button>
+                ) : null}
+              </div>
             </div>
           </SurfaceSection>
 

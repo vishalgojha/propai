@@ -25,6 +25,7 @@ export const ROUTE_PATHS = {
     notifications: '/api/notifications',
     syndication: '/api/syndication',
     whatsappCloud: '/api/whatsapp/cloud',
+    mcp: '/api/mcp',
   },
   notifications: {
     subscribe: '/subscribe',
