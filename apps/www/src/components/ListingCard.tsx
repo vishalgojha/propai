@@ -21,6 +21,17 @@ export default function ListingCard({ listing }: ListingCardProps) {
 
   const formattedPrice = formatPrice(listing.price, listing.type);
   const coverImage = listing.cover_image || listing.images?.[0] || null;
+  const imageSection = coverImage ? (
+    <img
+      src={coverImage}
+      alt={listing.title}
+      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+    />
+  ) : (
+    <div className="flex h-full items-center justify-center bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-[var(--bg-base)] text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+      Photos available in the listing
+    </div>
+  );
 
   const features = [];
   const configurationLabel = formatBhk(listing.configuration);
@@ -31,28 +42,18 @@ export default function ListingCard({ listing }: ListingCardProps) {
 
   return (
     <Link href={`/listings/${listing.slug}`} className="group block animate-stream-in">
-      <div className="h-full rounded-[24px] border border-[color:rgba(255,255,255,0.08)] bg-[var(--bg-elevated)] p-6 relative overflow-hidden transition-all duration-300 shadow-[0_10px_28px_rgba(0,0,0,0.16)] hover:-translate-y-1 hover:bg-[var(--bg-surface)] hover:border-[color:var(--accent-border)] hover:shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+      <div className="h-full overflow-hidden rounded-[24px] border border-[color:rgba(255,255,255,0.08)] bg-[var(--bg-elevated)] transition-all duration-300 shadow-[0_10px_28px_rgba(0,0,0,0.16)] hover:-translate-y-1 hover:bg-[var(--bg-surface)] hover:border-[color:var(--accent-border)] hover:shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
         <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/22 to-transparent opacity-70" />
         <div className="absolute -top-32 -right-32 h-64 w-64 bg-[var(--accent)]/3 blur-[100px] rounded-full group-hover:bg-[var(--accent)]/8 transition-all duration-700" />
         
         <div className="flex flex-col h-full justify-between relative z-10">
-          <div className="space-y-6">
-            <div className="overflow-hidden rounded-[18px] border border-[color:rgba(255,255,255,0.08)] bg-[var(--bg-base)]">
-              {coverImage ? (
-                <img
-                  src={coverImage}
-                  alt={listing.title}
-                  className="h-44 w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-                />
-              ) : (
-                <div className="flex h-44 items-center justify-center bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-[var(--bg-base)] text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                  Photos available in the listing
-                </div>
-              )}
+          <div className="space-y-5">
+            <div className="h-52 overflow-hidden border-b border-[color:rgba(255,255,255,0.08)] bg-[var(--bg-base)]">
+              {imageSection}
             </div>
 
-            {/* Header: Title and Type */}
-            <div className="flex justify-between items-start gap-4">
+            <div className="px-6">
+              <div className="flex justify-between items-start gap-4">
               <div className="space-y-1.5">
                 <h3 className="text-[19px] font-bold text-[var(--text-primary)] leading-[1.28] group-hover:text-[var(--accent)] transition-colors duration-300">
                   {listing.title}
@@ -79,39 +80,40 @@ export default function ListingCard({ listing }: ListingCardProps) {
                   </span>
                 )}
               </div>
-            </div>
+              </div>
 
-            {/* Short Description */}
-            {description ? (
-              <p className="text-[14px] leading-relaxed text-[var(--text-secondary)] font-medium">
-                {description}
-              </p>
-            ) : null}
+              {/* Short Description */}
+              {description ? (
+                <p className="mt-4 text-[14px] leading-relaxed text-[var(--text-secondary)] font-medium">
+                  {description}
+                </p>
+              ) : null}
 
-            {/* Tags */}
-            <div className="flex flex-wrap gap-2 pt-2">
-              {configurationLabel && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)]">
-                  <BedDouble className="h-3.5 w-3.5" />
-                  {configurationLabel}
-                </span>
-              )}
-              {listing.area_sqft && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)]">
-                  <Move className="h-3.5 w-3.5" />
-                  {listing.area_sqft} sqft
-                </span>
-              )}
-              {features.map((f, i) => (
-                <span key={i} className="rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)] transition-colors group-hover:border-[color:var(--accent-border)] group-hover:text-[var(--text-primary)]">
-                  {f}
-                </span>
-              ))}
+              {/* Tags */}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {configurationLabel && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)]">
+                    <BedDouble className="h-3.5 w-3.5" />
+                    {configurationLabel}
+                  </span>
+                )}
+                {listing.area_sqft && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)]">
+                    <Move className="h-3.5 w-3.5" />
+                    {listing.area_sqft} sqft
+                  </span>
+                )}
+                {features.map((f, i) => (
+                  <span key={i} className="rounded-full border border-[color:var(--border)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)] transition-colors group-hover:border-[color:var(--accent-border)] group-hover:text-[var(--text-primary)]">
+                    {f}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
 
           {/* Footer Area */}
-          <div className="mt-7 pt-5 border-t border-[color:rgba(255,255,255,0.06)] flex items-center justify-between">
+          <div className="mt-6 border-t border-[color:rgba(255,255,255,0.06)] px-6 py-5 flex items-center justify-between">
             <div className="space-y-0.5">
               <div className="text-[26px] font-bold text-[var(--text-primary)] tracking-tight">
                 {formattedPrice}
