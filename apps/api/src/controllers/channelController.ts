@@ -3,7 +3,7 @@ import { channelService } from '../services/channelService';
 import type { StreamListFilters } from '../services/channelService';
 import { getAnalytics as getAnalyticsData } from '../services/analyticsService';
 import { getTenantId, requireSuperAdmin, getErrorMessage, getErrorStatus, isOwnerSuperAdminEmail } from '../utils/controllerHelpers';
-import { resolveStreamAccess, STREAM_ACCESS_DENIED_MESSAGE } from '../services/streamAccessService';
+import { resolveStreamAccess } from '../services/streamAccessService';
 import '../types/express';
 import { getCachedValue, invalidateCachedValues, setCachedValue } from '../utils/responseCache';
 
@@ -120,9 +120,6 @@ export const listStreamItems = async (req: Request, res: Response) => {
     try {
         const tenantId = getTenantId(req);
         const access = await resolveStreamAccess(tenantId, req.user?.email);
-        if (!access.canViewStream) {
-            return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
-        }
         const authHeader = String(req.headers.authorization || '');
         const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
         const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : null;
@@ -182,9 +179,6 @@ export const listStreamSummary = async (req: Request, res: Response) => {
     try {
         const tenantId = getTenantId(req);
         const access = await resolveStreamAccess(tenantId, req.user?.email);
-        if (!access.canViewStream) {
-            return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
-        }
         const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : null;
         const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
         const networkMode = access.networkMode;
@@ -208,10 +202,6 @@ export const listStreamSummary = async (req: Request, res: Response) => {
 export const rebuildStream = async (req: Request, res: Response) => {
     try {
         const tenantId = getTenantId(req);
-        const access = await resolveStreamAccess(tenantId, req.user?.email);
-        if (!access.canViewStream) {
-            return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
-        }
         const limit = typeof req.body?.limit === 'number' ? Math.max(1, Math.min(2000, req.body.limit)) : 500;
         const sessionLabel = typeof req.body?.sessionLabel === 'string' ? req.body.sessionLabel.trim() || null : null;
         const remoteJid = typeof req.body?.remoteJid === 'string' ? req.body.remoteJid.trim() || null : null;
@@ -244,10 +234,6 @@ export const rebuildStream = async (req: Request, res: Response) => {
 export const correctStreamItem = async (req: Request, res: Response) => {
      try {
          const tenantId = getTenantId(req);
-         const access = await resolveStreamAccess(tenantId, req.user?.email);
-         if (!access.canViewStream) {
-             return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
-         }
          await requireSuperAdmin(req);
          const userEmail = String(req.user?.email || '');
          const corrected = await channelService.correctStreamItem(

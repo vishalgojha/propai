@@ -4,7 +4,7 @@ import { streamAPI } from '../apis';
 import { channelService } from '../services/channelService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
-import { resolveStreamAccess, STREAM_ACCESS_DENIED_MESSAGE } from '../services/streamAccessService';
+import { resolveStreamAccess } from '../services/streamAccessService';
 import { unifiedSearch } from '../services/searchService';
 
 const router = Router();
@@ -22,9 +22,6 @@ router.get('/', async (req, res) => {
     const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel : null;
 
     const access = await resolveStreamAccess(tenantId, context.currentUserEmail);
-    if (!access.canViewStream) {
-      return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
-    }
 
     const networkMode = access.networkMode;
     const items = await channelService.listStreamItems(tenantId, accessToken, channelId, sessionLabel, networkMode, undefined, context.currentUserEmail);
@@ -43,11 +40,6 @@ router.get('/stats', async (req, res) => {
   try {
     const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
     const tenantId = context.workspaceOwnerId;
-    const access = await resolveStreamAccess(tenantId, context.currentUserEmail);
-    if (!access.canViewStream) {
-      return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
-    }
-
     const stats = await streamAPI.getStats(tenantId);
     res.json(stats);
   } catch (error: unknown) {
@@ -88,9 +80,6 @@ router.post('/search', async (req, res) => {
     const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
     const tenantId = context.workspaceOwnerId;
     const access = await resolveStreamAccess(tenantId, context.currentUserEmail);
-    if (!access.canViewStream) {
-      return res.status(403).json({ error: access.deniedMessage || STREAM_ACCESS_DENIED_MESSAGE });
-    }
 
     const { asset_class, query_string, limit, offset } = req.body;
     if (!query_string || typeof query_string !== 'string') {

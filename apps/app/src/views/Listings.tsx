@@ -41,17 +41,7 @@ const BROKER_TAG_PATTERN = /\b(broker|broking|agnt|agent)\b/i;
 const ACTIVE_SESSION_STORAGE_KEY = 'propai.active_whatsapp_session';
 const BROKER_DECORATION_PATTERN = /[\p{Extended_Pictographic}\u200d\uFE0F]/gu;
 const BROKER_SYMBOL_PATTERN = /[•·▪▫◆◇★☆⬤◉○●⬛⬜◼◻⬢⬡⬆⬇⬅➡↔↕]/gu;
-const OWNER_SUPER_ADMIN_EMAILS = new Set([
-  'vishal@propai.live',
-  'vishalojha@gmail.com',
-  'vishal.ojha@propai.live',
-  'vishal@chaoscraftlabs.com',
-  'vishal@chaoscraftslabs.com',
-  'chariotrealty@gmail.com',
-  'hello@chaoscraftlabs.com',
-  'ojha007@gmail.com',
-  'hello@propai.live',
-]);
+
 type StreamPresetId = 'fresh' | 'rental' | 'sale' | 'pre_leased' | 'requirements';
 const STREAM_PRESETS: Array<{ id: StreamPresetId; label: string }> = [
   { id: 'fresh', label: '🔴 Fresh' },
@@ -505,11 +495,6 @@ const buildCorrectionDraft = (item: StreamItem): StreamCorrectionDraft => ({
   assetClass: item.assetClass || '',
 });
 
-const canViewStreamPlan = (plan?: string | null) => {
-  const normalized = String(plan || '').trim().toLowerCase();
-  return normalized === 'starter' || normalized === 'pro';
-};
-
 export const Listings: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -559,9 +544,6 @@ export const Listings: React.FC = () => {
   const attemptedBackfillScopesRef = React.useRef<Set<string>>(new Set());
   const [showScrollTop, setShowScrollTop] = React.useState(false);
   const [waStatus, setWaStatus] = React.useState<string>('loading');
-  const isSuperAdmin =
-    user?.appRole === 'super_admin' ||
-    OWNER_SUPER_ADMIN_EMAILS.has(String(user?.email || '').trim().toLowerCase());
 
   React.useEffect(() => {
     if (filterPropertyCategory === 'commercial') {
@@ -586,25 +568,7 @@ export const Listings: React.FC = () => {
     () => [channelId || 'all', selectedSessionLabel || 'all', filterPropertyCategory, localityFilter || 'all'].join('|'),
     [channelId, selectedSessionLabel, filterPropertyCategory, localityFilter],
   );
-  const canViewStream = React.useMemo(
-    () => isSuperAdmin || canViewStreamPlan(user?.subscription?.plan),
-    [isSuperAdmin, user?.subscription?.plan],
-  );
-
   const loadData = React.useCallback(async () => {
-    if (!canViewStream) {
-      setIsLoading(false);
-      setIsRefreshingStream(false);
-      setError(null);
-      setInfoMessage(null);
-      setChannels([]);
-      setStreamItems([]);
-      setStreamNetworkMode(false);
-      setStreamSummary(null);
-      setStreamTotal(0);
-      return;
-    }
-
     setIsLoading(!hasCachedStreamView);
     setIsRefreshingStream(hasCachedStreamView);
     setError(null);
@@ -697,7 +661,7 @@ export const Listings: React.FC = () => {
       setIsLoading(false);
       setIsRefreshingStream(false);
     }
-  }, [canViewStream, channelId, hasCachedStreamView, queryScopeKey, selectedSessionLabel, serverFilters]);
+  }, [channelId, hasCachedStreamView, queryScopeKey, selectedSessionLabel, serverFilters]);
 
   React.useEffect(() => {
     const cached = readStreamViewCache(queryScopeKey);
@@ -746,8 +710,8 @@ export const Listings: React.FC = () => {
      let active = true;
      let cleanup: (() => void) | undefined;
 
-     if (!user?.token || channelId || !canViewStream) {
-       return;
+     if (!user?.token || channelId) {
+        return;
      }
 
      const setupRealtime = async () => {
@@ -825,7 +789,7 @@ export const Listings: React.FC = () => {
        active = false;
        cleanup?.();
      };
-   }, [canViewStream, channelId, loadData, selectedSessionLabel, user?.token]);
+   }, [channelId, loadData, selectedSessionLabel, user?.token]);
 
   React.useEffect(() => {
     const handleSelectedSession = (event: Event) => {
@@ -1246,29 +1210,6 @@ if (brokerOnly) {
       { label: 'Received all time', value: summary.allTime, hint: scopeLabel },
     ];
   }, [activeChannel, streamNetworkMode, visibleStream, computeMinutes, streamSummary]);
-
-  if (!canViewStream) {
-    return (
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 md:p-6">
-        <div className="rounded-[16px] border border-[color:var(--amber)] bg-[linear-gradient(180deg,rgba(66,47,9,0.28),rgba(12,16,24,0.92))] p-6 shadow-[0_18px_50px_rgba(0,0,0,0.28)]">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--amber)]">Stream locked</p>
-          <h2 className="mt-2 text-[24px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Upgrade to view the feed</h2>
-          <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-            Free and trial accounts can use the workspace, but the live stream, summaries, and routed inventory feed are restricted to Starter and Pro plans.
-          </p>
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/pricing')}
-              className="inline-flex items-center gap-2 rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent)] px-5 py-3 text-[12px] font-bold uppercase tracking-[0.06em] text-[#020f07]"
-            >
-              Upgrade plan
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>

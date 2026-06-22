@@ -133,10 +133,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   const subscription = user?.subscription;
   const trialDays = subscription?.trial_days_remaining;
   const isTrial = subscription?.status === 'trial' || subscription?.status === 'trialing' || subscription?.plan === 'Free' || subscription?.plan === 'Trial';
-  const canViewStream = React.useMemo(() => {
-    const normalized = String(subscription?.plan || '').trim().toLowerCase();
-    return isSuperAdmin || normalized === 'starter' || normalized === 'pro';
-  }, [isSuperAdmin, subscription?.plan]);
   const planLabel = React.useMemo(() => {
     const normalized = String(subscription?.plan || '').trim().toLowerCase();
     if (normalized === 'trial' || normalized === 'free') return 'Trial';
@@ -146,12 +142,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
 
   React.useEffect(() => {
     if (!user?.token) {
-      setChannels([]);
-      setIsChannelsLoading(false);
-      return;
-    }
-
-    if (!canViewStream) {
       setChannels([]);
       setIsChannelsLoading(false);
       return;
@@ -232,7 +222,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
       window.removeEventListener('channel:deleted', handleRefresh);
       window.clearInterval(interval);
     };
-  }, [canViewStream, user?.email, user?.token]);
+  }, [user?.email, user?.token]);
 
   const activeChannel = React.useMemo(
     () => channels.find((channel) => channel.id === selectedChannelId) || null,
@@ -260,13 +250,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
 
   const navItems = React.useMemo(
     () => NAV_ITEMS.filter((item) => {
-      if (item.label === 'Stream' && !canViewStream) {
-        return false;
-      }
-
       return item.label === 'Super Admin' || item.label === 'AI Usage' ? isSuperAdmin : true;
     }),
-    [canViewStream, isSuperAdmin],
+    [isSuperAdmin],
   );
 
   const uplinkLabel =
