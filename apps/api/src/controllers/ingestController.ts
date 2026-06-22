@@ -7,6 +7,7 @@ import { isOwnerSuperAdminEmail, HttpError, getErrorMessage } from '../utils/con
 import { normaliseIndianPhone } from '../utils/phoneUtils';
 import { buildStreamContentHash, computeStreamCompleteness } from '../utils/streamQuality';
 import { embedStreamItem } from '../services/embeddingService';
+import { verifyAppSessionToken } from '../services/appAuthTokenService';
 
 type AdminClient = NonNullable<ReturnType<typeof createSupabaseServiceClient>>;
 
@@ -140,19 +141,27 @@ export const ingestListings = async (req: Request, res: Response) => {
             authorized = true;
         } else if (authHeader.startsWith('Bearer ')) {
             const token = authHeader.slice(7);
-            const { data: { user }, error } = await admin.auth.getUser(token);
-            if (!error && user) {
-                const email = String(user?.email || '').trim().toLowerCase();
-                if (isOwnerSuperAdminEmail(email)) {
+            const appSession = verifyAppSessionToken(token);
+            if (appSession) {
+                const email = String(appSession.email || '').trim().toLowerCase();
+                if (isOwnerSuperAdminEmail(email) || appSession.app_role === 'super_admin' || appSession.app_role === 'admin') {
                     authorized = true;
-                } else {
-                    const { data: profile } = await admin
-                        .from('profiles')
-                        .select('app_role')
-                        .eq('id', user.id)
-                        .maybeSingle();
-                    if (profile?.app_role === 'super_admin' || profile?.app_role === 'admin') {
+                }
+            } else {
+                const { data: { user }, error } = await admin.auth.getUser(token);
+                if (!error && user) {
+                    const email = String(user?.email || '').trim().toLowerCase();
+                    if (isOwnerSuperAdminEmail(email)) {
                         authorized = true;
+                    } else {
+                        const { data: profile } = await admin
+                            .from('profiles')
+                            .select('app_role')
+                            .eq('id', user.id)
+                            .maybeSingle();
+                        if (profile?.app_role === 'super_admin' || profile?.app_role === 'admin') {
+                            authorized = true;
+                        }
                     }
                 }
             }

@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { buildSessionFromSupabase } from '../services/authSession';
 import backendApi, { handleApiError } from '../services/api';
 import { backendApiUrl } from '../services/apiBase';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
+import { PROPAI_ASSISTANT_PHONE_DIGITS } from '../lib/propai';
 import {
   ActivityIcon,
   CheckIcon,
@@ -74,9 +76,13 @@ export const Login: React.FC = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sentMessage, setSentMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [challengeCode, setChallengeCode] = useState('');
+  const [challengeLink, setChallengeLink] = useState('');
+  const [challengeExpiresAt, setChallengeExpiresAt] = useState<string | null>(null);
+  const [challengeStatus, setChallengeStatus] = useState<'idle' | 'pending' | 'authenticated' | 'expired'>('idle');
   const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'degraded' | 'offline'>('checking');
-  const { user, logout } = useAuth();
+  const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -91,6 +97,59 @@ export const Login: React.FC = () => {
       navigate(nextPath, { replace: true });
     }
   }, [navigate, nextPath, user]);
+
+  useEffect(() => {
+    if (!challengeCode || challengeStatus !== 'pending') {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const poll = window.setInterval(async () => {
+      try {
+        const response = await backendApi.get(ENDPOINTS.auth.loginStatus, {
+          params: { code: challengeCode },
+        });
+        const status = String(response.data?.status || 'pending');
+        if (cancelled) return;
+
+        if (status === 'authenticated' && response.data?.session?.access_token) {
+          const email = response.data?.user?.email || formatPhone(phoneNumber) || phoneNumber;
+          login(
+            email,
+            {
+              ...buildSessionFromSupabase(email, {
+                access_token: response.data.session.access_token,
+                refresh_token: response.data.session.refresh_token || undefined,
+                expires_at: response.data.session.expires_at || undefined,
+              }),
+              id: response.data?.user?.id,
+              email,
+              appRole: response.data?.profile?.appRole || 'broker',
+            },
+            true,
+          );
+          setSuccessMessage('Session unlocked. Redirecting...');
+          setChallengeStatus('authenticated');
+          window.clearInterval(poll);
+          navigate(nextPath, { replace: true });
+          return;
+        }
+
+        if (status === 'expired') {
+          setChallengeStatus('expired');
+          setError('That login code expired. Request a new one.');
+          window.clearInterval(poll);
+        }
+      } catch {
+        // keep polling until the code is consumed or expires
+      }
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(poll);
+    };
+  }, [challengeCode, challengeStatus, formatPhone, login, navigate, nextPath, phoneNumber]);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,7 +197,11 @@ export const Login: React.FC = () => {
     event.preventDefault();
     setIsLoading(true);
     setError(null);
-    setSentMessage(null);
+    setSuccessMessage(null);
+    setChallengeCode('');
+    setChallengeLink('');
+    setChallengeExpiresAt(null);
+    setChallengeStatus('idle');
 
     try {
       const normalizedPhone = normalizeIndianPhone(phoneNumber);
@@ -153,7 +216,13 @@ export const Login: React.FC = () => {
       });
 
       if (response.data?.success) {
-        setSentMessage(`Login link sent to ${formatPhone(normalizedPhone)} on WhatsApp.`);
+        const code = String(response.data?.code || '').trim().toUpperCase();
+        const deepLink = `https://wa.me/91${PROPAI_ASSISTANT_PHONE_DIGITS}?text=${encodeURIComponent(code)}`;
+        setChallengeCode(String(response.data?.code || '').trim());
+        setChallengeLink(deepLink);
+        setChallengeExpiresAt(String(response.data?.expiresAt || '').trim() || null);
+        setChallengeStatus('pending');
+        setSuccessMessage(`Send the code from ${formatPhone(normalizedPhone)} on WhatsApp. This page will unlock automatically.`);
         return;
       }
 
@@ -290,9 +359,9 @@ export const Login: React.FC = () => {
                 </div>
                 <div className="mb-5">
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access PropAI Pulse</p>
-                  <h2 className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">Send me a login link</h2>
+                  <h2 className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">WhatsApp login challenge</h2>
                   <p className="mt-2 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
-                    Enter the 10-digit WhatsApp number on your account. We will send a one-click magic link to that chat.
+                    Enter the 10-digit WhatsApp number on your account. We will generate a one-time code and wait for you to send it from WhatsApp.
                   </p>
                 </div>
 
@@ -321,15 +390,33 @@ export const Login: React.FC = () => {
                     </div>
                   ) : null}
 
-                  {sentMessage ? (
+                  {successMessage ? (
                     <div className="rounded-[12px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 text-[12px] leading-5 text-[var(--text-primary)]">
-                      {sentMessage}
+                      {successMessage}
+                    </div>
+                  ) : null}
+
+                  {challengeCode ? (
+                    <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
+                      <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Login code</p>
+                      <p className="mt-1 text-[18px] font-bold tracking-[0.12em] text-[var(--text-primary)]">{challengeCode}</p>
+                      {challengeExpiresAt ? (
+                        <p className="mt-2 text-[11px] text-[var(--text-secondary)]">Expires at {new Date(challengeExpiresAt).toLocaleString()}</p>
+                      ) : null}
+                      <a
+                        href={challengeLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={authSecondaryButton + ' mt-3 w-full'}
+                      >
+                        Open WhatsApp and send code
+                      </a>
                     </div>
                   ) : null}
 
                   <button type="submit" disabled={isLoading} className={authPrimaryButton + ' w-full'}>
                     {isLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : null}
-                    Send login link
+                    Create login code
                   </button>
                 </form>
 
@@ -337,7 +424,7 @@ export const Login: React.FC = () => {
                   <div className="flex items-start gap-2">
                     <CheckIcon className="mt-0.5 h-4 w-4 text-[var(--accent)]" />
                     <p className="text-[11px] leading-5 text-[var(--text-secondary)]">
-                      The link is sent to WhatsApp and lands in your browser session without asking for a password or OTP.
+                      This keeps the conversation user-initiated. You send the code first, and the browser unlocks only after your WhatsApp message arrives.
                     </p>
                   </div>
                 </div>

@@ -144,7 +144,7 @@ export class ActivationCodeService {
 
     buildDeepLink(phoneNumber: string, code: string): string {
         const cleanPhone = phoneNumber.replace(/\D/g, '');
-        const message = encodeURIComponent(`Hi Pulse! My activation code is ${code}`);
+        const message = encodeURIComponent(code);
         return `https://wa.me/${cleanPhone}?text=${message}`;
     }
 }

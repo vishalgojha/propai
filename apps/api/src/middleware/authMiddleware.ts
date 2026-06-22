@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { supabaseAdmin } from '../config/supabase';
 import { resolveImpersonationToken } from '../services/impersonationStore';
+import { verifyAppSessionToken } from '../services/appAuthTokenService';
 
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
@@ -27,6 +28,27 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
         };
         (req as any).tenantId = session.tenantId;
         return next();
+    }
+
+    try {
+        const appSession = verifyAppSessionToken(token);
+        if (appSession) {
+            (req as any).user = {
+                id: appSession.sub,
+                email: appSession.email,
+                app_metadata: {
+                    app_role: appSession.app_role || 'broker',
+                },
+                user_metadata: {
+                    full_name: appSession.full_name || null,
+                    phone: appSession.phone || null,
+                },
+                phone: appSession.phone || null,
+            };
+            return next();
+        }
+    } catch {
+        // Fall back to the standard Supabase path below.
     }
 
     // ── Standard Supabase path ───────────────────────────────────────────────

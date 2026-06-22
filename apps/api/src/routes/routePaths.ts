@@ -54,6 +54,7 @@ export const ROUTE_PATHS = {
   },
   auth: {
     requestLoginLink: '/request-login-link',
+    loginStatus: '/login-status',
     me: '/me',
     refresh: '/refresh',
     referralPreview: '/referral/:code',

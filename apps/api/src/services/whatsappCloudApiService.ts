@@ -471,20 +471,9 @@ export class WhatsAppCloudApiService {
                         const codeRow = await activationCodeService.validateCode(code);
                         if (codeRow) {
                             await activationCodeService.activateCode(code, normalizeDigits(remoteJid));
-                            await activationCodeService.linkBrokerPhone(codeRow.tenant_id, normalizeDigits(remoteJid));
-                            await this.sendTextMessage({
-                                tenantId: adminTenantId,
-                                phoneNumberId,
-                                to: remoteJid,
-                                text: '✅ *WhatsApp Activation Successful!*\n\nYour WhatsApp number has been linked to your PropAI account. You can now send listings and requirements directly to Pulse.',
-                            });
-                        } else {
-                            await this.sendTextMessage({
-                                tenantId: adminTenantId,
-                                phoneNumberId,
-                                to: remoteJid,
-                                text: '❌ *Activation Failed*\n\nThe code you sent is invalid or expired. Please generate a new activation code from the PropAI web app.',
-                            });
+                            if (codeRow.context_type !== 'broker_login') {
+                                await activationCodeService.linkBrokerPhone(codeRow.tenant_id, normalizeDigits(remoteJid));
+                            }
                         }
                         processed += 1;
                         await this.markWebhookMessageProcessed(adminTenantId, messageId);

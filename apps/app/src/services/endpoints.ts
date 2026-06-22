@@ -1,6 +1,7 @@
 export const ENDPOINTS = {
   auth: {
     requestLoginLink: '/auth/request-login-link',
+    loginStatus: '/auth/login-status',
     me: '/auth/me',
     referralPreview: (code: string) => `/auth/referral/${encodeURIComponent(code)}`,
   },

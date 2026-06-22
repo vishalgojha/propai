@@ -3,12 +3,13 @@ import { validate } from '../middleware/validate';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { createSupabaseAnonClient, supabaseAdmin } from '../config/supabase';
 import { ROUTE_PATHS } from './routePaths';
-import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 import { referralService } from '../services/referralService';
 import { subscriptionService } from '../services/subscriptionService';
 import { emailNotificationService } from '../services/emailNotificationService';
 import { syncBrokerIdentityPhone } from '../services/identityService';
 import { getPhoneOwnership, normalizePhone as normalizePhoneValue } from '../services/phoneOwnershipService';
+import { activationCodeService } from '../services/activationCodeService';
+import { createAppSessionToken, getAppSessionExpiryMs } from '../services/appAuthTokenService';
 import {
     requestLoginLinkBodySchema,
     refreshTokenBodySchema,
@@ -235,7 +236,7 @@ async function resolveLoginIdentityByPhone(phone: string) {
     }
 
     const profile = await getProfileById(canonicalOwnerId).catch(() => null);
-    if (!profile?.email) {
+    if (!profile) {
         return null;
     }
 
@@ -244,32 +245,6 @@ async function resolveLoginIdentityByPhone(phone: string) {
         ownership,
         profile,
     };
-}
-
-async function generateMagicLinkForEmail(email: string, nextPath: string) {
-    if (!supabaseAdmin) {
-        throw new Error('Supabase service role key is not configured');
-    }
-
-    const appUrl = (process.env.APP_URL || 'https://app.propai.live').replace(/\/$/, '');
-    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink',
-        email,
-        options: {
-            redirectTo: `${appUrl}/auth/callback?next=${encodeURIComponent(nextPath)}`,
-        },
-    });
-
-    if (error) {
-        throw error;
-    }
-
-    const actionLink = data?.properties?.action_link || null;
-    if (!actionLink) {
-        throw new Error('Could not generate a login link');
-    }
-
-    return actionLink;
 }
 
 router.post(ROUTE_PATHS.auth.requestLoginLink, validate(requestLoginLinkBodySchema), async (req, res) => {
@@ -288,35 +263,132 @@ router.post(ROUTE_PATHS.auth.requestLoginLink, validate(requestLoginLinkBodySche
             });
         }
 
-        const loginLink = await generateMagicLinkForEmail(String(loginIdentity.profile.email || '').trim().toLowerCase(), next);
-        const gateway = getWhatsAppGateway('system');
-        await gateway.sendMessage({
-            workspaceOwnerId: 'system',
-            remoteJid: `${phone}@s.whatsapp.net`,
-            text: [
-                'Your PropAI login link is ready.',
-                '',
-                'Tap the link below to open your workspace securely:',
-                loginLink,
-                '',
-                `If the app does not open the right screen, use this next path after login: ${next}`,
-            ].join('\n'),
+        const { code, expiresAt } = await activationCodeService.generateCode(
+            loginIdentity.profile.id,
+            'broker_login',
+            loginIdentity.profile.id,
+            undefined,
+        );
+
+        return res.json({
+            success: true,
+            code,
+            expiresAt,
+            next,
+            message: 'Open the WhatsApp link and send the code from your number.',
+        });
+    } catch (error: any) {
+        console.error('[Auth] Login link request failed:', error);
+        return res.status(Number(error?.status || 500)).json({
+            error: error?.message || 'Failed to send login link',
+        });
+    }
+});
+
+router.get(ROUTE_PATHS.auth.loginStatus, async (req, res) => {
+    const code = String(req.query?.code || '').trim().toUpperCase();
+    if (!activationCodeService.isActivationCode(code)) {
+        return res.status(400).json({ error: 'A valid login code is required' });
+    }
+
+    try {
+        const dbClient = supabaseAdmin || null;
+        if (!dbClient) {
+            return res.status(503).json({ error: 'Supabase service role key is not configured' });
+        }
+
+        const { data: row, error } = await dbClient
+            .from('whatsapp_activation_codes')
+            .select('id, code, tenant_id, context_type, context_id, status, expires_at, activated_at, activated_phone')
+            .eq('code', code)
+            .maybeSingle();
+
+        if (error) {
+            throw error;
+        }
+
+        if (!row) {
+            return res.status(404).json({ error: 'Login code not found' });
+        }
+
+        if (new Date(String(row.expires_at || 0)).getTime() < Date.now()) {
+            await dbClient
+                .from('whatsapp_activation_codes')
+                .update({ status: 'expired', updated_at: new Date().toISOString() })
+                .eq('code', code)
+                .eq('status', 'pending');
+            return res.json({ success: false, status: 'expired' });
+        }
+
+        if (row.status === 'expired') {
+            return res.json({ success: false, status: 'expired' });
+        }
+
+        if (row.status !== 'activated') {
+            return res.json({ success: true, status: 'pending' });
+        }
+
+        const claimed = await dbClient
+            .from('whatsapp_activation_codes')
+            .update({
+                status: 'expired',
+                updated_at: new Date().toISOString(),
+            })
+            .eq('code', code)
+            .eq('status', 'activated')
+            .select('id, code, tenant_id, context_type, context_id, activated_phone')
+            .maybeSingle();
+
+        if (claimed.error) {
+            throw claimed.error;
+        }
+
+        if (!claimed.data) {
+            return res.json({ success: true, status: 'pending' });
+        }
+
+        const userId = String(claimed.data.tenant_id || '').trim();
+        const profile = await getProfileById(userId).catch(() => null);
+        const identity = await getBrokerIdentityById(userId).catch(() => null);
+        const email = String(profile?.email || profile?.phone || claimed.data.activated_phone || userId).trim();
+        const fullName = String(profile?.full_name || identity?.full_name || '').trim() || null;
+        const phone = String(profile?.phone || claimed.data.activated_phone || '').trim() || null;
+        const appRole = String(profile?.app_role || 'broker');
+        const sessionToken = createAppSessionToken({
+            userId,
+            email,
+            phone,
+            fullName,
+            appRole,
         });
 
         return res.json({
             success: true,
-            message: 'Login link sent to your WhatsApp number',
+            status: 'authenticated',
+            session: {
+                access_token: sessionToken,
+                refresh_token: null,
+                expires_at: Math.floor((Date.now() + getAppSessionExpiryMs()) / 1000),
+            },
+            user: {
+                id: userId,
+                email,
+            },
+            profile: profile
+                ? {
+                    id: profile.id,
+                    fullName: profile.full_name,
+                    phone: profile.phone,
+                    email: profile.email,
+                    phoneVerified: profile.phone_verified,
+                    appRole: profile.app_role || 'broker',
+                }
+                : null,
         });
     } catch (error: any) {
-        console.error('[Auth] Login link request failed:', error);
-        const message = String(error?.message || '').toLowerCase();
-        if (message.includes('24-hour customer care window') || message.includes('message template')) {
-            return res.status(409).json({
-                error: 'WhatsApp has not seen a recent message from this number. Open onboarding in WhatsApp first, then request the login link again.',
-            });
-        }
+        console.error('[Auth] Login status lookup failed:', error);
         return res.status(Number(error?.status || 500)).json({
-            error: error?.message || 'Failed to send login link',
+            error: error?.message || 'Failed to check login status',
         });
     }
 });

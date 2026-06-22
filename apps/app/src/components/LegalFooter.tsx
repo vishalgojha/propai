@@ -20,7 +20,7 @@ export const LegalFooter: React.FC<LegalFooterProps> = ({ className = '', compac
     >
       <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[11px] leading-5 text-[var(--text-secondary)]">
-          PropAI Pulse uses password login and device memory to keep sign-in friction low.
+          PropAI Pulse uses WhatsApp-based login and device memory to keep sign-in friction low.
         </p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-medium">
           <Link className={linkClass} to="/privacy-policy">
