@@ -328,31 +328,17 @@ router.get(ROUTE_PATHS.auth.loginStatus, async (req, res) => {
             return res.json({ success: true, status: 'pending' });
         }
 
-        const claimed = await dbClient
-            .from('whatsapp_activation_codes')
-            .update({
-                status: 'expired',
-                updated_at: new Date().toISOString(),
-            })
-            .eq('code', code)
-            .eq('status', 'activated')
-            .select('id, code, tenant_id, context_type, context_id, activated_phone')
-            .maybeSingle();
-
-        if (claimed.error) {
-            throw claimed.error;
-        }
-
-        if (!claimed.data) {
+        const activatedRow = row.status === 'activated' ? row : null;
+        if (!activatedRow) {
             return res.json({ success: true, status: 'pending' });
         }
 
-        const userId = String(claimed.data.tenant_id || '').trim();
+        const userId = String(activatedRow.tenant_id || '').trim();
         const profile = await getProfileById(userId).catch(() => null);
         const identity = await getBrokerIdentityById(userId).catch(() => null);
-        const email = String(profile?.email || profile?.phone || claimed.data.activated_phone || userId).trim();
+        const email = String(profile?.email || profile?.phone || activatedRow.activated_phone || userId).trim();
         const fullName = String(profile?.full_name || identity?.full_name || '').trim() || null;
-        const phone = String(profile?.phone || claimed.data.activated_phone || '').trim() || null;
+        const phone = String(profile?.phone || activatedRow.activated_phone || '').trim() || null;
         const appRole = String(profile?.app_role || 'broker');
         const sessionToken = createAppSessionToken({
             userId,
