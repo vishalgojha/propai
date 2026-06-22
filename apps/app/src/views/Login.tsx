@@ -119,6 +119,7 @@ export const Login: React.FC = () => {
 
         if (status === 'authenticated' && response.data?.session?.access_token) {
           const email = response.data?.user?.email || formatPhone(phoneNumber) || phoneNumber;
+          const welcomeName = String(response.data?.profile?.fullName || response.data?.profile?.full_name || 'there').trim() || 'there';
           login(
             email,
             {
@@ -133,7 +134,7 @@ export const Login: React.FC = () => {
             },
             true,
           );
-          setSuccessMessage('Session unlocked. Redirecting...');
+          setSuccessMessage(`Welcome back, ${welcomeName}. You’re logged in. Redirecting...`);
           setChallengeStatus('authenticated');
           window.clearInterval(poll);
           navigate(nextPath, { replace: true });
@@ -227,7 +228,7 @@ export const Login: React.FC = () => {
         setChallengeLink(deepLink);
         setChallengeExpiresAt(String(response.data?.expiresAt || '').trim() || null);
         setChallengeStatus('pending');
-        setSuccessMessage(`Send the code from ${formatPhone(normalizedPhone)} on WhatsApp. This page will unlock automatically.`);
+        setSuccessMessage(`Send the code from ${formatPhone(normalizedPhone)} on WhatsApp. You’ll see a login confirmation here once it is accepted.`);
         return;
       }
 

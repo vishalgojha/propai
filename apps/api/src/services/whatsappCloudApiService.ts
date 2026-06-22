@@ -488,11 +488,18 @@ export class WhatsAppCloudApiService {
                             if (codeRow.context_type !== 'broker_login') {
                                 await activationCodeService.linkBrokerPhone(codeRow.tenant_id, normalizeDigits(remoteJid));
                             } else {
+                                const { data: profile } = await db
+                                    .from('profiles')
+                                    .select('full_name')
+                                    .eq('id', codeRow.context_id || codeRow.tenant_id)
+                                    .maybeSingle();
+                                const displayName = String(profile?.full_name || '').trim();
+                                const greetingName = displayName || 'there';
                                 await this.sendTextMessage({
                                     tenantId: codeRow.tenant_id,
                                     phoneNumberId,
                                     to: normalizeDigits(remoteJid),
-                                    text: 'Login code received. Open Pulse in your browser — it will unlock automatically.',
+                                    text: `Welcome back, ${greetingName}. You’re logged in to Pulse. Open your browser if it does not switch automatically.`,
                                     replyToMessageId: messageId,
                                 }).catch((error) => {
                                     console.warn('[WhatsAppCloudApiService] Failed to send login confirmation', error);
