@@ -374,7 +374,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
                 .eq('label', sessionLabel);
         }
 
-        if (processRole === 'api') {
+        if (processRole === 'api' && gatewayName !== 'evolution') {
             const requestedAt = new Date().toISOString();
             await dbClient
                 .from('whatsapp_sessions')
@@ -450,12 +450,14 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
             mode: connectMethod,
         });
 
-        const connectResult = await Promise.race([
-            connectPromise,
-            new Promise<null>((resolve) => {
-                setTimeout(() => resolve(null), CONNECT_START_RESPONSE_TIMEOUT_MS);
-            }),
-        ]);
+        const connectResult = gatewayName === 'evolution'
+            ? await connectPromise
+            : await Promise.race([
+                connectPromise,
+                new Promise<null>((resolve) => {
+                    setTimeout(() => resolve(null), CONNECT_START_RESPONSE_TIMEOUT_MS);
+                }),
+              ]);
 
         if (!connectResult) {
             connectPromise.catch(async (error: unknown) => {
