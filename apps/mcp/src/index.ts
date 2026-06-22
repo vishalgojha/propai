@@ -9,6 +9,7 @@ import {
   describeSearch,
   estimatePrice,
   getBrokerActivity,
+  getBuildingIntel,
   getFreshStream,
   getHotLeadTriage,
   getIgrPrice,
@@ -23,7 +24,7 @@ import {
   searchPublicListings,
   summarizeThread,
 } from "./data.js";
-import { formatCurrencyCr, listingLine } from "./format.js";
+import { formatCurrencyCr, formatPerSqft, formatSqft, listingLine } from "./format.js";
 import { registerMcpPrompts } from "./prompts.js";
 import { registerMcpResources } from "./resources.js";
 import type { ToolContext } from "./types.js";
@@ -54,6 +55,7 @@ export const MCP_TOOL_NAMES = [
   "save_listing",
   "set_follow_up",
   "summarise_thread",
+  "building_intel",
 ] as const;
 
 function textResponse(text: string, structured?: unknown) {
@@ -903,6 +905,78 @@ export function createMcpServer(context: ToolContext = {}) {
       return textResponse(`Fresh stream from the last ${input.hours ?? 6} hours in ${place}:\n\n${lines.join("\n")}`, {
         results: rows,
       });
+    },
+  );
+
+  server.registerTool(
+    "building_intel",
+    {
+      description:
+        "Get market intelligence for a building — price per sqft benchmarks, locality supply snapshot, and configuration demand map. Use when a broker asks about rates in a specific building or wants to understand the market for a locality.",
+      inputSchema: {
+        building_name: z.string().describe("Building name to research (e.g. 'Kalpataru Magnus', 'Lodha Bellissimo')"),
+        locality: z.string().optional().describe("Filter to a specific locality (e.g. 'Bandra West', 'Khar West')"),
+        days_back: z.number().default(90).describe("Lookback period in days (default 90, max 365)"),
+      },
+    },
+    async (input) => {
+      await logToolCall(brokerId(context), "building_intel", input);
+      const result = await getBuildingIntel(input);
+
+      if (result.locality_supply.length === 0) {
+        return textResponse(`No data found for "${input.building_name}" in the last ${input.days_back ?? 90} days. Try a broader building name or longer lookback period.`, { result });
+      }
+
+      const lines: string[] = [];
+      lines.push(`📊 Building Intel: ${result.building_name}`);
+      lines.push(`Localities: ${result.matched_localities.join(", ") || "N/A"}`);
+      lines.push(`Period: Last ${result.sample_days} days`);
+      lines.push("");
+
+      if (result.price_benchmarks.sale) {
+        const s = result.price_benchmarks.sale;
+        lines.push("── Sale Benchmark ──");
+        lines.push(`  Avg: ${formatPerSqft(s.avg_price_per_sqft)}`);
+        lines.push(`  Range: ${formatPerSqft(s.min_price_per_sqft)} – ${formatPerSqft(s.max_price_per_sqft)}`);
+        lines.push(`  Based on ${s.listing_count} listing(s)`);
+        if (s.samples.length > 0) {
+          lines.push(`  Samples: ${s.samples.map((x) => `${formatCurrencyCr(x.price)} / ${formatSqft(x.area_sqft)}`).join(", ")}`);
+        }
+        lines.push("");
+      }
+
+      if (result.price_benchmarks.rent) {
+        const r = result.price_benchmarks.rent;
+        lines.push("── Rent Benchmark ──");
+        lines.push(`  Avg: ${formatPerSqft(r.avg_price_per_sqft)}/mo`);
+        lines.push(`  Range: ${formatPerSqft(r.min_price_per_sqft)} – ${formatPerSqft(r.max_price_per_sqft)}/mo`);
+        lines.push(`  Based on ${r.listing_count} listing(s)`);
+        if (r.samples.length > 0) {
+          lines.push(`  Samples: ${r.samples.map((x) => `${formatCurrencyCr(x.price)}/mo / ${formatSqft(x.area_sqft)}`).join(", ")}`);
+        }
+        lines.push("");
+      }
+
+      if (!result.price_benchmarks.sale && !result.price_benchmarks.rent) {
+        lines.push("No price-per-sqft data available (listings missing price or area).");
+        lines.push("");
+      }
+
+      lines.push("── Locality Supply ──");
+      for (const ls of result.locality_supply.slice(0, 6)) {
+        lines.push(`  ${ls.locality}: ${ls.listings} listing(s), ${ls.requirements} requirement(s) — ${ls.ratio}`);
+      }
+      lines.push("");
+
+      if (result.configuration_map.length > 0) {
+        lines.push("── Configuration Mix ──");
+        for (const cm of result.configuration_map.slice(0, 8)) {
+          lines.push(`  ${cm.configuration}: ${cm.count} (${cm.percentage_of_locality}%)`);
+        }
+        lines.push("");
+      }
+
+      return textResponse(lines.join("\n"), { result });
     },
   );
 

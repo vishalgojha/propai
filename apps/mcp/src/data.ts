@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { supabase } from "./supabase.js";
-import { formatBudgetRange, formatCurrencyCr, formatPerSqft, igrSummary, listingLabel, toNumber, formatDate } from "./format.js";
+import { formatBudgetRange, formatCurrencyCr, formatPerSqft, igrSummary, listingLabel, toNumber, formatDate, formatSqft } from "./format.js";
 import type { IgrTransaction, LocalityStats, PublicListing } from "./types.js";
 
 const PUBLIC_LISTING_COLUMNS =
@@ -1441,4 +1441,207 @@ export function buildBroadcastDraft(input: {
   ].filter(Boolean);
 
   return lines.join("\n");
+}
+
+const VALID_BUILDING_CHARS = /[^a-z0-9\s.-]/g;
+
+function normalizeBuildingName(raw: string): string {
+  return raw.trim().toLowerCase().replace(VALID_BUILDING_CHARS, "").replace(/\s+/g, " ").trim();
+}
+
+const BUILDING_NEGATIVES = new Set(["-", "--", "na", "n/a", "none", "nil", "unknown", "ask", "tbd"]);
+
+function isValidBuildingName(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  const v = normalizeBuildingName(raw);
+  return v.length > 1 && !BUILDING_NEGATIVES.has(v);
+}
+
+function normalizeLocality(raw: string | null | undefined): string {
+  return String(raw || "").trim().toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+export type BuildingIntelResponse = {
+  building_name: string;
+  matched_localities: string[];
+  price_benchmarks: {
+    sale: PriceBenchmark | null;
+    rent: PriceBenchmark | null;
+  };
+  locality_supply: LocalitySupplyRow[];
+  configuration_map: ConfigMapRow[];
+  sample_days: number;
+};
+
+export type PriceBenchmark = {
+  avg_price_per_sqft: number | null;
+  min_price_per_sqft: number | null;
+  max_price_per_sqft: number | null;
+  listing_count: number;
+  samples: { price: number; area_sqft: number; per_sqft: number }[];
+};
+
+export type LocalitySupplyRow = {
+  locality: string;
+  listings: number;
+  requirements: number;
+  ratio: string;
+};
+
+export type ConfigMapRow = {
+  configuration: string;
+  count: number;
+  percentage_of_locality: number;
+};
+
+const STREAM_INTEL_COLUMNS = "source_message_id, building_name, locality, city, price_numeric, area_sqft, type, configuration, furnishing, record_type, created_at";
+
+function computePriceBenchmark(rows: Array<{ price_numeric: number | null; area_sqft: number | null }>): PriceBenchmark {
+  const withSqft = rows.filter((r) => r.price_numeric != null && r.area_sqft != null && r.area_sqft > 0) as Array<{
+    price_numeric: number;
+    area_sqft: number;
+  }>;
+
+  if (withSqft.length === 0) {
+    return { avg_price_per_sqft: null, min_price_per_sqft: null, max_price_per_sqft: null, listing_count: 0, samples: [] };
+  }
+
+  const perSqftValues = withSqft.map((r) => ({ price: r.price_numeric, area_sqft: r.area_sqft, per_sqft: r.price_numeric / r.area_sqft }));
+  const values = perSqftValues.map((r) => r.per_sqft).sort((a, b) => a - b);
+
+  return {
+    avg_price_per_sqft: Math.round(values.reduce((a, b) => a + b, 0) / values.length),
+    min_price_per_sqft: Math.round(values[0]),
+    max_price_per_sqft: Math.round(values[values.length - 1]),
+    listing_count: values.length,
+    samples: perSqftValues.slice(0, 5).map((r) => ({
+      price: r.price,
+      area_sqft: r.area_sqft,
+      per_sqft: Math.round(r.per_sqft),
+    })),
+  };
+}
+
+export async function getBuildingIntel(input: {
+  building_name: string;
+  locality?: string;
+  days_back?: number;
+}): Promise<BuildingIntelResponse> {
+  const normalizedBuilding = normalizeBuildingName(input.building_name);
+  const daysBack = Math.min(Math.max(input.days_back ?? 90, 7), 365);
+  const since = new Date(Date.now() - daysBack * 86400000).toISOString();
+
+  const fetchRows = async (table: string) => {
+    let query = supabase
+      .from(table as any)
+      .select(STREAM_INTEL_COLUMNS)
+      .eq("ingestion_status", "accepted")
+      .gte("created_at", since);
+
+    const buildingTokens = normalizedBuilding.split(/\s+/).filter(Boolean);
+    for (const token of buildingTokens) {
+      query = query.ilike("building_name", `%${token}%`);
+    }
+    if (input.locality) {
+      query = query.ilike("locality", `%${normalizeLocality(input.locality)}%`);
+    }
+    const { data, error } = await query;
+    return error ? [] : (data as any[] || []);
+  };
+
+  const [residential, commercial] = await Promise.all([
+    fetchRows("stream_items_residential"),
+    fetchRows("stream_items_commercial"),
+  ]);
+
+  const allRows = [...residential, ...commercial];
+
+  if (allRows.length === 0) {
+    return {
+      building_name: input.building_name,
+      matched_localities: [],
+      price_benchmarks: { sale: null, rent: null },
+      locality_supply: [],
+      configuration_map: [],
+      sample_days: daysBack,
+    };
+  }
+
+  const matchedLocalities = [...new Set(allRows.map((r) => normalizeLocality(r.locality)).filter(Boolean))];
+
+  const listings = allRows.filter((r) => r.record_type === "listing");
+  const requirements = allRows.filter((r) => r.record_type === "requirement");
+
+  const saleListings = listings.filter((r) => r.type === "Sale");
+  const rentListings = listings.filter((r) => ["Rent", "Lease", "Pre-leased"].includes(r.type));
+
+  const saleBenchmark = computePriceBenchmark(saleListings);
+  const rentBenchmark = computePriceBenchmark(rentListings);
+
+  const localityMap = new Map<string, { listings: Set<string>; requirements: Set<string>; types: Record<string, Set<string>> }>();
+
+  for (const row of allRows) {
+    const loc = normalizeLocality(row.locality);
+    if (!loc) continue;
+    if (!localityMap.has(loc)) {
+      localityMap.set(loc, { listings: new Set(), requirements: new Set(), types: {} });
+    }
+    const entry = localityMap.get(loc)!;
+
+    if (row.record_type === "listing") {
+      entry.listings.add(row.source_message_id);
+      const t = row.type || "unknown";
+      if (!entry.types[t]) entry.types[t] = new Set();
+      entry.types[t].add(row.source_message_id);
+    } else if (row.record_type === "requirement") {
+      entry.requirements.add(row.source_message_id);
+    }
+  }
+
+  const localitySupply: LocalitySupplyRow[] = [];
+  for (const [loc, data] of localityMap) {
+    const listingCount = data.listings.size;
+    const reqCount = data.requirements.size;
+    const ratio =
+      reqCount === 0
+        ? "seller's market"
+        : listingCount / reqCount >= 3
+          ? "seller's market"
+          : listingCount / reqCount >= 1
+            ? "balanced"
+            : "buyer's market";
+    localitySupply.push({ locality: loc, listings: listingCount, requirements: reqCount, ratio });
+  }
+  localitySupply.sort((a, b) => b.listings - a.listings);
+
+  const configMap = new Map<string, Set<string>>();
+  let localityTotalConfigs = 0;
+
+  for (const row of listings) {
+    const cfg = String(row.configuration || "").trim().toUpperCase();
+    if (!cfg || /^n\/?a$/i.test(cfg) || cfg === "-") continue;
+    if (!configMap.has(cfg)) configMap.set(cfg, new Set());
+    configMap.get(cfg)!.add(row.source_message_id);
+  }
+
+  localityTotalConfigs = [...configMap.values()].reduce((sum, s) => sum + s.size, 0);
+
+  const configurationMap: ConfigMapRow[] = [];
+  for (const [cfg, ids] of configMap) {
+    configurationMap.push({
+      configuration: cfg,
+      count: ids.size,
+      percentage_of_locality: localityTotalConfigs > 0 ? Math.round((ids.size / localityTotalConfigs) * 100) : 0,
+    });
+  }
+  configurationMap.sort((a, b) => b.count - a.count);
+
+  return {
+    building_name: input.building_name,
+    matched_localities: matchedLocalities,
+    price_benchmarks: { sale: saleBenchmark, rent: rentBenchmark },
+    locality_supply: localitySupply,
+    configuration_map: configurationMap,
+    sample_days: daysBack,
+  };
 }
