@@ -410,6 +410,28 @@ const formatLocalityCell = (value?: string | null) => {
   return text;
 };
 
+const buildWaShareUrl = (listing: StreamItem): string | null => {
+  const link = listing.brokerWaMeLinks?.[0] || listing.waLink;
+  if (!link) return null;
+  const phone = link.replace(/^https?:\/\/wa\.me\//, '').split('?')[0].replace(/\D/g, '');
+  if (!phone) return null;
+
+  const ref = listing.refNo ? `${listing.refNo} — ` : '';
+  const typeLabel = getTypeLabel(listing);
+  const recordLabel = getRecordLabel(listing);
+  const config = listing.configuration || '';
+  const locality = listing.location || '';
+  const building = listing.buildingName ? ` in ${listing.buildingName}` : '';
+  const area = listing.areaSqft ? `${formatAreaCell(listing.areaSqft)}` : '';
+  const price = listing.price ? `${normalizePriceDisplay(listing).label || listing.price}` : '';
+  const furnishing = listing.furnishing || '';
+  const floor = listing.floorNumber ? `Floor ${listing.floorNumber}` : '';
+  const detailParts = [area, price, furnishing, floor].filter(Boolean);
+  const detailLine = detailParts.length > 0 ? `\n${detailParts.join(' · ')}` : '';
+
+  return `https://wa.me/${phone}?text=${encodeURIComponent(`${ref}${recordLabel} — ${typeLabel} — ${config}${building} in ${locality}${detailLine}`.trim())}`;
+};
+
 const buildStreamDedupeKey = (item: StreamItem) =>
   normalizeSearchText(
     [
@@ -1882,13 +1904,13 @@ if (brokerOnly) {
                           <td className="px-4 py-3">
                             <button
                               type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                const waLink = listing.brokerWaMeLinks?.[0] || listing.waLink;
-                                if (!waLink) return;
-                                window.open(waLink, '_blank', 'noopener,noreferrer');
-                              }}
-                              disabled={!listing.brokerWaMeLinks?.[0] && !listing.waLink}
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            const waLink = buildWaShareUrl(listing);
+                                            if (!waLink) return;
+                                            window.open(waLink, '_blank', 'noopener,noreferrer');
+                                          }}
+                                          disabled={!listing.brokerWaMeLinks?.[0] && !listing.waLink}
                               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--border)] bg-[var(--bg-elevated)] text-[16px] transition-colors hover:border-[color:var(--accent-border)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
                               aria-label="Open WhatsApp"
                             >
@@ -1928,7 +1950,7 @@ if (brokerOnly) {
                                           type="button"
                                           onClick={(event) => {
                                             event.stopPropagation();
-                                            const waLink = listing.brokerWaMeLinks?.[0] || listing.waLink;
+                      const waLink = buildWaShareUrl(listing);
                                             if (!waLink) return;
                                             window.open(waLink, '_blank', 'noopener,noreferrer');
                                           }}
