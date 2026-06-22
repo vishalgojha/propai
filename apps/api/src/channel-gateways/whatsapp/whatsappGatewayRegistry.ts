@@ -39,10 +39,5 @@ export async function getWhatsAppGateway(workspaceOwnerId?: string): Promise<Wha
         }
     }
 
-    const evolutionUrl = String(process.env.EVOLUTION_API_URL || '').trim();
-    if (evolutionUrl) {
-        return evolutionApiGateway;
-    }
-
     return cloudApiGateway;
 }
