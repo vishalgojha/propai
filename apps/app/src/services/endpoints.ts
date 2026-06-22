@@ -53,6 +53,8 @@ export const ENDPOINTS = {
     referral: '/workspace/referral',
   },
     whatsapp: {
+    connect: '/whatsapp/connect',
+    qr: '/whatsapp/qr',
     status: '/whatsapp/status',
     health: '/whatsapp/health',
     healthDetailed: '/whatsapp/health/detailed',

@@ -54,6 +54,7 @@ interface SettingsState {
   dailyBriefing: boolean;
   highValueLeads: boolean;
   performanceAnalytics: boolean;
+  gateway_type: string;
 }
 
 interface WorkspaceMetadataState {
@@ -254,6 +255,7 @@ export const Settings: React.FC = () => {
     dailyBriefing: true,
     highValueLeads: true,
     performanceAnalytics: false,
+    gateway_type: 'cloud_api',
   });
 
   const [syndicationPartners, setSyndicationPartners] = useState<SyndicationPartner[]>([]);
@@ -901,6 +903,29 @@ export const Settings: React.FC = () => {
               value={settings.noiseFilter}
               onToggle={() => updateSetting('noiseFilter', !settings.noiseFilter)}
             />
+            <SelectRow
+              title="WhatsApp Gateway"
+              description="Cloud API uses Meta's official WABA. Evolution API uses QR-pairing (for broker phone numbers)."
+            >
+              <div className="flex items-center gap-3">
+                <select
+                  value={settings.gateway_type || 'cloud_api'}
+                  onChange={(e) => updateSetting('gateway_type', e.target.value)}
+                  className="w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none sm:w-auto"
+                >
+                  <option value="cloud_api">Cloud API (Meta WABA)</option>
+                  <option value="evolution">Evolution API (QR — broker phone)</option>
+                </select>
+                {settings.gateway_type === 'evolution' && (
+                  <a
+                    href="/whatsapp/evolution/setup"
+                    className="shrink-0 rounded-full bg-[var(--accent)] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#020f07] hover:brightness-95 transition-all"
+                  >
+                    Connect
+                  </a>
+                )}
+              </div>
+            </SelectRow>
           </SurfaceSection>
 
           <SurfaceSection title="AI Behavior" subtitle="How Pulse decides, thinks, and keeps context." icon={WorkflowIcon}>
