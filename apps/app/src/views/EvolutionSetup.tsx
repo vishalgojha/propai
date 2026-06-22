@@ -36,6 +36,7 @@ export function EvolutionSetup() {
         label: "Evolution",
         ownerName: "Evolution",
         connectMethod: "qr",
+        gateway: "evolution",
       });
       setFeedback({ tone: "success", message: "Connection initiated. Fetching QR code..." });
       await fetchQR();
@@ -96,6 +97,7 @@ export function EvolutionSetup() {
         label: "Evolution",
         ownerName: "Evolution",
         connectMethod: "pairing",
+        gateway: "evolution",
       });
       setFeedback({ tone: "success", message: `Pairing code requested for ${phoneNumber}. Check your WhatsApp notifications.` });
       setLoading(false);
@@ -194,7 +196,7 @@ export function EvolutionSetup() {
       </section>
 
       <section className="rounded-[16px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-5 text-sm text-[var(--text-secondary)]">
-        <p><strong className="text-[var(--text-primary)]">Note:</strong> Make sure <strong className="text-[var(--text-primary)]">WhatsApp Gateway</strong> is set to <strong className="text-[var(--accent)]">Evolution API</strong> in <a href="/settings" className="text-[var(--accent)] underline underline-offset-2">Settings</a>. Cloud API tenants should keep using Cloud API — this screen is only for broker phone numbers that need QR-based pairing.</p>
+        <p><strong className="text-[var(--text-primary)]">Note:</strong> Evolution API runs alongside Cloud API — both active simultaneously. Cloud API handles platform messaging (magic links, Pulse replies). Evolution API connects broker phones via QR for group monitoring. <a href="/settings" className="text-[var(--accent)] underline underline-offset-2">Settings</a></p>
       </section>
     </main>
   );

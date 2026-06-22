@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { getWhatsAppGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
+import { getWhatsAppGateway, getEvolutionApiGateway } from '../channel-gateways/whatsapp/whatsappGatewayRegistry';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { subscriptionService } from '../services/subscriptionService';
 import { whatsappHealthService } from '../services/whatsappHealthService';
@@ -285,10 +285,11 @@ function formatProfileResponse(profile: Record<string, unknown> | null, fallback
 export const connectWhatsApp = async (req: Request, res: Response) => {
     const { phoneNumber, label, ownerName } = req.body;
     const connectMethod = req.body?.connectMethod === 'pairing' ? 'pairing' : 'qr';
+    const gatewayName = req.body?.gateway === 'evolution' ? 'evolution' : 'cloud_api';
     const context = await workspaceAccessService.resolveContext(req.user ?? {});
     const tenantId = context.workspaceOwnerId;
     let sessionLabel = buildSessionLabel(ownerName || label, phoneNumber);
-    const gateway = await getWhatsAppGateway(tenantId);
+    const gateway = gatewayName === 'evolution' ? getEvolutionApiGateway() : await getWhatsAppGateway(tenantId);
     const processRole = resolveProcessRole(process.env.PROPAI_PROCESS_ROLE);
     let requestedPhone = normalizeRecipientPhone(phoneNumber);
     let lockedWorkspacePhone: string | null = null;
