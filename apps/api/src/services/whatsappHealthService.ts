@@ -642,7 +642,7 @@ export class WhatsAppHealthService {
             messagesFailed24h: 0,
         });
 
-        const liveSessions = await getWhatsAppGateway(tenantId).getSessions(tenantId);
+        const liveSessions = await (await getWhatsAppGateway(tenantId)).getSessions(tenantId);
         const sessionsWithReconnect = sessions.map(session => {
             const liveSession = liveSessions.find((s: any) => s.label === session.sessionLabel);
             return {

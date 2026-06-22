@@ -23,7 +23,7 @@ function cleanMessageText(text: unknown) {
 export class AgentToolService {
     async executeTool(name: string, args: any, context: ExecuteAgentToolContext): Promise<any> {
         const { tenantId, remoteJid, promptText } = context;
-        const gateway = getWhatsAppGateway(tenantId);
+        const gateway = await getWhatsAppGateway(tenantId);
 
         switch (name) {
             case 'get_groups': {
@@ -273,7 +273,7 @@ export class AgentToolService {
             if (!profile?.phone) return;
 
             const brokerJid = `${profile.phone.startsWith('+') ? profile.phone.slice(1) : profile.phone}@s.whatsapp.net`;
-            await getWhatsAppGateway(tenantId).sendMessage({
+            await (await getWhatsAppGateway(tenantId)).sendMessage({
                 workspaceOwnerId: tenantId,
                 remoteJid: brokerJid,
                 text: message,

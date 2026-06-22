@@ -86,7 +86,7 @@ export class RuntimeStatusService {
             explicitDefaultModel || defaultModel,
         );
 
-        const liveSessions = await getWhatsAppGateway(tenantId).getSessions(tenantId).catch((error) => {
+        const liveSessions = await (await getWhatsAppGateway(tenantId)).getSessions(tenantId).catch((error) => {
             console.warn('[runtimeStatusService] Failed to read WhatsApp sessions', error);
             return [];
         });

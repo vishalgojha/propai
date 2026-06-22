@@ -19,7 +19,7 @@ export class BroadcastExecutor {
       if (campaign.status !== 'sending') throw new Error('Campaign is not in sending status');
       if (!campaign.accepted_risk) throw new Error('Risk not accepted for this campaign');
 
-      const gateway = getWhatsAppGateway(campaign.tenant_id);
+      const gateway = await getWhatsAppGateway(campaign.tenant_id);
 
       const { supabaseAdmin } = await import('../config/supabase');
       const { data: recipients, error } = await supabaseAdmin!

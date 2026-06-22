@@ -24,6 +24,7 @@ import syndicationRoutes from './routes/syndicationRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import locationRoutes from './routes/locationRoutes';
 import whatsappCloudRoutes from './routes/whatsappCloudRoutes';
+import evolutionWebhookRoutes from './routes/evolutionWebhookRoutes';
 import wabaRoutes from './routes/wabaRoutes';
 import { backfillEmbeddings } from './controllers/backfillEmbeddingsController';
 import fs from 'fs';
@@ -273,6 +274,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.post('/api/backfill-embeddings', backfillEmbeddings);
 app.use('/api/location', locationRoutes);
 app.use('/api/waba', wabaRoutes);
+app.use(evolutionWebhookRoutes);
 
 app.get(ROUTE_PATHS.api.health, async (req, res) => {
     const health: Record<string, unknown> = {

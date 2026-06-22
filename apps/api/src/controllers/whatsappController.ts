@@ -288,7 +288,7 @@ export const connectWhatsApp = async (req: Request, res: Response) => {
     const context = await workspaceAccessService.resolveContext(req.user ?? {});
     const tenantId = context.workspaceOwnerId;
     let sessionLabel = buildSessionLabel(ownerName || label, phoneNumber);
-    const gateway = getWhatsAppGateway(tenantId);
+    const gateway = await getWhatsAppGateway(tenantId);
     const processRole = resolveProcessRole(process.env.PROPAI_PROCESS_ROLE);
     let requestedPhone = normalizeRecipientPhone(phoneNumber);
     let lockedWorkspacePhone: string | null = null;
@@ -578,7 +578,7 @@ export const forceRefreshQR = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
     const { label } = req.body || {};
     let sessionKey = label || undefined;
-    const gateway = getWhatsAppGateway(tenantId);
+    const gateway = await getWhatsAppGateway(tenantId);
     const processRole = resolveProcessRole(process.env.PROPAI_PROCESS_ROLE);
 
     try {
@@ -761,7 +761,7 @@ export const getQR = async (req: Request, res: Response) => {
     const context = await workspaceAccessService.resolveContext(req.user ?? {});
     const tenantId = context.workspaceOwnerId;
     const label = typeof req.query.label === 'string' ? req.query.label : undefined;
-    const gateway = getWhatsAppGateway(tenantId);
+    const gateway = await getWhatsAppGateway(tenantId);
 
     const qr = await gateway.getQRCode({ workspaceOwnerId: tenantId as string, sessionLabel: label });
     
@@ -832,7 +832,7 @@ export const getQR = async (req: Request, res: Response) => {
 export const getStatus = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
     const user = req.user;
-    const gateway = getWhatsAppGateway(tenantId);
+    const gateway = await getWhatsAppGateway(tenantId);
 
     if (tenantId === 'system') {
         const status = await gateway.getStatus({ workspaceOwnerId: tenantId });
@@ -844,7 +844,7 @@ export const getStatus = async (req: Request, res: Response) => {
 
     const context = await workspaceAccessService.resolveContext(req.user ?? {});
     const workspaceOwnerId = context.workspaceOwnerId;
-    const workspaceGateway = getWhatsAppGateway(workspaceOwnerId);
+    const workspaceGateway = await getWhatsAppGateway(workspaceOwnerId);
 
     const { data, error } = await getDbClient()
         .from('whatsapp_sessions')
@@ -1113,7 +1113,7 @@ export const disconnectWhatsApp = async (req: Request, res: Response) => {
     const user = req.user;
     const fallbackEmail = String(user?.email || '').trim().toLowerCase() || null;
     const fallbackFullName = String(user?.full_name || user?.name || '').trim() || null;
-    const gateway = getWhatsAppGateway(tenantId);
+    const gateway = await getWhatsAppGateway(tenantId);
     const dbClient = getDbClient();
 
     try {
@@ -1198,7 +1198,7 @@ export const resetWhatsAppSession = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
     const { label, phoneNumber } = req.body || {};
     const dbClient = getDbClient();
-    const gateway = getWhatsAppGateway(tenantId);
+    const gateway = await getWhatsAppGateway(tenantId);
     let targetLabel: string | undefined = label || undefined;
 
     try {
@@ -1273,7 +1273,7 @@ export const resetAllWhatsAppSessions = async (req: Request, res: Response) => {
     const context = await workspaceAccessService.resolveContext(req.user ?? {});
     const tenantId = context.workspaceOwnerId;
     const dbClient = getDbClient();
-    const gateway = getWhatsAppGateway(tenantId);
+    const gateway = await getWhatsAppGateway(tenantId);
 
     try {
         const [dbResult, liveSessions] = await Promise.all([
@@ -1359,7 +1359,7 @@ export const getIngestionHealth = async (req: Request, res: Response) => {
 
 export const getDetailedHealth = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
-    const gateway = getWhatsAppGateway(tenantId);
+    const gateway = await getWhatsAppGateway(tenantId);
 
     try {
         const [health, sessionsResult, eventsResult] = await Promise.all([
@@ -1962,7 +1962,7 @@ export const getInboxThreadMessages = async (req: Request, res: Response) => {
 export const getGroups = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
     const requestedSessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel.trim() : null;
-    const gateway = getWhatsAppGateway(tenantId);
+    const gateway = await getWhatsAppGateway(tenantId);
 
     try {
         const sessionLabels = requestedSessionLabel
@@ -2023,7 +2023,7 @@ export const getGroupsAudit = async (req: Request, res: Response) => {
 
     try {
         const context = await workspaceAccessService.resolveContext(req.user ?? {});
-        const gateway = getWhatsAppGateway(context.workspaceOwnerId);
+        const gateway = await getWhatsAppGateway(context.workspaceOwnerId);
         let groups: Awaited<ReturnType<typeof gateway.listGroups>> = [];
         let audit = await groupAuditService.getAudit(context.workspaceOwnerId, sessionLabel);
 
@@ -2086,7 +2086,7 @@ export const rescanGroups = async (req: Request, res: Response) => {
 
     try {
         const context = await workspaceAccessService.resolveContext(req.user ?? {});
-        const gateway = getWhatsAppGateway(context.workspaceOwnerId);
+        const gateway = await getWhatsAppGateway(context.workspaceOwnerId);
 
         const liveGroups = await gateway.listGroups({
             workspaceOwnerId: context.workspaceOwnerId,
@@ -2230,7 +2230,7 @@ export const sendMessage = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
     const { remoteJid, text, sessionKey } = req.body;
     const user = req.user;
-    const gateway = getWhatsAppGateway(tenantId);
+    const gateway = await getWhatsAppGateway(tenantId);
     if (!tenantId || !remoteJid || !text) {
         return res.status(400).json({ error: 'remoteJid and text are required' });
     }
@@ -2290,7 +2290,7 @@ export const sendBulkDirectMessages = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
     const { recipients, text, sessionKey } = req.body || {};
     const user = req.user;
-    const gateway = getWhatsAppGateway(tenantId);
+    const gateway = await getWhatsAppGateway(tenantId);
 
     if (!tenantId || !Array.isArray(recipients) || recipients.length === 0 || !String(text || '').trim()) {
         return res.status(400).json({ error: 'recipients and text are required' });
@@ -2375,7 +2375,7 @@ export const broadcastToGroups = async (req: Request, res: Response) => {
     const tenantId = context.workspaceOwnerId;
     const { groupJids, text, batchSize, delayBetweenMessages, delayBetweenBatches, sessionKey } = req.body || {};
     const user = req.user;
-    const gateway = getWhatsAppGateway(tenantId);
+    const gateway = await getWhatsAppGateway(tenantId);
 
     if (!tenantId || !Array.isArray(groupJids) || groupJids.length === 0 || !text) {
         return res.status(400).json({ error: 'groupJids and text are required' });
