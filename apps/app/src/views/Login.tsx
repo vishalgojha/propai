@@ -310,7 +310,8 @@ export const Login: React.FC = () => {
                     <span className="block text-[var(--accent)]">your WhatsApp number.</span>
                   </h1>
                   <p className="mt-5 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                    No password. We create a secure login code for the number on file, you send it from WhatsApp, and the browser restores your session.
+                    No password. We check whether your number already exists.
+                    If it does, we create a secure login code. If it does not, you should start WhatsApp onboarding first.
                   </p>
                 </div>
 
@@ -367,7 +368,8 @@ export const Login: React.FC = () => {
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access PropAI Pulse</p>
                   <h2 className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">WhatsApp login challenge</h2>
                   <p className="mt-2 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
-                    Enter the 10-digit WhatsApp number on your account. We will generate a one-time code and wait for you to send it from WhatsApp.
+                    Enter the 10-digit WhatsApp number on your account.
+                    We will look it up first: existing accounts get a login code, new numbers are redirected to onboarding.
                   </p>
                 </div>
 
