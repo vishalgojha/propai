@@ -23,6 +23,7 @@ import {
   WorkflowIcon,
   UsersIcon,
   InboxIcon,
+  QrCodeIcon,
 } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
 import { useInbox } from '../hooks/useInbox';
@@ -40,6 +41,7 @@ const NAV_ITEMS = [
   { label: 'Stream', path: '/stream', icon: StreamIcon },
   { label: 'Intelligence', path: '/intelligence', icon: ActivityIcon },
   { label: 'WhatsApp Business', path: '/whatsapp/setup', icon: GroupsIcon },
+  { label: 'Evolution API', path: '/whatsapp/evolution/setup', icon: QrCodeIcon },
   { label: 'Broker Network', path: '/broker-network/contacts', icon: UsersIcon },
   { label: 'Syndication', path: '/broker-network/partners', icon: UsersIcon },
   { label: 'Profile & Team', path: '/team', icon: ShieldIcon },
