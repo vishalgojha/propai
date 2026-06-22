@@ -2471,7 +2471,7 @@ private highValueLeadAlertKeys = new Set<string>();
              void this.maybeSendPerformanceAnalytics(tenantId, email);
          }
 
-         const readClient = accessToken ? createSupabaseAnonClient(accessToken) : this.db;
+         const readClient = this.db;
          const accessibleTenantIds = await this.getNetworkTenantIds(tenantId, networkMode);
 
         if (channelId) {

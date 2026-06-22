@@ -26,14 +26,35 @@ function requireSupabaseAnonConfig() {
   }
 }
 
+function isPropaiAppSessionToken(token?: string) {
+  if (!token || typeof token !== 'string') {
+    return false;
+  }
+
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    return false;
+  }
+
+  try {
+    const payload = JSON.parse(
+      Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')
+    );
+    return payload?.typ === 'propai-app-session';
+  } catch {
+    return false;
+  }
+}
+
 export const createSupabaseAnonClient = (accessToken?: string) => {
   requireSupabaseAnonConfig();
-  return createClient(supabaseUrl, supabaseAnonKey, accessToken
+  const tokenToUse = accessToken && !isPropaiAppSessionToken(accessToken) ? accessToken : undefined;
+  return createClient(supabaseUrl, supabaseAnonKey, tokenToUse
     ? {
         ...serverClientOptions,
         global: {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${tokenToUse}`,
           },
         },
       }
