@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getMonitorMessages, disconnectWhatsApp, resetWhatsAppSession, resetAllWhatsAppSessions, getMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getHistoryDebug, getEvents, getHealthLogs, submitSupportLogs, getOutboundRecipients } from '../controllers/whatsappController';
+import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getMonitorMessages, disconnectWhatsApp, resetWhatsAppSession, resetAllWhatsAppSessions, getMessages, getInboxThreads, getInboxThreadMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getHistoryDebug, getEvents, getHealthLogs, submitSupportLogs, getOutboundRecipients } from '../controllers/whatsappController';
 import { importHistoryTxt, getHistoryImports, checkDuplicateImports, backfillHistoryToStream } from '../controllers/historyController';
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
@@ -31,6 +31,8 @@ router.post(ROUTE_PATHS.whatsapp.supportLogs, submitSupportLogs);
 router.get(ROUTE_PATHS.whatsapp.profile, getProfile);
 router.post(ROUTE_PATHS.whatsapp.profile, validate(saveProfileSchema), saveProfile);
 router.get(ROUTE_PATHS.whatsapp.messages, getMessages);
+router.get('/inbox/threads', getInboxThreads);
+router.get('/inbox/messages', getInboxThreadMessages);
 router.post(ROUTE_PATHS.whatsapp.send, validate(sendMessageSchema), sendMessage);
 router.post(ROUTE_PATHS.whatsapp.sendBulk, validate(sendBulkSchema), sendBulkDirectMessages);
 router.post(ROUTE_PATHS.whatsapp.broadcast, validate(broadcastSchema), broadcastToGroups);

@@ -61,6 +61,8 @@ export const ENDPOINTS = {
     healthLogs: '/whatsapp/health/logs',
     events: '/whatsapp/events',
     messages: '/whatsapp/messages',
+    inboxThreads: '/whatsapp/inbox/threads',
+    inboxMessages: '/whatsapp/inbox/messages',
     send: '/whatsapp/send',
     resetAll: '/whatsapp/reset-all',
     cloudConfig: '/whatsapp/cloud/config',

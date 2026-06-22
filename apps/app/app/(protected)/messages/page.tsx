@@ -1,6 +1,7 @@
-import { redirect } from "next/navigation";
-import { protectedRouteRedirects } from "../routeRedirects";
+"use client";
+
+import { WhatsAppInbox } from "@/pages/WhatsAppInbox";
 
 export default function Page() {
-  redirect(protectedRouteRedirects.agent);
+  return <WhatsAppInbox />;
 }

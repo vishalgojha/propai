@@ -1925,6 +1925,40 @@ export const getMessages = async (req: Request, res: Response) => {
     }));
 };
 
+export const getInboxThreads = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const sessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel.trim() : null;
+        const threads = await whatsappThreadService.listThreads(context.workspaceOwnerId, sessionLabel || undefined);
+        res.json({ threads });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load inbox chats') });
+    }
+};
+
+export const getInboxThreadMessages = async (req: Request, res: Response) => {
+    try {
+        const context = await workspaceAccessService.resolveContext(req.user ?? {});
+        const remoteJid = String(req.query.remoteJid || '').trim();
+        if (!remoteJid) {
+            return res.status(400).json({ error: 'remoteJid is required' });
+        }
+
+        const { data, error } = await getDbClient()
+            .from('messages')
+            .select('id, remote_jid, sender, text, timestamp, session_label, created_at')
+            .eq('tenant_id', context.workspaceOwnerId)
+            .eq('remote_jid', remoteJid)
+            .order('timestamp', { ascending: true })
+            .limit(500);
+        if (error) return res.status(500).json({ error: error.message });
+
+        res.json({ messages: data || [] });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load chat messages') });
+    }
+};
+
 export const getGroups = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
     const requestedSessionLabel = typeof req.query.sessionLabel === 'string' ? req.query.sessionLabel.trim() : null;
