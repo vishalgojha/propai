@@ -557,7 +557,20 @@ export default function ProjectCreate() {
           </section>
 
           <section className={sectionClass}>
-            <h2 className={sectionTitleClass}>Media & Gallery</h2>
+            <div className="mb-2">
+              <h2 className={sectionTitleClass}>Media & Gallery</h2>
+              <div className="mt-3 rounded-xl border border-[color:var(--accent)]/20 bg-[var(--accent)]/5 p-3 sm:p-4">
+                <h3 className="text-[12px] font-bold text-[var(--accent)] mb-1.5 flex items-center gap-1.5">
+                  <FileUp className="h-3.5 w-3.5" /> How to use public URLs instead of uploading?
+                </h3>
+                <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                  PropAI uses public links to keep forms fast and prevent storage overhead.
+                  <br />• <strong>Google Drive:</strong> Upload the file, click "Share", set access to "Anyone with the link", and paste the link.
+                  <br />• <strong>Developer Website:</strong> Right-click an image on their site and select "Copy image address".
+                  <br />• <strong>Image Hosts:</strong> Upload to a free host like Imgur or Postimages and paste the direct link.
+                </p>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
@@ -599,7 +612,10 @@ export default function ProjectCreate() {
 
         <section className={sectionClass}>
           <div className="flex items-center justify-between gap-4">
-            <h2 className={sectionTitleClass}>Floor Plans</h2>
+            <div>
+              <h2 className={sectionTitleClass}>Floor Plans</h2>
+              <p className="text-[12px] text-[var(--text-secondary)] mt-1">Use Google Drive or public links for plan images.</p>
+            </div>
             <button type="button" onClick={() => setFloorPlans((prev) => [...prev, emptyFloorPlan()])} className="h-9 px-3 rounded-lg border border-white/5 text-[11px] font-bold text-[var(--text-secondary)] flex items-center gap-1.5 hover:border-[var(--accent)]/30 hover:text-[var(--accent)]">
               <Plus className="h-3.5 w-3.5" /> Add Plan
             </button>
@@ -639,7 +655,7 @@ export default function ProjectCreate() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className={sectionTitleClass}>Resources & Brochures</h2>
-              <p className="text-[12px] text-[var(--text-secondary)] mt-1">Brochures, cost sheets, payment plans, and other downloadable files</p>
+              <p className="text-[12px] text-[var(--text-secondary)] mt-1">Add Google Drive or public links for downloadable PDFs and sheets</p>
             </div>
             <button type="button" onClick={() => setResources((prev) => [...prev, emptyResource()])} className="h-9 px-3 rounded-lg border border-white/5 text-[11px] font-bold text-[var(--text-secondary)] flex items-center gap-1.5 hover:border-[var(--accent)]/30 hover:text-[var(--accent)]">
               <Plus className="h-3.5 w-3.5" /> Add Resource
@@ -793,7 +809,7 @@ export default function ProjectCreate() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h2 className={sectionTitleClass}>Broker Resources</h2>
-                <p className="text-[12px] text-[var(--text-secondary)] mt-1">Broker-only files like incentive sheets</p>
+                <p className="text-[12px] text-[var(--text-secondary)] mt-1">Public links to broker-only files like incentive sheets</p>
               </div>
               <button type="button" onClick={() => setBrokerResources((prev) => [...prev, emptyBrokerResource()])} className="h-9 px-3 rounded-lg border border-white/5 text-[11px] font-bold text-[var(--text-secondary)] flex items-center gap-1.5 hover:border-[var(--accent)]/30 hover:text-[var(--accent)]">
                 <Plus className="h-3.5 w-3.5" /> Add File
