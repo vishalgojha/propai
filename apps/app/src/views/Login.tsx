@@ -228,7 +228,7 @@ export const Login: React.FC = () => {
         setChallengeLink(deepLink);
         setChallengeExpiresAt(String(response.data?.expiresAt || '').trim() || null);
         setChallengeStatus('pending');
-        setSuccessMessage(`Send the code from ${formatPhone(normalizedPhone)} on WhatsApp. You’ll see a login confirmation here once it is accepted.`);
+        setSuccessMessage(`Send this code from ${formatPhone(normalizedPhone)} on WhatsApp. This page will sign you in automatically once we receive it.`);
         return;
       }
 
@@ -366,10 +366,9 @@ export const Login: React.FC = () => {
                 </div>
                 <div className="mb-5">
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access PropAI Pulse</p>
-                  <h2 className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">WhatsApp login challenge</h2>
+                  <h2 className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">Verify on WhatsApp</h2>
                   <p className="mt-2 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
-                    Enter the 10-digit WhatsApp number on your account.
-                    We will look it up first: existing accounts get a login code, new numbers are redirected to onboarding.
+                    Enter your 10-digit WhatsApp number. If you already have an account, we’ll give you a code to send on WhatsApp — no password needed.
                   </p>
                 </div>
 
@@ -406,10 +405,10 @@ export const Login: React.FC = () => {
 
                   {challengeCode ? (
                     <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
-                      <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Login code</p>
+                      <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Your login code</p>
                       <p className="mt-1 text-[18px] font-bold tracking-[0.12em] text-[var(--text-primary)]">{challengeCode}</p>
                       {challengeExpiresAt ? (
-                        <p className="mt-2 text-[11px] text-[var(--text-secondary)]">Expires at {new Date(challengeExpiresAt).toLocaleString()}</p>
+                        <p className="mt-2 text-[11px] text-[var(--text-secondary)]">Valid until {new Date(challengeExpiresAt).toLocaleString()}</p>
                       ) : null}
                       <a
                         href={challengeLink}
@@ -419,12 +418,15 @@ export const Login: React.FC = () => {
                       >
                         Open WhatsApp and send code
                       </a>
+                      <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
+                        Send the code from the same number you entered above. Do not type it here.
+                      </p>
                     </div>
                   ) : null}
 
                   <button type="submit" disabled={isLoading} className={authPrimaryButton + ' w-full'}>
                     {isLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : null}
-                    Create login code
+                    Get login code
                   </button>
                 </form>
 
@@ -432,7 +434,7 @@ export const Login: React.FC = () => {
                   <div className="flex items-start gap-2">
                     <CheckIcon className="mt-0.5 h-4 w-4 text-[var(--accent)]" />
                     <p className="text-[11px] leading-5 text-[var(--text-secondary)]">
-                      This keeps the conversation user-initiated. You send the code first, and the browser unlocks only after your WhatsApp message arrives.
+                      You send the code on WhatsApp first. We verify it’s from your number, then this page signs you in — no password required.
                     </p>
                   </div>
                 </div>
