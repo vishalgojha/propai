@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 
@@ -12,7 +12,6 @@ import {
   Search, 
   Sparkles, 
   Map, 
-  LineChart, 
   MessageCircle, 
   Shield, 
   CheckCircle, 
@@ -84,7 +83,7 @@ type ChatStage = 'name' | 'move_in' | 'profile' | 'deposit' | 'whatsapp' | 'subm
 export default function Home({ initialListings = [], todayCount = 0 }: { initialListings?: PublicListing[]; todayCount?: number }) {
   const router = useRouter();
   // Navigation & Interactive Tabs
-  const [activeTab, setActiveTab] = useState<'feed' | 'map' | 'analytics'>('feed');
+  const [activeTab, setActiveTab] = useState<'feed' | 'map'>('feed');
   
   // Data States
   const [allListings, setAllListings] = useState<PublicListing[]>(initialListings);
@@ -118,9 +117,6 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
   
   // Dynamic parsed activity ticker data (from real listings)
   const [tickerItems, setTickerItems] = useState<string[]>([]);
-
-  // Analytics Canvas Ref
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Initialize dynamic rotation header
   useEffect(() => {
@@ -376,82 +372,6 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
     }, 1000);
   }, [chatStage, clientName, answers, selectedListing, activeBroker]);
 
-  // Canvas drawing for Analytics
-  useEffect(() => {
-    if (activeTab === 'analytics' && canvasRef.current) {
-      const ctx = canvasRef.current.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, 500, 220);
-        
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.015)';
-        ctx.lineWidth = 1;
-        for (let i = 0; i < 500; i += 40) {
-          ctx.beginPath();
-          ctx.moveTo(i, 0);
-          ctx.lineTo(i, 220);
-          ctx.stroke();
-        }
-        for (let i = 0; i < 220; i += 30) {
-          ctx.beginPath();
-          ctx.moveTo(0, i);
-          ctx.lineTo(500, i);
-          ctx.stroke();
-        }
-
-        const points = [140, 138, 142, 148, 155, 152, 160, 168, 175, 172, 185, 192];
-        const width = 500;
-        const height = 220;
-        const padding = 25;
-        const step = (width - padding * 2) / (points.length - 1);
-        
-        const fillGrad = ctx.createLinearGradient(0, 0, 0, height);
-        fillGrad.addColorStop(0, 'rgba(62, 232, 138, 0.12)');
-        fillGrad.addColorStop(1, 'rgba(62, 232, 138, 0)');
-
-        const lineGrad = ctx.createLinearGradient(0, 0, width, 0);
-        lineGrad.addColorStop(0, '#3EE88A');
-        lineGrad.addColorStop(1, '#60a5fa');
-
-        ctx.beginPath();
-        points.forEach((val, idx) => {
-          const y = height - padding - ((val - 130) / 70) * (height - padding * 2);
-          const x = padding + idx * step;
-          if (idx === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
-        });
-        
-        ctx.strokeStyle = lineGrad;
-        ctx.lineWidth = 3.5;
-        ctx.shadowColor = 'rgba(62, 232, 138, 0.2)';
-        ctx.shadowBlur = 8;
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-
-        ctx.lineTo(padding + (points.length - 1) * step, height - padding);
-        ctx.lineTo(padding, height - padding);
-        ctx.closePath();
-        ctx.fillStyle = fillGrad;
-        ctx.fill();
-
-        points.forEach((val, idx) => {
-          const y = height - padding - ((val - 130) / 70) * (height - padding * 2);
-          const x = padding + idx * step;
-          ctx.beginPath();
-          ctx.arc(x, y, 4, 0, Math.PI * 2);
-          ctx.fillStyle = idx === points.length - 1 ? '#3EE88A' : '#070b11';
-          ctx.strokeStyle = '#3EE88A';
-          ctx.lineWidth = 2;
-          ctx.fill();
-          ctx.stroke();
-        });
-      }
-    }
-  }, [activeTab]);
-
-
 
   // Base metrics derived strictly from real DB data — no hardcoded bases or fake fallbacks
   const liveCount = allListings.length;
@@ -571,33 +491,21 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               )}
             >
-              <Zap className="h-3.5 w-3.5" />
-              Live property stream
-            </button>
-            <button 
-              onClick={() => setActiveTab('map')}
-              className={cn(
-                "flex items-center gap-2 px-5 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-[0.08em] transition-all",
-                activeTab === 'map' 
-                  ? "bg-[var(--bg-surface)] text-[var(--accent)] shadow-md font-black" 
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              )}
-            >
-              <Map className="h-3.5 w-3.5" />
-              AI locality map
-            </button>
-            <button 
-              onClick={() => setActiveTab('analytics')}
-              className={cn(
-                "flex items-center gap-2 px-5 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-[0.08em] transition-all",
-                activeTab === 'analytics' 
-                  ? "bg-[var(--bg-surface)] text-[var(--accent)] shadow-md font-black" 
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              )}
-            >
-              <LineChart className="h-3.5 w-3.5" />
-              Market Intelligence
-            </button>
+          <Zap className="h-3.5 w-3.5" />
+          Live property stream
+        </button>
+        <button 
+          onClick={() => setActiveTab('map')}
+          className={cn(
+            "flex items-center gap-2 px-5 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-[0.08em] transition-all",
+            activeTab === 'map' 
+              ? "bg-[var(--bg-surface)] text-[var(--accent)] shadow-md font-black" 
+              : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          )}
+        >
+          <Map className="h-3.5 w-3.5" />
+          AI locality map
+        </button>
           </div>
         </div>
       </section>
@@ -763,98 +671,37 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
           </div>
         )}
 
-        {/* TAB 3: AI ANALYTICS & MARKET INTELLIGENCE */}
-        {activeTab === 'analytics' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-stream-in">
-            
-            {/* Visual Graph and Data metrics (8 columns) */}
-            <div className="lg:col-span-8 glass-panel rounded-[28px] p-6 sm:p-8 space-y-8 border border-white/3">
-              <div>
-                <h3 className="text-[20px] font-black tracking-tight text-[var(--text-primary)] font-display">B2B Realtor Broadcast Pricing Delta</h3>
-                <p className="text-[13px] text-[var(--text-secondary)] mt-1">Real-time aggregate tracking of average Realtor group property valuations compared to standard retail portal asking rates.</p>
-              </div>
-
-              {/* Dynamic canvas element */}
-              <div className="w-full bg-[var(--bg-base)] rounded-2xl p-4 flex justify-center">
-                <canvas 
-                  ref={canvasRef} 
-                  width="500" 
-                  height="220" 
-                  className="w-full max-w-[500px] h-[220px]"
-                />
-              </div>
-
-              {/* Analytics insights bullet points */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-[var(--bg-surface)]/60 space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4.5 w-4.5 text-[var(--accent)]" />
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-white">Direct Broadcast Speed</span>
-                  </div>
-                  <p className="text-[11.5px] text-[var(--text-secondary)] leading-relaxed">
-                    PropAI helps brokers respond quickly to qualified enquiries and keep active inventory organised outside stale portal workflows.
-                  </p>
-                </div>
-                <div className="p-4 rounded-xl bg-[var(--bg-surface)]/60 space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="h-4.5 w-4.5 text-blue-400" />
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-white">Aggregated Locality Viability</span>
-                  </div>
-                  <p className="text-[11.5px] text-[var(--text-secondary)] leading-relaxed">
-                    Bandra West and Powai are experiencing high supply volatility (ratios exceeding 1:4 matching rate requests), making peer-to-peer co-Realtoring highly flexible.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Lateral Info Panel (4 columns) */}
-            <div className="lg:col-span-4 space-y-6">
-              <div className="glass-panel rounded-[28px] p-6 space-y-6 border border-white/3">
-                <h4 className="text-[16px] font-black tracking-tight text-[var(--text-primary)] font-display">Locality Intelligence Rankings</h4>
-                
-                <div className="space-y-4">
-                  {[
-                    { rank: '01', name: 'Bandra West', rent: '₹1.4L', score: 96, state: 'High Velocity' },
-                    { rank: '02', name: 'Andheri West', rent: '₹85K', score: 94, state: 'High Supply' },
-                    { rank: '03', name: 'Powai', rent: '₹75K', score: 92, state: 'High Velocity' },
-                    { rank: '04', name: 'Juhu', rent: '₹2.1L', score: 91, state: 'Stale Supply' }
-                  ].map((loc, i) => (
-                    <div key={i} className="flex items-center justify-between border-b border-white/2 pb-3 last:border-0 last:pb-0">
-                      <div className="flex items-center gap-3">
-                        <span className="text-[12px] font-black text-[var(--text-muted)] font-mono">{loc.rank}</span>
-                        <div>
-                          <span className="text-[12px] font-bold text-white block">{loc.name}</span>
-                          <span className="text-[10px] text-[var(--text-secondary)]">{loc.state}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="text-right">
-                        <span className="text-[12px] font-black text-[var(--accent)] block">{loc.rent}</span>
-                        <span className="text-[9px] font-semibold text-[var(--text-secondary)]">Demand: {loc.score}%</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Data Transparency Note Card */}
-              <div className="glass-panel rounded-[24px] p-6 border border-white/3 space-y-3">
-                <Shield className="h-7 w-7 text-[var(--accent)]" />
-                <h4 className="text-[14px] font-bold text-white">Live B2B Realtor Ledger</h4>
-                <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
-                  Our system structures broker inventory, requirements, and WhatsApp Business enquiries into a practical market workspace.
-                </p>
-              </div>
-            </div>
-
-          </div>
-        )}
-
       </main>
 
-      {/* Floating Call to Action Section */}
-      {activeTab !== 'feed' && (
-        <section className="relative z-10 mx-auto max-w-5xl px-6 mt-16 animate-stream-in">
+      {/* Market intelligence CTA */}
+      <section className="relative z-10 mx-auto max-w-7xl px-6 mt-16 animate-stream-in">
+        <div className="rounded-3xl border border-[var(--accent-border)] bg-gradient-to-br from-[var(--accent-glow)] via-transparent to-transparent p-8 md:p-12">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--accent-border)] bg-[var(--accent-glow)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)] mb-4">
+              <BarChart3 className="h-3.5 w-3.5" />
+              Market Insights
+            </div>
+            <h2 className="text-[22px] font-black text-[var(--text-primary)] md:text-[28px]">
+              See Which Mumbai Areas Are <span className="text-[var(--accent)]">Heating Up</span>
+            </h2>
+            <p className="mt-3 text-[14px] text-[var(--text-secondary)] leading-relaxed">
+              Real-time pricing trends, demand signals, and broker activity across all Mumbai localities.
+              Updated every 30 minutes from live broker network data.
+            </p>
+            <Link
+              href="/intelligence"
+              className="mt-6 inline-flex h-12 items-center gap-2 rounded-2xl bg-[var(--accent)] px-6 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--on-propai-green)] transition-all hover:brightness-110"
+            >
+              Explore Market Trends
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Map tab floating CTA */}
+      {activeTab === 'map' && (
+        <section className="relative z-10 mx-auto max-w-5xl px-6 mt-12 animate-stream-in">
           <div className="glass-panel rounded-[24px] p-6 sm:p-8 border border-white/3">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>

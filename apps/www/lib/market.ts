@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "../src/lib/supabase.server";
+import { TOP_LOCALITIES } from "./localities";
 
 export type StreamMarketItem = {
   id: string;
@@ -365,6 +366,168 @@ function trimDecimal(value: number) {
 function coerceNumber(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+export type LocalityMarketData = {
+  locality: string;
+  slug: string;
+  listingCount: number;
+  requirementCount: number;
+  avgRent: number | null;
+  avgSale: number | null;
+  minPrice: number | null;
+  maxPrice: number | null;
+  topBhk: string | null;
+  demandSignal: 'high_demand' | 'balanced' | 'oversupplied';
+  brokerCount: number;
+  lastActivity: string | null;
+};
+
+export async function fetchLocalityMarketData(): Promise<LocalityMarketData[]> {
+  if (!supabaseAdmin) return [];
+
+  try {
+    const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const [resResult, comResult] = await Promise.all([
+      supabaseAdmin
+        .from('stream_items_residential')
+        .select('locality, record_type, bhk, price_numeric, deal_type, created_at, source_phone')
+        .gte('created_at', since)
+        .not('locality', 'is', null)
+        .neq('locality', '')
+        .limit(5000),
+      supabaseAdmin
+        .from('stream_items_commercial')
+        .select('locality, record_type, price_numeric, deal_type, created_at, source_phone')
+        .gte('created_at', since)
+        .not('locality', 'is', null)
+        .neq('locality', '')
+        .limit(2000),
+    ]);
+
+    const rawRows = [
+      ...((resResult.data || []) as any[]),
+      ...((comResult.data || []) as any[]),
+    ];
+
+    const LOCALITY_BLOCKLIST = new Set([
+      'mumbai market', 'mumbai', 'navi mumbai', 'thane', 'pune',
+      'not parsed', 'unknown', 'n/a',
+    ]);
+
+    const byLocality = new Map<string, {
+      listings: number;
+      requirements: number;
+      rents: number[];
+      sales: number[];
+      bhks: Map<string, number>;
+      brokers: Set<string>;
+      lastActive: string | null;
+      minPrice: number | null;
+      maxPrice: number | null;
+    }>();
+
+    for (const row of rawRows) {
+      const loc = String(row.locality || '').trim().replace(/\b\w/g, (c) => c.toUpperCase());
+      if (!loc || loc.length < 3 || LOCALITY_BLOCKLIST.has(loc.toLowerCase())) continue;
+      if (/[&@#]/.test(loc)) continue;
+
+      if (!byLocality.has(loc)) {
+        byLocality.set(loc, {
+          listings: 0,
+          requirements: 0,
+          rents: [],
+          sales: [],
+          bhks: new Map(),
+          brokers: new Set(),
+          lastActive: null,
+          minPrice: null,
+          maxPrice: null,
+        });
+      }
+
+      const bucket = byLocality.get(loc)!;
+      const type = String(row.type || row.deal_type || '').toLowerCase();
+      const recordType = String(row.record_type || '').toLowerCase();
+
+      if (recordType === 'requirement' || type.includes('requirement')) {
+        bucket.requirements++;
+      } else {
+        bucket.listings++;
+      }
+
+      const price = Number(row.price_numeric);
+      if (Number.isFinite(price) && price > 0) {
+        if (type.includes('rent')) {
+          if (price < 5_000_000) bucket.rents.push(price);
+        } else if (type.includes('sale') || !type.includes('rent')) {
+          if (price < 500_000_000) bucket.sales.push(price);
+        }
+        if (bucket.minPrice === null || price < bucket.minPrice) bucket.minPrice = price;
+        if (bucket.maxPrice === null || price > bucket.maxPrice) bucket.maxPrice = price;
+      }
+
+      const bhk = String(row.bhk || '').trim();
+      if (bhk && bhk !== 'N/A') {
+        const match = bhk.match(/(\d+(?:\.\d+)?)/);
+        if (match) {
+          const key = `${match[1]} BHK`;
+          bucket.bhks.set(key, (bucket.bhks.get(key) || 0) + 1);
+        }
+      }
+
+      if (row.source_phone) {
+        bucket.brokers.add(String(row.source_phone));
+      }
+
+      const createdAt = String(row.created_at || '');
+      if (createdAt && (!bucket.lastActive || createdAt > bucket.lastActive)) {
+        bucket.lastActive = createdAt;
+      }
+    }
+
+    const localities = TOP_LOCALITIES
+      .map((loc) => {
+        const bucket = byLocality.get(loc.name);
+        if (!bucket) return null;
+
+        const total = bucket.listings + bucket.requirements;
+        const avgRent = bucket.rents.length > 0
+          ? Math.round(bucket.rents.reduce((a, b) => a + b, 0) / bucket.rents.length)
+          : null;
+        const avgSale = bucket.sales.length > 0
+          ? Math.round(bucket.sales.reduce((a, b) => a + b, 0) / bucket.sales.length)
+          : null;
+        const ratio = bucket.requirements > 0 ? bucket.listings / bucket.requirements : bucket.listings;
+        const demandSignal: 'high_demand' | 'balanced' | 'oversupplied' =
+          ratio < 0.5 ? 'high_demand'
+          : ratio > 2 ? 'oversupplied'
+          : 'balanced';
+        const topBhk = [...bucket.bhks.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+        return {
+          locality: loc.name,
+          slug: loc.slug,
+          listingCount: bucket.listings,
+          requirementCount: bucket.requirements,
+          avgRent,
+          avgSale,
+          minPrice: bucket.minPrice,
+          maxPrice: bucket.maxPrice,
+          topBhk,
+          demandSignal,
+          brokerCount: bucket.brokers.size,
+          lastActivity: bucket.lastActive,
+        };
+      })
+      .filter((item) => item !== null)
+      .sort((a, b) => (b.listingCount + b.requirementCount) - (a.listingCount + a.requirementCount)) as LocalityMarketData[];
+
+    return localities;
+  } catch (error) {
+    console.error('[www] Failed to fetch locality market data', error);
+    return [];
+  }
 }
 
 function normalizeLocalityQuery(value?: string | null) {
