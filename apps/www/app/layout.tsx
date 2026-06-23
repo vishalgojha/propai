@@ -42,7 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <PWARegistration />
           <div className="flex min-h-screen flex-col font-sans selection:bg-[var(--accent)] selection:text-[var(--on-propai-green)] bg-[var(--bg-base)] text-[var(--text-primary)]">
             <PublicNav />
-            <main className="flex-1">{children}</main>
+            <main className="flex-1 pb-16 md:pb-0">{children}</main>
             <Footer />
           </div>
         </ThemeProvider>

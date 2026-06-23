@@ -5,7 +5,7 @@ export default async function Footer() {
   const cities = await fetchLocalitiesForFooter(2);
 
   return (
-    <footer className="border-t border-white/3 bg-[var(--bg-surface)]/40 backdrop-blur-md pt-12 pb-8">
+    <footer className="hidden md:block border-t border-white/3 bg-[var(--bg-surface)]/40 backdrop-blur-md pt-12 pb-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-5">
         
         {/* Relational locality grid: placed at the top of the footer */}

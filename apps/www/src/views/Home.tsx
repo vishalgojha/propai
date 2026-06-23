@@ -1,1044 +1,313 @@
 "use client";
 
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  Search,
+  MapPin,
+  TrendingUp,
+  Building2,
+  ArrowRight,
+  Sparkles,
+  Home as HomeIcon,
+  BedDouble,
+} from "lucide-react";
+import type { PublicListing } from "@/lib/listings";
+import { formatPrice } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
-const MumbaiMap = dynamic(() => import('@/components/MumbaiMap'), { ssr: false });
-import Link from 'next/link';
-import { 
-  ArrowRight, 
-  MapPin, 
-  Search, 
-  Sparkles, 
-  Map, 
-  MessageCircle, 
-  Shield, 
-  CheckCircle, 
-  TrendingUp, 
-  Compass, 
-  Calendar, 
-  ChevronRight, 
-  ChevronDown, 
-  X, 
-  Send, 
-  Zap, 
-  FileText, 
-  BarChart3, 
-  AlertCircle,
-  HelpCircle,
-  Phone
-} from 'lucide-react';
-import { getListings, type PublicListing } from '@/lib/listings';
-import { formatPrice } from '@/lib/format';
-import ListingCard from '@/components/ListingCard';
-import { cn } from '@/lib/utils';
-
-// Mumbai locality data with real geographic coordinates
-interface MapLocality {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  count: number;
-  avgRent: string;
-  demandIndex: number;
-  delta: string;
-  hot: boolean;
-}
-
-const MAP_LOCALITIES: MapLocality[] = [
-  { id: 'Bandra West', name: 'Bandra West', lat: 19.0596, lng: 72.8295, count: 432, avgRent: '₹1.4L', demandIndex: 96, delta: '+15%', hot: true },
-  { id: 'Juhu', name: 'Juhu', lat: 19.1075, lng: 72.8263, count: 65, avgRent: '₹2.1L', demandIndex: 91, delta: '+12%', hot: false },
-  { id: 'Andheri West', name: 'Andheri West', lat: 19.1197, lng: 72.8397, count: 660, avgRent: '₹85K', demandIndex: 94, delta: '+18%', hot: true },
-  { id: 'Worli', name: 'Worli', lat: 19.0130, lng: 72.8174, count: 85, avgRent: '₹1.8L', demandIndex: 88, delta: '+10%', hot: false },
-  { id: 'Lower Parel', name: 'Lower Parel', lat: 18.9945, lng: 72.8230, count: 120, avgRent: '₹1.2L', demandIndex: 89, delta: '+8%', hot: false },
-  { id: 'Powai', name: 'Powai', lat: 19.1197, lng: 72.9050, count: 195, avgRent: '₹75K', demandIndex: 92, delta: '+14%', hot: true },
-  { id: 'Thane West', name: 'Thane West', lat: 19.2183, lng: 72.9781, count: 26, avgRent: '₹38K', demandIndex: 78, delta: '+5%', hot: false },
-  { id: 'Chembur', name: 'Chembur', lat: 19.0622, lng: 72.9005, count: 142, avgRent: '₹62K', demandIndex: 84, delta: '+7%', hot: false }
+const POPULAR_LOCALITIES = [
+  "Bandra West", "Andheri West", "Powai", "Juhu", "Worli",
+  "Khar West", "Lower Parel", "Chembur", "Goregaon West", "Malad West",
 ];
 
-// Mock Broker Dialogues Database for Chat Simulation
-interface ChatMessage {
-  sender: 'user' | 'broker';
-  text: string;
-  time: string;
-  isSheetLink?: boolean;
-}
-
-interface BrokerProfile {
-  name: string;
-  phone: string;
-  agency: string;
-  experience: string;
-  rating: number;
-  avatar: string;
-  recentDeals: number;
-  repliesText: string;
-}
-
-// 4-step lead qualification stages inside Pulse Chat Widget
-type ChatStage = 'name' | 'move_in' | 'profile' | 'deposit' | 'whatsapp' | 'submitting' | 'done' | 'error';
+const FEATURES = [
+  { icon: TrendingUp, title: "Real-time broker inventory", desc: "Listings parsed from active broker networks, not stale portal uploads." },
+  { icon: Building2, title: "Direct WhatsApp connect", desc: "Contact the listing broker in one tap. No middlemen, no forms." },
+  { icon: Sparkles, title: "Fresh data, every minute", desc: "New properties surface as brokers broadcast them — you see them first." },
+];
 
 export default function Home({ initialListings = [], todayCount = 0 }: { initialListings?: PublicListing[]; todayCount?: number }) {
   const router = useRouter();
-  // Navigation & Interactive Tabs
-  const [activeTab, setActiveTab] = useState<'feed' | 'map'>('feed');
-  
-  // Data States
-  const [allListings, setAllListings] = useState<PublicListing[]>(initialListings);
-  const [listings, setListings] = useState<PublicListing[]>(initialListings.slice(0, 15));
-  const [selectedLocality, setSelectedLocality] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedListing, setSelectedListing] = useState<PublicListing | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [listings, setListings] = useState<PublicListing[]>(initialListings);
 
-  // Rotating Header Words
-  const [rotatingWord, setRotatingWord] = useState('Rentals');
-  const words = ['Rentals', 'Homes', 'Offices', 'Penthouses', 'Villas'];
-
-  // Map Hover States
-  const [hoveredLocality, setHoveredLocality] = useState<MapLocality | null>(null);
-
-  // Real Dynamic Lead Qualification Chat State Machine
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatStage, setChatStage] = useState<ChatStage>('name');
-  const [clientName, setClientName] = useState('');
-  const [clientPhone, setClientPhone] = useState('');
-  const [answers, setAnswers] = useState({
-    moveInDate: '',
-    tenantProfile: '',
-    depositBudget: ''
-  });
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
-  const [activeBroker, setActiveBroker] = useState<BrokerProfile | null>(null);
-  const [activeFaq, setActiveFaq] = useState<number | null>(null);
-  
-  // Dynamic parsed activity ticker data (from real listings)
-  const [tickerItems, setTickerItems] = useState<string[]>([]);
-
-  // Initialize dynamic rotation header
   useEffect(() => {
-    let i = 0;
-    const interval = setInterval(() => {
-      i = (i + 1) % words.length;
-      setRotatingWord(words[i]);
-    }, 2500);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Hydrate data from DB (No fallback mock listings allowed)
-  useEffect(() => {
-    if (initialListings && initialListings.length > 0) {
-      setAllListings(initialListings);
-      setListings(initialListings.slice(0, 15));
-      setSelectedListing(initialListings[0]);
-      setLoading(false);
-    } else {
-      setLoading(true);
-      // Dynamic client-side fetch from the actual API to pull seeded items
-      getListings()
-        .then(data => {
-          if (data && data.length > 0) {
-            setAllListings(data);
-            setListings(data.slice(0, 15));
-            setSelectedListing(data[0]);
-          } else {
-            setAllListings([]);
-            setListings([]);
-            setSelectedListing(null);
-          }
-          setLoading(false);
-        })
-        .catch(err => {
-          console.error("API listing fetch failed:", err);
-          setAllListings([]);
-          setListings([]);
-          setSelectedListing(null);
-          setLoading(false);
-        });
-    }
+    if (initialListings.length > 0) setListings(initialListings);
   }, [initialListings]);
 
-  // Build ticker pool from real listings
-  useEffect(() => {
-    if (!allListings.length) return;
-    const pool = allListings.slice(0, 100).map(l => {
-      const parts = [];
-      if (l.configuration) parts.push(String(l.configuration));
-      parts.push(l.type === 'Rent' ? 'rental' : l.type === 'Sale' ? 'sale' : 'requirement');
-      parts.push(`in ${l.locality}`);
-      if (l.price) parts.push(formatPrice(l.price, l.type));
-      return `⚡ ${parts.join(' ')}`;
-    });
-    if (pool.length) setTickerItems(pool);
-  }, [allListings]);
-
-  // Rotate ticker items (stable interval, uses functional setState)
-  useEffect(() => {
-    if (tickerItems.length <= 1) return;
-    const id = setInterval(() => {
-      setTickerItems(prev => {
-        if (prev.length <= 1) return prev;
-        return [prev[prev.length - 1], ...prev.slice(0, prev.length - 1)];
-      });
-    }, 9000);
-    return () => clearInterval(id);
-  }, [tickerItems]);
-
-  // Handle Locality click/filter dynamically on database records
-  const selectLocality = useCallback((localityName: string | null) => {
-    setSelectedLocality(localityName);
-    
-    if (!localityName) {
-      setListings(allListings.slice(0, 15));
-      setSelectedListing(allListings[0] || null);
-    } else {
-      const filtered = allListings.filter(l => l.locality.trim().toLowerCase() === localityName.trim().toLowerCase());
-      setListings(filtered.slice(0, 15));
-      setSelectedListing(filtered[0] || null);
-    }
-  }, [allListings]);
-
-  // Search Engine filtering real database items
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-    const q = query.toLowerCase().trim();
-    
-    if (!q) {
-      setListings(allListings.slice(0, 15));
-      setSelectedListing(allListings[0] || null);
-      return;
-    }
-
-    const filtered = allListings.filter(l => 
-      l.title.toLowerCase().includes(q) || 
-      l.locality.toLowerCase().includes(q) || 
-      (l.raw_text && l.raw_text.toLowerCase().includes(q))
-    );
-    setListings(filtered.slice(0, 15));
-    setSelectedListing(filtered[0] || null);
-  }, [allListings]);
-
-  // Launch lead qualification chat widget
-  const startBrokerChat = useCallback((listingItem: PublicListing) => {
-    const names = ["Rohan Mehta", "Vikram Shah", "Nisha Pujari", "Amit Sharma", "Karan Malhotra"];
-    const agencies = ["Elite Mumbai Realtors", "Bespoke Realtor-Group Desk", "Bandra Property Group", "Worli Luxury Assets", "Hiranandani Specialist"];
-    const avatars = ["RM", "VS", "NP", "AS", "KM"];
-    const phone = '919820098200';
-    
-    const hash = listingItem.title.length % names.length;
-    const broker: BrokerProfile = {
-      name: names[hash],
-      phone: phone,
-      agency: agencies[hash],
-      experience: `${5 + (hash * 2)} Years`,
-      rating: parseFloat((4.7 + (hash * 0.05)).toFixed(1)),
-      avatar: avatars[hash],
-      recentDeals: 12 + (hash * 3),
-      repliesText: "Replies in < 2m"
-    };
-
-    setActiveBroker(broker);
-    setChatStage('name');
-    setClientName('');
-    setClientPhone('');
-    setAnswers({ moveInDate: '', tenantProfile: '', depositBudget: '' });
-    
-    setChatMessages([
-      { sender: 'broker', text: `Hi, I am Pulse, your automated real estate coordinator. Let's pre-qualify your profile in 60 seconds to connect you directly with the matching Realtor! What is your full name?`, time: '12:50 PM' }
-    ]);
-    setChatOpen(true);
-  }, []);
-
-  // Real dynamic lead qualification steps submission
-  const sendChatMessage = useCallback((text: string) => {
-    const userTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setChatMessages(prev => [...prev, { sender: 'user', text, time: userTime }]);
-    setIsTyping(true);
-
-    setTimeout(async () => {
-      const brokerTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      
-      if (chatStage === 'name') {
-        const cleanName = text.trim();
-        setClientName(cleanName);
-        setChatStage('move_in');
-        setChatMessages(prev => [...prev, { 
-          sender: 'broker', 
-          text: `Nice to meet you, ${cleanName}! When are you planning to move into the property?`, 
-          time: brokerTime 
-        }]);
-        setIsTyping(false);
-      } 
-      else if (chatStage === 'move_in') {
-        const answerVal = text.trim();
-        setAnswers(prev => ({ ...prev, moveInDate: answerVal }));
-        setChatStage('profile');
-        setChatMessages(prev => [...prev, { 
-          sender: 'broker', 
-          text: `Got it. What is your leasing profile? Who will be staying in the flat?`, 
-          time: brokerTime 
-        }]);
-        setIsTyping(false);
-      } 
-      else if (chatStage === 'profile') {
-        const answerVal = text.trim();
-        setAnswers(prev => ({ ...prev, tenantProfile: answerVal }));
-        setChatStage('deposit');
-        setChatMessages(prev => [...prev, { 
-          sender: 'broker', 
-          text: `Understood. Are you comfortable with paying 4 to 6 months of security deposit?`, 
-          time: brokerTime 
-        }]);
-        setIsTyping(false);
-      } 
-      else if (chatStage === 'deposit') {
-        const answerVal = text.trim();
-        setAnswers(prev => ({ ...prev, depositBudget: answerVal }));
-        setChatStage('whatsapp');
-        setChatMessages(prev => [...prev, { 
-          sender: 'broker', 
-          text: `Perfect. Finally, what is your direct WhatsApp mobile number so we can register the walkthrough invite and coordinate the pass?`, 
-          time: brokerTime 
-        }]);
-        setIsTyping(false);
-      } 
-      else if (chatStage === 'whatsapp') {
-        const phoneVal = text.trim();
-        setClientPhone(phoneVal);
-        setChatStage('submitting');
-        
-        // Push intermediate status bubble
-        setChatMessages(prev => [...prev, { 
-          sender: 'broker', 
-          text: `Registering qualified match in database...`, 
-          time: brokerTime 
-        }]);
-
-        try {
-          if (!selectedListing) throw new Error("No listing selected");
-          
-          const payload = {
-            listingId: selectedListing.id,
-            name: clientName,
-            phone: phoneVal,
-            answers: {
-              moveInDate: answers.moveInDate,
-              tenantProfile: answers.tenantProfile,
-              depositBudget: answers.depositBudget
-            }
-          };
-
-          const res = await fetch('/api/leads', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify(payload)
-          });
-
-          const data = await res.json();
-
-          if (data && data.status === 'ok') {
-            setChatStage('done');
-            setChatMessages(prev => [...prev, { 
-              sender: 'broker', 
-              text: `Success! Match found. Professional Realtor ${activeBroker?.name || 'Rohan'} (${activeBroker?.agency || 'Bandra Property Group'}) has received your pre-qualification credentials and is preparing the direct walkthrough schedule. He will ping you on WhatsApp shortly!`, 
-              time: brokerTime 
-            }]);
-          } else {
-            setChatStage('error');
-            setChatMessages(prev => [...prev, { 
-              sender: 'broker', 
-              text: `Oops! There was a verification issue. Please check that you submitted a valid 10-digit Indian WhatsApp mobile number.`, 
-              time: brokerTime 
-            }]);
-          }
-        } catch (err) {
-          console.error("AJAX Lead qualification insert failed:", err);
-          setChatStage('error');
-          setChatMessages(prev => [...prev, { 
-            sender: 'broker', 
-            text: `Connection error. We couldn't register your profile. Please check your network and try again.`, 
-            time: brokerTime 
-          }]);
-        }
-        setIsTyping(false);
-      }
-    }, 1000);
-  }, [chatStage, clientName, answers, selectedListing, activeBroker]);
-
-
-  // Base metrics derived strictly from real DB data — no hardcoded bases or fake fallbacks
-  const liveCount = allListings.length;
-  const weekMs = 7 * 24 * 60 * 60 * 1000;
-  const thisWeekCount = allListings.filter(l => {
-    const age = Date.now() - new Date(l.surfaced_at || l.created_at).getTime();
-    return age < weekMs;
-  }).length;
+  const recentListings = useMemo(() => listings.slice(0, 10), [listings]);
 
   return (
-    <div className="min-h-screen pb-24 relative overflow-hidden">
-      
-      {/* Decorative radial gradients */}
-      <div className="absolute top-[10%] left-[-10%] w-[35rem] h-[35rem] bg-[var(--accent-glow)] rounded-full blur-[140px] opacity-70 pointer-events-none z-0" />
-      <div className="absolute bottom-[20%] right-[-5%] w-[40rem] h-[40rem] bg-blue-500/3 rounded-full blur-[180px] pointer-events-none z-0" />
-
-      {/* Cyber Grid background overlay */}
-      <div className="absolute inset-0 cyber-grid pointer-events-none opacity-[0.25] z-0" />
-
-      {/* Real-time Parsed Activity Feed Ticker */}
-      <div className="w-full bg-[var(--bg-elevated)] border-b border-transparent py-2.5 relative z-10">
-        <div className="max-w-7xl mx-auto px-6 overflow-hidden flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--accent)] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--accent)]"></span>
-            </span>
-            <span className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--accent)] neon-text-glow">LIVE PULSE:</span>
-          </div>
-          
-          <div className="flex-1 ml-6 h-5 overflow-hidden relative">
-            <div className="absolute inset-0 flex flex-col transition-all duration-700 ease-in-out" style={{ transform: `translateY(0)` }}>
-              <span className="text-[11px] font-semibold text-[var(--text-secondary)] truncate">
-                {tickerItems[0]}
-              </span>
+    <div className="min-h-screen bg-[var(--bg-base)]">
+      {/* Mobile search overlay */}
+      {showMobileSearch && (
+        <div className="fixed inset-0 z-50 bg-[var(--bg-base)] md:hidden">
+          <div className="flex items-center gap-3 p-4 border-b border-white/5">
+            <div className="flex-1 flex items-center gap-3 bg-[var(--bg-surface)] rounded-xl px-4 py-2.5 border border-white/5">
+              <Search className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
+              <input
+                autoFocus
+                type="text"
+                placeholder="Search locality, BHK, budget..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && searchQuery.trim()) {
+                    router.push(`/listings?q=${encodeURIComponent(searchQuery.trim())}`);
+                    setShowMobileSearch(false);
+                  }
+                }}
+                className="w-full bg-transparent text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none"
+              />
             </div>
-          </div>
-          
-          <div className="hidden md:flex items-center gap-1.5 text-[10px] font-bold text-[var(--text-muted)] bg-[var(--bg-surface)] px-2.5 py-1 rounded-md">
-            <Shield className="h-3.5 w-3.5 text-[var(--accent)]" />
-            <span>{allListings.length ? `${allListings.length.toLocaleString()} Active Listings` : '— Active Listings'}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Hero Header Section */}
-      <header className="relative z-10 px-6 pt-12 pb-8 flex flex-col items-center text-center max-w-5xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[var(--accent-glow)] border border-[color:var(--accent-border)] rounded-full mb-6">
-          <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
-          <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">Broker inventory intelligence</span>
-        </div>
-        
-        <h1 className="text-[44px] sm:text-[62px] font-black leading-[1.05] tracking-[-0.04em] text-[var(--text-primary)] font-display max-w-4xl mb-4">
-          Access direct Realtor <br />
-          <span className="text-[var(--accent)] relative inline-block neon-text-glow min-w-[200px]">{rotatingWord}</span> <br className="hidden sm:inline" />
-          Before they hit the portals.
-        </h1>
-        
-        <p className="text-[var(--text-secondary)] text-[14px] sm:text-[16px] max-w-2xl mb-8 mx-auto leading-relaxed">
-          PropAI brings broker-listed inventory, requirements, and market context into a searchable workspace built for faster decisions.
-        </p>
-
-        {/* Global Search Bar */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const q = searchQuery.trim();
-            if (q) router.push(`/listings?q=${encodeURIComponent(q)}`);
-          }}
-          className="w-full max-w-xl mx-auto bg-[var(--bg-surface)]/85 backdrop-blur-md rounded-[20px] p-2 border border-white/5 shadow-[0_20px_50px_rgba(0,0,0,0.4)] hover:border-[var(--accent)]/15 transition-all duration-300 flex items-center gap-2"
-        >
-          <div className="flex-1 flex items-center gap-3 px-3">
-            <Search className="h-4.5 w-4.5 text-[var(--text-muted)]" />
-            <input 
-              type="text" 
-              placeholder="Search by locality or keywords (e.g. Bandra, Carter Road, 3 BHK)..." 
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); handleSearch(e.target.value); }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  const q = searchQuery.trim();
-                  if (q) router.push(`/listings?q=${encodeURIComponent(q)}`);
-                }
-              }}
-              className="bg-transparent border-none outline-none text-[13px] w-full text-[var(--text-primary)] placeholder:text-[var(--text-muted)]" 
-            />
-          </div>
-          {searchQuery && (
-            <button 
-              type="button"
-              onClick={() => { setSearchQuery(''); handleSearch(''); }}
-              className="p-1 rounded-full hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+            <button
+              onClick={() => { setShowMobileSearch(false); setSearchQuery(""); }}
+              className="text-[13px] font-bold text-[var(--text-secondary)]"
             >
-              <X className="h-4 w-4" />
+              Cancel
             </button>
-          )}
-          <button
-            type="submit"
-            className="px-5 py-2.5 rounded-[12px] text-[10px] font-bold uppercase tracking-[0.1em] bg-[var(--accent)] text-[var(--on-propai-green)] shadow-md hover:brightness-110 active:scale-[0.98] transition-all"
-          >
-            Search
-          </button>
-        </form>
-      </header>
-
-      {/* Segmented Application Tab Navigation */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 mb-10">
-        <div className="flex justify-center border-b border-white/3">
-          <div className="flex bg-[var(--bg-elevated)] p-1 rounded-xl shadow-inner">
-            <button 
-              onClick={() => setActiveTab('feed')}
-              className={cn(
-                "flex items-center gap-2 px-5 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-[0.08em] transition-all",
-                activeTab === 'feed' 
-                  ? "bg-[var(--bg-surface)] text-[var(--accent)] shadow-md font-black" 
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              )}
-            >
-          <Zap className="h-3.5 w-3.5" />
-          Live property stream
-        </button>
-        <button 
-          onClick={() => setActiveTab('map')}
-          className={cn(
-            "flex items-center gap-2 px-5 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-[0.08em] transition-all",
-            activeTab === 'map' 
-              ? "bg-[var(--bg-surface)] text-[var(--accent)] shadow-md font-black" 
-              : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-          )}
-        >
-          <Map className="h-3.5 w-3.5" />
-          AI locality map
-        </button>
           </div>
-        </div>
-      </section>
-
-      {/* Main Reactive Display Area */}
-      <main className="relative z-10 max-w-7xl mx-auto px-6">
-        
-        {/* TAB 1: DOUBLE-PANEL PROPERTY STREAM */}
-        {activeTab === 'feed' && (
-          <div className="space-y-8 animate-stream-in">
-            {/* Metric Micro-Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-              {[
-                { label: 'Active Signals Listed', value: liveCount > 0 ? liveCount.toLocaleString() : '—', icon: Compass, color: 'text-white' },
-                { label: 'Fresh Streams Today', value: todayCount > 0 ? todayCount.toLocaleString() : '—', icon: Sparkles, color: 'text-[var(--accent)]' },
-                { label: 'Listings This Week', value: thisWeekCount > 0 ? thisWeekCount.toLocaleString() : '—', icon: Calendar, color: 'text-white' }
-              ].map((stat, i) => (
-                <div key={i} className="bg-[var(--bg-surface)]/45 backdrop-blur-md rounded-2xl p-5 flex items-center justify-between hover:bg-[var(--bg-surface)]/65 transition-all">
-                  <div>
-                    <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] mb-1">{stat.label}</div>
-                    <div className={cn("text-[20px] font-black tracking-tight", stat.color)}>{stat.value}</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-[var(--bg-surface)]/80">
-                    <stat.icon className="h-5 w-5 text-[var(--accent)] opacity-80" />
-                  </div>
-                </div>
+          <div className="p-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)] mb-3">Popular areas</p>
+            <div className="flex flex-wrap gap-2">
+              {POPULAR_LOCALITIES.map((loc) => (
+                <button
+                  key={loc}
+                  onClick={() => {
+                    router.push(`/listings?locality=${encodeURIComponent(loc)}`);
+                    setShowMobileSearch(false);
+                  }}
+                  className="rounded-full border border-white/5 bg-[var(--bg-surface)] px-3.5 py-2 text-[12px] font-semibold text-[var(--text-secondary)] hover:border-[var(--accent)]/30 hover:text-[var(--accent)] transition-colors"
+                >
+                  {loc}
+                </button>
               ))}
             </div>
-
-            <div className="space-y-5">
-              <div className="flex flex-col gap-4 border-b border-white/3 pb-5 md:flex-row md:items-end md:justify-between">
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-                    {selectedLocality ? `${selectedLocality} homes (${listings.length})` : `Homes for buyers and tenants (${listings.length})`}
-                  </div>
-                  <h2 className="mt-2 text-[26px] font-black leading-tight text-[var(--text-primary)] font-display md:text-[34px]">
-                    Browse fresh broker-listed homes
-                  </h2>
-                  <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                    Compare rentals and sale inventory from active Mumbai broker networks, then open the listing to request details on WhatsApp.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {selectedLocality ? (
-                    <button
-                      onClick={() => selectLocality(null)}
-                      className="inline-flex h-11 items-center justify-center rounded-[12px] border border-[color:var(--border-strong)] px-4 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--text-secondary)] transition-all hover:border-[color:var(--accent-border)] hover:text-[var(--accent)]"
-                    >
-                      Clear area
-                    </button>
-                  ) : null}
-                  <Link
-                    href="/listings"
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-[var(--accent)] px-5 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--on-propai-green)] transition-all hover:brightness-110"
-                  >
-                    View all listings
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </div>
-              </div>
-
-              {loading ? (
-                <div className="rounded-[18px] bg-[var(--bg-surface)]/55 p-12 text-center">
-                  <Compass className="mx-auto h-10 w-10 animate-spin text-[var(--accent)]" />
-                  <h3 className="mt-4 text-[15px] font-bold text-[var(--text-primary)]">Loading homes</h3>
-                  <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Fetching the latest public listings.</p>
-                </div>
-              ) : listings.length === 0 ? (
-                <div className="rounded-[18px] bg-[var(--bg-surface)]/55 p-12 text-center">
-                  <AlertCircle className="mx-auto h-10 w-10 text-[var(--text-muted)]" />
-                  <h3 className="mt-4 text-[16px] font-bold text-[var(--text-primary)]">No listings found</h3>
-                  <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Try a different locality or browse all current homes.</p>
-                  <button
-                    onClick={() => { handleSearch(''); selectLocality(null); }}
-                    className="mt-5 rounded-[12px] bg-[var(--accent)] px-5 py-3 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--on-propai-green)]"
-                  >
-                    Reset search
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                  {listings.slice(0, 9).map(item => (
-                    <ListingCard key={item.id} listing={item} />
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* TAB 2: INTERACTIVE SVG-BASED HEATMAP OF MUMBAI */}
-        {activeTab === 'map' && (
-          <div className="glass-panel rounded-[28px] p-6 sm:p-8 animate-stream-in relative border border-white/3">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              
-              {/* Map Info Panel (left 4 columns) */}
-              <div className="lg:col-span-4 space-y-6">
-                <div>
-                  <h3 className="text-[20px] font-black tracking-tight text-[var(--text-primary)] font-display">AI Locality Signal Matrix</h3>
-                  <p className="text-[13px] text-[var(--text-secondary)] mt-1.5 leading-relaxed">
-                    Interactive vector node cluster of high-speed B2B Realtor networks in Mumbai. Click on any neighborhood node to instantly filter corresponding active live feeds.
-                  </p>
-                </div>
-
-                <div className="space-y-3 bg-[var(--bg-surface)] p-4.5 rounded-2xl">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-live-pulse" />
-                    <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-primary)]">Live Heat Spot Cues</span>
-                  </div>
-                  <div className="space-y-2 text-[11px] text-[var(--text-secondary)] leading-relaxed">
-                    <p>🔥 <strong>Green Nodes (Glow)</strong> indicate high broadcast velocity. Properties closed here within an average of 48 hours of surfacing in Realtor groups.</p>
-                    <p>📊 <strong>Demand Index</strong> calculates search-to-Realtor matching volume relative to Realtor group broadcast volume.</p>
-                  </div>
-                </div>
-
-                {/* Selected Node Summary in Dashboard */}
-                {hoveredLocality ? (
-                  <div className="p-5 rounded-2xl bg-[var(--accent-glow)] border border-[color:var(--accent-border)] space-y-3 animate-stream-in">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-bold text-[var(--text-primary)]">{hoveredLocality.name}</span>
-                      <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-[var(--accent)] text-[var(--on-propai-green)]">ACTIVE</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 text-[11px]">
-                      <div>
-                        <span className="text-[var(--text-secondary)]">Live Signals</span>
-                        <div className="font-bold text-[var(--text-primary)] mt-0.5">{hoveredLocality.count} items</div>
-                      </div>
-                      <div>
-                        <span className="text-[var(--text-secondary)]">Average Rent</span>
-                        <div className="font-bold text-[var(--text-primary)] mt-0.5">{hoveredLocality.avgRent}/mo</div>
-                      </div>
-                      <div>
-                        <span className="text-[var(--text-secondary)]">Demand Ratio</span>
-                        <div className="font-bold text-[var(--text-primary)] mt-0.5">{hoveredLocality.demandIndex}% (High)</div>
-                      </div>
-                      <div>
-                        <span className="text-[var(--text-secondary)]">Realtor Group Delta</span>
-                        <div className="font-bold text-blue-400 mt-0.5">{hoveredLocality.delta} Advantage</div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-5 rounded-2xl bg-[var(--bg-base)]/40 text-center text-[12px] text-[var(--text-secondary)]">
-                    Hover over map nodes to fetch micro-market intelligence indices.
-                  </div>
-                )}
-              </div>
-
-              {/* Leaflet Map Container (right 8 columns) */}
-              <div className="lg:col-span-8 relative overflow-hidden bg-[var(--bg-base)] rounded-2xl">
-                
-                <MumbaiMap
-                  localities={MAP_LOCALITIES}
-                  onHover={(loc) => setHoveredLocality(loc)}
-                  onSelect={(name) => {
-                    selectLocality(name);
-                    setActiveTab('feed');
-                  }}
-                />
-              </div>
-
-            </div>
-          </div>
-        )}
-
-      </main>
-
-      {/* Market intelligence CTA */}
-      <section className="relative z-10 mx-auto max-w-7xl px-6 mt-16 animate-stream-in">
-        <div className="rounded-3xl border border-[var(--accent-border)] bg-gradient-to-br from-[var(--accent-glow)] via-transparent to-transparent p-8 md:p-12">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--accent-border)] bg-[var(--accent-glow)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)] mb-4">
-              <BarChart3 className="h-3.5 w-3.5" />
-              Market Insights
-            </div>
-            <h2 className="text-[22px] font-black text-[var(--text-primary)] md:text-[28px]">
-              See Which Mumbai Areas Are <span className="text-[var(--accent)]">Heating Up</span>
-            </h2>
-            <p className="mt-3 text-[14px] text-[var(--text-secondary)] leading-relaxed">
-              Real-time pricing trends, demand signals, and broker activity across all Mumbai localities.
-              Updated every 30 minutes from live broker network data.
-            </p>
-            <Link
-              href="/intelligence"
-              className="mt-6 inline-flex h-12 items-center gap-2 rounded-2xl bg-[var(--accent)] px-6 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--on-propai-green)] transition-all hover:brightness-110"
+      <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
+        {/* Search — always visible on desktop, tap-to-open on mobile */}
+        <div className="mb-8">
+          <div
+            className="hidden md:flex items-center gap-3 bg-[var(--bg-surface)] rounded-2xl px-5 py-3.5 border border-white/5 hover:border-[var(--accent)]/20 transition-all cursor-text"
+            onClick={() => document.getElementById("desktop-search")?.focus()}
+          >
+            <Search className="h-5 w-5 text-[var(--text-muted)] shrink-0" />
+            <input
+              id="desktop-search"
+              type="text"
+              placeholder="Search locality, BHK, budget..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && searchQuery.trim()) {
+                  router.push(`/listings?q=${encodeURIComponent(searchQuery.trim())}`);
+                }
+              }}
+              className="w-full bg-transparent text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none"
+            />
+            <button
+              onClick={() => router.push("/listings")}
+              className="hidden sm:inline-flex h-9 items-center rounded-xl bg-[var(--accent)] px-4 text-[10px] font-black uppercase tracking-[0.08em] text-[var(--on-propai-green)] hover:brightness-110 transition-all"
             >
-              Explore Market Trends
+              Browse All
+            </button>
+          </div>
+
+          <button
+            onClick={() => setShowMobileSearch(true)}
+            className="md:hidden flex items-center gap-3 w-full bg-[var(--bg-surface)] rounded-xl px-4 py-3 border border-white/5"
+          >
+            <Search className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
+            <span className="text-[13px] text-[var(--text-muted)]">Search locality, BHK, budget...</span>
+          </button>
+        </div>
+
+        {/* Quick filters — always visible */}
+        <div className="flex items-center gap-2 mb-8 overflow-x-auto scrollbar-none">
+          <Link
+            href="/listings?type=Rent"
+            className="shrink-0 rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/5 px-4 py-2 text-[12px] font-bold text-[var(--accent)] hover:bg-[var(--accent)]/10 transition-colors"
+          >
+            For Rent
+          </Link>
+          <Link
+            href="/listings?type=Sale"
+            className="shrink-0 rounded-full border border-white/5 bg-[var(--bg-surface)] px-4 py-2 text-[12px] font-bold text-[var(--text-secondary)] hover:text-[var(--accent)] hover:border-[var(--accent)]/30 transition-colors"
+          >
+            For Sale
+          </Link>
+          <span className="shrink-0 w-px h-5 bg-white/5" />
+          {POPULAR_LOCALITIES.slice(0, 5).map((loc) => (
+            <Link
+              key={loc}
+              href={`/listings?locality=${encodeURIComponent(loc)}`}
+              className="shrink-0 rounded-full border border-white/5 bg-[var(--bg-surface)] px-3.5 py-2 text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--accent)] hover:border-[var(--accent)]/30 transition-colors"
+            >
+              {loc}
+            </Link>
+          ))}
+          <Link
+            href="/localities"
+            className="shrink-0 text-[11px] font-bold text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors px-1"
+          >
+            All areas →
+          </Link>
+        </div>
+
+        {/* Latest Listings */}
+        <div className="mb-12">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-[18px] font-black text-[var(--text-primary)] md:text-[22px]">
+                Latest listings
+              </h2>
+              <p className="text-[12px] text-[var(--text-secondary)] mt-0.5">
+                Fresh from broker networks
+              </p>
+            </div>
+            <Link
+              href="/listings"
+              className="flex items-center gap-1.5 text-[11px] font-bold text-[var(--accent)] hover:underline"
+            >
+              View all <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          {recentListings.length === 0 ? (
+            <div className="rounded-2xl bg-[var(--bg-surface)]/50 p-10 text-center">
+              <HomeIcon className="mx-auto h-8 w-8 text-[var(--text-muted)] mb-3" />
+              <p className="text-[14px] font-semibold text-[var(--text-primary)]">No listings yet</p>
+              <p className="text-[12px] text-[var(--text-secondary)] mt-1">Check back soon for fresh inventory</p>
+            </div>
+          ) : (
+            <>
+              {/* Mobile: compact list */}
+              <div className="space-y-3 md:hidden">
+                {recentListings.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={`/listings/${item.slug}`}
+                    className="flex items-center gap-3 rounded-xl bg-[var(--bg-surface)] p-3 border border-white/3 active:bg-[var(--bg-hover)] transition-colors"
+                  >
+                    <div className="shrink-0 w-16 h-16 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center overflow-hidden">
+                      {item.cover_image ? (
+                        <img src={item.cover_image} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <HomeIcon className="h-6 w-6 text-[var(--text-muted)]" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "text-[10px] font-black uppercase tracking-[0.08em]",
+                          item.type === "Rent" ? "text-[var(--accent)]" : "text-amber-400",
+                        )}>
+                          {item.type === "Rent" ? "Rent" : "Sale"}
+                        </span>
+                        {item.configuration && (
+                          <span className="text-[11px] text-[var(--text-secondary)] flex items-center gap-1">
+                            <BedDouble className="h-3 w-3" />
+                            {item.configuration}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[15px] font-black text-[var(--text-primary)] mt-0.5">
+                        {formatPrice(item.price, item.type)}
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] text-[var(--text-secondary)] mt-0.5">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{item.locality}</span>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-[var(--text-muted)] shrink-0" />
+                  </Link>
+                ))}
+              </div>
+              {/* Desktop: card grid */}
+              <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                {recentListings.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={`/listings/${item.slug}`}
+                    className="group rounded-2xl bg-[var(--bg-surface)] border border-white/3 overflow-hidden hover:border-[var(--accent)]/20 transition-all"
+                  >
+                    <div className="aspect-[16/10] bg-[var(--bg-elevated)] flex items-center justify-center overflow-hidden">
+                      {item.cover_image ? (
+                        <img src={item.cover_image} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" />
+                      ) : (
+                        <HomeIcon className="h-8 w-8 text-[var(--text-muted)]" />
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={cn(
+                          "text-[9px] font-black uppercase tracking-[0.1em]",
+                          item.type === "Rent" ? "text-[var(--accent)]" : "text-amber-400",
+                        )}>
+                          {item.type === "Rent" ? "For Rent" : "For Sale"}
+                        </span>
+                        {item.configuration && (
+                          <span className="text-[11px] text-[var(--text-secondary)]">{item.configuration}</span>
+                        )}
+                      </div>
+                      <div className="text-[18px] font-black text-[var(--text-primary)]">{formatPrice(item.price, item.type)}</div>
+                      <div className="flex items-center gap-1 text-[12px] text-[var(--text-secondary)] mt-1">
+                        <MapPin className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{item.locality}</span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Why PropAI */}
+        <div className="mb-12">
+          <h2 className="text-[18px] font-black text-[var(--text-primary)] mb-5 md:text-[22px]">Why PropAI</h2>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-6">
+            {FEATURES.map((f) => (
+              <div key={f.title} className="rounded-2xl bg-[var(--bg-surface)]/50 border border-white/3 p-5">
+                <f.icon className="h-5 w-5 text-[var(--accent)] mb-3" />
+                <h3 className="text-[14px] font-bold text-[var(--text-primary)] mb-1">{f.title}</h3>
+                <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div className="rounded-2xl bg-gradient-to-br from-[var(--accent)]/5 via-transparent to-transparent border border-[var(--accent)]/20 p-6 md:p-10 text-center">
+          <h2 className="text-[20px] font-black text-[var(--text-primary)] md:text-[26px]">
+            Ready to find your next home?
+          </h2>
+          <p className="text-[13px] text-[var(--text-secondary)] mt-2 max-w-md mx-auto">
+            Browse live listings from verified broker networks across Mumbai.
+          </p>
+          <div className="flex items-center justify-center gap-3 mt-5">
+            <Link
+              href="/listings"
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-[var(--accent)] px-5 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--on-propai-green)] hover:brightness-110 transition-all"
+            >
+              Browse Listings
               <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/explore"
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/5 bg-[var(--bg-surface)] px-5 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--text-secondary)] hover:text-[var(--accent)] hover:border-[var(--accent)]/20 transition-all"
+            >
+              View Map
             </Link>
           </div>
         </div>
-      </section>
-
-      {/* Map tab floating CTA */}
-      {activeTab === 'map' && (
-        <section className="relative z-10 mx-auto max-w-5xl px-6 mt-12 animate-stream-in">
-          <div className="glass-panel rounded-[24px] p-6 sm:p-8 border border-white/3">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-[20px] sm:text-[24px] font-black text-[var(--text-primary)] font-display">Transform the way you hunt rentals</h2>
-                <p className="mt-1 text-[13px] text-[var(--text-secondary)] leading-relaxed max-w-md">
-                  Ditch stale retail listing websites. Browse broker inventory, compare market context, and connect with professional Realtors directly.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <button 
-                  onClick={() => setActiveTab('feed')}
-                  className="inline-flex items-center justify-center gap-2 rounded-[12px] bg-[var(--accent)] px-5 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--on-propai-green)] shadow-xl hover:brightness-110 active:scale-[0.98] transition-all"
-                >
-                  Open Stream Desk
-                </button>
-                <Link href="https://app.propai.live" className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-white/5 bg-[var(--bg-elevated)] px-5 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all">
-                  For Realtors Desk
-                </Link>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* FAQ Section */}
-      <section className="relative z-10 mx-auto max-w-5xl px-6 mt-16 pb-12 animate-stream-in">
-        <div className="text-center mb-10">
-          <h2 className="text-[24px] sm:text-[32px] font-black text-[var(--text-primary)] font-display">
-            Frequently Asked Questions
-          </h2>
-          <p className="mt-2 text-[13px] text-[var(--text-secondary)] max-w-lg mx-auto">
-            Everything you need to know about India's first real-time Realtor network stream.
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          {[
-            {
-              q: "What is PropAI Pulse and how does it beat traditional property portals?",
-              a: "Traditional property portals can contain stale, duplicate, or incomplete listings. PropAI Pulse gives brokers and buyers a searchable view of broker-listed inventory, requirements, and locality-level market context."
-            },
-            {
-              q: "How does PropAI guarantee listings are active and not fake?",
-              a: "PropAI helps brokers structure inventory and enquiries, track follow-ups, and keep the information they choose to publish searchable. Prices and availability should always be confirmed with the responsible broker."
-            },
-            {
-              q: "How do I connect with the professional Realtor who posted a listing?",
-              a: "Once you find a suitable property or requirement stream on our dashboard, you can unlock the direct details and connect with the professional Realtor who posted the broadcast. PropAI Pulse acts as a direct communication bridge, allowing you to negotiate or schedule walkthroughs immediately via WhatsApp with no middleman markup."
-            },
-            {
-              q: "What micro-markets does PropAI Pulse cover?",
-              a: "We offer comprehensive real-time coverage across Mumbai's premium residential and commercial micro-markets, including Bandra West, Juhu, Andheri West, Powai, Worli, Chembur, and Thane. We are continuously adding active Realtor networks in Pune and Bangalore as we expand our coverage."
-            },
-            {
-              q: "How often is the Realtor property stream updated?",
-              a: "Our AI parser monitors private Realtor communication pipelines 24/7. Listings, requirements, and pricing revisions are captured, parsed, and updated on our Stream Desk within minutes of being broadcast by Realtors, ensuring you always get the freshest data in the market."
-            }
-          ].map((faq, index) => {
-            const isOpen = activeFaq === index;
-            return (
-              <div 
-                key={index} 
-                className={cn(
-                  "glass-panel rounded-[20px] border border-white/3 transition-all duration-300",
-                  isOpen ? "bg-[var(--accent-glow)] border-[color:var(--accent-border)]" : "hover:border-white/10"
-                )}
-              >
-                <button
-                  onClick={() => setActiveFaq(isOpen ? null : index)}
-                  className="w-full flex items-center justify-between p-5 text-left outline-none cursor-pointer"
-                >
-                  <span className="text-[14px] font-bold text-white pr-4">
-                    {faq.q}
-                  </span>
-                  <ChevronDown 
-                    className={cn(
-                      "h-4.5 w-4.5 text-[var(--text-secondary)] transition-transform duration-300",
-                      isOpen && "transform rotate-180 text-[var(--accent)]"
-                    )} 
-                  />
-                </button>
-                <div 
-                  className={cn(
-                    "overflow-hidden transition-all duration-300 ease-in-out px-5",
-                    isOpen ? "max-h-[200px] pb-5" : "max-h-0"
-                  )}
-                >
-                  <p className="text-[12.5px] text-[var(--text-secondary)] leading-relaxed">
-                    {faq.a}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* FAQ schema for Search Engine / LLM crawlers */}
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "FAQPage",
-              "mainEntity": [
-                {
-                  "@type": "Question",
-                  "name": "What is PropAI Pulse and how does it beat traditional property portals?",
-                  "acceptedAnswer": {
-                    "@type": "Answer",
-                    "text": "Traditional property portals can contain stale, duplicate, or incomplete listings. PropAI Pulse gives brokers and buyers a searchable view of broker-listed inventory, requirements, and locality-level market context."
-                  }
-                },
-                {
-                  "@type": "Question",
-                  "name": "How does PropAI guarantee listings are active and not fake?",
-                  "acceptedAnswer": {
-                    "@type": "Answer",
-                    "text": "PropAI helps brokers structure inventory and enquiries, track follow-ups, and keep the information they choose to publish searchable. Prices and availability should always be confirmed with the responsible broker."
-                  }
-                },
-                {
-                  "@type": "Question",
-                  "name": "How do I connect with the professional Realtor who posted a listing?",
-                  "acceptedAnswer": {
-                    "@type": "Answer",
-                    "text": "Once you find a suitable property or requirement stream on our dashboard, you can unlock the direct details and connect with the professional Realtor who posted the broadcast. PropAI Pulse acts as a direct communication bridge, allowing you to negotiate or schedule walkthroughs immediately via WhatsApp with no middleman markup."
-                  }
-                },
-                {
-                  "@type": "Question",
-                  "name": "What micro-markets does PropAI Pulse cover?",
-                  "acceptedAnswer": {
-                    "@type": "Answer",
-                    "text": "We offer comprehensive real-time coverage across Mumbai's premium residential and commercial micro-markets, including Bandra West, Juhu, Andheri West, Powai, Worli, Chembur, and Thane. We are continuously adding active Realtor networks in Pune and Bangalore as we expand our coverage."
-                  }
-                },
-                {
-                  "@type": "Question",
-                  "name": "How often is the Realtor property stream updated?",
-                  "acceptedAnswer": {
-                    "@type": "Answer",
-                    "text": "Our AI parser monitors private Realtor communication pipelines 24/7. Listings, requirements, and pricing revisions are captured, parsed, and updated on our Stream Desk within minutes of being broadcast by Realtors, ensuring you always get the freshest data in the market."
-                  }
-                }
-              ]
-            })
-          }}
-        />
-      </section>
-
-      {/* ADVANCED FLOATING BROKER CHAT SIMULATOR DRAWER */}
-      {chatOpen && activeBroker && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end animate-fade-in">
-          <div className="absolute inset-0" onClick={() => setChatOpen(false)} />
-          
-          <div className="w-full max-w-md h-full bg-[var(--bg-surface)] border-l border-white/5 flex flex-col relative z-10 animate-stream-in shadow-2xl">
-            
-            {/* Chat Header */}
-            <div className="p-4 flex items-center justify-between bg-[var(--bg-elevated)]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[var(--accent-glow)] border border-[color:var(--accent-border)] flex items-center justify-center text-[var(--accent)] font-black text-sm">
-                  {activeBroker.avatar}
-                </div>
-                
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[13px] font-bold text-[var(--text-primary)]">{activeBroker.name}</span>
-                    <span className="flex h-2.5 w-2.5 relative">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--accent)] opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[var(--accent)]"></span>
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-[var(--text-secondary)] font-medium block">
-                    {activeBroker.agency} • ⭐ {activeBroker.rating}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-[var(--bg-base)] text-[var(--accent)] border border-[color:var(--accent-border)]">
-                  {activeBroker.repliesText}
-                </span>
-                <button 
-                  onClick={() => setChatOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-white transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Chat Info stats bar */}
-            <div className="bg-[var(--bg-base)] px-4 py-2 border-b border-white/2 flex items-center justify-between text-[9px] text-[var(--text-secondary)] font-bold">
-              <span>💼 EXPERIENCE: {activeBroker.experience}</span>
-              <span>🔑 RECENT DEALS: {activeBroker.recentDeals} closed</span>
-            </div>
-
-            {/* Messages Body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-[var(--bg-base)]/40">
-              {chatMessages.map((msg, index) => (
-                <div 
-                  key={index}
-                  className={cn(
-                    "flex flex-col max-w-[82%] animate-stream-in",
-                    msg.sender === 'user' ? "ml-auto items-end" : "mr-auto items-start"
-                  )}
-                >
-                  <div 
-                    className={cn(
-                      "p-3.5 rounded-2xl text-[12px] leading-relaxed shadow-sm",
-                      msg.sender === 'user' 
-                        ? "bg-[var(--accent)] text-[var(--on-propai-green)] rounded-tr-none font-medium" 
-                        : "bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-white/3 rounded-tl-none font-medium select-text"
-                    )}
-                  >
-                    {msg.text}
-
-                    {/* Direct message on WhatsApp after lead completion */}
-                    {msg.isSheetLink && chatStage === 'done' && (
-                      <div className="mt-3.5 p-3 rounded-xl bg-[var(--bg-surface)] border border-white/5 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <MessageCircle className="h-4.5 w-4.5 text-[var(--accent)]" />
-                          <span className="text-[10px] font-bold text-white uppercase tracking-wider">Direct WhatsApp Chat</span>
-                        </div>
-                        <div className="text-[9px] text-[var(--text-secondary)]">Ping Rohan directly to arrange pass.</div>
-                        <button 
-                          onClick={() => {
-                            const textMessage = encodeURIComponent(`Hi, I qualified with Pulse for your listing "${selectedListing?.title}" in ${selectedListing?.locality}. I would like to lock in details!`);
-                            window.open(`https://wa.me/${activeBroker.phone}?text=${textMessage}`, '_blank');
-                          }}
-                          className="w-full h-8 flex items-center justify-center gap-1.5 rounded-lg bg-[var(--accent)] text-[var(--on-propai-green)] text-[10px] font-black uppercase tracking-wider"
-                        >
-                          <Send className="h-3 w-3" />
-                          <span>Direct Chat Now</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <span className="text-[9px] text-[var(--text-muted)] mt-1 font-semibold">{msg.time}</span>
-                </div>
-              ))}
-
-              {isTyping && (
-                <div className="mr-auto flex flex-col items-start max-w-[80%] animate-stream-in">
-                  <div className="p-3.5 rounded-2xl bg-[var(--bg-elevated)] border border-white/3 rounded-tl-none flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-[var(--accent)] dot-bounce-1" />
-                    <span className="h-2 w-2 rounded-full bg-[var(--accent)] dot-bounce-2" />
-                    <span className="h-2 w-2 rounded-full bg-[var(--accent)] dot-bounce-3" />
-                  </div>
-                  <span className="text-[9px] text-[var(--text-muted)] mt-1 font-semibold">Realtor is typing</span>
-                </div>
-              )}
-            </div>
-
-            {/* Chat Preset Helper Queries (Real multi-choice state options) */}
-            <div className="p-3 border-t border-white/2 bg-[var(--bg-surface)] flex flex-wrap gap-2">
-              {chatStage === 'move_in' && (
-                ["Immediate", "15 Days", "1 Month", "Flexible"].map((query, i) => (
-                  <button 
-                    key={i}
-                    onClick={() => sendChatMessage(query)}
-                    className="px-3.5 py-2 rounded-xl bg-[var(--bg-elevated)] hover:text-[var(--accent)] text-[10.5px] font-bold text-[var(--text-secondary)] transition-all"
-                  >
-                    {query}
-                  </button>
-                ))
-              )}
-              
-              {chatStage === 'profile' && (
-                ["Corporate MNC Lease", "Salaried Family", "Bachelors", "Other Profile"].map((query, i) => (
-                  <button 
-                    key={i}
-                    onClick={() => sendChatMessage(query)}
-                    className="px-3.5 py-2 rounded-xl bg-[var(--bg-elevated)] hover:text-[var(--accent)] text-[10.5px] font-bold text-[var(--text-secondary)] transition-all"
-                  >
-                    {query}
-                  </button>
-                ))
-              )}
-
-              {chatStage === 'deposit' && (
-                ["Yes, comfortable", "No, prefer 3-4m limit", "Flexible / Negotiable"].map((query, i) => (
-                  <button 
-                    key={i}
-                    onClick={() => sendChatMessage(query)}
-                    className="px-3.5 py-2 rounded-xl bg-[var(--bg-elevated)] hover:text-[var(--accent)] text-[10.5px] font-bold text-[var(--text-secondary)] transition-all"
-                  >
-                    {query}
-                  </button>
-                ))
-              )}
-
-              {chatStage === 'whatsapp' && (
-                <div className="text-[9.5px] text-[var(--text-muted)] font-semibold p-1">
-                  Type your 10-digit Indian WhatsApp number below and click Send.
-                </div>
-              )}
-            </div>
-
-            {/* Chat Direct input bar */}
-            <div className="p-4 border-t border-white/2 bg-[var(--bg-elevated)] flex gap-2">
-              <input 
-                type="text" 
-                disabled={chatStage === 'submitting' || chatStage === 'done' || chatStage === 'move_in' || chatStage === 'profile' || chatStage === 'deposit'}
-                placeholder={
-                  chatStage === 'name' ? "Enter your full name..." :
-                  chatStage === 'whatsapp' ? "Enter 10-digit WhatsApp number (e.g. 9820012345)..." :
-                  chatStage === 'done' ? "Pre-qualification complete!" : "Select option from presets above..."
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                    sendChatMessage(e.currentTarget.value);
-                    e.currentTarget.value = '';
-                  }
-                }}
-                className="flex-1 bg-[var(--bg-base)] border border-white/3 rounded-xl px-4 py-2.5 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]/30 transition-colors disabled:opacity-50"
-              />
-              <button 
-                disabled={chatStage === 'submitting' || chatStage === 'done' || chatStage === 'move_in' || chatStage === 'profile' || chatStage === 'deposit'}
-                onClick={(e) => {
-                  const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                  if (input && input.value.trim()) {
-                    sendChatMessage(input.value);
-                    input.value = '';
-                  }
-                }}
-                className="w-10 h-10 flex items-center justify-center bg-[var(--accent)] text-[var(--on-propai-green)] rounded-xl shadow-md hover:brightness-110 active:scale-[0.96] transition-all disabled:opacity-50"
-              >
-                <Send className="h-4 w-4" />
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
+      </div>
     </div>
   );
 }
