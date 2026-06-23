@@ -7,7 +7,7 @@ const jsonBlockClass =
 
 export default function MCPDocs() {
   return (
-    <div className="mx-auto max-w-7xl px-5 py-12 space-y-12">
+    <div className="mx-auto max-w-[1600px] px-5 py-12 space-y-12">
       <section className="max-w-4xl space-y-4">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--accent)]">Public docs</p>
         <h1 className="text-[36px] font-bold leading-tight tracking-tight text-[var(--text-primary)] md:text-[54px]">

@@ -106,9 +106,9 @@ export default function ListingDetail({
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-7xl px-5 py-12 space-y-8 animate-pulse">
+      <div className="mx-auto max-w-[1600px] px-5 py-12 space-y-8 animate-pulse">
         <div className="h-4 w-48 bg-[var(--bg-elevated)] rounded-[4px]" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-12">
           <div className="lg:col-span-2 space-y-8">
             <div className="h-10 w-3/4 bg-[var(--bg-elevated)] rounded-[8px]" />
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -125,7 +125,7 @@ export default function ListingDetail({
   }
 
   if (!listing) return (
-     <div className="py-32 text-center mx-auto max-w-7xl px-5">
+     <div className="py-32 text-center mx-auto max-w-[1600px] px-5">
         <h2 className="text-xl font-bold text-[var(--text-primary)]">Listing not found</h2>
         <Link href="/listings" className="mt-8 inline-block text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--accent)] hover:underline">
           Back to all listings
@@ -159,7 +159,7 @@ export default function ListingDetail({
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-10 px-5 py-8">
+    <div className="mx-auto max-w-[1600px] space-y-10 px-5 py-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -227,7 +227,7 @@ export default function ListingDetail({
                   </div>
                   <p className="text-[11px] text-[var(--text-secondary)]">Photos pulled from the listing record.</p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                   {galleryImages.slice(0, 6).map((image, index) => (
                     <a
                       key={`${image}-${index}`}
@@ -374,7 +374,7 @@ export default function ListingDetail({
               View all listings
             </Link>
           </div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {related.map((r) => (
               <ListingCard key={r.id} listing={r} />
             ))}

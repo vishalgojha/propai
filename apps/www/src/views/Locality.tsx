@@ -24,7 +24,7 @@ export default function Locality({ slug }: { slug: string }) {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-5 py-12 space-y-12">
+    <div className="mx-auto max-w-[1600px] px-5 py-12 space-y-12">
       <div className="space-y-6">
         <Link href="/" className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors">
           <ArrowLeft className="h-4 w-4" />
@@ -72,7 +72,7 @@ export default function Locality({ slug }: { slug: string }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
         {listings.length > 0 ? (
           listings.map(l => <ListingCard key={l.id} listing={l} />)
         ) : (

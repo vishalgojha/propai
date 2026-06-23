@@ -79,7 +79,7 @@ export default function ProjectPage({ project }: { project: Project }) {
   return (
     <div className="min-h-screen bg-[var(--bg-base)]">
       {/* Back link */}
-      <div className="mx-auto max-w-7xl px-4 pt-4 md:px-6">
+      <div className="mx-auto max-w-[1600px] px-4 pt-4 md:px-6">
         <Link
           href="/listings"
           className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors"
@@ -90,7 +90,7 @@ export default function ProjectPage({ project }: { project: Project }) {
       </div>
 
       {/* Hero gallery */}
-      <div className="mx-auto max-w-7xl px-4 mt-4 md:px-6">
+      <div className="mx-auto max-w-[1600px] px-4 mt-4 md:px-6">
         <div className="relative rounded-2xl overflow-hidden bg-[var(--bg-surface)] aspect-[16/9] md:aspect-[21/9]">
           {project.gallery[activeImage] ? (
             <img
@@ -154,7 +154,7 @@ export default function ProjectPage({ project }: { project: Project }) {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 md:px-6 mt-8 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8">
+      <div className="mx-auto max-w-[1600px] px-4 md:px-6 mt-8 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8">
         {/* Left column */}
         <div className="space-y-10">
           {/* Available Units */}

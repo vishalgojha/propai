@@ -53,7 +53,7 @@ export default function Contact() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-5 py-24">
+    <div className="mx-auto max-w-[1600px] px-5 py-24">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-20">
         <div className="space-y-12">
           <div className="space-y-4">

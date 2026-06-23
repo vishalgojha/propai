@@ -23,7 +23,7 @@ export default function PublicNav() {
     <>
       {/* Desktop nav */}
       <nav className="hidden md:flex sticky top-0 z-50 w-full border-b border-[color:var(--border)] bg-[var(--bg-base)]/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-3">
+        <div className="mx-auto flex max-w-[1600px] items-center justify-between px-8 py-3">
           <div className="flex items-center gap-8">
             <Link href="/" className="flex items-center gap-2 group">
               <img src="/favicon.svg" alt="PropAI" className="h-8 w-8 rounded-[10px]" />

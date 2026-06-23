@@ -101,7 +101,7 @@ export default function Listings({ initialListings = [], initialLocality = "", i
   }));
 
   return (
-    <div className="mx-auto max-w-7xl px-0 md:px-6 py-0 md:py-10">
+    <div className="mx-auto max-w-[1600px] px-0 md:px-6 py-0 md:py-10">
       {/* Mobile: sticky top bar */}
       <div className="md:hidden sticky top-0 z-20 bg-[var(--bg-base)] border-b border-white/5">
         <div className="px-4 pt-3 pb-2">
@@ -301,7 +301,7 @@ export default function Listings({ initialListings = [], initialLocality = "", i
             ))}
           </div>
           {/* Desktop: card grid */}
-          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-8 pb-10">
+          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 pb-10">
             {filteredListings.map((listing) => (
               <ListingCard key={listing.id} listing={listing} />
             ))}

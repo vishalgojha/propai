@@ -10,7 +10,7 @@ const ctas = [
 
 export default function MCP() {
   return (
-    <div className="mx-auto max-w-7xl px-5 py-12 space-y-12">
+    <div className="mx-auto max-w-[1600px] px-5 py-12 space-y-12">
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
           <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">

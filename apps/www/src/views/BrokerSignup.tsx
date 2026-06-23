@@ -2,7 +2,7 @@ import { CheckCircle2, MessageSquare, Zap, Target, TrendingUp } from 'lucide-rea
 
 export default function BrokerSignup() {
   return (
-    <div className="mx-auto max-w-7xl px-5 py-16 lg:py-24">
+    <div className="mx-auto max-w-[1600px] px-5 py-16 lg:py-24">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
         <div className="space-y-12">
           <div className="space-y-4">

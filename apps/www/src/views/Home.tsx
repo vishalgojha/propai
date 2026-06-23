@@ -90,7 +90,7 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
         </div>
       )}
 
-      <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
+      <div className="mx-auto max-w-[1600px] px-4 py-6 md:px-6 md:py-10">
         {/* Search — always visible on desktop, tap-to-open on mobile */}
         <div className="mb-8">
           <div
