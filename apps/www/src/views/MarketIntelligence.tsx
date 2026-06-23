@@ -89,7 +89,7 @@ export default function MarketIntelligence({ initialData }: { initialData: Local
     <div className="min-h-screen bg-[var(--bg-base)]">
       {/* Hero */}
       <section className="relative border-b border-white/3 bg-gradient-to-b from-[var(--bg-surface)]/60 to-transparent">
-        <div className="mx-auto max-w-7xl px-6 pt-20 pb-16">
+        <div className="mx-auto max-w-[1600px] px-6 pt-20 pb-16">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--accent-border)] bg-[var(--accent-glow)] px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--accent)] mb-5">
               <BarChart3 className="h-3.5 w-3.5" />
@@ -126,7 +126,7 @@ export default function MarketIntelligence({ initialData }: { initialData: Local
       </section>
 
       {/* Main content */}
-      <section className="mx-auto max-w-7xl px-6 py-10">
+      <section className="mx-auto max-w-[1600px] px-6 py-10">
         {/* Controls bar */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
           <div className="relative flex-1 max-w-md">
@@ -208,7 +208,7 @@ export default function MarketIntelligence({ initialData }: { initialData: Local
             <p className="text-[13px] text-[var(--text-secondary)] mt-1">Try adjusting the search or filter</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
             {filtered.map((loc) => {
               const signal = demandSignalLabel(loc.demandSignal);
               return (
@@ -278,7 +278,7 @@ export default function MarketIntelligence({ initialData }: { initialData: Local
       </section>
 
       {/* CTA */}
-      <section className="mx-auto max-w-7xl px-6 py-16">
+      <section className="mx-auto max-w-[1600px] px-6 py-16">
         <div className="rounded-3xl border border-[var(--accent-border)] bg-gradient-to-br from-[var(--accent-glow)] via-transparent to-transparent p-8 md:p-12">
           <div className="max-w-2xl">
             <h2 className="text-[22px] font-black text-[var(--text-primary)] md:text-[28px]">
