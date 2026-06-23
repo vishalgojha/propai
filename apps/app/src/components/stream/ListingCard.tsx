@@ -338,8 +338,6 @@ export const ListingCard: React.FC<ListingCardProps> = ({
     const priceLabel = formatPriceDisplay(listing);
     const rateLabel = formatPricePerSqft(listing);
     const displayTitle = buildDisplayTitle(listing);
-    const chips = buildChips(listing);
-    const description = buildDescription(listing);
     const contactActions = buildContactActions(listing);
     const sourceLabel = listing.isSyndicated
       ? `Via ${listing.sourceWorkspaceName || 'partner network'}`
@@ -354,6 +352,31 @@ export const ListingCard: React.FC<ListingCardProps> = ({
     const hasBuildingName = formatBuildingName(listing.buildingName) !== 'On Request';
     const igrQueueCopy = buildIgrQueueCopy(listing);
     const showIgrQueueStatus = hasBuildingName && igrTransactions.length === 0 && Boolean(igrQueueCopy);
+
+    const raw = sanitizeVisibleText(listing.rawText || listing.description || '');
+    const lowerRaw = raw.toLowerCase();
+    const parkingChip = lowerRaw.includes('parking') && !lowerRaw.includes('no parking')
+      ? 'Parking' : null;
+    const featureRow = [
+      listing.furnishing && !/^n\/?a$/i.test(listing.furnishing) ? listing.furnishing : null,
+      lowerRaw.includes('sea view') || lowerRaw.includes('sea facing') ? 'Sea View' : null,
+      lowerRaw.includes('garden view') || lowerRaw.includes('park facing') ? 'Garden View' : null,
+      lowerRaw.includes('corner') ? 'Corner' : null,
+    ].filter(Boolean) as string[];
+    const amenityChips = (() => {
+      const all: string[] = [];
+      if (lowerRaw.includes('gym')) all.push('Gym');
+      if (lowerRaw.includes('pool') || lowerRaw.includes('swimming')) all.push('Pool');
+      if (lowerRaw.includes('lift') || lowerRaw.includes('elevator')) all.push('Lift');
+      if (lowerRaw.includes('garden')) all.push('Garden');
+      if (lowerRaw.includes('security')) all.push('Security');
+      if (lowerRaw.includes('cctv')) all.push('CCTV');
+      if (lowerRaw.includes('club')) all.push('Club');
+      if (lowerRaw.includes('power backup')) all.push('Power Backup');
+      if (lowerRaw.includes('visitor')) all.push('Visitor Parking');
+      if (lowerRaw.includes('children') || lowerRaw.includes('play')) all.push('Play Area');
+      return all;
+    })();
 
     const handleOpenWa = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -471,25 +494,76 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                     </div>
                 </div>
 
-                {/* Chips */}
-                {chips.length > 0 ? (
-                    <div className="flex flex-wrap gap-2 mb-4">
-                        {chips.map((chip) => (
-                            <span key={chip} className="px-3 py-1.5 rounded-xl bg-[var(--bg-elevated)] text-[11px] font-bold text-[var(--text-secondary)] transition-colors group-hover:bg-[var(--bg-base)]">
-                                {chip}
-                            </span>
+                {/* Price — prominent */}
+                <div className="mb-3 flex items-baseline gap-1">
+                    <span className="text-[22px] font-bold tracking-tight text-[var(--text-primary)] sm:text-[26px]">
+                        {priceLabel || 'Price on request'}
+                    </span>
+                    {priceLabel && listing.type === 'Rent' && <span className="text-[14px] text-[var(--text-muted)] font-medium">/mo</span>}
+                    {rateLabel ? <span className="ml-2 text-[11px] text-[var(--text-muted)]">{rateLabel}</span> : null}
+                </div>
+
+                {/* Key specs: BHK • Area • Parking */}
+                <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-semibold text-[var(--text-primary)]">
+                    {listing.configuration && !/^n\/?a$/i.test(listing.configuration) && (
+                        <span>{listing.configuration}</span>
+                    )}
+                    {listing.areaSqft ? (
+                        <>
+                            <span className="text-[var(--text-muted)]">•</span>
+                            <span>{listing.areaSqft.toLocaleString('en-IN')} sqft</span>
+                        </>
+                    ) : null}
+                    {parkingChip && (
+                        <>
+                            <span className="text-[var(--text-muted)]">•</span>
+                            <span>{parkingChip}</span>
+                        </>
+                    )}
+                </div>
+
+                {/* Location */}
+                <div className="mb-3 flex items-center gap-1.5 text-[12px] text-[var(--text-secondary)]">
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />
+                    <span>{listing.location || 'Mumbai market'}</span>
+                </div>
+
+                {/* Furnishing + features row */}
+                {featureRow.length > 0 ? (
+                    <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--text-secondary)]">
+                        {featureRow.map((f, i) => (
+                            <React.Fragment key={f}>
+                                {i > 0 && <span className="text-[var(--text-muted)]">•</span>}
+                                <span>{f}</span>
+                            </React.Fragment>
                         ))}
                     </div>
                 ) : null}
 
-                {/* Short Description */}
-                {description ? (
-                    <div className="mb-4">
-                        <p className="line-clamp-3 text-[13px] font-medium leading-relaxed text-[var(--text-secondary)] sm:text-[14px]">
-                            {description}
-                        </p>
+                {/* Amenities chips (top 3 + N more) */}
+                {amenityChips.length > 0 ? (
+                    <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                        {amenityChips.slice(0, 3).map((chip) => (
+                            <span key={chip} className="rounded-xl bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] font-semibold text-[var(--text-secondary)]">
+                                {chip}
+                            </span>
+                        ))}
+                        {amenityChips.length > 3 && (
+                            <span className="text-[10px] font-semibold text-[var(--text-muted)]">
+                                +{amenityChips.length - 3} more
+                            </span>
+                        )}
                     </div>
                 ) : null}
+
+                {/* Freshness badge */}
+                <div className="mb-4 flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(34,255,170,0.15)] bg-[rgba(34,255,170,0.06)] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">
+                        <Zap className="h-3 w-3" />
+                        Fresh broker signal
+                    </span>
+                    <span className="text-[10px] text-[var(--text-muted)]">{timeAgo}</span>
+                </div>
 
                 {igrTransactions.length > 0 ? (
                     <div className="mb-4 rounded-[18px] border border-[rgba(255,255,255,0.04)] bg-[var(--bg-elevated)] p-4">
@@ -542,15 +616,9 @@ export const ListingCard: React.FC<ListingCardProps> = ({
 
                 {/* Footer */}
                 <div className="mt-6 flex flex-col gap-3 border-t border-white/[0.03] pt-5 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="space-y-1">
-                        <div className="text-[22px] font-bold tracking-tight text-[var(--text-primary)] sm:text-[26px]">
-                            {priceLabel || 'Price on request'}
-                            {priceLabel && listing.type === 'Rent' && <span className="text-[14px] ml-1 text-[var(--text-muted)] font-medium">/mo</span>}
-                        </div>
-                        {rateLabel ? (
-                            <div className="text-[11px] text-[var(--text-muted)]">{rateLabel}</div>
-                        ) : localClickCount > 0 ? (
-                            <div className="text-[11px] text-[var(--text-muted)]">{localClickCount} WA click{localClickCount !== 1 ? 's' : ''}</div>
+                    <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
+                        {localClickCount > 0 ? (
+                            <span>{localClickCount} WA click{localClickCount !== 1 ? 's' : ''}</span>
                         ) : null}
                     </div>
                     <div className="flex w-full items-center gap-2 sm:w-auto">
@@ -699,7 +767,8 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                     type="button"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        navigator.clipboard.writeText(description).then(() => {
+                                        const copyText = [listing.configuration, listing.areaSqft ? `${listing.areaSqft.toLocaleString('en-IN')} sqft` : '', priceLabel, listing.location].filter(Boolean).join(' · ');
+                                        navigator.clipboard.writeText(copyText || listing.rawText || '').then(() => {
                                             setCopied(true);
                                             window.setTimeout(() => setCopied(false), 1600);
                                         }).catch(() => {});
