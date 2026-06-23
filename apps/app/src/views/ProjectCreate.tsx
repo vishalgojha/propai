@@ -316,7 +316,7 @@ export default function ProjectCreate() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 pb-16">
+    <div className="w-full pb-16">
       <Link
         to="/projects"
         className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors mb-6"
@@ -333,11 +333,11 @@ export default function ProjectCreate() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <section className={sectionClass}>
             <h2 className={sectionTitleClass}>Basic Info</h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-5">
               <div>
                 <label className={labelClass}>Project Name *</label>
                 <input type="text" required value={form.name} onChange={(e) => updateField('name', e.target.value)} placeholder="e.g. Lodha Park" className={inputClass} />
@@ -348,7 +348,7 @@ export default function ProjectCreate() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <div>
                 <label className={labelClass}>Locality *</label>
                 <input type="text" required value={form.locality} onChange={(e) => updateField('locality', e.target.value)} placeholder="e.g. Worli" className={inputClass} />
@@ -376,7 +376,7 @@ export default function ProjectCreate() {
           <section className={sectionClass}>
             <h2 className={sectionTitleClass}>Project Details</h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
                 <label className={labelClass}>RERA Number</label>
                 <input type="text" value={form.rera_number} onChange={(e) => updateField('rera_number', e.target.value)} placeholder="P51800000000" className={inputClass} />
@@ -408,7 +408,7 @@ export default function ProjectCreate() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
                 <label className={labelClass}>Latitude</label>
                 <input type="number" step="any" value={form.latitude} onChange={(e) => updateField('latitude', e.target.value)} placeholder="19.0176" className={inputClass} />
@@ -419,46 +419,47 @@ export default function ProjectCreate() {
               </div>
             </div>
           </section>
+
+          <section className={sectionClass}>
+            <h2 className={sectionTitleClass}>Media & Gallery</h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div>
+                <label className={labelClass}>Cover Image URL</label>
+                <input type="url" value={form.cover_image_url} onChange={(e) => updateField('cover_image_url', e.target.value)} placeholder="https://..." className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Logo URL</label>
+                <input type="url" value={form.logo_url} onChange={(e) => updateField('logo_url', e.target.value)} placeholder="https://..." className={inputClass} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div>
+                <label className={labelClass}>Gallery Images</label>
+                <textarea
+                  value={form.gallery}
+                  onChange={(e) => updateField('gallery', e.target.value)}
+                  placeholder="One image URL per line"
+                  rows={4}
+                  className={cn(inputClass, 'h-auto py-3 resize-y min-h-[100px]')}
+                />
+                <p className="text-[11px] text-[var(--text-muted)] mt-1.5">One URL per line</p>
+              </div>
+              <div>
+                <label className={labelClass}>Amenities</label>
+                <textarea
+                  value={form.amenities}
+                  onChange={(e) => updateField('amenities', e.target.value)}
+                  placeholder="Swimming Pool, Gym, Clubhouse, Power Backup"
+                  rows={4}
+                  className={cn(inputClass, 'h-auto py-3 resize-y min-h-[100px]')}
+                />
+                <p className="text-[11px] text-[var(--text-muted)] mt-1.5">Comma-separated</p>
+              </div>
+            </div>
+          </section>
         </div>
-
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Media & Gallery</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className={labelClass}>Cover Image URL</label>
-              <input type="url" value={form.cover_image_url} onChange={(e) => updateField('cover_image_url', e.target.value)} placeholder="https://..." className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Logo URL</label>
-              <input type="url" value={form.logo_url} onChange={(e) => updateField('logo_url', e.target.value)} placeholder="https://..." className={inputClass} />
-            </div>
-          </div>
-
-          <div>
-            <label className={labelClass}>Gallery Images</label>
-            <textarea
-              value={form.gallery}
-              onChange={(e) => updateField('gallery', e.target.value)}
-              placeholder="One image URL per line"
-              rows={4}
-              className={cn(inputClass, 'h-auto py-3 resize-y min-h-[100px]')}
-            />
-            <p className="text-[11px] text-[var(--text-muted)] mt-1.5">One URL per line or comma-separated</p>
-          </div>
-
-          <div>
-            <label className={labelClass}>Amenities</label>
-            <textarea
-              value={form.amenities}
-              onChange={(e) => updateField('amenities', e.target.value)}
-              placeholder="Swimming Pool, Gym, Clubhouse, Power Backup"
-              rows={3}
-              className={cn(inputClass, 'h-auto py-3 resize-y min-h-[80px]')}
-            />
-            <p className="text-[11px] text-[var(--text-muted)] mt-1.5">Comma-separated</p>
-          </div>
-        </section>
 
         <section className={sectionClass}>
           <div className="flex items-center justify-between gap-4">
@@ -474,7 +475,7 @@ export default function ProjectCreate() {
             <div className="space-y-4">
               {floorPlans.map((plan) => (
                 <div key={plan.id} className={cardClass}>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-6 gap-4">
                     <div>
                       <label className={labelClass}>BHK</label>
                       <input type="text" value={plan.bhk} onChange={(e) => updateListItem(setFloorPlans, plan.id, { bhk: e.target.value })} placeholder="3 BHK" className={inputClass} />
@@ -483,7 +484,7 @@ export default function ProjectCreate() {
                       <label className={labelClass}>Area (sqft)</label>
                       <input type="number" min="1" value={plan.area} onChange={(e) => updateListItem(setFloorPlans, plan.id, { area: e.target.value })} placeholder="1200" className={inputClass} />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-2 xl:col-span-4">
                       <label className={labelClass}>Plan Image URL</label>
                       <input type="url" value={plan.image} onChange={(e) => updateListItem(setFloorPlans, plan.id, { image: e.target.value })} placeholder="https://..." className={inputClass} />
                     </div>
@@ -497,6 +498,7 @@ export default function ProjectCreate() {
           )}
         </section>
 
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <section className={sectionClass}>
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -511,7 +513,7 @@ export default function ProjectCreate() {
           <div className="space-y-4">
             {resources.map((resource) => (
               <div key={resource.id} className={cardClass}>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                   <div>
                     <label className={labelClass}>Title</label>
                     <input type="text" value={resource.title} onChange={(e) => updateListItem(setResources, resource.id, { title: e.target.value })} placeholder="Project Brochure" className={inputClass} />
@@ -524,7 +526,7 @@ export default function ProjectCreate() {
                       ))}
                     </select>
                   </div>
-                  <div className="lg:col-span-2">
+                  <div className="xl:col-span-2">
                     <label className={labelClass}>File URL</label>
                     <input type="url" value={resource.file_url} onChange={(e) => updateListItem(setResources, resource.id, { file_url: e.target.value })} placeholder="https://..." className={inputClass} />
                   </div>
@@ -557,7 +559,7 @@ export default function ProjectCreate() {
           <div className="space-y-4">
             {contacts.map((contact) => (
               <div key={contact.id} className={cardClass}>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
                   <div>
                     <label className={labelClass}>Name</label>
                     <input type="text" value={contact.name} onChange={(e) => updateListItem(setContacts, contact.id, { name: e.target.value })} placeholder="Rajesh Kumar" className={inputClass} />
@@ -574,7 +576,7 @@ export default function ProjectCreate() {
                     <label className={labelClass}>WhatsApp</label>
                     <input type="tel" value={contact.whatsapp_phone} onChange={(e) => updateListItem(setContacts, contact.id, { whatsapp_phone: e.target.value })} placeholder="+91 98765 43210" className={inputClass} />
                   </div>
-                  <div className="md:col-span-2">
+                  <div>
                     <label className={labelClass}>Email</label>
                     <input type="email" value={contact.email} onChange={(e) => updateListItem(setContacts, contact.id, { email: e.target.value })} placeholder="sales@developer.com" className={inputClass} />
                   </div>
@@ -592,8 +594,9 @@ export default function ProjectCreate() {
             ))}
           </div>
         </section>
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <section className={sectionClass}>
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -611,7 +614,7 @@ export default function ProjectCreate() {
               <div className="space-y-4">
                 {inventory.map((item) => (
                   <div key={item.id} className={cardClass}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
                       <div>
                         <label className={labelClass}>BHK</label>
                         <input type="text" value={item.bhk} onChange={(e) => updateListItem(setInventory, item.id, { bhk: e.target.value })} placeholder="3 BHK" className={inputClass} />
@@ -687,17 +690,29 @@ export default function ProjectCreate() {
           </section>
         </div>
 
-        <section className={sectionClass}>
-          <h2 className={sectionTitleClass}>Publishing</h2>
-          <div className="flex flex-wrap gap-6">
-            <label className="flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer">
-              <input type="checkbox" checked={form.is_published} onChange={(e) => updateField('is_published', e.target.checked)} className="rounded border-white/10 h-4 w-4" />
-              Publish to Project Hub
-            </label>
-            <label className="flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer">
-              <input type="checkbox" checked={form.is_verified} onChange={(e) => updateField('is_verified', e.target.checked)} className="rounded border-white/10 h-4 w-4" />
-              Mark as verified
-            </label>
+        <section className={cn(sectionClass, 'flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between')}>
+          <div>
+            <h2 className={sectionTitleClass}>Publishing</h2>
+            <div className="flex flex-wrap gap-6 mt-3">
+              <label className="flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer">
+                <input type="checkbox" checked={form.is_published} onChange={(e) => updateField('is_published', e.target.checked)} className="rounded border-white/10 h-4 w-4" />
+                Publish to Project Hub
+              </label>
+              <label className="flex items-center gap-2.5 text-[13px] text-[var(--text-primary)] cursor-pointer">
+                <input type="checkbox" checked={form.is_verified} onChange={(e) => updateField('is_verified', e.target.checked)} className="rounded border-white/10 h-4 w-4" />
+                Mark as verified
+              </label>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <button type="submit" disabled={submitting} className="h-12 px-8 rounded-xl bg-[var(--accent)] text-[13px] font-bold text-[var(--on-propai-green)] flex items-center gap-2 disabled:opacity-50">
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
+              Create Project
+            </button>
+            <Link to="/projects" className="h-12 px-5 rounded-xl border border-white/5 text-[13px] font-bold text-[var(--text-secondary)] flex items-center">
+              Cancel
+            </Link>
           </div>
         </section>
 
@@ -706,16 +721,6 @@ export default function ProjectCreate() {
             {error}
           </div>
         )}
-
-        <div className="flex items-center gap-3 pt-2">
-          <button type="submit" disabled={submitting} className="h-12 px-8 rounded-xl bg-[var(--accent)] text-[13px] font-bold text-[var(--on-propai-green)] flex items-center gap-2 disabled:opacity-50">
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
-            Create Project
-          </button>
-          <Link to="/projects" className="h-12 px-5 rounded-xl border border-white/5 text-[13px] font-bold text-[var(--text-secondary)] flex items-center">
-            Cancel
-          </Link>
-        </div>
       </form>
     </div>
   );
