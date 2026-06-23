@@ -48,7 +48,7 @@ async function evolutionFetch(path: string, options: RequestInit = {}): Promise<
     return fetch(url, {
         ...options,
         headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            'apiKey': apiKey,
             'Content-Type': 'application/json',
             ...(options.headers || {}),
         },
