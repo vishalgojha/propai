@@ -491,13 +491,15 @@ export function normalizeIndianPhone(value: string) {
 function generateListingSlug(listing: { configuration: string | null | undefined; localitySlug: string; type: string; id: string }) {
   const shortId = listing.id.replace(/-/g, "").slice(-8);
   const configurationPart = slugifyBhk(listing.configuration);
-  return `${configurationPart}-in-${listing.localitySlug}-${listing.type}-${shortId}`;
+  return `${configurationPart}-${listing.type}-${listing.localitySlug}-${shortId}`;
 }
 
 function slugifyBhk(configuration: string | null | undefined) {
   if (!configuration) return 'listing';
+  const lower = configuration.toLowerCase().trim();
+  if (/^[\d.]+(\s+)?(bhk|rk)/.test(lower)) return lower.replace(/\s+/g, "-");
   const match = configuration.match(/^(\d+(?:\.\d+)?)/);
-  return match ? `${match[1]}-configuration` : configuration.toLowerCase().replace(/\s+/g, "-");
+  return match ? `${match[1]}-br` : lower.replace(/\s+/g, "-");
 }
 
 function normalizeListing(row: any, paidBrokerMap: Map<string, { phone: string; fullName: string | null }>): PublicListing | null {
