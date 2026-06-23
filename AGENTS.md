@@ -58,6 +58,11 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
 
 ### Completed in This Session
 
+- **Evolution API batch parsing** — Webhook handler saves raw messages to `evolution_raw_messages` table (skips real-time ingest). New `evolutionBatchParserJob.ts` polls every 60s, batch of 10, calls `channelService.ingestMessage()`. Group management API (`GET/PATCH /whatsapp/groups`) with frontend route at `/whatsapp/groups` and sidebar nav item.
+- **WABA duplicate replies fixed** — Added `claimed_at` column + `claim_webhook_events()` RPC with `FOR UPDATE SKIP LOCKED` on `cloud_api_webhook_events` (migration `20260623000005`). Worker now atomically claims events instead of raw SELECT.
+- **WABA latency reduced** — `agentRouterService.route()` always uses Google (fast, free for tiny JSON) instead of inheriting conversation's `modelPreference: 'Doubleword'` — saves one heavy API call per message. Disabled Qwen thinking via `chat_template_kwargs: { enable_thinking: false }` in `callDoubleword()`.
+- **Listing ref_no tracking** — `channelService.ingestMessage()` now returns `{ count, refNos }` with ref_nos from created stream items. WABA flow captures ref_nos, appends context to `agentInputText` so the AI can tell the user the code(s).
+- **Bare media auto-attach** — When photo/video without caption arrives, `findRecentStreamItem()` queries for sender's stream items within 5 min. If found, `attachMediaToStreamItem()` updates `parsed_payload.files` on the stream item. AI prompt tells user media was attached.
 - **DB-backed webhook queue** — Webhook handler now inserts raw events into `cloud_api_webhook_events` and returns immediately. New `WebhookQueueWorker` polls every 2s, batch of 10. Added index `(processed, created_at) WHERE processed = false`.
 - **Stream plan gating removed** — `resolveStreamAccess()` always returns `canViewStream: true`. Removed all 403 access checks, `isSuperAdmin`/`canViewStreamPlan` memos, "Stream locked" card, Sidebar gate.
 - **IGR removed from listing cards** — Removed all IGR badges, building intel, transaction display from `Listings.tsx`. ~176 lines deleted.
@@ -72,6 +77,22 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
 - **Building name `-` → `"On Request"`** — `formatBuildingName()` helper in `Listings.tsx` and `ListingCard.tsx` treats `-`, empty, N/A, unknown as `"On Request"`. Applied in table cell, card view, card subtitle, WA share text, dedupe key, card title, IGR section.
 - **`building_intel` MCP tool** — Queries `stream_items_residential`/`commercial` for: price/sqft benchmarks (sale + rent), locality supply snapshot (listing vs requirement counts + market label), configuration demand map. Params: `building_name` (req), `locality`, `days_back` (default 90). Token-level building matching, dedup via `source_message_id` Sets.
 - **Evolution API deployed** — Custom Docker image with embedded PostgreSQL (`apk add postgresql`). Container-internal database at `localhost:5432`, no external DB dependency. Entrypoint inits PG, runs Prisma migrations, then starts Evolution API. Coolify app UUID: `m9eosll2dfd5lrh517yi2jvd`.
+
+### Relevant Files
+
+- `apps/api/src/services/channelService.ts` — `ingestMessage()` return type changed to `{ count, refNos }`. Updated `normalizeAndPersistStreamItems()` to capture and return ref_nos.
+- `apps/api/src/services/whatsappCloudApiService.ts` — Captures ref_nos and appends to `agentInputText`. Added `attachMediaToStreamItem()` private method. Bare media auto-attach to recent listing.
+- `apps/api/src/services/historyBatchService.ts` — Updated to use new `{ count, refNos }` return type.
+- `apps/api/src/jobs/evolutionBatchParserJob.ts` — New batch parser for Evolution raw messages.
+- `apps/api/src/runtime/backgroundJobService.ts` — Registers `evolutionBatchParserJob`.
+- `apps/api/src/services/evolutionWebhookService.ts` — Saves raw webhook payloads, skips real-time ingest.
+- `apps/api/src/services/aiService.ts` — `callDoubleword()` with `chat_template_kwargs: { enable_thinking: false }`; `buildProviderOrder()` uses task preference.
+- `apps/api/src/services/conversationEngineService.ts` — Router call omits modelPreference.
+- `apps/api/src/services/agentRouterService.ts` — Intent classifier always uses task-preferred model (Google).
+- `supabase/migrations/20260623000004_create_evolution_raw_messages.sql`
+- `supabase/migrations/20260623000005_webhook_queue_atomic_claim.sql`
+- `apps/app/src/views/GroupMonitor.tsx` — Group management UI.
+- `apps/app/app/(protected)/whatsapp/groups/page.tsx` — Group Monitor route.
 
 ### Architecture: Evolution API
 

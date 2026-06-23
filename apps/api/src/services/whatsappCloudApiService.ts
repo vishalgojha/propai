@@ -527,8 +527,10 @@ export class WhatsAppCloudApiService {
 
         let text = String(row.message_body || extractText(rawMessage) || '').trim();
         const mediaInfo = getMediaInfo(rawMessage);
+        let storedMedia: { fileId: string; attachmentCtx: string; transcript?: string | null } | null = null;
         if (mediaInfo) {
             const stored = await this.storeIncomingMedia(tenantId, mediaInfo).catch(() => null);
+            storedMedia = stored;
             if (mediaInfo.kind === 'audio' && stored?.transcript) {
                 text = text.trim() ? `${stored.transcript}\n\n${text}` : stored.transcript;
             } else if (stored?.attachmentCtx) {
@@ -627,7 +629,7 @@ export class WhatsAppCloudApiService {
             return { replied: false, ignored: false };
         }
 
-        const ingestedCount = shouldIngestPropertySubmission(text)
+        const ingestResult = shouldIngestPropertySubmission(text)
             ? await channelService.ingestMessage(dataTenantId, {
                 id: messageId,
                 session_label: sessionLabel,
@@ -642,9 +644,12 @@ export class WhatsAppCloudApiService {
                 senderJid: null,
             } as any).catch((error) => {
                 console.warn('[WhatsAppCloudApiService] Stream ingest failed', error);
-                return 0;
+                return { count: 0, refNos: [] };
             })
-            : 0;
+            : { count: 0, refNos: [] };
+
+        const ingestedCount = ingestResult.count;
+        const refNos = ingestResult.refNos;
 
         if (ingestedCount > 0) {
             await whatsappHealthService.recordMessageMetrics({
@@ -656,6 +661,30 @@ export class WhatsAppCloudApiService {
                 countReceived: false,
                 timestamp,
             }).catch(() => undefined);
+        }
+
+        // If stream saved ref_nos, tell the agent so it can include them in reply
+        let agentInputText = text;
+        if (refNos.length > 0) {
+            const codes = refNos.join(', ');
+            agentInputText = `${text}\n\n[Stream saved this as ${codes}. Tell the user the code(s) in your reply.]`;
+        }
+
+        // For bare media (photo/video without caption), check if we have a recent listing from this sender
+        let isBareMedia = false;
+        if (!text.trim() || /^\[User sent (an image|a video|a document|a file|a voice note)\]$/.test(text.trim())) {
+            isBareMedia = true;
+        }
+        if (isBareMedia && storedMedia?.fileId) {
+            try {
+                const recent = await this.findRecentStreamItem(dataTenantId, remoteJid);
+                if (recent) {
+                    await this.attachMediaToStreamItem(dataTenantId, recent.id, storedMedia.fileId);
+                    agentInputText = `[User sent media — automatically attached to ${recent.ref_no} (${recent.building_name || recent.locality || ''}). Inform the user the media was added.]`;
+                }
+            } catch {
+                agentInputText = `[User sent media. Ask the user what listing this belongs to so you can attach it.]`;
+            }
         }
 
         let agentFailureMessage = '';
@@ -673,7 +702,7 @@ export class WhatsAppCloudApiService {
             ).catch(() => undefined);
         });
 
-        let reply = await agentExecutor.processMessage(tenantId, remoteJid, text, sessionLabel, undefined, {
+        let reply = await agentExecutor.processMessage(tenantId, remoteJid, agentInputText, sessionLabel, undefined, {
             suppressFallbackOnError: true,
             onError: async (error) => {
                 agentFailureMessage = error instanceof Error ? error.message : String(error);
@@ -704,6 +733,15 @@ export class WhatsAppCloudApiService {
 
         if (!reply.trim() && agentFailureMessage) {
             reply = 'Pulse received your message, but the AI model provider is temporarily unavailable. Please try again in a few minutes.';
+        }
+
+        // If stream saved ref_nos but the AI didn't mention them, append them as a postscript
+        if (reply.trim() && refNos.length > 0) {
+            const alreadyMentioned = refNos.some((ref) => reply.includes(ref));
+            if (!alreadyMentioned) {
+                const codes = refNos.join(', ');
+                reply = `${reply}\n\nSaved as ${codes}.`;
+            }
         }
 
         if (reply.trim()) {
@@ -1188,6 +1226,50 @@ export class WhatsAppCloudApiService {
 
         if (!response.ok) {
             throw new Error(`WhatsApp Cloud typing indicator failed (${response.status}): ${await response.text().catch(() => response.statusText)}`);
+        }
+    }
+    private async findRecentStreamItem(tenantId: string, remoteJid: string) {
+        const phone = normalizeDigits(remoteJid);
+        if (!phone) return null;
+        const sources = [phone, `91${phone}`, `+91${phone}`];
+
+        for (const table of ['stream_items_residential', 'stream_items_commercial'] as const) {
+            const { data } = await db
+                .from(table)
+                .select('id, ref_no, building_name, locality, created_at')
+                .eq('tenant_id', tenantId)
+                .in('source_phone', sources)
+                .gte('created_at', new Date(Date.now() - 5 * 60_000).toISOString())
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (data?.ref_no) return data;
+        }
+
+        return null;
+    }
+
+    private async attachMediaToStreamItem(tenantId: string, streamItemId: string, fileId: string) {
+        const tables = ['stream_items_residential', 'stream_items_commercial'] as const;
+        for (const table of tables) {
+            const { data: existing } = await db
+                .from(table)
+                .select('parsed_payload')
+                .eq('id', streamItemId)
+                .eq('tenant_id', tenantId)
+                .maybeSingle();
+            if (!existing) continue;
+
+            const currentFiles: string[] = existing.parsed_payload?.files || [];
+            const files = currentFiles.includes(fileId) ? currentFiles : [...currentFiles, fileId];
+
+            await db
+                .from(table)
+                .update({ parsed_payload: { ...existing.parsed_payload, files } })
+                .eq('id', streamItemId)
+                .eq('tenant_id', tenantId);
+            return;
         }
     }
 }

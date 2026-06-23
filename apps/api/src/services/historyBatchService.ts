@@ -335,7 +335,7 @@ export class HistoryBatchService {
 
         for (const message of batch) {
           try {
-            const ingestedCount = await channelService.ingestMessage(profileId, {
+            const ingestResult = await channelService.ingestMessage(profileId, {
               id: message.id,
               remote_jid: message.remote_jid,
               sender: message.sender,
@@ -346,8 +346,8 @@ export class HistoryBatchService {
 
             processed += 1;
 
-            if (ingestedCount > 0) {
-              parsed += ingestedCount;
+            if (ingestResult.count > 0) {
+              parsed += ingestResult.count;
 
               const [resRows, comRows] = await Promise.all([
                 db.from('stream_items_residential').select('record_type, raw_text, price_label, locality, bhk').eq('tenant_id', profileId).eq('source_message_id', message.id),

@@ -2901,7 +2901,7 @@ private highValueLeadAlertKeys = new Set<string>();
         let ingestedCount = 0;
         for (const message of orderedMessages) {
             try {
-                ingestedCount += await this.ingestMessage(tenantId, message);
+                ingestedCount += (await this.ingestMessage(tenantId, message)).count;
             } catch (error) {
                 console.error('[ChannelService] Failed to ingest message during rebuild', error);
             }
@@ -2978,7 +2978,7 @@ private highValueLeadAlertKeys = new Set<string>();
             }
 
             try {
-                const parsedCount = await this.ingestMessage(tenantId, {
+                const ingestResult = await this.ingestMessage(tenantId, {
                     id: String((row as any).id),
                     session_label: sessionLabel,
                     remote_jid: remoteJid,
@@ -2991,8 +2991,8 @@ private highValueLeadAlertKeys = new Set<string>();
                     senderJid: String((row as any)?.sender_jid || '').trim() || null,
                 });
 
-                ingestedCount += parsedCount;
-                if (parsedCount > 0) {
+                ingestedCount += ingestResult.count;
+                if (ingestResult.count > 0) {
                     await whatsappHealthService.recordMessageMetrics({
                         tenantId,
                         sessionLabel,
@@ -3262,7 +3262,7 @@ private highValueLeadAlertKeys = new Set<string>();
         return { success: true };
     }
 
-    async ingestMessage(tenantId: string, message: RawInboundMessage) {
+    async ingestMessage(tenantId: string, message: RawInboundMessage): Promise<{ count: number; refNos: string[] }> {
         const settingsRecord = await getWorkspaceSettingsRecord(tenantId).catch(() => null);
         const workspaceSettings = settingsRecord?.settings;
         const deduplicationEnabled = workspaceSettings?.deduplication !== false;
@@ -3270,7 +3270,7 @@ private highValueLeadAlertKeys = new Set<string>();
         const groupContext = await this.loadGroupIngestionContext(tenantId, message.remote_jid);
         const candidates = (await this.parseMessage(tenantId, message)).map((candidate) => this.applyGroupContextToCandidate(candidate, groupContext));
         if (candidates.length === 0) {
-            return 0;
+            return { count: 0, refNos: [] };
         }
 
         const qualityDecision = this.evaluateMessageQuality(message, candidates, groupContext);
@@ -3287,6 +3287,7 @@ private highValueLeadAlertKeys = new Set<string>();
         const isAccepted = qualityDecision.status === 'accepted';
 
         let ingestedCount = 0;
+        const refNos: string[] = [];
         for (const parsed of candidates) {
             if (!this.shouldPersistParsedCandidate(parsed)) {
                 continue;
@@ -3303,7 +3304,7 @@ private highValueLeadAlertKeys = new Set<string>();
 
                 const { data: exactDupe } = await this.db
                     .from(targetTable)
-                    .select('id, ingestion_status')
+                    .select('id, ref_no, ingestion_status')
                     .eq('tenant_id', ownerTenantId)
                     .eq('content_hash', contentHash)
                     .maybeSingle();
@@ -3319,13 +3320,14 @@ private highValueLeadAlertKeys = new Set<string>();
                         })
                         .eq('id', exactDupe.id);
                     ingestedCount += 1;
+                    if (exactDupe.ref_no) refNos.push(String(exactDupe.ref_no));
                     continue;
                 }
 
                 if (parsed.locality && parsed.priceNumeric != null) {
                     const query = this.db
                         .from(targetTable)
-                        .select('id, ingestion_status')
+                        .select('id, ref_no, ingestion_status')
                         .eq('tenant_id', ownerTenantId)
                         .eq('locality', parsed.locality)
                         .eq('record_type', parsed.recordType)
@@ -3363,6 +3365,7 @@ private highValueLeadAlertKeys = new Set<string>();
                             })
                             .eq('id', dupe.id);
                         ingestedCount += 1;
+                        if (dupe.ref_no) refNos.push(String(dupe.ref_no));
                         continue;
                     }
                 }
@@ -3508,6 +3511,10 @@ private highValueLeadAlertKeys = new Set<string>();
                 continue;
             }
 
+            if (data.ref_no) {
+                refNos.push(String(data.ref_no));
+            }
+
             if (!isAccepted) {
                 ingestedCount += 1;
                 continue;
@@ -3553,7 +3560,7 @@ private highValueLeadAlertKeys = new Set<string>();
             });
         }
 
-        return ingestedCount;
+        return { count: ingestedCount, refNos };
     }
 
     async previewMessageParse(tenantId: string, message: RawInboundMessage) {
