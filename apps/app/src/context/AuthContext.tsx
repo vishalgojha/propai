@@ -132,9 +132,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         if (isSessionExpiring(activeSession)) {
           const refreshed = await refreshSupabaseSession(activeSession);
-          if (refreshed) {
-            activeSession = refreshed;
-            saveStoredSession(refreshed, activeSession.remember !== false);
+          if (refreshed.status === 'ok') {
+            activeSession = refreshed.session;
+            saveStoredSession(refreshed.session, activeSession.remember !== false);
           }
         }
 

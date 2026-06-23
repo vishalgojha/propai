@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { clearStoredSession, isSessionExpiring, readStoredSession, refreshSupabaseSession, saveStoredSession } from './authSession';
+import { clearStoredSession, isSessionExpiring, readStoredSession, refreshSupabaseSession, saveStoredSession, type StoredSession } from './authSession';
 import { backendApiUrl } from './apiBase';
 
 export { backendApiUrl } from './apiBase';
@@ -17,7 +17,7 @@ const backendApi = axios.create({
   timeout: DEFAULT_API_TIMEOUT_MS,
 });
 
-let refreshInFlight: Promise<Awaited<ReturnType<typeof refreshSupabaseSession>>> | null = null;
+let refreshInFlight: Promise<StoredSession | null> | null = null;
 let sessionExpiredDispatched = false;
 
 function dispatchSessionExpired(reason = SESSION_EXPIRED_MESSAGE) {
@@ -39,11 +39,24 @@ async function refreshSessionOnce() {
 
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
-      const refreshed = await refreshSupabaseSession(session);
-      if (refreshed) {
-        saveStoredSession(refreshed, session.remember !== false);
-        setBackendApiAuthToken(refreshed.token);
-        return refreshed;
+      const maxAttempts = 3;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const result = await refreshSupabaseSession(session);
+
+        if (result.status === 'ok') {
+          saveStoredSession(result.session, session.remember !== false);
+          setBackendApiAuthToken(result.session.token);
+          return result.session;
+        }
+
+        if (result.status === 'expired') {
+          return null;
+        }
+
+        if (attempt < maxAttempts - 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 400 * (attempt + 1)));
+        }
       }
 
       return null;
@@ -90,11 +103,6 @@ backendApi.interceptors.request.use(async (config) => {
     const refreshed = await refreshSessionOnce();
     if (refreshed) {
       activeSession = refreshed;
-    } else {
-      clearStoredSession();
-      setBackendApiAuthToken(null);
-      dispatchSessionExpired();
-      return Promise.reject(new Error(SESSION_EXPIRED_MESSAGE));
     }
   }
 

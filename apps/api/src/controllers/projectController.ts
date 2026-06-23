@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { projectService } from '../services/projectService';
 import { workspaceAccessService } from '../services/workspaceAccessService';
+import { parseProjectBrochurePdf } from '../services/projectBrochureParser';
 
 function firstString(value: unknown): string {
   if (typeof value === 'string') return value.trim();
@@ -271,5 +272,31 @@ export const recordDownload = async (req: Request, res: Response) => {
     return res.json({ success: true });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || 'Failed to record download' });
+  }
+};
+
+export const parseProjectBrochure = async (req: Request, res: Response) => {
+  try {
+    const context = await resolveContext(req);
+    const tenantId = context.workspaceOwnerId;
+    if (!tenantId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const base64 = String(req.body?.base64 || '').trim();
+    const fileName = String(req.body?.fileName || 'brochure.pdf').trim();
+
+    const result = await parseProjectBrochurePdf({
+      base64,
+      fileName,
+      tenantId,
+    });
+
+    return res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error: any) {
+    const message = error?.message || 'Failed to parse brochure';
+    const status = message.includes('too large') ? 413 : message.includes('extract text') ? 422 : 500;
+    return res.status(status).json({ error: message });
   }
 };

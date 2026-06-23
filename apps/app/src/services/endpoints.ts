@@ -137,6 +137,7 @@ export const ENDPOINTS = {
     search: '/api/projects/search',
     detail: (slug: string) => `/api/projects/${encodeURIComponent(slug)}`,
     create: '/api/projects',
+    parseBrochure: '/api/projects/parse-brochure',
     update: (id: string) => `/api/projects/${encodeURIComponent(id)}`,
     mine: '/api/projects/mine/list',
     inventory: (id: string) => `/api/projects/${encodeURIComponent(id)}/inventory`,

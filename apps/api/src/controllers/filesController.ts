@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { workspaceAccessService } from '../services/workspaceAccessService';
 
+import { decodeBase64Payload, extractPdfText } from '../utils/fileTextExtraction';
+
 const db = supabaseAdmin ?? supabase;
 const DEFAULT_BUCKET = 'workspace-files';
 const MAX_BASE64_BYTES = 6 * 1024 * 1024; // ~6MB raw (before base64 overhead)
@@ -20,10 +22,8 @@ function safeMime(value: unknown) {
   return raw ? raw.slice(0, 120) : 'application/octet-stream';
 }
 
-function decodeBase64Payload(payload: string) {
-  const cleaned = payload.includes(',') ? payload.slice(payload.indexOf(',') + 1) : payload;
-  const buffer = Buffer.from(cleaned, 'base64');
-  return buffer;
+function decodeBase64PayloadLocal(payload: string) {
+  return decodeBase64Payload(payload);
 }
 
 function sniffText(buffer: Buffer) {
@@ -32,20 +32,6 @@ function sniffText(buffer: Buffer) {
     if (byte === 0) return false;
   }
   return true;
-}
-
-async function extractPdfText(buffer: Buffer) {
-  try {
-    // pdf-parse is optional at runtime; avoid hard crash if not installed.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const pdfParse = require('pdf-parse');
-    const result = await pdfParse(buffer);
-    const text = String(result?.text || '').trim();
-    if (!text) return null;
-    return text.length > MAX_EXTRACTED_TEXT_CHARS ? `${text.slice(0, MAX_EXTRACTED_TEXT_CHARS)}\n\n[Truncated]` : text;
-  } catch {
-    return null;
-  }
 }
 
 async function extractImageTextViaOcr(buffer: Buffer) {
@@ -135,7 +121,7 @@ export const uploadWorkspaceFile = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'base64 is required' });
     }
 
-    const buffer = decodeBase64Payload(base64);
+    const buffer = decodeBase64PayloadLocal(base64);
     if (!buffer.length) {
       return res.status(400).json({ error: 'Empty payload' });
     }

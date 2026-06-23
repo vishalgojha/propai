@@ -11,6 +11,7 @@ import {
   createUpdateSchema,
   brokerResourceSchema,
   projectSearchSchema,
+  parseProjectBrochureSchema,
 } from '../schemas/projectSchemas';
 import {
   createProject,
@@ -29,6 +30,7 @@ import {
   addBrokerResource,
   deleteBrokerResource,
   recordDownload,
+  parseProjectBrochure,
 } from '../controllers/projectController';
 
 const router = Router();
@@ -42,6 +44,7 @@ router.get('/:id', getProject);
 // Authenticated routes
 router.use(authMiddleware);
 
+router.post('/parse-brochure', validate(parseProjectBrochureSchema, 'body'), parseProjectBrochure);
 router.post('/', validate(createProjectSchema, 'body'), createProject);
 router.put('/:id', validate(updateProjectSchema, 'body'), updateProject);
 

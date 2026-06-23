@@ -1,7 +1,7 @@
 import { backendApiUrl } from './apiBase';
-import { deleteCookie, readJsonCookie, writeJsonCookie } from './browserCookies';
+import { deleteCookie } from './browserCookies';
 
-type StoredSession = {
+export type StoredSession = {
   id?: string;
   email: string;
   first_name?: string | null;
@@ -35,18 +35,16 @@ const STORAGE_KEY = 'propai_user';
 const SESSION_KEY = 'propai_user_session';
 
 const EXPIRY_SKEW_MS = 5 * 60_000;
-const COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
-function readLegacyStoredSession() {
+function readBrowserStorage(key: string) {
   if (typeof window === 'undefined') {
     return null;
   }
 
-  const savedUser = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(SESSION_KEY);
-  if (!savedUser) return null;
-
   try {
-    const parsed = JSON.parse(savedUser) as StoredSession;
+    const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredSession;
     if (!parsed?.email || !parsed?.token) return null;
     return parsed;
   } catch {
@@ -55,25 +53,16 @@ function readLegacyStoredSession() {
 }
 
 export function readStoredSession(): StoredSession | null {
-  const storedSession = readJsonCookie<StoredSession>(STORAGE_KEY) || readJsonCookie<StoredSession>(SESSION_KEY) || readLegacyStoredSession();
-
-  if (!storedSession?.email || !storedSession?.token) {
-    return null;
+  if (typeof window !== 'undefined') {
+    deleteCookie(STORAGE_KEY);
+    deleteCookie(SESSION_KEY);
   }
 
-  return storedSession;
+  return readBrowserStorage(STORAGE_KEY) || readBrowserStorage(SESSION_KEY);
 }
 
 export function saveStoredSession(session: StoredSession, remember = true) {
   const storedSession = { ...session, remember };
-
-  if (remember) {
-    writeJsonCookie(STORAGE_KEY, storedSession, { maxAge: COOKIE_MAX_AGE_SECONDS });
-    deleteCookie(SESSION_KEY);
-  } else {
-    writeJsonCookie(SESSION_KEY, storedSession);
-    deleteCookie(STORAGE_KEY);
-  }
 
   if (typeof window === 'undefined') {
     return;
@@ -86,18 +75,9 @@ export function saveStoredSession(session: StoredSession, remember = true) {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(storedSession));
     localStorage.removeItem(STORAGE_KEY);
   }
-
-  if (remember) {
-    deleteCookie(SESSION_KEY);
-  } else {
-    deleteCookie(STORAGE_KEY);
-  }
 }
 
 export function clearStoredSession() {
-  deleteCookie(STORAGE_KEY);
-  deleteCookie(SESSION_KEY);
-
   if (typeof window === 'undefined') {
     return;
   }
@@ -111,8 +91,13 @@ export function isSessionExpiring(session: StoredSession) {
   return Date.now() >= session.expiresAt - EXPIRY_SKEW_MS;
 }
 
-export async function refreshSupabaseSession(session: StoredSession): Promise<StoredSession | null> {
-  if (!session.refreshToken) return null;
+export type RefreshSessionResult =
+  | { status: 'ok'; session: StoredSession }
+  | { status: 'expired' }
+  | { status: 'retry' };
+
+export async function refreshSupabaseSession(session: StoredSession): Promise<RefreshSessionResult> {
+  if (!session.refreshToken) return { status: 'expired' };
 
   try {
     const response = await fetch(`${backendApiUrl}/auth/refresh`, {
@@ -125,7 +110,13 @@ export async function refreshSupabaseSession(session: StoredSession): Promise<St
       }),
     });
 
-    if (!response.ok) return null;
+    if (response.status === 401 || response.status === 403) {
+      return { status: 'expired' };
+    }
+
+    if (!response.ok) {
+      return { status: 'retry' };
+    }
 
     const data = await response.json();
     const accessToken = data?.session?.access_token;
@@ -133,22 +124,27 @@ export async function refreshSupabaseSession(session: StoredSession): Promise<St
     const expiresIn = Number(data?.session?.expires_in || 0);
     const expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : session.expiresAt;
 
-    if (!accessToken) return null;
+    if (!accessToken) {
+      return { status: 'retry' };
+    }
 
     return {
-      email: session.email,
-      id: session.id,
-      first_name: session.first_name || null,
-      last_name: session.last_name || null,
-      full_name: session.full_name || null,
-      token: accessToken,
-      refreshToken,
-      expiresAt,
-      appRole: resolveAppRole(session.email, session.appRole),
-      remember: session.remember,
+      status: 'ok',
+      session: {
+        email: session.email,
+        id: session.id,
+        first_name: session.first_name || null,
+        last_name: session.last_name || null,
+        full_name: session.full_name || null,
+        token: accessToken,
+        refreshToken,
+        expiresAt,
+        appRole: resolveAppRole(session.email, session.appRole),
+        remember: session.remember,
+      },
     };
   } catch {
-    return null;
+    return { status: 'retry' };
   }
 }
 

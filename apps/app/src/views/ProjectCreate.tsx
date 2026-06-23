@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { ArrowLeft, Building2, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Building2, FileUp, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { handleApiError, default as backendApi } from '../services/api';
@@ -129,7 +129,10 @@ export default function ProjectCreate() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = React.useState(false);
+  const [parsingBrochure, setParsingBrochure] = React.useState(false);
+  const [parseMessage, setParseMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const brochureInputRef = React.useRef<HTMLInputElement>(null);
 
   const isSuperAdmin = user?.appRole === 'super_admin' || user?.email === 'vishal@chaoscraftlabs.com';
 
@@ -187,6 +190,105 @@ export default function ProjectCreate() {
 
   const setPrimaryContact = (id: string) => {
     setContacts((prev) => prev.map((c) => ({ ...c, is_primary: c.id === id })));
+  };
+
+  const applyParsedProject = (project: Record<string, any>) => {
+    if (!project) return;
+
+    setForm((prev) => ({
+      ...prev,
+      name: project.name || prev.name,
+      developer_name: project.developer_name || prev.developer_name,
+      description: project.description || prev.description,
+      locality: project.locality || prev.locality,
+      city: project.city || prev.city,
+      status: STATUS_OPTIONS.some((opt) => opt.value === project.status) ? project.status : prev.status,
+      rera_number: project.rera_number || prev.rera_number,
+      possession_date: project.possession_date ? String(project.possession_date).slice(0, 10) : prev.possession_date,
+      configurations: Array.isArray(project.configurations) && project.configurations.length > 0
+        ? project.configurations.join(', ')
+        : prev.configurations,
+      amenities: Array.isArray(project.amenities) && project.amenities.length > 0
+        ? project.amenities.join(', ')
+        : prev.amenities,
+      latitude: project.latitude != null ? String(project.latitude) : prev.latitude,
+      longitude: project.longitude != null ? String(project.longitude) : prev.longitude,
+      total_towers: project.total_towers != null ? String(project.total_towers) : prev.total_towers,
+      total_floors: project.total_floors != null ? String(project.total_floors) : prev.total_floors,
+      total_units: project.total_units != null ? String(project.total_units) : prev.total_units,
+    }));
+
+    if (Array.isArray(project.floor_plans) && project.floor_plans.length > 0) {
+      setFloorPlans(
+        project.floor_plans.map((plan: any) => ({
+          id: uid(),
+          bhk: String(plan?.bhk || ''),
+          area: plan?.area != null ? String(plan.area) : '',
+          image: String(plan?.image || ''),
+        }))
+      );
+    }
+
+    if (Array.isArray(project.contacts) && project.contacts.length > 0) {
+      setContacts(
+        project.contacts.map((contact: any, index: number) => ({
+          id: uid(),
+          name: String(contact?.name || ''),
+          role: String(contact?.role || 'Sales Manager'),
+          phone: String(contact?.phone || ''),
+          email: String(contact?.email || ''),
+          whatsapp_phone: String(contact?.whatsapp_phone || contact?.phone || ''),
+          is_primary: index === 0,
+        }))
+      );
+    }
+  };
+
+  const handleBrochureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+      setError('Please upload a PDF brochure.');
+      return;
+    }
+
+    if (file.size > 12 * 1024 * 1024) {
+      setError('Brochure must be under 12 MB.');
+      return;
+    }
+
+    setParsingBrochure(true);
+    setParseMessage(null);
+    setError(null);
+
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Failed to read brochure file'));
+        reader.readAsDataURL(file);
+      });
+
+      const resp = await backendApi.post(
+        ENDPOINTS.projects.parseBrochure,
+        { base64, fileName: file.name },
+        { timeout: 120000 },
+      );
+
+      applyParsedProject(resp.data?.project || {});
+      const notes = String(resp.data?.project?.parse_notes || '').trim();
+      setParseMessage(
+        notes
+          ? `Prefilled from brochure. ${notes}`
+          : 'Prefilled from brochure. Review the fields below and add anything missing.',
+      );
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setParsingBrochure(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -333,6 +435,40 @@ export default function ProjectCreate() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <section className={cn(sectionClass, 'border-[var(--accent)]/20 bg-[var(--accent)]/5')}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className={sectionTitleClass}>Start from brochure</h2>
+              <p className="text-[13px] text-[var(--text-secondary)] mt-1 max-w-3xl">
+                Upload a PDF brochure to auto-fill project details. One parse per upload — then review contacts, media, and inventory before saving.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <input
+                ref={brochureInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={handleBrochureUpload}
+              />
+              <button
+                type="button"
+                disabled={parsingBrochure}
+                onClick={() => brochureInputRef.current?.click()}
+                className="h-12 px-5 rounded-xl border border-[var(--accent)]/30 bg-[var(--bg-elevated)] text-[13px] font-bold text-[var(--text-primary)] flex items-center gap-2 hover:border-[var(--accent)]/60 disabled:opacity-50"
+              >
+                {parsingBrochure ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+                {parsingBrochure ? 'Parsing brochure…' : 'Upload PDF brochure'}
+              </button>
+            </div>
+          </div>
+          {parseMessage ? (
+            <div className="rounded-xl border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-4 py-3 text-[13px] text-[var(--text-primary)]">
+              {parseMessage}
+            </div>
+          ) : null}
+        </section>
+
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <section className={sectionClass}>
             <h2 className={sectionTitleClass}>Basic Info</h2>

@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+export const parseProjectBrochureSchema = z.object({
+  base64: z.string().min(1),
+  fileName: z.string().max(200).optional(),
+});
+
 export const createProjectSchema = z.object({
   name: z.string().min(1).max(200),
   developer_name: z.string().min(1).max(200),
