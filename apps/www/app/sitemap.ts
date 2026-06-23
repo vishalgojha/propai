@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../src/lib/supabase.server";
 import { TOP_LOCALITIES } from "../lib/localities";
 import { getLongTailStaticParams } from "../lib/longtail";
 import { getAllBlogArticles } from "../lib/blog";
+import { PROJECTS } from "../src/data/projects";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://www.propai.live";
@@ -50,6 +51,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "daily" as const,
   }));
 
+  const projectPages: MetadataRoute.Sitemap = PROJECTS.map((p) => ({
+    url: `${baseUrl}/project/${p.slug}`,
+    priority: 0.85,
+    changeFrequency: "daily" as const,
+  }));
+
   const blogPages: MetadataRoute.Sitemap = getAllBlogArticles().map((article) => ({
     url: `${baseUrl}/blog/${article.slug}`,
     priority: 0.65,
@@ -79,5 +86,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // If insights fetch fails, keep sitemap generation alive.
   }
 
-  return [...staticPages, ...listingPages, ...localityPages, ...longTailPages, ...blogPages, ...insightPages];
+  return [...staticPages, ...listingPages, ...localityPages, ...projectPages, ...longTailPages, ...blogPages, ...insightPages];
 }
