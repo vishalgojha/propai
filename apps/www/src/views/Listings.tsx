@@ -56,7 +56,7 @@ export default function Listings({ initialListings = [], initialLocality = "", i
   const effectiveType = urlType || "All";
 
   const [listings, setListings] = useState<PublicListing[]>(initialListings);
-  const [filters, setFilters] = useState({ locality: effectiveLocality, query: effectiveQuery, type: effectiveType, bhk: "", budget: "" });
+  const [filters, setFilters] = useState<{ locality: string; query: string; type: string; bhk: string; budget: string }>({ locality: effectiveLocality, query: effectiveQuery, type: effectiveType, bhk: "", budget: "" });
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
@@ -78,7 +78,7 @@ export default function Listings({ initialListings = [], initialLocality = "", i
   const filteredListings = useMemo(() => listings.filter((l) => {
     if (filters.type !== "All" && l.type !== filters.type) return false;
     if (filters.locality && slugifyLocalityName(l.locality) !== slugifyLocalityName(filters.locality)) return false;
-    if (filters.bhk && !matchBhk(l.configuration, filters.bhk)) return false;
+    if (filters.bhk && !matchBhk(l.configuration, String(filters.bhk))) return false;
     if (filters.budget) {
       const range = BUDGET_RANGES.find((r) => r.label === filters.budget);
       if (range && !matchBudget(l.price, range)) return false;
