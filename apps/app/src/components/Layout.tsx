@@ -143,16 +143,16 @@ export const Layout: React.FC = () => {
 
   const getPageTitle = (path: string) => {
     if (path.startsWith('/broker-network/partners')) return 'Partner / Team';
-    if (path.startsWith('/broker-network')) return 'Broker Network';
+    if (path.startsWith('/broker-network')) return 'Network';
     if (path.startsWith('/whatsapp')) return 'WhatsApp';
-    if (path.startsWith('/intelligence') || path === '/analytics') return 'Network Activity';
+    if (path.startsWith('/intelligence') || path === '/analytics') return 'Analytics';
     if (path.startsWith('/ai-usage') || path === '/aiusage') return 'AI Usage';
 
     switch (path) {
       case '/listings':
-      case '/stream': return 'Stream';
+      case '/stream': return 'Market Feed';
       case '/pricing':
-        return 'WhatsApp';
+        return 'Pricing';
       case '/docs':
         return 'Docs';
       case '/team':
@@ -161,6 +161,11 @@ export const Layout: React.FC = () => {
         return 'Admin';
       case '/agent': return 'Pulse';
       case '/settings': return 'Studio Settings';
+      case '/requirements': return 'Requirements';
+      case '/matches': return 'Matches';
+      case '/dashboard': return 'Dashboard';
+      case '/projects': return 'Projects';
+      case '/groups': return 'Groups';
       default: return 'PropAI Pulse';
     }
   };

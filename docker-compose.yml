@@ -48,25 +48,24 @@ services:
       - redis-data:/data
     restart: unless-stopped
 
-  # evolution-api:
-  #   image: evoapicloud/evolution-api:latest
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     - AUTHENTICATION_TYPE=apikey
-  #     - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
-  #     - DATABASE_ENABLED=true
-  #     - DATABASE_PROVIDER=postgresql
-  #     - DATABASE_CONNECTION_URI=${DATABASE_CONNECTION_URI}
-  #     - RABBITMQ_ENABLED=false
-  #     - WEBSOCKET_ENABLED=true
-  #     - LOG_LEVEL=info
-  #     - DEL_INSTANCE=false
-  #     - QRCODE_LIMIT=30
-  #   volumes:
-  #     - evolution-store:/evolution/store
-  #   restart: unless-stopped
+  evolution-api:
+    build:
+      context: .
+      dockerfile: apps/evolution-api/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - AUTHENTICATION_TYPE=apikey
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
+      - RABBITMQ_ENABLED=false
+      - WEBSOCKET_ENABLED=true
+      - LOG_LEVEL=info
+      - DEL_INSTANCE=false
+      - QRCODE_LIMIT=30
+    volumes:
+      - evolution-store:/evolution/store
+    restart: unless-stopped
 
 volumes:
   redis-data:
-  # evolution-store:
+  evolution-store:

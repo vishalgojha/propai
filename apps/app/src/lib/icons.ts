@@ -1,5 +1,6 @@
 export {
   AlertTriangle as AlertTriangleIcon,
+  BarChart3 as AnalyticsIcon,
   Building2 as ProjectHubIcon,
   Activity as ActivityIcon,
   ArrowRight as ArrowRightIcon,
@@ -58,4 +59,5 @@ export {
   X as XIcon,
   XCircle as XCircleIcon,
   Zap as ZapIcon,
+  ArrowLeftRight as MatchesIcon,
 } from 'lucide-react';

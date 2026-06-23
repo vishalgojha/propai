@@ -47,7 +47,7 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
 
 ### Pending Actions
 
-- None — Baileys removed, WABA is the only WhatsApp integration. Webhook enabled by default.
+- None — Project Hub migration applied, WABA webhook enabled by default.
 
 ### Backfill Status
 
@@ -64,6 +64,7 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
   - App view `ProjectHub.tsx`: search by name/developer/locality, results list with status badges, verified badges, config chips
   - App view `ProjectDetail.tsx`: full project detail with hero, stats, inventory grouped by BHK, amenities (show more), floor plans, sales contacts (primary + team), resources (brochure/sheets/plans via download links), broker-only resources, project updates timeline, mobile sticky contact bar
   - API service + controller + routes at `apps/api/src/services/projectService.ts`, `controllers/projectController.ts`, `routes/projectRoutes.ts`, `schemas/projectSchemas.ts`
+- **www listing slug fix** — Improved slug format from `{bhk}-configuration-in-{locality}-{type}-{shortId}` (e.g. `3-configuration-in-bandra-east-sale-04b39f30`) to `{bhk}-{type}-{locality}-{shortId}` (e.g. `3-bhk-sale-bandra-east-04b39f30`) for better SEO. Handles BHK, RK, studio, and decimal configurations.
 
 ### Relevant Files
 
@@ -103,7 +104,7 @@ Evolution API (`evoapicloud/evolution-api:latest`) runs as a Coolify Dockerfile 
 
 ### Current Remote State
 
-- Latest commit: `03b58e18` — `Add project detail pages with resale inventory`
+- Latest commit: `30e4fc36` — `Fix www listing slug format for SEO`
 
 ### Operational Rules
 

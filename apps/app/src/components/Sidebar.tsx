@@ -25,6 +25,13 @@ import {
   InboxIcon,
   QrCodeIcon,
   ProjectHubIcon,
+  DashboardIcon,
+  ListingIcon,
+  RequirementIcon,
+  MatchesIcon,
+  AnalyticsIcon,
+  BellIcon,
+  LinkIcon,
 } from '../lib/icons';
 import { useAuth } from '../context/AuthContext';
 import { useInbox } from '../hooks/useInbox';
@@ -38,15 +45,19 @@ import { handleApiError } from '../services/api';
 import { SidebarCard } from './ui/SidebarCard';
 
 const NAV_ITEMS = [
-  { label: 'Inbox', path: '/inbox', icon: InboxIcon },
-  { label: 'Stream', path: '/stream', icon: StreamIcon },
-  { label: 'Network Activity', path: '/intelligence', icon: ActivityIcon },
-  { label: 'Project Hub', path: '/projects', icon: ProjectHubIcon },
+  { label: 'Dashboard', path: '/dashboard', icon: DashboardIcon },
+  { label: 'Listings', path: '/listings', icon: ListingIcon },
+  { label: 'Requirements', path: '/requirements', icon: RequirementIcon },
+  { label: 'Matches', path: '/matches', icon: MatchesIcon },
+  { label: 'Projects', path: '/projects', icon: ProjectHubIcon },
+  { label: 'Network', path: '/broker-network/contacts', icon: UsersIcon },
+  { label: 'Groups', path: '/whatsapp/evolution/setup', icon: QrCodeIcon },
+  { label: 'Market Feed', path: '/stream', icon: StreamIcon },
+  { label: 'Analytics', path: '/intelligence', icon: AnalyticsIcon },
+  { label: 'Activity', path: '/inbox', icon: BellIcon },
   { label: 'WhatsApp Business', path: '/whatsapp/setup', icon: GroupsIcon },
-  { label: 'WhatsApp Groups', path: '/whatsapp/evolution/setup', icon: QrCodeIcon },
   { label: 'Group Monitor', path: '/whatsapp/groups', icon: QrCodeIcon },
-  { label: 'Broker Network', path: '/broker-network/contacts', icon: UsersIcon },
-  { label: 'Syndication', path: '/broker-network/partners', icon: UsersIcon },
+  { label: 'Syndication', path: '/broker-network/partners', icon: LinkIcon },
   { label: 'Profile & Team', path: '/team', icon: ShieldIcon },
   { label: 'Super Admin', path: '/admin', icon: ShieldIcon },
   { label: 'AI Usage', path: '/ai-usage', icon: CreditCardIcon },
@@ -410,7 +421,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
                     <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]')} />
                     <span className={cn('flex items-center gap-2 text-[12px] font-semibold tracking-[0.01em]', isCollapsed && 'lg:hidden')}>
                       {item.label}
-                      {item.label === 'Inbox' && unreadCount > 0 ? (
+                      {item.label === 'Matches' && unreadCount > 0 ? (
                         <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white leading-none">
                           {unreadCount}
                         </span>

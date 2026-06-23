@@ -2123,8 +2123,8 @@ export const Listings: React.FC = () => {
               <thead>
                 <tr className="border-b border-[color:var(--accent-border)] bg-[color:var(--propai-green-dim)]">
                   {(filterPropertyCategory === 'commercial'
-                    ? ['Record', 'Type', 'Locality', 'Building', 'Fit-out / Type', 'Area', 'Price', 'Workstations / Cabins', 'Floor', 'Posted', 'WA']
-                    : ['Record', 'Type', 'Locality', 'Building', 'Configuration', 'Area', 'Price', 'Furnishing', 'Floor', 'Posted', 'WA']
+                    ? ['Record', 'Type', 'Locality', 'Street', 'Building', 'Fit-out / Type', 'Area', 'Price', 'Workstations / Cabins', 'Floor', 'Posted', 'WA']
+                    : ['Record', 'Type', 'Locality', 'Street', 'Building', 'Configuration', 'Area', 'Price', 'Furnishing', 'Floor', 'Posted', 'WA']
                   ).map((header) => (
                     <th
                       key={header}
@@ -2139,7 +2139,7 @@ export const Listings: React.FC = () => {
                 <tbody key={group.locality}>
                   <tr className="sticky top-0 z-10">
                     <td
-                      colSpan={11}
+                      colSpan={12}
                       className="border-y border-[color:var(--border)] bg-[var(--bg-base)] px-4 py-3 text-[12px] font-semibold text-[var(--text-primary)] backdrop-blur"
                     >
                       {group.locality} · {group.listingCount} listing{group.listingCount === 1 ? '' : 's'} · {group.requirementCount} requirement{group.requirementCount === 1 ? '' : 's'}
@@ -2187,6 +2187,9 @@ export const Listings: React.FC = () => {
                           </td>
                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
                               <div>{formatLocalityCell(listing.location)}</div>
+                          </td>
+                          <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
+                              <div>{formatLocalityCell(listing.microLocation)}</div>
                           </td>
                           <td className="px-4 py-3 text-[13px] text-[var(--text-primary)]">
                             {formatBuildingName(listing.buildingName)}

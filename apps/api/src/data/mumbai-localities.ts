@@ -64,6 +64,18 @@ export const LOCALITY_DATA: LocalityInfo[] = [
   { name: 'Oshiwara', colloquials: ['oshiwara'], priceBands: { rent: { min: 20000, max: 100000 }, sale: { min: 10000000, max: 50000000 }, lease: { min: 240000, max: 1200000 } } },
   { name: 'Lokhandwala', colloquials: ['lokhandwala', 'lokhandwala complex'], priceBands: { rent: { min: 25000, max: 120000 }, sale: { min: 12000000, max: 60000000 }, lease: { min: 300000, max: 1440000 } } },
   { name: 'Hiranandani Gardens', colloquials: ['hiranandani gardens', 'hiranandani', 'hiranandani estate'], priceBands: { rent: { min: 25000, max: 120000 }, sale: { min: 12000000, max: 55000000 }, lease: { min: 300000, max: 1440000 } } },
+  { name: 'Carter Road', colloquials: ['carter road', 'carters'], priceBands: { rent: { min: 60000, max: 400000 }, sale: { min: 30000000, max: 200000000 }, lease: { min: 600000, max: 4800000 } } },
+  { name: '16th Road', colloquials: ['16th road', '16th rd'], priceBands: { rent: { min: 40000, max: 300000 }, sale: { min: 20000000, max: 150000000 }, lease: { min: 400000, max: 3500000 } } },
+  { name: 'Pali Hill', colloquials: ['pali hill'], priceBands: { rent: { min: 80000, max: 500000 }, sale: { min: 40000000, max: 250000000 }, lease: { min: 800000, max: 6000000 } } },
+  { name: 'Turner Road', colloquials: ['turner road'], priceBands: { rent: { min: 50000, max: 350000 }, sale: { min: 25000000, max: 180000000 }, lease: { min: 500000, max: 4200000 } } },
+  { name: 'Linking Road', colloquials: ['linking road'], priceBands: { rent: { min: 40000, max: 300000 }, sale: { min: 20000000, max: 150000000 }, lease: { min: 400000, max: 3500000 } } },
+  { name: 'Waterfield Road', colloquials: ['waterfield road'], priceBands: { rent: { min: 40000, max: 300000 }, sale: { min: 20000000, max: 150000000 }, lease: { min: 400000, max: 3500000 } } },
+  { name: 'Mount Mary', colloquials: ['mount mary', 'mt mary'], priceBands: { rent: { min: 50000, max: 350000 }, sale: { min: 25000000, max: 180000000 }, lease: { min: 500000, max: 4200000 } } },
+  { name: 'BKC', colloquials: ['bkc', 'bandra kurla complex'], priceBands: { rent: { min: 80000, max: 500000 }, sale: { min: 40000000, max: 300000000 }, lease: { min: 800000, max: 6000000 } } },
+  { name: 'Altamount Road', colloquials: ['altamount road', 'altamount'], priceBands: { rent: { min: 100000, max: 800000 }, sale: { min: 50000000, max: 400000000 }, lease: { min: 1200000, max: 9600000 } } },
+  { name: 'Carmichael Road', colloquials: ['carmichael road'], priceBands: { rent: { min: 100000, max: 800000 }, sale: { min: 50000000, max: 400000000 }, lease: { min: 1200000, max: 9600000 } } },
+  { name: 'Nepean Sea Road', colloquials: ['nepean sea road', 'napian sea road'], priceBands: { rent: { min: 80000, max: 600000 }, sale: { min: 40000000, max: 300000000 }, lease: { min: 960000, max: 7200000 } } },
+  { name: 'Breach Candy', colloquials: ['breach candy'], priceBands: { rent: { min: 80000, max: 600000 }, sale: { min: 40000000, max: 300000000 }, lease: { min: 960000, max: 7200000 } } },
 ];
 
 export const MUMBAI_LOCALITIES: string[] = LOCALITY_DATA.map((l) => l.name);
