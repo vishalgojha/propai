@@ -58,46 +58,34 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
 
 ### Completed in This Session
 
-- **Evolution API batch parsing** — Webhook handler saves raw messages to `evolution_raw_messages` table (skips real-time ingest). New `evolutionBatchParserJob.ts` polls every 60s, batch of 10, calls `channelService.ingestMessage()`. Group management API (`GET/PATCH /whatsapp/groups`) with frontend route at `/whatsapp/groups` and sidebar nav item.
-- **WABA duplicate replies fixed** — Added `claimed_at` column + `claim_webhook_events()` RPC with `FOR UPDATE SKIP LOCKED` on `cloud_api_webhook_events` (migration `20260623000005`). Worker now atomically claims events instead of raw SELECT.
-- **WABA latency reduced** — `agentRouterService.route()` always uses Google (fast, free for tiny JSON) instead of inheriting conversation's `modelPreference: 'Doubleword'` — saves one heavy API call per message. Disabled Qwen thinking via `chat_template_kwargs: { enable_thinking: false }` in `callDoubleword()`.
-- **Listing ref_no tracking** — `channelService.ingestMessage()` now returns `{ count, refNos }` with ref_nos from created stream items. WABA flow captures ref_nos, appends context to `agentInputText` so the AI can tell the user the code(s).
-- **Bare media auto-attach** — When photo/video without caption arrives, `findRecentStreamItem()` queries for sender's stream items within 5 min. If found, `attachMediaToStreamItem()` updates `parsed_payload.files` on the stream item. AI prompt tells user media was attached.
-- **Ref_no guaranteed in reply** — Added post-processing fallback: if AI reply omits ref_no, append "Saved as L-0001". Also fixed duplicate detection paths in channelService to capture ref_no.
-- **Evolution API auth fix** — Changed `Authorization: Bearer` header to `apiKey` header in `EvolutionApiWhatsAppGateway.ts` — Evolution API doesn't accept Bearer prefix, was silently 401-ing all requests (QR generation timed out).
-- **Property photo gallery** — New `GET /api/stream-items/:id/photos` endpoint returns signed URLs from Supabase Storage for files linked via `parsed_payload.files`. New `ListingGallery` component with PhotoSwipe 5 lightbox (zoom, swipe, fullscreen). 4-col thumbnail grid (hero 2x2 + tiles). Lazy-loaded on card expand.
-- **Listing card redesign** — Price-first layout: price at top, BHK • Area • Parking inline, feature row (Furnished • Sea View), amenity chips (top 3 + N more), freshness badge (`⚡ Fresh broker signal`). Removed redundant description/chips block. Footer simplified.
-- **Card visual hierarchy** — Increased collapsed card border from `white/[0.02]` to `rgba(34,255,170,0.06)`. Added dual glow orbs on hover (top-right + bottom-left).
-- **DB-backed webhook queue** — Webhook handler now inserts raw events into `cloud_api_webhook_events` and returns immediately. New `WebhookQueueWorker` polls every 2s, batch of 10. Added index `(processed, created_at) WHERE processed = false`.
-- **Stream plan gating removed** — `resolveStreamAccess()` always returns `canViewStream: true`. Removed all 403 access checks, `isSuperAdmin`/`canViewStreamPlan` memos, "Stream locked" card, Sidebar gate.
-- **IGR removed from listing cards** — Removed all IGR badges, building intel, transaction display from `Listings.tsx`. ~176 lines deleted.
-- **Provider order tenant-aware** — `buildProviderOrder()`: admin tenant gets Nvidia-first chain, regular users get Google-first.
-- **Partner "Unknown" fix** — `enrichPartnerName()` shows "Revoked invite" / "Awaiting acceptance" instead of "Unknown" for unaccepted invites.
-- **WABA sender recognition** — `resolveTenantFromPhone()` checks `profiles` as fallback. `AgentExecutor.ts` resolves sender by phone in else branch. `shouldGreetBrokerByName` compares normalized phones.
-- **Pulse prompt rewrite** — Natural colleague tone, no capability bullets, no sales language, banned "unfortunately" / "we regret".
-- **Conversation history fix** — `general_answer` shortcut removed. Main AI always runs with full history. Router prompt: "do NOT include a reply field".
-- **Qwen thinking disabled** — `chat_template_kwargs: { enable_thinking: false }` on Doubleword.
-- **Password login → WhatsApp magic link** — Replaced password auth with WhatsApp-based login link flow. Removed `authController.ts`, simplified `Login.tsx`, `authRoutes.ts`, `authSchemas.ts`.
-- **`public_listings` live sync** — Added trigger `sync_stream_item_to_public_listings()` on both `stream_items_residential` and `stream_items_commercial`, with `ON CONFLICT (source_message_id) DO UPDATE`. Backfill uses `DISTINCT ON` + `ON CONFLICT DO NOTHING`.
-- **Building name `-` → `"On Request"`** — `formatBuildingName()` helper in `Listings.tsx` and `ListingCard.tsx` treats `-`, empty, N/A, unknown as `"On Request"`. Applied in table cell, card view, card subtitle, WA share text, dedupe key, card title, IGR section.
-- **`building_intel` MCP tool** — Queries `stream_items_residential`/`commercial` for: price/sqft benchmarks (sale + rent), locality supply snapshot (listing vs requirement counts + market label), configuration demand map. Params: `building_name` (req), `locality`, `days_back` (default 90). Token-level building matching, dedup via `source_message_id` Sets.
-- **Evolution API deployed** — Custom Docker image with embedded PostgreSQL (`apk add postgresql`). Container-internal database at `localhost:5432`, no external DB dependency. Entrypoint inits PG, runs Prisma migrations, then starts Evolution API. Coolify app UUID: `m9eosll2dfd5lrh517yi2jvd`.
+- **Project detail pages** — New `/project/[slug]` and `/project/[slug]/units` routes. Hero image gallery, stats bar, overview grid, amenities (with show more), floor plan cards, nearby places, similar projects sidebar, available units with BHK filter pills. Units view has search, sort (price/area/latest), config filter pills, mobile sticky CTA. 10 seed projects with 30+ inventory items in `src/data/projects.ts`. Added `/project/[slug]` to sitemap.
+- **Full-screen locality map** — Interactive MapLibre GL JS map at `/explore` with 5 data layers (avg sale, rental, active listings, yield, density), color-coded polygons, hover tooltips, click-to-fly, right-side panel with metrics/BHK mix/rankings.
+- **Market intelligence page** — `/intelligence` with aggregated locality data grid, searchable/sortable, per-locality KPIs.
+- **Mobile-first homepage redesign** — Property-first flow, removed hero animation/FAQ/chat/map tab, compact listing cards, sticky mobile filters on listings page.
+- **Mobile bottom nav** — Search, Listings, Map, Insights tabs, hidden on `/explore`, footer hidden on mobile.
+- **10 seed projects** — Lodha Marquise, Hiranandani Olivia, Runwal Bliss, Lodha Bellissimo, Piramal Mahalaxmi, Omkar Alta Monte, Rustomjee Evershine Global, Kanakia Silicon Valley, Oberoi Eucalyptus, Adani Esperanza.
 
 ### Relevant Files
 
-- `apps/api/src/services/channelService.ts` — `ingestMessage()` return type changed to `{ count, refNos }`. Updated `normalizeAndPersistStreamItems()` to capture and return ref_nos.
-- `apps/api/src/services/whatsappCloudApiService.ts` — Captures ref_nos and appends to `agentInputText`. Added `attachMediaToStreamItem()` private method. Bare media auto-attach to recent listing.
-- `apps/api/src/services/historyBatchService.ts` — Updated to use new `{ count, refNos }` return type.
-- `apps/api/src/jobs/evolutionBatchParserJob.ts` — New batch parser for Evolution raw messages.
-- `apps/api/src/runtime/backgroundJobService.ts` — Registers `evolutionBatchParserJob`.
-- `apps/api/src/services/evolutionWebhookService.ts` — Saves raw webhook payloads, skips real-time ingest.
-- `apps/api/src/services/aiService.ts` — `callDoubleword()` with `chat_template_kwargs: { enable_thinking: false }`; `buildProviderOrder()` uses task preference.
-- `apps/api/src/services/conversationEngineService.ts` — Router call omits modelPreference.
-- `apps/api/src/services/agentRouterService.ts` — Intent classifier always uses task-preferred model (Google).
-- `supabase/migrations/20260623000004_create_evolution_raw_messages.sql`
-- `supabase/migrations/20260623000005_webhook_queue_atomic_claim.sql`
-- `apps/app/src/views/GroupMonitor.tsx` — Group management UI.
-- `apps/app/app/(protected)/whatsapp/groups/page.tsx` — Group Monitor route.
+- `apps/www/app/project/[slug]/page.tsx` — SSR project detail route
+- `apps/www/app/project/[slug]/units/page.tsx` — SSR inventory route
+- `apps/www/src/views/ProjectPage.tsx` — Project detail view (hero, stats, overview, amenities, floor plans, similar, units)
+- `apps/www/src/views/ProjectUnits.tsx` — Full inventory list with search, sort, BHK filters
+- `apps/www/src/lib/projects.ts` — Data-fetching layer (async wrappers around seed data)
+- `apps/www/src/data/projects.ts` — 10 seed projects + 30+ inventory items
+- `apps/www/app/sitemap.ts` — Added project pages
+- `apps/www/app/explore/page.tsx` — SSR explore route
+- `apps/www/src/views/LocalityExplore.tsx` — Map + panel + search + rankings
+- `apps/www/src/components/LocalityDataMap.tsx` — MapLibre GL JS with polygon layers
+- `apps/www/src/data/localityPolygons.ts` — GeoJSON for 20 Mumbai localities
+- `apps/www/lib/explore.ts` — Aggregates stream data for map
+- `apps/www/app/intelligence/page.tsx` — Market insights SSR route
+- `apps/www/src/views/MarketIntelligence.tsx` — Locality data grid
+- `apps/www/src/views/Home.tsx` — Mobile-first rewrite
+- `apps/www/src/components/ListingCard.tsx` — Compact mobile prop
+- `apps/www/src/views/Listings.tsx` — Sticky mobile filters
+- `apps/www/src/components/PublicNav.tsx` — Bottom nav bar
+- `apps/www/src/components/Footer.tsx` — `hidden md:block`
 
 ### Architecture: Evolution API
 
@@ -112,16 +100,7 @@ Evolution API (`evoapicloud/evolution-api:latest`) runs as a Coolify Dockerfile 
 
 ### Current Remote State
 
-- Latest commits:
-  - `f5d32934` — `Embed PostgreSQL inside Evolution API container for local database`
-  - `c875ebe7` — `Add building_intel MCP tool: price/sqft benchmarks, locality supply snapshot, configuration demand map`
-  - `d5b3e5ac` — `Show 'On Request' instead of '-' for building name in all listing views`
-  - `78b9e649` — `Fix: use ON CONFLICT DO NOTHING for public_listings backfill, add DISTINCT ON for dedup`
-  - `9c8b814c` — `Replace password login with WhatsApp magic link`
-  - `66800a82` — `Add DB-backed webhook queue with polling worker`
-  - `549ae1b5` — `Remove stream plan gating (canViewStream always true)`
-  - `04e10c33` — `Remove all IGR references from stream listing cards`
-  - `c713dc15` — `Remove general_answer shortcut, set brokerProfile to null for unknown senders, disable Qwen thinking`
+- Latest commit: `03b58e18` — `Add project detail pages with resale inventory`
 
 ### Operational Rules
 
@@ -133,11 +112,6 @@ Evolution API (`evoapicloud/evolution-api:latest`) runs as a Coolify Dockerfile 
 - Do not leave completed tasks listed as pending.
 - Keep only current branch context, active worktree state, and truly pending actions here.
 - Historical session detail belongs in git history, not in the active handoff.
-
-### Operational Rules
-
-- Prefer selective staging when unrelated work is present.
-- After each completed task, the agent should push the relevant branch/commit and redeploy the affected Coolify service(s) by default.
 
 ## Manual Setup Steps
 
