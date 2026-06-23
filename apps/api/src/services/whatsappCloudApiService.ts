@@ -57,7 +57,7 @@ type OfficialApiConfigRow = {
 };
 
 type WabaCredentialRow = {
-    id: string;
+    id: string | null;
     tenant_id: string;
     phone_number_id: string;
     phone_number: string;
@@ -379,6 +379,40 @@ export class WhatsAppCloudApiService {
         return match || null;
     }
 
+    private sessionConfigToCredential(row: OfficialApiConfigRow | null): WabaCredentialRow | null {
+        if (!row?.tenant_id) return null;
+
+        const sessionData = (row.session_data && typeof row.session_data === 'object') ? row.session_data : {};
+        const phoneNumberId = String(
+            sessionData.phoneNumberId ||
+            (sessionData as any).phone_number_id ||
+            '',
+        ).trim();
+        if (!phoneNumberId) return null;
+
+        const phoneNumber = String(
+            sessionData.displayPhoneNumber ||
+            (sessionData as any).display_phone_number ||
+            sessionData.phoneNumber ||
+            (sessionData as any).phone_number ||
+            row.owner_name ||
+            '',
+        ).trim();
+
+        return {
+            id: null,
+            tenant_id: row.tenant_id,
+            phone_number_id: phoneNumberId,
+            phone_number: phoneNumber,
+            business_account_id: String(
+                sessionData.businessAccountId ||
+                (sessionData as any).business_account_id ||
+                '',
+            ).trim() || null,
+            business_account_name: row.owner_name || 'Official WhatsApp',
+        };
+    }
+
     async handleWebhook(payload: MetaWebhookPayload) {
         if (process.env.CLOUD_API_WEBHOOK_ENABLED === 'false') {
             return [];
@@ -393,7 +427,7 @@ export class WhatsAppCloudApiService {
                 const phoneNumberId = String(value?.metadata?.phone_number_id || '').trim();
                 const displayPhoneNumber = String(value?.metadata?.display_phone_number || '').trim();
                 const credential = await this.findCredentialByPhoneNumberId(phoneNumberId, displayPhoneNumber).catch(() => null);
-                if (!credential?.tenant_id || !credential?.id) {
+                if (!credential?.tenant_id || !credential?.phone_number_id) {
                     continue;
                 }
 
@@ -407,7 +441,7 @@ export class WhatsAppCloudApiService {
 
                     const claimed = await this.claimWebhookMessage({
                         tenantId: adminTenantId,
-                        wabaCredentialId: credential.id,
+                        wabaCredentialId: credential.id || null,
                         messageId,
                         from: String(message?.from || ''),
                         senderName: String(value?.contacts?.[0]?.profile?.name || ''),
@@ -479,7 +513,7 @@ export class WhatsAppCloudApiService {
     private async processQueuedWebhookEvent(row: WebhookQueueRow) {
         const credential = row.waba_credential_id
             ? await this.getWabaCredentialById(row.waba_credential_id).catch(() => null)
-            : null;
+            : await this.findCredentialByTenantId(row.tenant_id).catch(() => null);
         if (!credential?.tenant_id || !credential?.phone_number_id) {
             await this.markWebhookMessageFailed(row.tenant_id, row.meta_message_id || row.id, new Error('Missing WABA credential reference'));
             return { replied: false, ignored: true };
@@ -769,7 +803,42 @@ export class WhatsAppCloudApiService {
             return (target && rowPhoneNumberId === target) || (displayTarget && rowPhone === displayTarget);
         });
 
-        return match || null;
+        if (match) return match;
+
+        const sessionConfig = await this.findConfigByPhoneNumberId(phoneNumberId, displayPhoneNumber);
+        return this.sessionConfigToCredential(sessionConfig);
+    }
+
+    private async findCredentialByTenantId(tenantId?: string | null) {
+        const targetTenantId = String(tenantId || '').trim();
+        if (!targetTenantId) return null;
+
+        const { data, error } = await db
+            .from('waba_credentials')
+            .select('id, tenant_id, phone_number_id, phone_number, business_account_id, business_account_name')
+            .eq('tenant_id', targetTenantId)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle();
+
+        if (error) {
+            throw error;
+        }
+
+        if (data) return data as WabaCredentialRow;
+
+        const { data: sessionData, error: sessionError } = await db
+            .from('whatsapp_sessions')
+            .select('session_id, tenant_id, label, owner_name, status, session_data, updated_at, last_sync')
+            .eq('tenant_id', targetTenantId)
+            .eq('label', SESSION_LABEL)
+            .maybeSingle();
+
+        if (sessionError) {
+            throw sessionError;
+        }
+
+        return this.sessionConfigToCredential(sessionData as OfficialApiConfigRow | null);
     }
 
     private async getWabaCredentialById(id: string) {
