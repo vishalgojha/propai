@@ -417,11 +417,12 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                 'group relative rounded-[22px] bg-[var(--bg-surface)] p-4 transition-all duration-500 sm:rounded-[28px] sm:p-7 cursor-pointer',
                 isExpanded
                     ? 'border border-[color:var(--accent-border)] shadow-[0_32px_64px_rgba(0,0,0,0.3)]'
-                    : 'border border-white/[0.02] shadow-[0_8px_40px_rgba(0,0,0,0.15)] hover:-translate-y-2 hover:shadow-[0_32px_64px_rgba(0,0,0,0.3)] hover:bg-[var(--bg-hover)]'
+                    : 'border border-[rgba(34,255,170,0.06)] shadow-[0_8px_40px_rgba(0,0,0,0.15)] hover:-translate-y-2 hover:shadow-[0_32px_64px_rgba(0,0,0,0.3)] hover:border-[rgba(34,255,170,0.12)] hover:bg-[var(--bg-hover)]'
             )}
         >
             {/* Background glow on hover */}
             <div className="absolute -top-32 -right-32 h-64 w-64 bg-[var(--accent)]/3 blur-[100px] rounded-full group-hover:bg-[var(--accent)]/8 transition-all duration-700 pointer-events-none" />
+            <div className="absolute -bottom-32 -left-32 h-64 w-64 bg-[var(--accent)]/3 blur-[100px] rounded-full group-hover:bg-[var(--accent)]/8 transition-all duration-700 pointer-events-none" />
 
             <div className="relative z-10">
                 {/* Top row: Type badge + time */}
