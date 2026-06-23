@@ -1,39 +1,62 @@
 FROM evoapicloud/evolution-api:latest
 
-RUN echo "BUILD_TIME=$(date -u +%s)" > /build-info.txt
+RUN apk add --no-cache postgresql
 
-COPY <<"SCRIPT" /entrypoint-wrapper.sh
+COPY <<"SCRIPT" /entrypoint.sh
 #!/bin/bash
 set -o pipefail
-
 exec 2>&1
 
-echo "[$(date -Iseconds)] === Evolution API startup ==="
-echo "[$(date -Iseconds)] DATABASE_PROVIDER=$DATABASE_PROVIDER"
-echo "[$(date -Iseconds)] DATABASE_ENABLED=$DATABASE_ENABLED"
-echo "[$(date -Iseconds)] PORT=$PORT"
+log() { echo "[$(date -Iseconds)] $*"; }
 
-if [ "$DATABASE_ENABLED" = "true" ] && [ -n "$DATABASE_PROVIDER" ]; then
-    if . ./Docker/scripts/deploy_database.sh; then
-        echo "[$(date -Iseconds)] Database deploy SUCCESS"
-    else
-        rc=$?
-        echo "[$(date -Iseconds)] Database deploy FAILED (exit $rc)"
-        echo "[$(date -Iseconds)] Starting fallback server on 0.0.0.0:$PORT..."
-        node -e "
-require('http').createServer((q, s) => {
-    s.writeHead(200, {'Content-Type': 'text/plain'});
-    s.end('Startup failed. Check container logs.\n');
-}).listen(+process.env.PORT||8080, '0.0.0.0');
-"
-        exit $rc
-    fi
+log "=== Evolution API startup ==="
+
+export PGDATA=/data/pg
+export PGUSER=postgres
+mkdir -p "$PGDATA" /run/postgresql
+chown postgres:postgres "$PGDATA" /run/postgresql
+
+if [ ! -f "$PGDATA/PG_VERSION" ]; then
+    log "Initializing PostgreSQL..."
+    su postgres -c "initdb -D $PGDATA"
 fi
 
-echo "[$(date -Iseconds)] Starting production server..."
+echo "listen_addresses = '*'" >> "$PGDATA/postgresql.conf"
+
+log "Starting PostgreSQL..."
+su postgres -c "pg_ctl -D $PGDATA -l /tmp/pg.log start"
+
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    su postgres -c "pg_isready" && break
+    sleep 1
+done
+
+log "PostgreSQL is ready"
+
+su postgres -c "psql -c \"CREATE USER evolution WITH PASSWORD 'evolution_pass';\"" 2>/dev/null || true
+su postgres -c "psql -c \"CREATE DATABASE evolution OWNER evolution;\"" 2>/dev/null || true
+
+export DATABASE_PROVIDER=postgresql
+export DATABASE_CONNECTION_URI="postgresql://evolution:evolution_pass@localhost:5432/evolution"
+export DATABASE_ENABLED=true
+export DOCKER_ENV=true
+
+log "DATABASE_PROVIDER=$DATABASE_PROVIDER"
+log "DATABASE_CONNECTION_URI=$DATABASE_CONNECTION_URI"
+
+cd /evolution
+
+log "Running database deploy..."
+if . ./Docker/scripts/deploy_database.sh 2>&1; then
+    log "Database deploy SUCCESS"
+else
+    log "Database deploy FAILED"
+    exit 1
+fi
+
+log "Starting production server..."
 exec npm run start:prod
 SCRIPT
 
-RUN chmod +x /entrypoint-wrapper.sh
 ENTRYPOINT ["/bin/bash"]
-CMD ["/entrypoint-wrapper.sh"]
+CMD ["/entrypoint.sh"]
