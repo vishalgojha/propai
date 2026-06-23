@@ -16,9 +16,11 @@ const STATUS_OPTIONS = [
 ] as const;
 
 const inputClass =
-  'w-full h-11 rounded-xl border border-white/5 bg-[var(--bg-surface)] px-3.5 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--accent)]/40 transition-colors';
+  'w-full h-12 rounded-xl border border-white/5 bg-[var(--bg-elevated)] px-4 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--accent)]/40 transition-colors';
 
-const labelClass = 'block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)] mb-1.5';
+const labelClass = 'block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)] mb-2';
+
+const sectionClass = 'rounded-2xl bg-[var(--bg-surface)] border border-white/3 p-6 md:p-7 space-y-5';
 
 export default function ProjectCreate() {
   const { user } = useAuth();
@@ -105,7 +107,7 @@ export default function ProjectCreate() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 md:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
       <Link
         to="/projects"
         className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors mb-6"
@@ -114,209 +116,209 @@ export default function ProjectCreate() {
         Project Hub
       </Link>
 
-      <div className="mb-6">
-        <h1 className="text-[20px] font-bold text-[var(--text-primary)]">Add Project</h1>
-        <p className="text-[12px] text-[var(--text-secondary)] mt-0.5">
+      <div className="mb-8">
+        <h1 className="text-[24px] font-bold text-[var(--text-primary)]">Add Project</h1>
+        <p className="text-[13px] text-[var(--text-secondary)] mt-1">
           Create a new developer project for the hub
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <section className="rounded-2xl bg-[var(--bg-surface)] border border-white/3 p-5 space-y-4">
-          <h2 className="text-[13px] font-bold text-[var(--text-primary)]">Basic Info</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <section className={sectionClass}>
+            <h2 className="text-[15px] font-bold text-[var(--text-primary)]">Basic Info</h2>
 
-          <div>
-            <label className={labelClass}>Project Name *</label>
-            <input
-              type="text"
-              required
-              value={form.name}
-              onChange={(e) => updateField('name', e.target.value)}
-              placeholder="e.g. Lodha Park"
-              className={inputClass}
-            />
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className={labelClass}>Project Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={form.name}
+                  onChange={(e) => updateField('name', e.target.value)}
+                  placeholder="e.g. Lodha Park"
+                  className={inputClass}
+                />
+              </div>
 
-          <div>
-            <label className={labelClass}>Developer *</label>
-            <input
-              type="text"
-              required
-              value={form.developer_name}
-              onChange={(e) => updateField('developer_name', e.target.value)}
-              placeholder="e.g. Lodha Group"
-              className={inputClass}
-            />
-          </div>
+              <div>
+                <label className={labelClass}>Developer *</label>
+                <input
+                  type="text"
+                  required
+                  value={form.developer_name}
+                  onChange={(e) => updateField('developer_name', e.target.value)}
+                  placeholder="e.g. Lodha Group"
+                  className={inputClass}
+                />
+              </div>
+            </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className={labelClass}>Locality *</label>
+                <input
+                  type="text"
+                  required
+                  value={form.locality}
+                  onChange={(e) => updateField('locality', e.target.value)}
+                  placeholder="e.g. Worli"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>City</label>
+                <input
+                  type="text"
+                  value={form.city}
+                  onChange={(e) => updateField('city', e.target.value)}
+                  placeholder="Mumbai"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Status</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => updateField('status', e.target.value)}
+                  className={cn(inputClass, 'appearance-none cursor-pointer')}
+                >
+                  {STATUS_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div>
-              <label className={labelClass}>Locality *</label>
+              <label className={labelClass}>Description</label>
+              <textarea
+                value={form.description}
+                onChange={(e) => updateField('description', e.target.value)}
+                placeholder="Brief project overview..."
+                rows={5}
+                className={cn(inputClass, 'h-auto py-3 resize-y min-h-[120px]')}
+              />
+            </div>
+          </section>
+
+          <section className={sectionClass}>
+            <h2 className="text-[15px] font-bold text-[var(--text-primary)]">Details & Media</h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className={labelClass}>RERA Number</label>
+                <input
+                  type="text"
+                  value={form.rera_number}
+                  onChange={(e) => updateField('rera_number', e.target.value)}
+                  placeholder="P51800000000"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Possession Date</label>
+                <input
+                  type="date"
+                  value={form.possession_date}
+                  onChange={(e) => updateField('possession_date', e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className={labelClass}>Configurations</label>
               <input
                 type="text"
-                required
-                value={form.locality}
-                onChange={(e) => updateField('locality', e.target.value)}
-                placeholder="e.g. Worli"
+                value={form.configurations}
+                onChange={(e) => updateField('configurations', e.target.value)}
+                placeholder="2 BHK, 3 BHK, 4 BHK"
                 className={inputClass}
               />
+              <p className="text-[11px] text-[var(--text-muted)] mt-1.5">Comma-separated</p>
             </div>
-            <div>
-              <label className={labelClass}>City</label>
-              <input
-                type="text"
-                value={form.city}
-                onChange={(e) => updateField('city', e.target.value)}
-                placeholder="Mumbai"
-                className={inputClass}
-              />
+
+            <div className="grid grid-cols-3 gap-5">
+              <div>
+                <label className={labelClass}>Towers</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.total_towers}
+                  onChange={(e) => updateField('total_towers', e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Floors</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.total_floors}
+                  onChange={(e) => updateField('total_floors', e.target.value)}
+                  placeholder="—"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Units</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.total_units}
+                  onChange={(e) => updateField('total_units', e.target.value)}
+                  placeholder="—"
+                  className={inputClass}
+                />
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className={labelClass}>Status</label>
-            <select
-              value={form.status}
-              onChange={(e) => updateField('status', e.target.value)}
-              className={cn(inputClass, 'appearance-none cursor-pointer')}
-            >
-              {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className={labelClass}>Description</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => updateField('description', e.target.value)}
-              placeholder="Brief project overview..."
-              rows={3}
-              className={cn(inputClass, 'h-auto py-3 resize-y')}
-            />
-          </div>
-        </section>
-
-        <section className="rounded-2xl bg-[var(--bg-surface)] border border-white/3 p-5 space-y-4">
-          <h2 className="text-[13px] font-bold text-[var(--text-primary)]">Details</h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>RERA Number</label>
-              <input
-                type="text"
-                value={form.rera_number}
-                onChange={(e) => updateField('rera_number', e.target.value)}
-                placeholder="P51800000000"
-                className={inputClass}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+              <div>
+                <label className={labelClass}>Cover Image URL</label>
+                <input
+                  type="url"
+                  value={form.cover_image_url}
+                  onChange={(e) => updateField('cover_image_url', e.target.value)}
+                  placeholder="https://..."
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Logo URL</label>
+                <input
+                  type="url"
+                  value={form.logo_url}
+                  onChange={(e) => updateField('logo_url', e.target.value)}
+                  placeholder="https://..."
+                  className={inputClass}
+                />
+              </div>
             </div>
-            <div>
-              <label className={labelClass}>Possession Date</label>
-              <input
-                type="date"
-                value={form.possession_date}
-                onChange={(e) => updateField('possession_date', e.target.value)}
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className={labelClass}>Configurations</label>
-            <input
-              type="text"
-              value={form.configurations}
-              onChange={(e) => updateField('configurations', e.target.value)}
-              placeholder="2 BHK, 3 BHK, 4 BHK"
-              className={inputClass}
-            />
-            <p className="text-[10px] text-[var(--text-muted)] mt-1">Comma-separated</p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className={labelClass}>Towers</label>
-              <input
-                type="number"
-                min="1"
-                value={form.total_towers}
-                onChange={(e) => updateField('total_towers', e.target.value)}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Floors</label>
-              <input
-                type="number"
-                min="1"
-                value={form.total_floors}
-                onChange={(e) => updateField('total_floors', e.target.value)}
-                placeholder="—"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Units</label>
-              <input
-                type="number"
-                min="1"
-                value={form.total_units}
-                onChange={(e) => updateField('total_units', e.target.value)}
-                placeholder="—"
-                className={inputClass}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-2xl bg-[var(--bg-surface)] border border-white/3 p-5 space-y-4">
-          <h2 className="text-[13px] font-bold text-[var(--text-primary)]">Media</h2>
-
-          <div>
-            <label className={labelClass}>Cover Image URL</label>
-            <input
-              type="url"
-              value={form.cover_image_url}
-              onChange={(e) => updateField('cover_image_url', e.target.value)}
-              placeholder="https://..."
-              className={inputClass}
-            />
-          </div>
-
-          <div>
-            <label className={labelClass}>Logo URL</label>
-            <input
-              type="url"
-              value={form.logo_url}
-              onChange={(e) => updateField('logo_url', e.target.value)}
-              placeholder="https://..."
-              className={inputClass}
-            />
-          </div>
-        </section>
+          </section>
+        </div>
 
         {error && (
-          <div className="rounded-xl border border-red-400/30 bg-red-400/5 px-4 py-3 text-[12px] text-red-400">
+          <div className="rounded-xl border border-red-400/30 bg-red-400/5 px-5 py-4 text-[13px] text-red-400">
             {error}
           </div>
         )}
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pt-2">
           <button
             type="submit"
             disabled={submitting}
-            className="h-11 px-6 rounded-xl bg-[var(--accent)] text-[12px] font-bold text-[var(--on-propai-green)] flex items-center gap-2 disabled:opacity-50"
+            className="h-12 px-8 rounded-xl bg-[var(--accent)] text-[13px] font-bold text-[var(--on-propai-green)] flex items-center gap-2 disabled:opacity-50"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
             Create Project
           </button>
           <Link
             to="/projects"
-            className="h-11 px-4 rounded-xl border border-white/5 text-[12px] font-bold text-[var(--text-secondary)] flex items-center"
+            className="h-12 px-5 rounded-xl border border-white/5 text-[13px] font-bold text-[var(--text-secondary)] flex items-center"
           >
             Cancel
           </Link>
