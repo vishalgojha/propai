@@ -1,43 +1,41 @@
 FROM evoapicloud/evolution-api:latest
 
-USER root
-RUN apt-get update -qq && apt-get install -y -qq netcat-openbsd > /dev/null 2>&1
+RUN echo "BUILD_TIME=$(date -u +%s)" > /build-info.txt
 
-COPY <<"SCRIPT" /entrypoint-wrapper.sh
+COPY <<"SCRIPT" /entrypoint.sh
 #!/bin/bash
 set -o pipefail
 
-: > /tmp/startup.log
 exec 2>&1
 
-log() { echo "[$(date +%T)] $*" | tee -a /tmp/startup.log; }
-
-log "=== Starting Evolution API ==="
-log "WORKDIR: $(pwd)"
-log "USER: $(whoami)"
-log "DATABASE_PROVIDER=$DATABASE_PROVIDER"
-log "DATABASE_ENABLED=$DATABASE_ENABLED"
-log "PORT=$PORT"
+echo "[$(date -Iseconds)] === Evolution API wrapper started ==="
+echo "[$(date -Iseconds)] WORKDIR: $(pwd)"
+echo "[$(date -Iseconds)] DATABASE_PROVIDER=$DATABASE_PROVIDER"
+echo "[$(date -Iseconds)] DATABASE_ENABLED=$DATABASE_ENABLED"
+echo "[$(date -Iseconds)] PORT=$PORT"
 
 if [ "$DATABASE_ENABLED" = "true" ] && [ -n "$DATABASE_PROVIDER" ]; then
-    log "Running: . ./Docker/scripts/deploy_database.sh"
-    if . ./Docker/scripts/deploy_database.sh 2>&1 | tee -a /tmp/startup.log; then
-        log "Database deploy SUCCESS"
+    echo "[$(date -Iseconds)] Running . ./Docker/scripts/deploy_database.sh..."
+    if . ./Docker/scripts/deploy_database.sh; then
+        echo "[$(date -Iseconds)] Database deploy SUCCESS"
     else
         rc=$?
-        log "Database deploy FAILED (exit $rc)"
-        log "--- Starting debug server on port $PORT ---"
-        while true; do
-            { echo -ne "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n=== STARTUP LOG ===\n"; cat /tmp/startup.log; } | nc -l -p "$PORT" -q 1 2>/dev/null
-        done
+        echo "[$(date -Iseconds)] Database deploy FAILED (exit $rc)"
+        echo "[$(date -Iseconds)] Starting fallback server on 0.0.0.0:$PORT..."
+        node -e "
+const fs = require('fs');
+require('http').createServer((q, s) => {
+  s.writeHead(200, {'Content-Type': 'text/plain'});
+  s.end('/tmp/startup.log: ' + (fs.existsSync('/tmp/startup.log') ? fs.readFileSync('/tmp/startup.log','utf8') : 'N/A'));
+}).listen(+process.env.PORT||8080, '0.0.0.0');
+"
         exit $rc
     fi
 fi
 
-log "Starting production server..."
+echo "[$(date -Iseconds)] Starting production server..."
 exec npm run start:prod
 SCRIPT
 
-RUN chmod +x /entrypoint-wrapper.sh
 ENTRYPOINT ["/bin/bash"]
-CMD ["/entrypoint-wrapper.sh"]
+CMD ["/entrypoint.sh"]
