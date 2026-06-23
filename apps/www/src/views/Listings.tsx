@@ -24,7 +24,7 @@ function normalizeLocalityQuery(value?: string | null) {
   return text.split(",")[0].trim().replace(/\s+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function matchBhk(configuration: string | null | undefined, bhkFilter: string): boolean {
+function matchBhk(configuration: string | number | null | undefined, bhkFilter: string): boolean {
   if (!configuration) return bhkFilter === "1 BHK";
   const cfg = String(configuration).replace(/\s+/g, "").toLowerCase();
   if (bhkFilter === "1 BHK") return cfg.includes("1bhk") || cfg === "1" || cfg.includes("1rk");
