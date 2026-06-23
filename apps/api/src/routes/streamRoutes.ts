@@ -6,6 +6,7 @@ import { workspaceAccessService } from '../services/workspaceAccessService';
 import { getErrorMessage, getErrorStatus } from '../utils/controllerHelpers';
 import { resolveStreamAccess } from '../services/streamAccessService';
 import { unifiedSearch } from '../services/searchService';
+import { supabaseAdmin } from '../config/supabase';
 
 const router = Router();
 
@@ -103,6 +104,69 @@ router.post('/search', async (req, res) => {
     });
   } catch (error: unknown) {
     res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Search failed') });
+  }
+});
+
+// Get photos for a stream item
+router.get('/:id/photos', async (req, res) => {
+  try {
+    const context = await workspaceAccessService.resolveContext((req as any).user ?? {});
+    const tenantId = context.workspaceOwnerId;
+    const itemId = req.params.id;
+
+    const tables = ['stream_items_residential', 'stream_items_commercial'] as const;
+    let fileIds: string[] = [];
+
+    for (const table of tables) {
+      const { data } = await supabaseAdmin!
+        .from(table)
+        .select('parsed_payload')
+        .eq('id', itemId)
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+      if (data?.parsed_payload?.files && Array.isArray(data.parsed_payload.files)) {
+        fileIds = data.parsed_payload.files;
+        break;
+      }
+    }
+
+    if (fileIds.length === 0) {
+      return res.json({ photos: [] });
+    }
+
+    const { data: files } = await supabaseAdmin!
+      .from('workspace_files')
+      .select('id, file_name, mime_type, byte_size, storage_bucket, storage_path')
+      .in('id', fileIds);
+
+    if (!files || !Array.isArray(files)) {
+      return res.json({ photos: [] });
+    }
+
+    const photos = await Promise.all(files.map(async (file) => {
+      const isImage = String(file.mime_type || '').startsWith('image/');
+      if (!isImage) return null;
+
+      const { data: signed } = await supabaseAdmin!
+        .storage
+        .from(file.storage_bucket)
+        .createSignedUrl(file.storage_path, 3600);
+
+      if (!signed?.signedUrl) return null;
+
+      return {
+        id: file.id,
+        url: signed.signedUrl,
+        fileName: file.file_name,
+        mimeType: file.mime_type,
+        byteSize: file.byte_size,
+      };
+    }));
+
+    res.json({ photos: photos.filter(Boolean) });
+  } catch (error: unknown) {
+    res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load photos') });
   }
 });
 

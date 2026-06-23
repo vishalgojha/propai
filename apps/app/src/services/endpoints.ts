@@ -90,6 +90,7 @@ export const ENDPOINTS = {
     read: (streamItemId: string) => `/stream-items/${streamItemId}/read`,
     correct: (streamItemId: string) => `/stream-items/${streamItemId}/correct`,
     stats: '/stream-items/stats',
+    photos: (streamItemId: string) => `/stream-items/${streamItemId}/photos`,
   },
   waClick: {
     log: '/wa-click',

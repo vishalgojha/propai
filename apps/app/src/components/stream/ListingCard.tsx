@@ -7,6 +7,7 @@ import { logWaClick, fetchWaClickListingLog, type WaClickListingLog } from '../.
 import { PROPAI_ASSISTANT_PHONE_DIGITS } from '../../lib/propai';
 import type { StreamItem } from '../../services/streamAPI';
 import type { PersonalChannel } from '../../services/channelApi';
+import { ListingGallery } from './ListingGallery';
 
 type ListingCardProps = {
     listing: StreamItem;
@@ -600,6 +601,8 @@ export const ListingCard: React.FC<ListingCardProps> = ({
                                     <p className="text-[12px] leading-relaxed text-[var(--text-secondary)]">{listing.suppressionReason}</p>
                                 </div>
                             ) : null}
+
+                            <ListingGallery streamItemId={listing.id} />
 
                         </div>
 
