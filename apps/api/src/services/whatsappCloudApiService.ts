@@ -477,15 +477,11 @@ export class WhatsAppCloudApiService {
             return { processed: 0, replied: 0, ignored: 0 };
         }
 
-        const { data, error } = await db
-            .from('cloud_api_webhook_events')
-            .select('id, tenant_id, waba_credential_id, meta_message_id, meta_contact_wa_id, from_name, message_type, message_body, media_url, media_mime_type, media_sha256, timestamp, raw_payload, processed, processing_error, created_at')
-            .eq('processed', false)
-            .order('created_at', { ascending: true })
-            .limit(limit);
+        const { data, error } = await db.rpc('claim_webhook_events', { batch_size: limit });
 
         if (error) {
-            throw error;
+            console.error('[WhatsAppCloudApiService] claim_webhook_events RPC failed', error);
+            return { processed: 0, replied: 0, ignored: 0 };
         }
 
         const rows = Array.isArray(data) ? data as WebhookQueueRow[] : [];
@@ -1158,14 +1154,14 @@ export class WhatsAppCloudApiService {
 
     private async markWebhookMessageProcessed(tenantId: string, messageId: string) {
         await db.from('cloud_api_webhook_events')
-            .update({ processed: true, processing_error: null })
+            .update({ processed: true, claimed_at: null, processing_error: null })
             .eq('tenant_id', tenantId)
             .eq('meta_message_id', messageId);
     }
 
     private async markWebhookMessageFailed(tenantId: string, messageId: string, error: unknown) {
         await db.from('cloud_api_webhook_events')
-            .update({ processing_error: error instanceof Error ? error.message.slice(0, 2000) : String(error).slice(0, 2000) })
+            .update({ claimed_at: null, processing_error: error instanceof Error ? error.message.slice(0, 2000) : String(error).slice(0, 2000) })
             .eq('tenant_id', tenantId)
             .eq('meta_message_id', messageId);
     }
