@@ -27,6 +27,7 @@ import whatsappCloudRoutes from './routes/whatsappCloudRoutes';
 import evolutionWebhookRoutes from './routes/evolutionWebhookRoutes';
 import mcpRoutes from './routes/mcpRoutes';
 import wabaRoutes from './routes/wabaRoutes';
+import projectRoutes from './routes/projectRoutes';
 import { backfillEmbeddings } from './controllers/backfillEmbeddingsController';
 import fs from 'fs';
 import path from 'path';
@@ -277,6 +278,7 @@ app.use('/api/location', locationRoutes);
 app.use('/api/waba', wabaRoutes);
 app.use(evolutionWebhookRoutes);
 app.use(ROUTE_PATHS.api.mcp, authMiddleware, mcpRoutes);
+app.use('/api/projects', projectRoutes);
 
 app.get(ROUTE_PATHS.api.health, async (req, res) => {
     const health: Record<string, unknown> = {

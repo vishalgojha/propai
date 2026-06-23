@@ -1,5 +1,6 @@
 export {
   AlertTriangle as AlertTriangleIcon,
+  Building2 as ProjectHubIcon,
   Activity as ActivityIcon,
   ArrowRight as ArrowRightIcon,
   ArrowUp as ArrowUpIcon,

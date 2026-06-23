@@ -133,4 +133,22 @@ export const ENDPOINTS = {
   mcp: {
     token: '/mcp/token',
   },
+  projects: {
+    search: '/api/projects/search',
+    detail: (slug: string) => `/api/projects/${encodeURIComponent(slug)}`,
+    create: '/api/projects',
+    update: (id: string) => `/api/projects/${encodeURIComponent(id)}`,
+    mine: '/api/projects/mine/list',
+    inventory: (id: string) => `/api/projects/${encodeURIComponent(id)}/inventory`,
+    inventoryUpdate: (id: string) => `/api/projects/inventory/${encodeURIComponent(id)}`,
+    inventoryDelete: (id: string) => `/api/projects/inventory/${encodeURIComponent(id)}`,
+    contacts: (id: string) => `/api/projects/${encodeURIComponent(id)}/contacts`,
+    contactDelete: (id: string) => `/api/projects/contacts/${encodeURIComponent(id)}`,
+    resources: (id: string) => `/api/projects/${encodeURIComponent(id)}/resources`,
+    resourceDelete: (id: string) => `/api/projects/resources/${encodeURIComponent(id)}`,
+    updates: (id: string) => `/api/projects/${encodeURIComponent(id)}/updates`,
+    brokerResources: (id: string) => `/api/projects/${encodeURIComponent(id)}/broker-resources`,
+    brokerResourceDelete: (id: string) => `/api/projects/broker-resources/${encodeURIComponent(id)}`,
+    recordDownload: (table: string, id: string) => `/api/projects/download/${table}/${encodeURIComponent(id)}`,
+  },
 } as const;

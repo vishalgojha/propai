@@ -58,22 +58,25 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
 
 ### Completed in This Session
 
-- **Project detail pages** — New `/project/[slug]` and `/project/[slug]/units` routes. Hero image gallery, stats bar, overview grid, amenities (with show more), floor plan cards, nearby places, similar projects sidebar, available units with BHK filter pills. Units view has search, sort (price/area/latest), config filter pills, mobile sticky CTA. 10 seed projects with 30+ inventory items in `src/data/projects.ts`. Added `/project/[slug]` to sitemap.
-- **Full-screen locality map** — Interactive MapLibre GL JS map at `/explore` with 5 data layers (avg sale, rental, active listings, yield, density), color-coded polygons, hover tooltips, click-to-fly, right-side panel with metrics/BHK mix/rankings.
-- **Market intelligence page** — `/intelligence` with aggregated locality data grid, searchable/sortable, per-locality KPIs.
-- **Mobile-first homepage redesign** — Property-first flow, removed hero animation/FAQ/chat/map tab, compact listing cards, sticky mobile filters on listings page.
-- **Mobile bottom nav** — Search, Listings, Map, Insights tabs, hidden on `/explore`, footer hidden on mobile.
-- **10 seed projects** — Lodha Marquise, Hiranandani Olivia, Runwal Bliss, Lodha Bellissimo, Piramal Mahalaxmi, Omkar Alta Monte, Rustomjee Evershine Global, Kanakia Silicon Valley, Oberoi Eucalyptus, Adani Esperanza.
+- **Project Hub (app.propai.live)** — New `Project Hub` sidebar nav item linking to `/projects` (search/browse) and `/projects/[slug]` (detail). B2B broker-facing platform with:
+  - Supabase migration: `developer_projects`, `project_inventory`, `project_contacts`, `project_resources`, `project_updates`, `project_broker_resources` tables with RLS
+  - API: `GET /api/projects/search` (public), `GET /api/projects/:id` (public), plus authenticated CRUD for inventory, contacts, resources, updates, broker resources
+  - App view `ProjectHub.tsx`: search by name/developer/locality, results list with status badges, verified badges, config chips
+  - App view `ProjectDetail.tsx`: full project detail with hero, stats, inventory grouped by BHK, amenities (show more), floor plans, sales contacts (primary + team), resources (brochure/sheets/plans via download links), broker-only resources, project updates timeline, mobile sticky contact bar
+  - API service + controller + routes at `apps/api/src/services/projectService.ts`, `controllers/projectController.ts`, `routes/projectRoutes.ts`, `schemas/projectSchemas.ts`
 
 ### Relevant Files
 
-- `apps/www/app/project/[slug]/page.tsx` — SSR project detail route
-- `apps/www/app/project/[slug]/units/page.tsx` — SSR inventory route
-- `apps/www/src/views/ProjectPage.tsx` — Project detail view (hero, stats, overview, amenities, floor plans, similar, units)
-- `apps/www/src/views/ProjectUnits.tsx` — Full inventory list with search, sort, BHK filters
-- `apps/www/src/lib/projects.ts` — Data-fetching layer (async wrappers around seed data)
-- `apps/www/src/data/projects.ts` — 10 seed projects + 30+ inventory items
-- `apps/www/app/sitemap.ts` — Added project pages
+- `apps/api/src/services/projectService.ts` — Project CRUD service
+- `apps/api/src/controllers/projectController.ts` — Project request handlers
+- `apps/api/src/routes/projectRoutes.ts` — Project API routes
+- `apps/api/src/schemas/projectSchemas.ts` — Zod validation schemas
+- `supabase/migrations/20260624000001_create_project_hub.sql` — DB schema for 6 project tables
+- `apps/app/src/views/ProjectHub.tsx` — Project search/browse view
+- `apps/app/src/views/ProjectDetail.tsx` — Full project detail with contacts, inventory, resources
+- `apps/app/app/(protected)/projects/page.tsx` — Project hub route
+- `apps/app/app/(protected)/projects/[slug]/page.tsx` — Project detail route
+- `apps/app/src/components/Sidebar.tsx` — Added Project Hub nav item
 - `apps/www/app/explore/page.tsx` — SSR explore route
 - `apps/www/src/views/LocalityExplore.tsx` — Map + panel + search + rankings
 - `apps/www/src/components/LocalityDataMap.tsx` — MapLibre GL JS with polygon layers
