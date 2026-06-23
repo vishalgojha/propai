@@ -28,6 +28,7 @@ System-level docs written for successor handoff. Read these before making change
 | `apps/app/**` | App | `propai pulse` | `lburg4buwnc94z9hpx0walg5` |
 | `apps/www/**` | WWW | `propai:web` | `x37zz4949pttnobai5ov9q3p` |
 | `apps/mcp/**` | MCP | `propaiMCP` | `agr47ygipjbqgnyuw9pl5fc8` |
+| `apps/evolution-api/**` | Evolution API | `evolution-api` | `m9eosll2dfd5lrh517yi2jvd` |
 | `packages/**` | All that depend on it | — | — |
 
 ## Architecture: WhatsApp Cloud API
@@ -70,10 +71,23 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
 - **`public_listings` live sync** — Added trigger `sync_stream_item_to_public_listings()` on both `stream_items_residential` and `stream_items_commercial`, with `ON CONFLICT (source_message_id) DO UPDATE`. Backfill uses `DISTINCT ON` + `ON CONFLICT DO NOTHING`.
 - **Building name `-` → `"On Request"`** — `formatBuildingName()` helper in `Listings.tsx` and `ListingCard.tsx` treats `-`, empty, N/A, unknown as `"On Request"`. Applied in table cell, card view, card subtitle, WA share text, dedupe key, card title, IGR section.
 - **`building_intel` MCP tool** — Queries `stream_items_residential`/`commercial` for: price/sqft benchmarks (sale + rent), locality supply snapshot (listing vs requirement counts + market label), configuration demand map. Params: `building_name` (req), `locality`, `days_back` (default 90). Token-level building matching, dedup via `source_message_id` Sets.
+- **Evolution API deployed** — Custom Docker image with embedded PostgreSQL (`apk add postgresql`). Container-internal database at `localhost:5432`, no external DB dependency. Entrypoint inits PG, runs Prisma migrations, then starts Evolution API. Coolify app UUID: `m9eosll2dfd5lrh517yi2jvd`.
+
+### Architecture: Evolution API
+
+Evolution API (`evoapicloud/evolution-api:latest`) runs as a Coolify Dockerfile app. It embeds PostgreSQL inside the container (Alpine `postgresql` package) to avoid Supabase IPv6/pooler issues.
+
+- **Dockerfile**: `apps/evolution-api/Dockerfile` — installs postgresql, custom entrypoint that inits/starts PG, sets up `evolution` database, runs Prisma migrations, starts the API.
+- **Data directory**: `/data/pg` inside container. Persistence requires Docker volume mount.
+- **Port**: 8080 (internal), exposed via Coolify proxy at `http://m9eosll2dfd5lrh517yi2jvd.116.202.9.89.sslip.io`
+- **Auth**: `AUTHENTICATION_API_KEY=propai-evo-9bd64c87537000524265e308d3213abd`
+- **API service integration**: `EVOLUTION_API_URL=http://evolution-api:8080`, `EVOLUTION_API_KEY` on `propai api` service
+- **Known limitation**: Supabase direct connection is IPv6-only; Supabase pooler not available for this project. Embedded PG is the working workaround.
 
 ### Current Remote State
 
 - Latest commits:
+  - `f5d32934` — `Embed PostgreSQL inside Evolution API container for local database`
   - `c875ebe7` — `Add building_intel MCP tool: price/sqft benchmarks, locality supply snapshot, configuration demand map`
   - `d5b3e5ac` — `Show 'On Request' instead of '-' for building name in all listing views`
   - `78b9e649` — `Fix: use ON CONFLICT DO NOTHING for public_listings backfill, add DISTINCT ON for dedup`

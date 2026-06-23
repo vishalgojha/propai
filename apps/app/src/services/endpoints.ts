@@ -68,6 +68,8 @@ export const ENDPOINTS = {
     resetAll: '/whatsapp/reset-all',
     cloudConfig: '/whatsapp/cloud/config',
     cloudWebhook: '/whatsapp/cloud/webhook',
+    groups: '/whatsapp/groups',
+    groupToggleMonitor: (jid: string) => `/whatsapp/groups/${encodeURIComponent(jid)}/monitor`,
   },
     channels: {
     list: '/channels',
@@ -120,7 +122,8 @@ export const ENDPOINTS = {
     campaignRecipients: (id: string) => `/broadcast/campaigns/${encodeURIComponent(id)}/recipients`,
     campaignStats: (id: string) => `/broadcast/campaigns/${encodeURIComponent(id)}/stats`,
   },
-    syndication: {
+  syndication: {
+    list: '/syndication/partners',
     invite: '/syndication/invite',
     accept: '/syndication/accept',
     partners: '/syndication/partners',

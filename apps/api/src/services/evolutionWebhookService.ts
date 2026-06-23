@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 import { supabase, supabaseAdmin } from '../config/supabase';
-import { channelService } from './channelService';
 import { processWhatsAppSessionEvent } from '../channel-events/processors/processWhatsAppSessionEvent';
 import { whatsappHealthService } from './whatsappHealthService';
 import { whatsappThreadService } from './whatsappThreadService';
@@ -140,28 +139,22 @@ class EvolutionWebhookService {
         const groupJid = remoteJid.includes('@g.us') ? remoteJid : null;
         const senderJid = remoteJid.includes('@s.whatsapp.net') ? remoteJid : null;
 
-        const { error: inboundInsertError } = await db.from('messages').insert({
-            tenant_id: dataTenantId,
-            session_label: sessionLabel,
-            remote_jid: remoteJidFull,
-            sender: senderName,
-            text,
-            timestamp,
-        });
-        if (inboundInsertError) {
-            console.warn('[EvolutionWebhookService] Failed to persist inbound message', inboundInsertError);
+        try {
+            await db.from('evolution_raw_messages').insert({
+                tenant_id: dataTenantId,
+                session_label: sessionLabel,
+                remote_jid: remoteJidFull,
+                sender: senderName,
+                text_content: text,
+                raw_payload: data,
+                message_id: messageId,
+                source_group_jid: groupJid,
+                sender_jid: senderJid,
+                is_parsed: false,
+            });
+        } catch (error) {
+            console.warn('[EvolutionWebhookService] Failed to persist raw message', error);
         }
-
-        await whatsappThreadService.upsertFromMessage({
-            tenantId: dataTenantId,
-            sessionLabel,
-            remoteJid: remoteJidFull,
-            sender: senderName,
-            text,
-            timestamp,
-        }).catch((error) => {
-            console.warn('[EvolutionWebhookService] Failed to update thread row', error);
-        });
 
         await whatsappHealthService.recordMessageMetrics({
             tenantId: dataTenantId,
@@ -172,25 +165,6 @@ class EvolutionWebhookService {
             countReceived: true,
             timestamp,
         }).catch(() => undefined);
-
-        if (text) {
-            await channelService.ingestMessage(dataTenantId, {
-                id: messageId,
-                session_label: sessionLabel,
-                remote_jid: remoteJidFull,
-                sender: senderName,
-                text,
-                timestamp,
-                created_at: timestamp,
-                source: 'evolution_api',
-                sourceGroupId: groupJid,
-                sourceGroupName: null,
-                senderJid,
-            }).catch((error) => {
-                console.warn('[EvolutionWebhookService] Stream ingest failed', error);
-                return 0;
-            });
-        }
     }
 
     private async handleConnectionUpdate(tenantId: string, sessionLabel: string, data: Record<string, unknown>) {

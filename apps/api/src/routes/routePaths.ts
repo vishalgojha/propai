@@ -87,6 +87,8 @@ export const ROUTE_PATHS = {
         resetAll: '/reset-all',
         recipients: '/recipients',
         config: '/config',
+        groups: '/groups',
+        groupToggleMonitor: '/groups/:jid/monitor',
     },
   ai: {
     chat: '/chat',

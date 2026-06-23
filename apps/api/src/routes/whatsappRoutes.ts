@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getMonitorMessages, disconnectWhatsApp, resetWhatsAppSession, resetAllWhatsAppSessions, getMessages, getInboxThreads, getInboxThreadMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getHistoryDebug, getEvents, getHealthLogs, submitSupportLogs, getOutboundRecipients } from '../controllers/whatsappController';
+import { connectWhatsApp, getQR, forceRefreshQR, getStatus, getMonitor, getMonitorMessages, disconnectWhatsApp, resetWhatsAppSession, resetAllWhatsAppSessions, getMessages, getInboxThreads, getInboxThreadMessages, sendMessage, sendBulkDirectMessages, getProfile, saveProfile, broadcastToGroups, getIngestionHealth, getDetailedHealth, getHistoryDebug, getEvents, getHealthLogs, submitSupportLogs, getOutboundRecipients, getGroupsWithStats, toggleGroupMonitor } from '../controllers/whatsappController';
 import { importHistoryTxt, getHistoryImports, checkDuplicateImports, backfillHistoryToStream } from '../controllers/historyController';
 import { ROUTE_PATHS } from './routePaths';
 import { authMiddleware } from '../middleware/authMiddleware';
@@ -40,6 +40,8 @@ router.post(ROUTE_PATHS.whatsapp.disconnect, validate(disconnectSchema), disconn
 router.post(ROUTE_PATHS.whatsapp.reset, validate(resetSessionSchema), resetWhatsAppSession);
 router.post(ROUTE_PATHS.whatsapp.resetAll, validate(resetAllSessionSchema), resetAllWhatsAppSessions);
 router.get(ROUTE_PATHS.whatsapp.recipients, getOutboundRecipients);
+router.get(ROUTE_PATHS.whatsapp.groups, getGroupsWithStats);
+router.patch(ROUTE_PATHS.whatsapp.groupToggleMonitor, toggleGroupMonitor);
 
 router.post(ROUTE_PATHS.whatsapp.config, async (req: Request, res: Response) => {
     const { group_id, behavior, session_label, parse_direct_messages, self_chat_enabled } = req.body;

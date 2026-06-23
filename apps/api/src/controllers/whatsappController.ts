@@ -2142,6 +2142,92 @@ export const getGroupStreamItems = async (req: Request, res: Response) => {
     }
 };
 
+export const getGroupsWithStats = async (req: Request, res: Response) => {
+    const tenantId = getTenantId(req);
+    const dbClient = getDbClient();
+
+    try {
+        const directoryGroups = await whatsappGroupService.listGroups(tenantId);
+
+        const groupJids = directoryGroups.map((g) => g.groupJid).filter(Boolean);
+        const countMap = new Map<string, { messageCount: number; lastMessageAt: string | null }>();
+
+        if (groupJids.length > 0) {
+            const { data: counts } = await dbClient
+                .from('evolution_raw_messages')
+                .select('source_group_jid, created_at')
+                .eq('tenant_id', tenantId)
+                .in('source_group_jid', groupJids);
+
+            if (counts) {
+                const groupLastSeen = new Map<string, string>();
+                const groupCounts = new Map<string, number>();
+
+                for (const row of counts) {
+                    const jid = String(row.source_group_jid || '');
+                    if (!jid) continue;
+                    groupCounts.set(jid, (groupCounts.get(jid) || 0) + 1);
+                    const ts = String(row.created_at || '');
+                    const prev = groupLastSeen.get(jid);
+                    if (!prev || ts > prev) groupLastSeen.set(jid, ts);
+                }
+
+                for (const jid of groupJids) {
+                    countMap.set(jid, {
+                        messageCount: groupCounts.get(jid) || 0,
+                        lastMessageAt: groupLastSeen.get(jid) || null,
+                    });
+                }
+            }
+        }
+
+        res.json(directoryGroups.map((group) => {
+            const stats = countMap.get(group.groupJid) || { messageCount: 0, lastMessageAt: null };
+            return {
+                ...group,
+                messageCount: stats.messageCount,
+                lastMessageAt: stats.lastMessageAt || group.lastActiveAt,
+            };
+        }));
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to load group stats') });
+    }
+};
+
+export const toggleGroupMonitor = async (req: Request, res: Response) => {
+    const tenantId = getTenantId(req);
+    const dbClient = getDbClient();
+    const jid = req.params.jid;
+
+    if (!jid) return res.status(400).json({ error: 'Group JID is required' });
+
+    try {
+        const { data: group, error: findError } = await dbClient
+            .from('whatsapp_groups')
+            .select('broadcast_enabled')
+            .eq('workspace_id', tenantId)
+            .eq('group_jid', jid)
+            .maybeSingle();
+
+        if (findError) return res.status(500).json({ error: findError.message });
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const nextValue = !group.broadcast_enabled;
+
+        const { error: updateError } = await dbClient
+            .from('whatsapp_groups')
+            .update({ broadcast_enabled: nextValue, updated_at: new Date().toISOString() })
+            .eq('workspace_id', tenantId)
+            .eq('group_jid', jid);
+
+        if (updateError) return res.status(500).json({ error: updateError.message });
+
+        res.json({ success: true, group_jid: jid, broadcast_enabled: nextValue });
+    } catch (error: unknown) {
+        res.status(getErrorStatus(error)).json({ error: getErrorMessage(error, 'Failed to toggle group monitor') });
+    }
+};
+
 export const getOutboundRecipients = async (req: Request, res: Response) => {
     const tenantId = getTenantId(req);
     const dbClient = getDbClient();
