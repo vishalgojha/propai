@@ -40,7 +40,7 @@ import { SidebarCard } from './ui/SidebarCard';
 const NAV_ITEMS = [
   { label: 'Inbox', path: '/inbox', icon: InboxIcon },
   { label: 'Stream', path: '/stream', icon: StreamIcon },
-  { label: 'Intelligence', path: '/intelligence', icon: ActivityIcon },
+  { label: 'Network Activity', path: '/intelligence', icon: ActivityIcon },
   { label: 'Project Hub', path: '/projects', icon: ProjectHubIcon },
   { label: 'WhatsApp Business', path: '/whatsapp/setup', icon: GroupsIcon },
   { label: 'WhatsApp Groups', path: '/whatsapp/evolution/setup', icon: QrCodeIcon },

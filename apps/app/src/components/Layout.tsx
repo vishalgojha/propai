@@ -145,7 +145,7 @@ export const Layout: React.FC = () => {
     if (path.startsWith('/broker-network/partners')) return 'Partner / Team';
     if (path.startsWith('/broker-network')) return 'Broker Network';
     if (path.startsWith('/whatsapp')) return 'WhatsApp';
-    if (path.startsWith('/intelligence') || path === '/analytics') return 'Intelligence';
+    if (path.startsWith('/intelligence') || path === '/analytics') return 'Network Activity';
     if (path.startsWith('/ai-usage') || path === '/aiusage') return 'AI Usage';
 
     switch (path) {

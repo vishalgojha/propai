@@ -62,11 +62,11 @@ type IntelligenceResult = {
 };
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'pulse', label: 'Market Pulse' },
-  { id: 'supply', label: 'Observed Activity' },
-  { id: 'velocity', label: 'Velocity' },
+  { id: 'pulse', label: 'Overview' },
+  { id: 'supply', label: 'Inventory' },
+  { id: 'inventory', label: 'Requirements' },
   { id: 'brokers', label: 'Brokers' },
-  { id: 'inventory', label: 'Inventory' },
+  { id: 'velocity', label: 'Activity' },
 ];
 
 const PERIODS: Days[] = [1, 3, 7, 14, 30];
@@ -146,7 +146,7 @@ const Analytics: React.FC = () => {
   const observedRowsLabel = formatInteger(intelData?.validRows);
 
   if (loading) {
-    return <div className="p-6 text-[12px] text-[var(--text-secondary)]">Loading intelligence...</div>;
+    return <div className="p-6 text-[12px] text-[var(--text-secondary)]">Loading network activity...</div>;
   }
 
   if (error) {
@@ -157,12 +157,12 @@ const Analytics: React.FC = () => {
     <div className="space-y-5 pb-10">
       <header className="flex flex-col gap-4 border-b border-[color:var(--border)] pb-5 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-[26px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Intelligence</h1>
+          <h1 className="text-[26px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Network Activity</h1>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
             PropAI · {intelData?.scope === 'all_accounts' ? 'All account signals' : 'Workspace signals'} · {observedRowsLabel} observed rows
           </p>
           <p className="mt-2 max-w-2xl text-[12px] leading-6 text-[var(--text-secondary)]">
-            This view shows what the system has actually seen in broker data. It is a signal summary, not a guaranteed market truth.
+            Observed activity across broker listings, requirements, and project signals.
           </p>
         </div>
         <div className="flex w-full rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-1 sm:w-auto">
@@ -184,11 +184,10 @@ const Analytics: React.FC = () => {
         </div>
       </header>
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Observed Rows" value={formatInteger(intelData?.validRows)} />
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-3">
+        <KpiCard label="Observed Listings" value={formatInteger(intelData?.validRows)} />
         <KpiCard label="Observed Requirements" value={formatInteger(totalRequirements)} />
-        <KpiCard label="Observed Ratio" value={`${formatRatio(supplyDemandRatio)}x`} />
-        <KpiCard label="Active Brokers" value={formatInteger(intelData?.activeBrokerCount ?? intelData?.brokerLeaderboard?.length)} />
+        <KpiCard label={`Observed Brokers (${days}d)`} value={formatInteger(intelData?.activeBrokerCount ?? intelData?.brokerLeaderboard?.length)} />
       </section>
 
       <nav className="overflow-x-auto rounded-[10px] border border-[color:var(--border)] bg-[var(--bg-elevated)] p-1">
@@ -221,15 +220,14 @@ const Analytics: React.FC = () => {
               >
                 <div className="flex items-start justify-between gap-3">
                   <h2 className="text-[16px] font-bold text-[var(--text-primary)]">{item.locality}</h2>
-                  <DemandBadge signal={item.demandSignal} />
                 </div>
                 <div className="my-4 border-t border-[color:var(--border)]" />
                 <div className="grid grid-cols-2 gap-3">
-                  <MiniMetric label="Listings" value={formatInteger(item.listings)} />
-                  <MiniMetric label="Requirements" value={formatInteger(item.requirements)} />
+                  <MiniMetric label="Observed Listings" value={formatInteger(item.listings)} />
+                  <MiniMetric label="Observed Requirements" value={formatInteger(item.requirements)} />
                 </div>
                 <div className="mt-4 text-[12px] text-[var(--text-secondary)]">
-                  Top unit: {item.topBhk || 'Mixed inventory'}
+                  Top Unit Type: {item.topBhk || 'Mixed inventory'}
                 </div>
               </article>
             ))}
