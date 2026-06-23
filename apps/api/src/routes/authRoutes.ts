@@ -9,7 +9,8 @@ import { emailNotificationService } from '../services/emailNotificationService';
 import { syncBrokerIdentityPhone } from '../services/identityService';
 import { getPhoneOwnership, normalizePhone as normalizePhoneValue } from '../services/phoneOwnershipService';
 import { activationCodeService } from '../services/activationCodeService';
-import { createAppSessionToken, getAppSessionExpiryMs } from '../services/appAuthTokenService';
+import { createAppSessionToken, getAppSessionExpiryMs, getAppSessionTtlSeconds } from '../services/appAuthTokenService';
+import { createAppRefreshToken, isAppRefreshToken, rotateAppRefreshToken } from '../services/appRefreshTokenService';
 import {
     requestLoginLinkBodySchema,
     refreshTokenBodySchema,
@@ -23,7 +24,7 @@ const OWNER_SUPER_ADMIN_EMAILS = new Set([
     'ojha007@gmail.com',
     'hello@propai.live',
 ]);
-const PROFILE_BASE_SELECT = 'id, full_name, phone, email, phone_verified';
+const PROFILE_BASE_SELECT = 'id, full_name, phone, email, phone_verified, app_role';
 
 const normalizePhone = (value?: string) => normalizePhoneValue(value);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -347,14 +348,20 @@ router.get(ROUTE_PATHS.auth.loginStatus, async (req, res) => {
             fullName,
             appRole,
         });
+        const appRefresh = await createAppRefreshToken({
+            userId,
+            userAgent: req.get('user-agent'),
+            ipAddress: req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']) : req.ip,
+        });
 
         return res.json({
             success: true,
             status: 'authenticated',
             session: {
                 access_token: sessionToken,
-                refresh_token: null,
+                refresh_token: appRefresh.refreshToken,
                 expires_at: Math.floor((Date.now() + getAppSessionExpiryMs()) / 1000),
+                expires_in: getAppSessionTtlSeconds(),
             },
             user: {
                 id: userId,
@@ -383,6 +390,45 @@ router.post(ROUTE_PATHS.auth.refresh, validate(refreshTokenBodySchema), async (r
     const { refreshToken } = req.body;
 
     try {
+        if (isAppRefreshToken(refreshToken)) {
+            const rotated = await rotateAppRefreshToken(refreshToken, {
+                userAgent: req.get('user-agent'),
+                ipAddress: req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']) : req.ip,
+            });
+
+            if (!rotated) {
+                return res.status(401).json({ error: 'Invalid or expired refresh token' });
+            }
+
+            const profile = await getProfileById(rotated.userId).catch(() => null);
+            if (!profile) {
+                return res.status(401).json({ error: 'User profile not found' });
+            }
+
+            const identity = await getBrokerIdentityById(rotated.userId).catch(() => null);
+            const email = String(profile.email || profile.phone || rotated.userId).trim();
+            const fullName = String(profile.full_name || identity?.full_name || '').trim() || null;
+            const phone = String(profile.phone || '').trim() || null;
+            const appRole = String(profile.app_role || 'broker');
+            const accessToken = createAppSessionToken({
+                userId: rotated.userId,
+                email,
+                phone,
+                fullName,
+                appRole,
+            });
+
+            return res.json({
+                success: true,
+                session: {
+                    access_token: accessToken,
+                    refresh_token: rotated.refreshToken,
+                    expires_at: Math.floor((Date.now() + getAppSessionExpiryMs()) / 1000),
+                    expires_in: getAppSessionTtlSeconds(),
+                },
+            });
+        }
+
         const supabaseUrl = process.env.SUPABASE_URL;
         const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 

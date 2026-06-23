@@ -79,8 +79,13 @@ export function saveStoredSession(session: StoredSession, remember = true) {
     return;
   }
 
-  localStorage.removeItem(STORAGE_KEY);
-  sessionStorage.removeItem(SESSION_KEY);
+  if (remember) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storedSession));
+    sessionStorage.removeItem(SESSION_KEY);
+  } else {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(storedSession));
+    localStorage.removeItem(STORAGE_KEY);
+  }
 
   if (remember) {
     deleteCookie(SESSION_KEY);

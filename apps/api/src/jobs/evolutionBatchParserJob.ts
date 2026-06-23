@@ -63,7 +63,7 @@ export class EvolutionBatchParserJob {
           continue;
         }
 
-        const ingested = await channelService.ingestMessage(row.tenant_id, {
+        const ingestResult = await channelService.ingestMessage(row.tenant_id, {
           id: row.message_id || row.id,
           session_label: row.session_label,
           remote_jid: row.remote_jid,
@@ -82,7 +82,7 @@ export class EvolutionBatchParserJob {
           parsed_at: new Date().toISOString(),
         }).eq('id', row.id);
 
-        parsed += ingested;
+        parsed += ingestResult.count;
       } catch (error: any) {
         console.warn('[EvolutionBatchParser] Parse error for', row.id, error?.message);
         await db.from('evolution_raw_messages').update({
