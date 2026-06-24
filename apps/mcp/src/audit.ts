@@ -241,7 +241,7 @@ async function main() {
       contact_number: "9999999999",
     });
     console.log("draft_broadcast:", broadcast.length > 10 ? "OK (" + broadcast.length + " chars)" : "EMPTY");
-  } catch (e) {
+  } catch (e: any) {
     console.log("draft_broadcast: ERROR —", e.message || e);
   }
 
