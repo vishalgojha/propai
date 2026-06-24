@@ -91,7 +91,15 @@ export async function fetchExploreData(): Promise<LocalityMapData[]> {
         bucket.listings++;
       }
 
-      const price = Number(row.price_numeric) || 0;
+      let price = Number(row.price_numeric) || 0;
+
+      if (isSale && (price < 500000 || price > 1000000000)) {
+        price = 0;
+      }
+      if (isRent && (price < 1000 || price > 500000)) {
+        price = 0;
+      }
+
       if (price > 0) {
         if (isRent) {
           bucket.rents.push(price);
@@ -124,7 +132,7 @@ export async function fetchExploreData(): Promise<LocalityMapData[]> {
         ? Math.round((avgRentalRate * 12 / avgSalePrice) * 100 * 10) / 10
         : null;
 
-      const inventoryDensity = total > 0
+      const inventoryDensity = bucket.requirements > 0
         ? Math.round((bucket.listings / total) * 100)
         : null;
 

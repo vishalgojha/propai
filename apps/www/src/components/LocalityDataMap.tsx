@@ -94,6 +94,11 @@ export default memo(function LocalityDataMap({
     if (!mapContainer.current || mapRef.current) return;
 
     let mounted = true;
+    const timeout = window.setTimeout(() => {
+      if (mounted && !mapLoaded) {
+        setMapError('Map library failed to load. Check your internet connection and try again.');
+      }
+    }, 15000);
 
     import("maplibre-gl").then((maplibregl) => {
       if (!mounted || !mapContainer.current) return;
@@ -130,6 +135,7 @@ export default memo(function LocalityDataMap({
           attributionControl: false,
         });
 
+        clearTimeout(timeout);
         mapRef.current = map;
         setMapLoaded(true);
 
@@ -321,10 +327,12 @@ export default memo(function LocalityDataMap({
           document.head.appendChild(style);
         });
       } catch (err) {
+        clearTimeout(timeout);
         console.error('[LocalityDataMap] Failed to initialize map:', err);
         setMapError(err instanceof Error ? err.message : 'Failed to load map');
       }
     }).catch((err) => {
+      clearTimeout(timeout);
       console.error('[LocalityDataMap] Failed to load maplibre-gl:', err);
       if (mounted) {
         setMapError(err instanceof Error ? err.message : 'Failed to load map library');
@@ -333,6 +341,7 @@ export default memo(function LocalityDataMap({
 
     return () => {
       mounted = false;
+      clearTimeout(timeout);
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
