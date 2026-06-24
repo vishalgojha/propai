@@ -107,9 +107,7 @@ function buildFallbackDescription(input: {
   const dealLabel = input.deal_type === "Rent" ? "rent" : "sale";
   const areaLabel = input.area_sqft ? `${input.area_sqft} sqft` : "area not specified";
   return `<div class="prose">
-<p><strong>${configLabel} for ${dealLabel} in ${input.locality}, Mumbai.</strong> This listing was posted ${input.days} day${input.days === 1 ? "" : "s"} ago and is currently shown at ${input.priceStr}${input.area_sqft ? ` with ${areaLabel}` : ""}.</p>
-<p>This page keeps the description factual and uses only the listing record plus locality context. It does not invent missing details.</p>
-<p><em>This listing is published on PropAI Pulse — Mumbai's intelligence platform for real estate brokers.</em></p>
+<p><strong>${configLabel} for ${dealLabel} in ${input.locality}, Mumbai.</strong> Posted ${input.days} day${input.days === 1 ? "" : "s"} ago at ${input.priceStr}${input.area_sqft ? ` · ${areaLabel}` : ""}.</p>
 </div>`;
 }
 
