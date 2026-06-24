@@ -284,18 +284,32 @@ export const Login: React.FC = () => {
 
             <aside className="order-1 lg:order-2 lg:sticky lg:top-8">
               <AuthCard variant="accent" className="p-6">
-                <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
+                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[color:var(--accent-border)] bg-[var(--accent-dim)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
                   <MessageSquareTextIcon className="h-3.5 w-3.5" />
                   Account access
                 </div>
-                <div className="mb-5">
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access PropAI Pulse</p>
-                  <h2 className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">
-                    Enter your code
-                  </h2>
-                  <p className="mt-2 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
-                    Enter the 8-character code you received on WhatsApp to sign in.
-                  </p>
+
+                <div className="mb-6 rounded-[14px] border border-[color:var(--accent-border)] bg-[var(--accent-dim)] p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent)] text-[#020f07]">
+                      <MessageSquareTextIcon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-[13px] font-semibold text-[var(--text-primary)]">Don't have a code yet?</p>
+                      <p className="mt-0.5 text-[12px] leading-5 text-[var(--text-secondary)]">
+                        Save <strong className="text-[var(--text-primary)]">+91 7021045254</strong> as "PropAI Assistant" and send <strong className="text-[var(--accent)]">"login"</strong> on WhatsApp to receive your code instantly.
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href="https://wa.me/917021045254?text=login"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-[var(--accent)] px-4 py-3 text-[12px] font-bold uppercase tracking-[0.08em] text-[#020f07] shadow-[0_10px_28px_rgba(62,232,138,0.18)] transition-all duration-150 hover:brightness-95"
+                  >
+                    <MessageSquareTextIcon className="h-4 w-4" />
+                    Message PropAI Assistant on WhatsApp
+                  </a>
                 </div>
 
                 <form onSubmit={handleVerifyCode} className="space-y-4">
@@ -326,11 +340,6 @@ export const Login: React.FC = () => {
                   {error ? (
                     <div className="rounded-[12px] border border-[color:var(--red)]/40 bg-[rgba(255,76,76,0.08)] px-4 py-3 text-[12px] leading-5 text-[var(--text-primary)]">
                       {error}
-                      {error.includes('Invalid') && (
-                        <span className="block mt-1 text-[11px]">
-                          Message "login" on WhatsApp to get a new code.
-                        </span>
-                      )}
                     </div>
                   ) : null}
 
@@ -345,23 +354,6 @@ export const Login: React.FC = () => {
                     Verify Code
                   </button>
                 </form>
-
-                <div className="mt-5 rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
-                  <div className="flex items-start gap-2">
-                    <MessageSquareTextIcon className="mt-0.5 h-4 w-4 text-[var(--accent)]" />
-                    <p className="text-[11px] leading-5 text-[var(--text-secondary)]">
-                      Don't have a code yet? Save <strong className="text-[var(--text-primary)]">+91 7021045254</strong> as "PropAI Assistant" and send "login" on WhatsApp to receive your code.
-                    </p>
-                  </div>
-                  <a
-                    href="https://wa.me/917021045254?text=login"
-                    target="_blank"
-                    rel="noreferrer"
-                    className={authSecondaryButton + ' mt-3 w-full'}
-                  >
-                    Open WhatsApp to message PropAI Assistant
-                  </a>
-                </div>
               </AuthCard>
             </aside>
           </div>
