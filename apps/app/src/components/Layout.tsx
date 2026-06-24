@@ -432,7 +432,7 @@ export const Layout: React.FC = () => {
             {evolutionApiSession ? (
               <div className="flex min-w-0 items-center gap-2 rounded-[20px] border-[0.5px] border-[color:var(--border)] bg-[var(--bg-elevated)] px-3 py-1">
                 <span className={evolutionApiStatus === 'connected' ? 'h-2 w-2 rounded-full bg-[var(--accent)]' : evolutionApiStatus === 'connecting' || evolutionApiStatus === 'reconnecting' ? 'h-2 w-2 rounded-full bg-[var(--amber)]' : 'h-2 w-2 rounded-full bg-[var(--red)]'} />
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Evolution API</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">Groups API</span>
                 <span className="max-w-[32vw] truncate text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] sm:max-w-[160px]">
                   {evolutionApiPhone || evolutionApiStatus}
                 </span>

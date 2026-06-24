@@ -51,7 +51,7 @@ const NAV_ITEMS = [
   { label: 'Matches', path: '/matches', icon: MatchesIcon },
   { label: 'Projects', path: '/projects', icon: ProjectHubIcon },
   { label: 'Network', path: '/broker-network/contacts', icon: UsersIcon },
-  { label: 'Groups', path: '/whatsapp/evolution/setup', icon: QrCodeIcon },
+  { label: 'Groups', path: '/whatsapp/groups/connect', icon: QrCodeIcon },
   { label: 'Market Feed', path: '/stream', icon: StreamIcon },
   { label: 'Analytics', path: '/intelligence', icon: AnalyticsIcon },
   { label: 'Activity', path: '/inbox', icon: BellIcon },
