@@ -48,26 +48,20 @@ async function main() {
       const result = await fn();
       // If result is an array, show length and first item snippet
       if (Array.isArray(result)) {
-        const preview: result.length > 0 && result[0] ? JSON.stringify(result[0]).substring(0, 120) + (JSON.stringify(result[0]).length > 120 ? "..." : "") : "N/A";
-        console.log(`${name}: ${result.length} rows`, result.length > 0 ? `sample: ${preview}` : "EMPTY");
+        if (result.length > 0) {
+          const firstItem = result[0];
+          const preview = typeof firstItem === 'object' && firstItem !== null 
+            ? JSON.stringify(firstItem).substring(0, 120) + (JSON.stringify(firstItem).length > 120 ? "..." : "")
+            : String(firstItem);
+          console.log(`${name}: ${result.length} rows`, `sample: ${preview}`);
+        } else {
+          console.log(`${name}: ${result.length} rows (EMPTY)`);
+        }
       } else if (result && typeof result === 'object') {
         // For objects, show a preview of selected fields or just say it's an object
         const keys = Object.keys(result);
         if (keys.length === 0) {
-          console.log(`${name}: {}`);
-        } else {
-          // Try to show a meaningful preview
-          const previewObj: Record<string, any> = {};
-          for (const key of ['listing_count', 'avg_price_cr', 'summary', 'leads_total', 'messages_total', 'locality_supply']) {
-            if (result[key] !== undefined) {
-              previewObj[key] = result[key];
-            }
-          }
-          if (Object.keys(previewObj).length > 0) {
-            console.log(`${name}:`, JSON.stringify(previewObj).substring(0, 150) + (JSON.stringify(previewObj).length > 150 ? "..." : ""));
-          } else {
-            console.log(`${name}: object with keys [${keys.join(', ')}]`);
-          }
+          console.log(`${name}: {name: object with keys [${keys.join(', ')}]`;
         }
       } else {
         console.log(`${name}:`, result);
@@ -99,9 +93,158 @@ async function main() {
   console.log("--- Group 3: Broker workspace ---");
   await testFn("broker_activity", () => mcp.getBrokerActivity({ brokerId: TEST_BROKER_ID, days: 7 }));
   await testFn("triage_hot_leads", () => mcp.getHotLeadTriage({ brokerId: TEST_BROKER_ID, days: 7, limit: 5 }));
+  await testFn("stale_lead_reactivation", () => mcp.getStaleLeadReactivation({ brokerId: TEST_BROKER_ID, days_stale: 14, limit: 5 }));
+  await testFn("buyer_to_inventory_match", () => mcp.matchBuyerToInventory({
+    brokerId: TEST_BROKER_ID,
+    locality: "Bandra",
+    bhk: 2,
+    max_budget_cr: 4,
+    source_mode: "both",
+    limit: 5,
+  }));
+  await testFn("qualify_lead", () => mcp.qualifyLead({
+    brokerId: TEST_BROKER_ID,
+    raw_text: "2BHK Bandra budget 3Cr urgent",
+    name: "Test Lead",
+    phone: "9999999999",
+    location_pref: "Bandra",
+    budget: "3Cr",
+    timeline: "1 month",
+  }));
+  await testFn("save_listing", () => mcp.saveListingRecord({
+    brokerId: TEST_BROKER_ID,
+    raw_text: "AUDIT TEST — 2BHK Bandra West 2.5Cr — delete after audit",
+    location: "Bandra West",
+    bhk: "2",
+    price: "2.5Cr",
+  }));
+  await testFn("create_requirement", () => mcp.createRequirementRecord({
+    brokerId: TEST_BROKER_ID,
+    raw_text: "AUDIT TEST — need 2BHK Khar West under 2Cr — delete after audit",
+    name: "Test Buyer",
+    phone: "9888888888",
+    location_pref: "Khar West",
+    budget: "2Cr",
+  }));
+  await testFn("set_follow_up", () => mcp.scheduleFollowUp({
+    brokerId: TEST_BROKER_ID,
+    lead_name: "Audit Test Lead",
+    lead_phone: "9777777777",
+    action_type: "call",
+    notes: "AUDIT TEST — delete after audit",
+  }));
   console.log("");
 
-  console.log("\n=== Audit Complete ===");
+  // Group 4: Thread tools (may be empty — log honestly)
+  console.log("--- Group 4: Thread tools ---");
+  // Get a real JID from messages table first
+  let TEST_JID = "";
+  try {
+    const { data: msgRow, error: msgError } = await supabase
+      .from("messages")
+      .select("remote_jid")
+      .eq("tenant_id", TEST_BROKER_ID)
+      .limit(1)
+      .single();
+
+    if (msgError) {
+      console.error("Error fetching test JID:", msgError);
+      // Try without single() to see if we get any rows
+      const { data: msgRows, error: multiError } = await supabase
+        .from("messages")
+        .select("remote_jid")
+        .eq("tenant_id", TEST_BROKER_ID)
+        .limit(1);
+
+      if (multiError) {
+        console.error("Error fetching multiple JIDs:", multiError);
+      } else if (msgRows && msgRows.length > 0) {
+        TEST_JID = msgRows[0].remote_jid;
+      }
+    } else if (msgRow) {
+      TEST_JID = msgRow.remote_jid;
+    }
+  } catch (jidErr) {
+    console.error("Unexpected error getting test JID:", jidErr);
+  }
+
+  console.log("Test JID:", TEST_JID || "NONE FOUND");
+
+  if (TEST_JID) {
+    await testFn("summarise_thread", () => mcp.summarizeThread({ brokerId: TEST_BROKER_ID, remote_jid: TEST_JID, limit: 20 }));
+    await testFn("extract_thread_actions", () => mcp.extractThreadActions({ brokerId: TEST_BROKER_ID, remote_jid: TEST_JID, limit: 20 }));
+  } else {
+    console.log("summarise_thread: SKIPPED — no messages found for broker");
+    console.log("extract_thread_actions: SKIPPED — no messages found for broker");
+  }
+  console.log("");
+
+  // Group 5: AI-dependent tools (log if LLM call fails)
+  console.log("--- Group 5: AI-dependent tools ---");
+  // 21. draft_broadcast (no LLM, pure format)
+  try {
+    const { buildBroadcastDraft } = await import("./data.js");
+    const broadcast = buildBroadcastDraft({
+      location: "Bandra West",
+      bhk: "2",
+      price: "2.5Cr",
+      contact_name: "Vishal",
+      contact_number: "9999999999",
+    });
+    console.log(`draft_broadcast: ${broadcast.length > 10 ? "OK (" + broadcast.length + " chars)" : "EMPTY"}`);
+  } catch (e: any) {
+    console.log("draft_broadcast: ERROR —", e.message || e);
+  }
+
+  // 22. draft_growth_asset (LLM call)
+  try {
+    const { draftGrowthAssetWithLlm } = await import("./ai.js");
+    const asset = await draftGrowthAssetWithLlm({
+      assetType: "launch_post",
+      audience: "Mumbai brokers",
+      context: "PropAI parses WhatsApp groups into live listings",
+    });
+    console.log(`draft_growth_asset: ${asset.title ? "OK title=" + asset.title.substring(0, 50) : "FAILED"}`);
+  } catch (e: any) {
+    console.log("draft_growth_asset: ERROR —", e instanceof Error ? e.message : e);
+  }
+
+  // 23. semantic_search (embedding call)
+  try {
+    const { generateEmbedding } = await import("./embedding.js");
+    const emb = await generateEmbedding("2BHK Bandra sea view");
+    console.log(`semantic_search (embedding): ${emb ? "OK length=" + emb.length : "FAILED — null embedding"}`);
+  } catch (e: any) {
+    console.log("semantic_search (embedding): ERROR —", e instanceof Error ? e.message : e);
+  }
+  console.log("");
+
+  // Group 6: Remaining tools — code path check
+  console.log("--- Group 6: Remaining tools ---");
+  // 24. save_thread_listing — same as save_listing, different entry point
+  await testFn("save_thread_listing", () => mcp.saveListingRecord({
+    brokerId: TEST_BROKER_ID,
+    raw_text: "AUDIT TEST thread listing — delete after audit",
+    location: "Juhu",
+  }));
+
+  // 25. save_thread_requirement — same as create_requirement
+  await testFn("save_thread_requirement", () => mcp.createRequirementRecord({
+    brokerId: TEST_BROKER_ID,
+    raw_text: "AUDIT TEST thread requirement — delete after audit",
+    name: "Thread Test",
+  }));
+
+  // 26. create_thread_follow_up — same as set_follow_up
+  await testFn("create_thread_follow_up", () => mcp.scheduleFollowUp({
+    brokerId: TEST_BROKER_ID,
+    lead_name: "Thread FU Test",
+    action_type: "call",
+    notes: "AUDIT TEST — delete after audit",
+  }));
+  console.log("");
+
+  console.log("=== Audit Complete ===");
 }
 
 // Run the audit
