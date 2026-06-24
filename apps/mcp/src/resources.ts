@@ -1,5 +1,5 @@
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { extractThreadActionsWithLlm } from "./ai.js";
+import { extractThreadActionsWithLlm } from "./ai.ts";
 import {
   getBrokerActivity,
   getHotLeadTriage,
@@ -7,7 +7,7 @@ import {
   getRecentRequirements,
   getRecentSavedListings,
   getStoredThreadMessages,
-} from "./data.js";
+} from "./data.ts";
 import type { ToolContext } from "./types.js";
 
 function brokerId(context?: ToolContext) {

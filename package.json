@@ -9,8 +9,9 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
   },
   "devDependencies": {
-    "turbo": "latest",
     "prettier": "latest",
+    "ts-node": "^10.9.2",
+    "turbo": "latest",
     "typescript": "latest"
   },
   "packageManager": "pnpm@9.0.0",

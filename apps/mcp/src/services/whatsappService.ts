@@ -1,4 +1,4 @@
-import { normalizePhone } from '../services/phoneOwnershipService';
+import { normalizePhone } from '../services/phoneOwnershipService.ts';
 
 export class WhatsAppService {
   private apiUrl: string;

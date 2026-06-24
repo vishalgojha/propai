@@ -9,13 +9,13 @@ import {
   saveAuthorizationCode,
 } from "./oauthStore.js";
 import { supabaseAuth } from "./supabase.js";
-import { activationCodeService } from "../services/activationCodeService";
-import { createAppSessionToken, getAppSessionExpiryMs, getAppSessionTtlSeconds } from "../services/appAuthTokenService";
-import { createAppRefreshToken, rotateAppRefreshToken, isAppRefreshToken } from "../services/appRefreshTokenService";
-import { getProfileById } from "../services/authSession";
-import { getBrokerIdentityById } from "../services/identityService";
-import { normalizePhone } from "../services/phoneOwnershipService";
-import { whatsappService } from "./services/whatsappService";
+import { activationCodeService } from "../services/activationCodeService.ts";
+import { createAppSessionToken, getAppSessionExpiryMs, getAppSessionTtlSeconds } from "../services/appAuthTokenService.ts";
+import { createAppRefreshToken, rotateAppRefreshToken, isAppRefreshToken } from "../services/appRefreshTokenService.ts";
+import { getProfileById } from "../services/authSession.ts";
+import { getBrokerIdentityById } from "../services/identityService.ts";
+import { normalizePhone } from "../services/phoneOwnershipService.ts";
+import { whatsappService } from "./services/whatsappService.ts";
 
 // Device code flow constants
 const DEVICE_CODE_EXPIRY_SECONDS = 900; // 15 minutes

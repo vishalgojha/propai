@@ -43,7 +43,7 @@ async function main() {
   console.log("");
 
   // Helper to safely call functions and log results
-  async function testFn(name, fn) {
+  async function testFn(name: string, fn: () => Promise<any>) {
     try {
       const result = await fn();
       // If result is an array, show length and first item snippet
@@ -68,7 +68,7 @@ async function main() {
           console.log(name + ": {}", "");
         } else {
           // Try to show a meaningful preview
-          const previewObj = {};
+          const previewObj: Record<string, any> = {};
           const previewKeys = ['listing_count', 'avg_price_cr', 'summary', 'leads_total', 'messages_total', 'locality_supply'];
           let hasPreview = false;
           for (let i = 0; i < previewKeys.length; i++) {
@@ -88,12 +88,12 @@ async function main() {
       } else {
         console.log(name + ":", result);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(name + ": ERROR -", error.message || error);
     }
   }
 
-  // Group  // Group 1: Public listing search (public listing search (most critical))
+  // Group 1: Public listing search (most critical)
   console.log("--- Group 1: Public listing search ---");
   await testFn("search_listings", function() { return mcp.searchPublicListings({}); });
   await testFn("search_listings sale", function() { return mcp.searchPublicListings({ locality: "Bandra", property_type: "sale", limit: 3, listingKind: "listing" }); });
@@ -195,7 +195,7 @@ async function main() {
 
   if (TEST_JID) {
     await testFn("summarise_thread", function() { return mcp.summarizeThread({ brokerId: TEST_BROKER_ID, remote_jid: TEST_JID, limit: 20 }); });
-    await testFn("extract_thread_actions", function() { return mcp.extractThreadActions({ brokerId: TEST_BROKER_ID, remote_jid: TEST_JID, limit: 20 }); });
+    await testFn("extract_thread_actions", function() { return mcp.extractThreadActionsWithLlm({ brokerId: TEST_BROKER_ID, remote_jid: TEST_JID, limit: 20 }); });
   } else {
     console.log("summarise_thread: SKIPPED — no messages found for broker");
     console.log("extract_thread_actions: SKIPPED — no messages found for broker");
