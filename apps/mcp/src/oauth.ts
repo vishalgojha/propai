@@ -232,7 +232,6 @@ export function oauthProtectedResourceMetadata(req: Request, res: Response) {
 }
 
 export async function oauthAuthorizeGetHandler(req: Request, res: Response) {
-  // Initiate device code flow instead of showing login form
   const responseType = String(req.query.response_type || "code");
   const clientId = String(req.query.client_id || "");
   const redirectUri = String(req.query.redirect_uri || "");
@@ -241,18 +240,16 @@ export async function oauthAuthorizeGetHandler(req: Request, res: Response) {
   const codeChallengeMethod = String(req.query.code_challenge_method || "S256");
 
   if (responseType !== "code" || !clientId || !redirectUri || !codeChallenge) {
-    return res.status(400).send("Invalid OAuth authorization request");
+    return res.status(400).type("html").send(renderErrorPage("Invalid OAuth authorization request"));
   }
 
   if (!(await validateRedirectUri(clientId, redirectUri))) {
-    return res.status(400).send("Redirect URI is not allowed for this client");
+    return res.status(400).type("html").send(renderErrorPage("Redirect URI is not allowed for this client"));
   }
 
-  // Generate device code for MCP authentication via WhatsApp
-  const deviceCode = generateDeviceCode(); // e.g., "PROP-ABCD1234"
-  const userCode = deviceCode; // Same as device code for simplicity
-  
-  // Store device code record
+  const deviceCode = generateDeviceCode();
+  const userCode = deviceCode;
+
   const deviceCodeRecord: DeviceCodeRecord = {
     device_code: deviceCode,
     user_code: userCode,
@@ -260,18 +257,134 @@ export async function oauthAuthorizeGetHandler(req: Request, res: Response) {
     expires_at: new Date(Date.now() + DEVICE_CODE_EXPIRY_SECONDS * 1000).toISOString(),
     interval: DEVICE_CODE_INTERVAL_SECONDS,
   };
-  
+
   storeDeviceCode(deviceCodeRecord);
 
-  // Return device code response (RFC 8628)
-  return res.json({
-    device_code: deviceCode,
-    user_code: userCode,
-    verification_uri: "https://app.propai.live/mcp-authorize", // Instruction page
-    verification_uri_complete: `https://app.propai.live/mcp-authorize?user_code=${userCode}`,
-    expires_in: DEVICE_CODE_EXPIRY_SECONDS,
-    interval: DEVICE_CODE_INTERVAL_SECONDS,
-  });
+  res.type("html").send(renderDeviceCodePage({
+    userCode,
+    deviceCode,
+    verificationUri: "https://app.propai.live/mcp-authorize",
+    verificationUriComplete: `https://app.propai.live/mcp-authorize?user_code=${userCode}`,
+    expiresIn: DEVICE_CODE_EXPIRY_SECONDS,
+    responseType,
+    clientId,
+    redirectUri,
+    state,
+    codeChallenge,
+    codeChallengeMethod,
+  }));
+}
+
+function renderErrorPage(message: string) {
+  return `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>PropAI MCP</title>
+<style>
+body{font-family:Arial,sans-serif;background:#081018;color:#fff;margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.wrap{max-width:420px;padding:24px;background:#101923;border:1px solid #223243;border-radius:16px;text-align:center}
+h1{font-size:20px;margin:0 0 8px}p{color:#ff9b9b;line-height:1.5}
+</style>
+</head>
+<body><div class="wrap"><h1>PropAI MCP</h1><p>${escapeHtml(message)}</p></div></body>
+</html>`;
+}
+
+function renderDeviceCodePage(opts: {
+  userCode: string;
+  deviceCode: string;
+  verificationUri: string;
+  verificationUriComplete: string;
+  expiresIn: number;
+  responseType: string;
+  clientId: string;
+  redirectUri: string;
+  state: string;
+  codeChallenge: string;
+  codeChallengeMethod: string;
+}) {
+  const hiddenFields = [
+    ["response_type", opts.responseType],
+    ["client_id", opts.clientId],
+    ["redirect_uri", opts.redirectUri],
+    ["state", opts.state],
+    ["code_challenge", opts.codeChallenge],
+    ["code_challenge_method", opts.codeChallengeMethod],
+  ].map(([k, v]) => `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v)}" />`).join("\n");
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Authorize PropAI MCP</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#050b12;color:#e8edf2;line-height:1.5}
+    .page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .card{max-width:440px;width:100%;background:#0d1622;border:1px solid #1e2d3d;border-radius:20px;padding:32px}
+    .logo{font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#3EE88A;margin-bottom:4px}
+    h1{font-size:22px;font-weight:700;margin-bottom:6px}
+    .sub{color:#8ea4b9;font-size:14px;margin-bottom:24px}
+    .code-box{background:#09111c;border:1px solid #253544;border-radius:14px;padding:20px;text-align:center;margin-bottom:24px}
+    .code-box .label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#6a8097;margin-bottom:8px}
+    .code-box .code{font-size:32px;font-weight:800;letter-spacing:0.15em;font-family:'SF Mono','Fira Code','Courier New',monospace;color:#fff;word-break:break-all}
+    .code-box .hint{font-size:12px;color:#5a7087;margin-top:8px}
+    .btn-group{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
+    .btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 20px;border-radius:12px;font-size:14px;font-weight:700;border:0;cursor:pointer;text-decoration:none;transition:opacity 0.15s}
+    .btn:hover{opacity:0.9}
+    .btn-app{background:#3EE88A;color:#04120a}
+    .btn-app:active{transform:scale(0.98)}
+    .divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:#455b70;font-size:11px;text-transform:uppercase;letter-spacing:0.08em}
+    .divider::before,.divider::after{content:"";flex:1;height:1px;background:#1e2d3d}
+    label{display:block;font-size:12px;font-weight:600;color:#c8d4e0;margin-bottom:6px}
+    input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #253544;background:#09111c;color:#e8edf2;font-size:14px;outline:0}
+    input:focus{border-color:#3EE88A}
+    .form-group{margin-bottom:14px}
+    .btn-email{width:100%;background:#2a3a4b;color:#e8edf2;padding:12px;border-radius:10px;border:0;font-size:13px;font-weight:600;cursor:pointer}
+    .btn-email:hover{background:#344658}
+    .error{color:#ff7b7b;font-size:13px;margin-top:10px;padding:10px 14px;background:rgba(255,50,50,0.08);border-radius:8px;display:none}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="logo">PropAI Pulse</div>
+      <h1>Connect MCP Server</h1>
+      <p class="sub">Authorize this device to use PropAI tools from your IDE or MCP client.</p>
+
+      <div class="code-box">
+        <div class="label">Your device code</div>
+        <div class="code">${escapeHtml(opts.userCode)}</div>
+        <div class="hint">Code expires in ${Math.floor(opts.expiresIn / 60)} minutes</div>
+      </div>
+
+      <div class="btn-group">
+        <a href="${escapeHtml(opts.verificationUriComplete)}" target="_blank" class="btn btn-app" onclick="document.getElementById('pollMsg').style.display='block'">
+          Authorize with PropAI App
+        </a>
+      </div>
+      <p id="pollMsg" style="display:none;font-size:12px;color:#8ea4b9;text-align:center;margin-bottom:16px">
+        Waiting for authorization… Your MCP client will connect automatically once approved.
+      </p>
+
+      <div class="divider">or sign in with email</div>
+
+      <form method="post" action="/authorize">
+        ${hiddenFields}
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input id="email" type="email" name="email" autocomplete="username" required />
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input id="password" type="password" name="password" autocomplete="current-password" required />
+        </div>
+        <button type="submit" class="btn-email">Authorize</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>`;
 }
 
 export async function oauthAuthorizePostHandler(req: Request, res: Response) {

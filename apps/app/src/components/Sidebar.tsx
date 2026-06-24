@@ -63,6 +63,7 @@ const NAV_ITEMS = [
   { label: 'AI Usage', path: '/ai-usage', icon: CreditCardIcon },
   { label: 'Pricing', path: '/pricing', icon: CreditCardIcon },
   { label: 'Docs', path: '/docs', icon: BookOpenIcon },
+  { label: 'MCP Authorize', path: '/mcp-authorize', icon: QrCodeIcon },
   { label: 'Settings', path: '/settings', icon: SettingsIcon },
 ] as const;
 
