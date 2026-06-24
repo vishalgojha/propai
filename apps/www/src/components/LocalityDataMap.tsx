@@ -128,7 +128,6 @@ export default memo(function LocalityDataMap({
           minZoom: 10,
           maxZoom: 15,
           attributionControl: false,
-          failIfMajorPerformanceCaveat: false,
         });
 
         mapRef.current = map;
