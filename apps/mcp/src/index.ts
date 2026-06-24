@@ -1,8 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { supabase } from "./supabase.js";
-import { generateEmbedding } from "./embedding.js";
-import { draftGrowthAssetWithLlm, extractThreadActionsWithLlm, summarizeBrokerThreadWithLlm } from "./ai.js";
+import { supabase } from "./supabase.ts";
+import { generateEmbedding } from "./embedding.ts";
+import { draftGrowthAssetWithLlm, extractThreadActionsWithLlm, summarizeBrokerThreadWithLlm } from "./ai.ts";
 import {
   buildBroadcastDraft,
   createRequirementRecord,

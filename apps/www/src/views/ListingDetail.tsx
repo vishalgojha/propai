@@ -139,31 +139,8 @@ export default function ListingDetail({
     ...(listing.images || []),
   ].filter((value): value is string => Boolean(value && String(value).trim()))));
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Accommodation",
-    "name": listing.title,
-    "description": description,
-    "address": {
-      "@type": "PostalAddress",
-      "addressLocality": listing.locality,
-      "addressRegion": "Maharashtra",
-      "addressCountry": "IN"
-    },
-    "offers": {
-      "@type": "Offer",
-      "price": listing.price,
-      "priceCurrency": "INR",
-      "availability": "https://schema.org/InStock"
-    }
-  };
-
   return (
     <div className="mx-auto max-w-[1600px] space-y-10 px-5 py-8">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
 
       <nav className="flex items-center gap-2 text-[11px] font-medium text-[var(--text-secondary)]">
         <Link href="/" className="transition-colors hover:text-[var(--accent)]">Home</Link>
