@@ -235,7 +235,7 @@ export const Login: React.FC = () => {
                     <span className="block text-[var(--accent)]">your WhatsApp number.</span>
                   </h1>
                   <p className="mt-5 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                    No password. Message "login" on WhatsApp to get your code, then enter it here.
+                    No password. Message "login" on WhatsApp to get your code, or "ONBOARD ME" if you're new. Then enter your code here.
                   </p>
                 </div>
 
@@ -264,22 +264,6 @@ export const Login: React.FC = () => {
                   </AuthCard>
                 ))}
               </div>
-
-              <AuthCard className="p-5 md:p-6">
-                <div className="flex items-center gap-2">
-                  <WorkflowIcon className="h-4 w-4 text-[var(--accent)]" />
-                  <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Help</p>
-                </div>
-                <div className="mt-4 rounded-[14px] border border-[color:var(--border)] bg-[rgba(255,255,255,0.015)] p-4">
-                  <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">Need help setting up?</h2>
-                  <p className="mt-2 max-w-4xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                    Open WhatsApp onboarding first, then come back here to log in.
-                  </p>
-                  <a href="/onboarding" className="mt-4 inline-flex items-center rounded-full border border-[color:var(--accent-border)] bg-[var(--accent)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#020f07]">
-                    Start WhatsApp onboarding
-                  </a>
-                </div>
-              </AuthCard>
             </section>
 
             <aside className="order-1 lg:order-2 lg:sticky lg:top-8">
@@ -297,7 +281,7 @@ export const Login: React.FC = () => {
                     <div>
                       <p className="text-[13px] font-semibold text-[var(--text-primary)]">Don't have a code yet?</p>
                       <p className="mt-0.5 text-[12px] leading-5 text-[var(--text-secondary)]">
-                        Save <strong className="text-[var(--text-primary)]">+91 7021045254</strong> as "PropAI Assistant" and send <strong className="text-[var(--accent)]">"login"</strong> on WhatsApp to receive your code instantly.
+                        Save <strong className="text-[var(--text-primary)]">+91 7021045254</strong> as "PropAI Assistant" on WhatsApp. Already have an account? Send <strong className="text-[var(--accent)]">"login"</strong> for a code. New user? Send <strong className="text-[var(--accent)]">"ONBOARD ME"</strong> to set up.
                       </p>
                     </div>
                   </div>
