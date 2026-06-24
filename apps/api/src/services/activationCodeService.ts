@@ -5,9 +5,9 @@ const db = supabaseAdmin || supabase;
 
 const CODE_PREFIX = 'PROP-';
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const CODE_BODY_LENGTH = 8;
+const CODE_BODY_LENGTH = 4;
 const CODE_EXPIRY_HOURS = 48;
-const CODE_PATTERN = /^PROP-[A-Z0-9]{8}$/;
+const CODE_PATTERN = /^PROP-[A-Z0-9]{4}$/;
 
 function generateCodeString(): string {
     let result = '';

@@ -132,8 +132,8 @@ export const Login: React.FC = () => {
     try {
       const code = loginCode.toUpperCase().trim();
       const body = code.replace(/[^A-Z0-9]/g, '');
-      if (body.length !== 12 || !body.startsWith('PROP')) {
-        setError('Please enter the full 12-character code you received on WhatsApp (e.g. PROP-ABCD1234)');
+      if (body.length !== 8 || !body.startsWith('PROP')) {
+        setError('Please enter the code you received on WhatsApp (e.g. PROP-ABCD)');
         return;
       }
 
@@ -305,7 +305,7 @@ export const Login: React.FC = () => {
                     </span>
                     <input
                       type="text"
-                      maxLength={13}
+                      maxLength={9}
                       autoComplete="off"
                       value={loginCode}
                       onChange={(e) => {
@@ -315,11 +315,11 @@ export const Login: React.FC = () => {
                         }
                         setLoginCode(value);
                       }}
-                      placeholder="PROP-ABCD1234"
+                      placeholder="PROP-ABCD"
                       className={authFieldClassName + ' text-center text-[18px] font-bold tracking-[0.08em]'}
                     />
                     <p className="mt-2 text-[10px] text-[var(--text-secondary)]">
-                      Format: <strong>PROP-XXXXXXXX</strong> (12 characters, case insensitive)
+                      Format: <strong>PROP-XXXX</strong> (9 characters, case insensitive)
                     </p>
                   </label>
 
