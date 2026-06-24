@@ -95,6 +95,11 @@ export default memo(function LocalityDataMap({
     if (!mapContainer.current || mapRef.current) return;
 
     let mounted = true;
+    const loadingTimeout = window.setTimeout(() => {
+      if (mounted) {
+        setMapError('Map tiles failed to load. Please check your internet connection and try again.');
+      }
+    }, 20000);
 
     try {
       const map = new maplibregl.Map({
@@ -132,12 +137,13 @@ export default memo(function LocalityDataMap({
       });
 
       mapRef.current = map;
-      setMapLoaded(true);
 
       map.addControl(new maplibregl.NavigationControl(), "bottom-right");
 
       map.on("load", () => {
         if (!mounted || !mapRef.current) return;
+        clearTimeout(loadingTimeout);
+        setMapLoaded(true);
 
         const sourceId = "localities";
         map.addSource(sourceId, {
@@ -306,7 +312,6 @@ export default memo(function LocalityDataMap({
 
         const style = document.createElement("style");
         style.textContent = `
-          .maplibregl-map { background: transparent !important; }
           .maplibregl-control-container .maplibregl-ctrl-top-right { top: 12px; right: 12px; }
           .maplibregl-ctrl-group { border-radius: 10px !important; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important; }
           .maplibregl-ctrl-group button { background: #0a0e16 !important; border-color: rgba(255,255,255,0.06) !important; width: 34px !important; height: 34px !important; display: flex !important; align-items: center !important; justify-content: center !important; }
@@ -322,12 +327,14 @@ export default memo(function LocalityDataMap({
         document.head.appendChild(style);
       });
     } catch (err) {
+      clearTimeout(loadingTimeout);
       console.error('[LocalityDataMap] Failed to initialize map:', err);
       setMapError(err instanceof Error ? err.message : 'Failed to load map');
     }
 
     return () => {
       mounted = false;
+      clearTimeout(loadingTimeout);
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -360,8 +367,8 @@ export default memo(function LocalityDataMap({
         <div className="absolute inset-0 flex items-center justify-center p-4 text-center">
           <div className="max-w-md">
             <div className="text-[var(--accent)] mb-2">⚠</div>
-            <p className="text-white/70 text-sm mb-3">Map failed to load</p>
-            <p className="text-white/40 text-xs mb-4">{mapError}</p>
+            <p className="text-[var(--text-secondary)] text-sm mb-3">Map failed to load</p>
+            <p className="text-[var(--text-muted)] text-xs mb-4">{mapError}</p>
             <button
               onClick={() => { setMapError(null); setMapLoaded(false); }}
               className="text-[var(--accent)] underline text-sm hover:no-underline"
@@ -373,7 +380,7 @@ export default memo(function LocalityDataMap({
       )}
       {!mapLoaded && !mapError && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-white/40 text-sm">Loading map...</div>
+          <div className="text-[var(--text-muted)] text-sm">Loading map...</div>
         </div>
       )}
     </div>
