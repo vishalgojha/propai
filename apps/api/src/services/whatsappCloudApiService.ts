@@ -507,6 +507,17 @@ export class WhatsAppCloudApiService {
     }
 
     private async processQueuedWebhookEvent(row: WebhookQueueRow) {
+        // Skip if already processed (race condition protection for Meta retries)
+        const { data: existing } = await db
+            .from('cloud_api_webhook_events')
+            .select('processed')
+            .eq('tenant_id', row.tenant_id)
+            .eq('meta_message_id', row.meta_message_id || row.id)
+            .maybeSingle();
+        if (existing?.processed) {
+            return { replied: false, ignored: true };
+        }
+
         const credential = row.waba_credential_id
             ? await this.getWabaCredentialById(row.waba_credential_id).catch(() => null)
             : await this.findCredentialByTenantId(row.tenant_id).catch(() => null);
@@ -598,6 +609,52 @@ export class WhatsAppCloudApiService {
                 displayPhoneNumber: credential.phone_number || null,
             },
         ).catch(() => undefined);
+
+        // Handle login trigger messages - user messages "login" to get a fresh code
+        const lowerText = text.trim().toLowerCase();
+        const loginTriggers = ['login', 'start', 'signin', 'sign in', 'log in', 'code'];
+        if (loginTriggers.includes(lowerText)) {
+            // Check if this number has a broker profile
+            const phone = normalizeDigits(remoteJid);
+            const { data: ownership } = await db
+                .from('phone_ownership')
+                .select('canonical_owner_id')
+                .eq('phone', phone)
+                .maybeSingle();
+
+            if (ownership?.canonical_owner_id) {
+                const userId = ownership.canonical_owner_id;
+                const { code, expiresAt } = await activationCodeService.generateCode(
+                    userId,
+                    'broker_login',
+                    userId,
+                    undefined
+                );
+
+                await this.sendTextMessage({
+                    tenantId: userId,
+                    phoneNumberId,
+                    to: phone,
+                    text: `Your PropAI Pulse login code: *${code}*\n\nEnter this code on the login page to sign in.\n\nCode expires in 10 minutes.`,
+                    replyToMessageId: messageId,
+                }).catch((error) => {
+                    console.warn('[WhatsAppCloudApiService] Failed to send login code', error);
+                });
+            } else {
+                await this.sendTextMessage({
+                    tenantId: dataTenantId,
+                    phoneNumberId,
+                    to: phone,
+                    text: 'No account found for this number. Start WhatsApp onboarding first: https://app.propai.live/onboarding',
+                    replyToMessageId: messageId,
+                }).catch((error) => {
+                    console.warn('[WhatsAppCloudApiService] Failed to send onboarding message', error);
+                });
+            }
+
+            await this.markWebhookMessageProcessed(tenantId, messageId);
+            return { replied: true, ignored: false };
+        }
 
         if (activationCodeService.isActivationCode(text)) {
             const code = text.trim().toUpperCase();

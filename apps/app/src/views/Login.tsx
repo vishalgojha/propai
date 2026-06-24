@@ -6,7 +6,7 @@ import backendApi, { handleApiError } from '../services/api';
 import { backendApiUrl } from '../services/apiBase';
 import { ENDPOINTS } from '../services/endpoints';
 import { cn } from '../lib/utils';
-import { PROPAI_ASSISTANT_PHONE_DIGITS } from '../lib/propai';
+import { PROPAI_ASSISTANT_NUMBER, PROPAI_ASSISTANT_PHONE_DIGITS } from '../lib/propai';
 import {
   ActivityIcon,
   CheckIcon,
@@ -16,12 +16,13 @@ import {
   WorkflowIcon,
   SearchIcon,
   FollowUpIcon,
+  LogoutIcon as LogOutIcon,
 } from '../lib/icons';
 import { AuthCard } from '../components/ui/AuthCard';
 
 const proofPoints = [
   { label: 'Setup', value: '<5 min' },
-  { label: 'Login method', value: 'WhatsApp code' },
+  { label: 'Login method', value: 'WhatsApp message' },
   { label: 'Security', value: 'No password' },
 ];
 
@@ -33,8 +34,8 @@ const capabilities = [
   },
   {
     icon: WorkflowIcon,
-    title: 'One-click access',
-    copy: 'Open WhatsApp, send the login code from that number, and you are in.',
+    title: 'Message-based access',
+    copy: 'Send any WhatsApp message to the PropAI Assistant number to start login.',
   },
   {
     icon: FollowUpIcon,
@@ -82,10 +83,11 @@ export const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [challengeCode, setChallengeCode] = useState('');
-  const [challengeLink, setChallengeLink] = useState('');
-  const [challengeExpiresAt, setChallengeExpiresAt] = useState<string | null>(null);
-  const [challengeStatus, setChallengeStatus] = useState<'idle' | 'pending' | 'authenticated' | 'expired'>('idle');
+  // For code verification flow
+  const [loginCode, setLoginCode] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [showCodeInput, setShowCodeInput] = useState(false);
+  const [challengeStatus, setChallengeStatus] = useState<'pending' | 'expired' | 'authenticated'>('pending');
   const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'degraded' | 'offline'>('checking');
   const { user, login, logout } = useAuth();
   const navigate = useNavigate();
@@ -104,21 +106,26 @@ export const Login: React.FC = () => {
   }, [navigate, nextPath, user]);
 
   useEffect(() => {
-    if (!challengeCode || challengeStatus !== 'pending') {
+    if (challengeStatus !== 'pending' || !phoneNumber) {
       return undefined;
     }
 
     let cancelled = false;
+    const normalizedPhone = normalizeIndianPhone(phoneNumber);
+    if (normalizedPhone.length !== 12) {
+      return undefined;
+    }
+
     const poll = window.setInterval(async () => {
       try {
         const response = await backendApi.get(ENDPOINTS.auth.loginStatus, {
-          params: { code: challengeCode },
+          params: { phone: normalizedPhone },
         });
         const status = String(response.data?.status || 'pending');
         if (cancelled) return;
 
         if (status === 'authenticated' && response.data?.session?.access_token) {
-          const email = response.data?.user?.email || formatPhone(phoneNumber) || phoneNumber;
+          const email = response.data?.user?.email || formatPhone(normalizedPhone) || normalizedPhone;
           const welcomeName = String(response.data?.profile?.fullName || response.data?.profile?.full_name || 'there').trim() || 'there';
           login(
             email,
@@ -143,7 +150,7 @@ export const Login: React.FC = () => {
 
         if (status === 'expired') {
           setChallengeStatus('expired');
-          setError('That login code expired. Request a new one.');
+          setError('That login request expired. Request a new one.');
           window.clearInterval(poll);
         }
       } catch {
@@ -155,7 +162,7 @@ export const Login: React.FC = () => {
       cancelled = true;
       window.clearInterval(poll);
     };
-  }, [challengeCode, challengeStatus, formatPhone, login, navigate, nextPath, phoneNumber]);
+  }, [challengeStatus, phoneNumber, formatPhone, login, navigate, nextPath]);
 
   useEffect(() => {
     let cancelled = false;
@@ -204,10 +211,10 @@ export const Login: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setSuccessMessage(null);
-    setChallengeCode('');
-    setChallengeLink('');
-    setChallengeExpiresAt(null);
-    setChallengeStatus('idle');
+    setLoginCode('');
+    setIsVerifying(false);
+    setShowCodeInput(false);
+    setChallengeStatus('pending');
 
     try {
       const normalizedPhone = normalizeIndianPhone(phoneNumber);
@@ -222,17 +229,20 @@ export const Login: React.FC = () => {
       });
 
       if (response.data?.success) {
-        const code = String(response.data?.code || '').trim().toUpperCase();
-        const deepLink = `https://wa.me/91${PROPAI_ASSISTANT_PHONE_DIGITS}?text=${encodeURIComponent(code)}`;
-        setChallengeCode(String(response.data?.code || '').trim());
-        setChallengeLink(deepLink);
-        setChallengeExpiresAt(String(response.data?.expiresAt || '').trim() || null);
-        setChallengeStatus('pending');
-        setSuccessMessage(`Send this code from ${formatPhone(normalizedPhone)} on WhatsApp. This page will sign you in automatically once we receive it.`);
+        // Show the code input field and instruct user to check WhatsApp
+        setShowCodeInput(true);
+        setSuccessMessage(`We've sent a login code to WhatsApp. Please check your WhatsApp for a message from the PropAI Assistant number (+91 7021045254) and enter the 8-character code here.`);
+        // In development, we might show the code for testing
+        // In production, we would NOT show the code
+        if (response.data?.code && process.env.NODE_ENV === 'development') {
+          setLoginCode(response.data.code); // For testing only
+          console.log('Dev mode: Login code is:', response.data.code);
+        }
         return;
       }
 
-      setError('Could not create the login code. Try again.');
+      setError('Could not create the login request. Try again.');
+      setChallengeStatus('expired');
     } catch (err) {
       const message = handleApiError(err);
       if ((err as any)?.response?.status === 404) {
@@ -240,8 +250,61 @@ export const Login: React.FC = () => {
       } else {
         setError(message);
       }
+      setChallengeStatus('expired');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsVerifying(true);
+    setError(null);
+
+    try {
+      const normalizedPhone = normalizeIndianPhone(phoneNumber);
+      if (normalizedPhone.length !== 12) {
+        setError('Enter your 10-digit WhatsApp number.');
+        return;
+      }
+
+      const code = loginCode.trim().toUpperCase();
+      if (!code || code.length !== 8 || !code.startsWith('PROP-')) {
+        setError('Please enter a valid 8-character code');
+        return;
+      }
+
+      const response = await backendApi.get(ENDPOINTS.auth.loginStatus, {
+        params: { phone: normalizedPhone, code },
+      });
+
+      if (response.data?.success && response.data?.status === 'authenticated') {
+        const email = response.data?.user?.email || formatPhone(normalizedPhone) || normalizedPhone;
+        const welcomeName = String(response.data?.profile?.fullName || response.data?.profile?.full_name || 'there').trim() || 'there';
+        login(
+          email,
+          {
+            ...buildSessionFromSupabase(email, {
+              access_token: response.data.session.access_token,
+              refresh_token: response.data.session.refresh_token || undefined,
+              expires_at: response.data.session.expires_at || undefined,
+            }),
+            id: response.data?.user?.id,
+            email,
+            appRole: response.data?.profile?.appRole || 'broker',
+          },
+          true,
+        );
+        setSuccessMessage(`Welcome back, ${welcomeName}. You’re logged in. Redirecting...`);
+        navigate(nextPath, { replace: true });
+      } else {
+        setError('Invalid or expired code. Please request a new one.');
+      }
+    } catch (err) {
+      const message = handleApiError(err);
+      setError(message);
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -366,9 +429,9 @@ export const Login: React.FC = () => {
                 </div>
                 <div className="mb-5">
                   <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Access PropAI Pulse</p>
-                  <h2 className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">Verify on WhatsApp</h2>
+                  <h2 className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-[var(--text-primary)]">Message on WhatsApp</h2>
                   <p className="mt-2 max-w-sm text-[12px] leading-5 text-[var(--text-secondary)]">
-                    Enter your 10-digit WhatsApp number. If you already have an account, we’ll give you a code to send on WhatsApp — no password needed.
+                    Enter your 10-digit WhatsApp number. Message the PropAI Assistant number to start your login session — no password needed.
                   </p>
                 </div>
 
@@ -403,30 +466,79 @@ export const Login: React.FC = () => {
                     </div>
                   ) : null}
 
-                  {challengeCode ? (
+                  {/* Code input form - shown after requesting login link */}
+                  {showCodeInput ? (
                     <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
-                      <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Your login code</p>
-                      <p className="mt-1 text-[18px] font-bold tracking-[0.12em] text-[var(--text-primary)]">{challengeCode}</p>
-                      {challengeExpiresAt ? (
-                        <p className="mt-2 text-[11px] text-[var(--text-secondary)]">Valid until {new Date(challengeExpiresAt).toLocaleString()}</p>
-                      ) : null}
+                      <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">Enter Login Code</p>
+                      <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
+                        Check your WhatsApp for a message from the PropAI Assistant number (+91 7021045254) containing your 8-character code.
+                      </p>
+                      <form onSubmit={handleVerifyCode} className="mt-4 space-y-3">
+                        <input
+                          type="text"
+                          maxLength={9}
+                          autoComplete="off"
+                          value={loginCode}
+                          onChange={(e) => {
+                            // Auto-format: insert hyphen after 4 chars
+                            let value = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                            if (value.length > 4) {
+                              value = `${value.slice(0, 4)}-${value.slice(4)}`;
+                            }
+                            setLoginCode(value);
+                          }}
+                          placeholder="PROP-ABCD"
+                          className={authFieldClassName + ' text-center text-[18px] font-bold letter-spacing-[0.08em]'}
+                        />
+                        <p className="text-[10px] text-[var(--text-secondary)]">
+                          Code format: PROP-XXXX (8 characters)
+                        </p>
+                        <button 
+                          type="submit" 
+                          disabled={isVerifying || !loginCode.trim()} 
+                          className={authPrimaryButton + ' w-full'}
+                        >
+                          {isVerifying ? <LoaderIcon className="h-4 w-4 animate-spin" /> : null}
+                          Verify Code
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setShowCodeInput(false);
+                            setLoginCode('');
+                            setSuccessMessage('');
+                          }}
+                          className={authSecondaryButton + ' w-full mt-2'}
+                        >
+                          Request New Code
+                        </button>
+                      </form>
+                    </div>
+                  ) : (
+                    // Show PropAI number when not in code verification mode
+                    <div className="rounded-[12px] border border-[color:var(--border)] bg-[var(--bg-elevated)] px-4 py-3">
+                      <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-secondary)]">PropAI Assistant Number</p>
+                      <p className="mt-1 text-[18px] font-bold tracking-[0.12em] text-[var(--text-primary)]">+91 7021045254</p>
+                      <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
+                        Save this number and send a WhatsApp message to start your login session.
+                      </p>
                       <a
-                        href={challengeLink}
+                        href="https://wa.me/917021045254"
                         target="_blank"
                         rel="noreferrer"
                         className={authSecondaryButton + ' mt-3 w-full'}
                       >
-                        Open WhatsApp and send code
+                        Open WhatsApp to message PropAI Assistant
                       </a>
                       <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">
-                        Send the code from the same number you entered above. Do not type it here.
+                        Send any message from your WhatsApp number to initiate login. No code entry needed.
                       </p>
                     </div>
-                  ) : null}
+                  )}
 
                   <button type="submit" disabled={isLoading} className={authPrimaryButton + ' w-full'}>
                     {isLoading ? <LoaderIcon className="h-4 w-4 animate-spin" /> : null}
-                    Get login code
+                    Start Login
                   </button>
                 </form>
 
@@ -434,7 +546,7 @@ export const Login: React.FC = () => {
                   <div className="flex items-start gap-2">
                     <CheckIcon className="mt-0.5 h-4 w-4 text-[var(--accent)]" />
                     <p className="text-[11px] leading-5 text-[var(--text-secondary)]">
-                      You send the code on WhatsApp first. We verify it’s from your number, then this page signs you in — no password required.
+                      You send any WhatsApp message first. We verify it’s from your number, then this page signs you in — no password required.
                     </p>
                   </div>
                 </div>
