@@ -128,6 +128,7 @@ export default memo(function LocalityDataMap({
           minZoom: 10,
           maxZoom: 15,
           attributionControl: false,
+          failIfMajorPerformanceCaveat: false,
         });
 
         mapRef.current = map;
@@ -305,7 +306,7 @@ export default memo(function LocalityDataMap({
 
           const style = document.createElement("style");
           style.textContent = `
-            .maplibregl-map { background: #020408 !important; }
+            .maplibregl-map { background: transparent !important; }
             .maplibregl-control-container .maplibregl-ctrl-top-right { top: 12px; right: 12px; }
             .maplibregl-ctrl-group { border-radius: 10px !important; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important; }
             .maplibregl-ctrl-group button { background: #0a0e16 !important; border-color: rgba(255,255,255,0.06) !important; width: 34px !important; height: 34px !important; display: flex !important; align-items: center !important; justify-content: center !important; }
@@ -323,6 +324,11 @@ export default memo(function LocalityDataMap({
       } catch (err) {
         console.error('[LocalityDataMap] Failed to initialize map:', err);
         setMapError(err instanceof Error ? err.message : 'Failed to load map');
+      }
+    }).catch((err) => {
+      console.error('[LocalityDataMap] Failed to load maplibre-gl:', err);
+      if (mounted) {
+        setMapError(err instanceof Error ? err.message : 'Failed to load map library');
       }
     });
 
@@ -354,8 +360,7 @@ export default memo(function LocalityDataMap({
   return (
     <div
       ref={mapContainer}
-      className="absolute inset-0 bg-[#020408]"
-      style={{ backgroundColor: '#020408' }}
+      className="absolute inset-0"
     >
       {mapError && (
         <div className="absolute inset-0 flex items-center justify-center p-4 text-center">

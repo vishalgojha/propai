@@ -12,8 +12,11 @@ import {
   MapPin,
   X,
   ArrowUpDown,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/components/ThemeProvider";
 import LocalityDataMap, { type LocalityMapData, type DataLayer } from "@/components/LocalityDataMap";
 import { LOCALITY_POLYGONS } from "@/data/localityPolygons";
 
@@ -39,6 +42,7 @@ function formatValue(value: number | null, layer: DataLayer): string {
 }
 
 export default function LocalityExplore({ initialData }: LocalityExploreProps) {
+  const { theme, toggleTheme } = useTheme();
   const [selectedLayer, setSelectedLayer] = useState<DataLayer>("avgSalePrice");
   const [selectedLocality, setSelectedLocality] = useState<string | null>(null);
   const [hoveredLocality, setHoveredLocality] = useState<string | null>(null);
@@ -89,18 +93,18 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
   }, [initialData, selectedLayer]);
 
   return (
-    <div className="h-screen w-full bg-[#020408] overflow-hidden relative flex flex-col">
+    <div className="h-screen w-full bg-[var(--bg-base)] overflow-hidden relative flex flex-col">
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 pointer-events-none">
         <div className="flex items-center gap-4 pointer-events-auto">
           <Link
             href="/"
-            className="text-[13px] font-black tracking-[-0.02em] text-white/80 hover:text-[var(--accent)] transition-colors"
+            className="text-[13px] font-black tracking-[-0.02em] text-[var(--text-primary)]/80 hover:text-[var(--accent)] transition-colors"
           >
             PropAI
             <span className="text-[var(--accent)]"> Pulse</span>
           </Link>
-          <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-white/30">
+          <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
             <MapPin className="h-3 w-3" />
             Mumbai
           </div>
@@ -109,8 +113,8 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
         <div className="flex items-center gap-3 pointer-events-auto">
           {/* Search */}
           <div className="relative">
-            <div className="flex items-center rounded-xl border border-white/5 bg-black/60 backdrop-blur-md px-3 py-2 w-[200px] sm:w-[260px]">
-              <Search className="h-3.5 w-3.5 text-white/30 mr-2 shrink-0" />
+            <div className="flex items-center rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]/60 backdrop-blur-md px-3 py-2 w-[200px] sm:w-[260px]">
+              <Search className="h-3.5 w-3.5 text-[var(--text-muted)] mr-2 shrink-0" />
               <input
                 type="text"
                 placeholder="Search locality..."
@@ -120,19 +124,19 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
                   setShowSearchResults(true);
                 }}
                 onFocus={() => setShowSearchResults(true)}
-                className="w-full bg-transparent text-[12px] text-white/70 placeholder:text-white/20 outline-none"
+                className="w-full bg-transparent text-[12px] text-[var(--text-primary)]/70 placeholder:text-[var(--text-muted)] outline-none"
               />
               {searchQuery && (
                 <button
                   onClick={() => { setSearchQuery(""); setShowSearchResults(false); }}
                   className="ml-1"
                 >
-                  <X className="h-3 w-3 text-white/30 hover:text-white/60" />
+                  <X className="h-3 w-3 text-[var(--text-muted)] hover:text-[var(--text-secondary)]" />
                 </button>
               )}
             </div>
             {showSearchResults && searchResults.length > 0 && (
-              <div className="absolute top-full mt-1 left-0 right-0 rounded-xl border border-white/5 bg-[#0a0e16]/95 backdrop-blur-md overflow-hidden shadow-xl">
+              <div className="absolute top-full mt-1 left-0 right-0 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]/95 backdrop-blur-md overflow-hidden shadow-xl">
                 {searchResults.map((loc) => (
                   <button
                     key={loc.id}
@@ -140,7 +144,7 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
                       handleSelectLocality(loc.id);
                       setSearchQuery("");
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[12px] text-white/70 hover:bg-white/5 hover:text-white transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[12px] text-[var(--text-primary)]/70 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
                   >
                     <MapPin className="h-3 w-3 text-[var(--accent)] shrink-0" />
                     {loc.name}
@@ -149,7 +153,7 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
               </div>
             )}
             {showSearchResults && searchQuery && searchResults.length === 0 && (
-              <div className="absolute top-full mt-1 left-0 right-0 rounded-xl border border-white/5 bg-[#0a0e16]/95 backdrop-blur-md p-3 text-center text-[11px] text-white/30">
+              <div className="absolute top-full mt-1 left-0 right-0 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]/95 backdrop-blur-md p-3 text-center text-[11px] text-[var(--text-muted)]">
                 No localities found
               </div>
             )}
@@ -159,7 +163,7 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
           <div className="relative">
             <button
               onClick={() => setShowLayerMenu(!showLayerMenu)}
-              className="flex items-center gap-2 rounded-xl border border-white/5 bg-black/60 backdrop-blur-md px-3 py-2 text-[11px] font-bold text-white/60 hover:text-white/80 hover:border-white/10 transition-all"
+              className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]/60 backdrop-blur-md px-3 py-2 text-[11px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)]/80 hover:border-[var(--border-strong)] transition-all"
             >
               <Layers className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">{DATA_LAYERS.find((l) => l.key === selectedLayer)?.label}</span>
@@ -167,7 +171,7 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
             {showLayerMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowLayerMenu(false)} />
-                <div className="absolute top-full right-0 mt-1 z-20 w-56 rounded-xl border border-white/5 bg-[#0a0e16]/95 backdrop-blur-md overflow-hidden shadow-xl">
+                <div className="absolute top-full right-0 mt-1 z-20 w-56 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]/95 backdrop-blur-md overflow-hidden shadow-xl">
                   {DATA_LAYERS.map((layer) => (
                     <button
                       key={layer.key}
@@ -178,8 +182,8 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
                       className={cn(
                         "w-full flex items-center gap-3 px-4 py-2.5 text-left text-[12px] transition-colors",
                         selectedLayer === layer.key
-                          ? "text-[var(--accent)] bg-white/5"
-                          : "text-white/50 hover:text-white hover:bg-white/5",
+                          ? "text-[var(--accent)] bg-[var(--bg-hover)]"
+                          : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
                       )}
                     >
                       <layer.icon className="h-3.5 w-3.5 shrink-0" />
@@ -190,6 +194,16 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
               </>
             )}
           </div>
+
+          {/* Theme toggle */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]/60 backdrop-blur-md text-[var(--text-secondary)] transition-colors hover:text-[var(--accent)] pointer-events-auto"
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
         </div>
       </div>
 
@@ -207,13 +221,13 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
 
       {/* Right side panel */}
       <div className="absolute top-16 right-4 bottom-4 z-10 w-[300px] pointer-events-none">
-        <div className="h-full pointer-events-auto rounded-2xl border border-white/5 bg-[#070b11]/90 backdrop-blur-xl overflow-y-auto scrollbar-thin">
+        <div className="h-full pointer-events-auto rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)]/90 backdrop-blur-xl overflow-y-auto scrollbar-thin">
           {/* Panel header */}
-          <div className="p-4 border-b border-white/5">
-            <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/30 mb-1">
+          <div className="p-4 border-b border-[var(--border)]">
+            <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">
               {panelMode === "detail" ? "Selected Locality" : "Top Localities"}
             </div>
-            <h2 className="text-[18px] font-black text-white">
+            <h2 className="text-[18px] font-black text-[var(--text-primary)]">
               {panelMode === "detail" ? activeLocalityData?.name : "Locality Data"}
             </h2>
             {panelMode === "detail" && activeLocalityData && (
@@ -233,27 +247,27 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
             <div className="p-4 space-y-4">
               {/* Core metrics */}
               <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-xl bg-white/[0.03] p-3">
-                  <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/30 mb-1">Sale Price</div>
-                  <div className="text-[15px] font-black text-white">{formatValue(activeLocalityData.avgSalePrice, "avgSalePrice")}</div>
+                <div className="rounded-xl bg-[var(--bg-elevated)] p-3">
+                  <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)] mb-1">Sale Price</div>
+                  <div className="text-[15px] font-black text-[var(--text-primary)]">{formatValue(activeLocalityData.avgSalePrice, "avgSalePrice")}</div>
                 </div>
-                <div className="rounded-xl bg-white/[0.03] p-3">
-                  <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/30 mb-1">Rent</div>
-                  <div className="text-[15px] font-black text-white">{formatValue(activeLocalityData.avgRentalRate, "avgRentalRate")}</div>
+                <div className="rounded-xl bg-[var(--bg-elevated)] p-3">
+                  <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)] mb-1">Rent</div>
+                  <div className="text-[15px] font-black text-[var(--text-primary)]">{formatValue(activeLocalityData.avgRentalRate, "avgRentalRate")}</div>
                 </div>
-                <div className="rounded-xl bg-white/[0.03] p-3">
-                  <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/30 mb-1">Listings</div>
-                  <div className="text-[15px] font-black text-white">{activeLocalityData.activeListings}</div>
+                <div className="rounded-xl bg-[var(--bg-elevated)] p-3">
+                  <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)] mb-1">Listings</div>
+                  <div className="text-[15px] font-black text-[var(--text-primary)]">{activeLocalityData.activeListings}</div>
                 </div>
-                <div className="rounded-xl bg-white/[0.03] p-3">
-                  <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/30 mb-1">Yield</div>
-                  <div className="text-[15px] font-black text-white">{formatValue(activeLocalityData.rentalYield, "rentalYield")}</div>
+                <div className="rounded-xl bg-[var(--bg-elevated)] p-3">
+                  <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)] mb-1">Yield</div>
+                  <div className="text-[15px] font-black text-[var(--text-primary)]">{formatValue(activeLocalityData.rentalYield, "rentalYield")}</div>
                 </div>
               </div>
 
               {/* BHK Mix */}
               <div>
-                <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/30 mb-2">Inventory Mix</div>
+                <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)] mb-2">Inventory Mix</div>
                 <div className="space-y-1.5">
                   {[
                     { label: "1 BHK", value: activeLocalityData.bhkMix.oneBhk },
@@ -262,14 +276,14 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
                     { label: "4 BHK+", value: activeLocalityData.bhkMix.fourPlus },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center gap-2">
-                      <span className="text-[11px] text-white/40 w-12">{item.label}</span>
-                      <div className="flex-1 h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
+                      <span className="text-[11px] text-[var(--text-secondary)] w-12">{item.label}</span>
+                      <div className="flex-1 h-1.5 rounded-full bg-[var(--bg-elevated)] overflow-hidden">
                         <div
                           className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
                           style={{ width: `${item.value}%` }}
                         />
                       </div>
-                      <span className="text-[11px] font-bold text-white/60 w-8 text-right">{item.value}%</span>
+                      <span className="text-[11px] font-bold text-[var(--text-primary)]/60 w-8 text-right">{item.value}%</span>
                     </div>
                   ))}
                 </div>
@@ -279,7 +293,7 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
 
           {/* Rankings */}
           <div className="p-4">
-            <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/30 mb-3">
+            <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-3">
               Rankings — {DATA_LAYERS.find((l) => l.key === selectedLayer)?.label}
             </div>
             <div className="space-y-1">
@@ -291,20 +305,20 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
                     "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-colors",
                     selectedLocality === loc.id
                       ? "bg-[var(--accent)]/10 border border-[var(--accent)]/20"
-                      : "hover:bg-white/[0.03] border border-transparent",
+                      : "hover:bg-[var(--bg-elevated)] border border-transparent",
                   )}
                 >
                   <span className={cn(
                     "text-[11px] font-black w-5 text-center",
-                    i === 0 ? "text-[var(--accent)]" : "text-white/30",
+                    i === 0 ? "text-[var(--accent)]" : "text-[var(--text-muted)]",
                   )}>
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-bold text-white/80 truncate">{loc.name}</div>
-                    <div className="text-[10px] text-white/30">{formatValue(loc[selectedLayer], selectedLayer)}</div>
+                    <div className="text-[12px] font-bold text-[var(--text-primary)]/80 truncate">{loc.name}</div>
+                    <div className="text-[10px] text-[var(--text-muted)]">{formatValue(loc[selectedLayer], selectedLayer)}</div>
                   </div>
-                  <ArrowUpDown className="h-3 w-3 text-white/20 shrink-0" />
+                  <ArrowUpDown className="h-3 w-3 text-[var(--text-muted)] shrink-0" />
                 </button>
               ))}
             </div>
@@ -313,11 +327,11 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
           {/* Color scale */}
           {colorBar && (
             <div className="px-4 pb-4">
-              <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/30 mb-2">Scale</div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-2">Scale</div>
               <div className="h-2 rounded-full bg-gradient-to-r from-[#143a2a] via-[#5a8a3a] to-[#ea5a20]" />
               <div className="flex justify-between mt-1">
-                <span className="text-[9px] text-white/30">{formatValue(colorBar.min, selectedLayer)}</span>
-                <span className="text-[9px] text-white/30">{formatValue(colorBar.max, selectedLayer)}</span>
+                <span className="text-[9px] text-[var(--text-muted)]">{formatValue(colorBar.min, selectedLayer)}</span>
+                <span className="text-[9px] text-[var(--text-muted)]">{formatValue(colorBar.max, selectedLayer)}</span>
               </div>
             </div>
           )}
@@ -325,7 +339,7 @@ export default function LocalityExplore({ initialData }: LocalityExploreProps) {
       </div>
 
       {/* Attribution */}
-      <div className="absolute bottom-3 left-4 z-10 text-[9px] text-white/20">
+      <div className="absolute bottom-3 left-4 z-10 text-[9px] text-[var(--text-muted)]">
         <span>Data from broker network · Updated every 30 min</span>
       </div>
     </div>
