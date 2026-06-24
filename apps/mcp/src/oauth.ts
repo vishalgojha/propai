@@ -13,7 +13,7 @@ import { supabaseAuth } from "./supabase.js";
 // Device code flow constants
 const DEVICE_CODE_EXPIRY_SECONDS = 900; // 15 minutes
 const DEVICE_CODE_INTERVAL_SECONDS = 5; // polling interval
-const DEVICE_CODE_LENGTH = 8;
+const DEVICE_CODE_LENGTH = 4;
 const DEVICE_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const DEVICE_CODE_PREFIX = "PROP-";
 
@@ -488,6 +488,34 @@ export async function oauthTokenHandler(req: Request, res: Response) {
     error: "unsupported_grant_type",
     error_description: `Unsupported grant type: ${grantType}`,
   });
+}
+
+export async function deviceAuthorizeHandler(req: Request, res: Response) {
+  const userCode = String(req.body?.user_code || "").trim().toUpperCase();
+  const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+
+  if (!userCode || !token) {
+    return res.status(400).json({ error: "user_code and Authorization header required" });
+  }
+
+  const { verifyPropAIToken } = await import("./supabase.js");
+  const user = await verifyPropAIToken(token).catch(() => null);
+  if (!user?.id) {
+    return res.status(401).json({ error: "Invalid or expired authorization token" });
+  }
+
+  for (const [, record] of deviceCodeStore) {
+    if (record.user_code === userCode && new Date(record.expires_at) > new Date()) {
+      record.user_id = user.id;
+      record.access_token = token;
+      record.refresh_token = token;
+      record.expires_in = 86400;
+      record.authorized_at = new Date().toISOString();
+      return res.json({ success: true, message: "Device authorized" });
+    }
+  }
+
+  return res.status(404).json({ error: "Device code not found or expired" });
 }
 
 export function setMcpUnauthorizedHeaders(req: Request, res: Response) {

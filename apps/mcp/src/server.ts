@@ -3,6 +3,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createMcpServer, MCP_TOOL_NAMES } from "./index.js";
 import {
+  deviceAuthorizeHandler,
   oauthAuthorizationServerMetadata,
   oauthAuthorizeGetHandler,
   oauthAuthorizePostHandler,
@@ -124,6 +125,7 @@ app.get("/authorize", oauthAuthorizeGetHandler);
 app.post("/authorize", oauthAuthorizePostHandler);
 app.post("/oauth/token", oauthTokenHandler);
 app.post("/register", oauthRegisterHandler);
+app.post("/device/authorize", deviceAuthorizeHandler);
 
 async function authMiddleware(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization || "";
