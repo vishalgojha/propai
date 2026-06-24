@@ -500,6 +500,7 @@ export class WhatsAppCloudApiService {
                     messageId: row.meta_message_id,
                     error: err,
                 });
+                await this.markWebhookMessageProcessed(row.tenant_id, row.meta_message_id || row.id).catch(() => null);
             }
         }
 

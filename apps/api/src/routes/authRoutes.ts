@@ -303,10 +303,6 @@ router.post(ROUTE_PATHS.auth.requestLoginLink, validate(requestLoginLinkBodySche
 router.get(ROUTE_PATHS.auth.loginStatus, async (req, res) => {
     const phone = String(req.query?.phone || '').trim();
     const code = String(req.query?.code || '').trim().toUpperCase();
-    
-    if (!phone) {
-        return res.status(400).json({ error: 'Phone number is required' });
-    }
 
     try {
         const dbClient = supabaseAdmin || null;
@@ -314,42 +310,36 @@ router.get(ROUTE_PATHS.auth.loginStatus, async (req, res) => {
             return res.status(503).json({ error: 'Supabase service role key is not configured' });
         }
 
-        // Normalize the phone number for comparison
-        const normalizedPhone = normalizePhone(phone);
-        if (!normalizedPhone) {
-            return res.status(400).json({ error: 'Invalid phone number format' });
-        }
-
-        // If a code was provided, validate it
         if (code) {
-            // Validate the activation code
             const activationCode = await activationCodeService.validateCode(code);
             if (!activationCode) {
                 return res.status(400).json({ error: 'Invalid or expired code' });
             }
-            
-            // Check if the code belongs to this phone number
-            // We need to check if there's an activated code for this phone that matches
-            const { data: rows, error } = await dbClient
+
+            let query = dbClient
                 .from('whatsapp_activation_codes')
                 .select('id, code, tenant_id, context_type, context_id, status, expires_at, activated_at, activated_phone')
                 .eq('code', code)
                 .eq('context_type', 'broker_login')
-                .eq('activated_phone', normalizedPhone)
                 .eq('status', 'activated')
                 .order('activated_at', { ascending: false })
                 .limit(1);
 
-            if (error) {
-                throw error;
+            if (phone) {
+                const normalizedPhone = normalizePhone(phone);
+                if (normalizedPhone) {
+                    query = query.eq('activated_phone', normalizedPhone);
+                }
             }
+
+            const { data: rows, error } = await query;
+
+            if (error) throw error;
 
             if (!rows || rows.length === 0) {
-                // No activated code found for this phone number with this code
-                return res.status(400).json({ error: 'Invalid code for this phone number' });
+                return res.status(400).json({ error: 'Invalid or expired code' });
             }
 
-            // Code is valid and activated for this phone, create session
             const row = rows[0];
             const userId = String(row.tenant_id || '').trim();
             const profile = await getProfileById(userId).catch(() => null);
@@ -397,71 +387,75 @@ router.get(ROUTE_PATHS.auth.loginStatus, async (req, res) => {
             });
         }
 
-        // No code provided, check if there's an activated code for this phone (polling mode)
-        const { data: rows, error } = await dbClient
-            .from('whatsapp_activation_codes')
-            .select('id, code, tenant_id, context_type, context_id, status, expires_at, activated_at, activated_phone')
-            .eq('context_type', 'broker_login')
-            .eq('activated_phone', normalizedPhone)
-            .eq('status', 'activated')
-            .order('activated_at', { ascending: false })
-            .limit(1);
+        if (phone) {
+            const normalizedPhone = normalizePhone(phone);
+            if (!normalizedPhone) {
+                return res.status(400).json({ error: 'Invalid phone number format' });
+            }
 
-        if (error) {
-            throw error;
-        }
+            const { data: rows, error } = await dbClient
+                .from('whatsapp_activation_codes')
+                .select('id, code, tenant_id, context_type, context_id, status, expires_at, activated_at, activated_phone')
+                .eq('context_type', 'broker_login')
+                .eq('activated_phone', normalizedPhone)
+                .eq('status', 'activated')
+                .order('activated_at', { ascending: false })
+                .limit(1);
 
-        if (!rows || rows.length === 0) {
-            // No activated code found for this phone number yet
-            return res.json({ success: true, status: 'pending' });
-        }
+            if (error) throw error;
 
-        // Code is activated, create session (polling mode)
-        const row = rows[0];
-        const userId = String(row.tenant_id || '').trim();
-        const profile = await getProfileById(userId).catch(() => null);
-        const identity = await getBrokerIdentityById(userId).catch(() => null);
-        const email = String(profile?.email || profile?.phone || row.activated_phone || userId).trim();
-        const fullName = String(profile?.full_name || identity?.full_name || '').trim() || null;
-        const phoneNum = String(profile?.phone || row.activated_phone || '').trim() || null;
-        const appRole = String(profile?.app_role || 'broker');
-        const sessionToken = createAppSessionToken({
-            userId,
-            email,
-            phone: phoneNum,
-            fullName,
-            appRole,
-        });
-        const appRefresh = await createAppRefreshToken({
-            userId,
-            userAgent: req.get('user-agent'),
-            ipAddress: req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']) : req.ip,
-        });
+            if (!rows || rows.length === 0) {
+                return res.json({ success: true, status: 'pending' });
+            }
 
-        return res.json({
-            success: true,
-            status: 'authenticated',
-            session: {
-                access_token: sessionToken,
-                refresh_token: appRefresh.refreshToken,
-                expires_at: Math.floor((Date.now() + getAppSessionExpiryMs()) / 1000),
-                expires_in: getAppSessionTtlSeconds(),
-            },
-            user: {
-                id: userId,
+            const row = rows[0];
+            const userId = String(row.tenant_id || '').trim();
+            const profile = await getProfileById(userId).catch(() => null);
+            const identity = await getBrokerIdentityById(userId).catch(() => null);
+            const email = String(profile?.email || profile?.phone || row.activated_phone || userId).trim();
+            const fullName = String(profile?.full_name || identity?.full_name || '').trim() || null;
+            const phoneNum = String(profile?.phone || row.activated_phone || '').trim() || null;
+            const appRole = String(profile?.app_role || 'broker');
+            const sessionToken = createAppSessionToken({
+                userId,
                 email,
-            },
-            profile: profile
-                ? {
-                    id: profile.id,
-                    fullName: profile.full_name,
-                    phone: profile.phone,
-                    email: profile.email,
-                    phoneVerified: profile.phone_verified,
-                    appRole: profile.app_role || 'broker',
-                }
-                : null,
-        });
+                phone: phoneNum,
+                fullName,
+                appRole,
+            });
+            const appRefresh = await createAppRefreshToken({
+                userId,
+                userAgent: req.get('user-agent'),
+                ipAddress: req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']) : req.ip,
+            });
+
+            return res.json({
+                success: true,
+                status: 'authenticated',
+                session: {
+                    access_token: sessionToken,
+                    refresh_token: appRefresh.refreshToken,
+                    expires_at: Math.floor((Date.now() + getAppSessionExpiryMs()) / 1000),
+                    expires_in: getAppSessionTtlSeconds(),
+                },
+                user: {
+                    id: userId,
+                    email,
+                },
+                profile: profile
+                    ? {
+                        id: profile.id,
+                        fullName: profile.full_name,
+                        phone: profile.phone,
+                        email: profile.email,
+                        phoneVerified: profile.phone_verified,
+                        appRole: profile.app_role || 'broker',
+                    }
+                    : null,
+            });
+        }
+
+        return res.status(400).json({ error: 'Phone number or login code is required' });
     } catch (error: any) {
         console.error('[Auth] Login status lookup failed:', error);
         return res.status(Number(error?.status || 500)).json({
