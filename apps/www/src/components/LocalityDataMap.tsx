@@ -108,18 +108,18 @@ export default memo(function LocalityDataMap({
           version: 8,
           name: "PropAI Dark",
           sources: {
-            "carto-dark": {
+            "osm-light": {
               type: "raster",
-              tiles: ["https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"],
+              tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
               tileSize: 256,
-              attribution: '© <a href="https://carto.com/">CARTO</a> © <a href="https://openstreetmap.org">OSM</a>',
+              attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
             },
           },
           layers: [
             {
-              id: "carto-dark-layer",
+              id: "osm-light-layer",
               type: "raster",
-              source: "carto-dark",
+              source: "osm-light",
               minzoom: 0,
               maxzoom: 22,
             },
@@ -143,7 +143,6 @@ export default memo(function LocalityDataMap({
       map.on("load", () => {
         if (!mounted || !mapRef.current) return;
         clearTimeout(loadingTimeout);
-        setMapLoaded(true);
 
         const sourceId = "localities";
         map.addSource(sourceId, {
@@ -325,6 +324,10 @@ export default memo(function LocalityDataMap({
           .propai-popup-label { display: block; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.4); margin-top: 2px; }
         `;
         document.head.appendChild(style);
+
+        map.once("idle", () => {
+          if (mounted) setMapLoaded(true);
+        });
       });
     } catch (err) {
       clearTimeout(loadingTimeout);
