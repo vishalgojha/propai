@@ -20,7 +20,8 @@ COPY packages/price-parser/tsconfig.json ./packages/price-parser/
 WORKDIR /app/apps/www
 
 # Build the Next app
-RUN pnpm --filter @propai/price-parser build && \
+RUN NODE_OPTIONS="--max-old-space-size=2048" \
+    pnpm --filter @propai/price-parser build && \
     pnpm run build
 
 FROM node:20-alpine AS runner

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { supabase } from "./supabase.js";
+import { supabase } from "./supabase.ts";
 import { formatBudgetRange, formatCurrencyCr, formatPerSqft, igrSummary, listingLabel, toNumber, formatDate, formatSqft } from "./format.js";
 import type { IgrTransaction, LocalityStats, PublicListing } from "./types.js";
 

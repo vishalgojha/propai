@@ -23,10 +23,10 @@ import {
   scheduleFollowUp,
   searchPublicListings,
   summarizeThread,
-} from "./data.js";
-import { formatCurrencyCr, formatPerSqft, formatSqft, listingLine } from "./format.js";
-import { registerMcpPrompts } from "./prompts.js";
-import { registerMcpResources } from "./resources.js";
+} from "./data.ts";
+import { formatCurrencyCr, formatPerSqft, formatSqft, listingLine } from "./format.ts";
+import { registerMcpPrompts } from "./prompts.ts";
+import { registerMcpResources } from "./resources.ts";
 import type { ToolContext } from "./types.js";
 
 export const MCP_TOOL_NAMES = [
