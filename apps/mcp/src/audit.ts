@@ -108,6 +108,34 @@ async function main() {
     }
   }
 
+  // Group 0: New primary tools
+  console.log("--- Group 0: New primary tools ---");
+  await testFn("smartSearch_query_sale", async function() {
+    const r = await mcp.executeSmartSearch({ query: "3 BHK for sale in Bandra under 8 crore", limit: 3 });
+    return { intent: r.intent, count: r.totalResults, explanation: r.explanation, suggestions: r.suggestedFollowUps };
+  });
+  await testFn("smartSearch_requirements", async function() {
+    const r = await mcp.executeSmartSearch({ query: "buyers looking for 2BHK in Khar West", limit: 3 });
+    return { intent: r.intent, count: r.totalResults, explanation: r.explanation };
+  });
+  await testFn("smartSearch_market", async function() {
+    const r = await mcp.executeSmartSearch({ query: "What is the market trend in Bandra?", limit: 3 });
+    return { intent: r.intent, count: r.totalResults, explanation: r.explanation };
+  });
+  await testFn("smartSearch_brokers", async function() {
+    const r = await mcp.executeSmartSearch({ query: "brokers dealing in Powai", limit: 3 });
+    return { intent: r.intent, count: r.totalResults, explanation: r.explanation };
+  });
+  await testFn("getListing", async function() {
+    const listing = await mcp.getListingById("test");
+    return { found: listing !== null };
+  });
+  await testFn("searchBrokers", async function() {
+    const brokers = await mcp.searchBrokers({ locality: "Bandra", limit: 3 });
+    return { count: brokers.length };
+  });
+  console.log("");
+
   // Group 1: Public listing search (most critical)
   console.log("--- Group 1: Public listing search ---");
   await testFn("search_listings", function() { return mcp.searchPublicListings({}); });

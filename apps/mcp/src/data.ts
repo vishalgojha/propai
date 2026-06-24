@@ -1640,3 +1640,47 @@ export async function getBuildingIntel(input: {
     sample_days: daysBack,
   };
 }
+
+export async function getListingById(listingId: string) {
+  const { data, error } = await supabase
+    .from("public_listings")
+    .select(PUBLIC_LISTING_COLUMNS)
+    .eq("source_message_id", listingId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  const normalized = normalizePublicListings([data]);
+  return normalized.length ? normalized[0] : null;
+}
+
+export async function searchBrokers(input: {
+  city?: string;
+  locality?: string;
+  specialization?: string;
+  limit?: number;
+}) {
+  const limit = clampLimit(input.limit, 20, 100);
+  const query = supabase
+    .from("profiles")
+    .select("id, full_name, phone, email, city, locations, agency_name, app_role");
+
+  const orConditions: string[] = [];
+  if (input.locality) {
+    orConditions.push(`locations.cs.{${input.locality}}`);
+    orConditions.push(`city.ilike.%${input.locality}%`);
+  }
+  if (input.city) {
+    orConditions.push(`city.ilike.%${input.city}%`);
+  }
+  if (orConditions.length) {
+    query.or(orConditions.join(","));
+  }
+
+  const { data, error } = await query.limit(limit);
+  if (error) throw new Error(error.message);
+
+  return (data || [])
+    .filter((p: { app_role?: string }) => p.app_role === "broker" || p.app_role === "super_admin");
+}
