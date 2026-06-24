@@ -49,6 +49,7 @@ export default function PublicNav() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <span className="h-5 w-px bg-white/5" aria-hidden="true" />
             <Link
               href="/about"
               className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors"
@@ -62,7 +63,7 @@ export default function PublicNav() {
               Contact
             </Link>
             <Link
-              href="https://app.propai.live"
+              href="/onboarding"
               className="rounded-full border border-white/5 bg-[var(--bg-surface)] px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-primary)] hover:border-[var(--accent)]/30 hover:text-[var(--accent)] transition-all"
             >
               For Realtors
