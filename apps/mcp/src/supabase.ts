@@ -222,5 +222,77 @@ export async function verifyPropAIToken(token: string) {
     };
   }
 
+  const appSession = verifyAppSessionToken(token);
+  if (appSession) {
+    return {
+      id: appSession.sub,
+      broker_id: appSession.sub,
+      email: appSession.email,
+      aud: "authenticated",
+      role: "authenticated",
+      app_metadata: { provider: "propai" },
+      user_metadata: {
+        full_name: appSession.full_name,
+        phone: appSession.phone,
+        app_role: appSession.app_role,
+      },
+      created_at: new Date().toISOString(),
+    } as AuthenticatedUser;
+  }
+
   return verifyStaticConnectorToken(token);
+}
+
+type AppSessionPayload = {
+  typ: "propai-app-session";
+  sub: string;
+  email: string;
+  phone?: string | null;
+  full_name?: string | null;
+  app_role?: string | null;
+  iat: number;
+  exp: number;
+};
+
+function base64UrlDecode(input: string) {
+  const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+  return Buffer.from(padded, "base64").toString("utf8");
+}
+
+function getJwtSecret() {
+  return process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+}
+
+function verifyAppSessionToken(token: string): AppSessionPayload | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+
+  const [encodedHeader, encodedPayload, signature] = parts;
+  const secret = getJwtSecret();
+  if (!secret) return null;
+
+  const data = `${encodedHeader}.${encodedPayload}`;
+  const expectedSignature = crypto
+    .createHmac("sha256", secret)
+    .update(data)
+    .digest("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+
+  if (signature.length !== expectedSignature.length) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) return null;
+
+  try {
+    const payload = JSON.parse(base64UrlDecode(encodedPayload)) as AppSessionPayload;
+    if (!payload || payload.typ !== "propai-app-session") return null;
+
+    const now = Math.floor(Date.now() / 1000);
+    if (!Number.isFinite(payload.exp) || payload.exp <= now) return null;
+
+    return payload;
+  } catch {
+    return null;
+  }
 }
