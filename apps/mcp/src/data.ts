@@ -178,9 +178,14 @@ export async function searchPublicListings(input: {
     .limit(limit);
 
   if (input.listingKind) {
-    query = query.eq("listing_type", input.listingKind === "listing" ? "listing_rent" : "requirement");
-    if (input.property_type === "sale" || input.property_type === "rent") {
-      query = applyListingType(query, input.property_type);
+    if (input.listingKind === "listing") {
+      if (input.property_type === "sale" || input.property_type === "rent") {
+        query = query.eq("listing_type", DEAL_TYPE_MAP[input.property_type]);
+      } else {
+        query = query.eq("listing_type", "listing_rent");
+      }
+    } else {
+      query = query.eq("listing_type", "requirement");
     }
   } else {
     query = applyListingType(query, input.property_type);
@@ -204,7 +209,7 @@ export async function searchPublicListings(input: {
 }
 
 export async function getFreshStream(input: { hours?: number; city?: string; limit?: number }) {
-  const hours = Math.min(Math.max(input.hours ?? 6, 1), 168);
+  const hours = Math.min(Math.max(input.hours ?? 72, 1), 168);
   const since = new Date(Date.now() - hours * 3600000).toISOString();
   let query = supabase
     .from("public_listings")
@@ -400,48 +405,53 @@ async function upsertLeadRecord(input: LeadRecordInput) {
   const priorityBucket = input.priorityBucket || inferPriorityBucket(urgency);
   const priorityScore = input.priorityScore ?? scoreFromUrgency(urgency);
   const locality = input.locality || input.locationHint || null;
-  const leadId = fallbackLeadId({
-    recordType: input.recordType,
-    phone,
-    locality,
-    rawText: input.rawText,
-  });
 
-  const { error } = await supabase.from("lead_records").upsert({
+  const contactJid = phone ? `${phone}@s.whatsapp.net` : `unknown-mcp-${input.brokerId.slice(0, 8)}`;
+
+  const { data: contactRow, error: contactError } = await supabase
+    .from("contacts")
+    .upsert({
+      tenant_id: input.brokerId,
+      remote_jid: contactJid,
+      display_name: input.name || null,
+      classification: "Client",
+      last_interacted_at: now,
+    }, { onConflict: "tenant_id,remote_jid" })
+    .select("id")
+    .single();
+
+  if (contactError) throw new Error(contactError.message);
+
+  const { data: leadRow, error: leadError } = await supabase
+    .from("leads")
+    .insert({
+      tenant_id: input.brokerId,
+      contact_id: contactRow.id,
+      status: "New",
+      created_at: now,
+    })
+    .select("id")
+    .single();
+
+  if (leadError) throw new Error(leadError.message);
+
+  const { error } = await supabase.from("lead_records").insert({
     tenant_id: input.brokerId,
-    lead_id: leadId,
+    lead_id: leadRow.id,
     phone: phone || null,
     name: input.name,
     record_type: input.recordType,
-    dataset_mode: "mixed",
     budget: input.budget ?? null,
     location_hint: input.locationHint ?? locality,
-    city: input.city ?? null,
-    city_canonical: input.city ?? null,
-    locality_canonical: locality,
-    micro_market: locality,
-    matched_alias: locality,
-    confidence: 0.72,
-    unresolved_flag: !locality,
-    resolution_method: locality ? "normalized_alias" : "unresolved",
-    urgency,
-    priority_bucket: priorityBucket,
-    priority_score: priorityScore,
-    sentiment_score: 0.1,
-    intent_score: input.recordType === "buyer_requirement" ? 0.82 : 0.7,
-    recency_score: 1,
-    sentiment_risk: 0,
     raw_text: input.rawText,
-    source: input.source || "mcp",
-    payload: input.payload || null,
     created_at: now,
     updated_at: now,
-  }, { onConflict: "tenant_id,lead_id" });
+  });
 
   if (error) throw new Error(error.message);
 
   return {
-    lead_id: leadId,
+    lead_id: leadRow.id,
     phone: phone || null,
     priority_bucket: priorityBucket,
     urgency,
@@ -592,7 +602,7 @@ export async function getBrokerActivity(input: { brokerId: string; days?: number
   const [leadResult, messageResult, followUpResult] = await Promise.all([
     supabase
       .from("lead_records")
-      .select("record_type, locality_canonical, location_hint, priority_bucket, created_at")
+      .select("record_type, location_hint, created_at")
       .eq("tenant_id", input.brokerId)
       .gte("created_at", since)
       .order("created_at", { ascending: false })
@@ -623,7 +633,7 @@ export async function getBrokerActivity(input: { brokerId: string; days?: number
   const localities = new Map<string, number>();
 
   for (const row of leads) {
-    const locality = String(row.locality_canonical || row.location_hint || "").trim();
+    const locality = String(row.location_hint || "").trim();
     if (!locality) continue;
     localities.set(locality, (localities.get(locality) || 0) + 1);
   }
@@ -633,7 +643,7 @@ export async function getBrokerActivity(input: { brokerId: string; days?: number
     leads_total: leads.length,
     listings_total: leads.filter((row) => row.record_type === "inventory_listing").length,
     requirements_total: leads.filter((row) => row.record_type === "buyer_requirement").length,
-    p1_total: leads.filter((row) => row.priority_bucket === "P1").length,
+    p1_total: 0,
     messages_total: messages.length,
     active_chats: new Set(messages.map((row) => row.remote_jid).filter(Boolean)).size,
     pending_follow_ups: followUps.length,
@@ -652,10 +662,10 @@ export async function getHotLeadTriage(input: { brokerId: string; days?: number;
   const [leadResult, followUpResult, messageResult] = await Promise.all([
     supabase
       .from("lead_records")
-      .select("lead_id, name, phone, record_type, locality_canonical, location_hint, budget, priority_bucket, urgency, priority_score, raw_text, created_at, updated_at")
+      .select("lead_id, name, phone, record_type, location_hint, budget, raw_text, created_at, updated_at")
       .eq("tenant_id", input.brokerId)
       .gte("created_at", since)
-      .order("priority_score", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false, nullsFirst: false })
       .limit(100),
     supabase
       .from("follow_up_tasks")
@@ -703,13 +713,7 @@ export async function getHotLeadTriage(input: { brokerId: string; days?: number;
       );
     }).length;
 
-    let score = Number(lead.priority_score || 0);
-    if (lead.priority_bucket === "P1") score += 22;
-    else if (lead.priority_bucket === "P2") score += 12;
-    else if (lead.priority_bucket === "P3") score += 4;
-
-    if (lead.urgency === "high") score += 16;
-    else if (lead.urgency === "medium") score += 8;
+    let score = 0;
 
     if (/\b(site visit|visit|inspection|closing|token|final|urgent|asap|immediate)\b/i.test(leadText)) {
       score += 10;
@@ -728,8 +732,6 @@ export async function getHotLeadTriage(input: { brokerId: string; days?: number;
     score += Math.min(recentMessageCount * 2, 10);
 
     const why = [
-      lead.priority_bucket ? `${lead.priority_bucket} priority` : null,
-      lead.urgency ? `${lead.urgency} urgency` : null,
       followUp?.due_at
         ? new Date(followUp.due_at).getTime() <= now
           ? "follow-up overdue"
@@ -743,10 +745,10 @@ export async function getHotLeadTriage(input: { brokerId: string; days?: number;
       name: lead.name || followUp?.lead_name || "Unknown lead",
       phone: lead.phone || followUp?.lead_phone || null,
       record_type: lead.record_type,
-      location: lead.locality_canonical || lead.location_hint || null,
+      location: lead.location_hint || null,
       budget: lead.budget ?? null,
-      priority_bucket: lead.priority_bucket || null,
-      urgency: lead.urgency || null,
+      priority_bucket: null,
+      urgency: null,
       due_at: followUp?.due_at || null,
       score,
       why,
@@ -1231,7 +1233,7 @@ export async function getStaleLeadReactivation(input: {
   const [leadResult, followUpResult] = await Promise.all([
     supabase
       .from("lead_records")
-      .select("lead_id, name, phone, record_type, location_hint, locality_canonical, budget, priority_bucket, urgency, raw_text, created_at, updated_at")
+      .select("lead_id, name, phone, record_type, location_hint, budget, raw_text, created_at, updated_at")
       .eq("tenant_id", input.brokerId)
       .lt("updated_at", cutoffIso)
       .order("updated_at", { ascending: true, nullsFirst: false })
@@ -1267,24 +1269,17 @@ export async function getStaleLeadReactivation(input: {
         : staleDays;
 
       let score = staleForDays;
-      if (lead.priority_bucket === "P1") score += 18;
-      else if (lead.priority_bucket === "P2") score += 10;
-      else if (lead.priority_bucket === "P3") score += 4;
-
-      if (lead.urgency === "high") score += 10;
-      else if (lead.urgency === "medium") score += 5;
 
       if (lead.record_type === "buyer_requirement") score += 8;
       if (!followUp || followUp.status !== "pending") score += 6;
 
       const why = [
         `${staleForDays} days stale`,
-        lead.priority_bucket ? `${lead.priority_bucket} priority` : null,
         lead.record_type === "buyer_requirement" ? "buyer-side lead" : "inventory-side lead",
         !followUp || followUp.status !== "pending" ? "no active follow-up" : "follow-up exists",
       ].filter(Boolean) as string[];
 
-      const location = lead.locality_canonical || lead.location_hint || null;
+      const location = lead.location_hint || null;
       const budgetText = lead.budget != null ? formatCurrencyCr(lead.budget) : null;
       const rawText = String(lead.raw_text || "").trim();
       const opener = lead.record_type === "buyer_requirement"

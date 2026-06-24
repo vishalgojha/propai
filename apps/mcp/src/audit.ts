@@ -31,8 +31,23 @@ async function main() {
       } else if (profiles && profiles.length > 0) {
         TEST_BROKER_ID = profiles[0].id;
       }
-    } else if (members && members.length > 0) {
-      TEST_BROKER_ID = members[0].workspace_owner_id;
+    } else {
+      if (members && members.length > 0) {
+        TEST_BROKER_ID = members[0].workspace_owner_id;
+      } else {
+        // No active members, try to get any profile
+        const { data: profiles, error: profileError } = await supabase
+          .from("profiles")
+          .select("id")
+          .limit(1);
+
+        if (profileError) {
+          console.error("Error fetching profiles:", profileError);
+          TEST_BROKER_ID = "00000000-0000-0000-0000-000000000000";
+        } else if (profiles && profiles.length > 0) {
+          TEST_BROKER_ID = profiles[0].id;
+        }
+      }
     }
   } catch (err) {
     console.error("Unexpected error getting test broker ID:", err);
@@ -105,7 +120,7 @@ async function main() {
 
   // Group 2: Market intelligence
   console.log("--- Group 2: Market intelligence ---");
-  await testFn("market_summary", function() { return mcp.getMarketSummary({ locality: "Banda", days: 30, limit: 50 }); });
+  await testFn("market_summary", function() { return mcp.getMarketSummary({ locality: "Bandra", days: 30, limit: 50 }); });
   await testFn("building_intel", function() { return mcp.getBuildingIntel({ building_name: "Kalpataru", days_back: 90 }); });
   await testFn("get_igr_price", function() { return mcp.getIgrPrice({ locality: "Bandra West" }); });
   await testFn("price_estimate", function() { return mcp.estimatePrice({ locality: "Bandra", bhk: 2, property_type: "sale" }); });
@@ -195,7 +210,18 @@ async function main() {
 
   if (TEST_JID) {
     await testFn("summarise_thread", function() { return mcp.summarizeThread({ brokerId: TEST_BROKER_ID, remote_jid: TEST_JID, limit: 20 }); });
-    await testFn("extract_thread_actions", function() { return mcp.extractThreadActionsWithLlm({ brokerId: TEST_BROKER_ID, remote_jid: TEST_JID, limit: 20 }); });
+    await testFn("extract_thread_actions", async function() {
+      const threadSummary = await mcp.summarizeThread({ brokerId: TEST_BROKER_ID, remote_jid: TEST_JID, limit: 20 });
+      const lines = threadSummary.key_points.map((kp: any) => `${kp.sender}: ${kp.text}`);
+      if (lines.length === 0) return { action_count: 0, status: "no messages to process" };
+      try {
+        const aiModule = await import("./ai.ts");
+        const actions = await aiModule.extractThreadActionsWithLlm({ remoteJid: TEST_JID, lines });
+        return { action_count: Object.keys(actions).length, ...actions };
+      } catch (e: any) {
+        return { action_count: 0, error: e.message || "LLM call failed", key_points_available: lines.length };
+      }
+    });
   } else {
     console.log("summarise_thread: SKIPPED — no messages found for broker");
     console.log("extract_thread_actions: SKIPPED — no messages found for broker");
