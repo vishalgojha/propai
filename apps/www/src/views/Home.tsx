@@ -91,6 +91,16 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
       )}
 
       <div className="mx-auto max-w-[1600px] px-4 py-6 md:px-6 md:py-10">
+        {/* Hero */}
+        <div className="text-center py-10">
+          <h1 className="text-3xl font-bold text-[var(--text-primary)]">
+            Mumbai's live property pulse
+          </h1>
+          <p className="text-muted-foreground mt-2 max-w-lg mx-auto">
+            Fresh listings from broker networks, updated every 30 mins
+          </p>
+        </div>
+
         {/* Search — always visible on desktop, tap-to-open on mobile */}
         <div className="mb-8">
           <div
@@ -195,11 +205,11 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     href={`/listings/${item.slug}`}
                     className="flex items-center gap-3 rounded-xl bg-[var(--bg-surface)] p-3 border border-white/3 active:bg-[var(--bg-hover)] transition-colors"
                   >
-                    <div className="shrink-0 w-16 h-16 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center overflow-hidden">
+                    <div className="shrink-0 w-16 h-16 rounded-lg bg-gray-100 dark:bg-[var(--bg-elevated)] flex items-center justify-center overflow-hidden">
                       {item.cover_image ? (
                         <img src={item.cover_image} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <HomeIcon className="h-6 w-6 text-[var(--text-muted)]" />
+                        <HomeIcon className="h-6 w-6 text-gray-400 dark:text-[var(--text-muted)]" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -237,11 +247,11 @@ export default function Home({ initialListings = [], todayCount = 0 }: { initial
                     href={`/listings/${item.slug}`}
                     className="group rounded-2xl bg-[var(--bg-surface)] border border-white/3 overflow-hidden hover:border-[var(--accent)]/20 transition-all"
                   >
-                    <div className="aspect-[16/10] bg-[var(--bg-elevated)] flex items-center justify-center overflow-hidden">
+                    <div className="aspect-[16/10] bg-gray-100 dark:bg-[var(--bg-elevated)] flex items-center justify-center overflow-hidden">
                       {item.cover_image ? (
                         <img src={item.cover_image} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" />
                       ) : (
-                        <HomeIcon className="h-8 w-8 text-[var(--text-muted)]" />
+                        <HomeIcon className="h-8 w-8 text-gray-400 dark:text-[var(--text-muted)]" />
                       )}
                     </div>
                     <div className="p-4">
