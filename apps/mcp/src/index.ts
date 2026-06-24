@@ -982,3 +982,33 @@ export function createMcpServer(context: ToolContext = {}) {
 
   return server;
 }
+
+// Re-export all the functions for external use (e.g., in audit)
+export {
+  searchPublicListings,
+  getFreshStream,
+  getBrokerActivity,
+  getHotLeadTriage,
+  getStaleLeadReactivation,
+  matchBuyerToInventory,
+  qualifyLead,
+  saveListingRecord,
+  createRequirementRecord,
+  scheduleFollowUp,
+  summarizeThread,
+  extractThreadActionsWithLlm,
+  buildPricingNegotiationBrief,
+  estimatePrice,
+  getMarketSummary,
+  getBuildingIntel,
+  getIgrPrice,
+  buildBroadcastDraft,
+  describeSearch,
+  draftGrowthAssetWithLlm,
+  summarizeBrokerThreadWithLlm,
+  generateEmbedding,
+  formatCurrencyCr,
+  formatPerSqft,
+  formatSqft,
+  listingLine,
+};

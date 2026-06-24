@@ -93,9 +93,9 @@ async function main() {
     }
   }
 
-  // Group 1: Public listing search (most critical)
+  // Group  // Group 1: Public listing search (public listing search (most critical))
   console.log("--- Group 1: Public listing search ---");
-  await testFn("search_listings ---");
+  await testFn("search_listings", function() { return mcp.searchPublicListings({}); });
   await testFn("search_listings sale", function() { return mcp.searchPublicListings({ locality: "Bandra", property_type: "sale", limit: 3, listingKind: "listing" }); });
   await testFn("search_listings rent", function() { return mcp.searchPublicListings({ locality: "Andheri", property_type: "rent", limit: 3, listingKind: "listing" }); });
   await testFn("search_listings all", function() { return mcp.searchPublicListings({ limit: 5 }); });
@@ -206,7 +206,7 @@ async function main() {
   console.log("--- Group 5: AI-dependent tools ---");
   // 21. draft_broadcast (no LLM, pure format)
   try {
-    const dataModule = await import("./data.js");
+    const dataModule = await import("./data.ts");
     const broadcast = dataModule.buildBroadcastDraft({
       location: "Bandra West",
       bhk: "2",
@@ -221,7 +221,7 @@ async function main() {
 
   // 22. draft_growth_asset (LLM call)
   try {
-    const aiModule = await import("./ai.js");
+    const aiModule = await import("./ai.ts");
     const asset = await aiModule.draftGrowthAssetWithLlm({
       assetType: "launch_post",
       audience: "Mumbai brokers",
@@ -234,7 +234,7 @@ async function main() {
 
   // 23. semantic_search (embedding call)
   try {
-    const embeddingModule = await import("./embedding.js");
+    const embeddingModule = await import("./embedding.ts");
     const emb = await embeddingModule.generateEmbedding("2BHK Bandra sea view");
     console.log("semantic_search (embedding):", emb ? "OK length=" + emb.length : "FAILED — null embedding");
   } catch (e) {

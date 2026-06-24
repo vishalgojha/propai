@@ -228,7 +228,6 @@ export async function handleDeviceCodeRequest(req: Request, res: Response) {
     // Fall back to logging what we would send
     console.log(`[MCP SIMULATION] Would send WhatsApp message: Your PropAI MCP code is: ${user_code}`);
   }
-  }
 
   return res.json({
     device_code,
