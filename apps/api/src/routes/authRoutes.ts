@@ -316,37 +316,17 @@ router.get(ROUTE_PATHS.auth.loginStatus, async (req, res) => {
                 return res.status(400).json({ error: 'Invalid or expired code' });
             }
 
-            let query = dbClient
-                .from('whatsapp_activation_codes')
-                .select('id, code, tenant_id, context_type, context_id, status, expires_at, activated_at, activated_phone')
-                .eq('code', code)
-                .eq('context_type', 'broker_login')
-                .eq('status', 'activated')
-                .order('activated_at', { ascending: false })
-                .limit(1);
+            const userId = activationCode.tenant_id;
+            const userPhone = phone || activationCode.context_id || '';
 
-            if (phone) {
-                const normalizedPhone = normalizePhone(phone);
-                if (normalizedPhone) {
-                    query = query.eq('activated_phone', normalizedPhone);
-                }
-            }
+            await activationCodeService.activateCode(code, userPhone);
+            await activationCodeService.linkBrokerPhone(userId, userPhone);
 
-            const { data: rows, error } = await query;
-
-            if (error) throw error;
-
-            if (!rows || rows.length === 0) {
-                return res.status(400).json({ error: 'Invalid or expired code' });
-            }
-
-            const row = rows[0];
-            const userId = String(row.tenant_id || '').trim();
             const profile = await getProfileById(userId).catch(() => null);
             const identity = await getBrokerIdentityById(userId).catch(() => null);
-            const email = String(profile?.email || profile?.phone || row.activated_phone || userId).trim();
+            const email = String(profile?.email || profile?.phone || userPhone || userId).trim();
             const fullName = String(profile?.full_name || identity?.full_name || '').trim() || null;
-            const phoneNum = String(profile?.phone || row.activated_phone || '').trim() || null;
+            const phoneNum = String(profile?.phone || userPhone || '').trim() || null;
             const appRole = String(profile?.app_role || 'broker');
             const sessionToken = createAppSessionToken({
                 userId,

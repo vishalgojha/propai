@@ -130,18 +130,20 @@ export const Login: React.FC = () => {
     setError(null);
 
     try {
-      const rawCode = loginCode.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-      if (!rawCode || rawCode.length !== 8 || !rawCode.startsWith('PROP')) {
-        setError('Please enter a valid 8-character code (PROP-XXXX)');
+      const code = loginCode.toUpperCase().trim();
+      const body = code.replace(/[^A-Z0-9]/g, '');
+      if (body.length !== 12 || !body.startsWith('PROP')) {
+        setError('Please enter the full 12-character code you received on WhatsApp (e.g. PROP-ABCD1234)');
         return;
       }
 
+      const normalized = `${body.slice(0, 4)}-${body.slice(4)}`;
       const response = await backendApi.get(ENDPOINTS.auth.loginStatus, {
-        params: { code: rawCode },
+        params: { code: normalized },
       });
 
       if (response.data?.success && response.data?.status === 'authenticated') {
-        const email = response.data?.user?.email || rawCode;
+        const email = response.data?.user?.email || normalized;
         const welcomeName = String(response.data?.profile?.fullName || response.data?.profile?.full_name || 'there').trim() || 'there';
         login(
           email,
@@ -303,7 +305,7 @@ export const Login: React.FC = () => {
                     </span>
                     <input
                       type="text"
-                      maxLength={9}
+                      maxLength={13}
                       autoComplete="off"
                       value={loginCode}
                       onChange={(e) => {
@@ -313,11 +315,11 @@ export const Login: React.FC = () => {
                         }
                         setLoginCode(value);
                       }}
-                      placeholder="PROP-ABCD"
+                      placeholder="PROP-ABCD1234"
                       className={authFieldClassName + ' text-center text-[18px] font-bold tracking-[0.08em]'}
                     />
                     <p className="mt-2 text-[10px] text-[var(--text-secondary)]">
-                      Code format: PROP-XXXX (8 characters)
+                      Format: <strong>PROP-XXXXXXXX</strong> (12 characters, case insensitive)
                     </p>
                   </label>
 
