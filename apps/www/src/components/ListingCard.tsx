@@ -28,11 +28,11 @@ export default function ListingCard({ listing, compact }: ListingCardProps) {
         href={detailsHref}
         className="flex items-center gap-3 rounded-xl bg-[var(--bg-surface)] p-3 border border-white/3 active:bg-[var(--bg-hover)] transition-colors"
       >
-        <div className="shrink-0 w-16 h-16 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center overflow-hidden">
+        <div className="shrink-0 w-16 h-16 rounded-lg bg-slate-100 dark:bg-[var(--bg-elevated)] flex items-center justify-center overflow-hidden">
           {coverImage ? (
             <img src={coverImage} alt="" className="w-full h-full object-cover" />
           ) : (
-            <Home className="h-6 w-6 text-[var(--text-muted)]" />
+            <Home className="h-6 w-6 text-slate-400 dark:text-[var(--text-muted)]" />
           )}
         </div>
         <div className="flex-1 min-w-0">
@@ -73,8 +73,8 @@ export default function ListingCard({ listing, compact }: ListingCardProps) {
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="flex h-full items-center justify-center bg-[linear-gradient(135deg,rgba(62,232,138,0.10),rgba(59,130,246,0.08)_48%,rgba(255,255,255,0.03))]">
-            <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-[var(--bg-surface)]/75 text-[var(--accent)] shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
+          <div className="flex h-full items-center justify-center bg-slate-100 dark:bg-[linear-gradient(135deg,rgba(62,232,138,0.10),rgba(59,130,246,0.08)_48%,rgba(255,255,255,0.03))]">
+            <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-slate-200 dark:bg-[var(--bg-surface)]/75 text-slate-500 dark:text-[var(--accent)] shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
               <Home className="h-7 w-7" />
             </div>
           </div>
