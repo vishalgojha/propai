@@ -163,11 +163,7 @@ function sha256Base64Url(value: string) {
   return crypto.createHash("sha256").update(value).digest("base64url");
 }
 
-function renderAuthorizePage(params: Record<string, string>, error?: string) {
-  const hidden = Object.entries(params)
-    .map(([key, value]) => `<input type="hidden" name="${escapeHtml(key)}" value="${escapeHtml(value)}" />`)
-    .join("\n");
-
+function renderAuthorizePage(_params: Record<string, string>, error?: string) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -175,33 +171,16 @@ function renderAuthorizePage(params: Record<string, string>, error?: string) {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PropAI MCP Authorization</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #081018; color: #fff; margin: 0; }
-    .wrap { max-width: 420px; margin: 8vh auto; padding: 24px; background: #101923; border: 1px solid #223243; border-radius: 16px; }
-    h1 { margin: 0 0 8px; font-size: 24px; }
-    p { color: #9eb0c1; line-height: 1.5; }
-    label { display: block; margin-top: 16px; font-size: 14px; color: #d7e1ea; }
-    input { width: 100%; margin-top: 8px; padding: 12px 14px; border-radius: 10px; border: 1px solid #314558; background: #0c141d; color: #fff; box-sizing: border-box; }
-    button { width: 100%; margin-top: 20px; padding: 12px 14px; border: 0; border-radius: 10px; background: #3EE88A; color: #04120a; font-weight: 700; cursor: pointer; }
-    .error { margin-top: 12px; color: #ff9b9b; }
-    .hint { font-size: 12px; color: #7f93a6; margin-top: 12px; }
+    body { font-family: Arial, sans-serif; background: #081018; color: #fff; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .wrap { max-width: 420px; width: 100%; padding: 24px; background: #101923; border: 1px solid #223243; border-radius: 16px; text-align: center; }
+    h1 { margin: 0 0 8px; font-size: 20px; }
+    p { color: ${error ? "#ff9b9b" : "#9eb0c1"}; line-height: 1.5; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Authorize PropAI MCP</h1>
-    <p>Sign in with your PropAI account to connect this MCP server.</p>
-    ${error ? `<div class="error">${escapeHtml(error)}</div>` : ""}
-    <form method="post" action="/authorize">
-      ${hidden}
-      <label>Email
-        <input type="email" name="email" autocomplete="username" required />
-      </label>
-      <label>Password
-        <input type="password" name="password" autocomplete="current-password" required />
-      </label>
-      <button type="submit">Authorize</button>
-    </form>
-    <div class="hint">This grants the MCP client access using your PropAI account.</div>
+    <h1>PropAI MCP</h1>
+    <p>${error ? escapeHtml(error) : "Email login is no longer supported. Use the PropAI App to authorize."}</p>
   </div>
 </body>
 </html>`;
@@ -266,12 +245,6 @@ export async function oauthAuthorizeGetHandler(req: Request, res: Response) {
     verificationUri: "https://app.propai.live/mcp-authorize",
     verificationUriComplete: `https://app.propai.live/mcp-authorize?user_code=${userCode}`,
     expiresIn: DEVICE_CODE_EXPIRY_SECONDS,
-    responseType,
-    clientId,
-    redirectUri,
-    state,
-    codeChallenge,
-    codeChallengeMethod,
   }));
 }
 
@@ -295,22 +268,7 @@ function renderDeviceCodePage(opts: {
   verificationUri: string;
   verificationUriComplete: string;
   expiresIn: number;
-  responseType: string;
-  clientId: string;
-  redirectUri: string;
-  state: string;
-  codeChallenge: string;
-  codeChallengeMethod: string;
 }) {
-  const hiddenFields = [
-    ["response_type", opts.responseType],
-    ["client_id", opts.clientId],
-    ["redirect_uri", opts.redirectUri],
-    ["state", opts.state],
-    ["code_challenge", opts.codeChallenge],
-    ["code_challenge_method", opts.codeChallengeMethod],
-  ].map(([k, v]) => `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v)}" />`).join("\n");
-
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -334,14 +292,6 @@ function renderDeviceCodePage(opts: {
     .btn:hover{opacity:0.9}
     .btn-app{background:#3EE88A;color:#04120a}
     .btn-app:active{transform:scale(0.98)}
-    .divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:#455b70;font-size:11px;text-transform:uppercase;letter-spacing:0.08em}
-    .divider::before,.divider::after{content:"";flex:1;height:1px;background:#1e2d3d}
-    label{display:block;font-size:12px;font-weight:600;color:#c8d4e0;margin-bottom:6px}
-    input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #253544;background:#09111c;color:#e8edf2;font-size:14px;outline:0}
-    input:focus{border-color:#3EE88A}
-    .form-group{margin-bottom:14px}
-    .btn-email{width:100%;background:#2a3a4b;color:#e8edf2;padding:12px;border-radius:10px;border:0;font-size:13px;font-weight:600;cursor:pointer}
-    .btn-email:hover{background:#344658}
     .error{color:#ff7b7b;font-size:13px;margin-top:10px;padding:10px 14px;background:rgba(255,50,50,0.08);border-radius:8px;display:none}
   </style>
 </head>
@@ -367,20 +317,6 @@ function renderDeviceCodePage(opts: {
         Waiting for authorization… Your MCP client will connect automatically once approved.
       </p>
 
-      <div class="divider">or sign in with email</div>
-
-      <form method="post" action="/authorize">
-        ${hiddenFields}
-        <div class="form-group">
-          <label for="email">Email</label>
-          <input id="email" type="email" name="email" autocomplete="username" required />
-        </div>
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input id="password" type="password" name="password" autocomplete="current-password" required />
-        </div>
-        <button type="submit" class="btn-email">Authorize</button>
-      </form>
     </div>
   </div>
 </body>
