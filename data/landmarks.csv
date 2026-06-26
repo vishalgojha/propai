@@ -1,0 +1,59 @@
+landmark_id,name,aliases,type,micro_market,latitude,longitude,importance,source
+LM-001,Mount Mary Church,Mount Mary; Mount Mary Basilica,Church,Bandra West,19.0538,72.8283,100,seed
+LM-002,Mehboob Studio,Mehboob Studios; Mehboob Khan Studio,Studio,Bandra West,19.055,72.833,100,seed
+LM-005,Linking Road,Linking Rd,Road,Bandra West,19.058,72.837,100,seed
+LM-006,Hill Road,Hill Rd,Road,Bandra West,19.053,72.831,100,seed
+LM-008,Bandra Station,Bandra Railway Station; Bandra Terminus,Railway Station,Bandra West,19.0543,72.8404,100,seed
+LM-009,Carter Road,Carter Rd,Road,Bandra West,19.063,72.822,100,seed
+LM-010,Bandra Kurla Complex,BKC; Bandra Kurla Complex,Business Park,Bandra BKC,19.06,72.848,100,seed
+LM-011,Bharat Diamond Bourse,BDB; Diamond Bourse,Office,Bandra BKC,19.062,72.846,100,seed
+LM-012,Jio World Centre,Jio World Drive; Jio World Garden; Jio Convention Centre,Convention Centre,Bandra BKC,19.0585,72.8495,100,seed
+LM-013,NSE (National Stock Exchange),NSE BKC; National Stock Exchange,Office,Bandra BKC,19.061,72.85,100,seed
+LM-014,High Street Phoenix,Phoenix Marketcity; Phoenix Mills; High Street Phoenix Mall,Mall,Lower Parel,18.995,72.823,100,seed
+LM-015,Lilavati Hospital,Lilavati; Lilavati Hospital Bandra,Hospital,Bandra West,19.052,72.834,100,seed
+LM-017,Worli Sea Face,Worli Seaface; Worli Seaside,Seafront,Worli,19.008,72.818,100,seed
+LM-018,Haji Ali Dargah,Haji Ali; Haji Ali Masjid,Mosque,Worli,18.983,72.813,100,seed
+LM-019,Mahalaxmi Racecourse,Racecourse; Mahalaxmi Race Course,Ground,Mahalaxmi,18.985,72.825,100,seed
+LM-020,Pedder Road,Pedder Rd,Road,South Mumbai Central,18.97,72.81,100,seed
+LM-021,Marine Drive,Marine Drive; Queen's Necklace,Promenade,South Mumbai Prime,18.944,72.823,100,seed
+LM-022,Nariman Point,Nariman Pt,Business District,South Mumbai Prime,18.933,72.82,100,seed
+LM-023,Churchgate Station,Churchgate,Railway Station,South Mumbai Prime,18.935,72.826,100,seed
+LM-025,Colaba Causeway,Colaba Causeway,Market,South Mumbai Prime,18.918,72.831,100,seed
+LM-026,Oberoi Trident,Oberoi; Trident Hotel,Hotel,South Mumbai Prime,18.928,72.82,100,seed
+LM-028,Wankhede Stadium,Wankhede; Wankhede Stadium,Stadium,South Mumbai Central,18.938,72.827,100,seed
+LM-029,Andheri Station,Andheri Railway Station; Andheri Station East; Andheri Station West,Railway Station,Andheri West,19.119,72.846,100,seed
+LM-031,DN Nagar Metro,DN Nagar; DN Nagar Metro Station,Metro Station,Andheri West,19.123,72.838,100,seed
+LM-035,Prithvi Theatre,Prithvi; Prithvi Theatre Juhu,Theatre,Juhu,19.101,72.831,100,seed
+LM-037,Vile Parle Station,Vile Parle Railway Station; Vile Parle,Railway Station,Vile Parle West,19.1,72.84,100,seed
+LM-039,Powai Lake,Powai Lake,Lake,Powai,19.12,72.905,100,seed
+LM-042,Hiranandani Gardens,Hiranandani; Hiranandani Powai,Township,Powai,19.117,72.91,100,seed
+LM-050,Goregaon Station,Goregaon Railway Station,Railway Station,Goregaon West,19.165,72.841,100,seed
+LM-052,Kandivali Station,Kandivali Railway Station,Railway Station,Kandivali West,19.204,72.84,100,seed
+LM-053,Borivali Station,Borivali Railway Station,Railway Station,Borivali West,19.23,72.856,100,seed
+LM-054,Yoga Institute,The Yoga Institute,Institute,Santacruz West,19.08,72.835,100,seed
+LM-056,Santacruz Station,Santacruz Railway Station,Railway Station,Santacruz West,19.082,72.838,100,seed
+LM-057,Dadar Station,Dadar Railway Station; Dadar,Railway Station,Dadar West,19.018,72.842,100,seed
+LM-058,Shivaji Park,Shivaji Park Dadar,Ground,Dadar West,19.023,72.838,100,seed
+LM-055,Khar Station,Khar Railway Station,Railway Station,Khar West,19.07,72.837,95,seed
+LM-016,Siddhivinayak Temple,Siddhivinayak; Siddhivinayak Mandir; Prabhadevi Temple,Temple,Prabhadevi,19.017,72.83,85,seed
+LM-030,Infinity Mall,Infinity Mall Andheri,Mall,Andheri West,19.125,72.84,85,seed
+LM-034,Juhu Beach,Juhu Beach,Beach,Juhu,19.088,72.826,85,seed
+LM-040,IIT Bombay,IIT Powai; IIT Bombay,College,Powai,19.133,72.915,85,seed
+LM-043,Thane Station,Thane Railway Station,Railway Station,Thane West,19.18,72.97,85,seed
+LM-033,Lokhandwala Complex,Lokhandwala; Lokhandwala Market,Market,Andheri West,19.127,72.835,84,seed
+LM-051,Oberoi Mall,Oberoi Mall Goregaon,Mall,Goregaon East,19.16,72.855,84,seed
+LM-032,Versova Beach,Versova Beach,Beach,Versova,19.138,72.812,83,seed
+LM-024,Gateway of India,Gateway,Monument,South Mumbai Prime,18.922,72.834,82,seed
+LM-003,Bandra Bandstand,Bandstand; Bandra Bandstand Promenade,Beachfront,Bandra West,19.05,72.825,80,seed
+LM-041,R City Mall,R City; R City Mall Ghatkopar,Mall,Ghatkopar West,19.097,72.897,80,seed
+LM-044,Viviana Mall,Viviana Mall Thane,Mall,Thane West,19.21,72.98,80,seed
+LM-048,Vashi Station,Vashi Railway Station,Railway Station,Navi Mumbai,19.07,72.99,80,seed
+LM-027,Taj Mahal Palace,Taj Hotel; Taj Mahal Hotel,Hotel,South Mumbai Prime,18.922,72.833,77,seed
+LM-007,Taj Lands End,Taj Landsend; Taj Lands End Bandra,Hotel,Bandra West,19.048,72.824,75,seed
+LM-036,Juhu Circle,Juhu Circle,Junction,Juhu,19.089,72.829,75,seed
+LM-038,ISKCON Temple Juhu,ISKCON Juhu; Hare Krishna Temple,Temple,Juhu,19.094,72.83,75,seed
+LM-047,Seawoods Grand Central Mall,Seawoods Mall; Grand Central Mall,Mall,Navi Mumbai,19.025,73.01,75,seed
+LM-049,Palm Beach Road,Palm Beach Rd,Road,Navi Mumbai,19.05,73.0,75,seed
+LM-004,Bandra Fort,Castella de Aguada,Fort,Bandra West,19.0475,72.8265,70,seed
+LM-045,Korum Mall,Korum Mall Thane,Mall,Thane West,19.195,72.975,70,seed
+LM-046,Upvan Lake,Upvan Lake Thane; Upvan,Lake,Thane West,19.195,72.965,65,seed

@@ -1,0 +1,150 @@
+# ── Abbreviation Normalization Strategies ───────────────────────
+# kb_version: 1.1
+# classification: Semantic
+#
+# Common abbreviations and shorthand variations in building names.
+# Risk: Low-Medium — most are safe, but some could match different buildings.
+
+strategies:
+  - id: NS-002
+    classification: "Semantic"
+    description: "Apartment abbreviation variants"
+    pattern:
+      type: regex
+      pattern: '\bApts?\b'
+      replacement: "Apartment"
+    conditions:
+      same_area: recommended
+    confidence: 0.97
+    false_positive_risk: low
+    rationale: "Apts → Apartment is always equivalent"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com", "99acres", "MagicBricks", "WhatsApp"]
+    source_excludes: []
+    history:
+      applied: 15
+      rejected: 0
+    examples:
+      - canonical: "Riddhi Siddhi Apartment"
+        aliases: ["Riddhi Siddhi Apts", "Riddhi Siddhi Apt"]
+      - canonical: "Neelam Apartment"
+        aliases: ["Neelam Apt"]
+    provenance:
+      trigger: "PROPi data scrape"
+      detected_pairs: 6
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+
+  - id: NS-003
+    classification: "Semantic"
+    description: "CHS/CHSL normalization"
+    pattern:
+      type: regex
+      pattern: '\bCHSL\b'
+      replacement: "CHS"
+      flags: IGNORECASE
+    conditions: {}
+    confidence: 0.95
+    false_positive_risk: low
+    rationale: "Both mean Co-operative Housing Society"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com", "99acres", "MagicBricks"]
+    source_excludes: ["WhatsApp"]
+    history:
+      applied: 8
+      rejected: 0
+    examples:
+      - canonical: "Aishwarya CHS"
+        aliases: ["Aishwarya CHSL"]
+    provenance:
+      trigger: "PROPi data scrape"
+      detected_pairs: 3
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+
+  - id: NS-004
+    classification: "Lexical"
+    description: "Tower/Towers plural normalization"
+    pattern:
+      type: regex
+      pattern: '\bTowers\b'
+      replacement: "Tower"
+    conditions:
+      same_area: required
+    confidence: 0.92
+    false_positive_risk: low
+    rationale: "Singular/plural is naming preference, not different building"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com", "99acres", "MagicBricks"]
+    source_excludes: []
+    history:
+      applied: 18
+      rejected: 0
+    examples:
+      - canonical: "Kalpataru Tower"
+        aliases: ["Kalpataru Towers"]
+      - canonical: "Lodha Tower"
+        aliases: ["Lodha Towers"]
+    provenance:
+      trigger: "PROPi data scrape"
+      detected_pairs: 12
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+
+  - id: NS-005
+    classification: "Lexical"
+    description: "Ampersand ↔ 'and' normalization"
+    pattern:
+      type: regex
+      pattern: '&'
+      replacement: "and"
+    conditions: {}
+    confidence: 0.96
+    false_positive_risk: low
+    rationale: "Purely visual variant"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com", "99acres", "MagicBricks", "WhatsApp"]
+    source_excludes: []
+    history:
+      applied: 6
+      rejected: 0
+    examples:
+      - canonical: "Lodha and Paradise"
+        aliases: ["Lodha & Paradise"]
+    provenance:
+      trigger: "PROPi data scrape"
+      detected_pairs: 4
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+
+  - id: NS-006
+    classification: "Lexical"
+    description: "Possessive normalization"
+    pattern:
+      type: regex
+      pattern: "'s\b"
+      replacement: "s"
+    conditions:
+      same_area: preferred
+    confidence: 0.98
+    false_positive_risk: low
+    rationale: "Golds Green vs Gold's Green — apostrophe is optional"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com", "99acres", "MagicBricks", "WhatsApp"]
+    source_excludes: []
+    history:
+      applied: 4
+      rejected: 0
+    examples:
+      - canonical: "Golds Green"
+        aliases: ["Gold's Green"]
+    provenance:
+      trigger: "PROPi data scrape"
+      detected_pairs: 2
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"

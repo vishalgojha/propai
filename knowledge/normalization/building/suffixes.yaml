@@ -1,0 +1,173 @@
+# ── Suffix Normalization Strategies ─────────────────────────────
+# kb_version: 1.1
+# classification: Lexical / Risk Rules
+#
+# Common suffixes that may be truncated or vary across listings.
+# Risk: HIGH — many suffixes distinguish different parts of the same project.
+
+strategies:
+  - id: NS-009
+    classification: "Lexical"
+    description: "'Building' suffix is optional noise"
+    pattern:
+      type: regex
+      pattern: '\s+Building$'
+      replacement: ""
+      flags: IGNORECASE
+    conditions:
+      same_area: required
+    confidence: 0.88
+    false_positive_risk: medium
+    rationale: "Some buildings have 'Building' as part of proper name — only strip when area matches"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com", "99acres", "MagicBricks"]
+    source_excludes: []
+    history:
+      applied: 6
+      rejected: 0
+    examples:
+      - canonical: "Private"
+        aliases: ["Private Building"]
+      - canonical: "Aishwarya CHS"
+        aliases: ["Aishwarya CHS Building"]
+    provenance:
+      trigger: "PROPi data scrape"
+      detected_pairs: 4
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+
+  - id: NS-010
+    classification: "Lexical"
+    description: "Apartment suffix normalization"
+    pattern:
+      type: regex
+      pattern: '\s+Apartment[s]?$'
+      replacement: ""
+      flags: IGNORECASE
+    conditions:
+      same_area: required
+    confidence: 0.85
+    false_positive_risk: medium
+    rationale: "'X Apartment' and 'X' may be same building when area matches"
+    approved_by: system
+    auto_apply: false
+    source_applies: ["PROPi", "MahaRERA", "Housing.com"]
+    source_excludes: []
+    history:
+      applied: 0
+      rejected: 0
+    examples:
+      - canonical: "Cozy"
+        aliases: ["Cozy Apartment"]
+      - canonical: "Silver"
+        aliases: ["Silver Apartment"]
+    provenance:
+      trigger: "PROPi data scrape"
+      detected_pairs: 7
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+
+  - id: NS-011
+    classification: "Risk Rules"
+    description: "Trailing alphanumeric wing/tower identifiers — HIGH RISK, NEVER auto-merge"
+    pattern:
+      type: regex
+      pattern: '\s+[A-D0-9]+$'
+      replacement: ""
+    conditions:
+      same_area: required
+      same_coordinates: required
+      same_developer: required
+    confidence: 0.82
+    false_positive_risk: high
+    rationale: "Tower A vs Tower B are DIFFERENT sections — DO NOT merge automatically"
+    approved_by: system
+    auto_apply: false
+    source_applies: ["PROPi", "MahaRERA", "Housing.com"]
+    source_excludes: []
+    history:
+      applied: 0
+      rejected: 74  # Every suggested wing merge was rejected
+    examples:
+      - canonical: "Silver Arch"
+        aliases: ["Silver Arch A"]
+      - canonical: "Silicon Park"
+        aliases: ["Silicon Park 3"]
+      - canonical: "Altamonte"
+        aliases: ["Altamonte Tower B"]
+    provenance:
+      trigger: "PROPi data scrape — 74 pairs detected, all rejected as different wings"
+      detected_pairs: 74
+      rejected_pairs: 74
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+      notes: "Most numerous cluster. HIGH false-positive risk — separate wings are genuinely different."
+
+  # NS-019: Generic numeric suffix normalization
+  - id: NS-019
+    classification: "Semantic"
+    description: "Numeric suffix normalization — trailing numbers may vary"
+    pattern:
+      type: regex
+      pattern: '\s+\d+$'
+      replacement: ""
+    conditions:
+      same_area: required
+      same_developer: required
+    confidence: 0.85
+    false_positive_risk: medium
+    rationale: "Same building may appear with/without trailing number (e.g., 'Platinum Tower' vs 'Platinum Tower 1')"
+    approved_by: vishal
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com"]
+    source_excludes: []
+    history:
+      applied: 0
+      rejected: 0
+    examples:
+      - canonical: "Platinum Tower"
+        aliases: ["Platinum Tower 1"]
+      - canonical: "Morya Landmark"
+        aliases: ["Morya Landmark II"]
+    provenance:
+      trigger: "PROPi data scrape — cluster review"
+      detected_pairs: 23
+      cluster: "c_abbreviation_same_area"
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+      approved_by: "vishal"
+
+  # NS-020: Developer project suffix normalization
+  - id: NS-020
+    classification: "Domain"
+    description: "Developer project name may appear with/without 'Address' or similar suffixes"
+    pattern:
+      type: regex
+      pattern: '\s+(Address|Tower|Residency)$'
+      replacement: ""
+      flags: IGNORECASE
+    conditions:
+      same_area: required
+      same_developer: required
+      same_coordinates: recommended
+    confidence: 0.88
+    false_positive_risk: medium
+    rationale: "Developer may list same project with varying specificity"
+    approved_by: vishal
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA"]
+    source_excludes: ["WhatsApp"]
+    history:
+      applied: 1
+      rejected: 0
+    examples:
+      - canonical: "Wadhwa"
+        aliases: ["Wadhwa Address"]
+    provenance:
+      trigger: "PROPi data scrape — cluster review"
+      detected_pairs: 2
+      cluster: "d_suffix_same_dev_same_area"
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+      approved_by: "vishal"

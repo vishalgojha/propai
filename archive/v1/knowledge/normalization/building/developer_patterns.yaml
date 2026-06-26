@@ -1,0 +1,62 @@
+# ── Developer-Specific Normalization Patterns ──────────────────
+# kb_version: 1.1
+# classification: Domain
+#
+# Patterns specific to known developers' naming conventions.
+# Risk: Varies — some are safe, some distinguish different buildings.
+
+strategies:
+  - id: NS-017
+    classification: "Domain"
+    description: "Lodha: optional 'The' in project names"
+    developer: "Lodha Group"
+    pattern:
+      type: regex
+      pattern: '\bThe\s+'
+      replacement: ""
+    conditions:
+      same_developer: required
+      same_area: required
+    confidence: 0.92
+    false_positive_risk: low
+    rationale: "Lodha consistently uses 'The' decoratively (Lodha The Park, Lodha The World)"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com"]
+    source_excludes: []
+    history:
+      applied: 5
+      rejected: 0
+    examples:
+      - canonical: "Lodha Park"
+        aliases: ["Lodha The Park"]
+    provenance:
+      trigger: "PROPi data scrape"
+      detected_pairs: 3
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+
+  - id: NS-018
+    classification: "Risk Rules"
+    description: "Kalpataru: numeric/roman suffix indicates different tower — NEVER auto-merge"
+    developer: "Kalpataru Group"
+    pattern:
+      type: regex
+      pattern: '\s+(I|II|III|IV|1|2|3|4)$'
+      replacement: ""
+    conditions:
+      same_developer: required
+    confidence: 0.30
+    false_positive_risk: high
+    rationale: "Kalpataru labels separate buildings as 'Aura', 'Aura II' — these are distinct towers"
+    approved_by: system
+    auto_apply: false
+    source_applies: ["PROPi", "MahaRERA", "Housing.com"]
+    source_excludes: []
+    history:
+      applied: 0
+      rejected: 3
+    examples: []
+    provenance:
+      trigger: "Expert knowledge — Kalpataru project conventions"
+      created: "2026-06-26"

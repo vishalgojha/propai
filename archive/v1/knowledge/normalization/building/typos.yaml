@@ -1,0 +1,149 @@
+# ── Typo Correction Strategies ──────────────────────────────────
+# kb_version: 1.1
+# classification: Lexical
+#
+# Common spelling errors and typos observed across sources.
+# Risk: Low — these are unambiguous spelling errors.
+
+strategies:
+  - id: NS-012
+    classification: "Lexical"
+    description: "Viewe → View typo correction"
+    pattern:
+      type: string_replace
+      from: "Viewe"
+      to: "View"
+    conditions:
+      same_area: recommended
+    confidence: 0.99
+    false_positive_risk: low
+    rationale: "'Viewe' is always a typo for 'View'"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com", "99acres", "MagicBricks", "WhatsApp"]
+    source_excludes: []
+    history:
+      applied: 2
+      rejected: 0
+    examples:
+      - canonical: "Sea View"
+        aliases: ["Sea Viewe"]
+    provenance:
+      trigger: "Manual inspection of PROPi listing data"
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+
+  - id: NS-013
+    classification: "Lexical"
+    description: "Weast → West typo correction"
+    pattern:
+      type: string_replace
+      from: "Weast"
+      to: "West"
+    conditions:
+      same_area: required
+    confidence: 0.98
+    false_positive_risk: low
+    rationale: "'Weast' is always a typo for 'West'"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com", "99acres", "MagicBricks"]
+    source_excludes: []
+    history:
+      applied: 1
+      rejected: 0
+    examples:
+      - canonical: "Kalpataru Elitus"
+        aliases: ["Kalpataru Elitus Mulund Weast"]
+    provenance:
+      trigger: "PROPi data scrape"
+      detected_pairs: 1
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+
+  - id: NS-014
+    classification: "Lexical"
+    description: "Suits → Suites typo"
+    pattern:
+      type: string_replace
+      from: "Suits"
+      to: "Suites"
+    conditions:
+      same_area: required
+      same_number: required
+    confidence: 0.98
+    false_positive_risk: low
+    rationale: "'Business Suits 9' → 'Business Suites 9'"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com", "99acres"]
+    source_excludes: []
+    history:
+      applied: 1
+      rejected: 0
+    examples:
+      - canonical: "Business Suites 9"
+        aliases: ["Business Suits 9"]
+    provenance:
+      trigger: "PROPi data scrape"
+      detected_pairs: 1
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+
+  - id: NS-015
+    classification: "Lexical"
+    description: "Sapna → Swapna typo"
+    pattern:
+      type: string_replace
+      from: "Sapna"
+      to: "Swapna"
+    conditions:
+      same_area: required
+      same_developer: preferred
+    confidence: 0.96
+    false_positive_risk: low
+    rationale: "Dheeraj Swapna vs Dheeraj Sapna — 'Sapna' is misspelling of 'Swapna' (meaning 'dream')"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com", "99acres"]
+    source_excludes: []
+    history:
+      applied: 1
+      rejected: 0
+    examples:
+      - canonical: "Dheeraj Swapna"
+        aliases: ["Dheeraj Sapna"]
+    provenance:
+      trigger: "PROPi data scrape"
+      detected_pairs: 1
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+
+  - id: NS-016
+    classification: "Lexical"
+    description: "Elitus Mulund Weast → Elitus (remove erroneous location suffix)"
+    pattern:
+      type: regex
+      pattern: '\s+(Mulund\s+)?We(a|a)st$'
+      replacement: ""
+      flags: IGNORECASE
+    conditions:
+      same_developer: required
+    confidence: 0.95
+    false_positive_risk: low
+    rationale: "Location name accidentally appended to building name"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA"]
+    source_excludes: []
+    history:
+      applied: 1
+      rejected: 0
+    examples:
+      - canonical: "Kalpataru Elitus"
+        aliases: ["Kalpataru Elitus Mulund Weast"]
+    provenance:
+      trigger: "PROPi data scrape"
+      detected_pairs: 1
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"

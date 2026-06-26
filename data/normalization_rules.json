@@ -1,0 +1,90 @@
+[
+  {
+    "rule_id": "RULE-001",
+    "name": "Space normalization",
+    "pattern_type": "space_variation",
+    "description": "Words joined without space are equivalent to spaced form (Altamonte = Alta Monte)",
+    "confidence": 98,
+    "auto_apply": true
+  },
+  {
+    "rule_id": "RULE-002",
+    "name": "Apartment abbreviation",
+    "pattern_type": "abbreviation",
+    "description": "'Apts' \u2261 'Apartments' \u2261 'Apartment'",
+    "confidence": 97,
+    "auto_apply": true
+  },
+  {
+    "rule_id": "RULE-003",
+    "name": "View typo correction",
+    "pattern_type": "typo",
+    "description": "'Viewe' \u2192 'View'",
+    "confidence": 99,
+    "auto_apply": true
+  },
+  {
+    "rule_id": "RULE-004",
+    "name": "Tower plural normalization",
+    "pattern_type": "abbreviation",
+    "description": "'Towers' \u2261 'Tower' when same building",
+    "confidence": 90,
+    "auto_apply": true
+  },
+  {
+    "rule_id": "RULE-005",
+    "name": "Building suffix normalization",
+    "pattern_type": "abbreviation",
+    "description": "'Building' suffix is optional noise",
+    "confidence": 85,
+    "auto_apply": false
+  },
+  {
+    "rule_id": "RULE-006",
+    "name": "CHS/CHSL abbreviation",
+    "pattern_type": "abbreviation",
+    "description": "'CHS' \u2261 'CHSL' (Co-operative Housing Society)",
+    "confidence": 95,
+    "auto_apply": true
+  },
+  {
+    "rule_id": "RULE-007",
+    "name": "'The' prefix normalization",
+    "pattern_type": "abbreviation",
+    "description": "'The' prefix in building names is optional",
+    "confidence": 85,
+    "auto_apply": false
+  },
+  {
+    "rule_id": "RULE-008",
+    "name": "Roman numeral normalization",
+    "pattern_type": "abbreviation",
+    "description": "Roman numerals \u2194 Arabic numerals (II \u2192 2, III \u2192 3)",
+    "confidence": 80,
+    "auto_apply": false
+  },
+  {
+    "rule_id": "RULE-009",
+    "name": "Ampersand \u2194 'and'",
+    "pattern_type": "abbreviation",
+    "description": "'&' and 'and' are interchangeable in building names",
+    "confidence": 96,
+    "auto_apply": true
+  },
+  {
+    "rule_id": "RULE-010",
+    "name": "Possessive normalization",
+    "pattern_type": "abbreviation",
+    "description": "Possessive forms normalized: 'Golds Green' \u2261 \"Gold's Green\"",
+    "confidence": 98,
+    "auto_apply": true
+  },
+  {
+    "rule_id": "RULE-011",
+    "name": "Century abbreviation",
+    "pattern_type": "abbreviation",
+    "description": "'Cent' \u2261 'Century'",
+    "confidence": 85,
+    "auto_apply": false
+  }
+]

@@ -1,0 +1,51 @@
+project_id,rera_no,project_name,developer_name,building_ids,location,area,district,pincode,resolution_confidence,resolution_method,last_modified
+1,P50500000005,GREEN CITY 3,GREEN SPACE INFRA VENTURES,,Nagpur (Rural),Nagpur (Rural),Nagpur,441108,0.8,rera_no_buildings:1,2017-05-20
+2,P51700000002,UNNATHI WOODS PHASE VII A,UNNATHI ESTATES,,Thane,Thane,Thane,400615,0.8,rera_no_buildings:2,2018-04-12
+3,P51700000001,MAYFAIR VISHWARAJA,MAYFAIR HOUSING PRIVATE LIMITED,,Kalyan,Kalyan,Thane,421605,0.8,rera_no_buildings:3,2017-05-09
+4,P51700002065,MERIDIAN MYSTIC,MANOJ  AWASTHI,,Thane,Thane,Thane,400706,0.8,rera_no_buildings:4,2019-01-04
+5,P51500011537,SAINATHVILLA Phase II,Sainath Builders & Developers,,Aurangabad,Aurangabad,Aurangabad,431001,0.8,rera_no_buildings:5,2017-08-31
+6,P52100012200,NANDHA RESIDENCY,AMIT C THAKUR,2488,Haveli,Haveli,Pune,412202,0.9,project:6,2017-09-01
+7,P50500002280,SHIVAM PARK,SAMBHAV INFRA,,Nagpur (Rural),Nagpur (Rural),Nagpur,441108,0.8,rera_no_buildings:7,2017-07-31
+8,P51800002451,VIKI HEIGHTS,Divij Developers,2014,Kurla,Kurla,Mumbai Suburban,400077,0.9,project:8,2019-02-01
+9,P50500000348,ROYAL RESIDENCY,DESIGN DEVELOPERS PRIVATE LIMITED,2646,Nagpur (Urban),Nagpur (Urban),Nagpur,440015,1.0,exact,2017-07-15
+10,P52300000176,SHIVNERI APPARTMENT,SHIVNERI DEVELOPERS ASHTI,3475,Ashti,Ashti,Beed,414203,0.9,project:10,2017-07-10
+11,P50500001314,Diamond One,Diamond Estate Builders & Developers,,Nagpur (Urban),Nagpur (Urban),Nagpur,440010,0.8,rera_no_buildings:11,2017-07-27
+12,P51500001870,AANAND SHILP APARTMENT,Shilp Constructions,2344,Aurangabad,Aurangabad,Aurangabad,431001,0.9,project:12,2017-07-29
+13,P52100006356,Immense Heights,Immense Realty,,Mawal,Mawal,Pune,410506,0.8,rera_no_buildings:13,2017-08-14
+14,P51700001636,SAMRIDDHI,A G SUPERSTRUCTURES PVT LTD,1568,Thane,Thane,Thane,401105,0.9,project:14,2021-09-09
+15,P51600000394,Sharvari Serenity,SHARVARI REALTORS LLP,,Igatpuri,Igatpuri,Nashik,422403,0.8,rera_no_buildings:15,2021-11-02
+16,P52400000234,Dwarka Nagari,Dwarka Nagari,,Latur,Latur,Latur,413512,0.8,rera_no_buildings:16,2017-07-10
+17,P51800001311,Shri Krishna Kunj CHS Ltd,Ellora Developers,,Andheri,Andheri,Mumbai Suburban,400060,0.8,rera_no_buildings:17,2017-07-27
+18,P52100001149,THE COSMOPOLIS,VISHAL SANJAY GALANDE,267,Haveli,Haveli,Pune,411028,0.95,normalized,2020-06-17
+19,P50500006086,PLATINUM GREEN,UNNATI HOMES INFRACON,,Nagpur (Urban),Nagpur (Urban),Nagpur,440036,0.8,rera_no_buildings:19,2018-04-18
+20,P50000001993,saiprakash appartment,shweta prakash ambhore,,Buldana,Buldana,Buldana,443001,0.8,rera_no_buildings:20,2017-07-31
+21,P52200000566,ANURON SEVEN,ANURON INFRASTRUCTURES,,Nagar,Nagar,Ahmednagar,414003,0.8,rera_no_buildings:21,2017-07-18
+22,P52700000048,Rambaug,Suryanshu Properties Pvt Ltd,,Phaltan,Phaltan,Satara,415523,0.8,rera_no_buildings:22,2017-06-18
+23,P52100002664,NAVALAKHA RITZ,NAVALAKHA CHORADIYA ASSOCIATES,,Haveli,Haveli,Pune,411014,0.8,rera_no_buildings:23,2018-06-22
+24,P50500009639,Shiv Elite Phase I,Om Shivam Buildcon Private Limited,,Nagpur (Rural),Nagpur (Rural),Nagpur,441108,0.8,rera_no_buildings:24,2017-08-22
+25,P51100015354,RAGHUNATH NAGAR,R K BUILDERS & DEVELOPERS,,Nanded,Nanded,Nanded,431601,0.8,rera_no_buildings:25,2018-02-20
+26,P51900002789,Four Seasons Private Residences Phase - 1,Provenance Land Private Limited,4215,Ward GSouth,Ward GSouth,Mumbai City,400018,0.9,project:26,2021-09-09
+27,P50300000544,GOVINDA SKY,Vijay Nanakram Talda,,Amravati,Amravati,Amravati,444606,0.8,rera_no_buildings:27,2017-07-18
+28,P50500014329,SDPL Aashray Dabha,SANDEEP DWELLERS PVT. LTD.,,Nagpur (Urban),Nagpur (Urban),Nagpur,440023,0.8,rera_no_buildings:28,2017-11-23
+29,P50200002611,RIDDHI SIDDHI,TECTON BUILDERS AND DEVELOPERS PVT LTD,2620,Washim,Washim,Washim,444505,1.0,exact,2017-08-02
+30,P52100001864,The Crown Greens,International Biotech Park Limited,,Mulshi,Mulshi,Pune,411057,0.8,rera_no_buildings:30,2018-09-28
+31,P51600000085,ANANDVANN,SARVPPRATHAM DEVELOPERS PVT. LTD.,,Igatpuri,Igatpuri,Nashik,422403,0.8,rera_no_buildings:31,2017-06-28
+32,P51600008182,Laxmi Chayya,Laxmikripa Developers,,Nashik,Nashik,Nashik,422004,0.8,rera_no_buildings:32,2021-09-09
+33,P52800004038,KOHINOOR PRESTIGE,JAIN AND JAIN CONSTRUCTION COMPANY,,Ratnagiri,Ratnagiri,Ratnagiri,415612,0.8,rera_no_buildings:33,2017-08-07
+34,P51500002341,FLORENZA VILLAS,Mahesh Vithalrao Labhshetwar,,Aurangabad,Aurangabad,Aurangabad,431005,0.8,rera_no_buildings:34,2021-09-09
+35,P50500000854,Gokul,Radha Madhav Developers,,Hingna,Hingna,Nagpur,441122,0.8,rera_no_buildings:35,2022-08-12
+36,P49900000069,Vasukamal Samruddhi,Vasukamal & Associates,,Jalgaon,Jalgaon,Jalgaon,425001,0.8,rera_no_buildings:36,2020-01-08
+37,P51600001180,OM APARTMENT,BHAVIN HEMANTKUMAR BHARATIA,2616,Nashik,Nashik,Nashik,422002,1.0,exact,2017-07-27
+38,P51700005959,nakshatra,Harshal Ramdas Navghare,,Ambarnath,Ambarnath,Thane,421503,0.8,rera_no_buildings:38,2026-04-13
+39,P51800000052,DGS HEIGHTS,D.G.BUILDERS,3384,Borivali,Borivali,Mumbai Suburban,400063,0.82,fuzzy,2026-06-01
+40,P50100000101,NISARG GARDEN,DILIP DEVICHAND CHAUDHARI,,Akola,Akola,Akola,444001,0.8,rera_no_buildings:40,2017-07-03
+41,P52100002029,Dwarika Nagari,Yashodhan Associates,,Haveli,Haveli,Pune,411048,0.8,rera_no_buildings:41,2017-07-31
+42,P50500012638,Construction of 14 Rowhouses at Waddhamna Nagpur,MHADA(Nagpur Board),,Hingna,Hingna,Nagpur,441110,0.8,rera_no_buildings:42,2017-09-06
+43,P49900000128,RADHA RAMAN APARTMENT,SARVESHWAR ASSOCIATES,606,Jalgaon,Jalgaon,Jalgaon,425001,0.9,project:43,2017-07-05
+44,P50100000435,SPRING DIVISHA,SIDDHARTH DEVELOPERS,,Akola,Akola,Akola,444001,0.8,rera_no_buildings:44,2017-07-17
+45,P50500007042,Sumangal Vihar,Sunil Laddhad & Nimish Laddhad (AOP),,Hingna,Hingna,Nagpur,440016,0.8,rera_no_buildings:45,2026-04-13
+46,P51700002939,K T PREMIA,K T & CO,,Bhiwandi,Bhiwandi,Thane,421302,0.8,rera_no_buildings:46,2017-08-04
+47,P52100000783,BELLA VITA,MALKANI PROPERTIES,3839,Haveli,Haveli,Pune,412207,0.9,project:47,2017-07-23
+48,P51700000644,THANEKAR PARKLAND,AJAY MADHUKAR THANEKAR,,Ambarnath,Ambarnath,Thane,421503,0.8,rera_no_buildings:48,2021-05-11
+49,P50900000159,"Site No.124, Datala, New Chandrapur",MHADA(Nagpur Board),,Chandrapur,Chandrapur,Chandrapur,442401,0.8,rera_no_buildings:49,2017-07-05
+50,P51500000594,RAAJ SWAPNAPURTI,S RAAJ ASSOCIATES,2981,Aurangabad,Aurangabad,Aurangabad,431001,0.9,project:50,2017-07-18

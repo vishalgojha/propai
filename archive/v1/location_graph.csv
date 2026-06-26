@@ -1,0 +1,99 @@
+entity_type,name,parent_type,parent_name
+micro_market,South Mumbai Prime,zone,South Mumbai
+micro_market,South Mumbai Central,zone,South Mumbai
+micro_market,Fort,zone,South Mumbai
+micro_market,Colaba,zone,South Mumbai
+micro_market,Nariman Point,zone,South Mumbai
+micro_market,Malabar Hill,zone,South Mumbai
+micro_market,Prabhadevi,zone,South Mumbai
+micro_market,Lower Parel,zone,South Mumbai
+micro_market,Worli,zone,South Mumbai
+micro_market,Mahalaxmi,zone,South Mumbai
+micro_market,Parel,zone,South Mumbai
+micro_market,Byculla,zone,South Mumbai
+micro_market,Dadar West,zone,South Mumbai
+micro_market,Grant Road,zone,South Mumbai
+micro_market,Marine Drive,zone,South Mumbai
+micro_market,Tardeo,zone,South Mumbai
+micro_market,Breach Candy,zone,South Mumbai
+micro_market,Cuffe Parade,zone,South Mumbai
+micro_market,Churchgate,zone,South Mumbai
+micro_market,Mumbai Central,zone,South Mumbai
+micro_market,Girgaon,zone,South Mumbai
+micro_market,Kemps Corner,zone,South Mumbai
+micro_market,Nana Chowk,zone,South Mumbai
+micro_market,Opera House,zone,South Mumbai
+micro_market,Walkeshwar,zone,South Mumbai
+micro_market,Bandra West,zone,Western Suburbs
+micro_market,Bandra East,zone,Western Suburbs
+micro_market,Khar West,zone,Western Suburbs
+micro_market,Santacruz West,zone,Western Suburbs
+micro_market,Vile Parle West,zone,Western Suburbs
+micro_market,Andheri West,zone,Western Suburbs
+micro_market,Andheri East,zone,Western Suburbs
+micro_market,Jogeshwari West,zone,Western Suburbs
+micro_market,Goregaon West,zone,Western Suburbs
+micro_market,Goregaon East,zone,Western Suburbs
+micro_market,Malad West,zone,Western Suburbs
+micro_market,Kandivali West,zone,Western Suburbs
+micro_market,Kandivali East,zone,Western Suburbs
+micro_market,Borivali West,zone,Western Suburbs
+micro_market,Borivali East,zone,Western Suburbs
+micro_market,Dahisar West,zone,Western Suburbs
+micro_market,Dahisar East,zone,Western Suburbs
+micro_market,Juhu,zone,Western Suburbs
+micro_market,Versova,zone,Western Suburbs
+micro_market,Powai,zone,Western Suburbs
+micro_market,Oshiwara,zone,Western Suburbs
+micro_market,Lokhandwala,zone,Western Suburbs
+micro_market,Mahim,zone,Western Suburbs
+micro_market,JVPD,zone,Western Suburbs
+micro_market,Vile Parle East,zone,Western Suburbs
+micro_market,Khar East,zone,Western Suburbs
+micro_market,Santacruz East,zone,Western Suburbs
+micro_market,Jogeshwari East,zone,Western Suburbs
+micro_market,Kurla,zone,Eastern Suburbs
+micro_market,Sion,zone,Eastern Suburbs
+micro_market,Chembur,zone,Eastern Suburbs
+micro_market,Ghatkopar West,zone,Eastern Suburbs
+micro_market,Ghatkopar East,zone,Eastern Suburbs
+micro_market,Vikhroli,zone,Eastern Suburbs
+micro_market,Kanjur Marg,zone,Eastern Suburbs
+micro_market,Bhandup West,zone,Eastern Suburbs
+micro_market,Bhandup East,zone,Eastern Suburbs
+micro_market,Mulund West,zone,Eastern Suburbs
+micro_market,Mulund East,zone,Eastern Suburbs
+micro_market,Nahur,zone,Eastern Suburbs
+micro_market,Kanjurmarg East,zone,Eastern Suburbs
+micro_market,Navi Mumbai,zone,Navi Mumbai
+micro_market,Airoli,zone,Navi Mumbai
+micro_market,Ghansoli,zone,Navi Mumbai
+micro_market,Koparkhairne,zone,Navi Mumbai
+micro_market,Vashi,zone,Navi Mumbai
+micro_market,Sanpada,zone,Navi Mumbai
+micro_market,Nerul,zone,Navi Mumbai
+micro_market,Belapur,zone,Navi Mumbai
+micro_market,Kharghar,zone,Navi Mumbai
+micro_market,Panvel,zone,Navi Mumbai
+micro_market,New Panvel,zone,Navi Mumbai
+micro_market,Dronagiri,zone,Navi Mumbai
+micro_market,Ulwe,zone,Navi Mumbai
+micro_market,Kalamboli,zone,Navi Mumbai
+micro_market,Kamothe,zone,Navi Mumbai
+micro_market,Khandeshwar,zone,Navi Mumbai
+micro_market,Thane West,zone,Thane
+micro_market,Thane East,zone,Thane
+micro_market,Mira Road,zone,Thane
+micro_market,Bhayandar,zone,Thane
+micro_market,Bhiwandi,zone,Thane
+micro_market,Dombivali,zone,Thane
+micro_market,Kalyan,zone,Thane
+micro_market,Ambernath,zone,Thane
+micro_market,Badlapur,zone,Thane
+micro_market,Ulhasnagar,zone,Thane
+zone,South Mumbai,city,Mumbai
+zone,Western Suburbs,city,Mumbai
+zone,Eastern Suburbs,city,Mumbai
+zone,Navi Mumbai,city,Mumbai
+zone,Thane,city,Mumbai
+city,Mumbai,,

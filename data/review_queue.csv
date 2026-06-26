@@ -1,0 +1,243 @@
+candidate_a_id,candidate_a_name,candidate_a_area,candidate_b_id,candidate_b_name,candidate_b_area,confidence_score,evidence,recommended_action,status
+,Kalpataru Elitus,Mulund West,,Kalpataru Elitus Mulund West,Mulund West,88,✓ High name similarity 90%; ✓ Same area: Mulund West; ✓ Same developer: Kalpataru Group; ~ Nearby (0.6km),flag,pending
+,Pushpa Vatika,Santacruz West,,"Pushpa Vatika, Poddar",Santacruz West,88,✓ High name similarity 90%; ✓ Same area: Santacruz West; ~ Partial developer info; ✓ Same coordinates (0.0km apart),flag,pending
+,Remi Commercio,Andheri West,,Remi Commerco,Andheri West,88,✓ High name similarity 96%; ✓ Same area: Andheri West; ✓ Same developer: Remi Group; ~ Nearby (1.4km),flag,pending
+,Castle Rock,Powai,,Castle Rock Hiranandani,Powai,88,✓ High name similarity 90%; ✓ Same area: Powai; ~ Partial developer info; ✓ Same coordinates (0.0km apart),flag,pending
+,Highland,Powai,,Hiranandani Highland,Powai,88,✓ High name similarity 90%; ✓ Same area: Powai; ~ Partial developer info; ✓ Same coordinates (0.0km apart),flag,pending
+,Marathon Next Gen Era,Lower Parel,,Marathon Next Gen Innova,Lower Parel,88,~ Moderate name similarity 84%; ✓ Same area: Lower Parel; ✓ Same developer: Marathon Group; ✓ Same coordinates (0.0km apart),flag,pending
+,Oberai Sky City,Borivali East,,Oberoi Sky City,Borivali East,88,✓ High name similarity 93%; ✓ Same area: Borivali East; ~ Partial developer info; ✓ Same coordinates (0.0km apart),flag,pending
+,Oberoi Esquire,Goregaon East,,Oberoi Exquisite,Goregaon East,88,~ Moderate name similarity 80%; ✓ Same area: Goregaon East; ✓ Same developer: Oberoi Realty; ✓ Same coordinates (0.0km apart),flag,pending
+,Oberoi Enigma,Mulund West,,Oberoi Eternia,Mulund West,88,~ Moderate name similarity 81%; ✓ Same area: Mulund West; ✓ Same developer: Oberoi Realty; ✓ Same coordinates (0.0km apart),flag,pending
+,Om Apartment,Andheri West,,Omkar CHS,Andheri West,88,✓ High name similarity 90%; ✓ Same area: Andheri West; ~ Partial developer info; ✓ Same coordinates (0.0km apart),flag,pending
+,Park,Worli,,"Park, Lodha",Worli,88,✓ High name similarity 90%; ✓ Same area: Worli; ~ Partial developer info; ✓ Same coordinates (0.0km apart),flag,pending
+,Peninsula Park,Andheri West,,Peninsula Plaza,Andheri West,88,~ Moderate name similarity 83%; ✓ Same area: Andheri West; ✓ Same developer: Peninsula Group; ✓ Same coordinates (0.0km apart),flag,pending
+,Peninsula Plaza,Andheri West,,Peninsular Park,Andheri West,88,~ Moderate name similarity 80%; ✓ Same area: Andheri West; ✓ Same developer: Peninsula Group; ✓ Same coordinates (0.0km apart),flag,pending
+,Piramal Aarav,Byculla,,Piramal Aranya,Byculla,88,~ Moderate name similarity 81%; ✓ Same area: Byculla; ✓ Same developer: Piramal Realty; ✓ Same coordinates (0.0km apart),flag,pending
+,Piramal Aarav,Byculla,,Piramal Aranya Arav,Byculla,88,~ Moderate name similarity 81%; ✓ Same area: Byculla; ✓ Same developer: Piramal Realty; ✓ Same coordinates (0.0km apart),flag,pending
+,Piramal Aranya,Byculla,,Piramal Arav,Byculla,88,~ Moderate name similarity 85%; ✓ Same area: Byculla; ✓ Same developer: Piramal Realty; ✓ Same coordinates (0.0km apart),flag,pending
+,Piramal Aranya Ahan,Byculla,,Piramal Aranya Arav,Byculla,88,~ Moderate name similarity 89%; ✓ Same area: Byculla; ✓ Same developer: Piramal Realty; ✓ Same coordinates (0.0km apart),flag,pending
+,Piramal Aranya Arav,Byculla,,Piramal Aranya Avyan,Byculla,88,~ Moderate name similarity 87%; ✓ Same area: Byculla; ✓ Same developer: Piramal Realty; ✓ Same coordinates (0.0km apart),flag,pending
+,Piramal Mahalaxmi Central,Mahalakshmi,,Piramal Mahalaxmi North,Mahalakshmi,88,~ Moderate name similarity 83%; ✓ Same area: Mahalakshmi; ✓ Same developer: Piramal Realty; ✓ Same coordinates (0.0km apart),flag,pending
+,Piramal Vaikunth Vairat,Thane West,,Piramal Vaikunth Vyan,Thane West,88,~ Moderate name similarity 86%; ✓ Same area: Thane West; ✓ Same developer: Piramal Realty; ✓ Same coordinates (0.0km apart),flag,pending
+,Raheja Classic,Andheri West,,Raheja Classique,Andheri West,88,~ Moderate name similarity 87%; ✓ Same area: Andheri West; ✓ Same developer: K. Raheja Group; ✓ Same coordinates (0.0km apart),flag,pending
+,Raheja Vihar,Powai,,Raheja Vistas,Powai,88,~ Moderate name similarity 80%; ✓ Same area: Powai; ✓ Same developer: K. Raheja Group; ✓ Same coordinates (0.0km apart),flag,pending
+,Raheja Empress,Prabhadevi,,Raheja Princess,Prabhadevi,88,~ Moderate name similarity 83%; ✓ Same area: Prabhadevi; ✓ Same developer: K. Raheja Group; ✓ Same coordinates (0.0km apart),flag,pending
+,Rustomjee Season Annexe,BKC,,Rustomjee Seasons,BKC,88,~ Moderate name similarity 80%; ✓ Same area: BKC; ✓ Same developer: Rustomjee Group; ✓ Same coordinates (0.0km apart),flag,pending
+,Rustomjee Cleon,Bandra East,,Rustomjee Seasons,Bandra East,88,~ Moderate name similarity 81%; ✓ Same area: Bandra East; ✓ Same developer: Rustomjee Group; ✓ Same coordinates (0.0km apart),flag,pending
+,Rustomjee Erika,Bandra East,,Rustomjee Oriana,Bandra East,88,~ Moderate name similarity 84%; ✓ Same area: Bandra East; ✓ Same developer: Rustomjee Group; ✓ Same coordinates (0.0km apart),flag,pending
+,Rustomjee Erika,Bandra East,,Rustomjee Prive,Bandra East,88,~ Moderate name similarity 80%; ✓ Same area: Bandra East; ✓ Same developer: Rustomjee Group; ✓ Same coordinates (0.0km apart),flag,pending
+,Rustom,Prabhadevi,,Rustomjee Crown,Prabhadevi,88,✓ High name similarity 90%; ✓ Same area: Prabhadevi; ~ Partial developer info; ✓ Same coordinates (0.0km apart),flag,pending
+,Sugee Sadan,Dadar West,,Sugee Shubhada,Dadar West,88,~ Moderate name similarity 80%; ✓ Same area: Dadar West; ✓ Same developer: Sugee Group; ✓ Same coordinates (0.0km apart),flag,pending
+,Suntech City Avenue 2,Goregaon West,,Sunteck City Avenue,Goregaon West,88,✓ High name similarity 90%; ✓ Same area: Goregaon West; ~ Partial developer info; ✓ Same coordinates (0.0km apart),flag,pending
+,Sunteck 4th Avenue,Goregaon West,,Sunteck City Avenue,Goregaon West,88,~ Moderate name similarity 86%; ✓ Same area: Goregaon West; ✓ Same developer: Sunteck Realty; ✓ Same coordinates (0.0km apart),flag,pending
+,Ekta Bhoomi Garden III,Borivali East,,Ekta Bhoomi Gardens,Borivali East,88,~ Moderate name similarity 88%; ✓ Same area: Borivali East; ✓ Same developer: Ekta World; ✓ Same coordinates (0.0km apart),flag,pending
+,Dosti West County - Dosti Cedar,Thane West,,Dosti West County Olive,Thane West,88,~ Moderate name similarity 81%; ✓ Same area: Thane West; ✓ Same developer: Dosti Realty; ✓ Same coordinates (0.0km apart),flag,pending
+,Dosti West County Heron,Thane West,,Dosti West County Olive,Thane West,88,~ Moderate name similarity 83%; ✓ Same area: Thane West; ✓ Same developer: Dosti Realty; ✓ Same coordinates (0.0km apart),flag,pending
+,Silver Apartment,Prabhadevi,,Silver Dune,Prabhadevi,85,✓ High name similarity 90%; ✓ Same area: Prabhadevi; ✓ Same coordinates (0.0km apart),flag,pending
+,Alta Monte,Malad East,,Alta Monte Tower B,Malad East,85,✓ High name similarity 91%; ✓ Same area: Malad East; ✓ Same coordinates (0.0km apart),flag,pending
+,Alta Monte,Malad East,,Altamonte,Malad East,85,✓ High name similarity 95%; ✓ Same area: Malad East; ✓ Same coordinates (0.0km apart),flag,pending
+,Juhu Ankur,Juhu,,Juhu Apartment,Juhu,85,✓ High name similarity 90%; ✓ Same area: Juhu; ✓ Same coordinates (0.0km apart),flag,pending
+,Juhu Apartment,Juhu,,Juhu Jivan,Juhu,85,✓ High name similarity 90%; ✓ Same area: Juhu; ✓ Same coordinates (0.0km apart),flag,pending
+,Juhu Apartment,Juhu,,Juhu Sagar,Juhu,85,✓ High name similarity 90%; ✓ Same area: Juhu; ✓ Same coordinates (0.0km apart),flag,pending
+,Kaatyayni Residency,Andheri East,,Katyani Residency,Andheri East,85,✓ High name similarity 94%; ✓ Same area: Andheri East; ✓ Same coordinates (0.0km apart),flag,pending
+,Kamal Apartment,Andheri West,,Kamaldutt,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Kakad Apartment,Bandra West,,Kakad Bhavan,Bandra West,85,✓ High name similarity 90%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Lotus Enpar,Lower Parel,,Lotus Enpar - Worli,Lower Parel,85,✓ High name similarity 90%; ✓ Same area: Lower Parel; ✓ Same coordinates (0.0km apart),flag,pending
+,Prim Rose,Andheri West,,Prime Rose,Andheri West,85,✓ High name similarity 95%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Prim Rose,Andheri West,,Primrose Tower,Andheri West,85,✓ High name similarity 94%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Primordial House,Grant Road,,Promordial House,Grant Road,85,✓ High name similarity 94%; ✓ Same area: Grant Road; ✓ Same coordinates (0.0km apart),flag,pending
+,Prakash,Santacruz West,,Prakash Villa,Santacruz West,85,✓ High name similarity 90%; ✓ Same area: Santacruz West; ✓ Same coordinates (0.0km apart),flag,pending
+,Puranik City,Thane West,,Puranik City Reserva,Thane West,85,✓ High name similarity 90%; ✓ Same area: Thane West; ✓ Same coordinates (0.0km apart),flag,pending
+,Veena Santoor,Kandivali West,,Veena Santoor 2,Kandivali West,85,✓ High name similarity 93%; ✓ Same area: Kandivali West; ✓ Same coordinates (0.0km apart),flag,pending
+,Venus,Worli,,Venus Apartments,Worli,85,✓ High name similarity 91%; ✓ Same area: Worli; ✓ Same coordinates (0.0km apart),flag,pending
+,Link Apartment,Khar West,,Linkway,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Morya Landmark,Andheri West,,Morya Landmark I,Andheri West,85,✓ High name similarity 93%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Morya Landmark,Andheri West,,Morya Landmark II,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Mona Lisa,Bandra West,,Monalisa,Bandra West,85,✓ High name similarity 94%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Mooring,Bandra West,,Moorings,Bandra West,85,✓ High name similarity 93%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Moti Mahal,Bandra West,,Moti Mahal Apex,Bandra West,85,✓ High name similarity 90%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Monte South,Byculla,,Monte South Tower 2,Byculla,85,✓ High name similarity 92%; ✓ Same area: Byculla; ✓ Same coordinates (0.0km apart),flag,pending
+,Mohini Castel,Khar West,,Mohini Castle,Khar West,85,✓ High name similarity 92%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Mohini Castel,Khar West,,Mohini Tower,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Mohini Castle,Khar West,,Mohini Tower,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Mohini Heights,Khar West,,Mohini Tower,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Platinum Casa Divine,Andheri West,,Platinum Tower,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Platinum Grandeur,Andheri West,,Platinum Tower,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Platinum Heights,Andheri West,,Platinum Tower,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Platinum Life,Andheri West,,Platinum Tower,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Platinum Park,Andheri West,,Platinum Tower,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Platinum Pristine,Andheri West,,Platinum Tower,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Platinum Prive,Andheri West,,Platinum Tower,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Platinum Tower,Andheri West,,Platinum Tower 1,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Regency Heights,Thane West,,Regency Tower,Thane West,85,✓ High name similarity 90%; ✓ Same area: Thane West; ✓ Same coordinates (0.0km apart),flag,pending
+,Acme Amay,Goregaon East,,"Acme Amay, Churiwadi",Goregaon East,85,✓ High name similarity 90%; ✓ Same area: Goregaon East; ✓ Same coordinates (0.0km apart),flag,pending
+,Arista,Bandra East,,Arista Prime,Bandra East,85,✓ High name similarity 90%; ✓ Same area: Bandra East; ✓ Same coordinates (0.0km apart),flag,pending
+,Ashmita,Khar West,,Asmita,Khar West,85,✓ High name similarity 92%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Atlantis,Andheri West,,Atlantis Apartments,Andheri West,85,✓ High name similarity 94%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Atmosphere,Mulund West,,Atmosphere 02,Mulund West,85,✓ High name similarity 90%; ✓ Same area: Mulund West; ✓ Same coordinates (0.0km apart),flag,pending
+,Atlanta,Prabhadevi,,Atlanta Heights,Prabhadevi,85,✓ High name similarity 90%; ✓ Same area: Prabhadevi; ✓ Same coordinates (0.0km apart),flag,pending
+,Avighna,Lower Parel,,Avighna 9,Lower Parel,85,✓ High name similarity 90%; ✓ Same area: Lower Parel; ✓ Same coordinates (0.0km apart),flag,pending
+,Avanti,Santacruz West,,Avanti Society,Santacruz West,85,✓ High name similarity 90%; ✓ Same area: Santacruz West; ✓ Same coordinates (0.0km apart),flag,pending
+,Avarsekar Heights,Worli,,Aversekar Heights,Worli,85,✓ High name similarity 94%; ✓ Same area: Worli; ✓ Same coordinates (0.0km apart),flag,pending
+,Bay View,Andheri West,,Bayview,Andheri West,85,✓ High name similarity 93%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Blue Orbit,Malad West,,Blue Orbit 3,Malad West,85,✓ High name similarity 91%; ✓ Same area: Malad West; ✓ Same coordinates (0.0km apart),flag,pending
+,Breach Candy 1.5,Breach Candy,,Breach Candy Apartment,Breach Candy,85,✓ High name similarity 90%; ✓ Same area: Breach Candy; ✓ Same coordinates (0.0km apart),flag,pending
+,Breach Candy Apartment,Breach Candy,,Breach Candy Gardens,Breach Candy,85,✓ High name similarity 90%; ✓ Same area: Breach Candy; ✓ Same coordinates (0.0km apart),flag,pending
+,Breach Candy Apartment,Breach Candy,,Breach Candy House,Breach Candy,85,✓ High name similarity 90%; ✓ Same area: Breach Candy; ✓ Same coordinates (0.0km apart),flag,pending
+,Cannon,Bandra West,,Cannon Bldg,Bandra West,85,✓ High name similarity 90%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Char Dham,Bandra West,,Chardham,Bandra West,85,✓ High name similarity 94%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,City Of Joy,Mulund West,,City Of Joy II,Mulund West,85,✓ High name similarity 90%; ✓ Same area: Mulund West; ✓ Same coordinates (0.0km apart),flag,pending
+,Crystal,Andheri East,,Crystal Plaza,Andheri East,85,✓ High name similarity 90%; ✓ Same area: Andheri East; ✓ Same coordinates (0.0km apart),flag,pending
+,Creek Crest,Andheri West,,Crest Apartment,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Crest Apartment,Andheri West,,Crest Audeus,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Crest Apartment,Andheri West,,Crest Mukta,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Crescent Aria,Tardeo,,Crescent Tower,Tardeo,85,✓ High name similarity 90%; ✓ Same area: Tardeo; ✓ Same coordinates (0.0km apart),flag,pending
+,Crescent Heights,Tardeo,,Crescent Tower,Tardeo,85,✓ High name similarity 90%; ✓ Same area: Tardeo; ✓ Same coordinates (0.0km apart),flag,pending
+,Evergreen,Bandra West,,Evergreen Turner,Bandra West,85,✓ High name similarity 90%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Green Acres,Andheri West,,Green Crest,Andheri West,85,✓ High name similarity 91%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Green Acres,Andheri West,,Green Tower,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Green Blaze,Andheri West,,Green Tower,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Green Court,Andheri West,,Green Tower,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Green Crest,Andheri West,,Green Tower,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Green Tower,Andheri West,,Green Ville,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Green Ville,Andheri West,,Grenville,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Green Field,Juhu,,Green Field Society,Juhu,85,✓ High name similarity 90%; ✓ Same area: Juhu; ✓ Same coordinates (0.0km apart),flag,pending
+,Green Field,Juhu,,Green Fields Society,Juhu,85,✓ High name similarity 90%; ✓ Same area: Juhu; ✓ Same coordinates (0.0km apart),flag,pending
+,Gurukripa Dhyanam,Andheri West,,Gurukrupa Dhayanam,Andheri West,85,✓ High name similarity 91%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Gurukripa Dhyanam,Andheri West,,Gurukrupa Dhyanam,Andheri West,85,✓ High name similarity 94%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Hill View,Bandra West,,Hill View Bldg,Bandra West,85,✓ High name similarity 90%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Jolly Maker,Cuffe Parade,,Jolly Maker I,Cuffe Parade,85,✓ High name similarity 92%; ✓ Same area: Cuffe Parade; ✓ Same coordinates (0.0km apart),flag,pending
+,Magnum Opus,Andheri West,,Magnum Tower,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Man Dune,Bandra West,,Man Dunes,Bandra West,85,✓ High name similarity 94%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Mayuresh Srishti,Bhandup West,,Mayuresh Srishti Park,Bhandup West,85,✓ High name similarity 90%; ✓ Same area: Bhandup West; ✓ Same coordinates (0.0km apart),flag,pending
+,Maker Tower,Cuffe Parade,,Maker Tower - B,Cuffe Parade,85,✓ High name similarity 90%; ✓ Same area: Cuffe Parade; ✓ Same coordinates (0.0km apart),flag,pending
+,Maker Tower,Cuffe Parade,,Maker Tower J,Cuffe Parade,85,✓ High name similarity 90%; ✓ Same area: Cuffe Parade; ✓ Same coordinates (0.0km apart),flag,pending
+,Mayfair Apartment,Khar West,,Mayfair Liv,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Mayfair Apartment,Khar West,,Mayfair Muse,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Mayfair Apartment,Khar West,,Mayfair Villa,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Malad West – Gurukrupa Marina Enclave,Malad West,,Marina Enclave,Malad West,85,✓ High name similarity 90%; ✓ Same area: Malad West; ✓ Same coordinates (0.0km apart),flag,pending
+,Manas Rangoli,Santacruz West,,Manas Rangoli Residency,Santacruz West,85,✓ High name similarity 90%; ✓ Same area: Santacruz West; ✓ Same coordinates (0.0km apart),flag,pending
+,Marigold,Thane West,,Marigold Tulip,Thane West,85,✓ High name similarity 90%; ✓ Same area: Thane West; ✓ Same coordinates (0.0km apart),flag,pending
+,Madhuban,Worli,,Madhuban Apartments,Worli,85,✓ High name similarity 94%; ✓ Same area: Worli; ✓ Same coordinates (0.0km apart),flag,pending
+,Mittal Court,Nariman Point,,Mittal Tower,Nariman Point,85,✓ High name similarity 90%; ✓ Same area: Nariman Point; ✓ Same coordinates (0.0km apart),flag,pending
+,Navjeevan Society,Mumbai Central,,Navjivan Society,Mumbai Central,85,✓ High name similarity 91%; ✓ Same area: Mumbai Central; ✓ Same coordinates (0.0km apart),flag,pending
+,Nibbana,Bandra West,,Nibbana Annex,Bandra West,85,✓ High name similarity 90%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Nibbana,Bandra West,,Nibbana Annexe,Bandra West,85,✓ High name similarity 90%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Nishant,Malabar Hill,,Nishat,Malabar Hill,85,✓ High name similarity 92%; ✓ Same area: Malabar Hill; ✓ Same coordinates (0.0km apart),flag,pending
+,Om Sai,Thane West,,Om Sai Plaza,Thane West,85,✓ High name similarity 90%; ✓ Same area: Thane West; ✓ Same coordinates (0.0km apart),flag,pending
+,Opal Square,Thane West,,"Opal Square, Wagle Estate",Thane West,85,✓ High name similarity 90%; ✓ Same area: Thane West; ✓ Same coordinates (0.0km apart),flag,pending
+,Paradigm Antalia,Andheri West,,Paradigm Antalya,Andheri West,85,✓ High name similarity 94%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Parinee,Andheri West,,Parinee I,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Parinee,Andheri West,,Parinee-I,Andheri West,85,✓ High name similarity 93%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Parinee I,Andheri West,,Parinee-I,Andheri West,85,✓ High name similarity 94%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Park Plaza,Andheri West,,Park,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Pali Hill Apartment,Bandra West,,Pali Hill Niketan,Bandra West,85,✓ High name similarity 90%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Panchsheel,Kandivali West,,Panchsheel Garden,Kandivali West,85,✓ High name similarity 90%; ✓ Same area: Kandivali West; ✓ Same coordinates (0.0km apart),flag,pending
+,Panchsheel,Kandivali West,,Panchsheel Height,Kandivali West,85,✓ High name similarity 90%; ✓ Same area: Kandivali West; ✓ Same coordinates (0.0km apart),flag,pending
+,Palacia,Thane West,,Palacia Phase 2,Thane West,85,✓ High name similarity 90%; ✓ Same area: Thane West; ✓ Same coordinates (0.0km apart),flag,pending
+,Pearl Residency,Prabhadevi,,"Pearl Residency , Prabhadevi",Prabhadevi,85,✓ High name similarity 90%; ✓ Same area: Prabhadevi; ✓ Same coordinates (0.0km apart),flag,pending
+,Powai Vihar,Powai,,Powai Vihar Complex,Powai,85,✓ High name similarity 90%; ✓ Same area: Powai; ✓ Same coordinates (0.0km apart),flag,pending
+,Poonam Apartment,Worli,,Poonam Chambers,Worli,85,✓ High name similarity 90%; ✓ Same area: Worli; ✓ Same coordinates (0.0km apart),flag,pending
+,RNA Aurovilla,Santacruz West,,RNA Auroville,Santacruz West,85,✓ High name similarity 92%; ✓ Same area: Santacruz West; ✓ Same coordinates (0.0km apart),flag,pending
+,RNA Miraj,Worli,,RNA Miraj - Worli,Worli,85,✓ High name similarity 90%; ✓ Same area: Worli; ✓ Same coordinates (0.0km apart),flag,pending
+,Ram Bhavan,Khar West,,Ram Bhuvan,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Rashid Mansion,Worli,,Rashid Mension,Worli,85,✓ High name similarity 93%; ✓ Same area: Worli; ✓ Same coordinates (0.0km apart),flag,pending
+,Royal Heritage,Andheri West,,Royale Herritage,Andheri West,85,✓ High name similarity 93%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Rushab Tower,Sewri,,Rushabh Tower,Sewri,85,✓ High name similarity 92%; ✓ Same area: Sewri; ✓ Same coordinates (0.0km apart),flag,pending
+,Samarth,Andheri West,,Samarth Angan,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Samarth,Andheri West,,Samarth Deep,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Samarth,Andheri West,,Samarth Vaibhav,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Samarth,Andheri West,,Samartha Aangan,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Samarth,Andheri West,,Samartha Ashish,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Samarth,Andheri West,,Samartha Deep,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Samarth,Andheri West,,Samartha Siddhi,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Samarth Angan,Andheri West,,Samartha Aangan,Andheri West,85,✓ High name similarity 93%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Sarita,Bandra West,,Sarita Apartments,Bandra West,85,✓ High name similarity 92%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Sagar Apartment,Khar West,,Satnam Sagar,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Sahil Exotica,Powai,,Sahil Exotica Chandivali,Powai,85,✓ High name similarity 90%; ✓ Same area: Powai; ✓ Same coordinates (0.0km apart),flag,pending
+,Sagar Avenue,Santacruz East,,Sagar Avenue II,Santacruz East,85,✓ High name similarity 90%; ✓ Same area: Santacruz East; ✓ Same coordinates (0.0km apart),flag,pending
+,Serenity Complex,Andheri West,,Serenity Tower,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Shanti Tower,Andheri West,,Shantivan CHS,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Sheffield Tower,Andheri West,,Shefield Tower,Andheri West,85,✓ High name similarity 94%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Shiv Parvati,Andheri West,,Shiv Parwati,Andheri West,85,✓ High name similarity 92%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Shubham,Andheri West,,Shubham Karoti CHS,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Shankar Sagar,Breach Candy,,Shanker Sagar,Breach Candy,85,✓ High name similarity 92%; ✓ Same area: Breach Candy; ✓ Same coordinates (0.0km apart),flag,pending
+,Shiv Tapi,Gamdevi,,Shiv Tapi – Gamdevi,Gamdevi,85,✓ High name similarity 90%; ✓ Same area: Gamdevi; ✓ Same coordinates (0.0km apart),flag,pending
+,Shalimar,Kemps Corner,,Shalimar Apartments,Kemps Corner,85,✓ High name similarity 94%; ✓ Same area: Kemps Corner; ✓ Same coordinates (0.0km apart),flag,pending
+,Shiv Om,Khar West,,Shiv Omm,Khar West,85,✓ High name similarity 93%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Shreyas,Khar West,,Shreyas bldg,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Shah Arcade,Malad East,,Shah Arcade 2,Malad East,85,✓ High name similarity 92%; ✓ Same area: Malad East; ✓ Same coordinates (0.0km apart),flag,pending
+,Shakti Enclave,Malad West,,Shakti Tower,Malad West,85,✓ High name similarity 90%; ✓ Same area: Malad West; ✓ Same coordinates (0.0km apart),flag,pending
+,Shree Balaji Aashirwad,Malad West,,Shri Balaji Ashirwad,Malad West,85,✓ High name similarity 90%; ✓ Same area: Malad West; ✓ Same coordinates (0.0km apart),flag,pending
+,Shalimar,Santacruz West,,Shalimar Apartments,Santacruz West,85,✓ High name similarity 94%; ✓ Same area: Santacruz West; ✓ Same coordinates (0.0km apart),flag,pending
+,Shubh Apartment,Worli,,Shubhda Tower,Worli,85,✓ High name similarity 90%; ✓ Same area: Worli; ✓ Same coordinates (0.0km apart),flag,pending
+,Solitaire,Bandra West,,Solitaire Apartments,Bandra West,85,✓ High name similarity 95%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Sosar Solaris,Khar West,,Solaris,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Springfield CHS,Andheri West,,Spring Fields,Andheri West,85,✓ High name similarity 92%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Spring Tower,Dadar East,,Springs,Dadar East,85,✓ High name similarity 92%; ✓ Same area: Dadar East; ✓ Same coordinates (0.0km apart),flag,pending
+,Starling Sea Face,Worli,,Sterling Seaface,Worli,85,✓ High name similarity 91%; ✓ Same area: Worli; ✓ Same coordinates (0.0km apart),flag,pending
+,Sunny Side,Bandra West,,Sunny Side APT,Bandra West,85,✓ High name similarity 90%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Surabhi CHS,Oshiwara,,Surabhi CHS – Oshiwara,Oshiwara,85,✓ High name similarity 90%; ✓ Same area: Oshiwara; ✓ Same coordinates (0.0km apart),flag,pending
+,Sumer Trinity,Prabhadevi,,Sumer Trinity Vertical,Prabhadevi,85,✓ High name similarity 90%; ✓ Same area: Prabhadevi; ✓ Same coordinates (0.0km apart),flag,pending
+,Vasant Oasis,Andheri East,,Vasant Oasis I,Andheri East,85,✓ High name similarity 92%; ✓ Same area: Andheri East; ✓ Same coordinates (0.0km apart),flag,pending
+,Vaibhav Chambers,Bandra East,,Vaibhav Chember,Bandra East,85,✓ High name similarity 90%; ✓ Same area: Bandra East; ✓ Same coordinates (0.0km apart),flag,pending
+,Vaibhavlaxmi,Bandra East,,Vaibhavlaxmi Address51,Bandra East,85,✓ High name similarity 90%; ✓ Same area: Bandra East; ✓ Same coordinates (0.0km apart),flag,pending
+,Vaibhav Apartment,Prabhadevi,,Vaibhav Apartments,Prabhadevi,85,✓ High name similarity 93%; ✓ Same area: Prabhadevi; ✓ Same coordinates (0.0km apart),flag,pending
+,Victoria Apartments,Andheri West,,Victoria CHS,Andheri West,85,✓ High name similarity 94%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Vishambar Niwas,Khar West,,Vishamber Niwas,Khar West,85,✓ High name similarity 93%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Warden,Bandra West,,Warden Bldg,Bandra West,85,✓ High name similarity 90%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Western Edge 1,Borivali East,,Western Edge 2,Borivali East,85,✓ High name similarity 93%; ✓ Same area: Borivali East; ✓ Same coordinates (0.0km apart),flag,pending
+,Wellingdon View,Tardeo,,Wellington View,Tardeo,85,✓ High name similarity 93%; ✓ Same area: Tardeo; ✓ Same coordinates (0.0km apart),flag,pending
+,Aakanksha Tower,Andheri West,,Aakansha Tower,Andheri West,85,✓ High name similarity 94%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Abhishek,Andheri West,,Abhishek Bldg,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Adinath,Tardeo,,Adinath Apartments,Tardeo,85,✓ High name similarity 93%; ✓ Same area: Tardeo; ✓ Same coordinates (0.0km apart),flag,pending
+,Antariksh,Bandra East,,Antariksh Ace,Bandra East,85,✓ High name similarity 90%; ✓ Same area: Bandra East; ✓ Same coordinates (0.0km apart),flag,pending
+,Anmol Fortune,Goregaon West,,Anmol Fortune Akshay Chs,Goregaon West,85,✓ High name similarity 90%; ✓ Same area: Goregaon West; ✓ Same coordinates (0.0km apart),flag,pending
+,Anmol Fortune,Goregaon West,,Anmol Fortune F,Goregaon West,85,✓ High name similarity 93%; ✓ Same area: Goregaon West; ✓ Same coordinates (0.0km apart),flag,pending
+,Anmol Pride,Goregaon West,,Anmol Tower,Goregaon West,85,✓ High name similarity 90%; ✓ Same area: Goregaon West; ✓ Same coordinates (0.0km apart),flag,pending
+,Anand 268,Khar West,,Anand Apartment,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Anand Apartment,Khar West,,Anand Ashram,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Anand Apartment,Khar West,,Anand Sagar,Khar West,85,✓ High name similarity 90%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,Anand Bhavan,Santacruz West,,Anand Bhuvan,Santacruz West,85,✓ High name similarity 92%; ✓ Same area: Santacruz West; ✓ Same coordinates (0.0km apart),flag,pending
+,Anand Bhuvan,Santacruz West,,Anand Bhuwan,Santacruz West,85,✓ High name similarity 92%; ✓ Same area: Santacruz West; ✓ Same coordinates (0.0km apart),flag,pending
+,Auris Serenity 3,Malad West,,Auris Serenity Tower 2,Malad West,85,✓ High name similarity 94%; ✓ Same area: Malad West; ✓ Same coordinates (0.0km apart),flag,pending
+,Bhagtani Amber,Bandra West,,Bhagtani Apartment,Bandra West,85,✓ High name similarity 90%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Center Square,Andheri West,,Centre Square,Andheri West,85,✓ High name similarity 92%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Cosmos,Andheri West,,Cosmos Plaza,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Cosmos,Andheri West,,Cosmos Plazza,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Cornerstone,Worli,,Cornerstone Worli,Worli,85,✓ High name similarity 90%; ✓ Same area: Worli; ✓ Same coordinates (0.0km apart),flag,pending
+,Deep Apartment,Andheri West,,Deepalika Apartment,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Dhoop Chaon,Andheri West,,Dhoop Chaon Society,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Eden,Powai,,Eden IV,Powai,85,✓ High name similarity 90%; ✓ Same area: Powai; ✓ Same coordinates (0.0km apart),flag,pending
+,El Dorado,Prabhadevi,,El-Dorado,Prabhadevi,85,✓ High name similarity 94%; ✓ Same area: Prabhadevi; ✓ Same coordinates (0.0km apart),flag,pending
+,Excellency,Andheri West,,Excellency Society,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Golden Chariot,Andheri West,,Golden Chariot | Lokhandwala,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Harshvardhan CHS,Powai,,Harshwardhan,Powai,85,✓ High name similarity 92%; ✓ Same area: Powai; ✓ Same coordinates (0.0km apart),flag,pending
+,Ideal Manohar,Bandra West,,Ideal Manohar Chs Ltd,Bandra West,85,✓ High name similarity 90%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,JP Deck,Goregaon East,,JP Decks,Goregaon East,85,✓ High name similarity 93%; ✓ Same area: Goregaon East; ✓ Same coordinates (0.0km apart),flag,pending
+,JP North,Mira Road,,JP North Garden City,Mira Road,85,✓ High name similarity 90%; ✓ Same area: Mira Road; ✓ Same coordinates (0.0km apart),flag,pending
+,Jayant Apartment,Prabhadevi,,Jayant Sapphire,Prabhadevi,85,✓ High name similarity 90%; ✓ Same area: Prabhadevi; ✓ Same coordinates (0.0km apart),flag,pending
+,Kingston Palace,Malad West,,Kingston Tower,Malad West,85,✓ High name similarity 90%; ✓ Same area: Malad West; ✓ Same coordinates (0.0km apart),flag,pending
+,Leela Apartment,Andheri West,,Leela Sagar,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Legend,Santacruz East,,Legend Apartments,Santacruz East,85,✓ High name similarity 92%; ✓ Same area: Santacruz East; ✓ Same coordinates (0.0km apart),flag,pending
+,Neelam Chs,Andheri West,,New Neelam Apartments,Andheri West,85,✓ High name similarity 90%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,New Mahada,Andheri West,,New Mhada,Andheri West,85,✓ High name similarity 95%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Neelam,Bandra West,,Neelamber,Bandra West,85,✓ High name similarity 90%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Octa Crest,Kandivali East,,Octacrest,Kandivali East,85,✓ High name similarity 95%; ✓ Same area: Kandivali East; ✓ Same coordinates (0.0km apart),flag,pending
+,Orbit Grand,Lower Parel,,Orbit Tower,Lower Parel,85,✓ High name similarity 90%; ✓ Same area: Lower Parel; ✓ Same coordinates (0.0km apart),flag,pending
+,Orion,Santacruz West,,Orion West,Santacruz West,85,✓ High name similarity 90%; ✓ Same area: Santacruz West; ✓ Same coordinates (0.0km apart),flag,pending
+,UK Sangfroid,Andheri West,,UK Sungfroid,Andheri West,85,✓ High name similarity 92%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Wind Space Amelio,Andheri West,,Winspace Amelio,Andheri West,85,✓ High name similarity 94%; ✓ Same area: Andheri West; ✓ Same coordinates (0.0km apart),flag,pending
+,Winderme,Santacruz West,,Windermere,Santacruz West,85,✓ High name similarity 90%; ✓ Same area: Santacruz West; ✓ Same coordinates (0.0km apart),flag,pending
+,Woodstock,Khar West,,Woodstock Apartments,Khar West,85,✓ High name similarity 95%; ✓ Same area: Khar West; ✓ Same coordinates (0.0km apart),flag,pending
+,World Villa,Lower Parel,,World Tower,Lower Parel,85,✓ High name similarity 90%; ✓ Same area: Lower Parel; ✓ Same coordinates (0.0km apart),flag,pending
+,World Crest,Lower Parel,,World Tower,Lower Parel,85,✓ High name similarity 90%; ✓ Same area: Lower Parel; ✓ Same coordinates (0.0km apart),flag,pending
+,World Tower,Lower Parel,,World View,Lower Parel,85,✓ High name similarity 90%; ✓ Same area: Lower Parel; ✓ Same coordinates (0.0km apart),flag,pending
+,Woodstock,Santacruz West,,Woodstock Garden,Santacruz West,85,✓ High name similarity 90%; ✓ Same area: Santacruz West; ✓ Same coordinates (0.0km apart),flag,pending
+,Woodstock,Santacruz West,,Woodstock Gardens,Santacruz West,85,✓ High name similarity 90%; ✓ Same area: Santacruz West; ✓ Same coordinates (0.0km apart),flag,pending
+,Queen,Bandra West,,Queens Apartment,Bandra West,85,✓ High name similarity 91%; ✓ Same area: Bandra West; ✓ Same coordinates (0.0km apart),flag,pending
+,Queen,Worli,,Queens Court,Worli,85,✓ High name similarity 90%; ✓ Same area: Worli; ✓ Same coordinates (0.0km apart),flag,pending
+,Unnathi Woods,Thane West,,Unnathi Woods 6,Thane West,85,✓ High name similarity 93%; ✓ Same area: Thane West; ✓ Same coordinates (0.0km apart),flag,pending
+,Earth Ventage,Dadar West,,Earth Vintage,Dadar West,85,✓ High name similarity 92%; ✓ Same area: Dadar West; ✓ Same coordinates (0.0km apart),flag,pending
+,19 North,Kandivali West,,19th North,Kandivali West,85,~ Moderate name similarity 89%; ✓ Same area: Kandivali West; ✓ Same coordinates (0.0km apart); ✓ Same building number 19 in same area,flag,pending
+,Hubtown Harmony,Matunga,,Hubtown Harmony,Matunga East,83,✓ Name similarity 100%; ~ Different areas: Matunga vs Matunga East; ✓ Same developer: Hubtown; ✓ Same coordinates (0.3km apart),flag,pending

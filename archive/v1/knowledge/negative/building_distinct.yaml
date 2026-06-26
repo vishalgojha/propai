@@ -1,0 +1,102 @@
+# ── Negative Knowledge: Known Distinct Buildings ─────────────────
+# Records pairs of building names that are DIFFERENT buildings,
+# even though they share names/developers/areas.
+#
+# The dedup engine MUST NEVER suggest merging these.
+#
+# Format:
+#   pair: [name_a, name_b]
+#   evidence: why they are different
+#   source: where this was learned
+#   approved_by: who confirmed
+
+kb_version: "1.0"
+category: "negative_knowledge"
+classification: "Risk Rules"
+description: "Known-distinct building pairs that should never be merged"
+
+pairs:
+  # ── Same developer, same area, different projects ─────────────
+  - pair: ["Lodha World Crest", "Lodha World One"]
+    area: "Lower Parel"
+    developer: "Lodha Group"
+    evidence: "Different project names within Lodha World complex — separate buildings"
+    source: "canonical_registry_cluster_review"
+    created: "2026-06-26"
+    approved_by: "system"
+
+  - pair: ["Lodha World One", "Lodha World View"]
+    area: "Lower Parel"
+    developer: "Lodha Group"
+    evidence: "Different project names within Lodha World complex — separate buildings"
+    source: "canonical_registry_cluster_review"
+    created: "2026-06-26"
+    approved_by: "system"
+
+  - pair: ["Lodha World Crest", "Lodha World View"]
+    area: "Lower Parel"
+    developer: "Lodha Group"
+    evidence: "Different project names within Lodha World complex — separate buildings"
+    source: "canonical_registry_cluster_review"
+    created: "2026-06-26"
+    approved_by: "system"
+
+  - pair: ["Hiranandani Empress Hill", "Hiranandani Regent Hill"]
+    area: "Powai"
+    developer: "Hiranandani Group"
+    evidence: "Distinct building names within Hiranandani Estate — separate towers"
+    source: "canonical_registry_cluster_review"
+    created: "2026-06-26"
+    approved_by: "system"
+
+  # ── Same developer, same suffix pattern, different buildings ──
+  - pair: ["Kalpataru Aura", "Kalpataru Aura II"]
+    developer: "Kalpataru Group"
+    evidence: "Roman numeral suffixes denote different towers/phases — NEVER merge"
+    source: "expert_knowledge"
+    created: "2026-06-26"
+    approved_by: "system"
+
+  - pair: ["Ajmera Aeon", "Ajmera Treon"]
+    area: "Wadala"
+    developer: "Ajmera Group"
+    evidence: "Different project names from same developer — separate buildings"
+    source: "canonical_registry_cluster_review"
+    created: "2026-06-26"
+    approved_by: "system"
+
+  - pair: ["Ajmera Aeon", "Ajmera Zeon"]
+    area: "Wadala"
+    developer: "Ajmera Group"
+    evidence: "Different project names from same developer — separate buildings"
+    source: "canonical_registry_cluster_review"
+    created: "2026-06-26"
+    approved_by: "system"
+
+  - pair: ["Ajmera Treon", "Ajmera Zeon"]
+    area: "Wadala"
+    developer: "Ajmera Group"
+    evidence: "Different project names from same developer — separate buildings"
+    source: "canonical_registry_cluster_review"
+    created: "2026-06-26"
+    approved_by: "system"
+
+  # ── Different wings/towers → DO NOT MERGE ────────────────────
+  - pair: ["Silver Arch", "Silver Arch A"]
+    area: "Andheri West"
+    evidence: "Trailing letters denote different wings — separate entities"
+    source: "canonical_registry_cluster_review"
+    created: "2026-06-26"
+    approved_by: "system"
+
+  - pair: ["Silicon Park", "Silicon Park 3"]
+    evidence: "Trailing numbers denote different phases/buildings"
+    source: "canonical_registry_cluster_review"
+    created: "2026-06-26"
+    approved_by: "system"
+
+  - pair: ["Signature", "Signature BY Peridot"]
+    evidence: "Different building projects, different developers"
+    source: "canonical_registry_cluster_review"
+    created: "2026-06-26"
+    approved_by: "system"

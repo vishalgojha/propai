@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 from lab.storage import SqliteStorage, RawMessage, ParsedObservation, ResolverDecision, Evaluation
 from lab.embedding import create_engine, observation_text, pack_embedding, EmbeddingEngine
+from lab.location import parse_location
 
 # ── Bootstrap path to reuse evidence engine ─────────────────────
 PROJECT_DIR = Path(__file__).parent.parent
@@ -228,42 +229,25 @@ def parse_message(raw_text: str, profile_name: str | None = None) -> dict:
     elif any(x in lower for x in ["unfurnished", "un furn", "uf", "un-furnished"]):
         result["furnishing"] = "Unfurnished"
 
-    # ── 9. Location — extract building/landmark/area ────────────
-    loc_keywords = [
-        "at ", "in ", "near ", "opposite ", "opp. ", "behind ", "off ",
-        "walkable ", "walking ", "walk ", "at ", "location ", "area ",
-        "distance from ", "distance to ",
-    ]
-    loc_match = None
-    for kw in loc_keywords:
-        idx = lower.find(kw)
-        if idx >= 0:
-            start = idx + len(kw)
-            rest = text[start:].strip()
-            for sep in [
-                "\n", ". ", ", ", "contact", "call ", "whatsapp",
-                "price", "₹", "rs ", "budget", "for sale", "for rent",
-                " cr", " crore", " lac", " lakh", " lacs",
-                "/-", "only", "broker",
-            ]:
-                sep_idx = rest.lower().find(sep)
-                if sep_idx >= 0:
-                    rest = rest[:sep_idx].strip()
-            rest = _RE.sub(r'\s+\d[\d,.]*(?:\s*(?:cr|crore|lac|lakh|k|thousand))?.*', '', rest, count=1).strip()
-            for noise in ["distance from ", "distance to ", "walking distance from ", "walking distance to "]:
-                if rest.lower().startswith(noise):
-                    rest = rest[len(noise):].strip()
-            if rest and len(rest) >= 3:
-                loc_match = rest
-                break
-
-    if loc_match:
-        result["location_raw"] = loc_match
-        lm_tmp = loc_match.strip().lower().rstrip(".")
-        if lm_tmp:
-            result["landmark_name"] = lm_tmp
-    elif len(text) < 200:
-        result["location_raw"] = text
+    # ── 9. Location — structured parsing via location engine ────
+    loc = parse_location(text)
+    result["location_raw"] = loc.raw
+    result["location"] = loc.to_dict()
+    if loc.raw and len(loc.raw) >= 3:
+        if loc.landmark:
+            result["landmark_name"] = loc.landmark
+        elif loc.micro_market:
+            result["landmark_name"] = loc.micro_market
+        elif loc.building:
+            result["landmark_name"] = loc.building
+        else:
+            result["landmark_name"] = loc.raw
+        if loc.building:
+            result["building_name"] = loc.building
+        if loc.micro_market:
+            result["micro_market"] = loc.micro_market
+        if loc.street:
+            result["street_name"] = loc.street
 
     # ── 10. Developer mention ───────────────────────────────────
     dev_keywords = ["by ", "developer ", "builder ", "promoted by "]
@@ -707,6 +691,7 @@ async def webhook(request: Request):
         area_sqft=parsed.get("area_sqft"),
         furnishing=parsed.get("furnishing"),
         location_raw=parsed.get("location_raw"),
+        location=json.dumps(parsed.get("location")) if parsed.get("location") else None,
         building_name=parsed.get("building_name"),
         landmark_name=parsed.get("landmark_name"),
         street_name=parsed.get("street_name"),
@@ -809,6 +794,7 @@ async def ingest(req: IngestRequest):
         area_sqft=parsed.get("area_sqft"),
         furnishing=parsed.get("furnishing"),
         location_raw=parsed.get("location_raw"),
+        location=json.dumps(parsed.get("location")) if parsed.get("location") else None,
         building_name=parsed.get("building_name"),
         landmark_name=parsed.get("landmark_name"),
         street_name=parsed.get("street_name"),
@@ -1499,6 +1485,37 @@ async def sync_connection():
         "top_message_groups": _top_message_groups(jobs),
     })
     return details
+
+
+@app.get("/api/sync/qr")
+async def sync_qr():
+    """Get QR code for WhatsApp login."""
+    from lab.ingestion.whatsapp import WhatsAppSource
+    import asyncio
+    src = WhatsAppSource()
+    try:
+        result = await asyncio.to_thread(src.qr_code)
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/sync/logout")
+async def sync_logout():
+    """Log out the WhatsApp instance."""
+    from lab.ingestion.whatsapp import WhatsAppSource
+    import asyncio
+    src = WhatsAppSource()
+    return await asyncio.to_thread(src.logout)
+
+
+@app.get("/api/sync/connection-state")
+async def sync_connection_state():
+    """Get current connection state (open/connecting/closed)."""
+    from lab.ingestion.whatsapp import WhatsAppSource
+    import asyncio
+    src = WhatsAppSource()
+    return await asyncio.to_thread(src.connection_status)
 
 
 def _historical_sync_state(jobs) -> str:

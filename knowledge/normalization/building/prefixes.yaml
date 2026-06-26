@@ -1,0 +1,71 @@
+# ── Prefix Normalization Strategies ─────────────────────────────
+# kb_version: 1.1
+# classification: Lexical
+#
+# Common prefixes in building names that may be optional or vary.
+# Risk: Medium — "The" prefix could distinguish two buildings in same area.
+
+strategies:
+  - id: NS-007
+    classification: "Lexical"
+    description: "'The' prefix is optional in building names"
+    pattern:
+      type: regex
+      pattern: '^The\s+'
+      replacement: ""
+      flags: IGNORECASE
+    conditions:
+      same_area: required
+      same_developer: preferred
+    confidence: 0.88
+    false_positive_risk: medium
+    rationale: "'The' prefix is decorative; but two different buildings could both start with 'The'"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com", "99acres"]
+    source_excludes: ["WhatsApp"]
+    history:
+      applied: 25
+      rejected: 0
+    examples:
+      - canonical: "Lodha Park"
+        aliases: ["Lodha The Park"]
+      - canonical: "Park Residence"
+        aliases: ["The Park Residence"]
+      - canonical: "Level Residences"
+        aliases: ["The Level Residence"]
+    provenance:
+      trigger: "PROPi data scrape — 25 pairs detected"
+      detected_pairs: 25
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+
+  - id: NS-008
+    classification: "Lexical"
+    description: "'New' prefix normalization (same building with/without 'New')"
+    pattern:
+      type: regex
+      pattern: '^New\s+'
+      replacement: ""
+      flags: IGNORECASE
+    conditions:
+      same_area: required
+      same_coordinates: preferred
+    confidence: 0.90
+    false_positive_risk: medium
+    rationale: "'New' often denotes same building after renovation, but could be different building"
+    approved_by: system
+    auto_apply: false  # Requires human review
+    source_applies: ["PROPi", "MahaRERA", "Housing.com"]
+    source_excludes: ["WhatsApp"]
+    history:
+      applied: 1
+      rejected: 0
+    examples:
+      - canonical: "Neelam Apartments"
+        aliases: ["New Neelam Apartments"]
+    provenance:
+      trigger: "PROPi data scrape — 1 pair detected"
+      detected_pairs: 1
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"

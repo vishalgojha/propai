@@ -1,0 +1,161 @@
+[
+  {
+    "pattern": "Typo variations (same area)",
+    "cluster_key": "a_typo_same_area",
+    "count": 71,
+    "unique_buildings": 138,
+    "examples": [
+      [
+        "Alta Monte",
+        "Alta Monte Tower B"
+      ],
+      [
+        "Kaatyayni Residency",
+        "Katyani Residency"
+      ],
+      [
+        "Prim Rose",
+        "Prime Rose"
+      ]
+    ],
+    "avg_confidence": 85.1,
+    "score_range": "85\u201388",
+    "actions": [
+      "flag"
+    ]
+  },
+  {
+    "pattern": "Space/join variations",
+    "cluster_key": "b_space_variation",
+    "count": 9,
+    "unique_buildings": 17,
+    "examples": [
+      [
+        "Alta Monte",
+        "Altamonte"
+      ],
+      [
+        "Prim Rose",
+        "Primrose Tower"
+      ],
+      [
+        "Mona Lisa",
+        "Monalisa"
+      ]
+    ],
+    "avg_confidence": 84.8,
+    "score_range": "83\u201385",
+    "actions": [
+      "flag"
+    ]
+  },
+  {
+    "pattern": "Abbreviation variations (same area)",
+    "cluster_key": "c_abbreviation_same_area",
+    "count": 21,
+    "unique_buildings": 40,
+    "examples": [
+      [
+        "Morya Landmark",
+        "Morya Landmark II"
+      ],
+      [
+        "Platinum Tower",
+        "Platinum Tower 1"
+      ],
+      [
+        "Atmosphere",
+        "Atmosphere 02"
+      ]
+    ],
+    "avg_confidence": 85.7,
+    "score_range": "85\u201388",
+    "actions": [
+      "flag"
+    ]
+  },
+  {
+    "pattern": "Suffix variations (same developer, same area)",
+    "cluster_key": "d_suffix_same_dev_same_area",
+    "count": 1,
+    "unique_buildings": 2,
+    "examples": [
+      [
+        "Kalpataru Elitus",
+        "Kalpataru Elitus Mulund West"
+      ]
+    ],
+    "avg_confidence": 88.0,
+    "score_range": "88\u201388",
+    "actions": [
+      "flag"
+    ]
+  },
+  {
+    "pattern": "Suffix variations (same area, different developer)",
+    "cluster_key": "f_suffix_same_area",
+    "count": 120,
+    "unique_buildings": 204,
+    "examples": [
+      [
+        "Silver Apartment",
+        "Silver Dune"
+      ],
+      [
+        "Juhu Ankur",
+        "Juhu Apartment"
+      ],
+      [
+        "Juhu Apartment",
+        "Juhu Jivan"
+      ]
+    ],
+    "avg_confidence": 85.2,
+    "score_range": "85\u201388",
+    "actions": [
+      "flag"
+    ]
+  },
+  {
+    "pattern": "Same developer + same area + different name",
+    "cluster_key": "g_same_dev_same_area",
+    "count": 19,
+    "unique_buildings": 32,
+    "examples": [
+      [
+        "Marathon Next Gen Era",
+        "Marathon Next Gen Innova"
+      ],
+      [
+        "Oberoi Esquire",
+        "Oberoi Exquisite"
+      ],
+      [
+        "Oberoi Enigma",
+        "Oberoi Eternia"
+      ]
+    ],
+    "avg_confidence": 88.0,
+    "score_range": "88\u201388",
+    "actions": [
+      "flag"
+    ]
+  },
+  {
+    "pattern": "Same area + different name",
+    "cluster_key": "i_same_area_diff_name",
+    "count": 1,
+    "unique_buildings": 2,
+    "examples": [
+      [
+        "Neelam Chs",
+        "New Neelam Apartments"
+      ]
+    ],
+    "avg_confidence": 85.0,
+    "score_range": "85\u201385",
+    "actions": [
+      "flag"
+    ]
+  }
+]

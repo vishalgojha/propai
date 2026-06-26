@@ -1,0 +1,47 @@
+# ── Space/Join Normalization Strategies ──────────────────────────
+# kb_version: 1.1
+# classification: Lexical
+# 
+# Words joined without a space are equivalent to the spaced form.
+# E.g., "Altamonte" ≡ "Alta Monte", "Metroview" ≡ "Metro View"
+#
+# Risk: Low — these are orthographic variants of the same name.
+
+strategies:
+  - id: NS-001
+    classification: "Lexical"
+    description: "Words joined without a space are equivalent to spaced form"
+    pattern:
+      type: join_variation
+    conditions:
+      same_area: required
+      same_coordinates: preferred
+    confidence: 0.98
+    false_positive_risk: low
+    rationale: "Orthographic variation only — no semantic difference"
+    approved_by: system
+    auto_apply: true
+    source_applies: ["PROPi", "MahaRERA", "Housing.com", "99acres", "MagicBricks", "WhatsApp"]
+    source_excludes: []
+    history:
+      applied: 27
+      rejected: 0
+    examples:
+      - canonical: "Alta Monte"
+        aliases: ["Altamonte"]
+      - canonical: "Primrose Tower"
+        aliases: ["Prim Rose", "Primrose"]
+      - canonical: "Mona Lisa"
+        aliases: ["Monalisa"]
+      - canonical: "Kastur Park"
+        aliases: ["Kasturpark"]
+      - canonical: "Metro View"
+        aliases: ["Metroview"]
+      - canonical: "Rainforest"
+        aliases: ["Rain Forest"]
+    provenance:
+      trigger: "PROPi data scrape — detected 9+ pairs"
+      detected_pairs: 9
+      source: "propi_buildings_clean.csv"
+      created: "2026-06-26"
+      last_updated: "2026-06-26"

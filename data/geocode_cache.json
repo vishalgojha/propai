@@ -1,0 +1,843 @@
+{
+  "Airoli": {
+    "lat": 19.1585147,
+    "lon": 72.9994019,
+    "display_name": "Airoli, Airoli Station Road, Airoli Sector 2, Airoli, Navi Mumbai, Thane Subdistrict, Thane, Maharashtra, 400708, India",
+    "pincode": "400708"
+  },
+  "Altamount Road": {
+    "lat": 18.9662492,
+    "lon": 72.8089909,
+    "display_name": "Altamount Road (S K Barodawala Marg), Breach Candy, Cumballa Hill, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400036, India",
+    "pincode": "400036"
+  },
+  "Andheri": {
+    "lat": 19.1196976,
+    "lon": 72.8464205,
+    "display_name": "Andheri, Masjid Galli, Gaondevi Dongri, Andheri West, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400069, India",
+    "pincode": "400069"
+  },
+  "Andheri East": {
+    "lat": 19.1158835,
+    "lon": 72.854202,
+    "display_name": "Andheri East, K/E Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400069, India",
+    "pincode": "400069"
+  },
+  "Andheri West": {
+    "lat": 19.1172495,
+    "lon": 72.833968,
+    "display_name": "Andheri West, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400058, India",
+    "pincode": "400058"
+  },
+  "Azad Nagar": {
+    "lat": 19.1657976,
+    "lon": 72.955893,
+    "display_name": "Azad Nagar, Mulund East, T Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400081, India",
+    "pincode": "400081"
+  },
+  "BKC": {
+    "lat": 19.0677245,
+    "lon": 72.8648464,
+    "display_name": "Mumbai BKC, Bandra Kurla Complex Road, G Block, Bandra Kurla Complex, H/E Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400098, India",
+    "pincode": "400098"
+  },
+  "Babulnath": {
+    "lat": 18.9583583,
+    "lon": 72.8069264,
+    "display_name": "Babulnath, Malabar Hill, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400036, India",
+    "pincode": "400036"
+  },
+  "Bandra": {
+    "lat": 19.0549792,
+    "lon": 72.8402203,
+    "display_name": "Bandra, Gurunanak Marg (Turner Road), Lal Mati (Lal Mitti), Khar, H/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400050, India",
+    "pincode": "400050"
+  },
+  "Bandra BKC": {
+    "lat": 19.0606629,
+    "lon": 72.8546797,
+    "display_name": "Bandra Kurla Complex (BKC), Ramakrishna Paramahansa Marg, Sant Dnyaneshwar Nagar, Bandra East, H/E Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400051, India",
+    "pincode": "400051"
+  },
+  "Bandra East": {
+    "lat": 19.0616565,
+    "lon": 72.8498111,
+    "display_name": "Bandra East, H/E Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400051, India",
+    "pincode": "400051"
+  },
+  "Bandra West": {
+    "lat": 19.0583358,
+    "lon": 72.8302669,
+    "display_name": "Bandra West, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, India",
+    "pincode": ""
+  },
+  "Belapur": {
+    "lat": 19.0051696,
+    "lon": 73.0282853,
+    "display_name": "Belapur Fort, CIDCO Guest House Road, Belapur West, Navi Mumbai, Thane Subdistrict, Thane, Maharashtra, 400706, India",
+    "pincode": "400706"
+  },
+  "Bhandup": {
+    "lat": 19.142757,
+    "lon": 72.9376543,
+    "display_name": "Bhandup, Bhandup Station Road, Bhandup West, S Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400078, India",
+    "pincode": "400078"
+  },
+  "Bhandup West": {
+    "lat": 19.1462636,
+    "lon": 72.9339461,
+    "display_name": "Bhandup West, S Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400078, India",
+    "pincode": "400078"
+  },
+  "Bhayandar": {
+    "lat": 19.1971521,
+    "lon": 72.8113662,
+    "display_name": "Bhayandar Wada, Malvani Koliwada, Marve, P/N Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400095, India",
+    "pincode": "400095"
+  },
+  "Borivali East": {
+    "lat": 19.2267228,
+    "lon": 72.8619328,
+    "display_name": "Borivali East, R/C Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400066, India",
+    "pincode": "400066"
+  },
+  "Borivali West": {
+    "lat": 19.2298129,
+    "lon": 72.8471376,
+    "display_name": "Borivali West, Dhaval Apartment, Chandavarkar Lane, Govind Nagar, Shimpoli, R/C Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400092, India",
+    "pincode": "400092"
+  },
+  "Breach Candy": {
+    "lat": 18.9714363,
+    "lon": 72.8051492,
+    "display_name": "Breach Candy, Cumballa Hill, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400026, India",
+    "pincode": "400026"
+  },
+  "Byculla": {
+    "lat": 18.9766219,
+    "lon": 72.8327936,
+    "display_name": "Byculla, N M Joshi Marg, Byculla West, E Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400027, India",
+    "pincode": "400027"
+  },
+  "Byculla West": {
+    "lat": 18.9750879,
+    "lon": 72.8282502,
+    "display_name": "Byculla West, E Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400027, India",
+    "pincode": "400027"
+  },
+  "Carmichael Road": {
+    "lat": 18.9707117,
+    "lon": 72.8104606,
+    "display_name": "Carmichael Road, Cumballa Hill, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400026, India",
+    "pincode": "400026"
+  },
+  "Chandivali": {
+    "lat": 19.1091482,
+    "lon": 72.8945793,
+    "display_name": "Chandivali, L Ward, Mumbai Zone 5, Mumbai, Mumbai Suburban District, Maharashtra, 400072, India",
+    "pincode": "400072"
+  },
+  "Chembur": {
+    "lat": 19.054818,
+    "lon": 72.8979713,
+    "display_name": "Chembur, M/W Ward, Mumbai Zone 5, Mumbai, Mumbai Suburban District, Maharashtra, 400089, India",
+    "pincode": "400089"
+  },
+  "Churchgate": {
+    "lat": 18.9354797,
+    "lon": 72.8271741,
+    "display_name": "Churchgate, Maharshi Karve Road, Churchgate, Fort, A Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400020, India",
+    "pincode": "400020"
+  },
+  "Colaba": {
+    "lat": 18.915091,
+    "lon": 72.8259691,
+    "display_name": "Colaba, A Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400005, India",
+    "pincode": "400005"
+  },
+  "Cuffe Parade": {
+    "lat": 18.9129204,
+    "lon": 72.8201377,
+    "display_name": "Cuffe Parade, Colaba, A Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, India",
+    "pincode": ""
+  },
+  "D N Nagar": {
+    "lat": 19.1282826,
+    "lon": 72.8302354,
+    "display_name": "D.N. Nagar, Jai Prakash Road, Four Bungalows, Dadabhai Naoroji Nagar, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 402205, India",
+    "pincode": "402205"
+  },
+  "Dadar": {
+    "lat": 19.0192269,
+    "lon": 72.8428479,
+    "display_name": "Dadar, Ranade Road Extension, Dadar West, G/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400028, India",
+    "pincode": "400028"
+  },
+  "Dadar East": {
+    "lat": 19.0162531,
+    "lon": 72.8522274,
+    "display_name": "Dadar East, Katrak Road, Dadar Parsi Colony, Matunga East, F/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400031, India",
+    "pincode": "400031"
+  },
+  "Dadar West": {
+    "lat": 19.0238887,
+    "lon": 72.8382236,
+    "display_name": "Dadar West, G/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400028, India",
+    "pincode": "400028"
+  },
+  "Dahisar East": {
+    "lat": 19.2486925,
+    "lon": 72.8640593,
+    "display_name": "Dahisar East, R/N Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400068, India",
+    "pincode": "400068"
+  },
+  "Dahisar West": {
+    "lat": 19.248875,
+    "lon": 72.852959,
+    "display_name": "Dahisar West, R/N Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400068, India",
+    "pincode": "400068"
+  },
+  "Dombivali": null,
+  "Dronagiri": null,
+  "Elphinstone": {
+    "lat": 18.9271684,
+    "lon": 72.8310962,
+    "display_name": "\u090f\u0932\u094d\u092b\u093f\u0928\u094d\u0938\u094d\u091f\u0928 \u0915\u0949\u0932\u0947\u091c, David Sassoon Library Marg, Kala Ghoda, Fort, A Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400032, India",
+    "pincode": "400032"
+  },
+  "Fort": {
+    "lat": 18.9332665,
+    "lon": 72.8345146,
+    "display_name": "Fort, A Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400038, India",
+    "pincode": "400038"
+  },
+  "Gamdevi": {
+    "lat": 18.9584855,
+    "lon": 72.8122522,
+    "display_name": "Gamdevi, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400036, India",
+    "pincode": "400036"
+  },
+  "Ghansoli": {
+    "lat": 19.1163797,
+    "lon": 73.0069928,
+    "display_name": "Ghansoli, Ghansoli Station Road, Sector 6, Ghansoli, Navi Mumbai, Thane Subdistrict, Thane, Maharashtra, 400701, India",
+    "pincode": "400701"
+  },
+  "Ghatkopar": {
+    "lat": 19.0856928,
+    "lon": 72.9083668,
+    "display_name": "Ghatkopar, Station Road, Kapol Wadi, Ghatkopar East, N Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400086, India",
+    "pincode": "400086"
+  },
+  "Ghatkopar East": {
+    "lat": 19.0833438,
+    "lon": 72.9123246,
+    "display_name": "Ghatkopar East, N Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400075, India",
+    "pincode": "400075"
+  },
+  "Ghatkopar West": {
+    "lat": 19.0897439,
+    "lon": 72.9048035,
+    "display_name": "Ghatkopar West, N Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400086, India",
+    "pincode": "400086"
+  },
+  "Girgaon": {
+    "lat": 18.9543165,
+    "lon": 72.8179082,
+    "display_name": "Girgaon, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400004, India",
+    "pincode": "400004"
+  },
+  "Goregaon": {
+    "lat": 19.1648688,
+    "lon": 72.8495492,
+    "display_name": "Goregaon, Station Road, Jawahar Nagar, Goregaon East, P/S Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400062, India",
+    "pincode": "400062"
+  },
+  "Goregaon East": {
+    "lat": 19.1692623,
+    "lon": 72.8552548,
+    "display_name": "Goregaon East, P/S Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400063, India",
+    "pincode": "400063"
+  },
+  "Goregaon West": {
+    "lat": 19.1633281,
+    "lon": 72.8411995,
+    "display_name": "Goregaon West, P/S Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400090, India",
+    "pincode": "400090"
+  },
+  "Grant Road": {
+    "lat": 18.9633549,
+    "lon": 72.8158261,
+    "display_name": "Grant Road, N Bharucha Marg, Gamdevi, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400036, India",
+    "pincode": "400036"
+  },
+  "Haji Ali": {
+    "lat": 18.9776392,
+    "lon": 72.8090351,
+    "display_name": "Haji Ali, Cumballa Hill, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400026, India",
+    "pincode": "400026"
+  },
+  "Hiranandani": {
+    "lat": 19.1308713,
+    "lon": 72.8133131,
+    "display_name": "Hiranandani, Sunder Wadi, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, India",
+    "pincode": ""
+  },
+  "Hughes Road": {
+    "lat": 18.9596627,
+    "lon": 72.8095439,
+    "display_name": "Hughes Road, Gamdevi, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400036, India",
+    "pincode": "400036"
+  },
+  "JVPD": {
+    "lat": 19.1111705,
+    "lon": 72.8304076,
+    "display_name": "JVPD Scheme, Juhu, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400058, India",
+    "pincode": "400058"
+  },
+  "JVPD Scheme": {
+    "lat": 19.1111705,
+    "lon": 72.8304076,
+    "display_name": "JVPD Scheme, Juhu, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400058, India",
+    "pincode": "400058"
+  },
+  "Jogeshwari": {
+    "lat": 19.1348994,
+    "lon": 72.8488199,
+    "display_name": "Jogeshwari, Station Road, Jogeshwari West, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400060, India",
+    "pincode": "400060"
+  },
+  "Jogeshwari East": {
+    "lat": 19.1429467,
+    "lon": 72.8551559,
+    "display_name": "Jogeshwari (East), Western Express Highway, Aarey Milk Colony, P/S Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400060, India",
+    "pincode": "400060"
+  },
+  "Jogeshwari West": {
+    "lat": 19.136394,
+    "lon": 72.8373817,
+    "display_name": "Jogeshwari West, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400047, India",
+    "pincode": "400047"
+  },
+  "Juhu": {
+    "lat": 19.1070215,
+    "lon": 72.8275275,
+    "display_name": "Juhu, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400058, India",
+    "pincode": "400058"
+  },
+  "Kalachowki": {
+    "lat": 18.9897271,
+    "lon": 72.8428846,
+    "display_name": "Kalachowki, Abhyudaya Nagar, F/S Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, India",
+    "pincode": ""
+  },
+  "Kalamboli": {
+    "lat": 19.0235062,
+    "lon": 73.1106092,
+    "display_name": "Central Warehousing Corporation - Kalamboli, Kalamboli, Navi Mumbai, Panvel Subdistrict, Raigad, Maharashtra, India",
+    "pincode": ""
+  },
+  "Kamothe": {
+    "lat": 19.0164338,
+    "lon": 73.0806552,
+    "display_name": "Mansarovar, Mansarovar Station Road, Jui, Navi Mumbai, Panvel Subdistrict, Raigad, Maharashtra, 410209, India",
+    "pincode": "410209"
+  },
+  "Kandivali East": {
+    "lat": 19.2051958,
+    "lon": 72.8626165,
+    "display_name": "Kandivali East, R/S Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400101, India",
+    "pincode": "400101"
+  },
+  "Kandivali West": {
+    "lat": 19.2055321,
+    "lon": 72.8399273,
+    "display_name": "Kandivali West, R/S Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400067, India",
+    "pincode": "400067"
+  },
+  "Kanjur Marg": {
+    "lat": 19.1286526,
+    "lon": 72.9280394,
+    "display_name": "Kanjur Marg, Kanjumarg Station Road, Kanjur West, S Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400042, India",
+    "pincode": "400042"
+  },
+  "Kanjurmarg East": {
+    "lat": 19.124102,
+    "lon": 72.9385562,
+    "display_name": "Kanjurmarg Flyover, Tagore Nagar, Vikhroli East, S Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400042, India",
+    "pincode": "400042"
+  },
+  "Kapurbawdi": null,
+  "Kemps Corner": {
+    "lat": 18.9637535,
+    "lon": 72.8068617,
+    "display_name": "Kemps Corner, Cumballa Hill, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400036, India",
+    "pincode": "400036"
+  },
+  "Khandeshwar": {
+    "lat": 19.0073498,
+    "lon": 73.0952827,
+    "display_name": "Khandeshwar, Khandeshwar Station Road, Navi Mumbai, Panvel Subdistrict, Raigad, Maharashtra, 410206, India",
+    "pincode": "410206"
+  },
+  "Khar": {
+    "lat": 19.0682411,
+    "lon": 72.8400412,
+    "display_name": "Khar Road, Chitrakar Durandhar Road (2nd Road), Khar, H/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400052, India",
+    "pincode": "400052"
+  },
+  "Khar West": {
+    "lat": 19.0687787,
+    "lon": 72.8261815,
+    "display_name": "Air India Apartments, Nargis Dutt Road, Pali Hill, Khar, Bandra West, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400052, India",
+    "pincode": "400052"
+  },
+  "Kharghar": {
+    "lat": 19.025773,
+    "lon": 73.0591845,
+    "display_name": "Kharghar, Kharghar Station Road, Belpada Village, Navi Mumbai, Panvel Subdistrict, Raigad, Maharashtra, 410210, India",
+    "pincode": "410210"
+  },
+  "Koparkhairne": {
+    "lat": 19.1033183,
+    "lon": 73.0112881,
+    "display_name": "Koparkhairne, Koparkhairne Station Road, Kopar Khairne, Navi Mumbai, Thane Subdistrict, Thane, Maharashtra, 400709, India",
+    "pincode": "400709"
+  },
+  "Kurla": {
+    "lat": 19.0652797,
+    "lon": 72.8793805,
+    "display_name": "Kurla, S G Barve Marg, Brahmanwadi, Kurla West, L Ward, Mumbai Zone 5, Mumbai, Mumbai Suburban District, Maharashtra, 400024, India",
+    "pincode": "400024"
+  },
+  "Kurla West": {
+    "lat": 19.0686026,
+    "lon": 72.876583,
+    "display_name": "Kurla West, L Ward, Mumbai Zone 5, Mumbai, Mumbai Suburban District, Maharashtra, 400024, India",
+    "pincode": "400024"
+  },
+  "LBS Marg": {
+    "lat": 19.084469,
+    "lon": 72.8846352,
+    "display_name": "Lal Bahadur Shastri Marg, Sunder Baug, Asalpha, L Ward, Mumbai Zone 5, Mumbai, Mumbai Suburban District, Maharashtra, 400070, India",
+    "pincode": "400070"
+  },
+  "Lake Homes": {
+    "lat": 19.1165361,
+    "lon": 72.8965357,
+    "display_name": "Lake Homes pond, Chandivali, L Ward, Mumbai Zone 5, Mumbai, Mumbai Suburban District, Maharashtra, India",
+    "pincode": ""
+  },
+  "Lalbaug": {
+    "lat": 18.9914237,
+    "lon": 72.8364587,
+    "display_name": "Lalbaug, F/S Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400011, India",
+    "pincode": "400011"
+  },
+  "Lokhandwala": {
+    "lat": 19.1430985,
+    "lon": 72.8246055,
+    "display_name": "Lokhandwala Complex, Sunder Wadi, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, India",
+    "pincode": ""
+  },
+  "Lower Parel": {
+    "lat": 18.99568,
+    "lon": 72.8302756,
+    "display_name": "Lower Parel, Delisle Road ROB, BDD Chawl, Lower Parel, G/S Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400013, India",
+    "pincode": "400013"
+  },
+  "Madhu Park": {
+    "lat": 19.0715196,
+    "lon": 72.835665,
+    "display_name": "Madhu Park, Khar, Bandra West, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, India",
+    "pincode": ""
+  },
+  "Mahalakshmi": {
+    "lat": 18.9892129,
+    "lon": 72.8186798,
+    "display_name": "Mahalakshmi, G/S Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400018, India",
+    "pincode": "400018"
+  },
+  "Mahim": {
+    "lat": 19.0423145,
+    "lon": 72.8398344,
+    "display_name": "Mahim, G/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400016, India",
+    "pincode": "400016"
+  },
+  "Mahim West": {
+    "lat": 19.0390722,
+    "lon": 72.8501829,
+    "display_name": "India Post, Jasmine Mill Road, Dharavi, Mahim, G/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400016, India",
+    "pincode": "400016"
+  },
+  "Malabar Hill": {
+    "lat": 18.9581616,
+    "lon": 72.8033665,
+    "display_name": "Malabar Hill, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400036, India",
+    "pincode": "400036"
+  },
+  "Malad": {
+    "lat": 19.1867193,
+    "lon": 72.8485884,
+    "display_name": "Malad, Kasturba Road, Rai Pada, Malad West, P/N Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400064, India",
+    "pincode": "400064"
+  },
+  "Malad East": {
+    "lat": 19.1860219,
+    "lon": 72.8563181,
+    "display_name": "Malad East, P/N Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400097, India",
+    "pincode": "400097"
+  },
+  "Malad West": {
+    "lat": 19.1852851,
+    "lon": 72.8358611,
+    "display_name": "Malad (West), Link Road, Malad West, P/N Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400064, India",
+    "pincode": "400064"
+  },
+  "Marine Drive": {
+    "lat": 18.9498157,
+    "lon": 72.8188148,
+    "display_name": "Marine Drive, Girgaon, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400020, India",
+    "pincode": "400020"
+  },
+  "Marine Lines": {
+    "lat": 18.945764,
+    "lon": 72.8237193,
+    "display_name": "Marine Lines, Maharshi Karve Road, Navjeevan Wadi, Kalbadevi, C Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400020, India",
+    "pincode": "400020"
+  },
+  "Matunga": {
+    "lat": 19.0274356,
+    "lon": 72.8501467,
+    "display_name": "Matunga, Bhandarkar Road, Matunga East, F/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400019, India",
+    "pincode": "400019"
+  },
+  "Matunga East": {
+    "lat": 19.0261579,
+    "lon": 72.8520846,
+    "display_name": "Matunga East, F/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400019, India",
+    "pincode": "400019"
+  },
+  "Matunga West": {
+    "lat": 19.0317259,
+    "lon": 72.8433917,
+    "display_name": "Matunga West, G/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400016, India",
+    "pincode": "400016"
+  },
+  "Mazgaon": {
+    "lat": 18.9697337,
+    "lon": 72.8406201,
+    "display_name": "Mazgaon, E Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 200008, India",
+    "pincode": "200008"
+  },
+  "Mira Road": {
+    "lat": 19.1878962,
+    "lon": 72.8365955,
+    "display_name": "Apex Kidney Care Pvt. Ltd (Mira Road), Link Road, Orlem, P/N Ward, Mumbai Zone 4, Mumbai, Thane, Maharashtra, 400601, India",
+    "pincode": "400601"
+  },
+  "Mira Road East": null,
+  "Mulund": {
+    "lat": 19.1721366,
+    "lon": 72.9566971,
+    "display_name": "Mulund, Platform 4, Vijay Nagar, Mulund East, T Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400081, India",
+    "pincode": "400081"
+  },
+  "Mulund East": {
+    "lat": 19.1704719,
+    "lon": 72.9610447,
+    "display_name": "Mulund East, T Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400081, India",
+    "pincode": "400081"
+  },
+  "Mulund West": {
+    "lat": 19.1719717,
+    "lon": 72.9511956,
+    "display_name": "Mulund West, T Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400080, India",
+    "pincode": "400080"
+  },
+  "Mumbai Central": {
+    "lat": 18.9695855,
+    "lon": 72.8193152,
+    "display_name": "Mumbai Central, J Boman Behram Marg, Tardeo, E Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400004, India",
+    "pincode": "400004"
+  },
+  "Nana Chowk": {
+    "lat": 18.9620987,
+    "lon": 72.8123371,
+    "display_name": "Nana Chowk, August Kranti Marg, Gamdevi, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400036, India",
+    "pincode": "400036"
+  },
+  "Nariman Point": {
+    "lat": 18.927089,
+    "lon": 72.8235859,
+    "display_name": "Nariman Point, Colaba, A Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400021, India",
+    "pincode": "400021"
+  },
+  "Near Thakur Mall Highway": null,
+  "Nepean Sea Road": {
+    "lat": 18.9590583,
+    "lon": 72.8035239,
+    "display_name": "off Nepean Sea Road, Malabar Hill, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400036, India",
+    "pincode": "400036"
+  },
+  "Nerul": {
+    "lat": 19.0335938,
+    "lon": 73.018164,
+    "display_name": "Nerul, Mata Amritanandamayi Marg, Nerul Village, Nerul West, Navi Mumbai, Thane Subdistrict, Thane, Maharashtra, 400706, India",
+    "pincode": "400706"
+  },
+  "New Marine Lines": {
+    "lat": 18.9335732,
+    "lon": 72.8284093,
+    "display_name": "Western Railways Headquarters, Vithaldas Thackersey Marg, Churchgate, Fort, A Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400020, India",
+    "pincode": "400020"
+  },
+  "New Panvel": {
+    "lat": 18.9982037,
+    "lon": 73.1236641,
+    "display_name": "Indian Oil, New Panvel, Matheran Road, New Panvel, Navi Mumbai, Panvel Subdistrict, Raigad, Maharashtra, 410206, India",
+    "pincode": "410206"
+  },
+  "Opera House": {
+    "lat": 18.9560477,
+    "lon": 72.8155711,
+    "display_name": "Royal Opera House, Mama Paramanand Marg, Girgaon, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400004, India",
+    "pincode": "400004"
+  },
+  "Oshiwara": {
+    "lat": 19.1502437,
+    "lon": 72.8342294,
+    "display_name": "Oshiwara, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400102, India",
+    "pincode": "400102"
+  },
+  "Oshiwara Andheri West": {
+    "lat": 19.1482697,
+    "lon": 72.8316484,
+    "display_name": "Pair A Dice Boardgames Cafe, 53, Bhau Tatoba Toraskar Marg, Adarsh Nagar, Oshiwara, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400102, India",
+    "pincode": "400102"
+  },
+  "Pali Hill": {
+    "lat": 19.0649126,
+    "lon": 72.8270326,
+    "display_name": "Pali Hill, Khar, Bandra West, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400050, India",
+    "pincode": "400050"
+  },
+  "Pant Nagar": {
+    "lat": 19.0833305,
+    "lon": 72.9115042,
+    "display_name": "Pant Nagar, Ghatkopar East, N Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400075, India",
+    "pincode": "400075"
+  },
+  "Parel": {
+    "lat": 19.0084268,
+    "lon": 72.842505,
+    "display_name": "Parel, F/S Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400028, India",
+    "pincode": "400028"
+  },
+  "Peddar Road": {
+    "lat": 18.9764005,
+    "lon": 72.8090657,
+    "display_name": "Gopalrao Deshmukh Marg, Haji Ali, Cumballa Hill, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400026, India",
+    "pincode": "400026"
+  },
+  "Powai": {
+    "lat": 19.1187195,
+    "lon": 72.9073476,
+    "display_name": "Powai, S Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400076, India",
+    "pincode": "400076"
+  },
+  "Prabhadevi": {
+    "lat": 19.0074717,
+    "lon": 72.8358965,
+    "display_name": "Prabhadevi, Elphinstone Bridge, Dadar West, G/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400013, India",
+    "pincode": "400013"
+  },
+  "Raheja Vihar": {
+    "lat": 19.1191663,
+    "lon": 72.8951234,
+    "display_name": "Raheja Vihar Circular Road, Chandivali, L Ward, Mumbai Zone 5, Mumbai, Mumbai Suburban District, Maharashtra, India",
+    "pincode": ""
+  },
+  "Ram Mandir": {
+    "lat": 19.151023,
+    "lon": 72.8501467,
+    "display_name": "Ram Mandir, Ram Mandir Road, Goregaon West, P/S Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400104, India",
+    "pincode": "400104"
+  },
+  "Samartha": {
+    "lat": 19.1456612,
+    "lon": 72.8291065,
+    "display_name": "Samartha Aishwarya, Oshiwara, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, India",
+    "pincode": ""
+  },
+  "Sanpada": {
+    "lat": 19.0659774,
+    "lon": 73.0095329,
+    "display_name": "Sanpada, Sanpada Station Road, Sanpada, Navi Mumbai, Thane Subdistrict, Thane, Maharashtra, 400706, India",
+    "pincode": "400706"
+  },
+  "Santacruz": {
+    "lat": 19.0796105,
+    "lon": 72.8470573,
+    "display_name": "Santacruz, Kalina-Vakola Flyover, Anand Nagar, Golibar, H/E Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400055, India",
+    "pincode": "400055"
+  },
+  "Santacruz East": {
+    "lat": 19.0781806,
+    "lon": 72.8677752,
+    "display_name": "Mary Immaculate Girls' High School, church road santacruz (east), Church Road, Kolivery Village, Kalina, H/E Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400029, India",
+    "pincode": "400029"
+  },
+  "Santacruz West": {
+    "lat": 19.0844004,
+    "lon": 72.8372899,
+    "display_name": "Santacruz West, H/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400054, India",
+    "pincode": "400054"
+  },
+  "Seven Bungalow": null,
+  "Sewri": {
+    "lat": 18.9987796,
+    "lon": 72.8544218,
+    "display_name": "Sewri, Eastern Freeway, Sadbhavana Nagar, Sewri, F/S Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400015, India",
+    "pincode": "400015"
+  },
+  "Shivaji Park": {
+    "lat": 19.0272788,
+    "lon": 72.8383977,
+    "display_name": "Shivaji Park, Dadar West, G/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400028, India",
+    "pincode": "400028"
+  },
+  "Sion": {
+    "lat": 19.0465213,
+    "lon": 72.8632834,
+    "display_name": "Sion, Sion Bandra Link Road, Sion East, G/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400051, India",
+    "pincode": "400051"
+  },
+  "Sion East": {
+    "lat": 19.0428153,
+    "lon": 72.8653563,
+    "display_name": "Sion East, F/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400022, India",
+    "pincode": "400022"
+  },
+  "Tardeo": {
+    "lat": 18.9722351,
+    "lon": 72.8203423,
+    "display_name": "Tardeo, E Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400026, India",
+    "pincode": "400026"
+  },
+  "Thakur Village": {
+    "lat": 19.2097189,
+    "lon": 72.8759248,
+    "display_name": "Thakur Village, R/S Ward, Mumbai Zone 4, Mumbai, Mumbai Suburban District, Maharashtra, 400101, India",
+    "pincode": "400101"
+  },
+  "Thane": {
+    "lat": 19.1131271,
+    "lon": 72.962701,
+    "display_name": "Thane Creek Flamingo WLS, Mumbai Zone 6, Mumbai, Thane Subdistrict, Mumbai Suburban District, Maharashtra, India",
+    "pincode": ""
+  },
+  "Thane West": {
+    "lat": 19.2596635,
+    "lon": 72.9690861,
+    "display_name": "Healing Hands Clinic - Thane West, Cosmos Jewels, 3rd floor, near Dmart, opp. Muchhala College, Ghodbunder Service Road, Anand Nagar, Mumbai, Thane Subdistrict, Thane, Maharashtra, 400615, India",
+    "pincode": "400615"
+  },
+  "Ulwe": null,
+  "Vashi": {
+    "lat": 19.0632481,
+    "lon": 72.9987966,
+    "display_name": "Vashi, Vashi Station Road, Vashi, Navi Mumbai, Thane Subdistrict, Thane, Maharashtra, 400703, India",
+    "pincode": "400703"
+  },
+  "Veera Desai": {
+    "lat": 19.1344232,
+    "lon": 72.8353783,
+    "display_name": "Amazon Retail India Private Limited, 7B, Shah Industrial Estate, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400053, India",
+    "pincode": "400053"
+  },
+  "Versova": {
+    "lat": 19.1302521,
+    "lon": 72.8213775,
+    "display_name": "Versova, Balasaheb Sawant Road, Seven Bungalows, Versova, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400061, India",
+    "pincode": "400061"
+  },
+  "Vikhroli": {
+    "lat": 19.1114795,
+    "lon": 72.928021,
+    "display_name": "Vikhroli, \u092a\u0940. \u0938\u094b\u092e\u0928 \u092e\u093e\u0930\u094d\u0917, Hariyali, Vikhroli West, S Ward, Mumbai Zone 6, Mumbai, Mumbai Suburban District, Maharashtra, 400059, India",
+    "pincode": "400059"
+  },
+  "Vile Parle East": {
+    "lat": 19.1097455,
+    "lon": 72.8365427,
+    "display_name": "Central Bank of India ATM, East West Road No 3, JVPD Scheme, Juhu, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400058, India",
+    "pincode": "400058"
+  },
+  "Vile Parle West": {
+    "lat": 19.103908,
+    "lon": 72.840301,
+    "display_name": "Vile Parle West, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400057, India",
+    "pincode": "400057"
+  },
+  "Virar": {
+    "lat": 19.5175313,
+    "lon": 72.8497261,
+    "display_name": "Virar - Dahanu Road Quadrupling, Mumbai - Vadodara Expressway, Vaitarna, Vasai-Virar, Vasai Subdistrict, Palghar, Maharashtra, 401102, India",
+    "pincode": "401102"
+  },
+  "Wadala": {
+    "lat": 19.0269192,
+    "lon": 72.8759337,
+    "display_name": "Wadala, F/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400037, India",
+    "pincode": "400037"
+  },
+  "Wadala East": {
+    "lat": 19.0210175,
+    "lon": 72.8568955,
+    "display_name": "nkes jr college, wadala, Nathalal Parekh Road, Wadala Village, Matunga East, F/N Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400031, India",
+    "pincode": "400031"
+  },
+  "Walkeshwar": {
+    "lat": 18.9524203,
+    "lon": 72.8038935,
+    "display_name": "Walkeshwar, Malabar Hill, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400006, India",
+    "pincode": "400006"
+  },
+  "Warden Road": {
+    "lat": 18.9751856,
+    "lon": 72.8064834,
+    "display_name": "Warden Road (Bhula Bhai Desai Marg), Haji Ali, Cumballa Hill, D Ward, Mumbai Zone 1, Mumbai, Mumbai City District, Maharashtra, 400026, India",
+    "pincode": "400026"
+  },
+  "Worli": {
+    "lat": 19.0117388,
+    "lon": 72.8178706,
+    "display_name": "Worli, G/S Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400030, India",
+    "pincode": "400030"
+  },
+  "Worli Naka": {
+    "lat": 18.9869676,
+    "lon": 72.8285467,
+    "display_name": "Worli Naka Upper Primary School-Tamil, Junior Boricha Marg, Shantinagar, Mahalakshmi, G/S Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400027, India",
+    "pincode": "400027"
+  },
+  "Worli Sea Face": {
+    "lat": 19.0098234,
+    "lon": 72.8153582,
+    "display_name": "Khan Abdul Gaffar Khan Marg, Worli, G/S Ward, Mumbai Zone 2, Mumbai, Mumbai City District, Maharashtra, 400030, India",
+    "pincode": "400030"
+  },
+  "Yamuna Nagar": {
+    "lat": 19.1481254,
+    "lon": 72.827599,
+    "display_name": "Yamuna Nagar, Oshiwara, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400053, India",
+    "pincode": "400053"
+  },
+  "Yari Road": {
+    "lat": 19.1393455,
+    "lon": 72.8072764,
+    "display_name": "Yari Road, Mangal Nagar, Sunder Wadi, K/W Ward, Mumbai Zone 3, Mumbai, Mumbai Suburban District, Maharashtra, 400061, India",
+    "pincode": "400061"
+  }
+}

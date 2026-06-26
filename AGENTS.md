@@ -47,7 +47,7 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
 
 ### Pending Actions
 
-- None — Project Hub migration applied, WABA webhook enabled by default.
+- **Redeploy ALL services** after pushing — changes since last deploy touch API (activation code length 8→4), App (Login.tsx, McpAuthorize page, sidebar), MCP (HTML auth page, device authorize endpoint, smartSearch fix), WWW (broker contact card, AI description), Evolution API (needs restart).
 
 ### Backfill Status
 
@@ -57,6 +57,11 @@ PropAI uses the official Meta WhatsApp Business Platform (WABA) only. The API se
 - The `is("embedding", null)` filter doesn't work on pgvector columns via PostgREST — the backfill re-processes ALL rows including existing embeddings, so it's idempotent but wasteful.
 
 ### Completed in This Session
+
+- **MCP Device Code authorize endpoint + app authorize page** — Added `POST /device/authorize` handler in `oauth.ts` that lets an authenticated app user approve a device code by providing `user_code` + `Authorization: Bearer <token>`. Created `/mcp-authorize` page at `apps/app/src/views/McpAuthorize.tsx` — users enter their PROP-ABCD code, page sends their session JWT to authorize the device. Route mounted at `apps/app/app/(public)/mcp-authorize/page.tsx`. Commit `bf2c11ce`.
+- **MCP GET /authorize now returns HTML page** — Instead of returning raw JSON, the endpoint now renders a full dark-themed HTML page showing the device code prominently with a "Authorize with PropAI App" button (opens app.propai.live/mcp-authorize) and an email/password fallback form. Commit `a9a978a7`.
+- **MCP Authorize sidebar nav** — Added "MCP Authorize" entry to the app sidebar linking directly to `/mcp-authorize`. Commit `a9a978a7`.
+- **www listing page broker contact + AI description** — Added broker contact card with name, phone, and wa.me link in the sidebar. Simplified "About this listing" fallback to remove robotic meta-commentary. Commit `888bf608`.
 
 - **Project Hub (app.propai.live)** — New `Project Hub` sidebar nav item linking to `/projects` (search/browse) and `/projects/[slug]` (detail). B2B broker-facing platform with:
   - Supabase migration: `developer_projects`, `project_inventory`, `project_contacts`, `project_resources`, `project_updates`, `project_broker_resources` tables with RLS

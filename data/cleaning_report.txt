@@ -1,0 +1,745 @@
+=== CLEANING REPORT ===
+
+Input rows: 4850
+After merge: 4800
+Rows merged/deduped: 50
+
+--- Changes applied ---
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Lodha Bellissimo)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Prestige Jasdan Classic)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Piramal Mahalaxmi)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Planet Godrej)
+  LOCATION: 'Bandra Kurla Complex' → 'BKC'  (Omkar Vive)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Prestige Turf Tower)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Lodha Primero)
+  LOCATION: 'Bandra Kurla Complex' → 'BKC'  (The Capital)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Lokhandwala Minerva)
+  LOCATION: 'Bandra Kurla Complex' → 'BKC'  (INS Tower)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Piramal Mahalaxmi Central Tower)
+  LOCATION: 'Bandra Kurla Complex' → 'BKC'  (Madhava)
+  LOCATION: 'Bandra Kurla Complex' → 'BKC'  (One BKC)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Raheja Vivarea)
+  LOCATION: 'Hiranandani Gardens Powai' → 'Powai'  (Glen Gate)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Kshitij)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Piramal Mahalaxmi South Tower)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Prestige Turf)
+  LOCATION: 'Yari Road, Andheri West' → 'Yari Road'  (Mangal Orchid)
+  LOCATION: 'Lower Parel West' → 'Lower Parel'  (Phoenix Tower)
+  LOCATION: 'Bandra (w)' → 'Bandra West'  (Kalpak Optimus)
+  LOCATION: 'Lower Parel East' → 'Lower Parel'  (One Avighna Park)
+  LOCATION: 'Pedder Road' → 'Peddar Road'  (Rijhumal Mansion)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Minerva)
+  LOCATION: 'Sewree' → 'Sewri'  (Celestia Spaces)
+  LOCATION: 'Bandra Kurla Complex' → 'BKC'  (Omkar Meridia)
+  LOCATION: 'Grant road' → 'Grant Road'  (The Primordial House)
+  LOCATION: 'Lower Parel West' → 'Lower Parel'  (Lodha World Crest)
+  LOCATION: 'Lokhandwala complex back road' → 'Lokhandwala'  (Meghdoot Apt)
+  LOCATION: 'Lokhandwala market' → 'Lokhandwala'  (Parijat)
+  LOCATION: 'Versova, Andheri West' → 'Versova'  (Arshie Complex)
+  LOCATION: 'Versova, Andheri West' → 'Versova'  (Akansha)
+  LOCATION: 'Oshiwara, Andheri West' → 'Oshiwara'  (Shiv Shivam Tower)
+  LOCATION: 'Bandra Kurla Complex' → 'BKC'  (The Metropolitan)
+  LOCATION: 'Sewri West' → 'Sewri'  (Rushabh Tower)
+  LOCATION: 'Pedder Road' → 'Peddar Road'  (Marlboro House)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Nirman Kendra)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Laxmi Vilas)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Ashutosh)
+  LOCATION: 'BKC Annex' → 'BKC'  (Rustomjee Seasons)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Minerva Tower)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Piramal Mahalaxmi Central)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Raj Mala)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Om Dariya Mahal)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Rubans)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Belvedere Court)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Tahnee Heights)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Monolith)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Belmont)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Sagar Kunj)
+  LOCATION: 'Bandra Kurla Complex' → 'BKC'  (Pinnacle Corporate Park)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Malabar Apartment)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Brij Kutir)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Bhaktawar Annexe)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Embassy Apartments)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Raheja Vivarea Tower E)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (25 Downtown)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Lodha Excelus)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Shanti Nagar)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Lodha Bellevue)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Matru Ashish)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Dariya Mahal)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Brighton)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Apurva)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Gulmarg)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Orbit Arya)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Fortune Mignas)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Aryavarta)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Chandralok)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Piramal Mahalaxmi North Tower)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Shripal Nagar Building)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Kinjal Tower)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (1️⃣ Gitanjali Apartment, Seven Bungalows)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Diamond Court)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Lodha Primero - Mahalaxmi)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Prestige Jasdan)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Thanks & Regards)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Mahalaxmi Prestige Jasdan Classic)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Eden Wood, Shastri)
+  LOCATION: 'Bandra Kurla Complex' → 'BKC'  (Laxmi Tower)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Mahalaxmi Height)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Videocon House)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Raheja Regale)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Almas Apartment)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Kalpataru Heights)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Ion House)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Nepean House)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (La View)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Runwal Residence)
+  LOCATION: 'Bandra Kurla Complex' → 'BKC'  (Naman Centre)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Runwal 7 Mahalaxmi)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Godrej Avenue Eleven B)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Lodha Costiera)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Punam)
+  LOCATION: 'Nepeansea Road' → 'Nepean Sea Road'  (Kalpataru Kshitij)
+  LOCATION: 'Mahalaxmi' → 'Mahalakshmi'  (Siddhivinayak Darshan)
+  LOCATION: 'Bandra Kurla Complex' → 'BKC'  (Adani Inspire)
+  BUILDING: 'India Bulls Sky Forest' → 'Indiabulls Sky Forest'
+  BUILDING: '9 JVPD' → '9 Jvpd'
+  BUILDING: 'Dgs Sheetal Regalia' → 'DGS Sheetal Regalia'
+  BUILDING: 'Orion west' → 'Orion West'
+  BUILDING: 'Ashok Garden' → 'Ashok Gardens'
+  BUILDING: 'Indiabulls Skyforest' → 'Indiabulls Sky Forest'
+  BUILDING: 'Rustomjee Season' → 'Rustomjee Seasons'
+  BUILDING: 'Ashok Garden' → 'Ashok Gardens'
+  BUILDING: "Gold's Green" → 'Golds Green'
+  BUILDING: 'Ins Tower' → 'INS Tower'
+  BUILDING: 'Hdil Metropolis' → 'HDIL Metropolis'
+  BUILDING: 'Indiabulls Skyforest' → 'Indiabulls Sky Forest'
+  BUILDING: 'BKC-X' → 'Bkc-x'
+  BUILDING: 'Sandhu palace' → 'Sandhu Palace'
+  BUILDING: 'Geetanjali Chs' → 'Geetanjali CHS'
+  BUILDING: 'Lodha Belair' → 'Lodha Bel Air'
+  BUILDING: 'Rustomjee Season' → 'Rustomjee Seasons'
+  BUILDING: 'AISHWARYA CHS' → 'Aishwarya CHS'
+  BUILDING: 'DUNHILL APARTMENT' → 'Dunhill Apartment'
+  BUILDING: 'DHEERAJ GAURAV HEIGHTS' → 'Dheeraj Gaurav Heights'
+  BUILDING: 'PRIVATE BUILDING' → 'Private Building'
+  BUILDING: 'MANJU TOWER CHS' → 'Manju Tower CHS'
+  BUILDING: 'K L ASTORIA' → 'K L Astoria'
+  BUILDING: 'INDRADARSHAN' → 'Indradarshan'
+  BUILDING: 'ANTARIKSH' → 'Antariksh'
+  BUILDING: 'ANMOL TOWERS' → 'Anmol Towers'
+  BUILDING: 'LINK PLAZA' → 'Link Plaza'
+  BUILDING: 'GOLDEN CHARRIOT' → 'Golden Charriot'
+  BUILDING: 'JOY LEGEND' → 'Joy Legend'
+  BUILDING: 'JUHU SAMEEP' → 'Juhu Sameep'
+  BUILDING: 'VENUS' → 'Venus'
+  BUILDING: 'New MHADA' → 'New Mhada'
+  BUILDING: 'New MHADA' → 'New Mhada'
+  BUILDING: 'Rushabh tower' → 'Rushabh Tower'
+  BUILDING: 'Duplex heights' → 'Duplex Heights'
+  BUILDING: 'Crystal plaza' → 'Crystal Plaza'
+  BUILDING: 'Jawaharban Chs' → 'Jawaharban CHS'
+  BUILDING: 'Lotus ARC One' → 'Lotus Arc One'
+  BUILDING: 'Buena vista' → 'Buena Vista'
+  BUILDING: 'EL Signora' → 'El Signora'
+  BUILDING: 'Sea lord' → 'Sea Lord'
+  BUILDING: '7 JVPD' → '7 Jvpd'
+  BUILDING: 'LARKINS 315' → 'Larkins 315'
+  BUILDING: 'ARKADE CROWN' → 'Arkade Crown'
+  BUILDING: 'JVLR 60' → 'Jvlr 60'
+  BUILDING: 'Lodha World ONE' → 'Lodha World One'
+  BUILDING: 'India Bulls Blu' → 'Indiabulls Blu'
+  BUILDING: 'Dlf The Crest' → 'DLF The Crest'
+  BUILDING: 'India Bulls BLU' → 'Indiabulls Blu'
+  BUILDING: 'BAY View Terraces' → 'Bay View Terraces'
+  BUILDING: 'L&T Crescent BAY' → 'L&T Crescent Bay'
+  BUILDING: 'Indiabulls SKY' → 'Indiabulls Sky'
+  BUILDING: 'Level THE Residences' → 'Level The Residences'
+  BUILDING: 'Indiabulls SKY Forest' → 'Indiabulls Sky Forest'
+  BUILDING: 'JK IRIS' → 'JK Iris'
+  BUILDING: 'AVENUE 14  FOR LEASE AT DADAR EAST' → 'Avenue 14 For Lease At Dadar East'
+  BUILDING: 'Lodha Belair' → 'Lodha Bel Air'
+
+--- Merge log ---
+  Ashok Gardens @ Sewri: duplicate row removed
+  Ashok Gardens @ —: duplicate row removed
+  Bay View Terraces @ Prabhadevi: duplicate row removed
+  Celestia Spaces @ Sewri: duplicate row removed
+  DGS Sheetal Regalia @ Borivali East: duplicate row removed
+  DLF The Crest @ Dadar West: duplicate row removed
+  Dariya Mahal @ Nepean Sea Road: duplicate row removed
+  Dheeraj Gaurav Heights @ Andheri West: duplicate row removed
+  Duplex Heights @ Andheri West: duplicate row removed
+  El Signora @ Andheri West: duplicate row removed
+  Glen Gate @ Powai: duplicate row removed
+  Golds Green @ Andheri West: duplicate row removed
+  HDIL Metropolis @ Andheri West: duplicate row removed
+  Indiabulls Blu @ Worli: duplicate row removed
+  Indiabulls Blu @ Worli: duplicate row removed
+  Indiabulls Sky @ Lower Parel: duplicate row removed
+  Indiabulls Sky Forest @ Lower Parel: duplicate row removed
+  Indiabulls Sky Forest @ Lower Parel: duplicate row removed
+  Indiabulls Sky Forest @ Prabhadevi: duplicate row removed
+  Indradarshan @ Oshiwara: duplicate row removed
+  Jawaharban CHS @ Andheri West: duplicate row removed
+  Joy Legend @ Bandra West: duplicate row removed
+  Juhu Sameep @ Juhu: duplicate row removed
+  K L Astoria @ Bandra West: duplicate row removed
+  L&T Crescent Bay @ Parel: duplicate row removed
+  Level The Residences @ Andheri West: duplicate row removed
+  Lodha Bel Air @ Jogeshwari: duplicate row removed
+  Lodha Bel Air @ —: duplicate row removed
+  Lodha World Crest @ Lower Parel: duplicate row removed
+  Lodha World One @ Lower Parel: duplicate row removed
+  Lokhandwala Minerva @ Mahalakshmi: duplicate row removed
+  Lotus Arc One @ Andheri West: duplicate row removed
+  Malabar Apartment @ Nepean Sea Road: duplicate row removed
+  Marlboro House @ Peddar Road: duplicate row removed
+  Naman Centre @ BKC: duplicate row removed
+  New Mhada @ Andheri West: duplicate row removed
+  One Avighna Park @ Lower Parel: duplicate row removed
+  Orion West @ Santacruz West: duplicate row removed
+  Parijat @ Lokhandwala: duplicate row removed
+  Phoenix Tower @ Lower Parel: duplicate row removed
+  Rijhumal Mansion @ Peddar Road: duplicate row removed
+  Rushabh Tower @ Andheri West: duplicate row removed
+  Rushabh Tower @ Sewri: duplicate row removed
+  Rustomjee Seasons @ BKC: duplicate row removed
+  Rustomjee Seasons @ BKC: duplicate row removed
+  Rustomjee Seasons @ Bandra East: duplicate row removed
+  Sandhu Palace @ Bandra West: duplicate row removed
+  Sea Lord @ Cuffe Parade: duplicate row removed
+  The Capital @ BKC: duplicate row removed
+  The Primordial House @ Grant Road: duplicate row removed
+
+--- Same building in 2+ locations (389) ---
+  Valencia → ['Andheri West', 'Hiranandani', 'Juhu', 'Kalamboli', 'Powai', 'Santacruz West']
+  Lodha Supremus → ['Andheri East', 'Lower Parel', 'Powai', 'Wadala', 'Worli']
+  Rustomjee Seasons → ['BKC', 'Bandra', 'Bandra East', '—']
+  Harmony → ['Bandra West', 'Goregaon West', 'Powai', 'Raheja Vihar']
+  Sweet Home → ['Andheri West', 'Bandra West', 'Juhu', 'Lokhandwala']
+  Trinity → ['Khar', 'Khar West', 'Madhu Park', 'Powai']
+  Panchsheel → ['Andheri West', 'Goregaon East', 'Kandivali West', '—']
+  Venus → ['Andheri West', 'Cuffe Parade', 'Matunga', 'Worli']
+  Indiabulls Sky Forest → ['Elphinstone', 'Lower Parel', 'Prabhadevi']
+  Mohini Castle → ['Bandra West', 'Khar West', '—']
+  Kanakia Paris → ['BKC', 'Bandra East', '—']
+  One Avighna Park → ['Lower Parel', 'Parel', '—']
+  Prestige Jasdan Classic → ['Byculla West', 'Mahalakshmi', '—']
+  L&T Crescent Bay → ['Parel', 'Sewri', '—']
+  Kalpataru Magnus → ['BKC', 'Bandra East', '—']
+  Chitra → ['Santacruz', 'Santacruz West', '—']
+  The Park → ['Andheri West', 'Worli', '—']
+  Lodha Bel Air → ['Jogeshwari', 'Jogeshwari West', '—']
+  Royal Accord → ['Andheri West', 'Dadar West', 'Prabhadevi']
+  Crystal Plaza → ['Andheri East', 'Andheri West', 'Bandra']
+  Parijat → ['Bandra West', 'Lokhandwala', 'Vile Parle West']
+  Kalpana → ['Bandra West', 'Khar West', 'Santacruz West']
+  Jupiter → ['Altamount Road', 'Cuffe Parade', 'Thane West']
+  Orchid Enclave → ['Chandivali', 'Mumbai Central', 'Powai']
+  Runwal Forest → ['Bhandup West', 'Kanjur Marg', '—']
+  Sunny Side → ['Andheri West', 'Bandra West', '—']
+  Lodha Parkside → ['Lower Parel', 'Worli', '—']
+  Godrej Urban Park → ['Chandivali', 'Powai', '—']
+  Sagar Darshan → ['Breach Candy', 'Khar West', 'Santacruz West']
+  Legend → ['Andheri West', 'Bandra West', 'Santacruz East']
+  Rustomjee Paramount → ['Khar', 'Khar West', '—']
+  Lodha Park → ['Lower Parel', 'Worli', '—']
+  Windermere → ['Andheri West', 'Bandra West', 'Santacruz West']
+  INS Tower → ['BKC', 'Bandra BKC', '—']
+  Venus Apartment → ['Altamount Road', 'Andheri West', 'Worli']
+  Beverly Park → ['Mira Road', 'Mira Road East', 'Nerul']
+  Lodha Signet → ['Kanjurmarg East', 'Lower Parel', 'Matunga']
+  Vardhaman Estate → ['Dadar West', 'Lalbaug', 'Parel']
+  Marble Arch → ['Andheri West', 'Bandra West', 'Santacruz West']
+  Vicinia → ['Chandivali', 'Powai', '—']
+  Raheja Classic → ['Andheri West', 'Lokhandwala', '—']
+  Kanakia Zillion → ['Kurla', 'LBS Marg', 'Powai']
+  Nishat → ['Malabar Hill', 'Tardeo', 'Walkeshwar']
+  Heritage → ['Bandra West', 'Ghatkopar West', 'Malad West']
+  The Gateway → ['Andheri West', 'Mulund West', '—']
+  Kastur Park → ['Borivali West', 'Virar', '—']
+  Joy Legend → ['Bandra West', 'Khar West', '—']
+  Shubham → ['Andheri West', 'Kandivali West', 'Pant Nagar']
+  Atlanta → ['Nariman Point', 'Prabhadevi', 'Santacruz West']
+  Oberoi Spring → ['Andheri West', 'Lokhandwala', '—']
+  Gundecha Trillium → ['Kandivali East', 'Thakur Village', '—']
+  Lodha Allura → ['Lower Parel', 'Worli', '—']
+  Makhija Arcade → ['Bandra', 'Bandra West', 'Khar West']
+  Silver Arch → ['Andheri East', 'Andheri West', '—']
+  Krishna Kunj → ['Ghansoli', 'Khar West', 'Vile Parle East']
+  Naman Midtown → ['Lower Parel', 'Prabhadevi', '—']
+  Rishabh Tower → ['Andheri West', 'Parel', 'Prabhadevi']
+  Woodstock → ['Andheri West', 'Khar West', 'Santacruz West']
+  Arihant → ['Bhandup', 'Khar West', 'Vile Parle West']
+  Kingston Tower → ['Malad West', 'Parel', 'Sewri']
+  Meera → ['Andheri West', 'Santacruz West', 'Walkeshwar']
+  Atlantis → ['Andheri West', 'Ghansoli', 'Powai']
+  Residency → ['Bandra West', 'Ghatkopar West', 'Thane West']
+  Sapphire → ['Kalamboli', 'Khar West', 'Santacruz West']
+  Lodha Marquise → ['Worli', '—']
+  Lodha Trump Tower → ['Lower Parel', 'Worli']
+  Rustomjee Crown → ['Prabhadevi', '—']
+  Link Garden Tower → ['Andheri West', 'Yamuna Nagar']
+  Azumi → ['Khar', 'Khar West']
+  Dosti Flamingos → ['Parel', 'Sewri']
+  Chaitanya Tower → ['Prabhadevi', '—']
+  Lodha Grandeur → ['Prabhadevi', '—']
+  Runwal Reserve → ['Worli', 'Worli Naka']
+  Runwal Elegante → ['Andheri West', 'Lokhandwala']
+  Siddhivinayak Horizon → ['Prabhadevi', '—']
+  Lodha Fiorenza → ['Goregaon', 'Goregaon East']
+  Kalpataru Solitaire → ['Juhu', '—']
+  Piramal Aranya → ['Byculla', '—']
+  Kalpataru Avana → ['Parel', '—']
+  World Towers → ['Lower Parel', '—']
+  Kanakia Silicon Valley → ['Powai', '—']
+  Piramal Mahalaxmi → ['Mahalakshmi', '—']
+  Pearl Residency → ['Andheri West', 'Prabhadevi']
+  Raheja Vistas → ['Powai', '—']
+  Transcon Triumph → ['Andheri West', '—']
+  Ekta Tripolis → ['Goregaon West', 'Malad West']
+  Shishira Tower → ['Andheri West', '—']
+  Mayfair Liv → ['Khar West', 'Santacruz West']
+  DLH Signature → ['Bandra', 'Bandra West']
+  Lotus Link Square → ['Andheri West', 'Malad West']
+  Remi Biz Court → ['Andheri West', '—']
+  Oakland Park → ['Andheri West', '—']
+  Magnum Tower → ['Andheri West', 'Parel']
+  Hyde Park → ['Andheri East', 'Kharghar']
+  Crystal Paradise → ['Andheri West', 'Veera Desai']
+  Shalimar Apartments → ['Kemps Corner', 'Santacruz West']
+  Indra Darshan → ['Andheri West', 'Oshiwara']
+  Marina Enclave → ['Malad West', '—']
+  Lodha World Tower → ['Lower Parel', '—']
+  Sorrento → ['Andheri West', 'Santacruz West']
+  Auris Serenity → ['Malad', 'Malad West']
+  White Lotus → ['Santacruz', 'Santacruz West']
+  Ashirwad → ['Andheri West', 'Malad West']
+  Platinum Life → ['Andheri West', '—']
+  Athena → ['Goregaon West', 'Thane West']
+  New Mhada → ['Andheri West', 'Lokhandwala']
+  Abhimanyu → ['Dahisar East', 'Malad West']
+  Palazzo → ['Khar West', 'Santacruz East']
+  Omkar 1973 → ['Worli', '—']
+  Indiabulls Blu → ['Worli', '—']
+  Majestic Tower → ['Bhandup', 'Prabhadevi']
+  Oceanic → ['Andheri West', 'Breach Candy']
+  Cozy Apartment → ['Andheri West', 'Versova']
+  Indiabulls Sky → ['Lower Parel', '—']
+  Krishna Residency → ['Andheri East', 'Ghansoli']
+  Raheja Imperia → ['Worli', '—']
+  Suman → ['Andheri West', 'Bandra West']
+  Anand Sagar → ['Bandra West', 'Khar West']
+  Solitaire Apartments → ['Bandra West', 'Tardeo']
+  Joanna Villa → ['Bandra', 'Bandra West']
+  Classic Corner → ['Bandra West', 'Borivali West']
+  Nalanda → ['Andheri West', 'Peddar Road']
+  Aashiyana → ['Andheri West', 'Bandra West']
+  Gurudev Bhavan → ['Bandra West', 'Khar West']
+  Land Breeze → ['Bandra West', 'Kharghar']
+  Arihant Apartment → ['Khar West', 'Parel']
+  Auris Bliss → ['Malad West', '—']
+  Lodha Bellagio → ['Powai', '—']
+  Vasant Oasis → ['Andheri East', '—']
+  K K Tower → ['Belapur', 'Parel']
+  Omkar Vive → ['BKC', 'Kurla']
+  L&T Veridian → ['Powai', '—']
+  Supreme Residency → ['Bandra', 'Bandra West']
+  Pitale Prasad → ['Worli', 'Worli Sea Face']
+  Govind Kutir → ['Khar', 'Khar West']
+  Raheja Atlantis → ['Lower Parel', 'Worli']
+  Shree Shakti → ['Khar', 'Khar West']
+  Regent Hill → ['Powai', '—']
+  Samartha Siddhi → ['Andheri West', 'Lokhandwala']
+  Lodha Adrina → ['Lower Parel', 'Worli']
+  Juhu Gulmohar → ['Andheri West', 'Juhu']
+  Sukh Shanti → ['Juhu', 'Peddar Road']
+  Prime Rose → ['Andheri West', 'Khar West']
+  Jeevan Deep → ['Kandivali West', 'Khar West']
+  Eternity → ['Bandra', 'Bandra West']
+  Landmark → ['Andheri West', 'Santacruz West']
+  Antalya → ['Andheri West', 'Belapur']
+  Ashiana → ['Khar West', 'Santacruz West']
+  Pacific Heights → ['Bandra', 'Bandra West']
+  TW Gardens → ['Kandivali East', '—']
+  Lodha World View → ['Lower Parel', 'Worli']
+  Sugee Atharva → ['Prabhadevi', '—']
+  Ruparel Ariana → ['Parel', '—']
+  Sagar Tarang → ['Breach Candy', 'Worli']
+  Ivory Tower → ['Juhu', 'Prabhadevi']
+  Mayfair Meridian → ['Andheri West', 'Thane West']
+  Notan Chambers → ['Bandra', 'Bandra West']
+  Lotus Residency → ['Goregaon West', 'Ram Mandir']
+  Kalpataru Radiance → ['Goregaon West', 'Malad West']
+  AP Ekam → ['Santacruz', 'Santacruz West']
+  Hari Bhavan → ['Gamdevi', 'Khar West']
+  Vasukamal → ['Bandra West', 'Powai']
+  Lodha Primero → ['Lower Parel', 'Mahalakshmi']
+  Omkar Signet → ['Malad East', '—']
+  Highland → ['Bandra West', 'Powai']
+  Sunset heights → ['Bandra West', 'Prabhadevi']
+  Cosmos → ['Andheri West', 'Santacruz West']
+  Rushabh Tower → ['Andheri West', 'Sewri']
+  Silicon Valley → ['Powai', 'Santacruz West']
+  Godrej Trees → ['Vikhroli', '—']
+  Anand Bhavan → ['Santacruz West', 'Vile Parle West']
+  Belvedere → ['Chembur', 'Khar West']
+  Manju Mahal → ['Bandra West', '—']
+  Lokhandwala Minerva → ['Mahalakshmi', '—']
+  L&T Emerald Isle → ['Powai', '—']
+  Imperial Heights → ['Bandra West', 'Goregaon West']
+  Ashtavinayak → ['Bandra West', 'Ghansoli']
+  Continental Tower → ['Bandra', 'Bandra West']
+  Tulip → ['Bandra West', 'Powai']
+  Campa Cola Compound → ['Worli', 'Worli Naka']
+  Platinum Tower → ['Andheri West', 'Kandivali West']
+  Kanti Apartment → ['Bandra West', '—']
+  Orion → ['Khar West', 'Santacruz West']
+  Whispering Heights → ['Bandra West', 'Malad West']
+  81 Crest → ['Santacruz West', '—']
+  Ideal Apartments → ['Andheri West', 'Juhu']
+  Vasundhara → ['Juhu', 'Santacruz West']
+  Nathani Heights → ['Mumbai Central', '—']
+  Platina → ['Santacruz West', 'Thane West']
+  36 Allure → ['Goregaon West', '—']
+  Rivali Park → ['Borivali East', '—']
+  Highland Park → ['Andheri West', 'Thane West']
+  Avalon → ['Bandra West', 'Powai']
+  Laxmi Industrial Estate → ['Andheri West', '—']
+  Prestige Siesta → ['Mulund West', '—']
+  Apna Ghar → ['Andheri West', 'Colaba']
+  Arshie Complex → ['Andheri West', 'Versova']
+  Regiland → ['Bandra', 'Bandra West']
+  Om Sai → ['Andheri West', 'Thane West']
+  Silver Sands → ['Andheri West', 'Goregaon West']
+  Green Acres → ['Andheri West', 'Juhu']
+  Gulmohar → ['Bandra West', 'Kandivali West']
+  Pearl Heights → ['Andheri West', 'Yari Road']
+  Lilian Heights → ['Bandra West', 'Khar West']
+  Mayflower → ['Carmichael Road', 'Thane West']
+  Kanakia Rainforest → ['Andheri East', '—']
+  Sahana Enclave → ['Bandra', 'Bandra West']
+  Satguru Paman → ['Bandra', 'Bandra West']
+  Ekta Everglades → ['Bandra', 'Bandra West']
+  Orion West → ['Santacruz West', '—']
+  Dheeraj Swapna → ['Bandra', 'Bandra West']
+  Kingston → ['Mulund West', 'Powai']
+  Wadhwa The Address → ['Ghatkopar', 'Ghatkopar West']
+  Lake Florence → ['Lake Homes', 'Powai']
+  Castle Rock → ['Powai', '—']
+  Cosmos Plaza → ['Andheri West', 'D N Nagar']
+  Aishwarya → ['Andheri West', 'Samartha']
+  Ashok Gardens → ['Sewri', '—']
+  Shraddha Evoque → ['Bhandup', 'Bhandup West']
+  Mahavir Universe → ['Bhandup', 'Bhandup West']
+  Wadhwa Atmosphere O2 → ['Mulund West', '—']
+  Runwal Greens → ['Mulund West', '—']
+  Supreme 19 → ['Andheri West', '—']
+  Tribeca → ['Bandra West', 'Thane West']
+  Gulshan → ['Andheri West', 'Khar West']
+  Omkar Meridia → ['BKC', 'Kurla']
+  Serendipity → ['BKC', 'Bandra East']
+  Jagat Vidya → ['BKC', 'Bandra East']
+  Runwal Nirvana → ['Parel', '—']
+  Salsette 27 → ['Byculla', '—']
+  Artteza → ['Santacruz West', '—']
+  Kshitij → ['Andheri West', 'Nepean Sea Road']
+  Loyalka Apartment → ['Girgaon', 'Malabar Hill']
+  BKC 28 → ['Bandra East', 'Bandra West']
+  Blue Lotus → ['Khar West', '—']
+  Continental Towers → ['Bandra', 'Bandra West']
+  Montreal Tower → ['Andheri West', '—']
+  Kohinoor Square → ['Dadar', 'Dadar West']
+  Geetanjali CHS → ['Bandra East', 'Malad East']
+  Serenity Tower → ['Andheri West', 'Santacruz West']
+  Moti Mahal → ['Bandra West', 'Churchgate']
+  Boomerang → ['Chandivali', 'Powai']
+  Lila Apartment → ['Andheri West', 'Yari Road']
+  Sheetal Vaibhav → ['Khar West', '—']
+  Hubtown Premier → ['Andheri West', 'Seven Bungalow']
+  Woodland Heights → ['Bandra West', 'Powai']
+  Sheth Montana → ['Mulund West', '—']
+  Piramal Revanta → ['Mulund West', '—']
+  Kalpataru Elitus → ['Mulund', 'Mulund West']
+  Matai Mansion → ['Bandra', 'Bandra West']
+  Dunhill → ['Bandra West', 'Khar West']
+  Maple Leaf → ['Powai', '—']
+  Oberoi Splendor → ['Andheri East', 'Jogeshwari East']
+  Samartha Aishwarya → ['Andheri West', '—']
+  Kanakia Zen World → ['Kanjur Marg', 'Kanjurmarg East']
+  Marathon Cosmos → ['Mulund West', '—']
+  Marathon Icon → ['Lower Parel', '—']
+  Bussa Industrial Estate → ['Prabhadevi', '—']
+  Silver Sand → ['Andheri West', 'Goregaon West']
+  Golden Oak → ['Powai', 'Wadala East']
+  Moongipa Arcade → ['Andheri', 'Andheri West']
+  Lok Nirman → ['Khar West', '—']
+  25 South → ['Prabhadevi', '—']
+  Valentine Apartment → ['Goregaon East', '—']
+  Pinnacle Corporate Park → ['BKC', 'Bandra East']
+  Shiv Parvati → ['Andheri West', 'Kandivali West']
+  DLH Mamta → ['Andheri West', 'Juhu']
+  B.Y. Apartment → ['Worli', 'Worli Naka']
+  Twin Tower → ['Andheri West', 'Prabhadevi']
+  Royal Residency → ['Kharghar', 'Lalbaug']
+  Lotus Enpar → ['Lower Parel', '—']
+  Mansarovar → ['Kandivali West', 'Thane West']
+  Mantri Sujata → ['Bandra', 'Santacruz West']
+  Dakshin Pali → ['Bandra', 'Bandra West']
+  The Lumiere → ['Andheri', 'Andheri West']
+  Desai Oceanic → ['Worli', '—']
+  Park Reach → ['Bandra West', '—']
+  Madhuban Tower → ['Andheri West', '—']
+  Solitaire → ['Bandra West', 'Khar']
+  Kedarnath → ['Andheri West', 'Khar West']
+  Le Reve → ['Bandra', 'Bandra West']
+  Shalaka → ['Santacruz', 'Santacruz West']
+  Sainara → ['Cuffe Parade', 'Santacruz West']
+  Indradarshan → ['Andheri West', 'Oshiwara']
+  Sadguru Complex → ['Goregaon East', 'Mira Road']
+  Hiranya → ['Dadar West', 'JVPD Scheme']
+  Millennium Court → ['Andheri West', '—']
+  Serenity Complex → ['Andheri West', 'Oshiwara']
+  The Park Residence → ['Malad East', '—']
+  VKG Park Estate → ['Andheri East', 'Vile Parle East']
+  Prem Sagar → ['Andheri West', 'Santacruz West']
+  Kalpataru Pinnacle → ['Malad West', '—']
+  Chandak Unicorn → ['Andheri West', '—']
+  Remi Commercio → ['Andheri', 'Andheri West']
+  The Level Residence → ['Andheri West', '—']
+  Tarapore Garden → ['Andheri West', 'Oshiwara']
+  Lodha Unica → ['Jogeshwari', 'Jogeshwari West']
+  Dunhill Apartment → ['Bandra West', 'Pali Hill']
+  Antariksh → ['Bandra East', 'Mira Road']
+  Link Plaza → ['Andheri West', '—']
+  Range Heights → ['Andheri West', '—']
+  Eden Woods → ['Andheri West', 'Thane West']
+  DLH Imur → ['Andheri West', 'Azad Nagar']
+  Lashkaria Empress → ['Andheri West', '—']
+  Key Tech Park → ['Jogeshwari', 'Jogeshwari West']
+  Akansha → ['Chembur', 'Versova']
+  Crescent Tower → ['Tardeo', '—']
+  Insignia → ['Santacruz East', 'Vile Parle West']
+  Meghdoot → ['Andheri West', 'Lokhandwala']
+  Samartha Deep → ['Andheri West', '—']
+  Raheja Sherwood → ['Goregaon', 'Goregaon East']
+  Lumiere Tower → ['Andheri West', 'Versova']
+  Hubtown Harmony → ['Matunga', 'Matunga East']
+  Darshan Ricco → ['Lower Parel', '—']
+  Adani Inspire → ['Andheri West', 'BKC']
+  Lashkaria Pearl → ['Andheri West', 'Jogeshwari West']
+  Madhuvan → ['Andheri West', 'Santacruz West']
+  Crystal Tower → ['Dadar East', 'Parel']
+  Krishna Mahal → ['Churchgate', 'Marine Drive']
+  Elysium → ['Thane West', 'Worli Sea Face']
+  Sea Breeze → ['Andheri West', 'Bandra West']
+  Grand Paradi → ['Kemps Corner', '—']
+  Hicon Residency → ['Bandra', 'Bandra West']
+  Bella Vista → ['Bandra West', 'Thane West']
+  Sai Dham → ['Kandivali West', 'Khar West']
+  World One → ['Malad West', '—']
+  Juhu Griha Swapna → ['Juhu', 'Vile Parle West']
+  Orbit Heights → ['Nana Chowk', 'Tardeo']
+  Buena Vista → ['Bandra East', 'Bandra West']
+  Anand Apartment → ['Dadar West', 'Khar West']
+  Krypton Tower → ['Prabhadevi', 'Sewri']
+  Mangal Kunj → ['Bandra West', 'Walkeshwar']
+  Florence → ['Khar West', 'Santacruz East']
+  Siddhivinayak → ['Borivali East', 'New Panvel']
+  Bhakti Park → ['Dadar West', 'Thane West']
+  Symphony → ['Kandivali West', 'Khar West']
+  Vasant Vihar → ['Khar West', 'Thane West']
+  Laxmi Niwas → ['Gamdevi', 'Khar West']
+  Poonam Apartment → ['Peddar Road', 'Worli']
+  Greenfield → ['Lower Parel', 'Santacruz West']
+  Casablanca → ['Juhu', 'Santacruz West']
+  Hill Crest → ['Andheri East', 'Worli']
+  Turf View → ['Tardeo', 'Worli']
+  Conwood Astoria → ['Goregaon East', 'Santacruz East']
+  Bay View → ['Andheri West', 'Bandra West']
+  Park Avenue → ['Andheri West', 'Khar West']
+  Citizen Apartment → ['Andheri West', 'Bandra West']
+  Capri Heights → ['Andheri West', 'Bandra West']
+  Veena Tower → ['Colaba', 'Cuffe Parade']
+  Anita → ['Kandivali East', 'Walkeshwar']
+  Lands End → ['Andheri West', 'Walkeshwar']
+  Palacimo → ['Breach Candy', 'Santacruz West']
+  Shree Krishna → ['Nerul', 'Powai']
+  Madhuban → ['Borivali West', 'Worli']
+  The Designate → ['Khar West', 'Santacruz West']
+  Om Apartment → ['Andheri West', 'Kharghar']
+  Diamond Palace → ['Bandra West', 'Santacruz West']
+  Orchid Tower → ['Andheri West', 'Worli']
+  Vikas Park → ['Juhu', 'Malad West']
+  Shalimar → ['Kemps Corner', 'Santacruz West']
+  Samarth → ['Andheri West', 'Goregaon West']
+  Chandralok → ['Khar West', 'Nepean Sea Road']
+  Skylark → ['Andheri West', 'Bandra West']
+  Queen → ['Bandra West', 'Worli']
+  Le Palazzo → ['Kemps Corner', 'Tardeo']
+  Silver Oak → ['Andheri West', 'Powai']
+  Serenity Heights → ['Andheri East', 'Malad West']
+  Pinnacle → ['Borivali East', 'Matunga']
+  Neptune → ['Lokhandwala', 'Nerul']
+  West View → ['Colaba', 'Santacruz West']
+  Vaibhav → ['Goregaon West', 'Khar West']
+  Horizon Heights → ['Andheri East', 'Andheri West']
+  Pushpa Vihar → ['Bandra West', 'Colaba']
+  Meadows → ['Andheri East', 'Thane West']
+  Cosmopolitan → ['Bandra West', 'Powai']
+  Wisteria → ['Dadar West', 'Vile Parle West']
+  Poornima Apartment → ['Peddar Road', 'Worli']
+  Mayfair Muse → ['Bandra West', 'Khar West']
+  The Legend → ['Ghatkopar East', 'Walkeshwar']
+  Exclusive → ['Colaba', 'Santacruz West']
+  Khushnuma Apartment → ['Altamount Road', 'Tardeo']
+  Metropolis → ['Goregaon East', 'Sewri']
+  Apartment FOR L&L → ['Breach Candy', 'Colaba']
+  Raj Mahal → ['Andheri West', 'Churchgate']
+  Hiranandani Solitaire → ['Powai', 'Thane West']
+  Corinthian → ['Colaba', 'Khar West']
+  Olive → ['Kandivali West', 'Santacruz East']
+  Lodha Altamount → ['Altamount Road', 'Tardeo']
+  Westwood → ['Andheri West', 'Kandivali West']
+
+--- "—" location records (139) ---
+  Kanakia Rainforest
+  Godrej Urban Park
+  Raheja Vistas
+  Regent Hill
+  Vicinia
+  L&T Veridian
+  Castle Rock
+  Lodha Bellagio
+  Kanakia Silicon Valley
+  Shishira Tower
+  Omkar Signet
+  Ashok Gardens
+  Wadhwa Atmosphere O2
+  Runwal Forest
+  Runwal Greens
+  L&T Emerald Isle
+  Oakland Park
+  Kanakia Paris
+  Artteza
+  Lodha Grandeur
+  Prestige Jasdan Classic
+  Lodha Park
+  Lokhandwala Minerva
+  Kalpataru Avana
+  Maker Chamber
+  World Towers
+  Lodha World Tower
+  Piramal Aranya
+  Omkar 1973
+  Chaitanya Tower
+  L&T Crescent Bay
+  Marathon NextGen Innova
+  Blue Lotus
+  Supreme Headquarter
+  Montreal Tower
+  The Gateway
+  Lodha Bel Air
+  The Park
+  Vasant Oasis
+  Sheetal Vaibhav
+  Sheth Montana
+  Piramal Revanta
+  Prestige Siesta
+  Maple Leaf
+  Samartha Aishwarya
+  Marina Enclave
+  Auris Bliss
+  Godrej Trees
+  Lodha World Towers
+  Tivoli
+  Marathon Cosmos
+  Marathon Icon
+  Bussa Industrial Estate
+  Lodha Marquise
+  Bkc-x
+  Birla Niyara
+  Rustomjee Crown
+  Kalpataru Magnus
+  Velkar Residency
+  36 Allure
+  INS Tower
+  Lok Nirman
+  Manju Mahal
+  Valentine Apartment
+  Kastur Park
+  81 Crest
+  Orion West
+  Gundecha Trillium
+  Lodha Parkside
+  Sky Forest Indiabulls
+  Piramal Mahalaxmi
+  Raheja Imperia
+  Ruparel Ariana
+  Lodha Aura
+  AH Heights
+  Supreme 19
+  Universal Garden 1
+  Maple Tower
+  Desai Oceanic
+  81-Aureate
+  Park Reach
+  Dhanlaxmi
+  Divine Heights
+  Joy Legend
+  Chitra
+  Rustomjee Paramount
+  Kanti Apartment
+  Laxmi Industrial Estate
+  Runwal Elegant
+  Millennium Court
+  The Park Residence
+  Silver Arch
+  Ascot
+  Panchsheel
+  Kalpataru Pinnacle
+  Navrang
+  Yashodeep Castle Tower
+  The Level Residence
+  Sunteck Avenue 4th
+  Transcon Triumph
+  Aishwarya CHS
+  Private Building
+  Anmol Towers
+  Link Plaza
+  Madhuban Tower
+  Raheja Classic
+  Platinum Life
+  Range Heights
+  — Uk Sangfroid
+  Kalpataru Solitaire
+  Lashkaria Empress
+  Prabhat CHSL
+  Oberoi Spring
+  Crescent Tower
+  Samartha Deep
+  TW Gardens
+  Chandak Unicorn
+  Rivali Park Tower D
+  Remi Biz Court
+  Rivali Park
+  Sugee Atharva
+  Indiabulls Blu
+  Darshan Ricco
+  Naman Midtown
+  Lotus Enpar
+  Mohini Castle
+  Rustomjee Seasons
+  Siddhivinayak Horizon
+  25 South
+  One Avighna Park
+  Lodha Allura
+  Grand Paradi
+  Indiabull Sky Forest
+  Salsette 27
+  Runwal Nirvana
+  Nathani Heights
+  Indiabulls Sky
+  Sunny Side
+  World One

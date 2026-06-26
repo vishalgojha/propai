@@ -1,0 +1,466 @@
+building_id,canonical_name,alias
+4,Jupiter,Jupiter Apartment
+13,Link Garden,Link Garden Tower
+14,Moongipa Arcade,Moongipa Arcade
+16,Remi Commercio,Remi Commercio
+17,Lumiere,The Lumiere
+17,Lumiere,Lumiere
+17,Lumiere,Lumiere Tower
+69,Green Woods,Greenwoods CHS
+73,Hub Town Solaris,Hubtown Solaris
+83,Kanakia Atrium,Kanakia Atrium 215
+84,Kanakia Rain Forest,Kanakia Rainforest
+106,Oberoi Garden,Oberoi Garden Estate
+109,Oberoi Splendor,Oberoi Splendor Grande
+123,Riverdale Tower,Riverdale Towers
+134,Sheth Vasant Oasis Jolan,Sheth Vasant Oasis Jolan Tower 14
+152,Kollage,The Kollage
+153,Time Square,Times Square
+167,Wellington Business Park 1,Wellington Business Park 2
+176,Aashirwad,Aashirwad
+176,Aashirwad,Aashirwad CHS
+177,Aashiyana,Aashiyana Apartment
+184,Adani Inspire,Adani Inspire Hub
+187,Aditya,Aditya Apartment
+205,Ankita,Ankita Building
+214,Arshi Complex,Arshie Complex
+216,Ashirwad,Ashirwad Apartment
+216,Ashirwad,Ashirwad Tower
+218,Ashiyana,Ashiyana CHS
+219,Ashtavinayak CHS,Astavinayak
+220,Aston,Aston
+221,Atlantis,Atlantis Apartment
+233,Beverley Hills,Beverly Hills
+243,Brighton Tower,Brighton Towers
+258,Chitralekha Haritage,Chitralekha Heritage
+263,Clifton,Clifton Apartment
+267,Cosmopolis,Cosmopolis Tower
+269,Cosmos Plaza,Cosmos Plazza
+272,Crescent Royal,Crescent Royale
+282,DLH Dream,DLH Dream Tower
+286,DLH Leo,DLH Leo
+288,DLH Metro View,DLH Metroview
+297,Deep Apartment,Deep Chs
+297,Deep Apartment,Deep Tower
+300,Denzil,Denzil CHS
+326,Evershine Green Tower,Evershine Greens
+329,Excellency,Excellency Apartment
+331,Fair Link Centre,Fairlink Centre
+339,Garden View,Garden View CHS
+349,Golden Chamber,Golden Chambers
+363,Green Tower,Green Tower
+372,Gurukrupa Dhayanam,Gurukrupa Dhyanam
+378,Hibiscus Apartment,Hibiscus Apt
+384,Hubtown Premier,Hubtown Premiere
+384,Hubtown Premier,Hubtown Premiere Residences
+384,Hubtown Premier,Hubtown Premiere Residence
+386,Indra Darshan,Indradarshan
+389,Infinia Grand,Infinia Grande
+396,Janaki Centre,Janki Centre
+416,Kanchanganga,Kanchanganga Building
+425,Kingston Apartment,Kingston
+426,Kohinoor,Kohinoor 2
+432,Landmark,Landmark
+437,Lashkaria Green Heights,Lashkarya Green Heights
+445,Leela Sagar,Leela Sagar CHS
+467,Madhuban Tower,Madhuban Tower
+468,Madhuvan,Madhuvan Tower
+471,Mahalaxmi Tower,Mahalaxmi Tower
+478,Manju Tower,Manju Tower
+489,Meera,Meera Tower
+490,Meghdoot,Meghdoot Tower
+493,Millenium Court,Millennium Court
+502,Monisha,Monisha Tower
+510,Morya Landmark I,Morya Landmark II
+525,Neptune Apartment,Neptune Chs
+525,Neptune Apartment,Neptune Apartments
+527,New Chandra,New Chandra CHS
+538,Oberoi Sky Heights,Oberoi Skyheights
+539,Oberoi Spring,Oberoi Springs
+541,Olympic Tower,Olympic Tower
+550,Palash Tower,Palash Tower
+552,Panchmukhi,Panchmukhi Building
+553,Panchsheel,Panchsheel Apartment
+553,Panchsheel,Panchsheel CHS
+557,Paradigm Antalia,Paradigm Antaliya
+574,Peninsula Park,Peninsular Park
+576,Platinium Casa Divine,Platinum Casa Divine
+577,Platinum Casa Millenia,Platinum Casa Millennia
+584,Platinum Tower,Platinum
+593,Prim Rose,Prim Rose Tower
+601,Raheja Classique,Raheja Classique
+606,Raj Kamal Apartment,Raj Kamal CHS
+618,Remi Biz Court,Remi Bizcourt
+639,Rukmini Vaibhav,Rukmini Vaibhav Apartment
+639,Rukmini Vaibhav,Rukmini Vaibhav CHS
+644,Rushi Tower,Rushi Tower
+649,Sagar Shrot,Sagar Shrot Building
+658,Samarth Deep,Samartha Deep
+670,Santosh Tower,Santosh Towers
+671,Swapna Residency,Sapna Residency
+675,Saujanya Rachanaa,Saujanya Rachnaa
+678,Sea Bird,Sea Bird Building
+688,Shanti Tower,Shanti Towers
+700,Shiv Shivam Tower,Shiv Shivam Towers
+716,Silver Sand,Silver Sands
+722,Sneha,Sneha Building
+728,Sterling,Sterling Apartment
+728,Sterling,Sterling Tower
+729,Suman,Suman Tower
+734,Sunil Niwas,Sunil Niwas Tower
+747,Sweet Home,Sweet Homes
+754,Gateway,The Gateway
+755,Level Residence,The Level Residence
+756,Nest,The Nest
+757,Park,The Park
+758,Park Residency,The Park Residency
+759,Spring Fields,The Spring Fields
+763,Transcon Triumph,Transcon Triumph -
+781,Venus,Venus Apartment
+783,Versova Heaven,Versova Heavens
+791,Victoria CHS,Victoria CHSL
+793,Vinit Tower,Vinit Tower
+805,Wind Space Amelio,Windspace Amelio
+807,Windsor Grande Residence,Windsor Grande Residences
+809,Woodland,Woodland Apartment
+809,Woodland,Woodland CHS
+836,Capital,The Capital
+837,Metropolitan,The Metropolitan
+840,Aquarius Tower,Aquarius Tower
+841,Bandstand Apartment,Bandstand Apt
+841,Bandstand Apartment,Bandstand
+841,Bandstand Apartment,Bandstand Apartment
+842,Continental Tower,Continental Tower
+842,Continental Tower,Continental
+844,DLH Signature,DLH Signature
+845,Dakshin Pali,Dakshin Pali
+847,Dheeraj Swapna,Dheeraj Swapna
+848,Ekta Everglades,Ekta Everglades
+848,Ekta Everglades,Ektaa Everglades
+850,Eternity,Eternity
+854,Hicon Residency,Hicon Residency
+855,Joanna Villa,Joanna Villa
+856,Le Reve,Le Reve
+858,Makhija Arcade,Makhija Arcade
+860,Matai Mansion,Matai Mansion
+861,Notan Chambers,Notan Chambers
+862,Pacific Heights,Pacific Heights
+863,Regiland,Regiland
+867,Sahana Enclave,Sahana Enclave
+868,Satguru Paman,Satguru Paman
+871,Supreme Residency,Supreme Residency
+886,Geetanjali Apartment,Geetanjali Apts
+886,Geetanjali Apartment,Geetanjali CHS
+898,Naman,Naman Residency
+908,Rustomjee Seasons,Rustomjee Seasons - Wing D
+914,Shapoorji Pallonji,Shapoorji Pallonji BKC
+919,Address By GS,The Address By GS
+941,Ashiana,Ashiana Building
+941,Ashiana,Ashiana Glaxo
+948,Bajaj Onyx,Bajaj Onyx Apartment
+956,Belfer,Belfer Apartment
+1001,Deepika,Deepika Apartment
+1006,Dheeraj Devika,Dheeraj Devika Apartment
+1015,Dunhill,Dunhill Apartment
+1057,HandM Tower,H&M Tower
+1077,Island Heights CHS,Island Heights CHSL
+1078,Jackers,Jackers
+1084,Josephine,Josephine CHS
+1088,June Blossom,June Blossoms
+1142,Marina,Marina Apartment
+1168,Neelam,Neelam Apartment
+1169,Neelamber,Neelamber Apartment
+1179,Nibbana Annex,Nibbana Annexe
+1188,Orva,Orva Apartment
+1200,Peridot Apartment,Peridot Apt
+1208,Presidential,Presidential
+1229,Rustomjee Orva,Rustomjee Orva
+1238,Samrat,Samrat CHS
+1255,Seep,Seep Building
+1261,Shangrila,Shangrila Apartment
+1274,Singer Wood,Singers Wood
+1282,Sona Villa,Soona Villa
+1300,Chitrapur CHS,The Chitrapur CHS
+1301,Moorings,The Moorings
+1302,One,The One
+1303,Waterfront,The Waterfront
+1309,Tuscany Apartment,Tuscany Apt
+1352,Filix Tower,Filix Towers
+1357,Mahavir Universe,Mahavir Universe
+1364,Shraddha Evoque,Shraddha Evoque
+1382,Ekta Bhoomi Garden,Ekta Bhoomi Garden III
+1382,Ekta Bhoomi Garden,Ekta Bhoomi Gardens
+1385,Jaliyan Height,Jaliyan Heights
+1397,Rivali Park,Rivali Park D
+1397,Rivali Park,Rivali Park F
+1409,Grand Residences,The Grand Residences
+1416,Arihant,Arihant Building
+1435,Kastur Park,Kasturpark
+1458,Apartment FOR LandL,Apartment FOR L&L
+1470,Kala Niketan,Kalaniketan
+1495,Sunshine Apartment,Sunshine Apartment
+1505,Peninsula Salsette,Peninsula Salsette 27
+1506,Piramal Aarav,Piramal Arav
+1507,Piramal Aranya,Piramal Aranya Ahan
+1507,Piramal Aranya,Piramal Aranya Arav
+1507,Piramal Aranya,Piramal Aranya Avyan
+1514,Baya Victoria,The Baya Victoria
+1575,Epicentre,The Epicentre
+1593,Anjali,Anjali Building
+1594,Apartment FOR LandL,Apartment FOR L&L
+1615,Pushpa Vihar,Pushpa Vihar CHS
+1622,Waterfront Tower,Waterfront Towers
+1652,Kohinoor Square,Kohinoor Square
+1653,Aradhana Apartment,Aradhana Apt
+1662,Island City Centre 1,Island City Centre 2
+1667,One ICC,One ICC Tower
+1679,Baya Sunrise,The Baya Sunrise
+1685,Baya Park,Baya Park
+1717,Crest,The Crest
+1718,Ruby,The Ruby
+1748,Ararat,Ararat building
+1751,Soonawala,Soonawala Building
+1752,Central,Central Building
+1754,Gamdevi CHS,Gamdevi CHSL
+1770,Wadhwa,Wadhwa The Address
+1770,Wadhwa,Wadhwa
+1776,Legend,The Legend
+1791,Runwal Orchard,Runwal Orchard Residency
+1793,Address - Boulevard,The Address - Boulevard
+1794,Address - Vista,The Address - Vista
+1795,Orchard Residency,The Orchard Residency
+1799,Sea Pearl,Sea Pearl Building
+1802,Odyssey,The Odyssey
+1840,Lodha Fiorenza,Lodha Fiorenza Milano
+1856,Raheja Heights,Raheja Heights Wing E
+1865,Shagun Tower,Shagun Towers
+1904,Dheeraj,Dheeraj Residency
+1907,Garden Estate,Garden Estate Tower
+1907,Garden Estate,Garden Estates
+1913,Harmony,Harmony CHS
+1916,Kalpataru Radiance,Kalpataru Radiance Ora
+1938,Polaris,Polaris Tower
+1943,Raj Spaces,Raj Spaces Tower
+1957,Silver Sand,Silver Sands
+1962,Sunteck City,Sunteck City Avenue
+1965,Lion Park,The Lion Park
+1966,Luxor,The Luxor
+1988,Primordial House,The Primordial House
+1989,Promordial House,The Promordial House
+2003,Key Tech Park,Key Tech Park
+2004,Lodha Bel Air,Lodha Bel Air
+2005,Lodha Unica,Lodha Unica
+2048,Green Field Society,Green Fields Society
+2082,Kings Apartment,Kings
+2098,Nidhi Tower,Nidhi Towers
+2100,Oyster Shell I,Oyster Shell II
+2108,Raheja,Raheja 7
+2115,Rustomjee,Rustomjee 9
+2115,Rustomjee,Rustomjee Elements
+2141,Neptune,Neptune Tower
+2148,Auriegae Residency,Aurigae Residency
+2158,Epsilon,Epsilon Tower
+2171,Kalpataru Gardens,Kalpataru
+2228,Breezy Corner,Breezy Corner
+2230,Dosti Oro,Dosti Oro 67
+2233,Gaurav Garden,Gaurav Gardens
+2240,Jeevan Deep,Jeevandeep
+2241,Kalpavruksh Garden,Kalpavruksh Gardens
+2266,Ruparel Sky Green,Ruparel Sky Greens
+2300,Runwal Bliss,Runwal Bliss - Phase
+2308,Fariyas,Fariyas Building
+2319,Sukhmani,Sukhmani Building
+2325,Azumi,Azumi
+2326,Govind Kutir,Govind Kutir
+2329,Rustomjee Paramount,Rustomjee Paramount
+2330,Shree Shakti,Shree Shakti
+2332,Trinity,Trinity
+2333,Tulsi Apartment,Tulsi Apt
+2348,Arihant,Arihant Apartment
+2375,Crescent Heritage,Crescent Heritage Apartment
+2385,Dunhill,Dunhill Apartment
+2392,Elite Vista,Elite Vista Apartment
+2421,Joy Legend,Joy Legend Apartment
+2429,Kalpana,Kalpana
+2526,Sadhana Apartment,Sadhana Apt
+2527,Sagar Apartment,Sagar Apartment
+2563,Sosar Solitaire,Sosar Solitare
+2569,Suraj Ashiana,Suraj Ashiyana Apartment
+2575,50 Seven,The 50 Seven
+2576,Designate,The Designate
+2577,Solaris,The Solaris
+2591,Videocon Icon Apartment,Videocon Icon Apt
+2596,Viraj Bliss,Viraj-Bliss
+2608,Zindagi,Zindagi CHS
+2620,Riddhi Siddhi,Riddhi Siddhi Apartment
+2645,Lake Florence,Lake Florence
+2652,Meghdoot,Meghdoot Apartment
+2663,Auro,Auro
+2666,Baya Central,Baya Central
+2671,Darshan Ricco,Darshan Rico
+2675,Indiabulls Sky,Indiabulls Sky Forest
+2675,Indiabulls Sky,Indiabulls Sky Forest Prabhadevi A3
+2681,Lodha Park,Lodha Parkside
+2685,Lodha Trump,Lodha Trump Tower
+2687,Lodha World Ciel Villa,Lodha World
+2688,Lodha World Crest,Lodha World
+2689,Lodha World One,Lodha World
+2702,Mermit Tower,Mermit Tower
+2715,Peninsula,Peninsula Tower
+2716,Phoenix Tower,Phoenix Tower
+2730,World Villa,The World Villa
+2735,World Tower,World Towers
+2749,Lodha Primero,Lodha Primero - Mahalaxmi
+2753,Minerva,Minerva Tower
+2756,Piramal Mahalaxmi,Piramal Mahalaxmi Central
+2756,Piramal Mahalaxmi,Piramal Mahalaxmi North
+2756,Piramal Mahalaxmi,Piramal Mahalaxmi South
+2758,Prestige Jasdan,Prestige Jasdan Classic
+2759,Prestige Turf,Prestige Turf
+2760,Raheja Vivarea,Raheja Vivarea Tower E
+2763,Thanks and Regards,Thanks & Regards
+2771,Keer Tower,Keer Towers
+2783,Nishat,Nishat
+2784,Auris Serenity,Auris Serenity
+2789,Blue Mountain,Blue Mountains
+2804,Omkar Alta Monte,Omkar Alta Monte Tower A
+2806,Raheja,Raheja Residency
+2806,Raheja,Raheja Township
+2819,Park Residence,The Park Residence
+2855,Blu Horizon,Blue Horizon
+2892,Metro Millenium,Metro Millennium
+2902,Quantum Tower,Quantum Towers
+2904,Raheja Exotica,Raheja Exotica Cyprus
+2904,Raheja Exotica,Raheja Exotica Sorento
+2905,Raheja Interface,Raheja Interface Heights
+2906,Raj Infina,Raj Infinia
+2942,Vikas Park,Vikas Park Tower
+2957,Engineer,Engineer Building
+2963,Prestige Ocean,Prestige Ocean Towers
+3063,Kalpataru Elitus,Kalpataru Elitus
+3075,Kalpataru Elitus Mulund West,Kalpataru Elitus Mulund Weast
+3078,LandT Rejuve,L&T Rejuve 360
+3093,Runwal Chestnut,Runwal
+3094,Runwal Greens,Runwal
+3095,Runwal Pinnacle,Runwal
+3101,Blue Diamond,The Blue Diamond
+3102,Gateway,The Gateway
+3104,Wadhwa Atmosphere,Wadhwa Atmosphere O2
+3120,Dalamal Tower,Dalamal Tower
+3125,Mittal Tower,Mittal Tower
+3135,Arun,Arun Building
+3165,Shripal Nagar,Shripal Nagar Building
+3172,Signature,The Signature
+3176,Panchratna,Panchratna Building
+3178,Indra Darshan,Indradarshan
+3192,Arihant Apartment,Arihant
+3193,Ashok Tower,Ashok Tower
+3209,LandT Crescent Bay,L&T Crescent Bay
+3209,LandT Crescent Bay,"LandT Crescent Bay, Parel"
+3220,Prarthana Heights,Prathana Heights
+3227,Runwal Nirvana,Runwal Nirwana
+3236,Vardhaman Estate,Vardhman Estate
+3239,Alpana,Alpana
+3284,Eden,Eden Building
+3325,Kanakia Silicon Valley,Kanakia Silicon Valley Tower-C
+3328,LandT Elixir Reserve,L&T Elixir Reserve
+3329,LandT Emerald Isle,L&T Emerald Isle
+3329,LandT Emerald Isle,LandT Emerald Isle
+3330,LandT Veridian,L&T Veridian
+3330,LandT Veridian,LandT Veridian Powai
+3339,"Lnt Emerald Isle and Vedician, Powai","Lnt Emerald Isle & Vedician, Powai"
+3340,Lodha Bellagio,Lodha Bellagio Tower C
+3364,Raheja Ascencio,Raheja Ascensio
+3376,Sahil Exotica Chandivali,Sahil Exotica – Chandivali
+3401,Water Lily and White Lily,Water Lily & White Lily
+3408,25 South,25 South Tower
+3414,Bay View Terraces,Bayview Terraces
+3419,Chaitanya Tower,Chaitanya Tower
+3422,Cosmo Majestic,Cosmos Majestic
+3438,Kuber Tower,Kuber Tower
+3445,Majestic Tower,Majestic
+3446,Mamta,Mamta Apartment
+3467,Rustomjee Crown,Rustomjee Crown Tower A
+3467,Rustomjee Crown,Rustomjee Crown Tower B
+3467,Rustomjee Crown,Rustomjee Crown Tower C
+3480,Sumer Trinity,Summer Trinity
+3489,Twin Tower,Twin Tower
+3490,Udhyan Darshan,Udyan Darshan
+3504,AP Ekam,AP Ekam
+3505,Chitra,Chitra
+3506,Shalaka,Shalaka
+3507,White Lotus,White Lotus
+3536,Prasanna Ashiana CHS,Prasanna Ashiana Chsl
+3558,Ariisto Sapphire,Aristo Sapphire
+3575,Business Suites 9,Business Suites 9
+3587,Dheeraj Heritage,Dheeraj Heritage
+3591,Dwarka,Dwarka Building
+3605,Gokul Shushma,Gokul Sushma
+3657,New Diamond Palace,New Diamond Palace Building
+3682,Prakash,Prakash Building
+3686,Prem Sagar,Prem Sagar
+3705,Sailesh,Sailesh Building
+3721,Serenity Tower,Serenity Tower
+3738,Designate,The Designate
+3755,Woodstock Garden,Woodstock Gardens
+3759,Celestia Space,Celestia Spaces
+3763,LandT Crescent Bay,L&T Crescent Bay
+3770,Arihant,Arihant Residency
+3772,Dosti Mezzo,Dosti Mezzo 22
+3774,Kalpataru,Kalpataru Residency
+3782,Aarti,Aarti Building
+3792,Girnar,Girnar Building
+3796,Imperial Tower,Imperial Tower
+3796,Imperial Tower,Imperial
+3826,Ashar Sapphire,Ashar Sapphire CHS
+3859,Dosti Imperia,Dosti Imperia Gracia
+3863,Dosti West County,Dosti West County - Dosti Cedar
+3863,Dosti West County,Dosti West County Heron
+3863,Dosti West County,Dosti West County Olive
+3886,Hiranandani Meadows,"Hiranandani Meadows, Manpada"
+3889,Hiranandani Walk,Hiranandani The Walk
+3894,Jasmine Tower,Jasmine Towers
+3898,Kalpataru Hills,Kalpataru Hills Pristine
+3901,Kalpataru Sunrise,Kalpataru Sunrise Kolshet
+3911,Lodha Luxuria,Lodha Luxuria Priva
+3911,Lodha Luxuria,Lodha Luxuria Secret
+3942,Piramal Vaikunth,Piramal Vaikunth Vairat
+3942,Piramal Vaikunth,Piramal Vaikunth Vyan
+3947,Prestige Gardens,Prestige
+3963,Regency Tower,Regency Towers
+3979,Rustomjee Azziano,Rustomjee Azziano J Wing
+3990,Sheth Avalon,Sheth Avalon G Wing
+4010,Walk,The Walk
+4060,Godrej Trees,Godrej The Trees
+4060,Godrej Trees,Godrej Trees
+4060,Godrej Trees,Godrej Trees I
+4097,Insignia,Insignia Apartment
+4116,Shiv Om,Shiv Om Building
+4117,Snehadhara CHS,Snehadhara CHSL
+4149,Lodha Supremus,Lodha Supremus Kolshet
+4155,Anita,Anita Apartment
+4191,Legend,The Legend
+4194,"Allura , Lodha Park","Allura, Lodha Park"
+4217,Gulistan,Gulistan Building
+4224,Himalaya,Himalaya Building
+4225,India Bulls Blue,Indiabulls Blu
+4233,Lodha Adrina,Lodha Adrina
+4238,Lodha Park,Lodha Park
+4238,Lodha Park,Lodha Parkside
+4240,Lodha Trump,Lodha Trump
+4257,Omkar,Omkar 1973
+4258,Orchid Tower,Orchid Tower
+4264,Poonam Apartment,Poonam Apartment
+4268,Priya,Priya Building
+4274,Racecourse and Sea View | South Mumbai,Racecourse & Sea View | South Mumbai
+4283,Runwal Reserve,Runwal Reserve
+4283,Runwal Reserve,Runwal Reserve ( Worli
+4293,Shubhda Tower,Shubhda Towers
+4300,Park,The Park
+4301,"Park, Lodha","The Park, Lodha"
+4302,Trump Tower,Trump Tower
+4306,Venus,Venus Apartment
+4363,LandT Crescent Bay,L&T Crescent Bay
+4364,LandT Emerald Isle,L&T Emerald Isle
+4365,LandT Veridian,L&T Veridian
+4409,Prabhat CHS,Prabhat CHSL
