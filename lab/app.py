@@ -11,6 +11,9 @@ import asyncio
 import uuid
 import re
 import base64
+import ast
+import subprocess
+from fnmatch import fnmatch
 import httpx
 from datetime import datetime, timezone
 from pathlib import Path
@@ -33,7 +36,7 @@ from lab.events import get_bus
 PROJECT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_DIR))
 
-from lab.config import DB_PATH, WEBHOOK_SECRET, HOST, PORT, EVOLUTION_INSTANCE, EVOLUTION_API_URL
+from lab.config import DB_PATH, WEBHOOK_SECRET, HOST, PORT, EVOLUTION_INSTANCE, EVOLUTION_API_URL, load_group_allowlist, save_group_allowlist
 from evidence.resolver import resolve, resolve_by_landmark, resolve_by_street
 from evidence.parsers import parse as broker_parse
 
@@ -100,6 +103,53 @@ def _extract_broker_from_signature(text: str) -> tuple[str | None, str | None]:
     return name, phone
 
 
+def _compute_parser_confidence(parsed: dict) -> float:
+    """Score extraction confidence from independent, parseable signals."""
+    weights = {
+        "intent": 0.15,
+        "principal": 0.08,
+        "bhk": 0.14,
+        "price": 0.16,
+        "location_raw": 0.16,
+        "micro_market": 0.10,
+        "building_name": 0.08,
+        "landmark_name": 0.08,
+        "broker_name": 0.08,
+        "broker_phone": 0.07,
+        "furnishing": 0.05,
+        "area_sqft": 0.05,
+    }
+    score = 0.0
+    for field, weight in weights.items():
+        value = parsed.get(field)
+        if value and value != "Unknown":
+            score += weight
+    return round(min(score, 1.0), 2)
+
+
+def _infer_micro_market(text: str | None) -> str | None:
+    """Infer a practical micro-market from common short locality mentions."""
+    if not text:
+        return None
+    value = text.lower()
+    mappings = [
+        (r'\bbkc\b|\bbandra\s+kurla\b', "Bandra BKC"),
+        (r'\blilavati\b|\bbandra\b', "Bandra West"),
+        (r'\bandheri\s+west\b|\bandheri\b', "Andheri West"),
+        (r'\bmalad\b', "Malad West"),
+        (r'\bgoregaon\b', "Goregaon"),
+        (r'\bsantacruz\b|\bsanta\s+cruz\b', "Santacruz"),
+        (r'\bkhar\b', "Khar"),
+        (r'\bjuhu\b', "Juhu"),
+        (r'\bpowai\b', "Powai"),
+        (r'\bworli\b', "Worli"),
+    ]
+    for pattern, market in mappings:
+        if _RE.search(pattern, value):
+            return market
+    return None
+
+
 def parse_message(raw_text: str, profile_name: str | None = None) -> dict:
     """
     Parse a WhatsApp message into structured fields.
@@ -129,11 +179,17 @@ def parse_message(raw_text: str, profile_name: str | None = None) -> dict:
         "raw_payload": {},
     }
 
-    # ── 1. Principal (who is behind the message) ──────────────────
+    # ── 1. Principal (who the broker represents) ──────────────────
     if _RE.search(r'\b(owner\s*(sale|direct|selling)?|direct\s*owner|owner\s*property)\b', lower):
         result["principal"] = "Owner"
+    elif _RE.search(r'\b(landlord|owner\s*(offering|renting|leasing|giving))\b', lower):
+        result["principal"] = "Landlord"
+    elif _RE.search(r'\b(developer\s*(inventory|launch|project|offering)?|builder\s*(inventory|launch)?)\b', lower):
+        result["principal"] = "Developer"
+    elif _RE.search(r'\b(tenant\s*(requirement|need|looking|wanted)|need.*rental|looking.*rent)\b', lower):
+        result["principal"] = "Tenant"
     elif _RE.search(r'\b(client\s*(requirement|need|looking|want)|buyer\s*(requirement|need)|requirement)\b', lower):
-        result["principal"] = "Buyer Client"
+        result["principal"] = "Buyer"
     else:
         result["principal"] = "Unknown"
 
@@ -155,10 +211,10 @@ def parse_message(raw_text: str, profile_name: str | None = None) -> dict:
         result["intent"] = "RENT"
     elif is_rent:
         result["intent"] = "RENT"
-    elif is_sell:
-        result["intent"] = "SELL"
     elif is_buy:
         result["intent"] = "BUY"
+    elif is_sell:
+        result["intent"] = "SELL"
     else:
         result["intent"] = "SELL"
 
@@ -178,11 +234,33 @@ def parse_message(raw_text: str, profile_name: str | None = None) -> dict:
         if phone_match:
             result["broker_phone"] = phone_match.group(1)
 
-    # ── 4. Forwarded ─────────────────────────────────────────────
+    # ── 4. Message type (intent + principal → observation type) ──
+    intent = result["intent"]
+    principal = result["principal"]
+    if intent == "PRE-LAUNCH":
+        result["message_type"] = "PRE_LAUNCH"
+    elif intent == "COMMERCIAL":
+        if is_rent:
+            result["message_type"] = "COMMERCIAL_RENTAL"
+        else:
+            result["message_type"] = "COMMERCIAL_SALE"
+    elif intent == "SELL":
+        result["message_type"] = "SELLER"
+    elif intent == "BUY":
+        result["message_type"] = "REQUIREMENT"
+    elif intent == "RENT":
+        if principal in ("Buyer", "Tenant") or is_need:
+            result["message_type"] = "RENTAL_SEEKER"
+        else:
+            result["message_type"] = "RENTAL"
+    else:
+        result["message_type"] = "SELLER"
+
+    # ── 5. Forwarded ─────────────────────────────────────────────
     if _RE.search(r'\b(forwarded|fw[d]?[:.]?|from:|shared by|sent by)\b', lower):
         result["forwarded"] = 1
 
-    # ── 5. Extract BHK ──────────────────────────────────────────
+    # ── 6. Extract BHK ──────────────────────────────────────────
     bhk_match = _RE.search(r'(\d+)\s*(bhk|rk|bedroom|b ed|b e d)', lower)
     if bhk_match:
         result["bhk"] = bhk_match.group(1) + " BHK"
@@ -248,6 +326,8 @@ def parse_message(raw_text: str, profile_name: str | None = None) -> dict:
             result["building_name"] = loc.building
         if loc.micro_market:
             result["micro_market"] = loc.micro_market
+        else:
+            result["micro_market"] = _infer_micro_market(loc.raw)
         if loc.street:
             result["street_name"] = loc.street
 
@@ -263,6 +343,7 @@ def parse_message(raw_text: str, profile_name: str | None = None) -> dict:
             result["developer"] = after
             break
 
+    result["confidence"] = _compute_parser_confidence(result)
     result["raw_payload"]["full_text"] = text
     return result
 
@@ -607,6 +688,41 @@ app = FastAPI(title="PropAI Local Intelligence Lab", version="0.1.0", lifespan=l
 
 # ── Webhook (Evolution API) ─────────────────────────────────────
 
+_EVENT_CLASS = {
+    "messages.upsert": "message",
+    "messages.update": "message",
+    "messages.delete": "system",
+    "connection.update": "connection",
+    "qrupdated": "qr",
+    "QR_UPDATED": "qr",
+    "groups.upsert": "system",
+    "presence.update": "presence",
+    "call": "call",
+}
+
+def _classify_webhook_event(event: str, data: dict) -> str:
+    """Classify an Evolution API webhook event into a pipeline category."""
+    base = _EVENT_CLASS.get(event, "system")
+    if base == "message":
+        msg_data = data.get("data", data)
+        if not isinstance(msg_data, dict):
+            return "system"
+        msg = msg_data.get("message", {})
+        has_text = bool(
+            msg.get("conversation")
+            or (msg.get("extendedTextMessage") or {}).get("text")
+            or msg.get("imageMessage")
+            or msg.get("videoMessage")
+            or msg.get("audioMessage")
+            or msg.get("documentMessage")
+        )
+        if not has_text and not msg:
+            return "system"
+        if msg and not msg.get("conversation") and not msg.get("extendedTextMessage"):
+            return "media"
+    return base
+
+
 class EvolutionWebhook(BaseModel):
     event: str = "message"
     instance: str = "default"
@@ -615,49 +731,52 @@ class EvolutionWebhook(BaseModel):
 
 @app.post("/webhook")
 async def webhook(request: Request):
-    """Receive webhook from Evolution API."""
+    """Receive webhook from Evolution API. Route by event type before any processing."""
     try:
         body = await request.json()
     except Exception:
         raise HTTPException(400, "Invalid JSON")
 
-    # Extract message fields (Evolution API format)
     data = body if isinstance(body, dict) else {}
-    event = data.get("event", "message")
+    event = data.get("event", "")
     instance = data.get("instance", "unknown")
 
-    # Try common Evolution API payload structures
-    msg_data = data.get("data", data)
-    profile_name = None
-    push_name = None
-    if isinstance(msg_data, dict):
-        key = msg_data.get("key", {})
-        msg_text = (
-            msg_data.get("message", {}).get("conversation", "")
-            or msg_data.get("message", {}).get("extendedTextMessage", {}).get("text", "")
-            or msg_data.get("text", "")
-            or json.dumps(msg_data)
-        )
-        push_name = msg_data.get("sender", {}).get("pushName", "")
-        profile_name = msg_data.get("sender", {}).get("name", "") or push_name or ""
-        sender_jid = key.get("participant", "") or msg_data.get("sender", {}).get("id", "")
-        sender = _format_whatsapp_sender(push_name or profile_name, sender_jid)
-        group = key.get("remoteJid", "unknown") or msg_data.get("from", "unknown")
-        timestamp = msg_data.get("messageTimestamp", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
-        if isinstance(timestamp, (int, float)):
-            timestamp = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    else:
-        msg_text = str(msg_data)
-        sender = "unknown"
-        group = "unknown"
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # ── Classify and route event ──────────────────────────────────
+    event_class = _classify_webhook_event(event, data)
 
-    # Save raw message with dedup key
+    if event_class != "message":
+        _handle_system_event(event_class, event, data, instance)
+        return {"status": "event_handled", "event": event, "class": event_class}
+
+    # ── Human message ─────────────────────────────────────────────
+    msg_data = data.get("data", data)
     key = msg_data.get("key", {})
+    msg = msg_data.get("message", {})
+    msg_text = (
+        msg.get("conversation", "")
+        or msg.get("extendedTextMessage", {}).get("text", "")
+        or msg.get("imageMessage", {}).get("caption", "")
+        or msg.get("videoMessage", {}).get("caption", "")
+        or ""
+    )
+    if not msg_text.strip():
+        return {"status": "ignored", "reason": "empty_message"}
+
+    push_name = msg_data.get("pushName", "") or ""
+    sender_name = msg_data.get("sender", {}).get("name", "") or push_name
+    sender_jid = key.get("participant", "") or msg_data.get("sender", {}).get("id", "")
+    sender = _format_whatsapp_sender(sender_name, sender_jid)
+    group = key.get("remoteJid", "") or msg_data.get("from", "")
+    timestamp = msg_data.get("messageTimestamp", int(datetime.now(timezone.utc).timestamp()))
+    if isinstance(timestamp, (int, float)):
+        timestamp = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Dedup key
     message_id = key.get("id", "")
     remote_jid = key.get("remoteJid", group)
-    message_uid = f"evolution::{instance}::{remote_jid}::{message_id}" if message_id else None
+    message_uid = f"evolution::{instance}::{remote_jid}::{message_id}" if message_id and remote_jid else None
 
+    # Save raw message
     from lab.scheduler import PIPELINE_VERSION
     raw_id = storage.save_raw_message(RawMessage(
         group_name=group,
@@ -675,19 +794,12 @@ async def webhook(request: Request):
         "raw_id": raw_id, "group": group, "sender": sender, "message": msg_text[:200],
     })
 
-    # Check if this was a duplicate (existing raw_id returned)
-    existing_parsed = None
-    if message_uid:
-        existing_parsed = storage.get_parsed_by_raw(raw_id)
-
-    if existing_parsed:
-        return {"status": "duplicate", "raw_id": raw_id, "parsed_id": existing_parsed.id}
-
     # Parse and resolve
-    parsed = parse_message(msg_text, profile_name=profile_name)
+    parsed = parse_message(msg_text, profile_name=sender_name or push_name)
     embedding_blob = compute_embedding(parsed)
     obs = ParsedObservation(
         raw_message_id=raw_id,
+        message_type=parsed.get("message_type"),
         intent=parsed.get("intent"),
         principal=parsed.get("principal"),
         bhk=parsed.get("bhk"),
@@ -705,7 +817,7 @@ async def webhook(request: Request):
         developer=parsed.get("developer"),
         broker_name=parsed.get("broker_name"),
         broker_phone=parsed.get("broker_phone"),
-        profile_name=profile_name,
+        profile_name=sender_name or push_name,
         forwarded=parsed.get("forwarded", 0),
         confidence=parsed.get("confidence", 0.0),
         raw_payload=json.dumps(parsed.get("raw_payload", {})),
@@ -717,6 +829,7 @@ async def webhook(request: Request):
         "intent": parsed.get("intent"), "broker": parsed.get("broker_name"),
     })
 
+    # Resolve
     resolver_result = resolve_parsed(parsed, msg_text)
     resolver_result["parsed_id"] = parsed_id
     dec = ResolverDecision(
@@ -748,6 +861,37 @@ async def webhook(request: Request):
     })
 
     return {"status": "ok", "raw_id": raw_id, "parsed_id": parsed_id}
+
+
+def _handle_system_event(event_class: str, event: str, data: dict, instance: str):
+    """Handle non-message webhook events (connection, QR, system, etc.)."""
+    msg_data = data.get("data", data)
+    if event_class == "qr":
+        qr_code = msg_data if isinstance(msg_data, dict) else {}
+        if not isinstance(msg_data, dict):
+            try:
+                qr_code = json.loads(msg_data) if isinstance(msg_data, str) else {}
+            except (json.JSONDecodeError, TypeError):
+                qr_code = {}
+        get_bus().publish("qr.updated", {
+            "instance": instance,
+            "qrcode": qr_code.get("qrcode") or msg_data.get("qrcode", ""),
+            "pairingCode": qr_code.get("pairingCode") or msg_data.get("pairingCode"),
+        })
+    elif event_class == "connection":
+        state = ""
+        if isinstance(msg_data, dict):
+            state = msg_data.get("state", "")
+        get_bus().publish("connection.changed", {
+            "instance": instance,
+            "state": state,
+        })
+    else:
+        get_bus().publish("system.event", {
+            "event": event,
+            "instance": instance,
+            "class": event_class,
+        })
 
 
 def _format_whatsapp_sender(name: str = "", jid: str = "") -> str:
@@ -797,10 +941,11 @@ async def ingest(req: IngestRequest):
         synced_at=now,
     ))
 
-    parsed = parse_message(req.message)
+    parsed = parse_message(req.message, profile_name=req.sender)
     embedding_blob = compute_embedding(parsed)
     obs = ParsedObservation(
         raw_message_id=raw_id,
+        message_type=parsed.get("message_type"),
         intent=parsed.get("intent"),
         principal=parsed.get("principal"),
         bhk=parsed.get("bhk"),
@@ -883,6 +1028,327 @@ async def ingest_batch(req: BatchIngestRequest):
     return {"count": len(results), "results": results}
 
 
+
+# ═══════════════════════════════════════════════════════════════
+# Engineering Agent — deterministic repository intelligence
+# ═══════════════════════════════════════════════════════════════
+
+ENGINEERING_ROOT = Path(__file__).resolve().parent
+ENGINEERING_IGNORE_DIRS = {
+    ".git", "__pycache__", "node_modules", ".next", "dist", "build",
+    ".venv", "venv", "coverage", ".pytest_cache",
+}
+ENGINEERING_TEXT_EXTS = {
+    ".py", ".tsx", ".ts", ".js", ".jsx", ".json", ".md", ".sql",
+    ".css", ".html", ".yml", ".yaml", ".toml", ".txt", ".sh",
+}
+ENGINEERING_MAX_FILE_BYTES = 220_000
+ENGINEERING_INDEX_CACHE: dict = {"mtime": 0.0, "index": None}
+
+
+def _engineering_rel(path: Path) -> str:
+    return str(path.relative_to(ENGINEERING_ROOT))
+
+
+def _engineering_files() -> list[Path]:
+    files: list[Path] = []
+    for root, dirs, names in os.walk(ENGINEERING_ROOT):
+        dirs[:] = [d for d in dirs if d not in ENGINEERING_IGNORE_DIRS and not d.startswith(".")]
+        root_path = Path(root)
+        for name in names:
+            path = root_path / name
+            if path.suffix.lower() in ENGINEERING_TEXT_EXTS and path.stat().st_size <= ENGINEERING_MAX_FILE_BYTES:
+                files.append(path)
+    return sorted(files, key=lambda x: _engineering_rel(x))
+
+
+def _engineering_run(args: list[str], cwd: Path = ENGINEERING_ROOT, timeout: int = 4) -> str:
+    try:
+        completed = subprocess.run(
+            args,
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        output = (completed.stdout or completed.stderr or "").strip()
+        return output[:12000]
+    except Exception as exc:
+        return f"unavailable: {exc}"
+
+
+def _engineering_git() -> dict:
+    repo = ENGINEERING_ROOT.parent
+    return {
+        "branch": _engineering_run(["git", "branch", "--show-current"], repo),
+        "status": _engineering_run(["git", "status", "--short"], repo),
+        "recent_commits": _engineering_run(["git", "log", "--oneline", "-8"], repo),
+    }
+
+
+def _engineering_services() -> list[dict]:
+    output = _engineering_run(["pgrep", "-af", "uvicorn|next dev|evolution|postgres"], timeout=3)
+    services = []
+    for line in output.splitlines():
+        if line.strip():
+            parts = line.split(maxsplit=1)
+            services.append({"pid": parts[0], "command": parts[1] if len(parts) > 1 else ""})
+    return services
+
+
+def _extract_file_symbols(path: Path, rel: str, content: str) -> dict:
+    info = {"path": rel, "functions": [], "classes": [], "exports": [], "routes": [], "components": []}
+    if path.suffix == ".py":
+        try:
+            tree = ast.parse(content)
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    info["functions"].append({"name": node.name, "line": node.lineno})
+                elif isinstance(node, ast.ClassDef):
+                    info["classes"].append({"name": node.name, "line": node.lineno})
+        except SyntaxError:
+            pass
+        for match in re.finditer(r'@app\.(get|post|put|delete|patch)\(["\']([^"\']+)', content):
+            line = content[:match.start()].count("\n") + 1
+            info["routes"].append({"method": match.group(1).upper(), "path": match.group(2), "line": line})
+    if path.suffix in {".ts", ".tsx", ".js", ".jsx"}:
+        for match in re.finditer(r'export\s+(?:default\s+)?(?:function|const|class|interface|type)\s+([A-Za-z0-9_]+)', content):
+            info["exports"].append({"name": match.group(1), "line": content[:match.start()].count("\n") + 1})
+        for match in re.finditer(r'(?:export\s+default\s+)?function\s+([A-Z][A-Za-z0-9_]*)\s*\(', content):
+            info["components"].append({"name": match.group(1), "line": content[:match.start()].count("\n") + 1})
+    return info
+
+
+def _build_engineering_index(force: bool = False) -> dict:
+    files = _engineering_files()
+    latest_mtime = max((f.stat().st_mtime for f in files), default=0.0)
+    cached = ENGINEERING_INDEX_CACHE.get("index")
+    if cached and not force and ENGINEERING_INDEX_CACHE.get("mtime") == latest_mtime:
+        return cached
+
+    index = {
+        "root": str(ENGINEERING_ROOT),
+        "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "folders": [],
+        "files": [],
+        "exports": [],
+        "functions": [],
+        "classes": [],
+        "routes": [],
+        "components": [],
+        "database": [],
+        "parser_rules": [],
+        "knowledge_graph": [],
+        "migrations": [],
+        "prompt_templates": [],
+    }
+    folders = set()
+    for file in files:
+        rel = _engineering_rel(file)
+        folders.add(str(Path(rel).parent))
+        content = file.read_text(errors="ignore")
+        index["files"].append({"path": rel, "bytes": file.stat().st_size, "lines": content.count("\n") + 1})
+        symbols = _extract_file_symbols(file, rel, content)
+        for key in ["exports", "functions", "classes", "routes", "components"]:
+            for item in symbols[key]:
+                index[key].append({"file": rel, **item})
+        if rel.endswith("schema.sql") or "CREATE TABLE" in content.upper():
+            tables = re.findall(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z0-9_]+)', content, flags=re.IGNORECASE)
+            index["database"].append({"file": rel, "tables": tables})
+        if "parse_message" in content or "extract_location_text" in content or "Parser" in content:
+            rules = re.findall(r'_RE\.search\(r["\']([^"\']+)', content)
+            index["parser_rules"].append({"file": rel, "rules": rules[:24]})
+        if any(term in content for term in ["building", "landmark", "micro_market", "Knowledge Graph", "resolver"]):
+            index["knowledge_graph"].append({"file": rel})
+        if "migration" in rel.lower() or "ALTER TABLE" in content.upper():
+            index["migrations"].append({"file": rel})
+        if "prompt" in rel.lower() or "LLM" in content or "AI" in content:
+            index["prompt_templates"].append({"file": rel})
+    index["folders"] = sorted(f for f in folders if f != ".")
+    ENGINEERING_INDEX_CACHE.update({"mtime": latest_mtime, "index": index})
+    return index
+
+
+def _engineering_context() -> dict:
+    index = _build_engineering_index()
+    git = _engineering_git()
+    docs = []
+    for name in ["README.md", "evidence/ARCHITECTURE.md", "schema.sql", "location.py", "app.py"]:
+        path = ENGINEERING_ROOT / name
+        if path.exists():
+            docs.append({"path": name, "excerpt": path.read_text(errors="ignore")[:5000]})
+    return {
+        "repository": str(ENGINEERING_ROOT),
+        "git": git,
+        "services": _engineering_services(),
+        "architecture_docs": docs,
+        "api_routes": index["routes"][:200],
+        "database": index["database"],
+        "parser_rules": index["parser_rules"],
+        "recent_commits": git.get("recent_commits", ""),
+        "open_issues": "No issue tracker integration configured.",
+        "open_files": [],
+    }
+
+
+def _engineering_search(q: str, limit: int = 40) -> list[dict]:
+    query = q.lower().strip()
+    if not query:
+        return []
+    results = []
+    for file in _engineering_files():
+        rel = _engineering_rel(file)
+        content = file.read_text(errors="ignore")
+        score = 0
+        if query in rel.lower():
+            score += 8
+        lines = []
+        for lineno, line in enumerate(content.splitlines(), start=1):
+            if query in line.lower():
+                score += 2
+                lines.append({"line": lineno, "text": line.strip()[:240]})
+                if len(lines) >= 5:
+                    break
+        if score:
+            results.append({"path": rel, "score": score, "matches": lines})
+    return sorted(results, key=lambda r: (-r["score"], r["path"]))[:limit]
+
+
+def _engineering_knowledge() -> list[dict]:
+    index = _build_engineering_index()
+    return [
+        {"title": "Architecture", "items": ["FastAPI backend in lab/app.py", "SQLite storage in lab/storage/sqlite.py", "Next.js frontend in lab/frontend/src/app", "Evolution API webhook feeds raw_messages then parsed_output then resolver_decisions"]},
+        {"title": "Parser Flow", "items": ["webhook/ingest receives text", "parse_message extracts intent, principal, BHK, price, furnishing and location", "parse_location tokenizes locality, landmark, building, street and spatial relation", "ParsedObservation is stored in parsed_output"]},
+        {"title": "Resolver Flow", "items": ["resolve_parsed uses parsed landmark/building/street/location", "landmark path finds nearby buildings", "core resolver produces candidates", "resolver_decisions stores parser, resolver and final confidence"]},
+        {"title": "Webhook Flow", "items": ["Evolution event is classified", "non-message events are handled separately", "message text is deduplicated by message_uid", "raw, parsed and resolver events are published over SSE"]},
+        {"title": "Database", "items": [f"{entry['file']}: {', '.join(entry.get('tables') or [])}" for entry in index["database"]]},
+        {"title": "React Pages", "items": [item["path"] for item in index["files"] if item["path"].startswith("frontend/src/app/") and item["path"].endswith("page.tsx")]},
+        {"title": "API Endpoints", "items": [f"{r['method']} {r['path']} ({r['file']}:{r['line']})" for r in index["routes"][:80]]},
+        {"title": "Environment Variables", "items": ["LAB_HOST", "LAB_PORT", "LAB_WEBHOOK_SECRET", "EVOLUTION_API_URL", "EVOLUTION_API_KEY", "EVOLUTION_INSTANCE", "EVOLUTION_SYNC_DELAY_MS", "OPENAI_API_KEY/ANTHROPIC_API_KEY/GEMINI_API_KEY/OPENROUTER_API_KEY/OLLAMA_HOST for optional AI providers"]},
+    ]
+
+
+def _engineering_plan(prompt: str) -> dict:
+    lower = prompt.lower()
+    steps = ["Collect repository context", "Identify affected files", "Prepare diff for review", "Wait for approval", "Run targeted verification after approval"]
+    files = []
+    if any(w in lower for w in ["broker", "analytics"]):
+        steps = ["Add storage/API query for broker metrics", "Create Brokers analytics React view", "Wire navigation/API client", "Add empty/loading/error states", "Verify endpoint and page rendering"]
+        files = ["app.py", "storage/sqlite.py", "frontend/src/lib/api.ts", "frontend/src/app/brokers/page.tsx"]
+    elif any(w in lower for w in ["parser", "voice", "resolver", "whatsapp"]):
+        steps = ["Locate parser and webhook path", "Add deterministic parser rule or webhook adapter", "Persist parsed fields", "Expose evidence in UI", "Replay sample messages and verify"]
+        files = ["app.py", "location.py", "storage/sqlite.py", "frontend/src/app/observations/[id]/page.tsx"]
+    elif any(w in lower for w in ["page", "react", "ui"]):
+        steps = ["Create React route", "Add API client function", "Add navigation entry", "Handle loading/empty/error states", "Verify in browser"]
+        files = ["frontend/src/app", "frontend/src/lib/api.ts", "frontend/src/app/layout.tsx"]
+    return {"prompt": prompt, "status": "plan_only", "estimated_files": len(files) or "unknown", "files": files, "steps": [{"label": s, "done": False} for s in steps], "approval_required": True}
+
+
+def _engineering_answer(prompt: str) -> dict:
+    context = _engineering_context()
+    hits = _engineering_search(prompt, limit=8)
+    lower = prompt.lower()
+    if "resolver" in lower:
+        answer = "Resolver flow: parsed messages are stored, then resolve_parsed uses landmark/building/street/location evidence, builds candidates, and stores parser_confidence, resolver_confidence and final_confidence in resolver_decisions. Resolver confidence becomes 0 when no candidate is found, the landmark is unknown, or the resolver errors."
+    elif "whatsapp parser" in lower or "parser" in lower:
+        answer = "The WhatsApp parser is in lab/app.py parse_message, with structured location extraction in lab/location.py parse_location/extract_location_text. Parsed rows are persisted through ParsedObservation into parsed_output."
+    elif "inbox" in lower:
+        answer = "The Inbox is rendered by frontend/src/app/inbox/page.tsx. It calls getRaw from frontend/src/lib/api.ts, which maps to GET /api/raw in lab/app.py."
+    elif "evolution" in lower:
+        answer = "Evolution API usage is concentrated in lab/app.py sync/QR/webhook endpoints, lab/ingestion/whatsapp.py, lab/connect.py and configuration in lab/config.py. Use Repository search for exact matches."
+    else:
+        answer = "I collected repository context and found relevant files below. AI provider execution is optional; deterministic repository search and knowledge remain available without AI."
+    return {"mode": "deterministic", "ai_enabled": False, "answer": answer, "context": {"git": context["git"], "services": context["services"]}, "references": hits}
+
+
+class EngineeringChatRequest(BaseModel):
+    message: str
+
+
+class EngineeringTaskRequest(BaseModel):
+    prompt: str
+
+
+class EngineeringPatchPreviewRequest(BaseModel):
+    summary: str = ""
+    files: list[str] = []
+    diff: str = ""
+
+
+@app.get("/api/engineering/context")
+async def engineering_context():
+    return _engineering_context()
+
+
+@app.get("/api/engineering/index")
+async def engineering_index(refresh: bool = False):
+    return _build_engineering_index(force=refresh)
+
+
+@app.get("/api/engineering/search")
+async def engineering_search(q: str = "", limit: int = 40):
+    return _engineering_search(q, limit)
+
+
+@app.get("/api/engineering/knowledge")
+async def engineering_knowledge():
+    return _engineering_knowledge()
+
+
+@app.get("/api/engineering/logs")
+async def engineering_logs(kind: str = "server", lines: int = 200):
+    log_map = {
+        "server": Path("/tmp/lab-api.log"),
+        "webhook": ENGINEERING_ROOT / "webhook.log",
+        "parser": ENGINEERING_ROOT / "parser.log",
+        "resolver": ENGINEERING_ROOT / "resolver.log",
+        "database": ENGINEERING_ROOT / "database.log",
+        "evolution": Path("/tmp/evolution-api.log"),
+    }
+    path = log_map.get(kind, log_map["server"])
+    if not path.exists():
+        return {"kind": kind, "path": str(path), "available": False, "lines": []}
+    data = path.read_text(errors="ignore").splitlines()[-max(1, min(lines, 1000)):]
+    return {"kind": kind, "path": str(path), "available": True, "lines": data}
+
+
+@app.post("/api/engineering/chat")
+async def engineering_chat(req: EngineeringChatRequest):
+    return _engineering_answer(req.message)
+
+
+@app.post("/api/engineering/tasks")
+async def engineering_tasks(req: EngineeringTaskRequest):
+    return _engineering_plan(req.prompt)
+
+
+@app.post("/api/engineering/patch-preview")
+async def engineering_patch_preview(req: EngineeringPatchPreviewRequest):
+    return {"status": "review_required", "summary": req.summary, "files": req.files, "diff": req.diff, "can_apply": False, "message": "Patch preview only. Applying changes requires explicit approval and a separate executor."}
+
+
+@app.get("/api/engineering/mcp")
+async def engineering_mcp():
+    providers = [
+        ("GitHub", "GITHUB_TOKEN"),
+        ("Filesystem", None),
+        ("SQLite/Postgres", "DATABASE_URL"),
+        ("Evolution API", "EVOLUTION_API_URL"),
+        ("OpenRouter", "OPENROUTER_API_KEY"),
+        ("Claude", "ANTHROPIC_API_KEY"),
+        ("OpenAI", "OPENAI_API_KEY"),
+        ("Gemini", "GEMINI_API_KEY"),
+        ("Local Ollama", "OLLAMA_HOST"),
+    ]
+    return [{"name": name, "configured": True if env is None else bool(os.getenv(env)), "env": env, "mode": "read-only" if name in {"Filesystem", "SQLite/Postgres"} else "not connected"} for name, env in providers]
+
+
+@app.get("/api/engineering/terminal")
+async def engineering_terminal():
+    return {"enabled": False, "reason": "Terminal execution is disabled. Engineering Agent never executes code automatically."}
+
+
 # ── Admin API endpoints ─────────────────────────────────────────
 
 @app.get("/api/raw")
@@ -947,6 +1413,11 @@ async def dashboard_activity():
     for t in types:
         type_map[t["intent"]] = t["c"]
     activity["message_types"] = type_map
+    obs_types = storage.dashboard_obs_types_today(today)
+    obs_map = {}
+    for t in obs_types:
+        obs_map[t["message_type"]] = t["c"]
+    activity["observation_types"] = obs_map
     return activity
 
 
@@ -980,8 +1451,26 @@ async def dashboard_coverage():
 
 @app.get("/api/dashboard/feed")
 async def dashboard_feed(limit: int = 20):
-    """Live intelligence feed of latest messages."""
+    """Feed of all parsed messages."""
     return storage.dashboard_feed(limit)
+
+
+@app.get("/api/dashboard/listings")
+async def dashboard_listings(limit: int = 20):
+    """Recent listings (SELL/RENT/PRE-LAUNCH/COMMERCIAL)."""
+    return storage.dashboard_listings(limit)
+
+
+@app.get("/api/dashboard/requirements")
+async def dashboard_requirements(limit: int = 20):
+    """Recent requirements (BUY/RENTAL_SEEKER)."""
+    return storage.dashboard_requirements(limit)
+
+
+@app.get("/api/dashboard/signals")
+async def dashboard_signals():
+    """Market signals and trends."""
+    return storage.dashboard_signals()
 
 
 @app.get("/api/dashboard/heatmap")
@@ -1148,10 +1637,16 @@ async def ai_explain(observation_id: int):
     # ── Principal rules ──
     if parsed.get("principal") == "Owner":
         rules.append("principal=Owner: matched owner-sale/direct-owner pattern")
-    elif parsed.get("principal") == "Buyer Client":
-        rules.append("principal=Buyer Client: matched client-requirement/buyer-need pattern")
+    elif parsed.get("principal") == "Landlord":
+        rules.append("principal=Landlord: matched landlord/owner-offering pattern")
+    elif parsed.get("principal") == "Developer":
+        rules.append("principal=Developer: matched developer-inventory/builder pattern")
+    elif parsed.get("principal") == "Tenant":
+        rules.append("principal=Tenant: matched tenant-requirement/need-rental pattern")
+    elif parsed.get("principal") == "Buyer":
+        rules.append("principal=Buyer: matched client-requirement/buyer-need pattern")
     else:
-        rules.append("principal=Unknown: no owner or buyer-client pattern detected")
+        rules.append("principal=Unknown: no known principal pattern detected")
 
     # ── Broker rules ──
     broker = parsed.get("broker_name")
@@ -1477,6 +1972,61 @@ async def sync_groups_legacy():
     """Legacy: list WhatsApp sync jobs as groups."""
     from lab.scheduler import get_jobs
     return get_jobs(source="whatsapp")
+
+
+@app.get("/api/groups")
+async def list_groups():
+    """List all discovered WhatsApp groups with metadata."""
+    jobs = storage.get_sync_jobs(limit=500, source="whatsapp")
+    allowlist = load_group_allowlist()
+    groups = []
+    for j in jobs:
+        try:
+            meta = json.loads(j.meta) if isinstance(j.meta, str) else (j.meta or {})
+        except (json.JSONDecodeError, TypeError):
+            meta = {}
+        allowed = any(
+            entry.lower() in j.group_name.lower()
+            for entry in allowlist
+        ) if allowlist else True
+        groups.append({
+            "jid": j.group_id,
+            "name": j.group_name,
+            "participants": meta.get("participants", 0),
+            "records_found": j.records_found or 0,
+            "records_processed": j.records_processed or 0,
+            "status": j.status,
+            "error": j.error,
+            "allowed": allowed,
+        })
+    return sorted(groups, key=lambda g: g["name"].lower())
+
+
+@app.get("/api/groups/allowlist")
+async def get_allowlist():
+    """Return the current group allowlist."""
+    return load_group_allowlist()
+
+
+@app.post("/api/groups/allowlist")
+async def set_allowlist(request: Request):
+    """Set the group allowlist (JSON array of group JIDs or name substrings)."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+    if not isinstance(body, list):
+        raise HTTPException(400, "Expected a JSON array of strings")
+    entries = [str(x).strip() for x in body if x and str(x).strip()]
+    save_group_allowlist(entries)
+    return {"status": "ok", "count": len(entries)}
+
+
+@app.delete("/api/groups/allowlist")
+async def clear_allowlist():
+    """Clear the group allowlist (track all groups)."""
+    save_group_allowlist([])
+    return {"status": "ok"}
 
 
 @app.get("/api/sync/connection")

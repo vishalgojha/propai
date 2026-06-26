@@ -27,6 +27,27 @@ EVOLUTION_SYNC_DELAY_MS = int(os.getenv("EVOLUTION_SYNC_DELAY_MS", "500"))
 EVIDENCE_DIR = PROJECT_DIR / "evidence"
 REGISTRY_DIR = PROJECT_DIR / "registry"
 
+# Group allowlist — only track these WhatsApp groups
+# File: lab/group_allowlist.json — array of group JIDs or name substrings
+# If empty or missing, ALL groups are tracked.
+GROUP_ALLOWLIST_PATH = LAB_DIR / "group_allowlist.json"
+
+def load_group_allowlist() -> list[str]:
+    if not GROUP_ALLOWLIST_PATH.exists():
+        return []
+    import json
+    try:
+        raw = json.loads(GROUP_ALLOWLIST_PATH.read_text())
+        if isinstance(raw, list):
+            return [str(x).strip() for x in raw if x]
+        return []
+    except (json.JSONDecodeError, OSError):
+        return []
+
+def save_group_allowlist(entries: list[str]):
+    import json
+    GROUP_ALLOWLIST_PATH.write_text(json.dumps(entries, indent=2))
+
 # Message sources
 SOURCE_WHATSAPP = "WHATSAPP"
 SOURCE_WHATSAPP_HISTORY = "WHATSAPP_HISTORY"
@@ -34,6 +55,6 @@ SOURCE_MANUAL = "MANUAL"
 
 # Observation types
 OBS_TYPES = [
-    "SELLER", "BUYER", "RENTAL", "RENTAL_SEEKER",
-    "COMMERCIAL_SALE", "COMMERCIAL_RENTAL",
+    "SELLER", "BUYER", "REQUIREMENT", "RENTAL", "RENTAL_SEEKER",
+    "COMMERCIAL_SALE", "COMMERCIAL_RENTAL", "PRE_LAUNCH",
 ]

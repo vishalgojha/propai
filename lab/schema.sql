@@ -22,6 +22,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_msg_uid ON raw_messages(message_uid);
 CREATE TABLE IF NOT EXISTS parsed_output (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     raw_message_id  INTEGER NOT NULL REFERENCES raw_messages(id),
+    message_type    TEXT DEFAULT NULL,
     intent          TEXT DEFAULT NULL,
     principal       TEXT DEFAULT NULL,
     bhk             TEXT DEFAULT NULL,

@@ -3,6 +3,7 @@
 import json
 import sqlite3
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -75,6 +76,7 @@ class SqliteStorage(Storage):
             "ALTER TABLE evaluations ADD COLUMN extracted_principal TEXT DEFAULT NULL",
             "ALTER TABLE parsed_output ADD COLUMN embedding BLOB DEFAULT NULL",
             "ALTER TABLE parsed_output ADD COLUMN location TEXT DEFAULT NULL",
+            "ALTER TABLE parsed_output ADD COLUMN message_type TEXT DEFAULT NULL",
         ]
         for sql in migs:
             try:
@@ -149,14 +151,14 @@ class SqliteStorage(Storage):
                 obs.event_id = raw.event_id
         cur = self.db.execute(
             """INSERT INTO parsed_output
-               (raw_message_id, intent, principal, bhk, price, price_unit, area_sqft,
+               (raw_message_id, message_type, intent, principal, bhk, price, price_unit, area_sqft,
                 furnishing, location_raw, location, building_name, landmark_name, street_name,
                 area, micro_market, developer, broker_name, broker_phone,
                 profile_name, forwarded, confidence, raw_payload, event_id, embedding)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (obs.raw_message_id, obs.intent, obs.principal, obs.bhk, obs.price,
-             obs.price_unit, obs.area_sqft, obs.furnishing, obs.location_raw,
-             obs.location,
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (obs.raw_message_id, obs.message_type, obs.intent, obs.principal, obs.bhk,
+             obs.price, obs.price_unit, obs.area_sqft, obs.furnishing,
+             obs.location_raw, obs.location,
              obs.building_name, obs.landmark_name, obs.street_name,
              obs.area, obs.micro_market, obs.developer,
              obs.broker_name, obs.broker_phone,
@@ -176,7 +178,7 @@ class SqliteStorage(Storage):
 
     def get_parsed(self, limit: int = 50, offset: int = 0) -> list[dict]:
         rows = self.db.execute(
-            """SELECT p.id, p.raw_message_id, p.intent, p.principal, p.bhk,
+            """SELECT p.id, p.raw_message_id, p.message_type, p.intent, p.principal, p.bhk,
                       p.price, p.price_unit, p.area_sqft, p.furnishing,
                       p.location_raw, p.location, p.building_name, p.landmark_name,
                       p.street_name, p.area, p.micro_market, p.developer,
@@ -666,6 +668,16 @@ class SqliteStorage(Storage):
         ).fetchall()
         return [dict(r) for r in rows]
 
+    def dashboard_obs_types_today(self, today_prefix: str) -> list[dict]:
+        rows = self.db.execute(
+            "SELECT p.message_type, COUNT(*) as c FROM parsed_output p "
+            "JOIN raw_messages r ON r.id = p.raw_message_id "
+            "WHERE r.timestamp LIKE ? AND p.message_type IS NOT NULL "
+            "GROUP BY p.message_type ORDER BY c DESC",
+            (f"{today_prefix}%",)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
     def dashboard_feed(self, limit: int = 20) -> list[dict]:
         rows = self.db.execute(
             "SELECT r.id, r.message, r.timestamp, r.group_name, r.sender, "
@@ -677,10 +689,93 @@ class SqliteStorage(Storage):
             "FROM raw_messages r "
             "LEFT JOIN parsed_output p ON p.raw_message_id = r.id "
             "LEFT JOIN resolver_decisions d ON d.parsed_id = p.id "
+            "WHERE p.intent IS NOT NULL AND p.intent != '' "
             "ORDER BY r.id DESC LIMIT ?",
             (limit,)
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def dashboard_listings(self, limit: int = 20) -> list[dict]:
+        rows = self.db.execute(
+            "SELECT r.id, r.message, r.timestamp, r.group_name, r.sender, "
+            "p.intent, p.principal, p.broker_name, p.broker_phone, "
+            "p.bhk, p.price, p.price_unit, p.area_sqft, p.furnishing, "
+            "p.building_name, p.landmark_name, p.street_name, p.area, p.micro_market, p.developer, "
+            "p.forwarded, p.profile_name, "
+            "d.final_confidence, d.method "
+            "FROM raw_messages r "
+            "JOIN parsed_output p ON p.raw_message_id = r.id "
+            "LEFT JOIN resolver_decisions d ON d.parsed_id = p.id "
+            "WHERE p.intent IN ('SELL', 'RENT', 'PRE-LAUNCH', 'COMMERCIAL_SALE', 'COMMERCIAL_RENTAL') "
+            "ORDER BY r.id DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def dashboard_requirements(self, limit: int = 20) -> list[dict]:
+        rows = self.db.execute(
+            "SELECT r.id, r.message, r.timestamp, r.group_name, r.sender, "
+            "p.intent, p.principal, p.broker_name, p.broker_phone, "
+            "p.bhk, p.price, p.price_unit, p.furnishing, "
+            "p.building_name, p.landmark_name, p.area, p.micro_market, "
+            "p.forwarded, p.profile_name, "
+            "d.final_confidence, d.method "
+            "FROM raw_messages r "
+            "JOIN parsed_output p ON p.raw_message_id = r.id "
+            "LEFT JOIN resolver_decisions d ON d.parsed_id = p.id "
+            "WHERE p.intent IN ('BUY', 'RENTAL_SEEKER') "
+            "ORDER BY r.id DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def dashboard_signals(self) -> list[dict]:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        signals = []
+
+        # Buildings mentioned most today
+        top_buildings = self.db.execute(
+            "SELECT p.building_name, COUNT(*) as c FROM parsed_output p "
+            "JOIN raw_messages r ON r.id = p.raw_message_id "
+            "WHERE r.timestamp LIKE ? AND p.building_name IS NOT NULL AND p.building_name != '' "
+            "GROUP BY p.building_name ORDER BY c DESC LIMIT 5",
+            (f"{today}%",)
+        ).fetchall()
+        for b in top_buildings:
+            signals.append({"type": "trending_building", "label": b["building_name"], "count": b["c"]})
+
+        # Micro-markets with most activity today
+        top_markets = self.db.execute(
+            "SELECT p.micro_market, COUNT(*) as c FROM parsed_output p "
+            "JOIN raw_messages r ON r.id = p.raw_message_id "
+            "WHERE r.timestamp LIKE ? AND p.micro_market IS NOT NULL AND p.micro_market != '' "
+            "GROUP BY p.micro_market ORDER BY c DESC LIMIT 5",
+            (f"{today}%",)
+        ).fetchall()
+        for m in top_markets:
+            signals.append({"type": "active_market", "label": m["micro_market"], "count": m["c"]})
+
+        # Unmatched requirements (BUY/RENTAL_SEEKER that couldn't be resolved)
+        unmatched = self.db.execute(
+            "SELECT COUNT(*) as c FROM parsed_output p "
+            "JOIN resolver_decisions d ON d.parsed_id = p.id "
+            "WHERE p.intent IN ('BUY', 'RENTAL_SEEKER') AND d.method = 'unresolved'"
+        ).fetchone()
+        if unmatched and unmatched["c"] > 0:
+            signals.append({"type": "unmatched_requirements", "count": unmatched["c"]})
+
+        # Brokers active today
+        active_brokers = self.db.execute(
+            "SELECT p.broker_name, COUNT(*) as c FROM parsed_output p "
+            "JOIN raw_messages r ON r.id = p.raw_message_id "
+            "WHERE r.timestamp LIKE ? AND p.broker_name IS NOT NULL AND p.broker_name != '' "
+            "GROUP BY p.broker_name ORDER BY c DESC LIMIT 5",
+            (f"{today}%",)
+        ).fetchall()
+        for b in active_brokers:
+            signals.append({"type": "active_broker", "label": b["broker_name"], "count": b["c"]})
+
+        return signals
 
     def dashboard_heatmap(self) -> list[dict]:
         rows = self.db.execute(

@@ -260,13 +260,32 @@ class WhatsAppSource(BaseSource):
         if not isinstance(raw_groups, list):
             return []
 
+        from lab.config import load_group_allowlist
+        allowlist = load_group_allowlist()
+
+        def _is_allowed(jid: str, name: str) -> bool:
+            if not allowlist:
+                return True
+            for entry in allowlist:
+                if entry.startswith("@g.us") and jid == entry:
+                    return True
+                if entry.startswith("@g.us") and jid.endswith(entry):
+                    return True
+                if entry.lower() in name.lower():
+                    return True
+            return False
+
         jobs = []
         for g in raw_groups:
             jid = g.get("id") or g.get("jid") or g.get("remoteJid") or ""
             name = g.get("name") or g.get("subject") or jid
             if not jid:
                 continue
-            participants = g.get("size", 0) or len(g.get("participants", []))
+            if not jid.endswith("@g.us"):
+                continue
+            if not _is_allowed(jid, name):
+                continue
+            participants = len(g.get("participants", [])) or g.get("size", 0) or 0
             jobs.append(SyncJob(
                 source=self.name,
                 instance=self.instance,

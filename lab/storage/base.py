@@ -29,6 +29,7 @@ class RawMessage:
 class ParsedObservation:
     id: int = 0
     raw_message_id: int = 0
+    message_type: Optional[str] = None
     intent: Optional[str] = None
     principal: Optional[str] = None
     bhk: Optional[str] = None
@@ -300,10 +301,20 @@ class Storage(ABC):
     def dashboard_feed(self, limit: int = 20) -> list[dict]: ...
 
     @abstractmethod
+    def dashboard_listings(self, limit: int = 20) -> list[dict]: ...
+
+    @abstractmethod
+    def dashboard_requirements(self, limit: int = 20) -> list[dict]: ...
+
+    @abstractmethod
+    def dashboard_signals(self) -> list[dict]: ...
+
+    @abstractmethod
     def dashboard_heatmap(self) -> list[dict]: ...
 
     @abstractmethod
     def dashboard_message_types_today(self, today_prefix: str) -> list[dict]: ...
+    def dashboard_obs_types_today(self, today_prefix: str) -> list[dict]: ...
 
     @abstractmethod
     def dashboard_growth(self, today_prefix: str) -> dict: ...

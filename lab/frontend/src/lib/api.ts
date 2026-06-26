@@ -33,6 +33,7 @@ export interface ParsedObservation {
   raw_group: string;
   broker_name: string;
   broker_phone: string;
+  message_type: string;
   intent: string;
   principal: string;
   forwarded: boolean;
@@ -53,6 +54,7 @@ export interface ParsedObservation {
 export interface DashboardActivity {
   messages_today: number;
   message_types: Record<string, number>;
+  observation_types: Record<string, number>;
 }
 
 export interface DashboardCoverage {
@@ -96,6 +98,18 @@ export function getDashboardCoverage() {
 
 export function getDashboardFeed(limit = 20) {
   return fetchJSON<any[]>(`/dashboard/feed?limit=${limit}`);
+}
+
+export function getDashboardListings(limit = 20) {
+  return fetchJSON<any[]>(`/dashboard/listings?limit=${limit}`);
+}
+
+export function getDashboardRequirements(limit = 20) {
+  return fetchJSON<any[]>(`/dashboard/requirements?limit=${limit}`);
+}
+
+export function getDashboardSignals() {
+  return fetchJSON<any[]>("/dashboard/signals");
 }
 
 export function getDashboardHeatmap() {
@@ -175,3 +189,67 @@ export function getFailed(limit = 50, offset = 0) {
 export function getGraphGrowth() {
   return fetchJSON<any>("/dashboard/graph-growth");
 }
+
+export function getAllowlist() {
+  return fetchJSON<string[]>("/groups/allowlist");
+}
+
+export function setAllowlist(entries: string[]) {
+  return fetchJSON<any>("/groups/allowlist", {
+    method: "POST",
+    body: JSON.stringify(entries),
+  });
+}
+
+export function clearAllowlist() {
+  return fetchJSON<any>("/groups/allowlist", { method: "DELETE" });
+}
+
+export interface EngineeringSearchResult {
+  path: string;
+  score: number;
+  matches: { line: number; text: string }[];
+}
+
+export function getEngineeringContext() {
+  return fetchJSON<any>("/engineering/context");
+}
+
+export function getEngineeringIndex(refresh = false) {
+  return fetchJSON<any>(`/engineering/index?refresh=${refresh ? "true" : "false"}`);
+}
+
+export function searchEngineering(q: string) {
+  return fetchJSON<EngineeringSearchResult[]>(`/engineering/search?q=${encodeURIComponent(q)}`);
+}
+
+export function getEngineeringKnowledge() {
+  return fetchJSON<any[]>("/engineering/knowledge");
+}
+
+export function getEngineeringLogs(kind = "server") {
+  return fetchJSON<any>(`/engineering/logs?kind=${encodeURIComponent(kind)}`);
+}
+
+export function engineeringChat(message: string) {
+  return fetchJSON<any>("/engineering/chat", {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}
+
+export function createEngineeringTask(prompt: string) {
+  return fetchJSON<any>("/engineering/tasks", {
+    method: "POST",
+    body: JSON.stringify({ prompt }),
+  });
+}
+
+export function getEngineeringMCP() {
+  return fetchJSON<any[]>("/engineering/mcp");
+}
+
+export function getEngineeringTerminal() {
+  return fetchJSON<any>("/engineering/terminal");
+}
+
