@@ -12,9 +12,10 @@ const navItems = [
   { href: "/brokers", label: "Brokers", icon: "👤" },
   { href: "/market", label: "Markets", icon: "📍" },
   { href: "/search", label: "Search", icon: "🔍" },
-  { href: "/engineering", label: "Engineering", icon: "🛠" },
   { href: "/settings", label: "Settings", icon: "⚙" },
 ];
+
+const engineeringEnabled = process.env.NEXT_PUBLIC_PROPAI_ENGINEERING === "true";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const [conn, setConn] = useState<ConnectionState | null>(null);
@@ -53,7 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <img src="/propai-logo.svg" alt="PropAI" className="w-7 h-7" />
             <span className="text-lg font-bold text-[var(--text-primary)]">PropAI</span>
           </div>
-          {navItems.map((item) => (
+          {[...navItems, ...(engineeringEnabled ? [{ href: "/engineering", label: "Engineering", icon: "🛠" }] : [])].map((item) => (
             <a key={item.href} href={item.href} className="sidebar-link">
               <span>{item.icon}</span>
               <span>{item.label}</span>

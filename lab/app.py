@@ -1044,6 +1044,12 @@ ENGINEERING_TEXT_EXTS = {
 }
 ENGINEERING_MAX_FILE_BYTES = 220_000
 ENGINEERING_INDEX_CACHE: dict = {"mtime": 0.0, "index": None}
+ENGINEERING_ENABLED = os.getenv("PROPAI_ENGINEERING_ENABLED", "").lower() in {"1", "true", "yes", "on"}
+
+
+def _require_engineering_enabled():
+    if not ENGINEERING_ENABLED:
+        raise HTTPException(status_code=404, detail="Engineering Agent is not enabled")
 
 
 def _engineering_rel(path: Path) -> str:
@@ -1278,26 +1284,31 @@ class EngineeringPatchPreviewRequest(BaseModel):
 
 @app.get("/api/engineering/context")
 async def engineering_context():
+    _require_engineering_enabled()
     return _engineering_context()
 
 
 @app.get("/api/engineering/index")
 async def engineering_index(refresh: bool = False):
+    _require_engineering_enabled()
     return _build_engineering_index(force=refresh)
 
 
 @app.get("/api/engineering/search")
 async def engineering_search(q: str = "", limit: int = 40):
+    _require_engineering_enabled()
     return _engineering_search(q, limit)
 
 
 @app.get("/api/engineering/knowledge")
 async def engineering_knowledge():
+    _require_engineering_enabled()
     return _engineering_knowledge()
 
 
 @app.get("/api/engineering/logs")
 async def engineering_logs(kind: str = "server", lines: int = 200):
+    _require_engineering_enabled()
     log_map = {
         "server": Path("/tmp/lab-api.log"),
         "webhook": ENGINEERING_ROOT / "webhook.log",
@@ -1315,21 +1326,25 @@ async def engineering_logs(kind: str = "server", lines: int = 200):
 
 @app.post("/api/engineering/chat")
 async def engineering_chat(req: EngineeringChatRequest):
+    _require_engineering_enabled()
     return _engineering_answer(req.message)
 
 
 @app.post("/api/engineering/tasks")
 async def engineering_tasks(req: EngineeringTaskRequest):
+    _require_engineering_enabled()
     return _engineering_plan(req.prompt)
 
 
 @app.post("/api/engineering/patch-preview")
 async def engineering_patch_preview(req: EngineeringPatchPreviewRequest):
+    _require_engineering_enabled()
     return {"status": "review_required", "summary": req.summary, "files": req.files, "diff": req.diff, "can_apply": False, "message": "Patch preview only. Applying changes requires explicit approval and a separate executor."}
 
 
 @app.get("/api/engineering/mcp")
 async def engineering_mcp():
+    _require_engineering_enabled()
     providers = [
         ("GitHub", "GITHUB_TOKEN"),
         ("Filesystem", None),
@@ -1346,6 +1361,7 @@ async def engineering_mcp():
 
 @app.get("/api/engineering/terminal")
 async def engineering_terminal():
+    _require_engineering_enabled()
     return {"enabled": False, "reason": "Terminal execution is disabled. Engineering Agent never executes code automatically."}
 
 
