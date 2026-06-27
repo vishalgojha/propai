@@ -5,117 +5,110 @@ import * as api from "@/lib/api";
 import { formatBrokerPrice } from "@/lib/format";
 
 const PAGE_SIZE = 50;
-const LISTING_TYPES = ["SELLER", "RENTAL", "COMMERCIAL_SALE", "COMMERCIAL_RENTAL", "PRE_LAUNCH"];
 
-const typeColors: Record<string, string> = {
-  SELLER: "badge-green",
-  RENTAL: "badge-yellow",
-  COMMERCIAL_SALE: "badge-orange",
-  COMMERCIAL_RENTAL: "badge-orange",
-  PRE_LAUNCH: "badge-red",
+function istDate(ts: string | null | undefined): string {
+  if (!ts) return "";
+  try {
+    const d = new Date(ts.endsWith("Z") ? ts : ts + "Z");
+    return d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "short", timeStyle: "short" });
+  } catch {
+    return "";
+  }
+}
+
+function fmtPrice(price: number | null | undefined, unit?: string | null): string {
+  if (price == null) return "";
+  if (unit === "L" || unit === "lakh") return `₹${(price / 100000).toLocaleString("en-IN")} L`;
+  if (unit === "Cr" || unit === "crore") return `₹${(price / 10000000).toLocaleString("en-IN")} Cr`;
+  return formatBrokerPrice(price);
+}
+
+const intentColor: Record<string, string> = {
+  SELL: "badge-green", RENT: "badge-yellow",
+  "PRE-LAUNCH": "badge-red", COMMERCIAL: "badge-orange",
 };
 
-function locationQuery(r: api.ParsedObservation): string {
-  return [r.building_name, r.landmark_name, r.micro_market, r.location_raw].filter(Boolean).join(" ");
+function waLink(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const clean = phone.replace(/[^0-9]/g, "").slice(-10);
+  return clean.length === 10 ? `https://wa.me/91${clean}` : null;
 }
 
-function demandQuery(r: api.ParsedObservation): string {
-  return [
-    "requirement",
-    r.bhk,
-    r.micro_market || r.location_raw,
-    r.landmark_name && `near ${r.landmark_name}`,
-    r.price && `under ${formatBrokerPrice(r.price)}`,
-  ].filter(Boolean).join(" ");
-}
-
-function brokerQuery(r: api.ParsedObservation): string {
-  return r.broker_phone || r.broker_name || "";
-}
-
-export default function ExtractionsPage() {
-  const [data, setData] = useState<api.ParsedObservation[]>([]);
+export default function ListingsPage() {
+  const [data, setData] = useState<any[]>([]);
   const [offset, setOffset] = useState(0);
 
-  useEffect(() => {
-    api.getParsed(PAGE_SIZE, offset).then(all => setData(all.filter(r => LISTING_TYPES.includes(r.message_type))));
-  }, [offset]);
+  function load() {
+    api.getParsed(PAGE_SIZE, offset, "SELL,RENT,PRE-LAUNCH,COMMERCIAL").then(setData);
+  }
+
+  useEffect(() => { load(); }, [offset]);
 
   return (
     <div>
-      <div className="flex gap-2 mb-4">
-        <button onClick={() => api.getParsed(PAGE_SIZE, offset).then(all => setData(all.filter(r => LISTING_TYPES.includes(r.message_type))))} className="px-3 py-1.5 bg-[var(--accent)] text-[var(--on-propai-green)] rounded-lg text-sm font-bold">Refresh</button>
+      <a href="/" className="text-xs text-[var(--blue)] no-underline hover:underline">&larr; Dashboard</a>
+      <div className="flex items-center gap-3 mt-3 mb-4">
+        <h2 className="text-lg font-bold">Listings</h2>
+        <button onClick={load} className="px-3 py-1 bg-[var(--accent)] text-[var(--on-propai-green)] rounded-lg text-sm font-bold cursor-pointer">Refresh</button>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr>
-              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase tracking-wider">ID</th>
-              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase tracking-wider">Broker</th>
-              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase tracking-wider">Type</th>
-              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase tracking-wider">BHK</th>
-              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase tracking-wider">Price</th>
-              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase tracking-wider">Area</th>
-              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase tracking-wider">Location</th>
-              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase tracking-wider">Landmark</th>
-              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase tracking-wider">Market</th>
-              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase tracking-wider">Conf.</th>
-              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map(r => {
-              const pct = r.confidence ? (r.confidence * 100) : 0;
-              const cColor = pct >= 70 ? "green" : pct >= 40 ? "yellow" : "red";
-              const phone = (r.broker_phone || "").replace(/[^0-9]/g, "").slice(-10);
-              const waLink = phone.length === 10 ? `https://wa.me/91${phone}` : "";
-              return (
-                <tr key={r.id} className="hover:bg-[var(--bg-surface)]">
-                <td className="px-2.5 py-2 border-b border-[var(--border)]">
-                  <a href={`/observations/${r.raw_message_id}`} className="text-[var(--blue)] font-semibold no-underline hover:underline">P{r.id}</a>
-                  <div className="text-[10px] text-[var(--text-muted)]">{r.raw_group}</div>
-                </td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)] font-semibold">
-                    {r.broker_name || "—"}
-                    {waLink && <div><a href={waLink} target="_blank" className="text-[10px] text-[var(--blue)] no-underline">wa.me/{phone}</a></div>}
-                  </td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)]">
-                    <span className={`badge ${typeColors[r.message_type] || "badge-blue"}`}>{r.message_type}</span>
-                  </td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)]">{r.bhk}</td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)]">{formatBrokerPrice(r.price)}</td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)]">{r.area_sqft ? `${r.area_sqft.toLocaleString()} sqft` : ""}</td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)] max-w-[200px] truncate">
-                    {r.location_raw}
-                    {r.location?.tokens && (
-                      <div className="text-[10px] text-[var(--blue)] mt-0.5">
-                        {r.location.tokens.map((t, i) => (
-                          <span key={i} className="loc-token">{t.text} <small className="text-[var(--text-muted)]">{t.kind}</small></span>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)] max-w-[120px] truncate">{r.landmark_name}{r.landmark_name && <span className="prov prov-enriched">Enriched</span>}</td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)]">{r.micro_market}{r.micro_market && <span className="prov prov-enriched">Enriched</span>}</td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)]"><span className={`badge badge-${cColor}`}>{pct.toFixed(0)}%</span></td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)] min-w-[190px]">
-                    <div className="flex flex-wrap gap-2">
-                      <a href={`/observations/${r.raw_message_id}`} className="text-xs font-semibold text-[var(--blue)] hover:underline">View</a>
-                      <a href={`/search?q=${encodeURIComponent(demandQuery(r))}`} className="text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg px-2.5 py-1">Find demand</a>
-                      {brokerQuery(r) && <a href={`/search?q=${encodeURIComponent(brokerQuery(r))}`} className="text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Broker</a>}
-                      {locationQuery(r) && <a href={`/search?q=${encodeURIComponent(locationQuery(r))}`} className="text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Market</a>}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+
+      <div className="space-y-2">
+        {data.map(r => {
+          const w = waLink(r.broker_phone);
+          const fields: string[] = [];
+          if (r.bhk) fields.push(r.bhk);
+          if (r.area_sqft) fields.push(`${Number(r.area_sqft).toLocaleString("en-IN")} sqft`);
+          if (r.furnishing) fields.push(r.furnishing);
+          if (r.area) fields.push(r.area);
+          if (r.location_raw) fields.push(r.location_raw);
+          if (r.landmark_name) fields.push(`near ${r.landmark_name}`);
+
+          return (
+            <div key={r.id} className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`badge ${intentColor[r.intent] || "badge-blue"}`}>{r.intent}</span>
+                    {r.building_name && <span className="text-sm font-bold text-[var(--text-primary)]">{r.building_name}</span>}
+                    {r.micro_market && <span className="text-xs text-[var(--text-muted)]">{r.micro_market}</span>}
+                  </div>
+                  {fields.length > 0 && (
+                    <div className="text-xs text-[var(--text-secondary)] mt-0.5">{fields.join(" · ")}</div>
+                  )}
+                  {r.raw_message && (
+                    <div className="mt-2 text-xs text-[var(--text-muted)] line-clamp-2">{r.raw_message}</div>
+                  )}
+                </div>
+                {r.price != null && (
+                  <div className="text-sm font-bold text-[var(--text-primary)] whitespace-nowrap flex-shrink-0">
+                    {r.price_unit ? fmtPrice(r.price, r.price_unit) : formatBrokerPrice(r.price)}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-3 mt-2 pt-2 border-t border-[var(--border)]">
+                {r.broker_name && <span className="text-xs text-[var(--text-secondary)]">{r.broker_name}</span>}
+                {r.raw_group && <span className="text-xs text-[var(--text-muted)]">{r.raw_group}</span>}
+                {r.raw_timestamp && <span className="text-xs text-[var(--text-muted)] ml-auto">{istDate(r.raw_timestamp)}</span>}
+              </div>
+              <div className="flex gap-2 mt-2">
+                {w && (
+                  <a href={w} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-green-600 hover:text-green-700 dark:text-green-400">Chat on WhatsApp</a>
+                )}
+                <a href={`/observations/${r.raw_message_id}`} className="text-xs font-semibold text-[var(--blue)] hover:underline">Details</a>
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      {data.length === 0 && (
+        <div className="text-[var(--text-muted)] text-center py-10">No listings found.</div>
+      )}
+
       <div className="flex gap-2 items-center mt-3">
-        <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))} className="px-3 py-1 bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-lg text-sm disabled:opacity-40">Prev</button>
+        <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))} className="px-3 py-1 bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-lg text-sm disabled:opacity-40 cursor-pointer">Prev</button>
         <span className="text-sm text-[var(--text-muted)]">{data.length > 0 ? `${offset + 1}–${offset + data.length}` : "0"}</span>
-        <button disabled={data.length < PAGE_SIZE} onClick={() => setOffset(offset + PAGE_SIZE)} className="px-3 py-1 bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-lg text-sm disabled:opacity-40">Next</button>
+        <button disabled={data.length < PAGE_SIZE} onClick={() => setOffset(offset + PAGE_SIZE)} className="px-3 py-1 bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-lg text-sm disabled:opacity-40 cursor-pointer">Next</button>
       </div>
     </div>
   );

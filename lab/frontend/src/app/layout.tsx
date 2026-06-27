@@ -7,7 +7,7 @@ import { getConnectionState, getWhatsAppStatus, ConnectionState, WhatsAppStatus 
 const navItems = [
   { href: "/", label: "Dashboard", icon: "🏠" },
   { href: "/inbox", label: "Messages", icon: "💬" },
-  { href: "/extractions", label: "Properties", icon: "🏢" },
+  { href: "/extractions", label: "Listings", icon: "🏢" },
   { href: "/requirements", label: "Requirements", icon: "📋" },
   { href: "/brokers", label: "Brokers", icon: "👤" },
   { href: "/groups", label: "Groups", icon: "👥" },
