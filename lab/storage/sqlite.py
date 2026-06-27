@@ -406,9 +406,18 @@ class SqliteStorage(Storage):
         ).fetchone()
         return dict_to_dataclass(ParsedObservation, row) if row else None
 
-    def get_parsed(self, limit: int = 50, offset: int = 0) -> list[dict]:
+    def get_parsed(self, limit: int = 50, offset: int = 0, intent: str = "") -> list[dict]:
+        where = ""
+        params: list = []
+        if intent:
+            intents = [s.strip() for s in intent.split(",") if s.strip()]
+            if intents:
+                placeholders = ",".join("?" * len(intents))
+                where = f"WHERE p.intent IN ({placeholders})"
+                params = intents
+        params.extend([limit, offset])
         rows = self.db.execute(
-            """SELECT p.id, p.raw_message_id, p.message_type, p.intent, p.principal, p.bhk,
+            f"""SELECT p.id, p.raw_message_id, p.message_type, p.intent, p.principal, p.bhk,
                       p.price, p.price_unit, p.area_sqft, p.furnishing,
                       p.location_raw, p.location, p.building_name, p.landmark_name,
                       p.street_name, p.area, p.micro_market, p.developer,
@@ -421,8 +430,9 @@ class SqliteStorage(Storage):
                       r.timestamp as raw_timestamp
                FROM parsed_output p
                JOIN raw_messages r ON r.id = p.raw_message_id
+               {where}
                ORDER BY p.id DESC LIMIT ? OFFSET ?""",
-            (limit, offset)
+            params
         ).fetchall()
         result = []
         for r in rows:

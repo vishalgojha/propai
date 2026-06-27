@@ -89,8 +89,10 @@ export function getRaw(limit = 50, offset = 0) {
   return fetchJSON<RawMessage[]>(`/raw?limit=${limit}&offset=${offset}`);
 }
 
-export function getParsed(limit = 50, offset = 0) {
-  return fetchJSON<ParsedObservation[]>(`/parsed?limit=${limit}&offset=${offset}`);
+export function getParsed(limit = 50, offset = 0, intent = "") {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (intent) params.set("intent", intent);
+  return fetchJSON<ParsedObservation[]>(`/parsed?${params}`);
 }
 
 export function getDashboardActivity() {

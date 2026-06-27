@@ -1492,8 +1492,8 @@ async def get_raw_message(raw_id: int):
 
 
 @app.get("/api/parsed")
-async def get_parsed(limit: int = 50, offset: int = 0):
-    return storage.get_parsed(limit, offset)
+async def get_parsed(limit: int = 50, offset: int = 0, intent: str = ""):
+    return storage.get_parsed(limit, offset, intent)
 
 
 @app.get("/api/resolver")
