@@ -16,21 +16,21 @@ export default function ObservationsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr>
-              <th className="text-left px-2.5 py-2 border-b border-[rgba(255,255,255,0.1)] text-[11px] text-[#64748b] uppercase">ID</th>
-              <th className="text-left px-2.5 py-2 border-b border-[rgba(255,255,255,0.1)] text-[11px] text-[#64748b] uppercase">Broker</th>
-              <th className="text-left px-2.5 py-2 border-b border-[rgba(255,255,255,0.1)] text-[11px] text-[#64748b] uppercase">Message</th>
-              <th className="text-left px-2.5 py-2 border-b border-[rgba(255,255,255,0.1)] text-[11px] text-[#64748b] uppercase">Building</th>
-              <th className="text-left px-2.5 py-2 border-b border-[rgba(255,255,255,0.1)] text-[11px] text-[#64748b] uppercase">Confidence</th>
+              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase">ID</th>
+              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase">Broker</th>
+              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase">Message</th>
+              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase">Building</th>
+              <th className="text-left px-2.5 py-2 border-b border-[var(--border-strong)] text-[11px] text-[var(--text-muted)] uppercase">Confidence</th>
             </tr>
           </thead>
           <tbody>
             {data.map(r => (
-              <tr key={r.id} className="hover:bg-[#0d1117]">
-                <td className="px-2.5 py-2 border-b border-[rgba(255,255,255,0.06)] text-[#58a6ff]">P{r.id}</td>
-                <td className="px-2.5 py-2 border-b border-[rgba(255,255,255,0.06)]">{r.broker_name || "—"}</td>
-                <td className="px-2.5 py-2 border-b border-[rgba(255,255,255,0.06)] max-w-[300px] truncate">{r.location_raw}</td>
-                <td className="px-2.5 py-2 border-b border-[rgba(255,255,255,0.06)]">{r.building_name || "—"}</td>
-                <td className="px-2.5 py-2 border-b border-[rgba(255,255,255,0.06)]">
+              <tr key={r.id} className="hover:bg-[var(--bg-surface)]">
+                <td className="px-2.5 py-2 border-b border-[var(--border)] text-[var(--blue)]">P{r.id}</td>
+                <td className="px-2.5 py-2 border-b border-[var(--border)]">{r.broker_name || "—"}</td>
+                <td className="px-2.5 py-2 border-b border-[var(--border)] max-w-[300px] truncate">{r.location_raw}</td>
+                <td className="px-2.5 py-2 border-b border-[var(--border)]">{r.building_name || "—"}</td>
+                <td className="px-2.5 py-2 border-b border-[var(--border)]">
                   {r.confidence != null && <span className={`badge ${r.confidence > 0.7 ? "badge-green" : r.confidence > 0.3 ? "badge-yellow" : "badge-red"}`}>{(r.confidence * 100).toFixed(0)}%</span>}
                 </td>
               </tr>

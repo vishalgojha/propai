@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import * as api from "@/lib/api";
+import { formatBrokerPrice } from "@/lib/format";
 
 const PAGE_SIZE = 50;
 const REQUIREMENT_TYPES = ["REQUIREMENT", "RENTAL_SEEKER"];
@@ -10,20 +11,6 @@ const typeColors: Record<string, string> = {
   REQUIREMENT: "badge-purple",
   RENTAL_SEEKER: "badge-yellow",
 };
-
-function formatPrice(value?: number | null) {
-  if (!value) return "";
-  if (value >= 10000000) {
-    return `${(value / 10000000).toLocaleString("en-IN", { maximumFractionDigits: 2 })} Cr`;
-  }
-  if (value >= 100000) {
-    return `${(value / 100000).toLocaleString("en-IN", { maximumFractionDigits: 2 })} Lac`;
-  }
-  if (value >= 1000) {
-    return `${(value / 1000).toLocaleString("en-IN", { maximumFractionDigits: 2 })} K`;
-  }
-  return value.toLocaleString("en-IN");
-}
 
 export default function RequirementsPage() {
   const [data, setData] = useState<api.ParsedObservation[]>([]);
@@ -68,12 +55,11 @@ export default function RequirementsPage() {
                   </td>
                   <td className="px-2.5 py-2 border-b border-[var(--border)]">
                     <span className={`badge ${typeColors[r.message_type] || "badge-blue"}`}>{r.message_type}</span>
-                    <span className="prov prov-parsed">Parsed</span>
                   </td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)]">{r.bhk}{r.bhk && <span className="prov prov-parsed">Parsed</span>}</td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)]">{formatPrice(r.price)}{r.price ? <span className="prov prov-parsed">Parsed</span> : ""}</td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)]">{r.furnishing || ""}{r.furnishing ? <span className="prov prov-parsed">Parsed</span> : ""}</td>
-                  <td className="px-2.5 py-2 border-b border-[var(--border)] max-w-[200px]">{r.location_raw}{r.location_raw && <span className="prov prov-parsed">Parsed</span>}</td>
+                  <td className="px-2.5 py-2 border-b border-[var(--border)]">{r.bhk}</td>
+                  <td className="px-2.5 py-2 border-b border-[var(--border)]">{formatBrokerPrice(r.price)}</td>
+                  <td className="px-2.5 py-2 border-b border-[var(--border)]">{r.furnishing || ""}</td>
+                  <td className="px-2.5 py-2 border-b border-[var(--border)] max-w-[200px]">{r.location_raw}</td>
                   <td className="px-2.5 py-2 border-b border-[var(--border)]">{r.micro_market}{r.micro_market && <span className="prov prov-enriched">Enriched</span>}</td>
                   <td className="px-2.5 py-2 border-b border-[var(--border)]"><span className={`badge badge-${cColor}`}>{pct.toFixed(0)}%</span></td>
                 </tr>

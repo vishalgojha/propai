@@ -57,6 +57,7 @@ SEED_MESSAGES = [
         "message": "Direct owner 2 BHK at High Street Phoenix area. 3.1 Cr. Fully furnished. Call 9876512345",
         "expected": {
             "message_type": "SELLER",
+            "principal": "Owner",
             "bhk": "2 BHK",
             "price": 3100000,
             "price_unit": "Cr",
@@ -64,11 +65,12 @@ SEED_MESSAGES = [
             "landmark_name": "High Street Phoenix",
         },
     },
-    # ── Buyer messages ────────────────────────────────────
+    # ── Buyer / Requirement messages ──────────────────────────
     {
         "message": "WANTED: 3 BHK in Bandra West near Mount Mary. Budget 5 Cr. Need fully furnished. Call Amit 9988776655",
         "expected": {
-            "message_type": "BUYER",
+            "message_type": "REQUIREMENT",
+            "principal": "Buyer",
             "bhk": "3 BHK",
             "price": 50000000,
             "price_unit": "Cr",
@@ -81,12 +83,52 @@ SEED_MESSAGES = [
     {
         "message": "Looking for 2 BHK near Linking Road. Budget 2.5 Cr. Semi furnished. Contact 8877665544",
         "expected": {
-            "message_type": "BUYER",
+            "message_type": "REQUIREMENT",
+            "principal": "Buyer",
             "bhk": "2 BHK",
-            "price": 2500000,
+            "price": 25000000,
             "price_unit": "Cr",
             "furnishing": "Semi Furnished",
             "landmark_name": "Linking Road",
+        },
+    },
+    # ── Client requirement messages ─────────────────────────
+    {
+        "message": "Client requirement: 2 BHK in Bandra West near Lilavati Hospital, budget 3 Cr, ready to move. Contact Rajesh 9820012345",
+        "expected": {
+            "message_type": "REQUIREMENT",
+            "principal": "Buyer",
+            "bhk": "2 BHK",
+            "price": 30000000,
+            "price_unit": "Cr",
+            "landmark_name": "Lilavati Hospital",
+            "broker_name": "Rajesh",
+            "broker_phone": "9820012345",
+        },
+    },
+    {
+        "message": "Need 1 BHK rental in Andheri West near Infinity Mall, max 30k, semi furnished. Call Sameer 9876543210",
+        "expected": {
+            "message_type": "RENTAL_SEEKER",
+            "principal": "Tenant",
+            "bhk": "1 BHK",
+            "price": 30000,
+            "furnishing": "Semi Furnished",
+            "landmark_name": "Infinity Mall",
+            "broker_name": "Sameer",
+            "broker_phone": "9876543210",
+        },
+    },
+    # ── Pre-launch ──────────────────────────────────────────
+    {
+        "message": "Pre-launch at Lodha Crown, Malad. 1/2/3 BHK starting 1.5 Cr. Call Vishal 9876543210",
+        "expected": {
+            "message_type": "PRE_LAUNCH",
+            "bhk": "1 BHK",
+            "price": 15000000,
+            "price_unit": "Cr",
+            "broker_name": "Vishal",
+            "broker_phone": "9876543210",
         },
     },
     # ── Rental messages ────────────────────────────────────

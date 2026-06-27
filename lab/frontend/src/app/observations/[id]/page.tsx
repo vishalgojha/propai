@@ -3,6 +3,27 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import * as api from "@/lib/api";
+import { formatBrokerPrice } from "@/lib/format";
+
+function istTime(ts: string | null | undefined): string {
+  if (!ts) return "";
+  try {
+    const d = new Date(ts.endsWith("Z") ? ts : ts + "Z");
+    return d.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+function istDate(ts: string | null | undefined): string {
+  if (!ts) return "";
+  try {
+    const d = new Date(ts.endsWith("Z") ? ts : ts + "Z");
+    return d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "short", timeStyle: "short" });
+  } catch {
+    return "";
+  }
+}
 
 export default function ObservationPage() {
   const params = useParams();
@@ -22,7 +43,7 @@ export default function ObservationPage() {
   if (error) {
     return (
       <div className="max-w-3xl mx-auto py-8">
-        <div className="text-red-500 text-center py-10 bg-[#0d1117] border border-[rgba(255,255,255,0.06)] rounded-2xl">
+        <div className="text-red-500 text-center py-10 bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl">
           {error}
         </div>
       </div>
@@ -32,7 +53,7 @@ export default function ObservationPage() {
   if (!obs) {
     return (
       <div className="max-w-3xl mx-auto py-8">
-        <div className="text-[#64748b] text-center py-10">Loading...</div>
+        <div className="text-[var(--text-muted)] text-center py-10">Loading...</div>
       </div>
     );
   }
@@ -57,17 +78,17 @@ export default function ObservationPage() {
         <KV label="Broker" value={parsed.broker_name || raw.sender} />
         {waLink && (
           <div className="flex">
-            <span className="text-[#8b949e] min-w-[130px] text-sm">WhatsApp</span>
-            <span className="text-[#c9d1d9] text-sm">
+            <span className="text-[var(--text-secondary)] min-w-[130px] text-sm">WhatsApp</span>
+            <span className="text-[var(--text-primary)] text-sm">
               +91 {phoneClean.slice(0, 2)}XXXXX{phoneClean.slice(-2)}{" "}
-              <a href={waLink} target="_blank" className="text-[#3b82f6] no-underline hover:underline">[Open wa.me]</a>
+              <a href={waLink} target="_blank" className="text-[var(--blue)] no-underline hover:underline">[Open wa.me]</a>
             </span>
           </div>
         )}
-        <KV label="Time" value={raw.timestamp ? new Date(raw.timestamp + "Z").toLocaleString() : ""} />
+        <KV label="Time" value={istDate(raw.timestamp)} />
         <KV label="Source" value={raw.source} />
         <KV label="Forwarded" value={parsed.forwarded ? "Yes" : "No"} />
-        <div className="mt-4 bg-[#0d1117] border border-[#30363d] rounded-md p-4 text-sm whitespace-pre-wrap text-[#c9d1d9] leading-relaxed">
+        <div className="mt-4 bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md p-4 text-sm whitespace-pre-wrap text-[var(--text-primary)] leading-relaxed">
           {raw.message || "—"}
         </div>
       </Section>
@@ -75,22 +96,22 @@ export default function ObservationPage() {
       {/* ── Extraction ── */}
       <Section title="Extraction">
         <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-          <KV label="Intent" value={parsed.intent ? <><span className={`badge ${intentColor}`}>{parsed.intent}</span><span className="prov prov-parsed ml-1">Parsed</span></> : "—"} />
-          <KV label="Principal" value={parsed.principal ? <>{parsed.principal}<span className="prov prov-parsed ml-1">Parsed</span></> : "—"} />
-          <KV label="Broker" value={parsed.broker_name ? <>{parsed.broker_name}<span className="prov prov-parsed ml-1">Parsed</span></> : raw.sender || "—"} />
-          <KV label="Phone" value={parsed.broker_phone ? <>{parsed.broker_phone}<span className="prov prov-parsed ml-1">Parsed</span></> : "—"} />
-          <KV label="Building" value={parsed.building_name ? <>{parsed.building_name}<span className="prov prov-parsed ml-1">Parsed</span></> : "—"} />
-          <KV label="BHK" value={parsed.bhk ? <>{parsed.bhk}<span className="prov prov-parsed ml-1">Parsed</span></> : "—"} />
-          <KV label="Price" value={parsed.price ? <>{`₹${Number(parsed.price).toLocaleString()} ${parsed.price_unit || ""}`}<span className="prov prov-parsed ml-1">Parsed</span></> : "—"} />
-          <KV label="Area" value={parsed.area_sqft ? <>{`${parsed.area_sqft.toLocaleString()} sqft`}<span className="prov prov-parsed ml-1">Parsed</span></> : "—"} />
-          <KV label="Furnishing" value={parsed.furnishing ? <>{parsed.furnishing}<span className="prov prov-parsed ml-1">Parsed</span></> : "—"} />
-          <KV label="Location" value={parsed.location_raw ? <>{parsed.location_raw}<span className="prov prov-parsed ml-1">Parsed</span></> : "—"} />
+          <KV label="Intent" value={parsed.intent ? <span className={`badge ${intentColor}`}>{parsed.intent}</span> : "—"} />
+          <KV label="Principal" value={parsed.principal || "—"} />
+          <KV label="Broker" value={parsed.broker_name || raw.sender || "—"} />
+          <KV label="Phone" value={parsed.broker_phone || "—"} />
+          <KV label="Building" value={parsed.building_name || "—"} />
+          <KV label="BHK" value={parsed.bhk || "—"} />
+          <KV label="Price" value={formatBrokerPrice(parsed.price) || "—"} />
+          <KV label="Area" value={parsed.area_sqft ? `${parsed.area_sqft.toLocaleString("en-IN")} sqft` : "—"} />
+          <KV label="Furnishing" value={parsed.furnishing || "—"} />
+          <KV label="Location" value={parsed.location_raw || "—"} />
           <KV label="Micro Market" value={parsed.micro_market ? <>{parsed.micro_market}<span className="prov prov-enriched ml-1">Enriched</span></> : "—"} />
           <KV label="Landmark" value={parsed.landmark_name ? <>{parsed.landmark_name}<span className="prov prov-enriched ml-1">Enriched</span></> : "—"} />
         </div>
         <div className="mt-4 text-right">
           <span className={`text-2xl font-bold ${confColor}`}>{(confPct * 100).toFixed(0)}%</span>
-          <span className="text-[#64748b] text-sm ml-2">confidence</span>
+          <span className="text-[var(--text-muted)] text-sm ml-2">confidence</span>
         </div>
       </Section>
 
@@ -115,8 +136,8 @@ export default function ObservationPage() {
               const pct = s.value != null ? (s.value * 100).toFixed(0) : "—";
               const color = s.value != null && s.value > 0.7 ? "green" : s.value != null && s.value > 0.3 ? "yellow" : "red";
               return (
-                <div key={s.label} className="flex-1 bg-[#0d1117] border border-[#30363d] rounded-md p-3 text-center">
-                  <div className="text-[10px] text-[#8b949e] uppercase tracking-wider">{s.label}</div>
+                <div key={s.label} className="flex-1 bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md p-3 text-center">
+                  <div className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider">{s.label}</div>
                   <div className={`text-xl font-bold text-${color}-500`}>{pct}%</div>
                 </div>
               );
@@ -126,13 +147,13 @@ export default function ObservationPage() {
           {/* Candidates */}
           {cans.length > 0 && (
             <div className="mt-4">
-              <div className="text-xs text-[#8b949e] uppercase tracking-wider mb-2">Candidates</div>
+              <div className="text-xs text-[var(--text-secondary)] uppercase tracking-wider mb-2">Candidates</div>
               <div className="space-y-1">
                 {cans.map((c: any, i: number) => (
-                  <div key={i} className="flex items-center gap-3 text-sm bg-[#0d1117] border border-[#30363d] rounded px-3 py-1.5">
-                    <span className="font-medium text-[#c9d1d9]">{c.name}</span>
-                    <span className="text-[#64748b]">{(c.confidence * 100).toFixed(0)}%</span>
-                    {c.method && <span className="text-[#8b949e] text-xs">{c.method}</span>}
+                  <div key={i} className="flex items-center gap-3 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded px-3 py-1.5">
+                    <span className="font-medium text-[var(--text-primary)]">{c.name}</span>
+                    <span className="text-[var(--text-muted)]">{(c.confidence * 100).toFixed(0)}%</span>
+                    {c.method && <span className="text-[var(--text-secondary)] text-xs">{c.method}</span>}
                   </div>
                 ))}
               </div>
@@ -151,11 +172,11 @@ export default function ObservationPage() {
         ].filter(s => s.time).map((s, i) => (
           <div key={i} className="flex items-center gap-3 py-1.5 text-sm">
             <span>{s.icon}</span>
-            <span className="text-[#64748b] min-w-[140px]">{s.event}</span>
-            <span className="text-[#c9d1d9]">{new Date(s.time + "Z").toLocaleTimeString()}</span>
+            <span className="text-[var(--text-muted)] min-w-[140px]">{s.event}</span>
+            <span className="text-[var(--text-primary)]">{istTime(s.time)}</span>
           </div>
         ))}
-        {!raw.timestamp && !parsed.created_at && <div className="text-[#64748b] text-sm">Timeline unavailable</div>}
+        {!raw.timestamp && !parsed.created_at && <div className="text-[var(--text-muted)] text-sm">Timeline unavailable</div>}
       </Section>
 
       {/* ── AI Actions ── */}
@@ -165,7 +186,7 @@ export default function ObservationPage() {
           <AIAction href={`/api/ai/similar/${raw.id}`} label="Find similar listings" />
           <AIAction href={`/api/ai/broker/${encodeURIComponent(parsed.broker_name || "")}`} label="Broker summary" disabled={!parsed.broker_name} />
         </div>
-        <div className="text-[10px] text-[#64748b] mt-3">
+        <div className="text-[10px] text-[var(--text-muted)] mt-3">
           AI is optional. Everything above this line is deterministic.
         </div>
       </Section>
@@ -177,8 +198,8 @@ export default function ObservationPage() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[#0d1117] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
-      <div className="text-[11px] text-[#64748b] uppercase tracking-widest font-bold mb-4 pb-2 border-b border-[rgba(255,255,255,0.06)]">
+    <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-5">
+      <div className="text-[11px] text-[var(--text-muted)] uppercase tracking-widest font-bold mb-4 pb-2 border-b border-[var(--border)]">
         {title}
       </div>
       {children}
@@ -189,18 +210,18 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function KV({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex">
-      <span className="text-[#8b949e] min-w-[130px] text-sm">{label}</span>
-      <span className="text-[#c9d1d9] text-sm">{value ?? "—"}</span>
+      <span className="text-[var(--text-secondary)] min-w-[130px] text-sm">{label}</span>
+      <span className="text-[var(--text-primary)] text-sm">{value ?? "—"}</span>
     </div>
   );
 }
 
 function AIAction({ href, label, disabled }: { href: string; label: string; disabled?: boolean }) {
   if (disabled) {
-    return <span className="px-3 py-1.5 bg-[#111820] border border-[rgba(255,255,255,0.06)] rounded-lg text-xs text-[#64748b] opacity-50 cursor-default">{label}</span>;
+    return <span className="px-3 py-1.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg text-xs text-[var(--text-muted)] opacity-50 cursor-default">{label}</span>;
   }
   return (
-    <a href={href} target="_blank" className="px-3 py-1.5 bg-[#111820] border border-[rgba(255,255,255,0.1)] rounded-lg text-xs text-[#58a6ff] no-underline hover:bg-[#141c26]">
+    <a href={href} target="_blank" className="px-3 py-1.5 bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-lg text-xs text-[var(--blue)] no-underline hover:bg-[var(--bg-hover)]">
       {label}
     </a>
   );

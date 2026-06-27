@@ -63,6 +63,69 @@ def compute_embedding(parsed: dict) -> bytes | None:
 
 # ── Global scheduler (lazy-initialized, wired in lifespan) ────────
 _scheduler = None
+BUSINESS_TIMEZONE = "Asia/Kolkata"
+BUSINESS_START_HOUR = 10
+BUSINESS_END_HOUR = 19
+
+GROUP_MARKET_KEYWORDS = {
+    "Bandra": ["bandra", "bkc", "bks"],
+    "Khar": ["khar"],
+    "Santacruz": ["santacruz", "scruz", "s cruz"],
+    "Juhu": ["juhu"],
+    "Andheri": ["andheri"],
+    "Worli": ["worli"],
+    "Colaba": ["colaba"],
+    "Chembur": ["chembur"],
+    "Wadala": ["wadala"],
+    "Malad": ["malad"],
+    "Goregaon": ["goregaon"],
+    "Thane": ["thane"],
+    "SOBO": ["sobo", "south mumbai"],
+}
+
+GROUP_SEGMENT_KEYWORDS = {
+    "Commercial": ["commercial", "office", "retail", "shop", "showroom"],
+    "Rental": ["rent", "rental", "lease"],
+    "Requirement": ["requirement", "requirements", "req"],
+    "Inventory": ["inventory", "availability", "availabilty", "listing", "listings"],
+    "Broadcast": ["broadcast", "brodcast"],
+    "Auction": ["auction", "distress"],
+}
+
+
+def parse_group_name(name: str) -> dict:
+    lower = (name or "").lower()
+    markets = [
+        market
+        for market, words in GROUP_MARKET_KEYWORDS.items()
+        if any(word in lower for word in words)
+    ]
+    segments = [
+        segment
+        for segment, words in GROUP_SEGMENT_KEYWORDS.items()
+        if any(word in lower for word in words)
+    ]
+    return {
+        "markets": markets,
+        "segments": segments,
+        "is_real_estate": bool(markets or segments or any(word in lower for word in ["realty", "realtor", "property", "properties", "estate", "broker"])),
+    }
+
+
+def business_window_status() -> dict:
+    from zoneinfo import ZoneInfo
+    now = datetime.now(ZoneInfo(BUSINESS_TIMEZONE))
+    start = now.replace(hour=BUSINESS_START_HOUR, minute=0, second=0, microsecond=0)
+    end = now.replace(hour=BUSINESS_END_HOUR, minute=0, second=0, microsecond=0)
+    return {
+        "mode": "live_webhook_only",
+        "timezone": BUSINESS_TIMEZONE,
+        "start": "10:00",
+        "end": "19:00",
+        "active": start <= now < end,
+        "now": now.isoformat(),
+        "label": "10 AM - 7 PM IST",
+    }
 
 def get_scheduler():
     global _scheduler
@@ -796,6 +859,13 @@ async def webhook(request: Request):
 
     # Parse and resolve
     parsed = parse_message(msg_text, profile_name=sender_name or push_name)
+    # Fallback broker name to phone number when no name or signature found
+    if not parsed.get("broker_name"):
+        phone_digits = "".join(ch for ch in str(sender_jid).split("@")[0] if ch.isdigit())
+        if len(phone_digits) >= 10:
+            parsed["broker_name"] = f"+91 {phone_digits[-10:]}"
+        elif phone_digits:
+            parsed["broker_name"] = f"+{phone_digits}"
     embedding_blob = compute_embedding(parsed)
     obs = ParsedObservation(
         raw_message_id=raw_id,
@@ -1457,12 +1527,19 @@ async def dashboard_coverage():
     return {
         "groups_connected": len(group_ids),
         "messages_stored": stats["total_raw"],
-        "messages_from_groups": messages_from_groups,
+        "messages_from_groups": 0,
+        "capture_mode": "live_webhook_only",
+        "business_window": business_window_status(),
         "buildings_known": len(buildings),
         "landmarks_known": len(landmarks),
         "developers_known": len(dev_buildings),
         "micro_markets_known": len(micro_markets),
     }
+
+
+@app.get("/api/dashboard/live-window")
+async def dashboard_live_window():
+    return business_window_status()
 
 
 @app.get("/api/dashboard/feed")
@@ -1564,25 +1641,17 @@ async def dashboard_graph_growth():
 async def dashboard_whatsapp_status():
     """Detailed WhatsApp connection status."""
     from lab.ingestion.whatsapp import WhatsAppSource
-    import httpx
     src = WhatsAppSource()
-    connected = src.validate_connection()
-    detail = {"connected": connected, "instance": EVOLUTION_INSTANCE}
-    if connected:
-        try:
-            data = src._get(f"instance/fetchInstances", timeout=10)
-            instances = data if isinstance(data, list) else []
-            for inst in instances:
-                if inst.get("name") == EVOLUTION_INSTANCE:
-                    detail["phone"] = inst.get("ownerJid", "").split("@")[0]
-                    detail["profile"] = inst.get("profileName", "")
-                    detail["status"] = inst.get("connectionStatus", "")
-                    break
-            state_data = src._get(f"instance/connectionState/{EVOLUTION_INSTANCE}", timeout=10)
-            detail["state"] = state_data.get("instance", {}).get("state", "")
-        except Exception:
-            pass
-    return detail
+    details = src.connection_details()
+    phone = (details.get("phone_number") or "").replace("+", "")
+    return {
+        "connected": details.get("connected", False),
+        "instance": EVOLUTION_INSTANCE,
+        "phone": phone,
+        "profile": details.get("display_name") or "",
+        "status": details.get("connection_state") or "",
+        "state": details.get("connection_state") or "",
+    }
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1896,7 +1965,9 @@ async def scheduler_status():
     scheduler = get_scheduler()
     st = scheduler.status()
     src_counts = storage.source_summary()
-    st["historical_messages_stored"] = src_counts.get("WHATSAPP_HISTORY", 0)
+    st["capture_mode"] = "live_webhook_only"
+    st["business_window"] = business_window_status()
+    st["historical_messages_stored"] = 0
     st["total_messages_stored"] = sum(src_counts.values())
     all_jobs = storage.get_sync_jobs(limit=500)
     source_summary = {}
@@ -1939,6 +2010,11 @@ async def scheduler_stop():
 @app.post("/api/sources/{source_name}/sync")
 async def source_sync(source_name: str):
     """Start sync for a specific source."""
+    if source_name == "whatsapp":
+        raise HTTPException(
+            410,
+            "Historical WhatsApp sync is disabled. PropAI captures live webhook messages during 10 AM - 7 PM IST.",
+        )
     scheduler = get_scheduler()
     if scheduler.is_running:
         raise HTTPException(409, "Scheduler already running")
@@ -2009,6 +2085,7 @@ async def list_groups():
             "jid": j.group_id,
             "name": j.group_name,
             "participants": meta.get("participants", 0),
+            "parsed": parse_group_name(j.group_name),
             "records_found": j.records_found or 0,
             "records_processed": j.records_processed or 0,
             "status": j.status,
@@ -2058,11 +2135,13 @@ async def sync_connection():
         details["total_groups"] = discovered_groups
     details.update({
         "api_url": EVOLUTION_API_URL,
-        "historical_sync_state": _historical_sync_state(jobs),
+        "capture_mode": "live_webhook_only",
+        "business_window": business_window_status(),
+        "historical_sync_state": "disabled",
         "last_sync": last_finished,
         "discovered_jobs": discovered_groups,
-        "historical_messages": sum(j.records_processed or 0 for j in jobs),
-        "messages_found": sum(j.records_found or 0 for j in jobs),
+        "historical_messages": 0,
+        "messages_found": 0,
         "top_message_groups": _top_message_groups(jobs),
     })
     return details
@@ -2134,16 +2213,91 @@ def _top_message_groups(jobs, limit: int = 5) -> list[dict]:
 
 @app.get("/api/brokers")
 async def list_brokers():
+    storage.rebuild_broker_graph()
     rows = storage.db.execute("""
-        SELECT DISTINCT p.broker_name AS name, p.broker_phone AS phone,
-               COUNT(*) AS message_count, COUNT(DISTINCT r.group_name) AS group_count
-        FROM parsed_output p
-        JOIN raw_messages r ON r.id = p.raw_message_id
-        WHERE p.broker_name IS NOT NULL AND p.broker_name != ''
-        GROUP BY p.broker_name
-        ORDER BY message_count DESC
+        SELECT id, canonical_name AS name, primary_phone AS phone,
+               observation_count, listing_count, requirement_count,
+               rental_count, commercial_count, group_count, market_count,
+               avg_ticket, first_seen_at, last_seen_at
+        FROM brokers
+        ORDER BY observation_count DESC, last_seen_at DESC
     """).fetchall()
-    return [dict(r) for r in rows]
+    brokers = []
+    for row in rows:
+        broker = dict(row)
+        broker["markets"] = [
+            dict(r) for r in storage.db.execute("""
+                SELECT micro_market, observation_count, listing_count, requirement_count
+                FROM broker_market_stats
+                WHERE broker_id = ?
+                ORDER BY observation_count DESC, last_seen_at DESC
+                LIMIT 5
+            """, (broker["id"],)).fetchall()
+        ]
+        broker["buildings"] = [
+            dict(r) for r in storage.db.execute("""
+                SELECT building_name, observation_count, listing_count, requirement_count
+                FROM broker_building_stats
+                WHERE broker_id = ?
+                ORDER BY observation_count DESC, last_seen_at DESC
+                LIMIT 5
+            """, (broker["id"],)).fetchall()
+        ]
+        brokers.append(broker)
+    return brokers
+
+
+@app.get("/api/brokers/{broker_id}")
+async def get_broker_profile(broker_id: int):
+    storage.rebuild_broker_graph()
+    row = storage.db.execute("""
+        SELECT id, canonical_name AS name, primary_phone AS phone,
+               observation_count, listing_count, requirement_count,
+               rental_count, commercial_count, group_count, market_count,
+               avg_ticket, first_seen_at, last_seen_at
+        FROM brokers
+        WHERE id = ?
+    """, (broker_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Broker not found")
+    broker = dict(row)
+    broker["aliases"] = [dict(r) for r in storage.db.execute("""
+        SELECT alias, observation_count, first_seen_at, last_seen_at
+        FROM broker_aliases
+        WHERE broker_id = ?
+        ORDER BY observation_count DESC, alias
+    """, (broker_id,)).fetchall()]
+    broker["phones"] = [dict(r) for r in storage.db.execute("""
+        SELECT phone, observation_count, first_seen_at, last_seen_at
+        FROM broker_phones
+        WHERE broker_id = ?
+        ORDER BY observation_count DESC, phone
+    """, (broker_id,)).fetchall()]
+    broker["markets"] = [dict(r) for r in storage.db.execute("""
+        SELECT micro_market, observation_count, listing_count, requirement_count,
+               avg_ticket, last_seen_at
+        FROM broker_market_stats
+        WHERE broker_id = ?
+        ORDER BY observation_count DESC, last_seen_at DESC
+    """, (broker_id,)).fetchall()]
+    broker["buildings"] = [dict(r) for r in storage.db.execute("""
+        SELECT building_name, observation_count, listing_count, requirement_count,
+               avg_ticket, last_seen_at
+        FROM broker_building_stats
+        WHERE broker_id = ?
+        ORDER BY observation_count DESC, last_seen_at DESC
+    """, (broker_id,)).fetchall()]
+    broker["observations"] = [dict(r) for r in storage.db.execute("""
+        SELECT bo.parsed_id, bo.raw_message_id, bo.role, bo.message_type,
+               bo.group_name, bo.micro_market, bo.building_name, bo.landmark_name,
+               bo.price, bo.bhk, bo.seen_at, rm.message
+        FROM broker_observations bo
+        JOIN raw_messages rm ON rm.id = bo.raw_message_id
+        WHERE bo.broker_id = ?
+        ORDER BY bo.seen_at DESC, bo.parsed_id DESC
+        LIMIT 50
+    """, (broker_id,)).fetchall()]
+    return broker
 
 
 @app.get("/api/buildings")
@@ -2212,7 +2366,7 @@ async def event_stream(request: Request):
 
 @app.get("/")
 async def root():
-    return {"status": "ok", "frontend": "http://localhost:3000", "message": "PropAI API is running. Use the Next.js frontend at http://localhost:3000"}
+    return RedirectResponse("http://localhost:3000")
 
 
 @app.get("/health")

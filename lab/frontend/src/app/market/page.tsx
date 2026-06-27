@@ -27,17 +27,17 @@ export default function MarketsPage() {
           ["Landmarks", coverage?.landmarks_known],
           ["Developers", coverage?.developers_known],
         ].map(([l, v]) => (
-          <div key={l as string} className="bg-[#0d1117] border border-[rgba(255,255,255,0.06)] rounded-2xl p-4 text-center">
-            <div className="text-3xl font-bold text-[#e2e8f0]">{v ?? "—"}</div>
-            <div className="text-[10px] text-[#64748b] uppercase tracking-wider mt-1">{l as string}</div>
+          <div key={l as string} className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-4 text-center">
+            <div className="text-3xl font-bold text-[var(--text-primary)]">{v ?? "—"}</div>
+            <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-1">{l as string}</div>
           </div>
         ))}
       </div>
 
-      <div className="bg-[#0d1117] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
-        <div className="text-[11px] text-[#64748b] uppercase tracking-widest font-bold mb-3">ACTIVITY BY MARKET</div>
+      <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-5">
+        <div className="text-[11px] text-[var(--text-muted)] uppercase tracking-widest font-bold mb-3">ACTIVITY BY MARKET</div>
         {heatmap.length === 0 ? (
-          <div className="text-[#64748b] text-center py-5">No data yet</div>
+          <div className="text-[var(--text-muted)] text-center py-5">No data yet</div>
         ) : (
           heatmap.map((h, i) => (
             <div key={i} className="heat-row">

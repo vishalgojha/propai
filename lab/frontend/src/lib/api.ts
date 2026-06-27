@@ -172,6 +172,10 @@ export function getBrokers() {
   return fetchJSON<any[]>("/brokers");
 }
 
+export function getBroker(id: number) {
+  return fetchJSON<any>(`/brokers/${id}`);
+}
+
 export function searchMessages(q: string) {
   return fetchJSON<any[]>(`/search?q=${encodeURIComponent(q)}`);
 }
@@ -252,4 +256,3 @@ export function getEngineeringMCP() {
 export function getEngineeringTerminal() {
   return fetchJSON<any>("/engineering/terminal");
 }
-

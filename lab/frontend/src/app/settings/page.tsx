@@ -13,11 +13,23 @@ export default function SettingsPage() {
   const timerRef = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
-    api.getConnectionState().then(setConnState);
-    api.getConnectionDetail().then(setConnDetail).catch(() => {});
+    refreshConnection();
   }, []);
 
-  const connected = connState?.connected ?? false;
+  const connected = connDetail?.connected ?? connState?.connected ?? false;
+
+  async function refreshConnection() {
+    const detail = await api.getConnectionDetail().catch(() => null);
+    if (detail) {
+      setConnDetail(detail);
+      setConnState({
+        state: detail.connection_state || detail.state || "unknown",
+        connected: Boolean(detail.connected),
+      });
+      return;
+    }
+    api.getConnectionState().then(setConnState).catch(() => {});
+  }
 
   async function handleLogin() {
     setShowQR(true);
@@ -27,7 +39,7 @@ export default function SettingsPage() {
     setQRTimer(30);
     if (data?.count === 0) {
       setShowQR(false);
-      api.getConnectionState().then(setConnState);
+      refreshConnection();
       return;
     }
     pollingRef.current = true;
@@ -43,7 +55,7 @@ export default function SettingsPage() {
       if (c.connected) {
         pollingRef.current = false;
         setShowQR(false);
-        api.getConnectionDetail().then(setConnDetail).catch(() => {});
+        refreshConnection();
         clearInterval(timerRef.current);
         return;
       }
@@ -69,23 +81,13 @@ export default function SettingsPage() {
     setQRData(data);
     if (data?.count === 0) {
       setShowQR(false);
-      api.getConnectionState().then(setConnState);
+      refreshConnection();
     }
   }
 
   async function handleLogout() {
     await api.logout();
-    api.getConnectionState().then(setConnState);
-    api.getConnectionDetail().then(setConnDetail).catch(() => {});
-  }
-
-  async function handleSync() {
-    await api.startSync();
-    setTimeout(() => api.getConnectionDetail().then(setConnDetail).catch(() => {}), 2000);
-  }
-
-  async function handleStopSync() {
-    await api.stopSync();
+    refreshConnection();
   }
 
   return (
@@ -93,8 +95,8 @@ export default function SettingsPage() {
       <h2 className="text-lg font-bold">Settings</h2>
 
       {/* WhatsApp Connection */}
-      <div className="bg-[#0d1117] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
-        <h3 className="text-sm font-bold text-[#e2e8f0] mb-4">WhatsApp Connection</h3>
+      <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-5">
+        <h3 className="text-sm font-bold text-[var(--text-primary)] mb-4">WhatsApp Connection</h3>
 
         <div className="flex items-center gap-2 mb-4">
           <span className={`w-2.5 h-2.5 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`} />
@@ -103,31 +105,42 @@ export default function SettingsPage() {
 
         <div className="flex gap-2 mb-4">
           {!connected ? (
-            <button onClick={handleLogin} className="px-4 py-2 bg-[#238636] text-white rounded-lg text-sm font-bold">Login</button>
+            <button onClick={handleLogin} className="px-4 py-2 bg-[var(--accent)] text-white rounded-lg text-sm font-bold">Login</button>
           ) : (
-            <button onClick={handleLogout} className="px-4 py-2 bg-[#da3633] text-white rounded-lg text-sm font-bold">Logout</button>
+            <button onClick={handleLogout} className="px-4 py-2 bg-[var(--red)] text-white rounded-lg text-sm font-bold">Logout</button>
           )}
-          <button onClick={() => api.getConnectionDetail().then(setConnDetail).catch(() => {})} className="px-4 py-2 bg-[#111820] border border-[rgba(255,255,255,0.1)] rounded-lg text-sm">Refresh</button>
+          <button onClick={refreshConnection} className="px-4 py-2 bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-lg text-sm">Refresh</button>
         </div>
 
         {/* QR Modal */}
         {showQR && (
-          <div className="bg-[#111820] border border-[rgba(255,255,255,0.1)] rounded-xl p-5 text-center max-w-sm">
-            <h4 className="font-bold mb-3">Scan QR with WhatsApp</h4>
-            <div className="bg-white rounded-lg p-3 mb-3 flex items-center justify-center min-h-[250px]">
+          <div className="bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-xl p-6 text-center max-w-md mx-auto">
+            <h4 className="font-bold mb-4 text-base">Scan QR with WhatsApp</h4>
+            <div className="bg-white rounded-xl p-5 mb-4 flex items-center justify-center min-h-[360px]">
               {qrData?.base64 ? (
-                <img src={`data:image/png;base64,${qrData.base64}`} className="max-w-[250px]" alt="QR" />
+                <img src={qrData.base64.startsWith("data:") ? qrData.base64 : `data:image/png;base64,${qrData.base64}`} className="w-full max-w-[320px] h-auto" alt="Scan with WhatsApp" />
               ) : (
-                <div className="text-[#64748b]">Requesting QR code...</div>
+                <div className="text-[var(--text-muted)] text-center">
+                  <div className="mb-2">{qrData?.error ? "Error: " + qrData.error : "Requesting QR code..."}</div>
+                  <div className="text-xs text-[var(--text-secondary)]">Make sure Evolution API is running</div>
+                </div>
               )}
             </div>
             <div className="flex items-center justify-center gap-3 mb-3">
-              <div className="flex-1 bg-[#0d1117] rounded-full h-2 overflow-hidden">
-                <div className="h-full bg-[#3EE88A] transition-all duration-1000" style={{ width: `${(qrTimer / 30) * 100}%` }} />
+              <div className="flex-1 bg-[var(--bg-surface)] rounded-full h-2.5 overflow-hidden">
+                <div className="h-full bg-[var(--accent)] transition-all duration-1000" style={{ width: `${(qrTimer / 30) * 100}%` }} />
               </div>
-              <span className="text-sm text-[#64748b] min-w-[60px]">{qrTimer}s</span>
+              <span className="text-sm text-[var(--text-muted)] min-w-[60px] font-mono">{qrTimer}s</span>
             </div>
-            <button onClick={refreshQR} className="px-3 py-1.5 bg-[#111820] border border-[rgba(255,255,255,0.1)] rounded-lg text-sm">Generate New QR</button>
+            <div className="flex gap-3 justify-center">
+              <button onClick={refreshQR} className="px-4 py-2 bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-lg text-sm text-[var(--text-primary)]">Generate New QR</button>
+              <button onClick={() => setShowQR(false)} className="px-4 py-2 bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-lg text-sm text-[var(--text-muted)]">Close</button>
+            </div>
+            <div className="mt-4 text-[11px] text-[var(--text-muted)] leading-relaxed">
+              1. Open WhatsApp on your phone<br />
+              2. Settings → Linked Devices<br />
+              3. Tap &ldquo;Link a Device&rdquo;
+            </div>
           </div>
         )}
 
@@ -141,23 +154,32 @@ export default function SettingsPage() {
               ["Instance", connDetail.instance_name || connDetail.instance],
               ["Connected Since", connDetail.connected_since],
               ["Groups", connDetail.total_groups],
-              ["Messages", connDetail.messages_found],
+              ["Capture", connDetail.business_window?.label || "10 AM - 7 PM IST"],
+              ["Mode", "Live webhook only"],
             ].map(([k, v]) => (
               <div key={k as string}>
-                <div className="text-[10px] text-[#64748b] uppercase tracking-wider">{k as string}</div>
-                <div className="text-[#e2e8f0]">{v || "—"}</div>
+                <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">{k as string}</div>
+                <div className="text-[var(--text-primary)]">{v || "—"}</div>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Sync */}
-      <div className="bg-[#0d1117] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
-        <h3 className="text-sm font-bold text-[#e2e8f0] mb-4">Sync</h3>
-        <div className="flex gap-2">
-          <button onClick={handleSync} className="px-4 py-2 bg-[#238636] text-white rounded-lg text-sm font-bold">Start Sync</button>
-          <button onClick={handleStopSync} className="px-4 py-2 bg-[#da3633] text-white rounded-lg text-sm">Stop</button>
+      {/* Live Capture */}
+      <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-5">
+        <h3 className="text-sm font-bold text-[var(--text-primary)] mb-4">Live Capture</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+          {[
+            ["Window", "10 AM - 7 PM IST"],
+            ["Mode", "Webhook only"],
+            ["Backfill", "Disabled"],
+          ].map(([k, v]) => (
+            <div key={k}>
+              <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">{k}</div>
+              <div className="text-[var(--text-primary)]">{v}</div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

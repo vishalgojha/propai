@@ -77,6 +77,82 @@ CREATE TABLE IF NOT EXISTS resolver_decisions (
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
+-- Deterministic broker graph derived from parsed observations.
+-- These tables can be rebuilt from raw_messages + parsed_output + resolver_decisions.
+CREATE TABLE IF NOT EXISTS brokers (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    identity_key    TEXT NOT NULL UNIQUE,
+    canonical_name  TEXT NOT NULL DEFAULT '',
+    primary_phone   TEXT DEFAULT NULL,
+    first_seen_at   TEXT DEFAULT NULL,
+    last_seen_at    TEXT DEFAULT NULL,
+    observation_count INTEGER NOT NULL DEFAULT 0,
+    listing_count   INTEGER NOT NULL DEFAULT 0,
+    requirement_count INTEGER NOT NULL DEFAULT 0,
+    rental_count    INTEGER NOT NULL DEFAULT 0,
+    commercial_count INTEGER NOT NULL DEFAULT 0,
+    group_count     INTEGER NOT NULL DEFAULT 0,
+    market_count    INTEGER NOT NULL DEFAULT 0,
+    avg_ticket      REAL DEFAULT NULL,
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS broker_phones (
+    broker_id       INTEGER NOT NULL REFERENCES brokers(id) ON DELETE CASCADE,
+    phone           TEXT NOT NULL,
+    observation_count INTEGER NOT NULL DEFAULT 0,
+    first_seen_at   TEXT DEFAULT NULL,
+    last_seen_at    TEXT DEFAULT NULL,
+    PRIMARY KEY (broker_id, phone)
+);
+
+CREATE TABLE IF NOT EXISTS broker_aliases (
+    broker_id       INTEGER NOT NULL REFERENCES brokers(id) ON DELETE CASCADE,
+    alias           TEXT NOT NULL,
+    observation_count INTEGER NOT NULL DEFAULT 0,
+    first_seen_at   TEXT DEFAULT NULL,
+    last_seen_at    TEXT DEFAULT NULL,
+    PRIMARY KEY (broker_id, alias)
+);
+
+CREATE TABLE IF NOT EXISTS broker_observations (
+    broker_id       INTEGER NOT NULL REFERENCES brokers(id) ON DELETE CASCADE,
+    parsed_id       INTEGER NOT NULL REFERENCES parsed_output(id) ON DELETE CASCADE,
+    raw_message_id  INTEGER NOT NULL REFERENCES raw_messages(id) ON DELETE CASCADE,
+    role            TEXT NOT NULL DEFAULT 'unknown',
+    message_type    TEXT DEFAULT NULL,
+    group_name      TEXT DEFAULT '',
+    micro_market    TEXT DEFAULT NULL,
+    building_name   TEXT DEFAULT NULL,
+    landmark_name   TEXT DEFAULT NULL,
+    price           REAL DEFAULT NULL,
+    bhk             TEXT DEFAULT NULL,
+    seen_at         TEXT DEFAULT NULL,
+    PRIMARY KEY (broker_id, parsed_id)
+);
+
+CREATE TABLE IF NOT EXISTS broker_market_stats (
+    broker_id       INTEGER NOT NULL REFERENCES brokers(id) ON DELETE CASCADE,
+    micro_market    TEXT NOT NULL,
+    observation_count INTEGER NOT NULL DEFAULT 0,
+    listing_count   INTEGER NOT NULL DEFAULT 0,
+    requirement_count INTEGER NOT NULL DEFAULT 0,
+    avg_ticket      REAL DEFAULT NULL,
+    last_seen_at    TEXT DEFAULT NULL,
+    PRIMARY KEY (broker_id, micro_market)
+);
+
+CREATE TABLE IF NOT EXISTS broker_building_stats (
+    broker_id       INTEGER NOT NULL REFERENCES brokers(id) ON DELETE CASCADE,
+    building_name   TEXT NOT NULL,
+    observation_count INTEGER NOT NULL DEFAULT 0,
+    listing_count   INTEGER NOT NULL DEFAULT 0,
+    requirement_count INTEGER NOT NULL DEFAULT 0,
+    avg_ticket      REAL DEFAULT NULL,
+    last_seen_at    TEXT DEFAULT NULL,
+    PRIMARY KEY (broker_id, building_name)
+);
+
 -- Parser quality evaluation dataset
 CREATE TABLE IF NOT EXISTS evaluations (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -171,4 +247,8 @@ CREATE INDEX IF NOT EXISTS idx_resolver_parsed ON resolver_decisions(parsed_id);
 CREATE INDEX IF NOT EXISTS idx_resolver_bid ON resolver_decisions(building_id);
 CREATE INDEX IF NOT EXISTS idx_resolver_method ON resolver_decisions(method);
 CREATE INDEX IF NOT EXISTS idx_eval_raw ON evaluations(raw_message_id);
-
+CREATE INDEX IF NOT EXISTS idx_brokers_phone ON brokers(primary_phone);
+CREATE INDEX IF NOT EXISTS idx_broker_obs_parsed ON broker_observations(parsed_id);
+CREATE INDEX IF NOT EXISTS idx_broker_obs_role ON broker_observations(role);
+CREATE INDEX IF NOT EXISTS idx_broker_market_market ON broker_market_stats(micro_market);
+CREATE INDEX IF NOT EXISTS idx_broker_building_name ON broker_building_stats(building_name);

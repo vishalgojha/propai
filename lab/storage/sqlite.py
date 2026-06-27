@@ -1,8 +1,10 @@
 """SQLite implementation of the Storage interface."""
 
 import json
+import re
 import sqlite3
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -85,6 +87,232 @@ class SqliteStorage(Storage):
                 pass
         self._commit()
 
+    # ── Broker graph ───────────────────────────────────────────
+
+    @staticmethod
+    def _broker_identity_key(name: str | None, phone: str | None) -> str | None:
+        digits = re.sub(r"\D+", "", phone or "")
+        if len(digits) >= 10:
+            return f"phone:{digits[-10:]}"
+        normalized_name = re.sub(r"\s+", " ", (name or "").strip().lower())
+        if normalized_name:
+            return f"name:{normalized_name}"
+        return None
+
+    @staticmethod
+    def _broker_role(message_type: str | None) -> str:
+        if message_type in {"SELLER", "RENTAL", "COMMERCIAL_SALE", "COMMERCIAL_RENTAL", "PRE_LAUNCH"}:
+            return "listing"
+        if message_type in {"REQUIREMENT", "RENTAL_SEEKER"}:
+            return "requirement"
+        return "unknown"
+
+    def rebuild_broker_graph(self) -> dict:
+        rows = self.db.execute(
+            """SELECT p.id AS parsed_id, p.raw_message_id, p.message_type,
+                      p.broker_name, p.broker_phone, p.profile_name,
+                      p.micro_market,
+                      COALESCE(rd.building_name, p.building_name) AS building_name,
+                      COALESCE(rd.landmark_name, p.landmark_name) AS landmark_name,
+                      p.price, p.bhk, p.created_at,
+                      r.group_name, r.sender, r.timestamp
+               FROM parsed_output p
+               JOIN raw_messages r ON r.id = p.raw_message_id
+               LEFT JOIN resolver_decisions rd ON rd.parsed_id = p.id
+               WHERE COALESCE(p.broker_name, p.profile_name, r.sender, '') != ''
+               ORDER BY p.id"""
+        ).fetchall()
+
+        self.db.execute("DELETE FROM broker_building_stats")
+        self.db.execute("DELETE FROM broker_market_stats")
+        self.db.execute("DELETE FROM broker_observations")
+        self.db.execute("DELETE FROM broker_aliases")
+        self.db.execute("DELETE FROM broker_phones")
+        existing_brokers = {
+            row["identity_key"]: row["id"]
+            for row in self.db.execute("SELECT id, identity_key FROM brokers").fetchall()
+        }
+
+        broker_rows: dict[str, list[dict]] = defaultdict(list)
+        for row in rows:
+            d = dict(row)
+            name = d.get("broker_name") or d.get("profile_name") or d.get("sender")
+            key = self._broker_identity_key(name, d.get("broker_phone"))
+            if key:
+                d["identity_key"] = key
+                d["effective_broker_name"] = name
+                broker_rows[key].append(d)
+
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        broker_ids: dict[str, int] = {}
+        for key, items in broker_rows.items():
+            names: dict[str, int] = defaultdict(int)
+            phones: dict[str, int] = defaultdict(int)
+            groups = set()
+            markets = set()
+            prices: list[float] = []
+            listing_count = requirement_count = rental_count = commercial_count = 0
+            seen_times = []
+
+            for item in items:
+                name = (item.get("effective_broker_name") or "").strip()
+                if name:
+                    names[name] += 1
+                phone = re.sub(r"\D+", "", item.get("broker_phone") or "")
+                if len(phone) >= 10:
+                    phones[phone[-10:]] += 1
+                if item.get("group_name"):
+                    groups.add(item["group_name"])
+                if item.get("micro_market"):
+                    markets.add(item["micro_market"])
+                if item.get("price") is not None:
+                    prices.append(float(item["price"]))
+                role = self._broker_role(item.get("message_type"))
+                if role == "listing":
+                    listing_count += 1
+                elif role == "requirement":
+                    requirement_count += 1
+                if item.get("message_type") in {"RENTAL", "RENTAL_SEEKER"}:
+                    rental_count += 1
+                if item.get("message_type") in {"COMMERCIAL_SALE", "COMMERCIAL_RENTAL"}:
+                    commercial_count += 1
+                seen_times.append(item.get("timestamp") or item.get("created_at") or "")
+
+            canonical_name = max(names.items(), key=lambda kv: (kv[1], len(kv[0])))[0] if names else ""
+            primary_phone = max(phones.items(), key=lambda kv: kv[1])[0] if phones else None
+            avg_ticket = sum(prices) / len(prices) if prices else None
+            seen_values = [t for t in seen_times if t]
+            first_seen = min(seen_values) if seen_values else None
+            last_seen = max(seen_values) if seen_values else None
+
+            broker_id = existing_brokers.get(key)
+            if broker_id:
+                self.db.execute(
+                    """UPDATE brokers
+                       SET canonical_name = ?, primary_phone = ?, first_seen_at = ?,
+                           last_seen_at = ?, observation_count = ?, listing_count = ?,
+                           requirement_count = ?, rental_count = ?, commercial_count = ?,
+                           group_count = ?, market_count = ?, avg_ticket = ?, updated_at = ?
+                       WHERE id = ?""",
+                    (canonical_name, primary_phone, first_seen, last_seen, len(items),
+                     listing_count, requirement_count, rental_count, commercial_count,
+                     len(groups), len(markets), avg_ticket, now, broker_id),
+                )
+            else:
+                cur = self.db.execute(
+                    """INSERT INTO brokers
+                       (identity_key, canonical_name, primary_phone, first_seen_at, last_seen_at,
+                        observation_count, listing_count, requirement_count, rental_count,
+                        commercial_count, group_count, market_count, avg_ticket, updated_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (key, canonical_name, primary_phone, first_seen, last_seen, len(items),
+                     listing_count, requirement_count, rental_count, commercial_count,
+                     len(groups), len(markets), avg_ticket, now),
+                )
+                broker_id = cur.lastrowid
+            broker_ids[key] = broker_id
+
+            for alias, count in names.items():
+                alias_times = [
+                    (item.get("timestamp") or item.get("created_at") or "")
+                    for item in items
+                    if (item.get("effective_broker_name") or "").strip() == alias
+                ]
+                alias_seen = [t for t in alias_times if t]
+                self.db.execute(
+                    """INSERT INTO broker_aliases
+                       (broker_id, alias, observation_count, first_seen_at, last_seen_at)
+                       VALUES (?,?,?,?,?)""",
+                    (broker_id, alias, count,
+                     min(alias_seen) if alias_seen else None,
+                     max(alias_seen) if alias_seen else None),
+                )
+
+            for phone, count in phones.items():
+                phone_times = [
+                    (item.get("timestamp") or item.get("created_at") or "")
+                    for item in items
+                    if re.sub(r"\D+", "", item.get("broker_phone") or "")[-10:] == phone
+                ]
+                phone_seen = [t for t in phone_times if t]
+                self.db.execute(
+                    """INSERT INTO broker_phones
+                       (broker_id, phone, observation_count, first_seen_at, last_seen_at)
+                       VALUES (?,?,?,?,?)""",
+                    (broker_id, phone, count,
+                     min(phone_seen) if phone_seen else None,
+                     max(phone_seen) if phone_seen else None),
+                )
+
+        for key, items in broker_rows.items():
+            broker_id = broker_ids[key]
+            market_stats: dict[str, dict] = defaultdict(lambda: {"obs": 0, "listing": 0, "req": 0, "prices": [], "last": ""})
+            building_stats: dict[str, dict] = defaultdict(lambda: {"obs": 0, "listing": 0, "req": 0, "prices": [], "last": ""})
+
+            for item in items:
+                role = self._broker_role(item.get("message_type"))
+                seen_at = item.get("timestamp") or item.get("created_at")
+                self.db.execute(
+                    """INSERT INTO broker_observations
+                       (broker_id, parsed_id, raw_message_id, role, message_type, group_name,
+                        micro_market, building_name, landmark_name, price, bhk, seen_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (broker_id, item["parsed_id"], item["raw_message_id"], role,
+                     item.get("message_type"), item.get("group_name") or "",
+                     item.get("micro_market"), item.get("building_name"),
+                     item.get("landmark_name"), item.get("price"), item.get("bhk"), seen_at),
+                )
+
+                for stats, key_value in (
+                    (market_stats, item.get("micro_market")),
+                    (building_stats, item.get("building_name")),
+                ):
+                    if not key_value:
+                        continue
+                    bucket = stats[key_value]
+                    bucket["obs"] += 1
+                    if role == "listing":
+                        bucket["listing"] += 1
+                    elif role == "requirement":
+                        bucket["req"] += 1
+                    if item.get("price") is not None:
+                        bucket["prices"].append(float(item["price"]))
+                    if seen_at and seen_at > bucket["last"]:
+                        bucket["last"] = seen_at
+
+            for market, stat in market_stats.items():
+                prices = stat["prices"]
+                self.db.execute(
+                    """INSERT INTO broker_market_stats
+                       (broker_id, micro_market, observation_count, listing_count,
+                        requirement_count, avg_ticket, last_seen_at)
+                       VALUES (?,?,?,?,?,?,?)""",
+                    (broker_id, market, stat["obs"], stat["listing"], stat["req"],
+                     sum(prices) / len(prices) if prices else None, stat["last"] or None),
+                )
+
+            for building, stat in building_stats.items():
+                prices = stat["prices"]
+                self.db.execute(
+                    """INSERT INTO broker_building_stats
+                       (broker_id, building_name, observation_count, listing_count,
+                        requirement_count, avg_ticket, last_seen_at)
+                       VALUES (?,?,?,?,?,?,?)""",
+                    (broker_id, building, stat["obs"], stat["listing"], stat["req"],
+                     sum(prices) / len(prices) if prices else None, stat["last"] or None),
+                )
+
+        stale_keys = set(existing_brokers) - set(broker_rows)
+        if stale_keys:
+            placeholders = ",".join("?" for _ in stale_keys)
+            self.db.execute(
+                f"DELETE FROM brokers WHERE identity_key IN ({placeholders})",
+                tuple(stale_keys),
+            )
+
+        self._commit()
+        return {"brokers": len(broker_rows), "observations": sum(len(v) for v in broker_rows.values())}
+
     # ── Raw messages ───────────────────────────────────────────
 
     def get_raw_by_uid(self, message_uid: str) -> RawMessage | None:
@@ -166,8 +394,10 @@ class SqliteStorage(Storage):
              obs.confidence, obs.raw_payload, obs.event_id,
              obs.embedding)
         )
+        parsed_id = cur.lastrowid
         self._commit()
-        return cur.lastrowid
+        self.rebuild_broker_graph()
+        return parsed_id
 
     def get_parsed_by_raw(self, raw_id: int) -> ParsedObservation | None:
         row = self.db.execute(
@@ -232,8 +462,10 @@ class SqliteStorage(Storage):
              dec.method, dec.method_detail, dec.candidates,
              dec.failure_category, dec.error, dec.event_id)
         )
+        resolver_id = cur.lastrowid
         self._commit()
-        return cur.lastrowid
+        self.rebuild_broker_graph()
+        return resolver_id
 
     def get_resolver_by_parsed(self, parsed_id: int) -> ResolverDecision | None:
         row = self.db.execute(
