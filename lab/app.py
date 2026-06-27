@@ -832,6 +832,7 @@ async def webhook(request: Request):
     sender_jid = key.get("participant", "") or msg_data.get("sender", {}).get("id", "")
     sender = _format_whatsapp_sender(sender_name, sender_jid)
     group = key.get("remoteJid", "") or msg_data.get("from", "")
+    group_name = _resolve_group_name(group)
     timestamp = msg_data.get("messageTimestamp", int(datetime.now(timezone.utc).timestamp()))
     if isinstance(timestamp, (int, float)):
         timestamp = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -844,7 +845,7 @@ async def webhook(request: Request):
     # Save raw message
     from lab.scheduler import PIPELINE_VERSION
     raw_id = storage.save_raw_message(RawMessage(
-        group_name=group,
+        group_name=group_name,
         sender=sender,
         message=msg_text,
         message_type="text",
@@ -996,6 +997,19 @@ def _format_whatsapp_sender(name: str = "", jid: str = "") -> str:
     if clean_name and phone:
         return f"{clean_name} ({phone})"
     return clean_name or phone or "unknown"
+
+
+def _resolve_group_name(jid: str) -> str:
+    """Resolve a group JID to the human-readable name from sync_jobs."""
+    if not jid or not jid.endswith("@g.us"):
+        return jid
+    try:
+        job = storage.get_job_by_group_jid(jid)
+        if job and job.group_name and job.group_name != jid:
+            return job.group_name
+    except Exception:
+        pass
+    return jid
 
 
 def _phone_from_jid(jid: str = "") -> str:
