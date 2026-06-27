@@ -97,6 +97,11 @@ def process_record(record: SourceRecord, pipeline_version: str = PIPELINE_VERSIO
 
     # Stage 2: Parse
     parsed = parse_message(record.text)
+    # Fallback broker phone from sender JID when phone not in message
+    if not parsed.get("broker_phone") and record.sender:
+        phone_digits = "".join(ch for ch in str(record.sender).split("@")[0] if ch.isdigit())
+        if len(phone_digits) >= 10:
+            parsed["broker_phone"] = phone_digits[-10:]
     parsed["pipeline_version"] = pipeline_version
     parsed["source"] = record.source
     obs = ParsedObservation(

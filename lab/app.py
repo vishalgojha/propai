@@ -862,13 +862,17 @@ async def webhook(request: Request):
 
     # Parse and resolve
     parsed = parse_message(msg_text, profile_name=sender_name or push_name)
-    # Fallback broker name to phone number when no name or signature found
-    if not parsed.get("broker_name"):
+    # Fallback broker identity from sender JID when not found in message
+    if not parsed.get("broker_name") or not parsed.get("broker_phone"):
         phone_digits = "".join(ch for ch in str(sender_jid).split("@")[0] if ch.isdigit())
-        if len(phone_digits) >= 10:
-            parsed["broker_name"] = f"+91 {phone_digits[-10:]}"
-        elif phone_digits:
-            parsed["broker_name"] = f"+{phone_digits}"
+        if not parsed.get("broker_name"):
+            if len(phone_digits) >= 10:
+                parsed["broker_name"] = f"+91 {phone_digits[-10:]}"
+            elif phone_digits:
+                parsed["broker_name"] = f"+{phone_digits}"
+        if not parsed.get("broker_phone"):
+            if len(phone_digits) >= 10:
+                parsed["broker_phone"] = phone_digits[-10:]
     embedding_blob = compute_embedding(parsed)
     obs = ParsedObservation(
         raw_message_id=raw_id,
