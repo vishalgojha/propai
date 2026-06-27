@@ -744,12 +744,54 @@ async def lifespan(app: FastAPI):
     print(f"  Lab DB: {DB_PATH}")
     print(f"  Webhook: http://localhost:{PORT}/webhook")
     print(f"  Admin:   http://localhost:{PORT}/")
+
+    # Auto-register webhook with Evolution API
+    try:
+        _register_webhook()
+    except Exception as e:
+        print(f"  [!] Webhook registration failed: {e}")
     yield
 
 app = FastAPI(title="PropAI Local Intelligence Lab", version="0.1.0", lifespan=lifespan)
 
 
 # ── Webhook (Evolution API) ─────────────────────────────────────
+
+def _register_webhook():
+    """Register this server as a webhook target in Evolution API."""
+    from lab.config import EVOLUTION_INSTANCE, PROPAI_WEBHOOK_URL
+    import httpx
+
+    webhook_url = PROPAI_WEBHOOK_URL or f"http://host.docker.internal:{PORT}/webhook"
+
+    payload = {
+        "enabled": True,
+        "url": webhook_url,
+        "webhook_by_events": False,
+        "webhook_base64": False,
+        "events": [
+            "QRCODE_UPDATED",
+            "MESSAGES_UPSERT",
+            "MESSAGES_UPDATE",
+            "MESSAGES_DELETE",
+            "CONNECTION_UPDATE",
+            "GROUPS_UPSERT",
+            "GROUPS_UPDATE",
+            "GROUPS_PARTICIPANTS_UPDATE",
+            "SEND_MESSAGE",
+        ],
+    }
+    resp = httpx.post(
+        f"{EVOLUTION_API_URL}/webhook/set/{EVOLUTION_INSTANCE}",
+        json=payload,
+        headers={"apikey": EVOLUTION_API_KEY},
+        timeout=10,
+    )
+    result = resp.json()
+    if result.get("success"):
+        print(f"  Webhook registered: {webhook_url}")
+    else:
+        print(f"  [!] Webhook registration response: {result}")
 
 _EVENT_CLASS = {
     "messages.upsert": "message",

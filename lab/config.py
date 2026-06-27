@@ -23,6 +23,10 @@ EVOLUTION_API_KEY = _EVOLUTION_API_KEY_ENV or (LAB_DIR / ".api_key").read_text()
 EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "propai-scraper")
 EVOLUTION_SYNC_DELAY_MS = int(os.getenv("EVOLUTION_SYNC_DELAY_MS", "500"))
 
+# PropAI webhook URL that Evolution API sends events to
+# Set this if the auto-detected URL (host.docker.internal:PORT) is wrong
+PROPAI_WEBHOOK_URL = os.getenv("PROPAI_WEBHOOK_URL", "")
+
 # Evidence Engine paths (reused)
 EVIDENCE_DIR = PROJECT_DIR / "evidence"
 REGISTRY_DIR = PROJECT_DIR / "registry"
