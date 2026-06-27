@@ -98,6 +98,16 @@ export default function DashboardPage() {
     return item.broker_phone || item.broker_name || item.sender || "";
   }
 
+  function waLink(phone: string): string | null {
+    if (!phone) return null;
+    const digits = phone.replace(/[^0-9]/g, "");
+    if (digits.length === 10) return `https://wa.me/91${digits}`;
+    if (digits.length > 10) return `https://wa.me/${digits}`;
+    return null;
+  }
+
+  const [expandedRaw, setExpandedRaw] = useState<Record<number, boolean>>({});
+
   function signalIcon(type: string) {
     const icons: Record<string, string> = {
       trending_building: "🏢",
@@ -215,11 +225,16 @@ export default function DashboardPage() {
                   </div>
                   {f.price && <div className="text-sm font-bold text-[var(--text-primary)] mt-1">{formatBrokerPrice(f.price)}</div>}
                   <div className="mt-2 flex flex-wrap gap-2">
-                    <a href={`/observations/${f.id}`} className="text-xs font-semibold text-[var(--blue)] hover:underline">View</a>
+                    <a href={`/observations/${f.id}`} className="text-xs font-semibold text-[var(--blue)] hover:underline">Details</a>
+                    {waLink(f.broker_phone) && <a href={waLink(f.broker_phone)!} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-green-600 hover:text-green-700 dark:text-green-400">Chat</a>}
+                    <button onClick={() => setExpandedRaw(p => ({...p, [f.id]: !p[f.id]}))} className="text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer">Raw</button>
                     <a href={`/search?q=${encodeURIComponent(listingMatchQuery(f))}`} className="text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg px-2.5 py-1">Find buyers</a>
                     {brokerQuery(f) && <a href={`/search?q=${encodeURIComponent(brokerQuery(f))}`} className="text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Broker</a>}
                     {locationQuery(f) && <a href={`/search?q=${encodeURIComponent(locationQuery(f))}`} className="text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Market</a>}
                   </div>
+                  {expandedRaw[f.id] && f.message && (
+                    <div className="mt-2 p-2 bg-[var(--bg-surface)] border border-[var(--border)] rounded text-[11px] text-[var(--text-secondary)] whitespace-pre-wrap max-h-24 overflow-y-auto">{f.message}</div>
+                  )}
                 </div>
               ))
             )}
@@ -254,13 +269,18 @@ export default function DashboardPage() {
                     </div>
                     {f.price && <div className="text-sm font-bold text-[var(--text-primary)] mt-1">Budget {formatBrokerPrice(f.price)}</div>}
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <a href={`/observations/${f.id}`} className="text-xs font-semibold text-[var(--blue)] hover:underline">View</a>
+                      <a href={`/observations/${f.id}`} className="text-xs font-semibold text-[var(--blue)] hover:underline">Details</a>
+                      {waLink(f.broker_phone) && <a href={waLink(f.broker_phone)!} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-green-600 hover:text-green-700 dark:text-green-400">Chat</a>}
+                      <button onClick={() => setExpandedRaw(p => ({...p, [f.id]: !p[f.id]}))} className="text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer">Raw</button>
                       {isComplete && (
                         <a href={`/search?q=${encodeURIComponent(requirementMatchQuery(f))}`} className="text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg px-2.5 py-1">Find listings</a>
                       )}
                       {brokerQuery(f) && <a href={`/search?q=${encodeURIComponent(brokerQuery(f))}`} className="text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Broker</a>}
                       {locationQuery(f) && <a href={`/search?q=${encodeURIComponent(locationQuery(f))}`} className="text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Market</a>}
                     </div>
+                    {expandedRaw[f.id] && f.message && (
+                      <div className="mt-2 p-2 bg-[var(--bg-surface)] border border-[var(--border)] rounded text-[11px] text-[var(--text-secondary)] whitespace-pre-wrap max-h-24 overflow-y-auto">{f.message}</div>
+                    )}
                   </div>
                 );
               })
@@ -348,6 +368,14 @@ export default function DashboardPage() {
                       {[f.bhk, f.furnishing, f.area_sqft ? `${f.area_sqft} sqft` : "", f.area, f.micro_market].filter(Boolean).join(" · ")}
                     </div>
                     {f.price && <div className="text-sm font-bold text-[var(--text-primary)] mt-1">{fmtPrice(f.price, f.price_unit)}</div>}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <a href={`/observations/${f.id}`} className="text-xs font-semibold text-[var(--blue)] hover:underline">Details</a>
+                      {waLink(f.broker_phone) && <a href={waLink(f.broker_phone)!} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-green-600 hover:text-green-700 dark:text-green-400">Chat</a>}
+                      <button onClick={() => setExpandedRaw(p => ({...p, [f.id]: !p[f.id]}))} className="text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer">Raw</button>
+                    </div>
+                    {expandedRaw[f.id] && f.message && (
+                      <div className="mt-2 p-2 bg-[var(--bg-surface)] border border-[var(--border)] rounded text-[11px] text-[var(--text-secondary)] whitespace-pre-wrap max-h-24 overflow-y-auto">{f.message}</div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -365,6 +393,14 @@ export default function DashboardPage() {
                       {[f.bhk, f.furnishing, f.area, f.micro_market, f.landmark_name ? `near ${f.landmark_name}` : ""].filter(Boolean).join(" · ")}
                     </div>
                     {f.price && <div className="text-sm font-bold text-[var(--text-primary)] mt-1">Budget {fmtPrice(f.price, f.price_unit)}</div>}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <a href={`/observations/${f.id}`} className="text-xs font-semibold text-[var(--blue)] hover:underline">Details</a>
+                      {waLink(f.broker_phone) && <a href={waLink(f.broker_phone)!} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-green-600 hover:text-green-700 dark:text-green-400">Chat</a>}
+                      <button onClick={() => setExpandedRaw(p => ({...p, [f.id]: !p[f.id]}))} className="text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer">Raw</button>
+                    </div>
+                    {expandedRaw[f.id] && f.message && (
+                      <div className="mt-2 p-2 bg-[var(--bg-surface)] border border-[var(--border)] rounded text-[11px] text-[var(--text-secondary)] whitespace-pre-wrap max-h-24 overflow-y-auto">{f.message}</div>
+                    )}
                   </div>
                 ))}
               </div>
