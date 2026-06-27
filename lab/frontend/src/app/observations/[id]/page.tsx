@@ -45,7 +45,7 @@ export default function ObservationPage() {
 
   if (error) {
     return (
-      <div className="max-w-3xl mx-auto py-8">
+      <div className="max-w-2xl mx-auto py-8">
         <div className="text-red-500 text-center py-10 bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl">{error}</div>
       </div>
     );
@@ -53,7 +53,7 @@ export default function ObservationPage() {
 
   if (!obs) {
     return (
-      <div className="max-w-3xl mx-auto py-8">
+      <div className="max-w-2xl mx-auto py-8">
         <div className="text-[var(--text-muted)] text-center py-10">Loading...</div>
       </div>
     );
@@ -71,91 +71,71 @@ export default function ObservationPage() {
   const phoneClean = (parsed.broker_phone || "").replace(/[^0-9]/g, "").slice(-10);
   const waLink = phoneClean.length === 10 ? `https://wa.me/91${phoneClean}` : "";
   const displayPhone = phoneClean.length === 10 ? `+91 ${phoneClean.slice(0, 2)} XXXXX ${phoneClean.slice(-2)}` : parsed.broker_phone;
+  const hasContact = brokerName || displayPhone;
+
+  const details: string[] = [];
+  if (parsed.bhk) details.push(parsed.bhk);
+  if (areaSqft) details.push(areaSqft);
+  if (parsed.furnishing) details.push(parsed.furnishing);
+  if (parsed.location_raw && parsed.location_raw !== parsed.micro_market) details.push(parsed.location_raw);
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <a href="/" className="text-xs text-[var(--blue)] no-underline hover:underline">&larr; Back to Dashboard</a>
+    <div className="max-w-2xl mx-auto">
+      <a href={document.referrer || "/"} className="text-xs text-[var(--blue)] no-underline hover:underline">&larr; Back</a>
 
-      {/* ── Header ── */}
-      <div className="flex items-center gap-3 mt-4 mb-1">
-        {parsed.intent && <span className={`badge ${intentBadge[parsed.intent] || "badge-blue"}`}>{parsed.intent}</span>}
-        <span className="text-sm text-[var(--text-secondary)]">{raw.group_name || raw.source || ""}</span>
-        <span className="text-sm text-[var(--text-muted)] ml-auto">{istDate(raw.timestamp)}</span>
-      </div>
-
-      {/* ── Property Card ── */}
-      <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-6 mt-2">
-        {buildingName && (
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">{buildingName}</h1>
-        )}
-
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-[var(--text-secondary)]">
-          {parsed.bhk && <span>{parsed.bhk}</span>}
-          {areaSqft && <span>{areaSqft}</span>}
-          {parsed.furnishing && <span>{parsed.furnishing}</span>}
+      <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-5 mt-3">
+        {/* Header */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {parsed.intent && <span className={`badge ${intentBadge[parsed.intent] || "badge-blue"}`}>{parsed.intent}</span>}
+          <span className="text-xs text-[var(--text-muted)]">{raw.group_name || raw.source || ""}</span>
+          <span className="text-xs text-[var(--text-muted)] ml-auto">{istDate(raw.timestamp)}</span>
         </div>
 
-        {parsed.price != null && (
-          <div className="text-2xl font-bold text-[var(--text-primary)] mt-3">
-            {parsed.price_unit ? fmtPrice(parsed.price, parsed.price_unit) : formatBrokerPrice(parsed.price)}
+        {/* Building + price */}
+        <div className="mt-3">
+          {buildingName && <div className="text-lg font-bold text-[var(--text-primary)]">{buildingName}</div>}
+          {details.length > 0 && <div className="text-xs text-[var(--text-secondary)] mt-0.5">{details.join(" · ")}</div>}
+          {parsed.price != null && (
+            <div className="text-xl font-bold text-[var(--text-primary)] mt-1.5">
+              {parsed.price_unit ? fmtPrice(parsed.price, parsed.price_unit) : formatBrokerPrice(parsed.price)}
+            </div>
+          )}
+        </div>
+
+        {/* Location details */}
+        {(parsed.micro_market || landmark) && (
+          <div className="mt-2 text-xs text-[var(--text-secondary)] space-y-0.5">
+            {parsed.micro_market && <div>Location: {parsed.micro_market}</div>}
+            {landmark && <div>Landmark: {landmark}</div>}
           </div>
         )}
 
-        <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 mt-4 text-sm">
-          {parsed.micro_market && (
-            <>
-              <span className="text-[var(--text-muted)]">Location</span>
-              <span className="text-[var(--text-primary)]">{parsed.micro_market}{parsed.location_raw ? ` (${parsed.location_raw})` : ""}</span>
-            </>
-          )}
-          {landmark && (
-            <>
-              <span className="text-[var(--text-muted)]">Landmark</span>
-              <span className="text-[var(--text-primary)]">{landmark}</span>
-            </>
-          )}
-          {parsed.principal && (
-            <>
-              <span className="text-[var(--text-muted)]">Posted by</span>
-              <span className="text-[var(--text-primary)]">{parsed.principal}</span>
-            </>
-          )}
-        </div>
-      </div>
+        {/* Divider */}
+        <div className="border-t border-[var(--border)] my-3" />
 
-      {/* ── Broker Card ── */}
-      <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-5 mt-4">
-        <div className="text-[11px] text-[var(--text-muted)] uppercase tracking-widest font-bold mb-3">CONTACT</div>
-        <div className="flex items-center justify-between">
+        {/* Contact — only shown if there's actually contact info */}
+        {hasContact && (
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              {brokerName && <div className="text-sm font-semibold text-[var(--text-primary)] truncate">{brokerName}</div>}
+              {displayPhone && <div className="text-xs text-[var(--text-secondary)]">{displayPhone}</div>}
+            </div>
+            {waLink && (
+              <a href={waLink} target="_blank" rel="noopener noreferrer" className="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg no-underline shrink-0">Chat on WhatsApp</a>
+            )}
+          </div>
+        )}
+
+        {/* Divider — only if there's contact above or there's a message below */}
+        {(hasContact || raw.message) && <div className="border-t border-[var(--border)] my-3" />}
+
+        {/* Original message — shown inline, no separate card */}
+        {raw.message && (
           <div>
-            <div className="text-sm font-semibold text-[var(--text-primary)]">{brokerName}</div>
-            <div className="text-sm text-[var(--text-secondary)] mt-0.5">{displayPhone}</div>
-          </div>
-          {waLink && (
-            <a
-              href={waLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2 rounded-lg no-underline"
-            >
-              Chat on WhatsApp
-            </a>
-          )}
-        </div>
-      </div>
-
-      {/* ── Original Message ── */}
-      <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-5 mt-4">
-        <button
-          onClick={() => setShowRaw(s => !s)}
-          className="text-[11px] text-[var(--text-muted)] uppercase tracking-widest font-bold w-full text-left flex items-center justify-between cursor-pointer"
-        >
-          <span>Original Message</span>
-          <span className="text-xs">{showRaw ? "▲" : "▼"}</span>
-        </button>
-        {showRaw && (
-          <div className="mt-3 p-4 bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-lg text-sm whitespace-pre-wrap text-[var(--text-primary)] leading-relaxed">
-            {raw.message || "—"}
+            <button onClick={() => setShowRaw(s => !s)} className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-bold cursor-pointer">{showRaw ? "▲ Hide" : "▼ Show"} original message</button>
+            {showRaw && (
+              <div className="mt-2 p-3 bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded-lg text-xs whitespace-pre-wrap text-[var(--text-primary)] leading-relaxed">{raw.message}</div>
+            )}
           </div>
         )}
       </div>
