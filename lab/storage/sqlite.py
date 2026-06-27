@@ -1039,6 +1039,44 @@ class SqliteStorage(Storage):
 
         return signals
 
+    def dashboard_owner_messages(self, owner_phone_suffix: str, limit: int = 20) -> dict:
+        listings = self.db.execute(
+            "SELECT r.id, r.message, r.timestamp, r.group_name, r.sender, "
+            "p.intent, p.principal, p.broker_name, p.broker_phone, "
+            "p.bhk, p.price, p.price_unit, p.area_sqft, p.furnishing, "
+            "p.building_name, p.landmark_name, p.street_name, p.area, p.micro_market, p.developer, "
+            "p.forwarded, p.profile_name, "
+            "d.final_confidence, d.method "
+            "FROM raw_messages r "
+            "JOIN parsed_output p ON p.raw_message_id = r.id "
+            "LEFT JOIN resolver_decisions d ON d.parsed_id = p.id "
+            "WHERE p.broker_phone LIKE ? "
+            "AND p.intent IN ('SELL', 'RENT', 'PRE-LAUNCH', 'COMMERCIAL_SALE', 'COMMERCIAL_RENTAL') "
+            "ORDER BY r.id DESC LIMIT ?",
+            (f"%{owner_phone_suffix}", limit)
+        ).fetchall()
+
+        requirements = self.db.execute(
+            "SELECT r.id, r.message, r.timestamp, r.group_name, r.sender, "
+            "p.intent, p.principal, p.broker_name, p.broker_phone, "
+            "p.bhk, p.price, p.price_unit, p.furnishing, "
+            "p.building_name, p.landmark_name, p.area, p.micro_market, "
+            "p.forwarded, p.profile_name, "
+            "d.final_confidence, d.method "
+            "FROM raw_messages r "
+            "JOIN parsed_output p ON p.raw_message_id = r.id "
+            "LEFT JOIN resolver_decisions d ON d.parsed_id = p.id "
+            "WHERE p.broker_phone LIKE ? "
+            "AND p.intent IN ('BUY', 'RENTAL_SEEKER') "
+            "ORDER BY r.id DESC LIMIT ?",
+            (f"%{owner_phone_suffix}", limit)
+        ).fetchall()
+
+        return {
+            "listings": [dict(r) for r in listings],
+            "requirements": [dict(r) for r in requirements],
+        }
+
     def dashboard_heatmap(self) -> list[dict]:
         rows = self.db.execute(
             "SELECT micro_market, COUNT(*) as c FROM parsed_output "

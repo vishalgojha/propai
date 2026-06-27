@@ -1679,18 +1679,27 @@ async def dashboard_graph_growth():
 
 @app.get("/api/dashboard/whatsapp-status")
 async def dashboard_whatsapp_status():
-    """Detailed WhatsApp connection status."""
+    """Detailed WhatsApp connection status + owner's own messages."""
     from lab.ingestion.whatsapp import WhatsAppSource
     src = WhatsAppSource()
     details = src.connection_details()
     phone = (details.get("phone_number") or "").replace("+", "")
+    owner_name = details.get("display_name") or ""
+    owner_activity = {"listings": [], "requirements": []}
+    if len(phone) >= 10:
+        try:
+            owner_activity = storage.dashboard_owner_messages(phone[-10:])
+        except Exception:
+            pass
     return {
         "connected": details.get("connected", False),
         "instance": EVOLUTION_INSTANCE,
         "phone": phone,
-        "profile": details.get("display_name") or "",
+        "profile": owner_name,
         "status": details.get("connection_state") or "",
         "state": details.get("connection_state") or "",
+        "owner_name": owner_name,
+        "owner_activity": owner_activity,
     }
 
 

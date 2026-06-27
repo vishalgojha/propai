@@ -126,6 +126,12 @@ export default function DashboardPage() {
               <div className="lbl">{s.label}</div>
             </div>
           ))}
+          {wa?.connected && (
+            <div className="stat-card blue" style={{ minWidth: 140 }}>
+              <div className="text-xs font-bold text-[var(--text-primary)] truncate">{wa.owner_name || wa.profile || "Connected"}</div>
+              <div className="text-[10px] text-[var(--text-muted)]">{wa.phone ? `+${wa.phone}` : ""}</div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -322,6 +328,50 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Owner's own broadcasts */}
+      {wa?.connected && (wa?.owner_activity?.listings?.length > 0 || wa?.owner_activity?.requirements?.length > 0) && (
+        <div className="bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl p-5">
+          <div className="text-[11px] text-[var(--text-muted)] uppercase tracking-widest font-bold mb-3">YOUR BROADCASTS</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {wa.owner_activity.listings?.length > 0 && (
+              <div>
+                <div className="text-xs text-[var(--text-muted)] mb-2">Listings</div>
+                {wa.owner_activity.listings.map((f: any, i: number) => (
+                  <div key={i} className="feed-item">
+                    <div className="feed-header">
+                      {renderListingBadge(f.intent)}
+                      <span className="feed-time ml-auto">{istTime(f.timestamp)}</span>
+                    </div>
+                    {f.building_name && <div className="text-sm font-bold text-[var(--text-primary)] mt-1">{f.building_name}</div>}
+                    <div className="text-[13px] text-[var(--text-secondary)]">
+                      {[f.bhk, f.furnishing, f.area_sqft ? `${f.area_sqft} sqft` : "", f.area, f.micro_market].filter(Boolean).join(" · ")}
+                    </div>
+                    {f.price && <div className="text-sm font-bold text-[var(--text-primary)] mt-1">{fmtPrice(f.price, f.price_unit)}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {wa.owner_activity.requirements?.length > 0 && (
+              <div>
+                <div className="text-xs text-[var(--text-muted)] mb-2">Requirements</div>
+                {wa.owner_activity.requirements.map((f: any, i: number) => (
+                  <div key={i} className="feed-item">
+                    <div className="feed-header">
+                      {renderRequirementBadge(f.intent)}
+                      <span className="feed-time ml-auto">{istTime(f.timestamp)}</span>
+                    </div>
+                    <div className="text-[13px] text-[var(--text-secondary)] mt-1">
+                      {[f.bhk, f.furnishing, f.area, f.micro_market, f.landmark_name ? `near ${f.landmark_name}` : ""].filter(Boolean).join(" · ")}
+                    </div>
+                    {f.price && <div className="text-sm font-bold text-[var(--text-primary)] mt-1">Budget {fmtPrice(f.price, f.price_unit)}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

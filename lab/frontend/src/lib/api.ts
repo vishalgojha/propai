@@ -78,6 +78,11 @@ export interface WhatsAppStatus {
   instance: string;
   state: string;
   connected_since: string;
+  owner_name: string;
+  owner_activity: {
+    listings: any[];
+    requirements: any[];
+  };
 }
 
 export function getRaw(limit = 50, offset = 0) {
