@@ -717,6 +717,36 @@ class SqliteStorage(Storage):
         self.db.execute(f"UPDATE source_sync_jobs SET {sets} WHERE id = ?", vals)
         self._commit()
 
+    def upsert_sync_job(self, source: str, instance: str, group_id: str, group_name: str, **extra):
+        existing = self.db.execute(
+            "SELECT id FROM source_sync_jobs WHERE source = ? AND group_id = ?",
+            (source, group_id)
+        ).fetchone()
+        if existing:
+            sets = ["group_name = ?", "instance = ?"]
+            vals = [group_name, instance]
+            for k, v in extra.items():
+                sets.append(f"{k} = ?")
+                vals.append(v)
+            vals.append(existing["id"])
+            self.db.execute(f"UPDATE source_sync_jobs SET {', '.join(sets)} WHERE id = ?", vals)
+            self._commit()
+            return existing["id"]
+        else:
+            cur = self.db.execute(
+                "INSERT INTO source_sync_jobs (source, instance, group_id, group_name, status, meta) VALUES (?,?,?,?,?,?)",
+                (source, instance, group_id, group_name, "pending", json.dumps(extra) if extra else "{}")
+            )
+            self._commit()
+            return cur.lastrowid
+
+    def get_job_by_group_jid(self, group_id: str) -> SyncJob | None:
+        row = self.db.execute(
+            "SELECT * FROM source_sync_jobs WHERE group_id = ? ORDER BY id DESC LIMIT 1",
+            (group_id,)
+        ).fetchone()
+        return dict_to_dataclass(SyncJob, row) if row else None
+
     def get_sync_job(self, job_id: int) -> SyncJob | None:
         row = self.db.execute(
             "SELECT * FROM source_sync_jobs WHERE id = ?", (job_id,)

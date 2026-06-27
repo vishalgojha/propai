@@ -758,7 +758,9 @@ _EVENT_CLASS = {
     "connection.update": "connection",
     "qrupdated": "qr",
     "QR_UPDATED": "qr",
-    "groups.upsert": "system",
+    "groups.upsert": "group",
+    "groups.update": "group",
+    "groups.participants.update": "group",
     "presence.update": "presence",
     "call": "call",
 }
@@ -956,6 +958,30 @@ def _handle_system_event(event_class: str, event: str, data: dict, instance: str
             "instance": instance,
             "state": state,
         })
+    elif event_class == "group":
+        groups_list = msg_data if isinstance(msg_data, list) else [msg_data]
+        for g in groups_list:
+            if not isinstance(g, dict):
+                continue
+            jid = g.get("id") or g.get("remoteJid") or ""
+            if not jid:
+                continue
+            name = g.get("name") or g.get("subject") or jid
+            participants = len(g.get("participants", [])) if isinstance(g.get("participants"), list) else g.get("size", 0)
+            try:
+                storage.upsert_sync_job(
+                    source="whatsapp", instance=instance,
+                    group_id=jid, group_name=name,
+                    participants=participants,
+                )
+            except Exception:
+                pass
+            get_bus().publish("group.updated", {
+                "instance": instance,
+                "jid": jid,
+                "name": name,
+                "participants": participants,
+            })
     else:
         get_bus().publish("system.event", {
             "event": event,
