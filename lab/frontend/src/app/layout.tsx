@@ -13,6 +13,7 @@ const navItems = [
   { href: "/groups", label: "Groups", icon: "👥" },
   { href: "/market", label: "Markets", icon: "📍" },
   { href: "/search", label: "Search", icon: "🔍" },
+  { href: "/chat", label: "AI Chat", icon: "🤖" },
   { href: "/settings", label: "Settings", icon: "⚙" },
 ];
 
@@ -21,6 +22,7 @@ const engineeringEnabled = process.env.NEXT_PUBLIC_PROPAI_ENGINEERING === "true"
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const [conn, setConn] = useState<ConnectionState | null>(null);
   const [wa, setWA] = useState<WhatsAppStatus | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     async function poll() {
@@ -50,20 +52,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <title>PropAI Lab</title>
       </head>
       <body className="flex min-h-screen">
-        <aside className="w-56 border-r border-[var(--border)] p-4 flex flex-col gap-1 shrink-0" style={{background: 'var(--bg-base)'}}>
-          <div className="flex items-center gap-2.5 mb-6 px-3">
-            <img src="/propai-logo.svg" alt="PropAI" className="w-7 h-7" />
-            <span className="text-lg font-bold text-[var(--text-primary)]">PropAI</span>
-          </div>
-          {[...navItems, ...(engineeringEnabled ? [{ href: "/engineering", label: "Engineering", icon: "🛠" }] : [])].map((item) => (
-            <a key={item.href} href={item.href} className="sidebar-link">
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
-            </a>
-          ))}
-        </aside>
+        {sidebarOpen && (
+          <aside className="w-56 border-r border-[var(--border)] p-4 flex flex-col gap-1 shrink-0" style={{background: 'var(--bg-base)'}}>
+            <div className="flex items-center gap-2.5 mb-6 px-3">
+              <img src="/propai-logo.svg" alt="PropAI" className="w-7 h-7" />
+              <span className="text-lg font-bold text-[var(--text-primary)]">PropAI</span>
+            </div>
+            {[...navItems, ...(engineeringEnabled ? [{ href: "/engineering", label: "Engineering", icon: "🛠" }] : [])].map((item) => (
+              <a key={item.href} href={item.href} className="sidebar-link">
+                <span>{item.icon}</span>
+                <span>{item.label}</span>
+              </a>
+            ))}
+          </aside>
+        )}
         <div className="flex-1 flex flex-col min-w-0">
           <header className="flex items-center gap-3 px-6 py-3 border-b border-[var(--border)]" style={{background: 'var(--bg-base)'}}>
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-lg leading-none mr-1"
+              title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+            >
+              {sidebarOpen ? "◀" : "▶"}
+            </button>
             <span className={`w-2 h-2 rounded-full ${dotColor}`} />
             <span className="text-sm text-[var(--text-secondary)]">{label}</span>
           </header>

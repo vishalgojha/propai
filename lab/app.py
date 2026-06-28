@@ -29,6 +29,7 @@ from pydantic import BaseModel
 
 from lab.storage import SqliteStorage, RawMessage, ParsedObservation, ResolverDecision, Evaluation
 from lab.embedding import create_engine, observation_text, pack_embedding, EmbeddingEngine
+from lab import ai_chat_engine as chat_engine
 from lab.location import parse_location
 from lab.events import get_bus
 
@@ -36,7 +37,7 @@ from lab.events import get_bus
 PROJECT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_DIR))
 
-from lab.config import DB_PATH, WEBHOOK_SECRET, HOST, PORT, EVOLUTION_INSTANCE, EVOLUTION_API_URL, load_group_allowlist, save_group_allowlist
+from lab.config import DB_PATH, WEBHOOK_SECRET, HOST, PORT, EVOLUTION_INSTANCE, EVOLUTION_API_URL, EVOLUTION_API_KEY, DOUBLEWORD_API_KEY, load_group_allowlist, save_group_allowlist
 from evidence.resolver import resolve, resolve_by_landmark, resolve_by_street
 from evidence.parsers import parse as broker_parse
 
@@ -1971,6 +1972,241 @@ async def ai_building(building_name: str):
         "avg_price": avg_price,
         "last_observations": last_5,
     }
+
+
+# ═══════════════════════════════════════════════════════════════
+# Scraper Data Chat — conversational AI over scraped CSVs
+# ═══════════════════════════════════════════════════════════════
+
+class ChatRequest(BaseModel):
+    messages: list[dict]
+    api_key: str = ""
+
+
+# ═══════════════════════════════════════════════════════════════
+# Promote Listing — ad copy generation
+# ═══════════════════════════════════════════════════════════════
+
+class PromoteRequest(BaseModel):
+    observation_id: int
+    channel: str = "whatsapp"
+    use_ai: bool = False
+
+
+def _promote_highlights(parsed: dict) -> list[str]:
+    highlights = []
+    if parsed.get("bhk"):
+        highlights.append(f"{parsed['bhk']} configuration")
+    if parsed.get("area_sqft"):
+        highlights.append(f"{parsed['area_sqft']:,} sqft built-up area")
+    if parsed.get("furnishing"):
+        highlights.append(f"{parsed['furnishing']}")
+    if parsed.get("building_name"):
+        highlights.append(f"Located at {parsed['building_name']}")
+    if parsed.get("landmark_name"):
+        highlights.append(f"Near {parsed['landmark_name']}")
+    if parsed.get("micro_market"):
+        highlights.append(f"Prime location: {parsed['micro_market']}")
+    if parsed.get("location_raw") and parsed["location_raw"] not in (parsed.get("micro_market") or "", parsed.get("building_name") or ""):
+        highlights.append(f"Area: {parsed['location_raw']}")
+    return highlights[:5]
+
+
+def _promote_price(parsed: dict) -> str:
+    price = parsed.get("price")
+    unit = parsed.get("price_unit")
+    if price and unit == "Cr":
+        return f"₹{(price / 1_00_00_000):.2f} Cr"
+    if price and unit == "L":
+        return f"₹{(price / 1_00_000):.1f} L"
+    if price and unit == "lakh":
+        return f"₹{(price / 1_00_000):.1f} Lakh"
+    if price:
+        return f"₹{price:,.0f}"
+    return ""
+
+
+def _promote_headline(parsed: dict, channel: str) -> str:
+    bhk = parsed.get("bhk", "Property")
+    building = parsed.get("building_name", "")
+    market = parsed.get("micro_market", "")
+    price = _promote_price(parsed)
+    location = market or parsed.get("location_raw", "")
+    if channel == "whatsapp":
+        parts = [f"🏢 {bhk}"]
+        if building:
+            parts.append(f"at {building}")
+        if location:
+            parts.append(f"in {location}")
+        if price:
+            parts.append(f"| {price}")
+        return " ".join(parts)
+    if channel in ("facebook", "instagram"):
+        parts = [f"{bhk}"]
+        if building:
+            parts.append(f"at {building}")
+        if location:
+            parts.append(f"in {location}")
+        if price:
+            parts.append(f"— {price}")
+        return " ".join(parts)
+    return ""
+
+
+def _promote_whatsapp(parsed: dict, highlights: list[str]) -> str:
+    bhk = parsed.get("bhk", "")
+    building = parsed.get("building_name", "")
+    market = parsed.get("micro_market", "")
+    price = _promote_price(parsed)
+    area = f"{parsed['area_sqft']:,} sqft" if parsed.get("area_sqft") else ""
+    furnish = parsed.get("furnishing", "")
+    broker = parsed.get("broker_name", "")
+    import re
+    phone = re.sub(r"[^0-9]", "", parsed.get("broker_phone") or "")[-10:]
+    lines = ["🏢 *" + _promote_headline(parsed, "whatsapp") + "*", ""]
+    if building:
+        lines.append(f"📍 {building}")
+    if market:
+        lines.append(f"📍 {market}")
+    detail_parts = [p for p in [bhk, area, furnish] if p]
+    if detail_parts:
+        lines.append(" | ".join(detail_parts))
+    if price:
+        lines.append(f"💰 {price}")
+    lines.append("")
+    lines.append("✨ Highlights:")
+    for h in highlights[:4]:
+        lines.append(f"  ✅ {h}")
+    lines.append("")
+    if broker:
+        lines.append(f"📞 {broker}")
+    if phone and len(phone) == 10:
+        lines.append(f"   wa.me/91{phone}")
+    return "\n".join(lines)
+
+
+def _promote_instagram(parsed: dict, highlights: list[str]) -> str:
+    bhk = parsed.get("bhk", "")
+    building = parsed.get("building_name", "")
+    market = parsed.get("micro_market", "")
+    price = _promote_price(parsed)
+    area = f"{parsed['area_sqft']:,} sqft" if parsed.get("area_sqft") else ""
+    furnish = parsed.get("furnishing", "")
+    lines = [f"✨ {bhk}" + (f" at {building}" if building else "")]
+    if market:
+        lines.append(f"📍 {market}")
+    if price:
+        lines.append(f"💰 {price}")
+    lines.append("")
+    if area or furnish:
+        detail_parts = [p for p in [area, furnish] if p]
+        lines.append(" | ".join(detail_parts))
+    lines.append("")
+    lines.append("What you get:")
+    for h in highlights[:4]:
+        lines.append(f"✅ {h}")
+    lines.append("")
+    lines.append("📲 DM for more details or site visit!")
+    return "\n".join(lines)
+
+
+def _promote_facebook(parsed: dict, highlights: list[str]) -> str:
+    insta = _promote_instagram(parsed, highlights)
+    return insta + "\n\nAvailable for sale/rent. Serious inquiries only."
+
+
+def _identify_channel_emoji(channel: str) -> str:
+    return {"whatsapp": "💬", "facebook": "👍", "instagram": "📸"}.get(channel, "📢")
+
+
+@app.post("/api/promote/generate")
+async def promote_generate(req: PromoteRequest):
+    detail = storage.get_observation_detail(req.observation_id)
+    if not detail.get("parsed"):
+        raise HTTPException(404, "Observation not found")
+    parsed = detail["parsed"]
+    highlights = _promote_highlights(parsed)
+    headline = _promote_headline(parsed, req.channel)
+
+    if req.channel == "whatsapp":
+        body = _promote_whatsapp(parsed, highlights)
+    elif req.channel == "instagram":
+        body = _promote_instagram(parsed, highlights)
+    elif req.channel == "facebook":
+        body = _promote_facebook(parsed, highlights)
+    else:
+        raise HTTPException(400, f"Unknown channel: {req.channel}")
+
+    result = {
+        "channel": req.channel,
+        "emoji": _identify_channel_emoji(req.channel),
+        "headline": headline,
+        "body": body,
+        "highlights": highlights,
+        "ai_enhanced": False,
+    }
+
+    # Optional AI enhancement
+    if req.use_ai and DOUBLEWORD_API_KEY:
+        try:
+            system = "You are a Mumbai real estate marketing assistant. Given property details, write a short promotional ad for the specified channel. Keep it under 120 words. Return only the ad body, no preamble."
+            price_str = _promote_price(parsed)
+            detail_parts = [v for v in [parsed.get("bhk"), parsed.get("furnishing"), f"{parsed.get('area_sqft', '')} sqft" if parsed.get('area_sqft') else ""] if v]
+            prompt = f"Channel: {req.channel}\nBuilding: {parsed.get('building_name', 'N/A')}\nLocation: {parsed.get('micro_market', parsed.get('location_raw', 'N/A'))}\nDetails: {' | '.join(detail_parts)}\nPrice: {price_str}\nBroker: {parsed.get('broker_name', 'N/A')}"
+            loop = asyncio.get_running_loop()
+            ai_body = await loop.run_in_executor(None, lambda: _ai_promote(system, prompt))
+            if ai_body:
+                result["body"] = ai_body
+                result["ai_enhanced"] = True
+        except Exception:
+            pass
+
+    return result
+
+
+def _ai_promote(system: str, prompt: str) -> str | None:
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=DOUBLEWORD_API_KEY, base_url="https://api.doubleword.ai/v1")
+        resp = client.chat.completions.create(
+            model="Qwen/Qwen3.6-35B-A3B-FP8",
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+            max_tokens=300,
+        )
+        return resp.choices[0].message.content
+    except Exception:
+        return None
+
+
+@app.post("/api/ai/chat")
+async def ai_chat(req: ChatRequest):
+    api_key = req.api_key or DOUBLEWORD_API_KEY
+    if not api_key:
+        return {"error": "api_key_required", "message": "Set your Doubleword API key in Chat settings"}
+
+    sources = chat_engine.load_data()
+    if not sources:
+        return {"error": "no_data", "message": "No scraped CSVs found. Run scrape_all.py first."}
+
+    loop = asyncio.get_running_loop()
+
+    def _call():
+        system_prompt = chat_engine.build_system_prompt(sources)
+        msgs = [{"role": "system", "content": system_prompt}] + req.messages[-20:]
+        reply = chat_engine.get_model_reply(msgs, sources, api_key=api_key)
+        return reply.content or ""
+
+    content = await loop.run_in_executor(None, _call)
+    return {"content": content, "sources": list(sources.keys())}
+
+
+@app.get("/api/ai/chat/overview")
+async def ai_chat_overview():
+    sources = chat_engine.load_data()
+    if not sources:
+        return {"error": "no_data"}
+    return {"overview": chat_engine.build_overview(sources), "sources": list(sources.keys())}
 
 
 @app.get("/api/evaluations")

@@ -263,3 +263,18 @@ export function getEngineeringMCP() {
 export function getEngineeringTerminal() {
   return fetchJSON<any>("/engineering/terminal");
 }
+
+export interface ChatResponse {
+  content: string;
+  sources: string[];
+}
+
+export function chatAIChat(
+  messages: { role: string; content: string }[],
+  apiKey = ""
+): Promise<ChatResponse> {
+  return fetchJSON<ChatResponse>("/ai/chat", {
+    method: "POST",
+    body: JSON.stringify({ messages, api_key: apiKey }),
+  });
+}

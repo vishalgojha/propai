@@ -27,6 +27,19 @@ EVOLUTION_SYNC_DELAY_MS = int(os.getenv("EVOLUTION_SYNC_DELAY_MS", "500"))
 # Set this if the auto-detected URL (host.docker.internal:PORT) is wrong
 PROPAI_WEBHOOK_URL = os.getenv("PROPAI_WEBHOOK_URL", "")
 
+# Doubleword AI API key (optional — for scraped data chat)
+# Can also be set via the frontend chat settings (stored in ~/.propai/config.json)
+_DW_KEY_ENV = os.getenv("DOUBLEWORD_API_KEY", "")
+_DW_KEY_FILE = Path.home() / ".propai" / "config.json"
+DOUBLEWORD_API_KEY = _DW_KEY_ENV
+if not DOUBLEWORD_API_KEY and _DW_KEY_FILE.exists():
+    import json
+    try:
+        cfg = json.loads(_DW_KEY_FILE.read_text())
+        DOUBLEWORD_API_KEY = cfg.get("doubleword_api_key", "")
+    except (json.JSONDecodeError, OSError):
+        pass
+
 # Evidence Engine paths (reused)
 EVIDENCE_DIR = PROJECT_DIR / "evidence"
 REGISTRY_DIR = PROJECT_DIR / "registry"
@@ -51,6 +64,10 @@ def load_group_allowlist() -> list[str]:
 def save_group_allowlist(entries: list[str]):
     import json
     GROUP_ALLOWLIST_PATH.write_text(json.dumps(entries, indent=2))
+
+# Feature flags
+ENABLE_AI_PROMO = os.getenv("ENABLE_AI_PROMO", "false").lower() == "true"
+ENABLE_META_PUBLISHING = os.getenv("ENABLE_META_PUBLISHING", "false").lower() == "true"
 
 # Message sources
 SOURCE_WHATSAPP = "WHATSAPP"

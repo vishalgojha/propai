@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import * as api from "@/lib/api";
 import { formatBrokerPrice } from "@/lib/format";
+import PromoteModal from "@/components/PromoteModal";
 
 function istDate(ts: string | null | undefined): string {
   if (!ts) return "";
@@ -33,6 +34,7 @@ export default function ObservationPage() {
   const [obs, setObs] = useState<any>(null);
   const [error, setError] = useState("");
   const [showRaw, setShowRaw] = useState(true);
+  const [showPromote, setShowPromote] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -113,16 +115,24 @@ export default function ObservationPage() {
         {/* Divider */}
         <div className="border-t border-[var(--border)] my-3" />
 
-        {/* Contact — only shown if there's actually contact info */}
+        {/* Contact + actions */}
         {hasContact && (
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               {brokerName && <div className="text-sm font-semibold text-[var(--text-primary)] truncate">{brokerName}</div>}
               {displayPhone && <div className="text-xs text-[var(--text-secondary)]">{displayPhone}</div>}
             </div>
-            {waLink && (
-              <a href={waLink} target="_blank" rel="noopener noreferrer" className="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg no-underline shrink-0">Chat on WhatsApp</a>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowPromote(true)}
+                className="bg-[var(--bg-elevated)] border border-[var(--border-strong)] hover:bg-[var(--bg-hover)] text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer"
+              >
+                📢 Promote
+              </button>
+              {waLink && (
+                <a href={waLink} target="_blank" rel="noopener noreferrer" className="bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg no-underline">Chat on WhatsApp</a>
+              )}
+            </div>
           </div>
         )}
 
@@ -139,6 +149,14 @@ export default function ObservationPage() {
           </div>
         )}
       </div>
+
+      {showPromote && (
+        <PromoteModal
+          observationId={parseInt(id.replace(/^P/, ""))}
+          parsed={parsed}
+          onClose={() => setShowPromote(false)}
+        />
+      )}
     </div>
   );
 }
