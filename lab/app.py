@@ -30,6 +30,7 @@ from pydantic import BaseModel
 from lab.storage import SqliteStorage, RawMessage, ParsedObservation, ResolverDecision, Evaluation
 from lab.embedding import create_engine, observation_text, pack_embedding, EmbeddingEngine
 from lab import ai_chat_engine as chat_engine
+from lab import multi_listing
 from lab.location import parse_location
 from lab.events import get_bus
 
@@ -903,84 +904,103 @@ async def webhook(request: Request):
         "raw_id": raw_id, "group": group, "sender": sender, "message": msg_text[:200],
     })
 
-    # Parse and resolve
-    parsed = parse_message(msg_text, profile_name=sender_name or push_name)
-    # Fallback broker identity from sender JID when not found in message
-    if not parsed.get("broker_name") or not parsed.get("broker_phone"):
-        phone_digits = "".join(ch for ch in str(sender_jid).split("@")[0] if ch.isdigit())
-        if not parsed.get("broker_name"):
-            if len(phone_digits) >= 10:
-                parsed["broker_name"] = f"+91 {phone_digits[-10:]}"
-            elif phone_digits:
-                parsed["broker_name"] = f"+{phone_digits}"
-        if not parsed.get("broker_phone"):
-            if len(phone_digits) >= 10:
-                parsed["broker_phone"] = phone_digits[-10:]
-    embedding_blob = compute_embedding(parsed)
-    obs = ParsedObservation(
-        raw_message_id=raw_id,
-        message_type=parsed.get("message_type"),
-        intent=parsed.get("intent"),
-        principal=parsed.get("principal"),
-        bhk=parsed.get("bhk"),
-        price=parsed.get("price"),
-        price_unit=parsed.get("price_unit"),
-        area_sqft=parsed.get("area_sqft"),
-        furnishing=parsed.get("furnishing"),
-        location_raw=parsed.get("location_raw"),
-        location=json.dumps(parsed.get("location")) if parsed.get("location") else None,
-        building_name=parsed.get("building_name"),
-        landmark_name=parsed.get("landmark_name"),
-        street_name=parsed.get("street_name"),
-        area=parsed.get("area"),
-        micro_market=parsed.get("micro_market"),
-        developer=parsed.get("developer"),
-        broker_name=parsed.get("broker_name"),
-        broker_phone=parsed.get("broker_phone"),
-        profile_name=sender_name or push_name,
-        forwarded=parsed.get("forwarded", 0),
-        confidence=parsed.get("confidence", 0.0),
-        raw_payload=json.dumps(parsed.get("raw_payload", {})),
-        embedding=embedding_blob,
-    )
-    parsed_id = storage.save_parsed(obs)
-    get_bus().publish("extraction.completed", {
-        "parsed_id": parsed_id, "raw_id": raw_id,
-        "intent": parsed.get("intent"), "broker": parsed.get("broker_name"),
-    })
+    # Parse — single or multi-listing
+    msg_class = multi_listing.classify_message(msg_text)
+    if msg_class == "multi":
+        parsed_listings = multi_listing.parse_multi_message(
+            msg_text, profile_name=sender_name or push_name
+        )
+    else:
+        single = parse_message(msg_text, profile_name=sender_name or push_name)
+        parsed_listings = [single] if single else []
 
-    # Resolve
-    resolver_result = resolve_parsed(parsed, msg_text)
-    resolver_result["parsed_id"] = parsed_id
-    dec = ResolverDecision(
-        parsed_id=parsed_id,
-        building_id=resolver_result.get("building_id"),
-        building_name=resolver_result.get("building_name"),
-        landmark_id=resolver_result.get("landmark_id"),
-        landmark_name=resolver_result.get("landmark_name"),
-        street_id=resolver_result.get("street_id"),
-        street_name=resolver_result.get("street_name"),
-        project_id=resolver_result.get("project_id"),
-        project_name=resolver_result.get("project_name"),
-        developer_name=resolver_result.get("developer_name"),
-        parser_confidence=resolver_result.get("parser_confidence", 0.0),
-        resolver_confidence=resolver_result.get("resolver_confidence", 0.0),
-        final_confidence=resolver_result.get("final_confidence", 0.0),
-        method=resolver_result.get("method", "unresolved"),
-        method_detail=resolver_result.get("method_detail"),
-        candidates=json.dumps(resolver_result.get("candidates", [])),
-        failure_category=resolver_result.get("failure_category"),
-        error=resolver_result.get("error"),
-    )
-    storage.save_resolver_decision(dec)
+    if not parsed_listings:
+        return {"status": "ignored", "reason": "parse_failed"}
+
+    # Fallback broker identity from sender JID when not found in message
+    phone_digits = "".join(ch for ch in str(sender_jid).split("@")[0] if ch.isdigit())
+    for pl in parsed_listings:
+        if not pl.get("broker_name") or not pl.get("broker_phone"):
+            if not pl.get("broker_name"):
+                if len(phone_digits) >= 10:
+                    pl["broker_name"] = f"+91 {phone_digits[-10:]}"
+                elif phone_digits:
+                    pl["broker_name"] = f"+{phone_digits}"
+            if not pl.get("broker_phone"):
+                if len(phone_digits) >= 10:
+                    pl["broker_phone"] = phone_digits[-10:]
+
+    parsed_ids: list[int] = []
+    for idx, parsed in enumerate(parsed_listings):
+        embedding_blob = compute_embedding(parsed) if idx == 0 else None
+        obs = ParsedObservation(
+            raw_message_id=raw_id,
+            listing_index=idx,
+            message_type=parsed.get("message_type"),
+            intent=parsed.get("intent"),
+            principal=parsed.get("principal"),
+            bhk=parsed.get("bhk"),
+            price=parsed.get("price"),
+            price_unit=parsed.get("price_unit"),
+            area_sqft=parsed.get("area_sqft"),
+            furnishing=parsed.get("furnishing"),
+            location_raw=parsed.get("location_raw"),
+            location=json.dumps(parsed.get("location")) if parsed.get("location") else None,
+            building_name=parsed.get("building_name"),
+            landmark_name=parsed.get("landmark_name"),
+            street_name=parsed.get("street_name"),
+            area=parsed.get("area"),
+            micro_market=parsed.get("micro_market"),
+            developer=parsed.get("developer"),
+            broker_name=parsed.get("broker_name"),
+            broker_phone=parsed.get("broker_phone"),
+            profile_name=sender_name or push_name,
+            forwarded=parsed.get("forwarded", 0),
+            confidence=parsed.get("confidence", 0.0),
+            raw_payload=json.dumps(parsed.get("raw_payload", {})),
+            embedding=embedding_blob,
+        )
+        parsed_id = storage.save_parsed(obs)
+        parsed_ids.append(parsed_id)
+
+        # Resolve (run once, reuse for all listings in a multi)
+        if idx == 0 or msg_class != "multi":
+            resolver_result = resolve_parsed(parsed, msg_text)
+        resolver_result["parsed_id"] = parsed_id
+        dec = ResolverDecision(
+            parsed_id=parsed_id,
+            building_id=resolver_result.get("building_id"),
+            building_name=resolver_result.get("building_name"),
+            landmark_id=resolver_result.get("landmark_id"),
+            landmark_name=resolver_result.get("landmark_name"),
+            street_id=resolver_result.get("street_id"),
+            street_name=resolver_result.get("street_name"),
+            project_id=resolver_result.get("project_id"),
+            project_name=resolver_result.get("project_name"),
+            developer_name=resolver_result.get("developer_name"),
+            parser_confidence=resolver_result.get("parser_confidence", 0.0),
+            resolver_confidence=resolver_result.get("resolver_confidence", 0.0),
+            final_confidence=resolver_result.get("final_confidence", 0.0),
+            method=resolver_result.get("method", "unresolved"),
+            method_detail=resolver_result.get("method_detail"),
+            candidates=json.dumps(resolver_result.get("candidates", [])),
+            failure_category=resolver_result.get("failure_category"),
+            error=resolver_result.get("error"),
+        )
+        storage.save_resolver_decision(dec)
+
+    get_bus().publish("extraction.completed", {
+        "parsed_ids": parsed_ids, "raw_id": raw_id, "count": len(parsed_ids),
+        "intent": parsed_listings[0].get("intent"), "broker": parsed_listings[0].get("broker_name"),
+    })
     get_bus().publish("resolution.completed", {
-        "parsed_id": parsed_id, "raw_id": raw_id,
+        "parsed_ids": parsed_ids, "raw_id": raw_id,
         "building": resolver_result.get("building_name"),
         "method": resolver_result.get("method", "unresolved"),
         "confidence": resolver_result.get("final_confidence", 0),
     })
 
-    return {"status": "ok", "raw_id": raw_id, "parsed_id": parsed_id}
+    return {"status": "ok", "raw_id": raw_id, "parsed_ids": parsed_ids, "count": len(parsed_ids)}
 
 
 def _handle_system_event(event_class: str, event: str, data: dict, instance: str):
@@ -1098,66 +1118,83 @@ async def ingest(req: IngestRequest):
         synced_at=now,
     ))
 
-    parsed = parse_message(req.message, profile_name=req.sender)
-    embedding_blob = compute_embedding(parsed)
-    obs = ParsedObservation(
-        raw_message_id=raw_id,
-        message_type=parsed.get("message_type"),
-        intent=parsed.get("intent"),
-        principal=parsed.get("principal"),
-        bhk=parsed.get("bhk"),
-        price=parsed.get("price"),
-        price_unit=parsed.get("price_unit"),
-        area_sqft=parsed.get("area_sqft"),
-        furnishing=parsed.get("furnishing"),
-        location_raw=parsed.get("location_raw"),
-        location=json.dumps(parsed.get("location")) if parsed.get("location") else None,
-        building_name=parsed.get("building_name"),
-        landmark_name=parsed.get("landmark_name"),
-        street_name=parsed.get("street_name"),
-        area=parsed.get("area"),
-        micro_market=parsed.get("micro_market"),
-        developer=parsed.get("developer"),
-        broker_name=parsed.get("broker_name"),
-        broker_phone=parsed.get("broker_phone"),
-        forwarded=parsed.get("forwarded", 0),
-        confidence=parsed.get("confidence", 0.0),
-        raw_payload=json.dumps(parsed.get("raw_payload", {})),
-        embedding=embedding_blob,
-    )
-    parsed_id = storage.save_parsed(obs)
+    msg_class = multi_listing.classify_message(req.message)
+    if msg_class == "multi":
+        parsed_listings = multi_listing.parse_multi_message(
+            req.message, profile_name=req.sender
+        )
+    else:
+        single = parse_message(req.message, profile_name=req.sender)
+        parsed_listings = [single] if single else []
 
-    resolver_result = resolve_parsed(parsed, req.message)
-    dec = ResolverDecision(
-        parsed_id=parsed_id,
-        building_id=resolver_result.get("building_id"),
-        building_name=resolver_result.get("building_name"),
-        landmark_id=resolver_result.get("landmark_id"),
-        landmark_name=resolver_result.get("landmark_name"),
-        street_id=resolver_result.get("street_id"),
-        street_name=resolver_result.get("street_name"),
-        project_id=resolver_result.get("project_id"),
-        project_name=resolver_result.get("project_name"),
-        developer_name=resolver_result.get("developer_name"),
-        parser_confidence=resolver_result.get("parser_confidence", 0.0),
-        resolver_confidence=resolver_result.get("resolver_confidence", 0.0),
-        final_confidence=resolver_result.get("final_confidence", 0.0),
-        method=resolver_result.get("method", "unresolved"),
-        method_detail=resolver_result.get("method_detail"),
-        candidates=json.dumps(resolver_result.get("candidates", [])),
-        failure_category=resolver_result.get("failure_category"),
-        error=resolver_result.get("error"),
-    )
-    storage.save_resolver_decision(dec)
+    parsed_ids: list[int] = []
+    all_parsed_dicts: list[dict] = []
+    resolver_result = None
+    for idx, parsed in enumerate(parsed_listings):
+        embedding_blob = compute_embedding(parsed) if idx == 0 else None
+        obs = ParsedObservation(
+            raw_message_id=raw_id,
+            listing_index=idx,
+            message_type=parsed.get("message_type"),
+            intent=parsed.get("intent"),
+            principal=parsed.get("principal"),
+            bhk=parsed.get("bhk"),
+            price=parsed.get("price"),
+            price_unit=parsed.get("price_unit"),
+            area_sqft=parsed.get("area_sqft"),
+            furnishing=parsed.get("furnishing"),
+            location_raw=parsed.get("location_raw"),
+            location=json.dumps(parsed.get("location")) if parsed.get("location") else None,
+            building_name=parsed.get("building_name"),
+            landmark_name=parsed.get("landmark_name"),
+            street_name=parsed.get("street_name"),
+            area=parsed.get("area"),
+            micro_market=parsed.get("micro_market"),
+            developer=parsed.get("developer"),
+            broker_name=parsed.get("broker_name"),
+            broker_phone=parsed.get("broker_phone"),
+            forwarded=parsed.get("forwarded", 0),
+            confidence=parsed.get("confidence", 0.0),
+            raw_payload=json.dumps(parsed.get("raw_payload", {})),
+            embedding=embedding_blob,
+        )
+        parsed_id = storage.save_parsed(obs)
+        parsed_ids.append(parsed_id)
+        all_parsed_dicts.append(parsed)
 
-    # Evaluate if expected provided
-    if req.expected:
-        evaluate_parsed(raw_id, parsed, req.expected)
+        if idx == 0 or msg_class != "multi":
+            resolver_result = resolve_parsed(parsed, req.message)
+        resolver_result["parsed_id"] = parsed_id
+        dec = ResolverDecision(
+            parsed_id=parsed_id,
+            building_id=resolver_result.get("building_id"),
+            building_name=resolver_result.get("building_name"),
+            landmark_id=resolver_result.get("landmark_id"),
+            landmark_name=resolver_result.get("landmark_name"),
+            street_id=resolver_result.get("street_id"),
+            street_name=resolver_result.get("street_name"),
+            project_id=resolver_result.get("project_id"),
+            project_name=resolver_result.get("project_name"),
+            developer_name=resolver_result.get("developer_name"),
+            parser_confidence=resolver_result.get("parser_confidence", 0.0),
+            resolver_confidence=resolver_result.get("resolver_confidence", 0.0),
+            final_confidence=resolver_result.get("final_confidence", 0.0),
+            method=resolver_result.get("method", "unresolved"),
+            method_detail=resolver_result.get("method_detail"),
+            candidates=json.dumps(resolver_result.get("candidates", [])),
+            failure_category=resolver_result.get("failure_category"),
+            error=resolver_result.get("error"),
+        )
+        storage.save_resolver_decision(dec)
+
+    if req.expected and all_parsed_dicts:
+        evaluate_parsed(raw_id, all_parsed_dicts[0], req.expected)
 
     return {
         "raw_id": raw_id,
-        "parsed_id": parsed_id,
-        "parsed": {k: v for k, v in parsed.items() if v is not None},
+        "parsed_ids": parsed_ids,
+        "count": len(parsed_ids),
+        "parsed": [{k: v for k, v in p.items() if v is not None} for p in all_parsed_dicts],
         "resolver": resolver_result,
     }
 

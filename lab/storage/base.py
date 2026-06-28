@@ -48,6 +48,7 @@ class ParsedObservation:
     broker_name: Optional[str] = None
     broker_phone: Optional[str] = None
     profile_name: Optional[str] = None
+    listing_index: int = 0
     forwarded: int = 0
     confidence: float = 0.0
     raw_payload: str = "{}"

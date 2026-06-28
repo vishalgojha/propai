@@ -79,6 +79,8 @@ class SqliteStorage(Storage):
             "ALTER TABLE parsed_output ADD COLUMN embedding BLOB DEFAULT NULL",
             "ALTER TABLE parsed_output ADD COLUMN location TEXT DEFAULT NULL",
             "ALTER TABLE parsed_output ADD COLUMN message_type TEXT DEFAULT NULL",
+            "ALTER TABLE parsed_output ADD COLUMN listing_index INTEGER DEFAULT 0",
+            "CREATE INDEX IF NOT EXISTS idx_parsed_listing ON parsed_output(raw_message_id, listing_index)",
         ]
         for sql in migs:
             try:
@@ -382,15 +384,16 @@ class SqliteStorage(Storage):
                (raw_message_id, message_type, intent, principal, bhk, price, price_unit, area_sqft,
                 furnishing, location_raw, location, building_name, landmark_name, street_name,
                 area, micro_market, developer, broker_name, broker_phone,
-                profile_name, forwarded, confidence, raw_payload, event_id, embedding)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                profile_name, listing_index, forwarded, confidence, raw_payload, event_id, embedding)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (obs.raw_message_id, obs.message_type, obs.intent, obs.principal, obs.bhk,
              obs.price, obs.price_unit, obs.area_sqft, obs.furnishing,
              obs.location_raw, obs.location,
              obs.building_name, obs.landmark_name, obs.street_name,
              obs.area, obs.micro_market, obs.developer,
              obs.broker_name, obs.broker_phone,
-             obs.profile_name, obs.forwarded,
+             obs.profile_name, obs.listing_index,
+             obs.forwarded,
              obs.confidence, obs.raw_payload, obs.event_id,
              obs.embedding)
         )
@@ -422,7 +425,7 @@ class SqliteStorage(Storage):
                       p.location_raw, p.location, p.building_name, p.landmark_name,
                       p.street_name, p.area, p.micro_market, p.developer,
                       p.broker_name, p.broker_phone, p.profile_name,
-                      p.forwarded, p.confidence, p.raw_payload, p.event_id,
+                      p.listing_index, p.forwarded, p.confidence, p.raw_payload, p.event_id,
                       p.created_at,
                       r.message as raw_message,
                       r.sender as raw_sender,
@@ -876,22 +879,31 @@ class SqliteStorage(Storage):
         db = self.db
         raw = db.execute("SELECT * FROM raw_messages WHERE id = ?", (obs_id,)).fetchone()
         raw_dict = dict(raw) if raw else {}
-        parsed_row = db.execute(
-            "SELECT * FROM parsed_output WHERE raw_message_id = ? ORDER BY id DESC LIMIT 1",
+
+        parsed_rows = db.execute(
+            "SELECT * FROM parsed_output WHERE raw_message_id = ? ORDER BY listing_index ASC, id ASC",
             (obs_id,)
-        ).fetchone()
-        parsed_dict = dict(parsed_row) if parsed_row else {}
-        parsed_dict.pop("embedding", None)
-        if parsed_dict.get("location") and isinstance(parsed_dict["location"], str):
-            try:
-                parsed_dict["location"] = json.loads(parsed_dict["location"])
-            except (json.JSONDecodeError, TypeError):
-                pass
+        ).fetchall()
+
+        listings = []
+        first_parsed = None
+        for row in parsed_rows:
+            d = dict(row)
+            d.pop("embedding", None)
+            if d.get("location") and isinstance(d["location"], str):
+                try:
+                    d["location"] = json.loads(d["location"])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            listings.append(d)
+            if first_parsed is None:
+                first_parsed = d
+
         resolver_dict = {}
-        if parsed_dict:
+        if first_parsed:
             r_row = db.execute(
                 "SELECT * FROM resolver_decisions WHERE parsed_id = ? ORDER BY id DESC LIMIT 1",
-                (parsed_dict["id"],)
+                (first_parsed["id"],)
             ).fetchone()
             if r_row:
                 resolver_dict = dict(r_row)
@@ -907,7 +919,8 @@ class SqliteStorage(Storage):
         eval_dict = dict(eval_row) if eval_row else {}
         return {
             "raw": raw_dict,
-            "parsed": parsed_dict,
+            "parsed": first_parsed or {},
+            "listings": listings,
             "resolver": resolver_dict,
             "evaluation": eval_dict,
         }
