@@ -30,9 +30,54 @@ import { formatCurrencyCr, formatPerSqft, formatSqft, listingLine } from "./form
 import { registerMcpPrompts } from "./prompts.ts";
 import { registerMcpResources } from "./resources.ts";
 import { executeSmartSearch } from "./smartSearch.ts";
+import { registerMarketTools } from "./tools/market.ts";
+import { registerListingTools } from "./tools/listing.ts";
+import { registerRequirementTools } from "./tools/requirement.ts";
+import { registerBrokerTools } from "./tools/broker.ts";
+import { registerBuildingTools } from "./tools/building.ts";
+import { registerGeographyTools } from "./tools/geography.ts";
+import { registerInboxTools } from "./tools/inbox.ts";
+import { registerIntelligenceTools } from "./tools/intelligence.ts";
+import { registerContactTools } from "./tools/contact.ts";
 import type { ToolContext } from "./types.js";
 
 export const MCP_TOOL_NAMES = [
+  // Domain-organized tools (primary)
+  "market_search",
+  "market_summary",
+  "market_stats",
+  "market_trends",
+  "listing_get",
+  "listing_similar",
+  "listing_history",
+  "listing_contactBroker",
+  "listing_timeline",
+  "requirement_search",
+  "requirement_match",
+  "requirement_timeline",
+  "broker_search",
+  "broker_profile",
+  "broker_activity",
+  "broker_inventory",
+  "building_search",
+  "building_profile",
+  "building_inventory",
+  "building_requirements",
+  "building_marketPulse",
+  "location_search",
+  "location_nearby",
+  "location_market",
+  "conversation_search",
+  "conversation_timeline",
+  "conversation_summarize",
+  "conversation_reply",
+  "intel_ask",
+  "intel_explain",
+  "intel_compare",
+  "contact_search",
+  "contact_call",
+  "contact_whatsapp",
+  // Legacy tools (backward compatible)
   "smartSearch",
   "getListing",
   "searchBrokers",
@@ -100,12 +145,25 @@ export function createMcpServer(context: ToolContext = {}) {
         tools: {},
       },
       instructions:
-        "PropAI MCP is a WhatsApp-native real estate intelligence platform for Indian brokers. Use `smartSearch` as your primary tool — it accepts natural language queries and returns the right results from listings, requirements, brokers, or market intelligence. Other tools are available for specific lookups and CRM workflows.",
+        "PropAI MCP is a WhatsApp-native real estate intelligence platform for Indian brokers. Tools are organized by domain:\n  • **market**: Search, summarize, stats, trends — general market queries\n  • **listing**: Get details, find similar, history, contact broker\n  • **requirement**: Search buyer/tenant requirements, match to inventory\n  • **broker**: Search, profile, activity, inventory\n  • **building**: Search, profile, inventory, requirements, market pulse\n  • **location**: Search, nearby, market analysis\n  • **conversation**: Search, timeline, summarize, reply\n  • **intel**: Ask questions, explain trends, compare entities\n  • **contact**: Search, call, WhatsApp\n\nUse `market_search` as your primary entry point for general queries. SmartSearch also accepts natural language like '3 BHK in Bandra West under 2 Cr'.",
     },
   );
 
   registerMcpResources(server, context);
   registerMcpPrompts(server);
+
+  // ── Domain-organized tools ──
+  registerMarketTools(server, context);
+  registerListingTools(server, context);
+  registerRequirementTools(server, context);
+  registerBrokerTools(server, context);
+  registerBuildingTools(server, context);
+  registerGeographyTools(server, context);
+  registerInboxTools(server, context);
+  registerIntelligenceTools(server, context);
+  registerContactTools(server, context);
+
+  // ── Legacy tools (backward compatible) ──
 
   server.registerTool("smartSearch", {
     description:
